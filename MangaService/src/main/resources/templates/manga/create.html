@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Добавить мангу - AniWay</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/manga">
+                <i class="bi bi-book"></i> AniWay
+            </a>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title mb-0">
+                            <i class="bi bi-plus-circle"></i> Добавить новую мангу
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <form th:action="@{/manga/create}" method="post" th:object="${mangaCreateDTO}">
+                            <div class="row">
+                                <div class="col-md-12 mb-3">
+                                    <label for="title" class="form-label">Название *</label>
+                                    <input type="text" class="form-control" id="title" th:field="*{title}" required>
+                                    <div class="invalid-feedback" th:if="${#fields.hasErrors('title')}" th:errors="*{title}"></div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="author" class="form-label">Автор</label>
+                                    <input type="text" class="form-control" id="author" th:field="*{author}">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="artist" class="form-label">Художник</label>
+                                    <input type="text" class="form-control" id="artist" th:field="*{artist}">
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="status" class="form-label">Статус</label>
+                                    <select class="form-select" id="status" th:field="*{status}">
+                                        <option th:each="status : ${statuses}" th:value="${status}" th:text="${status}"></option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="releaseDate" class="form-label">Дата выхода</label>
+                                    <input type="date" class="form-control" id="releaseDate" th:field="*{releaseDate}">
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="genre" class="form-label">Жанры</label>
+                                <input type="text" class="form-control" id="genre" th:field="*{genre}"
+                                       placeholder="Например: Экшен, Приключения, Фэнтези">
+                                <small class="form-text text-muted">Укажите жанры через запятую</small>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="description" class="form-label">Описание</label>
+                                <textarea class="form-control" id="description" rows="6" th:field="*{description}"
+                                          placeholder="Краткое описание сюжета манги..."></textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="coverImageUrl" class="form-label">URL обложки</label>
+                                <input type="url" class="form-control" id="coverImageUrl" th:field="*{coverImageUrl}"
+                                       placeholder="https://example.com/cover.jpg">
+                                <small class="form-text text-muted">Ссылка на изображение обложки</small>
+                            </div>
+
+                            <div class="d-flex justify-content-between">
+                                <a href="/manga" class="btn btn-secondary">
+                                    <i class="bi bi-arrow-left"></i> Отмена
+                                </a>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-check-lg"></i> Создать мангу
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  # PostgreSQL databases for each service
+  manga-postgres:
+    image: postgres:16
+    container_name: manga-postgres
+    environment:
+      POSTGRES_DB: manga_db
+      POSTGRES_USER: manga_user
+      POSTGRES_PASSWORD: manga_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5435:5432"
+    volumes:
+      - manga_postgres_data:/var/lib/postgresql/data
+      - ./MangaService/mangaDB.sql:/docker-entrypoint-initdb.d/init.sql
+
+  chapter-postgres:
+    image: postgres:16
+    container_name: chapter-postgres
+    environment:
+      POSTGRES_DB: chapter_db
+      POSTGRES_USER: chapter_user
+      POSTGRES_PASSWORD: chapter_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5433:5432"
+    volumes:
+      - chapter_postgres_data:/var/lib/postgresql/data
+      - ./ChapterService/chapterDB.sql:/docker-entrypoint-initdb.d/init.sql
+
+  image-storage-postgres:
+    image: postgres:16
+    container_name: image-storage-postgres
+    environment:
+      POSTGRES_DB: image_storage_db
+      POSTGRES_USER: image_user
+      POSTGRES_PASSWORD: image_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5434:5432"
+    volumes:
+      - image_storage_postgres_data:/var/lib/postgresql/data
+      - ./ImageStorageService/imageStorageDB.sql:/docker-entrypoint-initdb.d/init.sql
+
+  # MinIO for image storage
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+
+volumes:
+  manga_postgres_data:
+  chapter_postgres_data:
+  image_storage_postgres_data:
+  minio_data:

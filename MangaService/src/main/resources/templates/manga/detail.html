@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${manga.title}">Детали манги</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/manga">Manga Reader</a>
+            <div class="navbar-nav">
+                <a class="nav-link" href="/manga">Каталог</a>
+                <a class="nav-link" href="/manga/create">Добавить мангу</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+            <span th:text="${successMessage}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+
+        <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert">
+            <span th:text="${errorMessage}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+
+        <div class="row">
+            <div class="col-md-4">
+                <img th:src="${manga.coverImageUrl}"
+                     th:alt="${manga.title}"
+                     class="img-fluid rounded shadow"
+                     th:if="${manga.coverImageUrl}"
+                     onerror="this.src='/images/default-cover.jpg'">
+                <div class="bg-light rounded shadow d-flex align-items-center justify-content-center"
+                     style="height: 400px;" th:unless="${manga.coverImageUrl}">
+                    <span class="text-muted">Нет обложки</span>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <h1 th:text="${manga.title}">Название манги</h1>
+                    <div>
+                        <a th:href="@{/manga/{id}/edit(id=${manga.id})}" class="btn btn-outline-primary">Редактировать</a>
+                        <form th:action="@{/manga/{id}/delete(id=${manga.id})}" method="post" class="d-inline">
+                            <button type="submit" class="btn btn-outline-danger"
+                                    onclick="return confirm('Вы уверены, что хотите удалить эту мангу?')">Удалить</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <h5>Описание:</h5>
+                    <p th:text="${manga.description}" class="text-muted">Описание манги...</p>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-sm-6">
+                        <strong>Автор:</strong> <span th:text="${manga.author ?: 'Неизвестен'}"></span>
+                    </div>
+                    <div class="col-sm-6" th:if="${manga.artist}">
+                        <strong>Художник:</strong> <span th:text="${manga.artist}"></span>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-sm-6">
+                        <strong>Статус:</strong>
+                        <span class="badge" th:classappend="${manga.status.name() == 'COMPLETED'} ? 'bg-success' :
+                                                           (${manga.status.name() == 'ONGOING'} ? 'bg-primary' :
+                                                           (${manga.status.name() == 'HIATUS'} ? 'bg-warning' : 'bg-danger'))"
+                              th:text="${manga.status}"></span>
+                    </div>
+                    <div class="col-sm-6">
+                        <strong>Всего глав:</strong> <span th:text="${manga.totalChapters}">0</span>
+                    </div>
+                </div>
+
+                <div class="row mb-3" th:if="${manga.releaseDate}">
+                    <div class="col-sm-6">
+                        <strong>Дата выхода:</strong> <span th:text="${#temporals.format(manga.releaseDate, 'dd.MM.yyyy')}"></span>
+                    </div>
+                    <div class="col-sm-6" th:if="${manga.genre}">
+                        <strong>Жанр:</strong> <span th:text="${manga.genre}"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <hr class="my-4">
+
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3>Главы</h3>
+            <a th:href="@{/chapters/create?mangaId={id}(id=${manga.id})}" class="btn btn-success">Добавить главу</a>
+        </div>
+
+        <div id="chapters-list">
+            <p class="text-muted">Загрузка глав...</p>
+        </div>
+    </div>
+
+    <!-- Modal для предпросмотра главы -->
+    <div class="modal fade" id="previewModal" tabindex="-1" aria-labelledby="previewModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="previewModalLabel">Пред��росмотр главы</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="preview-content">
+                        <div class="text-center">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">Загрузка...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Загрузка списка глав через API
+        fetch(`/api/manga/${[[${manga.id}]]}/chapters`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(chapters => {
+                const chaptersDiv = document.getElementById('chapters-list');
+
+                // Убеждаемся, что chapters является массивом
+                if (!Array.isArray(chapters)) {
+                    console.error('Received data is not an array:', chapters);
+                    chaptersDiv.innerHTML = '<div class="alert alert-danger">Ошибка загрузки глав. Неверный формат данных.</div>';
+                    return;
+                }
+
+                if (chapters.length === 0) {
+                    chaptersDiv.innerHTML = '<p class="text-muted">Пока нет добавленных глав.</p>';
+                } else {
+                    let chaptersHtml = '<div class="list-group">';
+                    chapters.forEach(chapter => {
+                        chaptersHtml += `
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">Глава ${chapter.chapterNumber}</h6>
+                                    <p class="mb-1">${chapter.title || 'Без названия'}</p>
+                                    <small class="text-muted">Страниц: ${chapter.pageCount || 0} | ${chapter.publishedDate ? new Date(chapter.publishedDate).toLocaleDateString('ru-RU') : 'Нет даты'}</small>
+                                </div>
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-outline-info btn-sm" onclick="showChapterPreview(${chapter.id})" title="Предпросмотр">
+                                        👁️
+                                    </button>
+                                    <a href="/reader/${chapter.id}" class="btn btn-primary btn-sm">Читать</a>
+                                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="deleteChapter(${chapter.id}, ${chapter.chapterNumber})" title="Удалить">
+                                        🗑️
+                                    </button>
+                                </div>
+                            </div>`;
+                    });
+                    chaptersHtml += '</div>';
+                    chaptersDiv.innerHTML = chaptersHtml;
+                }
+            })
+            .catch(error => {
+                console.error('Error loading chapters:', error);
+                document.getElementById('chapters-list').innerHTML =
+                    '<div class="alert alert-danger">Ошибка загрузки глав. Проверьте, что ChapterService запущен.</div>';
+            });
+
+        // Функция для показа предпросмотра главы
+        function showChapterPreview(chapterId) {
+            const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+            const previewContent = document.getElementById('preview-content');
+
+            // Показываем загрузку
+            previewContent.innerHTML = `
+                <div class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Загрузка...</span>
+                    </div>
+                    <p class="mt-2">Загружаем предпросмотр...</p>
+                </div>
+            `;
+
+            modal.show();
+
+            // Загружаем изображения главы
+            fetch(`/api/images/chapter/${chapterId}/preview`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to load preview');
+                    }
+                    return response.json();
+                })
+                .then(images => {
+                    if (images.length === 0) {
+                        previewContent.innerHTML = '<p class="text-center text-muted">В этой главе пока нет изображений.</p>';
+                        return;
+                    }
+
+                    let previewHtml = '<div class="row g-3">';
+                    images.forEach((image, index) => {
+                        previewHtml += `
+                            <div class="col-6 col-md-4 col-lg-3">
+                                <div class="card">
+                                    <img src="/api/images/proxy/${image.imageKey}"
+                                         class="card-img-top"
+                                         style="height: 200px; object-fit: cover;"
+                                         alt="Страница ${image.pageNumber}"
+                                         loading="lazy">
+                                    <div class="card-body p-2">
+                                        <small class="text-muted">Страница ${image.pageNumber}</small>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    previewHtml += '</div>';
+                    previewContent.innerHTML = previewHtml;
+                })
+                .catch(error => {
+                    console.error('Error loading preview:', error);
+                    previewContent.innerHTML = `
+                        <div class="alert alert-danger">
+                            <h6>Ошибка загрузки предпросмотра</h6>
+                            <p>Не удалось загрузить изображения главы. Проверьте, что ImageStorageService запущен.</p>
+                        </div>
+                    `;
+                });
+        }
+
+        // Функция для удаления главы
+        function deleteChapter(chapterId, chapterNumber) {
+            if (confirm(`Вы уверены, что хотите удалить главу ${chapterNumber}? Все изображения этой главы будут также удалены.`)) {
+                fetch(`/chapters/${chapterId}`, {
+                    method: 'DELETE'
+                })
+                .then(response => {
+                    if (response.ok) {
+                        // Перезагружаем список глав
+                        location.reload();
+                    } else {
+                        response.text().then(errorText => {
+                            alert('Ошибка при удалении главы: ' + errorText);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error deleting chapter:', error);
+                    alert('Ошибка при удалении главы: ' + error.message);
+                });
+            }
+        }
+    </script>
+</body>
+</html>

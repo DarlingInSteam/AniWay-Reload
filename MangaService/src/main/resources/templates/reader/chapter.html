@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="'Глава ' + ${chapter.chapterNumber} + ' - ' + ${manga.title}">Чтение манги</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a1a;
+            font-family: Arial, sans-serif;
+        }
+
+        .reader-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 10px 20px;
+            z-index: 1000;
+            color: white;
+            backdrop-filter: blur(10px);
+        }
+
+        .reader-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin: 0;
+            text-align: center;
+        }
+
+        .reader-content {
+            padding-top: 80px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0;
+        }
+
+        .manga-page {
+            max-width: 100vw;
+            width: auto;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+
+        .loading-message {
+            color: white;
+            text-align: center;
+            padding: 50px 20px;
+            font-size: 18px;
+        }
+
+        .error-message {
+            color: #ff6b6b;
+            text-align: center;
+            padding: 50px 20px;
+            font-size: 18px;
+        }
+
+        .back-button {
+            position: fixed;
+            top: 15px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 8px 15px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 14px;
+            z-index: 1001;
+        }
+
+        .back-button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            text-decoration: none;
+        }
+
+        .chapter-info {
+            position: fixed;
+            top: 15px;
+            right: 20px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 12px;
+            z-index: 1001;
+        }
+
+        /* Мобильная оптимизация */
+        @media (max-width: 768px) {
+            .reader-header {
+                padding: 15px 10px;
+            }
+
+            .back-button {
+                top: 20px;
+                left: 10px;
+                font-size: 12px;
+                padding: 6px 12px;
+            }
+
+            .chapter-info {
+                top: 20px;
+                right: 10px;
+            }
+
+            .manga-page {
+                max-width: 100vw;
+                margin: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Кнопка назад -->
+    <a th:href="@{/manga/{id}(id=${manga.id})}" class="back-button">
+        ← Назад к манге
+    </a>
+
+    <!-- Информация о главе -->
+    <div class="chapter-info">
+        <span th:text="'Глава ' + ${chapter.chapterNumber}">Глава 1</span>
+        <span id="page-info"> • Загрузка...</span>
+    </div>
+
+    <!-- Заголовок -->
+    <div class="reader-header">
+        <h1 class="reader-title">
+            <span th:text="${manga.title}">Название манги</span>
+            <span th:if="${chapter.title}" th:text="' - ' + ${chapter.title}"> - Название главы</span>
+        </h1>
+    </div>
+
+    <!-- Контент для чтения -->
+    <div class="reader-content" id="reader-content">
+        <div class="loading-message" id="loading">
+            Загрузка страниц главы...
+        </div>
+    </div>
+
+    <script>
+        let chapterId = [[${chapter.id}]];
+        let currentPage = 1;
+        let totalPages = 0;
+        let images = [];
+
+        // Загружаем изображения главы
+        async function loadChapterImages() {
+            try {
+                const response = await fetch(`/api/images/chapter/${chapterId}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                images = await response.json();
+                console.log('=== DEBUG: Loaded images from API ===');
+                console.log('Raw images array:', images);
+
+                // Показываем детали каждого изображения
+                images.forEach((image, index) => {
+                    console.log(`Image ${index}: pageNumber=${image.pageNumber}, id=${image.id}, imageKey=${image.imageKey}`);
+                });
+
+                if (!Array.isArray(images) || images.length === 0) {
+                    showError('В этой главе пока нет страниц');
+                    return;
+                }
+
+                // ВАЖНО: Сортируем изображения по номеру страницы
+                images.sort((a, b) => a.pageNumber - b.pageNumber);
+                console.log('=== DEBUG: After sorting by pageNumber ===');
+                images.forEach((image, index) => {
+                    console.log(`Sorted Image ${index}: pageNumber=${image.pageNumber}, id=${image.id}`);
+                });
+
+                totalPages = images.length;
+                updatePageInfo();
+                displayImages();
+
+            } catch (error) {
+                console.error('Error loading images:', error);
+                showError('Ошибка загрузки страниц. Проверьте подключение к серверу.');
+            }
+        }
+
+        // Отображаем все изображения вертикально
+        function displayImages() {
+            const content = document.getElementById('reader-content');
+            const loading = document.getElementById('loading');
+
+            loading.remove();
+
+            images.forEach((image, index) => {
+                const img = document.createElement('img');
+                img.className = 'manga-page';
+
+                // Используем прокси через наш сервер вместо прямого обращения к MinIO
+                img.src = `/api/images/proxy/${image.imageKey}`;
+                img.alt = `Страница ${image.pageNumber}`; // ИСПРАВЛЕНО: используем pageNumber вместо index + 1
+                img.loading = 'lazy';
+
+                // Добавляем атрибут для отладки
+                img.setAttribute('data-page-number', image.pageNumber);
+                img.setAttribute('data-image-id', image.id);
+
+                img.onload = function() {
+                    console.log(`Successfully loaded page ${image.pageNumber} (image id: ${image.id}):`, `/api/images/proxy/${image.imageKey}`);
+                };
+
+                img.onerror = function() {
+                    console.error(`Failed to load page ${image.pageNumber} (image id: ${image.id}):`, `/api/images/proxy/${image.imageKey}`);
+                    console.error('Full image object:', image);
+
+                    // Показываем сообщение об ошибке вместо скрытия
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'error-message';
+                    errorDiv.textContent = `Ошибка загрузки страницы ${image.pageNumber}`;
+                    errorDiv.style.padding = '20px';
+                    errorDiv.style.margin = '10px';
+                    errorDiv.style.backgroundColor = 'rgba(255, 107, 107, 0.1)';
+                    errorDiv.style.border = '1px solid #ff6b6b';
+                    errorDiv.style.borderRadius = '5px';
+
+                    content.replaceChild(errorDiv, this);
+                };
+
+                content.appendChild(img);
+            });
+
+            console.log('=== DEBUG: Images added to DOM in order ===');
+            images.forEach((image, index) => {
+                console.log(`DOM position ${index}: pageNumber=${image.pageNumber}, imageKey=${image.imageKey}`);
+            });
+        }
+
+        // Обновляем информацию о странице
+        function updatePageInfo() {
+            const pageInfo = document.getElementById('page-info');
+            pageInfo.textContent = ` • ${totalPages} страниц`;
+        }
+
+        // Показываем ошибку
+        function showError(message) {
+            const content = document.getElementById('reader-content');
+            content.innerHTML = `<div class="error-message">${message}</div>`;
+        }
+
+        // Запускаем загрузку при загрузке страницы
+        document.addEventListener('DOMContentLoaded', loadChapterImages);
+    </script>
+</body>
+</html>
