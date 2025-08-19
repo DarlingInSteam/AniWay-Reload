@@ -171,10 +171,32 @@ public class ImageStorageService {
 
         createBucketIfNotExists();
 
+        // Логируем исходный порядок файлов
+        System.out.println("=== DEBUG: Original file order ===");
+        for (int i = 0; i < files.size(); i++) {
+            System.out.println("File " + i + ": " + files.get(i).getOriginalFilename());
+        }
+
+        // Сортируем файлы по имени для обеспечения предсказуемого порядка
+        List<MultipartFile> sortedFiles = new ArrayList<>(files);
+        sortedFiles.sort((f1, f2) -> {
+            String name1 = f1.getOriginalFilename();
+            String name2 = f2.getOriginalFilename();
+            if (name1 == null) name1 = "";
+            if (name2 == null) name2 = "";
+            return name1.compareToIgnoreCase(name2);
+        });
+
+        // Логируем отсортированный порядок файлов
+        System.out.println("=== DEBUG: Sorted file order ===");
+        for (int i = 0; i < sortedFiles.size(); i++) {
+            System.out.println("Sorted File " + i + ": " + sortedFiles.get(i).getOriginalFilename() + " → will be page " + (startPage + i));
+        }
+
         List<ChapterImageResponseDTO> uploadedImages = new java.util.ArrayList<>();
 
-        for (int i = 0; i < files.size(); i++) {
-            MultipartFile file = files.get(i);
+        for (int i = 0; i < sortedFiles.size(); i++) {
+            MultipartFile file = sortedFiles.get(i);
             Integer pageNumber = startPage + i;
 
             // Проверяем, что страница с таким номером не существует
@@ -220,6 +242,8 @@ public class ImageStorageService {
 
             ChapterImage savedImage = imageRepository.save(chapterImage);
             uploadedImages.add(new ChapterImageResponseDTO(savedImage));
+
+            System.out.println("Uploaded: " + file.getOriginalFilename() + " → page " + pageNumber);
         }
 
         return uploadedImages;
@@ -233,7 +257,7 @@ public class ImageStorageService {
         if (imageOpt.isPresent()) {
             ChapterImage image = imageOpt.get();
 
-            // Удаляем из MinIO
+            // Уд��ляем из MinIO
             minioClient.removeObject(
                     RemoveObjectArgs.builder()
                             .bucket(bucketName)
