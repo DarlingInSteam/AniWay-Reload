@@ -99,6 +99,7 @@ services:
       - SPRING_DATASOURCE_USERNAME=image_user
       - SPRING_DATASOURCE_PASSWORD=image_password
       - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_PUBLIC_ENDPOINT=http://localhost:9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
       - MANGA_SERVICE_URL=http://manga-service:8081
@@ -150,6 +151,8 @@ services:
       - MINIO_ENDPOINT=http://minio:9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
+      - MELON_SERVICE_URL=http://melon-service:8084
+      - MELON_SERVICE_PUBLIC_URL=http://localhost:8084
       - CHAPTER_SERVICE_URL=http://chapter-service:8082
       - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
     ports:

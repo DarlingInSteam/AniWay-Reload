@@ -1,3 +1,9 @@
+version: '3.8'
+
+networks:
+  aniway-network:
+    driver: bridge
+
 services:
   # Manga Service - для разработки с volume binding
   manga-service:
@@ -11,6 +17,25 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=dev
       - SPRING_DEVTOOLS_RESTART_ENABLED=true
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://manga-postgres:5432/manga_db
+      - SPRING_DATASOURCE_USERNAME=manga_user
+      - SPRING_DATASOURCE_PASSWORD=manga_password
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MELON_SERVICE_URL=http://melon-service:8084
+      - MELON_SERVICE_PUBLIC_URL=http://localhost:8084
+      - CHAPTER_SERVICE_URL=http://chapter-service:8082
+      - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
+    ports:
+      - "8081:8081"
+    depends_on:
+      manga-postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - aniway-network
 
   # Chapter Service - для разработки
   chapter-service:
@@ -24,6 +49,18 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=dev
       - SPRING_DEVTOOLS_RESTART_ENABLED=true
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://chapter-postgres:5432/chapter_db
+      - SPRING_DATASOURCE_USERNAME=chapter_user
+      - SPRING_DATASOURCE_PASSWORD=chapter_password
+      - MANGA_SERVICE_URL=http://manga-service:8081
+      - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
+    ports:
+      - "8082:8082"
+    depends_on:
+      chapter-postgres:
+        condition: service_healthy
+    networks:
+      - aniway-network
 
   # Image Storage Service - для разработки
   image-storage-service:
@@ -34,9 +71,28 @@ services:
       - ./ImageStorageService/src:/app/src:ro
       - ./ImageStorageService/build.gradle.kts:/app/build.gradle.kts:ro
       - gradle-cache-image:/home/gradle/.gradle
+      - melon_data:/app/Output  # Общий том с MelonService для доступа к скачанным изображениям
     environment:
       - SPRING_PROFILES_ACTIVE=dev
       - SPRING_DEVTOOLS_RESTART_ENABLED=true
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://image-storage-postgres:5432/image_storage_db
+      - SPRING_DATASOURCE_USERNAME=image_user
+      - SPRING_DATASOURCE_PASSWORD=image_password
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_PUBLIC_ENDPOINT=http://localhost:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MANGA_SERVICE_URL=http://manga-service:8081
+      - CHAPTER_SERVICE_URL=http://chapter-service:8082
+    ports:
+      - "8083:8083"
+    depends_on:
+      image-storage-postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - aniway-network
 
   # Gateway Service - для разработки
   gateway-service:
@@ -50,6 +106,17 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=dev,docker
       - SPRING_DEVTOOLS_RESTART_ENABLED=true
+      - MANGA_SERVICE_URL=http://manga-service:8081
+      - CHAPTER_SERVICE_URL=http://chapter-service:8082
+      - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
+    ports:
+      - "8080:8080"
+    depends_on:
+      - manga-service
+      - chapter-service
+      - image-storage-service
+    networks:
+      - aniway-network
 
   # MelonService - парсер манги (dev режим)
   melon-service:
@@ -85,6 +152,8 @@ services:
     ports:
       - "5173:5173"  # Vite dev server
     command: npm run dev -- --host 0.0.0.0
+    networks:
+      - aniway-network
 
 volumes:
   gradle-cache-manga:

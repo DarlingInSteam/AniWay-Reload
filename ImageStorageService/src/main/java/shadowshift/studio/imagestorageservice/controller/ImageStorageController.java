@@ -11,6 +11,7 @@ import shadowshift.studio.imagestorageservice.service.ImageStorageService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/images")
@@ -169,6 +170,49 @@ public class ImageStorageController {
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Import failed: " + e.getMessage());
+        }
+    }
+
+    // Специальный эндпоинт для загрузки обложек манги
+    @PostMapping("/cover")
+    public ResponseEntity<?> uploadCover(@RequestParam("file") MultipartFile file) {
+        try {
+            // Используем специальный chapterId = -1 для обложек
+            ChapterImageResponseDTO uploadedCover = imageStorageService.uploadImage(-1L, 0, file);
+            return ResponseEntity.status(HttpStatus.CREATED).body(uploadedCover);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Upload failed: " + e.getMessage());
+        }
+    }
+
+    // Специальный эндпоинт для загрузки обложек манги с привязкой к manga_id
+    @PostMapping("/cover/{mangaId}")
+    public ResponseEntity<?> uploadCoverForManga(@PathVariable Long mangaId, @RequestParam("file") MultipartFile file) {
+        try {
+            ChapterImageResponseDTO uploadedCover = imageStorageService.uploadCoverForManga(mangaId, file);
+            return ResponseEntity.status(HttpStatus.CREATED).body(uploadedCover);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Upload failed: " + e.getMessage());
+        }
+    }
+
+    // Специальный эндпоинт для получения обложек манги
+    @GetMapping("/cover/{mangaId}")
+    public ResponseEntity<?> getCoverByMangaId(@PathVariable Long mangaId) {
+        try {
+            // Ищем обложку для данной манги (chapter_id = -1, но manga_id указывает на конкретную мангу)
+            Optional<ChapterImageResponseDTO> cover = imageStorageService.getCoverByMangaId(mangaId);
+            if (cover.isPresent()) {
+                return ResponseEntity.ok(cover.get());
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error getting cover: " + e.getMessage());
         }
     }
 }

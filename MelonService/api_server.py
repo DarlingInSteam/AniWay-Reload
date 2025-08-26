@@ -359,37 +359,51 @@ async def get_chapter_image(filename: str, chapter: str, page: str):
         logger.error(f"Error serving image {filename}/{chapter}/{page}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/images/list/{filename}")
-async def list_manga_images(filename: str):
-    """Возвращает список всех доступных изображений для манги"""
+# Добавляем новый эндпоинт для получения обложки как файла
+@app.get("/cover/{filename}")
+async def get_manga_cover(filename: str):
+    """Возвращает обложку манги как файл из папки images/{slug}/covers/"""
     try:
-        archives_path = get_melon_base_path() / "Output" / "mangalib" / "archives" / filename
+        # Правильный путь к обложкам: Output/mangalib/images/{slug}/covers/
+        covers_path = get_melon_base_path() / "Output" / "mangalib" / "images" / filename / "covers"
 
-        if not archives_path.exists():
-            return {"images": []}
+        if not covers_path.exists():
+            logger.error(f"Covers directory not found for manga: {filename}")
+            raise HTTPException(status_code=404, detail="Cover directory not found")
 
-        images = []
+        # Ищем любой файл обложки в папке covers
+        cover_path = None
+        for ext in ['.jpg', '.jpeg', '.png', '.webp']:
+            # Ищем файлы с нужным расширением в папке covers
+            for cover_file in covers_path.glob(f"*{ext}"):
+                if cover_file.is_file():
+                    cover_path = cover_file
+                    break
+            if cover_path:
+                break
 
-        # Проходим по всем папкам глав - папки называются просто номерами (1, 2, 3...)
-        for chapter_dir in archives_path.iterdir():
-            if chapter_dir.is_dir() and chapter_dir.name.isdigit():
-                chapter_num = chapter_dir.name
+        if not cover_path:
+            logger.error(f"Cover file not found for manga: {filename} in {covers_path}")
+            raise HTTPException(status_code=404, detail="Cover file not found")
 
-                # Проходим по всем изображениям в главе
-                for image_file in chapter_dir.iterdir():
-                    if image_file.is_file() and image_file.suffix.lower() in ['.jpg', '.jpeg', '.png', '.webp']:
-                        page_num = image_file.stem
-                        images.append({
-                            "chapter": chapter_num,
-                            "page": page_num,
-                            "filename": image_file.name,
-                            "url": f"/images/{filename}/{chapter_num}/{page_num}"
-                        })
+        # Определяем MIME тип
+        mime_type = "image/jpeg"  # По умолчанию
+        if cover_path.suffix.lower() == '.png':
+            mime_type = "image/png"
+        elif cover_path.suffix.lower() == '.webp':
+            mime_type = "image/webp"
 
-        return {"images": images}
+        # Читаем и возвращаем обложку
+        with open(cover_path, 'rb') as f:
+            cover_content = f.read()
 
+        logger.info(f"Successfully serving cover for manga: {filename} from {cover_path}")
+        return Response(content=cover_content, media_type=mime_type)
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error listing images for {filename}: {e}")
+        logger.error(f"Error serving cover {filename}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # Фоновые задачи

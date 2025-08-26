@@ -1,21 +1,22 @@
 -- ImageStorageService Database Schema
 
-CREATE TABLE IF NOT EXISTS chapter_image (
+CREATE TABLE IF NOT EXISTS chapter_images (
     id BIGSERIAL PRIMARY KEY,
-    chapter_id BIGINT NOT NULL,
+    manga_id BIGINT, -- Может быть NULL для обложек (пока не привязываем к манге)
+    chapter_id BIGINT NOT NULL, -- Используем -1 для обложек
     page_number INTEGER NOT NULL,
-    image_url VARCHAR(500) NOT NULL, -- MinIO URL
-    image_key VARCHAR(255) NOT NULL, -- MinIO object key
+    image_url TEXT NOT NULL,
+    minio_object_name VARCHAR(255) NOT NULL,
     file_size BIGINT,
-    mime_type VARCHAR(100),
+    content_type VARCHAR(100),
     width INTEGER,
     height INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    -- Ensure unique page numbers per chapter
-    UNIQUE(chapter_id, page_number)
-    );
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(chapter_id, page_number) -- Уникальность по главе и странице (включая обложки с chapter_id = -1)
+);
 
 -- Indexes for faster queries
-CREATE INDEX IF NOT EXISTS idx_chapter_image_chapter_id ON chapter_image(chapter_id);
-CREATE INDEX IF NOT EXISTS idx_chapter_image_page_number ON chapter_image(page_number);
-CREATE INDEX IF NOT EXISTS idx_chapter_image_key ON chapter_image(image_key);
+CREATE INDEX IF NOT EXISTS idx_chapter_images_manga_chapter ON chapter_images(manga_id, chapter_id);
+CREATE INDEX IF NOT EXISTS idx_chapter_images_minio_object ON chapter_images(minio_object_name);
+CREATE INDEX IF NOT EXISTS idx_chapter_images_covers ON chapter_images(chapter_id) WHERE chapter_id = -1; -- Индекс для обложек

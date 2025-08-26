@@ -2,9 +2,12 @@ package shadowshift.studio.mangaservice.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import shadowshift.studio.mangaservice.entity.Manga;
 import shadowshift.studio.mangaservice.repository.MangaRepository;
@@ -27,6 +30,9 @@ public class MelonIntegrationService {
 
     @Value("${melon.service.url:http://melon-service:8084}")
     private String melonServiceUrl;
+
+    @Value("${melon.service.public.url:http://localhost:8084}")
+    private String melonServicePublicUrl;
 
     /**
      * Запускает парсинг манги через MelonService
@@ -327,16 +333,6 @@ public class MelonIntegrationService {
                 }
             }
 
-            // Обрабатываем обложку
-            List<Map<String, Object>> covers = (List<Map<String, Object>>) mangaInfo.get("covers");
-            if (covers != null && !covers.isEmpty()) {
-                Map<String, Object> firstCover = covers.get(0);
-                String coverUrl = (String) firstCover.get("link");
-                if (coverUrl != null && !coverUrl.trim().isEmpty()) {
-                    manga.setCoverImageUrl(coverUrl.trim());
-                }
-            }
-
             // Подсчитываем общее количество глав
             Map<String, Object> content = (Map<String, Object>) mangaInfo.get("content");
             int totalChapters = 0;
@@ -349,8 +345,85 @@ public class MelonIntegrationService {
             }
             manga.setTotalChapters(totalChapters);
 
-            // Сохраняем мангу
+            // Сохраняем мангу СНАЧАЛА, чтобы получить ID
             manga = mangaRepository.save(manga);
+
+            // Обрабатываем обложку ПОСЛЕ сохранения манги - скачиваем из MelonService и сохраняем как файл
+            try {
+                // Скачиваем обложку из MelonService
+                String coverUrl = melonServiceUrl + "/cover/" + filename;
+                ResponseEntity<byte[]> coverResponse = restTemplate.getForEntity(coverUrl, byte[].class);
+
+                if (coverResponse.getStatusCode().is2xxSuccessful() && coverResponse.getBody() != null) {
+                    // Определяем расширение файла по Content-Type
+                    String contentType = coverResponse.getHeaders().getFirst("Content-Type");
+                    String fileExtension = ".jpg"; // По умолчанию
+                    if (contentType != null) {
+                        if (contentType.contains("png")) {
+                            fileExtension = ".png";
+                        } else if (contentType.contains("webp")) {
+                            fileExtension = ".webp";
+                        }
+                    }
+
+                    // Сохраняем обложку как файл через специальный эндпоинт для обложек
+                    String coverFileName = "cover_" + filename + fileExtension;
+
+                    // Создаем multipart запрос для специального эндпоинта обложек
+                    MultiValueMap<String, Object> coverRequest = new LinkedMultiValueMap<>();
+
+                    // Создаем ByteArrayResource для отправки
+                    ByteArrayResource coverResource = new ByteArrayResource(coverResponse.getBody()) {
+                        @Override
+                        public String getFilename() {
+                            return coverFileName;
+                        }
+                    };
+                    coverRequest.add("file", coverResource);
+
+                    HttpHeaders coverHeaders = new HttpHeaders();
+                    coverHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
+                    HttpEntity<MultiValueMap<String, Object>> coverEntity = new HttpEntity<>(coverRequest, coverHeaders);
+
+                    try {
+                        // Используем новый эндпоинт для обложек с manga_id
+                        ResponseEntity<Map> uploadResponse = restTemplate.postForEntity(
+                            "http://image-storage-service:8083/api/images/cover/" + manga.getId(),
+                            coverEntity,
+                            Map.class
+                        );
+
+                        if (uploadResponse.getStatusCode().is2xxSuccessful() && uploadResponse.getBody() != null) {
+                            String savedImageUrl = (String) uploadResponse.getBody().get("imageUrl");
+                            if (savedImageUrl != null) {
+                                manga.setCoverImageUrl(savedImageUrl);
+                                manga = mangaRepository.save(manga); // Сохраняем обновленный URL
+                                System.out.println("Cover saved successfully for manga: " + filename);
+                            }
+                        }
+                    } catch (Exception e) {
+                        System.err.println("Failed to save cover for manga " + filename + ": " + e.getMessage());
+                        // Fallback - используем публичную ссылку на MelonService (но только временно)
+                        String publicCoverUrl = melonServicePublicUrl + "/cover/" + filename;
+                        manga.setCoverImageUrl(publicCoverUrl);
+                        manga = mangaRepository.save(manga);
+                    }
+                } else {
+                    System.err.println("Failed to download cover for manga: " + filename);
+                }
+            } catch (Exception e) {
+                System.err.println("Error processing cover for manga " + filename + ": " + e.getMessage());
+                // Fallback - пробуем использовать обложку из JSON
+                List<Map<String, Object>> covers = (List<Map<String, Object>>) mangaInfo.get("covers");
+                if (covers != null && !covers.isEmpty()) {
+                    Map<String, Object> firstCover = covers.get(0);
+                    String coverUrl = (String) firstCover.get("link");
+                    if (coverUrl != null && !coverUrl.trim().isEmpty()) {
+                        manga.setCoverImageUrl(coverUrl.trim());
+                        manga = mangaRepository.save(manga);
+                    }
+                }
+            }
 
             return Map.of(
                 "success", true,
@@ -516,6 +589,7 @@ public class MelonIntegrationService {
         // Обрабатываем жанры
         List<String> genres = (List<String>) mangaInfo.get("genres");
         if (genres != null && !genres.isEmpty()) {
+            // Фильтруем пустые жанры
             List<String> filteredGenres = genres.stream()
                 .filter(genre -> genre != null && !genre.trim().isEmpty())
                 .map(String::trim)
@@ -539,19 +613,113 @@ public class MelonIntegrationService {
             }
         }
 
-        // Обрабатываем обложку
-        List<Map<String, Object>> covers = (List<Map<String, Object>>) mangaInfo.get("covers");
-        if (covers != null && !covers.isEmpty()) {
-            Map<String, Object> firstCover = covers.get(0);
-            String coverUrl = (String) firstCover.get("link");
-            if (coverUrl != null && !coverUrl.trim().isEmpty()) {
-                manga.setCoverImageUrl(coverUrl.trim());
+        // Обрабатываем обложку - скачиваем из MelonService и сохраняем как файл
+        try {
+            // Скачиваем обложку из MelonService
+            String coverUrl = melonServiceUrl + "/cover/" + filename;
+            ResponseEntity<byte[]> coverResponse = restTemplate.getForEntity(coverUrl, byte[].class);
+
+            if (coverResponse.getStatusCode().is2xxSuccessful() && coverResponse.getBody() != null) {
+                // Определяем расширение файла по Content-Type
+                String contentType = coverResponse.getHeaders().getFirst("Content-Type");
+                String fileExtension = ".jpg"; // По умолчанию
+                if (contentType != null) {
+                    if (contentType.contains("png")) {
+                        fileExtension = ".png";
+                    } else if (contentType.contains("webp")) {
+                        fileExtension = ".webp";
+                    }
+                }
+
+                // Сохраняем обложку как файл через специальный эндпоинт для обложек
+                String coverFileName = "cover_" + filename + fileExtension;
+
+                // Создаем multipart запрос для специального эндпоинта обложек
+                MultiValueMap<String, Object> coverRequest = new LinkedMultiValueMap<>();
+
+                // Создаем ByteArrayResource для отправки
+                ByteArrayResource coverResource = new ByteArrayResource(coverResponse.getBody()) {
+                    @Override
+                    public String getFilename() {
+                        return coverFileName;
+                    }
+                };
+                coverRequest.add("file", coverResource);
+
+                HttpHeaders coverHeaders = new HttpHeaders();
+                coverHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
+                HttpEntity<MultiValueMap<String, Object>> coverEntity = new HttpEntity<>(coverRequest, coverHeaders);
+
+                try {
+                    // Используем новый эндпоинт для обложек с manga_id
+                    ResponseEntity<Map> uploadResponse = restTemplate.postForEntity(
+                        "http://image-storage-service:8083/api/images/cover/" + manga.getId(),
+                        coverEntity,
+                        Map.class
+                    );
+
+                    if (uploadResponse.getStatusCode().is2xxSuccessful() && uploadResponse.getBody() != null) {
+                        String savedImageUrl = (String) uploadResponse.getBody().get("imageUrl");
+                        if (savedImageUrl != null) {
+                            manga.setCoverImageUrl(savedImageUrl);
+                            manga = mangaRepository.save(manga); // Сохраняем обновленный URL
+                            System.out.println("Cover saved successfully for manga: " + filename);
+                        }
+                    }
+                } catch (Exception e) {
+                    System.err.println("Failed to save cover for manga " + filename + ": " + e.getMessage());
+                    // Fallback - используем публичную ссылку на MelonService (но только временно)
+                    String publicCoverUrl = melonServicePublicUrl + "/cover/" + filename;
+                    manga.setCoverImageUrl(publicCoverUrl);
+                    manga = mangaRepository.save(manga);
+                }
+            } else {
+                System.err.println("Failed to download cover for manga: " + filename);
+            }
+        } catch (Exception e) {
+            System.err.println("Error processing cover for manga " + filename + ": " + e.getMessage());
+            // Fallback - пробуем использовать обложку из JSON
+            List<Map<String, Object>> covers = (List<Map<String, Object>>) mangaInfo.get("covers");
+            if (covers != null && !covers.isEmpty()) {
+                Map<String, Object> firstCover = covers.get(0);
+                String coverUrl = (String) firstCover.get("link");
+                if (coverUrl != null && !coverUrl.trim().isEmpty()) {
+                    manga.setCoverImageUrl(coverUrl.trim());
+                    manga = mangaRepository.save(manga);
+                }
             }
         }
 
         return manga;
     }
 
+    /**
+     * Удаляет мангу из MelonService (JSON, обложку, изображения)
+     */
+    public Map<String, Object> deleteManga(String filename) {
+        try {
+            String url = melonServiceUrl + "/delete/" + filename;
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.DELETE, null, Map.class);
+            return response.getBody();
+        } catch (Exception e) {
+            return Map.of("success", false, "message", "Ошибка удаления: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Проверяет доступность MelonService
+     */
+    public boolean isServiceAvailable() {
+        try {
+            String url = melonServiceUrl + "/";
+            ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+            return response.getStatusCode() == HttpStatus.OK;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    // Недостающие методы для importChaptersWithProgress
     private void importChaptersWithProgress(String taskId, Long mangaId, List<Map<String, Object>> chapters, String filename) {
         ImportTaskService.ImportTask task = importTaskService.getTask(taskId);
 
@@ -582,7 +750,7 @@ public class MelonIntegrationService {
                 if (response.getStatusCode().is2xxSuccessful()) {
                     Long chapterId = Long.parseLong(response.getBody().get("id").toString());
 
-                    // Импортируем страницы из локальных файлов MelonService
+                    // Импортируем страницы из MelonService
                     List<Map<String, Object>> slides = (List<Map<String, Object>>) chapterData.get("slides");
                     task.setStatus(ImportTaskService.TaskStatus.IMPORTING_PAGES);
                     importChapterPagesFromMelonService(taskId, chapterId, slides, filename, chapterData.get("number").toString());
@@ -630,7 +798,7 @@ public class MelonIntegrationService {
                 Map<String, Object> pageRequest = new HashMap<>();
                 pageRequest.put("chapterId", chapterId);
                 pageRequest.put("pageNumber", pageIndex);
-                pageRequest.put("imageUrl", imageUrl); // Используем URL вместо локального пути
+                pageRequest.put("imageUrl", imageUrl);
 
                 HttpHeaders headers = new HttpHeaders();
                 headers.setContentType(MediaType.APPLICATION_JSON);
@@ -661,32 +829,6 @@ public class MelonIntegrationService {
                 System.err.println("Ошибка импорта страницы для главы " + chapterId + ": " + e.getMessage());
                 // Продолжаем импорт следующих страниц несмотря на ошибку
             }
-        }
-    }
-
-    /**
-     * Удаляет мангу из MelonService (JSON, обложку, изображения)
-     */
-    public Map<String, Object> deleteManga(String filename) {
-        try {
-            String url = melonServiceUrl + "/delete/" + filename;
-            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.DELETE, null, Map.class);
-            return response.getBody();
-        } catch (Exception e) {
-            return Map.of("success", false, "message", "Ошибка удаления: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Проверяет доступность MelonService
-     */
-    public boolean isServiceAvailable() {
-        try {
-            String url = melonServiceUrl + "/";
-            ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
-            return response.getStatusCode() == HttpStatus.OK;
-        } catch (Exception e) {
-            return false;
         }
     }
 }

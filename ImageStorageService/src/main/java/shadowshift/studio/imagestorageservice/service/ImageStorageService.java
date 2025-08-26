@@ -42,6 +42,9 @@ public class ImageStorageService {
     @Value("${minio.endpoint}")
     private String minioEndpoint;
 
+    @Value("${minio.public.endpoint}")
+    private String minioPublicEndpoint;
+
     public List<ChapterImageResponseDTO> getImagesByChapterId(Long chapterId) {
         return imageRepository.findByChapterIdOrderByPageNumberAsc(chapterId)
                 .stream()
@@ -51,6 +54,11 @@ public class ImageStorageService {
 
     public Optional<ChapterImageResponseDTO> getImageByChapterAndPage(Long chapterId, Integer pageNumber) {
         return imageRepository.findByChapterIdAndPageNumber(chapterId, pageNumber)
+                .map(ChapterImageResponseDTO::new);
+    }
+
+    public Optional<ChapterImageResponseDTO> getCoverByMangaId(Long mangaId) {
+        return imageRepository.findByMangaIdAndChapterId(mangaId, -1L)
                 .map(ChapterImageResponseDTO::new);
     }
 
@@ -508,7 +516,7 @@ public class ImageStorageService {
     }
 
     private String generateImageUrl(String objectKey) {
-        return String.format("%s/%s/%s", minioEndpoint, bucketName, objectKey);
+        return String.format("%s/%s/%s", minioPublicEndpoint, bucketName, objectKey);
     }
 
     private String getFileExtension(String filename) {
@@ -522,5 +530,66 @@ public class ImageStorageService {
         return imageRepository.findMaxPageNumberByChapterId(chapterId)
                 .map(maxPage -> maxPage + 1)
                 .orElse(1);
+    }
+
+    public ChapterImageResponseDTO uploadCoverForManga(Long mangaId, MultipartFile file)
+            throws IOException, ServerException, InsufficientDataException, ErrorResponseException,
+            NoSuchAlgorithmException, InvalidKeyException, InvalidResponseException, XmlParserException,
+            InternalException {
+
+        // Создаем bucket если он не существует
+        createBucketIfNotExists();
+
+        // Проверяем, есть ли уже обложка для этой манги
+        Optional<ChapterImage> existingCover = imageRepository.findByMangaIdAndChapterId(mangaId, -1L);
+        if (existingCover.isPresent()) {
+            // Удаляем старую обложку из MinIO
+            minioClient.removeObject(
+                    RemoveObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(existingCover.get().getImageKey())
+                            .build()
+            );
+            // Удаляем запись из базы данных
+            imageRepository.delete(existingCover.get());
+        }
+
+        // Генерируем уникальный ключ для объекта в MinIO
+        String objectKey = generateObjectKey(-1L, 0, file.getOriginalFilename());
+
+        // Загружаем файл в MinIO
+        minioClient.putObject(
+                PutObjectArgs.builder()
+                        .bucket(bucketName)
+                        .object(objectKey)
+                        .stream(file.getInputStream(), file.getSize(), -1)
+                        .contentType(file.getContentType())
+                        .build()
+        );
+
+        // Получаем размеры изображения
+        BufferedImage bufferedImage = ImageIO.read(file.getInputStream());
+        Integer width = null;
+        Integer height = null;
+        if (bufferedImage != null) {
+            width = bufferedImage.getWidth();
+            height = bufferedImage.getHeight();
+        }
+
+        // Создаем запись в базе данных
+        ChapterImage chapterImage = new ChapterImage();
+        chapterImage.setMangaId(mangaId); // Указываем manga_id для привязки к конкретной манге
+        chapterImage.setChapterId(-1L); // -1 означает обложку
+        chapterImage.setPageNumber(0); // Для обложек всегда 0
+        chapterImage.setImageKey(objectKey);
+        chapterImage.setImageUrl(generateImageUrl(objectKey));
+        chapterImage.setFileSize(file.getSize());
+        chapterImage.setMimeType(file.getContentType());
+        chapterImage.setWidth(width);
+        chapterImage.setHeight(height);
+        chapterImage.setCreatedAt(LocalDateTime.now());
+
+        ChapterImage savedImage = imageRepository.save(chapterImage);
+        return new ChapterImageResponseDTO(savedImage);
     }
 }

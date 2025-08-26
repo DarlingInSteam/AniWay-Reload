@@ -84,6 +84,15 @@ spring:
           filters:
             - StripPrefix=0
 
+        # MangaService - Parser API endpoints (через MangaService для правильной интеграции)
+        - id: manga-parser
+          uri: http://manga-service:8081
+          predicates:
+            - Path=/api/parser/**
+          filters:
+            - StripPrefix=1
+          order: 1
+
         # Статические ресурсы MangaService (favicon, CSS, JS)
         - id: manga-static
           uri: http://manga-service:8081

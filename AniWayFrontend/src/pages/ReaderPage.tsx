@@ -213,18 +213,22 @@ export function ReaderPage() {
       {/* Main Content - Vertical Scroll */}
       <div className="pt-16">
         {/* Reading Area */}
-        <div className="max-w-4xl mx-auto px-4">
+        <div className="max-w-6xl mx-auto px-4">
           {images.map((image, index) => (
-            <div key={image.id} className="relative mb-2 flex justify-center">
+            <div key={image.id} className="relative mb-1 flex justify-center">
               <img
                 src={apiClient.getImageUrl(image.imageKey)}
                 alt={`Страница ${image.pageNumber}`}
-                className="max-w-full h-auto block"
+                className="block cursor-pointer"
                 style={{
-                  maxWidth: '100%',
-                  width: 'auto',
+                  width: '100%',
+                  maxWidth: '800px', // Увеличиваем максимальную ширину для манхвы
                   height: 'auto',
-                  maxHeight: '100vh'
+                  minWidth: '600px', // Минимальная ширина для удобного чтения
+                  '@media (max-width: 768px)': {
+                    minWidth: '100%',
+                    maxWidth: '100%'
+                  }
                 }}
                 loading={index < 3 ? 'eager' : 'lazy'}
                 onError={(e) => {

@@ -1,5 +1,5 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { Search, BookOpen, Bell, Bookmark, User, Menu, X } from 'lucide-react'
+import { Search, BookOpen, Bell, Bookmark, User, Menu, X, Settings } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api'
@@ -87,6 +87,13 @@ export function Header() {
           >
             Форум
           </Link>
+          <Link
+            to="/admin/manga"
+            className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors duration-200 flex items-center gap-2"
+          >
+            <Settings className="h-4 w-4" />
+            Управление
+          </Link>
           <button className="text-sm font-medium text-muted-foreground hover:text-white transition-colors duration-200">
             <Menu className="h-4 w-4" />
           </button>
@@ -170,28 +177,15 @@ export function Header() {
 
         {/* Right Side Actions */}
         <div className="flex items-center space-x-4">
-          <Link
-            to="#"
-            className="p-2 rounded-full hover:bg-card transition-colors duration-200"
-            title="Закладки"
-          >
-            <Bookmark className="h-5 w-5 text-muted-foreground hover:text-white" />
-          </Link>
-          <Link
-            to="#"
-            className="p-2 rounded-full hover:bg-card transition-colors duration-200 relative"
-            title="Уведомления"
-          >
+          <button className="p-2 rounded-full hover:bg-secondary transition-colors duration-200">
             <Bell className="h-5 w-5 text-muted-foreground hover:text-white" />
-            <span className="absolute -top-1 -right-1 h-3 w-3 bg-primary rounded-full"></span>
-          </Link>
-          <Link
-            to="#"
-            className="p-2 rounded-full hover:bg-card transition-colors duration-200"
-            title="Профиль"
-          >
+          </button>
+          <button className="p-2 rounded-full hover:bg-secondary transition-colors duration-200">
+            <Bookmark className="h-5 w-5 text-muted-foreground hover:text-white" />
+          </button>
+          <button className="p-2 rounded-full hover:bg-secondary transition-colors duration-200">
             <User className="h-5 w-5 text-muted-foreground hover:text-white" />
-          </Link>
+          </button>
         </div>
 
         {/* Mobile Menu Button */}

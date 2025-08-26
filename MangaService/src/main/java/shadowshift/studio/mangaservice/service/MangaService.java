@@ -3,8 +3,10 @@ package shadowshift.studio.mangaservice.service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 import shadowshift.studio.mangaservice.dto.MangaCreateDTO;
 import shadowshift.studio.mangaservice.dto.MangaResponseDTO;
 import shadowshift.studio.mangaservice.entity.Manga;
@@ -14,6 +16,7 @@ import shadowshift.studio.mangaservice.repository.MangaRepository;
 import shadowshift.studio.mangaservice.service.external.ChapterServiceClient;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -44,6 +47,10 @@ public class MangaService {
     private final MangaRepository mangaRepository;
     private final ChapterServiceClient chapterServiceClient;
     private final MangaMapper mangaMapper;
+    private final RestTemplate restTemplate;
+
+    @Value("${image.storage.service.url}")
+    private String imageStorageServiceUrl;
 
     /**
      * Конструктор сервиса с внедрением зависимостей.
@@ -54,14 +61,17 @@ public class MangaService {
      * @param mangaRepository репозиторий для работы с сущностями манги
      * @param chapterServiceClient клиент для работы с сервисом глав
      * @param mangaMapper маппер для преобразования между DTO и сущностями
+     * @param restTemplate шаблон для выполнения REST-запросов
      */
     @Autowired
     public MangaService(MangaRepository mangaRepository, 
                        ChapterServiceClient chapterServiceClient,
-                       MangaMapper mangaMapper) {
+                       MangaMapper mangaMapper,
+                       RestTemplate restTemplate) {
         this.mangaRepository = mangaRepository;
         this.chapterServiceClient = chapterServiceClient;
         this.mangaMapper = mangaMapper;
+        this.restTemplate = restTemplate;
         logger.info("Инициализирован MangaService");
     }
 
@@ -83,9 +93,12 @@ public class MangaService {
         
         List<MangaResponseDTO> responseDTOs = mangaMapper.toResponseDTOList(mangaList);
         
-        // Обогащаем каждую мангу актуальным количеством глав
-        responseDTOs.forEach(this::enrichWithChapterCount);
-        
+        // Обогащаем каждую мангу актуальным количеством глав и правильными URL обложек
+        responseDTOs.forEach(dto -> {
+            this.enrichWithChapterCount(dto);
+            this.enrichWithCoverUrl(dto);
+        });
+
         logger.debug("Возвращается список из {} манг с обогащенными данными", responseDTOs.size());
         return responseDTOs;
     }
@@ -125,8 +138,11 @@ public class MangaService {
 
         List<MangaResponseDTO> responseDTOs = mangaMapper.toResponseDTOList(searchResults);
 
-        // Обогащаем каждую найденную мангу актуальным количеством глав
-        responseDTOs.forEach(this::enrichWithChapterCount);
+        // Обогащаем каждую найденную мангу актуальным количеством глав и правильными URL обложек
+        responseDTOs.forEach(dto -> {
+            this.enrichWithChapterCount(dto);
+            this.enrichWithCoverUrl(dto);
+        });
 
         logger.debug("Возвращается список из {} найденных манг с обогащенными данными", responseDTOs.size());
         return responseDTOs;
@@ -335,6 +351,35 @@ public class MangaService {
         } catch (Exception e) {
             logger.warn("Ошибка при обогащении данных о главах для манги {}: {}", 
                        responseDTO.getId(), e.getMessage());
+        }
+    }
+
+    /**
+     * Обогащает DTO манги правильным URL обложки из ImageStorageService.
+     *
+     * Получает URL обложки из MinIO через ImageStorageService и обновляет поле в DTO.
+     *
+     * @param responseDTO DTO для обогащения
+     */
+    private void enrichWithCoverUrl(MangaResponseDTO responseDTO) {
+        try {
+            // Получаем обложку из ImageStorageService по manga_id
+            String coverUrl = imageStorageServiceUrl + "/api/images/cover/" + responseDTO.getId();
+
+            Map<String, Object> coverResponse = restTemplate.getForObject(coverUrl, Map.class);
+
+            if (coverResponse != null && coverResponse.containsKey("imageUrl")) {
+                String minioImageUrl = (String) coverResponse.get("imageUrl");
+                responseDTO.setCoverImageUrl(minioImageUrl);
+                logger.debug("Обновлен URL обложки для манги {} из MinIO: {}",
+                           responseDTO.getId(), minioImageUrl);
+            } else {
+                logger.debug("Обложка не найдена в ImageStorageService для манги {}, " +
+                           "используется сохраненный URL", responseDTO.getId());
+            }
+        } catch (Exception e) {
+            logger.debug("Не удалось получить обложку из ImageStorageService для манги {}: {}, " +
+                       "используется сохраненный URL", responseDTO.getId(), e.getMessage());
         }
     }
 

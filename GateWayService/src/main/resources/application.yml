@@ -36,9 +36,18 @@ spring:
 
       # Маршруты к микросервисам
       routes:
+        # MangaService - Parser API endpoints (ВЫСОКИЙ ПРИОРИТЕТ)
+        - id: manga-parser
+          uri: http://manga-service:8081
+          predicates:
+            - Path=/api/parser/**
+          filters:
+            - StripPrefix=1
+          order: 1
+
         # MangaService - API endpoints
         - id: manga-api
-          uri: http://localhost:8081
+          uri: http://manga-service:8081
           predicates:
             - Path=/api/manga/**
           filters:
@@ -46,7 +55,7 @@ spring:
 
         # MangaService - Web UI (Thymeleaf страницы)
         - id: manga-web
-          uri: http://localhost:8081
+          uri: http://manga-service:8081
           predicates:
             - Path=/manga/**
           filters:
@@ -54,7 +63,7 @@ spring:
 
         # MangaService - Reader
         - id: manga-reader
-          uri: http://localhost:8081
+          uri: http://manga-service:8081
           predicates:
             - Path=/reader/**
           filters:
@@ -62,7 +71,7 @@ spring:
 
         # MangaService - Chapters Web UI
         - id: chapters-web
-          uri: http://localhost:8081
+          uri: http://manga-service:8081
           predicates:
             - Path=/chapters/**
           filters:
@@ -70,7 +79,7 @@ spring:
 
         # ChapterService - API endpoints
         - id: chapter-api
-          uri: http://localhost:8082
+          uri: http://chapter-service:8082
           predicates:
             - Path=/api/chapters/**
           filters:
@@ -78,7 +87,7 @@ spring:
 
         # ImageStorageService - API endpoints
         - id: images-api
-          uri: http://localhost:8083
+          uri: http://image-storage-service:8083
           predicates:
             - Path=/api/images/**
           filters:
@@ -86,11 +95,19 @@ spring:
 
         # Статические ресурсы MangaService (favicon, CSS, JS)
         - id: manga-static
-          uri: http://localhost:8081
+          uri: http://manga-service:8081
           predicates:
             - Path=/favicon.ico,/static/**,/css/**,/js/**,/images/**
           filters:
             - StripPrefix=0
+
+        # MelonService - Direct parser API endpoints (обходной маршрут)
+        - id: melon-direct
+          uri: http://melon-service:8084
+          predicates:
+            - Path=/api/melon/**
+          filters:
+            - StripPrefix=2
 
       # Настройки тайм-аутов
       httpclient:
