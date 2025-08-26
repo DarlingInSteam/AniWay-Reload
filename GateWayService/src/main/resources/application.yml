@@ -1,0 +1,117 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway-service
+  
+  # File upload configuration for Gateway
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 500MB
+
+  cloud:
+    gateway:
+      # Глобальные CORS настройки
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowed-origins: 
+              - "http://localhost:3000"  # React/Vue/Angular dev server
+              - "http://localhost:5173"  # Vite dev server
+              - "http://localhost:8080"  # Gateway itself
+              - "http://localhost:8081"  # MangaService (для статических страниц)
+            allowed-methods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+              - HEAD
+            allowed-headers:
+              - "*"
+            allow-credentials: true
+            max-age: 3600
+
+      # Маршруты к микросервисам
+      routes:
+        # MangaService - API endpoints
+        - id: manga-api
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/manga/**
+          filters:
+            - StripPrefix=0
+
+        # MangaService - Web UI (Thymeleaf страницы)
+        - id: manga-web
+          uri: http://localhost:8081
+          predicates:
+            - Path=/manga/**
+          filters:
+            - StripPrefix=0
+
+        # MangaService - Reader
+        - id: manga-reader
+          uri: http://localhost:8081
+          predicates:
+            - Path=/reader/**
+          filters:
+            - StripPrefix=0
+
+        # MangaService - Chapters Web UI
+        - id: chapters-web
+          uri: http://localhost:8081
+          predicates:
+            - Path=/chapters/**
+          filters:
+            - StripPrefix=0
+
+        # ChapterService - API endpoints
+        - id: chapter-api
+          uri: http://localhost:8082
+          predicates:
+            - Path=/api/chapters/**
+          filters:
+            - StripPrefix=0
+
+        # ImageStorageService - API endpoints
+        - id: images-api
+          uri: http://localhost:8083
+          predicates:
+            - Path=/api/images/**
+          filters:
+            - StripPrefix=0
+
+        # Статические ресурсы MangaService (favicon, CSS, JS)
+        - id: manga-static
+          uri: http://localhost:8081
+          predicates:
+            - Path=/favicon.ico,/static/**,/css/**,/js/**,/images/**
+          filters:
+            - StripPrefix=0
+
+      # Настройки тайм-аутов
+      httpclient:
+        connect-timeout: 10000
+        response-timeout: 30000
+
+# Actuator для мониторинга
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
+  endpoint:
+    health:
+      show-details: when-authorized
+
+# Логирование
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.web.cors: DEBUG
+    shadowshift.studio.gatewayservice: DEBUG
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level [%logger{36}] - %msg%n"

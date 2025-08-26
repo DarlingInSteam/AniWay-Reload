@@ -11,10 +11,9 @@ CREATE TABLE IF NOT EXISTS chapter_image (
     width INTEGER,
     height INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
     -- Ensure unique page numbers per chapter
     UNIQUE(chapter_id, page_number)
-);
+    );
 
 -- Indexes for faster queries
 CREATE INDEX IF NOT EXISTS idx_chapter_image_chapter_id ON chapter_image(chapter_id);

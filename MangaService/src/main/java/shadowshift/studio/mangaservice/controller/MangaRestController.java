@@ -83,6 +83,34 @@ public class MangaRestController {
     }
 
     /**
+     * Поиск манги по различным критериям.
+     *
+     * Позволяет искать мангу по названию, автору, жанру и статусу.
+     * Все параметры поиска являются опциональными и могут комбинироваться.
+     *
+     * @param title название манги (частичное совпадение, игнорируя регистр)
+     * @param author автор манги (частичное совпадение, игнорируя регистр)
+     * @param genre жанр манги (частичное совпадение, игнорируя регистр)
+     * @param status статус манги (точное совпадение)
+     * @return ResponseEntity со списком найденных манг и HTTP статусом 200
+     */
+    @GetMapping("/search")
+    public ResponseEntity<List<MangaResponseDTO>> searchManga(
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) String author,
+            @RequestParam(required = false) String genre,
+            @RequestParam(required = false) String status) {
+
+        logger.debug("API запрос: поиск манги с параметрами - title: '{}', author: '{}', genre: '{}', status: '{}'",
+                title, author, genre, status);
+
+        List<MangaResponseDTO> searchResults = mangaService.searchManga(title, author, genre, status);
+
+        logger.debug("API ответ: найдено {} манг по поисковому запросу", searchResults.size());
+        return ResponseEntity.ok(searchResults);
+    }
+
+    /**
      * Получает информацию о конкретной манге по её идентификатору.
      *
      * @param id идентификатор манги
@@ -116,7 +144,7 @@ public class MangaRestController {
         MangaResponseDTO createdManga = mangaService.createManga(createDTO);
 
         logger.info("API ответ: манга '{}' создана с ID {}",
-                   createdManga.getTitle(), createdManga.getId());
+                createdManga.getTitle(), createdManga.getId());
         return ResponseEntity.status(HttpStatus.CREATED).body(createdManga);
     }
 

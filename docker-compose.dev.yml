@@ -1,0 +1,99 @@
+services:
+  # Manga Service - для разработки с volume binding
+  manga-service:
+    build:
+      context: ./MangaService
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./MangaService/src:/app/src:ro
+      - ./MangaService/build.gradle.kts:/app/build.gradle.kts:ro
+      - gradle-cache-manga:/home/gradle/.gradle
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DEVTOOLS_RESTART_ENABLED=true
+
+  # Chapter Service - для разработки
+  chapter-service:
+    build:
+      context: ./ChapterService
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./ChapterService/src:/app/src:ro
+      - ./ChapterService/build.gradle.kts:/app/build.gradle.kts:ro
+      - gradle-cache-chapter:/home/gradle/.gradle
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DEVTOOLS_RESTART_ENABLED=true
+
+  # Image Storage Service - для разработки
+  image-storage-service:
+    build:
+      context: ./ImageStorageService
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./ImageStorageService/src:/app/src:ro
+      - ./ImageStorageService/build.gradle.kts:/app/build.gradle.kts:ro
+      - gradle-cache-image:/home/gradle/.gradle
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DEVTOOLS_RESTART_ENABLED=true
+
+  # Gateway Service - для разработки
+  gateway-service:
+    build:
+      context: ./GateWayService
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./GateWayService/src:/app/src:ro
+      - ./GateWayService/build.gradle.kts:/app/build.gradle.kts:ro
+      - gradle-cache-gateway:/home/gradle/.gradle
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev,docker
+      - SPRING_DEVTOOLS_RESTART_ENABLED=true
+
+  # MelonService - парсер манги (dev режим)
+  melon-service:
+    build:
+      context: ./MelonService
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8084:8084"
+    volumes:
+      - ./MelonService:/app:ro
+      - melon_data:/app/Output
+      - melon_logs:/app/Logs
+      - melon_temp:/app/Temp
+    environment:
+      - PYTHONPATH=/app
+    networks:
+      - aniway-network
+    restart: unless-stopped
+
+  # Frontend - для разработки с hot-reload
+  frontend:
+    build:
+      context: ./AniWayFrontend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./AniWayFrontend/src:/app/src
+      - ./AniWayFrontend/public:/app/public
+      - ./AniWayFrontend/package.json:/app/package.json:ro
+      - ./AniWayFrontend/vite.config.ts:/app/vite.config.ts:ro
+      - ./AniWayFrontend/tsconfig.json:/app/tsconfig.json:ro
+      - ./AniWayFrontend/tailwind.config.js:/app/tailwind.config.js:ro
+      - node_modules-cache:/app/node_modules
+    ports:
+      - "5173:5173"  # Vite dev server
+    command: npm run dev -- --host 0.0.0.0
+
+volumes:
+  gradle-cache-manga:
+  gradle-cache-chapter:
+  gradle-cache-image:
+  gradle-cache-gateway:
+  node_modules-cache:
+  melon_data:
+  melon_logs:
+  melon_temp:
+  melon_logs_temp:
+  melon_data_temp:

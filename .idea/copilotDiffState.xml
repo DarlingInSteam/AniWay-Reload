@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CopilotDiffPersistence">
+    <option name="pendingDiffs">
+      <map>
+        <entry key="$PROJECT_DIR$/GateWayService/src/main/java/shadowshift/studio/gatewayservice/GateWayServiceApplication.java">
+          <value>
+            <PendingDiffInfo>
+              <option name="filePath" value="$PROJECT_DIR$/GateWayService/src/main/java/shadowshift/studio/gatewayservice/GateWayServiceApplication.java" />
+              <option name="updatedContent" value="package shadowshift.studio.gatewayservice;&#10;&#10;import org.springframework.boot.SpringApplication;&#10;import org.springframework.boot.autoconfigure.SpringBootApplication;&#10;&#10;/**&#10; * Главный класс приложения API Gateway для AniWay.&#10; * &#10; * API Gateway служит единой точкой входа для всех клиентских запросов&#10; * и маршрутизирует их к соответствующим микросервисам.&#10; * &#10; * Функции Gateway:&#10; * - Маршрутизация запросов к MangaService, ChapterService, ImageStorageService&#10; * - Настройка CORS политики для фронтенда&#10; * - Централизованная обработка ошибок&#10; * - Мониторинг и логирование всех запросов&#10; * &#10; * @author AniWay Development Team&#10; * @version 1.0.0&#10; * @since 1.0.0&#10; */&#10;@SpringBootApplication&#10;public class GatewayServiceApplication {&#10;&#10;    public static void main(String[] args) {&#10;        SpringApplication.run(GatewayServiceApplication.class, args);&#10;    }&#10;}" />
+            </PendingDiffInfo>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+</project>

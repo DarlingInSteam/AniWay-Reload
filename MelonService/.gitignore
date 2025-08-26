@@ -1,0 +1,11 @@
+# Python virtual enviroment and cache.
+__pycache__
+.venv
+# Parsers and titles data.
+Configs
+Output
+Logs
+Temp
+# Extended for other domains parsers modules.
+Parsers/hentailib
+Parsers/slashlib

@@ -1,0 +1,1 @@
+from Parsers.mangalib.main import Parser

@@ -91,6 +91,48 @@ public class MangaService {
     }
 
     /**
+     * Поиск манги по различным критериям.
+     *
+     * Выполняет поиск манги по названию, автору, жанру и статусу.
+     * Все параметры являются опциональными и могут комбинироваться.
+     * Поиск по строковым полям выполняется с игнорированием регистра.
+     *
+     * @param title название манги (частичное совпадение, может быть null)
+     * @param author автор манги (частичное совпадение, может быть null)
+     * @param genre жанр манги (частичное совпадение, может быть null)
+     * @param status статус манги (точное совпадение, может быть null)
+     * @return список DTO с найденными мангами
+     */
+    @Transactional(readOnly = true)
+    public List<MangaResponseDTO> searchManga(String title, String author, String genre, String status) {
+        logger.debug("Поиск манги с параметрами - title: '{}', author: '{}', genre: '{}', status: '{}'",
+                    title, author, genre, status);
+
+        // Валидируем и нормализуем статус
+        String validatedStatus = null;
+        if (status != null && !status.trim().isEmpty()) {
+            try {
+                // Проверяем, что статус существует
+                Manga.MangaStatus.valueOf(status.toUpperCase());
+                validatedStatus = status.toUpperCase();
+            } catch (IllegalArgumentException e) {
+                logger.warn("Неизвестный статус манги: '{}'. Игнорируем этот параметр поиска.", status);
+            }
+        }
+
+        List<Manga> searchResults = mangaRepository.searchManga(title, author, genre, validatedStatus);
+        logger.debug("Найдено {} манг по поисковому запросу", searchResults.size());
+
+        List<MangaResponseDTO> responseDTOs = mangaMapper.toResponseDTOList(searchResults);
+
+        // Обогащаем каждую найденную мангу актуальным количеством глав
+        responseDTOs.forEach(this::enrichWithChapterCount);
+
+        logger.debug("Возвращается список из {} найденных манг с обогащенными данными", responseDTOs.size());
+        return responseDTOs;
+    }
+
+    /**
      * Получает информацию о конкретной манге по её идентификатору.
      * 
      * Ищет мангу в базе данных и обогащает её актуальной информацией

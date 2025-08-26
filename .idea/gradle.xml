@@ -12,6 +12,14 @@
         </option>
       </GradleProjectSettings>
       <GradleProjectSettings>
+        <option name="externalProjectPath" value="$PROJECT_DIR$/GateWayService" />
+        <option name="modules">
+          <set>
+            <option value="$PROJECT_DIR$/GateWayService" />
+          </set>
+        </option>
+      </GradleProjectSettings>
+      <GradleProjectSettings>
         <option name="externalProjectPath" value="$PROJECT_DIR$/ImageStorageService" />
         <option name="modules">
           <set>

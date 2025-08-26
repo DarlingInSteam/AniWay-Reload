@@ -12,7 +12,11 @@ import shadowshift.studio.imagestorageservice.repository.ChapterImageRepository;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
@@ -52,6 +56,92 @@ public class ImageStorageService {
 
     public Integer getPageCountByChapterId(Long chapterId) {
         return imageRepository.countByChapterId(chapterId);
+    }
+
+    // Метод для переноса изображения из MelonService в MinIO
+    public ChapterImageResponseDTO uploadImageFromUrl(Long chapterId, Integer pageNumber, String imageUrl) {
+        try {
+            // Проверяем, существует ли уже изображение для этой главы и страницы
+            Optional<ChapterImage> existingImage = imageRepository.findByChapterIdAndPageNumber(chapterId, pageNumber);
+            if (existingImage.isPresent()) {
+                // Если изображение уже существует, возвращаем его
+                return new ChapterImageResponseDTO(existingImage.get());
+            }
+
+            // Создаем bucket если он не существует
+            createBucketIfNotExists();
+
+            // Скачиваем изображение по URL из MelonService
+            URL url = new URL(imageUrl);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+            connection.setConnectTimeout(10000); // 10 секунд
+            connection.setReadTimeout(30000); // 30 секунд
+
+            if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
+                throw new RuntimeException("Failed to download image from MelonService: " + imageUrl +
+                        ", response code: " + connection.getResponseCode());
+            }
+
+            // Читаем содержимое изображения
+            InputStream inputStream = connection.getInputStream();
+            byte[] imageBytes = inputStream.readAllBytes();
+            inputStream.close();
+
+            // Определяем тип изображения
+            String contentType = connection.getContentType();
+            if (contentType == null || !contentType.startsWith("image/")) {
+                contentType = "image/jpeg"; // По умолчанию
+            }
+
+            // Получаем размеры изображения
+            BufferedImage bufferedImage = ImageIO.read(new ByteArrayInputStream(imageBytes));
+            int width = bufferedImage != null ? bufferedImage.getWidth() : 0;
+            int height = bufferedImage != null ? bufferedImage.getHeight() : 0;
+
+            // Генерируем уникальное имя файла для MinIO
+            String imageKey = generateObjectKey(chapterId, pageNumber, "page_" + pageNumber + ".jpg");
+
+            // Загружаем изображение в MinIO
+            minioClient.putObject(
+                    PutObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(imageKey)
+                            .stream(new ByteArrayInputStream(imageBytes), imageBytes.length, -1)
+                            .contentType(contentType)
+                            .build()
+            );
+
+            // Формируем URL для доступа к изображению в MinIO
+            String minioImageUrl = generateImageUrl(imageKey);
+
+            // Сохраняем информацию о изображении в базе данных
+            ChapterImage chapterImage = new ChapterImage();
+            chapterImage.setChapterId(chapterId);
+            chapterImage.setPageNumber(pageNumber);
+            chapterImage.setImageUrl(minioImageUrl);
+            chapterImage.setImageKey(imageKey);
+            chapterImage.setFileSize((long) imageBytes.length);
+            chapterImage.setMimeType(contentType);
+            chapterImage.setWidth(width);
+            chapterImage.setHeight(height);
+            chapterImage.setCreatedAt(LocalDateTime.now());
+
+            ChapterImage savedImage = imageRepository.save(chapterImage);
+
+            return new ChapterImageResponseDTO(savedImage);
+
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to download or process image from MelonService: " + imageUrl, e);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to transfer image from MelonService to MinIO: " + imageUrl, e);
+        }
+    }
+
+    private String generateImageKey(Long chapterId, Integer pageNumber) {
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+        return String.format("chapters/%d/pages/%d_%s_%s.jpg",
+                chapterId, pageNumber, timestamp, UUID.randomUUID().toString().substring(0, 8));
     }
 
     public ChapterImageResponseDTO uploadImage(Long chapterId, Integer pageNumber, MultipartFile file)
@@ -329,6 +419,68 @@ public class ImageStorageService {
         return images.stream()
                 .map(ChapterImageResponseDTO::new)
                 .collect(Collectors.toList());
+    }
+
+    public ChapterImageResponseDTO importFromLocalFile(Long chapterId, Integer pageNumber, String localImagePath)
+            throws IOException, ServerException, InsufficientDataException, ErrorResponseException,
+            NoSuchAlgorithmException, InvalidKeyException, InvalidResponseException, XmlParserException,
+            InternalException {
+
+        // Создаем bucket если он не существует
+        createBucketIfNotExists();
+
+        // Проверяем, что изображение с таким номером страницы еще не существует
+        Optional<ChapterImage> existingImage = imageRepository
+                .findByChapterIdAndPageNumber(chapterId, pageNumber);
+
+        if (existingImage.isPresent()) {
+            throw new RuntimeException("Image for page " + pageNumber +
+                    " already exists for chapter " + chapterId);
+        }
+
+        // Проверяем существование локального файла
+        java.io.File localFile = new java.io.File(localImagePath);
+        if (!localFile.exists()) {
+            throw new RuntimeException("Local image file not found: " + localImagePath);
+        }
+
+        // Генерируем уникальный ключ для объекта в MinIO
+        String objectKey = generateObjectKey(chapterId, pageNumber, localFile.getName());
+
+        // Загружаем файл из локального пути в MinIO
+        try (java.io.FileInputStream fileInputStream = new java.io.FileInputStream(localFile)) {
+            minioClient.putObject(
+                    PutObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(objectKey)
+                            .stream(fileInputStream, localFile.length(), -1)
+                            .contentType("image/jpeg") // Предполагаем, что все изображения JPG
+                            .build()
+            );
+        }
+
+        // Получаем размеры изображения
+        BufferedImage bufferedImage = ImageIO.read(localFile);
+        Integer width = null;
+        Integer height = null;
+        if (bufferedImage != null) {
+            width = bufferedImage.getWidth();
+            height = bufferedImage.getHeight();
+        }
+
+        // Создаем запись в базе данных
+        ChapterImage chapterImage = new ChapterImage();
+        chapterImage.setChapterId(chapterId);
+        chapterImage.setPageNumber(pageNumber);
+        chapterImage.setImageKey(objectKey);
+        chapterImage.setImageUrl(generateImageUrl(objectKey));
+        chapterImage.setFileSize(localFile.length());
+        chapterImage.setMimeType("image/jpeg");
+        chapterImage.setWidth(width);
+        chapterImage.setHeight(height);
+
+        ChapterImage savedImage = imageRepository.save(chapterImage);
+        return new ChapterImageResponseDTO(savedImage);
     }
 
     private void createBucketIfNotExists() throws ServerException, InsufficientDataException,

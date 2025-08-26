@@ -10,6 +10,7 @@ import shadowshift.studio.imagestorageservice.service.ImageStorageService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/images")
@@ -98,6 +99,25 @@ public class ImageStorageController {
         return ResponseEntity.ok(images);
     }
 
+    // Новый эндпоинт для загрузки изображений по URL из MelonService
+    @PostMapping("/upload-from-url")
+    public ResponseEntity<?> uploadImageFromUrl(@RequestBody Map<String, Object> request) {
+        try {
+            Long chapterId = Long.valueOf(request.get("chapterId").toString());
+            Integer pageNumber = Integer.valueOf(request.get("pageNumber").toString());
+            String imageUrl = request.get("imageUrl").toString();
+
+            ChapterImageResponseDTO uploadedImage = imageStorageService.uploadImageFromUrl(chapterId, pageNumber, imageUrl);
+            return ResponseEntity.status(HttpStatus.CREATED).body(uploadedImage);
+        } catch (NumberFormatException e) {
+            return ResponseEntity.badRequest().body("Invalid chapterId or pageNumber format");
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Upload failed: " + e.getMessage());
+        }
+    }
+
     @DeleteMapping("/{imageId}")
     public ResponseEntity<?> deleteImage(@PathVariable Long imageId) {
         try {
@@ -133,6 +153,22 @@ public class ImageStorageController {
             }
         } catch (Exception e) {
             return ResponseEntity.notFound().build();
+        }
+    }
+
+    @PostMapping("/import-from-local-file")
+    public ResponseEntity<?> importFromLocalFile(@RequestBody Map<String, Object> request) {
+        try {
+            Long chapterId = Long.parseLong(request.get("chapterId").toString());
+            Integer pageNumber = Integer.parseInt(request.get("pageNumber").toString());
+            String localImagePath = (String) request.get("localImagePath");
+
+            ChapterImageResponseDTO importedImage = imageStorageService.importFromLocalFile(chapterId, pageNumber, localImagePath);
+            return ResponseEntity.status(HttpStatus.CREATED).body(importedImage);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Import failed: " + e.getMessage());
         }
     }
 }
