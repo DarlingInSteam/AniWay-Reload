@@ -45,7 +45,7 @@ const MANGA_STATUSES = [
 
 export function MangaManager() {
   const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'ONGOING' | 'COMPLETED' | 'HIATUS' | 'CANCELLED'>('all')
   const [editingManga, setEditingManga] = useState<MangaItem | null>(null)
   const [editForm, setEditForm] = useState<EditMangaForm>({
     title: '',
@@ -81,18 +81,7 @@ export function MangaManager() {
   // Мутация для обновления манги
   const updateMangaMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number, data: EditMangaForm }) => {
-      const response = await fetch(`/api/manga/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Ошибка обновления манги')
-      }
-
-      return response.json()
+      return apiClient.updateManga(id, data)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['manga-list'] })
@@ -108,16 +97,7 @@ export function MangaManager() {
   // Мутация для удаления манги
   const deleteMangaMutation = useMutation({
     mutationFn: async (id: number) => {
-      const response = await fetch(`/api/manga/${id}`, {
-        method: 'DELETE'
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Ошибка удаления манги')
-      }
-
-      return response.json()
+      return apiClient.deleteManga(id)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['manga-list'] })

@@ -1,0 +1,225 @@
+import { useState, useEffect } from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Progress } from '@/components/ui/progress'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Loader2, CheckCircle, XCircle, Clock, Terminal, Minimize2, Maximize2 } from 'lucide-react'
+import { useProgressWebSocket } from '@/hooks/useProgressWebSocket'
+
+interface ProgressData {
+  task_id: string
+  status: string
+  progress: number
+  message: string
+  updated_at: string
+  result?: any
+}
+
+interface LogMessage {
+  level: string
+  message: string
+  timestamp: number
+}
+
+interface RealTimeProgressProps {
+  taskId: string
+  title: string
+  onComplete?: (result: any) => void
+  onError?: (error: string) => void
+  className?: string
+}
+
+export function RealTimeProgress({ taskId, title, onComplete, onError, className }: RealTimeProgressProps) {
+  const [progressData, setProgressData] = useState<ProgressData | null>(null)
+  const [logs, setLogs] = useState<LogMessage[]>([])
+  const [isMinimized, setIsMinimized] = useState(false)
+  const [showLogs, setShowLogs] = useState(false)
+
+  const { isConnected, subscribeToTask, unsubscribeFromTask } = useProgressWebSocket({
+    onProgress: (data) => {
+      console.log('onProgress called:', data)
+      if (data.task_id === taskId) {
+        setProgressData(data)
+        // Вызываем колбэки при завершении
+        if (data.status === 'completed' && onComplete) {
+          console.log('onComplete called:', data.result)
+          onComplete(data.result)
+        } else if (data.status === 'failed' && onError) {
+          console.log('onError called:', data.message)
+          onError(data.message)
+        }
+      }
+    },
+    onLog: (log) => {
+      console.log('onLog called:', log)
+      setLogs(prev => [...prev, log].slice(-100)) // Ограничиваем количество логов
+    },
+    onConnect: () => {
+      if (taskId) {
+        console.log('WebSocket connected, subscribing to task:', taskId)
+      }
+    }
+  })
+
+  useEffect(() => {
+    if (isConnected && taskId) {
+      subscribeToTask(taskId)
+    }
+
+    return () => {
+      if (taskId) {
+        unsubscribeFromTask(taskId)
+      }
+    }
+  }, [isConnected, taskId])
+
+  const getStatusIcon = () => {
+    if (!progressData) return <Clock className="h-4 w-4 text-yellow-500" />
+
+    switch (progressData.status) {
+      case 'pending':
+        return <Clock className="h-4 w-4 text-yellow-500" />
+      case 'running':
+        return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
+      case 'completed':
+        return <CheckCircle className="h-4 w-4 text-green-500" />
+      case 'failed':
+        return <XCircle className="h-4 w-4 text-red-500" />
+      default:
+        return <Clock className="h-4 w-4 text-gray-500" />
+    }
+  }
+
+  const getStatusColor = () => {
+    if (!progressData) return 'bg-yellow-500'
+
+    switch (progressData.status) {
+      case 'pending':
+        return 'bg-yellow-500'
+      case 'running':
+        return 'bg-blue-500'
+      case 'completed':
+        return 'bg-green-500'
+      case 'failed':
+        return 'bg-red-500'
+      default:
+        return 'bg-gray-500'
+    }
+  }
+
+  const formatLogLevel = (level: string) => {
+    const colors = {
+      INFO: 'text-blue-400',
+      WARN: 'text-yellow-400',
+      ERROR: 'text-red-400',
+      DEBUG: 'text-gray-400'
+    }
+    return colors[level as keyof typeof colors] || 'text-gray-300'
+  }
+
+  if (isMinimized) {
+    return (
+      <div className={`fixed bottom-4 right-4 z-50 ${className}`}>
+        <Button
+          onClick={() => setIsMinimized(false)}
+          variant="outline"
+          size="sm"
+          className="flex items-center gap-2 bg-background/95 backdrop-blur-sm"
+        >
+          {getStatusIcon()}
+          <span className="truncate max-w-32">{title}</span>
+          {progressData && (
+            <span className="text-xs">{progressData.progress}%</span>
+          )}
+          <Maximize2 className="h-3 w-3" />
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <Card className={`fixed bottom-4 right-4 w-96 max-h-96 z-50 bg-background/95 backdrop-blur-sm border-border ${className}`}>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {getStatusIcon()}
+            <CardTitle className="text-sm font-medium">{title}</CardTitle>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              onClick={() => setShowLogs(!showLogs)}
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0"
+            >
+              <Terminal className="h-3 w-3" />
+            </Button>
+            <Button
+              onClick={() => setIsMinimized(true)}
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0"
+            >
+              <Minimize2 className="h-3 w-3" />
+            </Button>
+          </div>
+        </div>
+
+        {progressData && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">{progressData.message}</span>
+              <Badge className={`${getStatusColor()} text-xs`}>
+                {progressData.status}
+              </Badge>
+            </div>
+            <Progress value={progressData.progress} className="h-2" />
+            <div className="text-xs text-muted-foreground text-right">
+              {progressData.progress}%
+            </div>
+          </div>
+        )}
+
+        {!isConnected && (
+          <div className="text-xs text-red-400 flex items-center gap-1">
+            <XCircle className="h-3 w-3" />
+            WebSocket отключен
+          </div>
+        )}
+      </CardHeader>
+
+      {showLogs && logs.length > 0 && (
+        <CardContent className="pt-0">
+          <div className="border-t border-border pt-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-muted-foreground">Логи процесса</span>
+              <Button
+                onClick={() => setLogs([])}
+                variant="ghost"
+                size="sm"
+                className="h-5 text-xs"
+              >
+                Очистить
+              </Button>
+            </div>
+            <div className="h-24 w-full rounded border bg-black/20 p-2 overflow-auto">
+              <div className="space-y-1 font-mono text-xs">
+                {logs.slice(-20).map((log, index) => (
+                  <div key={index} className="flex gap-2">
+                    <span className="text-gray-500 shrink-0">
+                      {new Date(log.timestamp).toLocaleTimeString()}
+                    </span>
+                    <span className={`shrink-0 ${formatLogLevel(log.level)}`}>
+                      [{log.level}]
+                    </span>
+                    <span className="text-gray-300 break-all">{log.message}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  )
+}

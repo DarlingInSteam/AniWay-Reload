@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertCircle, Upload, CheckCircle, XCircle, Clock, Loader2, RefreshCw, Trash2 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { toast } from 'sonner'
+import { RealTimeProgress } from '@/components/common/RealTimeProgress'
 
 interface ParsedManga {
   filename: string
@@ -379,6 +380,35 @@ export function MangaImporter() {
           </CardContent>
         </Card>
       )}
+
+      {/* Real-time progress для активных импортов */}
+      {importTasks
+        .filter(task => task.status === 'pending' || task.status === 'running')
+        .map(task => (
+          <RealTimeProgress
+            key={task.taskId}
+            taskId={task.taskId}
+            title={`Импорт: ${task.filename}`}
+            onComplete={(result) => {
+              setImportTasks(prev => prev.map(t =>
+                t.taskId === task.taskId
+                  ? { ...t, status: 'completed', endTime: new Date() }
+                  : t
+              ))
+              toast.success(`Импорт манги "${task.filename}" завершен успешно!`)
+              // Обновляем список, убира��м импортированную мангу из списка
+              setParsedManga(prev => prev.filter(manga => manga.filename !== task.filename))
+            }}
+            onError={(error) => {
+              setImportTasks(prev => prev.map(t =>
+                t.taskId === task.taskId
+                  ? { ...t, status: 'failed', error, endTime: new Date() }
+                  : t
+              ))
+              toast.error(`Ошибка импорта "${task.filename}": ${error}`)
+            }}
+          />
+        ))}
     </div>
   )
 }

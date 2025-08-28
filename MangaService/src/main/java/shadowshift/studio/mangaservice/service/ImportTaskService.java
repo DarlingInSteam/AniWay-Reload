@@ -1,6 +1,8 @@
 package shadowshift.studio.mangaservice.service;
 
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
+import shadowshift.studio.mangaservice.websocket.ProgressWebSocketHandler;
 import java.time.LocalDateTime;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CompletableFuture;
@@ -9,6 +11,9 @@ import java.util.HashMap;
 
 @Service
 public class ImportTaskService {
+
+    @Autowired
+    private ProgressWebSocketHandler webSocketHandler;
 
     public enum TaskStatus {
         PENDING, IMPORTING_MANGA, IMPORTING_CHAPTERS, IMPORTING_PAGES, COMPLETED, FAILED
@@ -127,6 +132,9 @@ public class ImportTaskService {
             task.setStatus(status);
             task.setProgress(progress);
             task.setMessage(message);
+
+            // Отправляем обновление через WebSocket
+            sendWebSocketUpdate(taskId, task);
         }
     }
 
@@ -134,6 +142,9 @@ public class ImportTaskService {
         ImportTask task = tasks.get(taskId);
         if (task != null) {
             task.updateProgress();
+
+            // Отправляем обновление через WebSocket
+            sendWebSocketUpdate(taskId, task);
         }
     }
 
@@ -143,6 +154,9 @@ public class ImportTaskService {
             task.setStatus(TaskStatus.COMPLETED);
             task.setProgress(100);
             task.setMessage("Импорт завершен успешно");
+
+            // Отправляем обновление через WebSocket
+            sendWebSocketUpdate(taskId, task);
         }
     }
 
@@ -152,6 +166,9 @@ public class ImportTaskService {
             task.setStatus(TaskStatus.FAILED);
             task.setMessage("Ошибка импорта: " + errorMessage);
             task.setErrorMessage(errorMessage);
+
+            // Отправляем обновление через WebSocket
+            sendWebSocketUpdate(taskId, task);
         }
     }
 
@@ -161,6 +178,9 @@ public class ImportTaskService {
             task.setImportedChapters(task.getImportedChapters() + 1);
             task.updateProgress();
             task.setMessage("Импортировано глав: " + task.getImportedChapters() + "/" + task.getTotalChapters());
+
+            // Отправляем обновление через WebSocket
+            sendWebSocketUpdate(taskId, task);
         }
     }
 
@@ -168,6 +188,35 @@ public class ImportTaskService {
         ImportTask task = tasks.get(taskId);
         if (task != null) {
             task.setImportedPages(task.getImportedPages() + 1);
+
+            // Отправляем обновление через WebSocket только каждые 10 страниц для производительности
+            if (task.getImportedPages() % 10 == 0 || task.getImportedPages() == task.getTotalPages()) {
+                task.setMessage("Импортировано страниц: " + task.getImportedPages() + "/" + task.getTotalPages());
+                sendWebSocketUpdate(taskId, task);
+            }
+        }
+    }
+
+    /**
+     * Отправляет обновление прогресса через WebSocket
+     */
+    private void sendWebSocketUpdate(String taskId, ImportTask task) {
+        if (webSocketHandler != null && task != null) {
+            Map<String, Object> progressData = task.toMap();
+            // Приводим поля к ожидаемым фронтом
+            progressData.put("task_id", task.getTaskId());
+            progressData.put("status", task.getStatus().toString().toLowerCase());
+            progressData.put("progress", task.getProgress());
+            progressData.put("message", task.getMessage());
+            progressData.put("updated_at", task.getUpdatedAt().toString());
+            // Отправляем прогресс
+            webSocketHandler.sendProgressUpdate(taskId, progressData);
+            // Можно добавить лог-сообщение при завершении или ошибке
+            if (task.getStatus() == TaskStatus.COMPLETED) {
+                webSocketHandler.sendLogMessage(taskId, "INFO", "Импорт завершён успешно");
+            } else if (task.getStatus() == TaskStatus.FAILED) {
+                webSocketHandler.sendLogMessage(taskId, "ERROR", task.getErrorMessage());
+            }
         }
     }
 }

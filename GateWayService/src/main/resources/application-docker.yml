@@ -36,6 +36,15 @@ spring:
 
       # Маршруты к микросервисам (для Docker)
       routes:
+        # MangaService - WebSocket endpoints (НАИВЫСШИЙ ПРИОРИТЕТ)
+        - id: manga-websocket
+          uri: ws://manga-service:8081
+          predicates:
+            - Path=/api/manga/ws/**
+          filters:
+            - StripPrefix=3  # Исправляем: удаляем /api/manga/ws, оставляем /progress
+          order: 0
+
         # MangaService - API endpoints
         - id: manga-api
           uri: http://manga-service:8081
@@ -104,7 +113,7 @@ spring:
       # Настройки тайм-аутов
       httpclient:
         connect-timeout: 10000
-        response-timeout: 30000
+        response-timeout: 60000  # Увеличиваем до 60 секунд для долгих операций парсинга
 
 # Actuator для мониторинга
 management:
