@@ -49,45 +49,45 @@ export function ReaderPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [chapterId])
 
-  // Auto-hide UI on mouse inactivity
+  // UI visibility control - only on H key or scroll up
   useEffect(() => {
-    let timeout: NodeJS.Timeout
+    let lastScrollY = window.scrollY
+    let hasUserInteracted = false
 
-    const resetTimeout = () => {
-      clearTimeout(timeout)
-      setShowUI(true)
-      timeout = setTimeout(() => setShowUI(false), 3000)
-    }
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY
+      const scrollingUp = currentScrollY < lastScrollY
 
-    const handleMouseMove = () => resetTimeout()
-    const handleScroll = () => resetTimeout()
-
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('scroll', handleScroll)
-
-    resetTimeout()
-
-    return () => {
-      clearTimeout(timeout)
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('scroll', handleScroll)
-    }
-  }, [])
-
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        navigate(-1)
+      // Mark that user has started scrolling
+      if (!hasUserInteracted && Math.abs(currentScrollY - lastScrollY) > 10) {
+        hasUserInteracted = true
       }
+
+      if (scrollingUp) {
+        setShowUI(true)
+      } else if (hasUserInteracted) {
+        // Only hide UI when scrolling down if user has already interacted
+        setShowUI(false)
+      }
+
+      lastScrollY = currentScrollY
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'h' || e.key === 'H') {
         setShowUI(prev => !prev)
+        hasUserInteracted = true // Mark as interacted when using keyboard
       }
     }
 
+    window.addEventListener('scroll', handleScroll)
     document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [navigate])
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [])
 
   // Find current chapter index and navigation - ИСПРАВЛЕНО
   // Сортируем главы по номеру для правильного порядка

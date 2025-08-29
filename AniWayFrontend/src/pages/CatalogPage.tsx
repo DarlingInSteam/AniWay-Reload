@@ -11,6 +11,10 @@ export function CatalogPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [showFilters, setShowFilters] = useState(false)
+  const [activeType, setActiveType] = useState('манга')
+  const [sortOrder, setSortOrder] = useState('По популярности')
+  const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>('desc')
+  const [showSortDropdown, setShowSortDropdown] = useState(false)
 
   const genre = searchParams.get('genre')
   const sort = searchParams.get('sort')
@@ -47,105 +51,123 @@ export function CatalogPage() {
           <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2 text-center">{pageTitle}</h1>
         </div>
 
-        {/* Controls Bar */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8 p-4 bg-card rounded-xl border border-border/30">
-          {/* Left side - Filters */}
-          <div className="flex items-center space-x-4">
+        {/* Controls Bar - современный дизайн */}
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+          {/* Кнопка сортировки строго по левому краю */}
+          <div className="flex items-center order-1 lg:order-1 relative">
             <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={cn(
-                'flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200',
-                showFilters
-                  ? 'bg-primary text-white'
-                  : 'bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-white'
-              )}
+              className="flex items-center rounded-full px-4 h-9 min-w-9 text-sm font-medium bg-input hover:bg-accent hover:text-accent-foreground transition-all"
+              type="button"
+              aria-haspopup="listbox"
+              onClick={() => setShowSortDropdown((prev) => !prev)}
+              style={{ minWidth: 180 }}
             >
-              <Filter className="h-4 w-4" />
-              <span>Фильтры</span>
+              <span className="line-clamp-1 pointer-events-none">{sortOrder}</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" strokeWidth="1.5" fill="none" stroke="currentColor" className="ml-2 size-4 transition duration-300" aria-hidden="true">
+                <path d="M9.03985 5.59998L5.93982 2.5L2.83984 5.59998" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
+                <path d="M5.94141 15.5V3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
+                <path d="M11.625 14.4004L14.725 17.5004L17.825 14.4004" className="stroke-primary" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
+                <path d="M14.7227 4.5V16.5" className="stroke-primary" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
+              </svg>
             </button>
-
-            {/* Quick filter buttons */}
-            <div className="hidden sm:flex items-center space-x-2">
-              <button className="px-3 py-1 text-xs bg-secondary text-muted-foreground rounded-md hover:bg-secondary/80 hover:text-white transition-colors">
-                Все
-              </button>
-              <button className="px-3 py-1 text-xs bg-secondary text-muted-foreground rounded-md hover:bg-secondary/80 hover:text-white transition-colors">
-                Популярные
-              </button>
-              <button className="px-3 py-1 text-xs bg-secondary text-muted-foreground rounded-md hover:bg-secondary/80 hover:text-white transition-colors">
-                Новинки
-              </button>
-            </div>
+            {showSortDropdown && (
+              <div className="absolute left-0 top-full mt-2 w-64 bg-card rounded-xl shadow-lg z-50 border border-border/30">
+                <div className="px-4 pt-4 pb-2 text-xs text-muted-foreground">Сортировать по:</div>
+                {['По популярности','По новизне','По кол-ву глав','По дате обновления','По оценке','По кол-ву оценок','По лайкам','По просмотрам','По отзывам'].map(option => (
+                  <button
+                    key={option}
+                    onClick={() => { setSortOrder(option); setShowSortDropdown(true); }}
+                    className={cn(
+                      'w-full text-left px-4 py-2 text-sm rounded-lg transition-colors',
+                      sortOrder === option ? 'bg-primary text-white' : 'hover:bg-secondary text-muted-foreground'
+                    )}
+                  >
+                    {option}
+                  </button>
+                ))}
+                <div className="px-4 pt-2 pb-4 text-xs text-muted-foreground">Направление:</div>
+                {[
+                  { label: 'По убыванию', value: 'desc' },
+                  { label: 'По возрастанию', value: 'asc' }
+                ].map(dir => (
+                  <button
+                    key={dir.value}
+                    onClick={() => { setSortDirection(dir.value); setShowSortDropdown(false); }}
+                    className={cn(
+                      'w-full text-left px-4 py-2 text-sm rounded-lg transition-colors',
+                      sortDirection === dir.value ? 'bg-primary text-white' : 'hover:bg-secondary text-muted-foreground'
+                    )}
+                  >
+                    {dir.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Right side - View Controls */}
-          <div className="flex items-center space-x-2">
-            <div className="flex bg-secondary rounded-lg p-1">
+          {/* Быстрые фильтры по типу по центру */}
+          <div className="flex-1 flex justify-center gap-2 order-2 lg:order-2">
+            {['все', 'манга', 'манхва', 'маньхуа', 'западный комикс', 'рукомикс', 'другое'].map(type => (
               <button
-                onClick={() => setViewMode('grid')}
+                key={type}
+                onClick={() => setActiveType(type)}
                 className={cn(
-                  'p-2 rounded-md transition-all duration-200',
-                  viewMode === 'grid'
-                    ? 'bg-primary text-white shadow-sm'
-                    : 'text-muted-foreground hover:text-white'
+                  'px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200',
+                  activeType === type
+                    ? 'bg-primary text-white shadow'
+                    : 'bg-input text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                 )}
               >
-                <Grid className="h-4 w-4" />
+                {type.charAt(0).toUpperCase() + type.slice(1)}
               </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={cn(
-                  'p-2 rounded-md transition-all duration-200',
-                  viewMode === 'list'
-                    ? 'bg-primary text-white shadow-sm'
-                    : 'text-muted-foreground hover:text-white'
-                )}
-              >
-                <List className="h-4 w-4" />
-              </button>
-            </div>
+            ))}
+          </div>
+
+          {/* Кнопка фильтры справа */}
+          <div className="flex items-center order-3 lg:order-3 pr-2 lg:pr-4">
+            <button
+              onClick={() => setShowFilters(true)}
+              className="flex items-center px-4 py-2 h-9 rounded-full bg-input text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              style={{ minWidth: 120 }}
+            >
+              <Filter className="h-5 w-5 mr-2" />
+              <span>Фильтры</span>
+            </button>
           </div>
         </div>
 
-        {/* Filters Panel */}
-        {showFilters && (
-          <div className="mb-8 p-6 bg-card rounded-xl border border-border/30 animate-fade-in">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">Жанр</label>
-                <select className="w-full p-2 bg-secondary border border-border/30 rounded-lg text-white">
-                  <option>Все жанры</option>
-                  <option>Экшен</option>
-                  <option>Романтика</option>
-                  <option>Фантастика</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">Статус</label>
-                <select className="w-full p-2 bg-secondary border border-border/30 rounded-lg text-white">
-                  <option>Все статусы</option>
-                  <option>Продолжается</option>
-                  <option>Завершен</option>
-                  <option>Заморожен</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">Сортировка</label>
-                <select className="w-full p-2 bg-secondary border border-border/30 rounded-lg text-white">
-                  <option>По популярности</option>
-                  <option>По дате обновления</option>
-                  <option>По рейтингу</option>
-                  <option>По алфавиту</option>
-                </select>
-              </div>
-            </div>
+        {/* Offcanvas фильтров справа */}
+        <div
+          className={cn(
+            'fixed top-0 right-0 h-full w-full max-w-md bg-card shadow-2xl z-50 transition-transform duration-300',
+            showFilters ? 'translate-x-0' : 'translate-x-full'
+          )}
+          style={{ boxShadow: showFilters ? '0 0 40px 0 rgba(0,0,0,0.5)' : undefined }}
+        >
+          <div className="flex justify-between items-center p-4 border-b border-border/30">
+            <span className="font-bold text-lg text-white">Фильтры</span>
+            <button onClick={() => setShowFilters(false)} className="text-muted-foreground hover:text-white p-2 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
           </div>
+          <div className="p-6 text-muted-foreground">
+            {/* Контент фильтров будет позже */}
+            <div className="text-center">Панель фильтров (заглушка)</div>
+          </div>
+        </div>
+
+        {/* Overlay для offcanvas */}
+        {showFilters && (
+          <div
+            className="fixed inset-0 bg-black/40 z-40 transition-opacity duration-300"
+            onClick={() => setShowFilters(false)}
+          />
         )}
 
         {/* Manga Grid */}
         <div className={cn(
           viewMode === 'grid'
-            ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 justify-items-center'
+            ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 justify-items-start'
             : 'flex flex-col gap-4', // Для режима списка
         )}>
           {manga?.map((item) => (
