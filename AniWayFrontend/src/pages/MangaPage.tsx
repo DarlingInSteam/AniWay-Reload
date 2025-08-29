@@ -12,7 +12,7 @@ import { formatDate, getStatusColor, getStatusText, cn } from '@/lib/utils'
 export function MangaPage() {
   const { id } = useParams<{ id: string }>()
   const mangaId = parseInt(id!)
-  const [activeTab, setActiveTab] = useState<'chapters' | 'discussions' | 'moments' | 'cards' | 'characters'>('chapters')
+  const [activeTab, setActiveTab] = useState<'chapters' | 'discussions' | 'moments' | 'cards' | 'characters' | 'description' >('chapters')
 
   const { data: manga, isLoading: mangaLoading } = useQuery({
     queryKey: ['manga', mangaId],
@@ -157,7 +157,7 @@ export function MangaPage() {
           <div className="lg:col-span-2 space-y-6">
             {/* Tab Navigation */}
             <div className="flex space-x-1 bg-card rounded-xl p-1">
-              {[
+              {[{key: 'description', label: 'Описание'},
                 { key: 'chapters', label: 'Главы' },
                 { key: 'discussions', label: 'Обсуждения' },
                 { key: 'moments', label: 'Моменты' },
@@ -178,6 +178,13 @@ export function MangaPage() {
                 </button>
               ))}
             </div>
+
+          {activeTab === 'description' && (
+            <div className="bg-card rounded-xl p-6 text-white">
+              <h2 className="text-xl font-bold mb-4">Описание</h2>
+              <p className="text-muted-foreground">{manga.description || 'Описание отсутствует.'}</p>
+            </div>
+          )}
 
             {/* Chapters List */}
             {activeTab === 'chapters' && (
@@ -231,7 +238,6 @@ export function MangaPage() {
             {/* Other tabs placeholder */}
             {activeTab !== 'chapters' && (
               <div className="text-center py-12">
-                <p className="text-muted-foreground">Раздел в разработке</p>
               </div>
             )}
           </div>

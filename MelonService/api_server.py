@@ -457,6 +457,11 @@ async def execute_parse_task(task_id: str, slug: str, parser: str):
                         "branches": len(manga_data.get("content", {}))
                     }
                 )
+
+                # Автоматически запускаем build после успешного парсинга
+                # Параметры: task_id, filename, parser, branch_id=None, archive_type="zip"
+                import asyncio
+                asyncio.create_task(execute_build_task(task_id, slug, parser, None, "simple"))
             else:
                 update_task_status(task_id, "FAILED", 100, "Парсинг выполнен, но JSON файл не найден")
         else:

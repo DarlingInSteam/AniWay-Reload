@@ -61,6 +61,13 @@ spring:
           filters:
             - StripPrefix=0
 
+        - id: manga-web-parser
+          uri: http://manga-service:8081
+          predicates:
+            - Path=/parser/**
+          filters:
+            - StripPrefix=0
+
         # MangaService - Reader
         - id: manga-reader
           uri: http://manga-service:8081

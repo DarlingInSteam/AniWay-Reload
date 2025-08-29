@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { Grid, List, Filter } from 'lucide-react'
@@ -25,7 +25,11 @@ export function CatalogPage() {
     },
   })
 
-  const pageTitle = genre ? `Жанр: ${genre}` : 'Каталог манги'
+  const pageTitle = genre ? `Жанр: ${genre}` : 'Каталог'
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, []);
 
   if (isLoading) {
     return (
@@ -40,10 +44,7 @@ export function CatalogPage() {
       <div className="container mx-auto px-4 lg:px-8 py-8">
         {/* Header Section */}
         <div className="mb-8">
-          <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2">{pageTitle}</h1>
-          <p className="text-muted-foreground">
-            Найдено <span className="text-primary font-semibold">{manga?.length || 0}</span> произведений
-          </p>
+          <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2 text-center">{pageTitle}</h1>
         </div>
 
         {/* Controls Bar */}

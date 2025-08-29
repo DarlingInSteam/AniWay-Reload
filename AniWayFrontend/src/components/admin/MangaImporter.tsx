@@ -17,6 +17,7 @@ interface ParsedManga {
   size: string
   createdAt: string
   branches?: string[]
+  coverImageUrl?: string // Добавлено поле для URL обложки
 }
 
 interface ImportTask {
@@ -50,7 +51,13 @@ export function MangaImporter() {
       const response = await fetch('/api/parser/list')
       if (response.ok) {
         const data = await response.json()
-        setParsedManga(data)
+        // Добавляем coverImageUrl для каждой манги
+        const melonApiUrl = process.env.MELON_API_URL || 'http://localhost:8084'
+        const parsedWithCover = data.map((manga: ParsedManga) => ({
+          ...manga,
+          coverImageUrl: `${melonApiUrl}/cover/${manga.filename}`
+        }))
+        setParsedManga(parsedWithCover)
       } else {
         console.error('Ошибка загрузки:', response.status, response.statusText)
         toast.error('Ошибка загрузки списка манги')
