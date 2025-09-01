@@ -18,13 +18,13 @@ public interface ChapterRepository extends JpaRepository<Chapter, Long> {
     Integer countByMangaId(Long mangaId);
 
     // Поиск главы по ID манги и номеру главы
-    Optional<Chapter> findByMangaIdAndChapterNumber(Long mangaId, Integer chapterNumber);
+    Optional<Chapter> findByMangaIdAndChapterNumber(Long mangaId, Double chapterNumber);
 
     // Получение следующей главы
     @Query("SELECT c FROM Chapter c WHERE c.mangaId = :mangaId AND c.chapterNumber > :currentChapter ORDER BY c.chapterNumber ASC")
-    Optional<Chapter> findNextChapter(Long mangaId, Integer currentChapter);
+    Optional<Chapter> findNextChapter(Long mangaId, Double currentChapter);
 
     // Получение предыдущей главы
     @Query("SELECT c FROM Chapter c WHERE c.mangaId = :mangaId AND c.chapterNumber < :currentChapter ORDER BY c.chapterNumber DESC")
-    Optional<Chapter> findPreviousChapter(Long mangaId, Integer currentChapter);
+    Optional<Chapter> findPreviousChapter(Long mangaId, Double currentChapter);
 }

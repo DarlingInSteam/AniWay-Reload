@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertCircle, Upload, CheckCircle, XCircle, Clock, Loader2, RefreshCw, Trash2 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { toast } from 'sonner'
+import { RealTimeProgress } from '@/components/common/RealTimeProgress'
 
 interface ParsedManga {
   filename: string
@@ -16,6 +17,7 @@ interface ParsedManga {
   size: string
   createdAt: string
   branches?: string[]
+  coverImageUrl?: string // Добавлено поле для URL обложки
 }
 
 interface ImportTask {
@@ -49,7 +51,13 @@ export function MangaImporter() {
       const response = await fetch('/api/parser/list')
       if (response.ok) {
         const data = await response.json()
-        setParsedManga(data)
+        // Добавляем coverImageUrl для каждой манги
+        const melonApiUrl = process.env.MELON_API_URL || 'http://localhost:8084'
+        const parsedWithCover = data.map((manga: ParsedManga) => ({
+          ...manga,
+          coverImageUrl: `${melonApiUrl}/cover/${manga.filename}`
+        }))
+        setParsedManga(parsedWithCover)
       } else {
         console.error('Ошибка загрузки:', response.status, response.statusText)
         toast.error('Ошибка загрузки списка манги')
@@ -379,6 +387,35 @@ export function MangaImporter() {
           </CardContent>
         </Card>
       )}
+
+      {/* Real-time progress для активных импортов */}
+      {importTasks
+        .filter(task => task.status === 'pending' || task.status === 'running')
+        .map(task => (
+          <RealTimeProgress
+            key={task.taskId}
+            taskId={task.taskId}
+            title={`Импорт: ${task.filename}`}
+            onComplete={(result) => {
+              setImportTasks(prev => prev.map(t =>
+                t.taskId === task.taskId
+                  ? { ...t, status: 'completed', endTime: new Date() }
+                  : t
+              ))
+              toast.success(`Импорт манги "${task.filename}" завершен успешно!`)
+              // Обновляем список, убира��м импортированную мангу из списка
+              setParsedManga(prev => prev.filter(manga => manga.filename !== task.filename))
+            }}
+            onError={(error) => {
+              setImportTasks(prev => prev.map(t =>
+                t.taskId === task.taskId
+                  ? { ...t, status: 'failed', error, endTime: new Date() }
+                  : t
+              ))
+              toast.error(`Ошибка импорта "${task.filename}": ${error}`)
+            }}
+          />
+        ))}
     </div>
   )
 }

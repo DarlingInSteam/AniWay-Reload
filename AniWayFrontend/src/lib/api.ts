@@ -39,6 +39,19 @@ class ApiClient {
     return this.request<MangaResponseDTO[]>(`/manga/search?${searchParams}`);
   }
 
+  async updateManga(id: number, data: any): Promise<MangaResponseDTO> {
+    return this.request<MangaResponseDTO>(`/manga/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteManga(id: number): Promise<void> {
+    await this.request<void>(`/manga/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   async getMangaChapters(mangaId: number): Promise<ChapterDTO[]> {
     return this.request<ChapterDTO[]>(`/manga/${mangaId}/chapters`);
   }

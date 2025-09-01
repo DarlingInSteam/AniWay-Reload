@@ -33,10 +33,29 @@ public class Manga {
 
     @Enumerated(EnumType.STRING)
     @Column(length = 50)
-    private MangaStatus status = MangaStatus.ONGOING;
+    private MangaStatus status;
 
     @Size(max = 500, message = "Genre must not exceed 500 characters")
     private String genre;
+
+    @Size(max = 1000, message = "Tags must not exceed 1000 characters")
+    private String tags;
+
+    @Column(name = "eng_name", length = 255)
+    private String engName;
+
+    @Column(name = "alternative_names", length = 1000)
+    private String alternativeNames;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "manga_type", length = 50)
+    private MangaType type;
+
+    @Column(name = "age_limit")
+    private Integer ageLimit;
+
+    @Column(name = "is_licensed")
+    private Boolean isLicensed = false;
 
     @Column(name = "cover_image_url", length = 500)
     private String coverImageUrl;
@@ -107,7 +126,29 @@ public class Manga {
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 
+    public String getTags() { return tags; }
+    public void setTags(String tags) { this.tags = tags; }
+
+    public String getEngName() { return engName; }
+    public void setEngName(String engName) { this.engName = engName; }
+
+    public String getAlternativeNames() { return alternativeNames; }
+    public void setAlternativeNames(String alternativeNames) { this.alternativeNames = alternativeNames; }
+
+    public MangaType getType() { return type; }
+    public void setType(MangaType type) { this.type = type; }
+
+    public Integer getAgeLimit() { return ageLimit; }
+    public void setAgeLimit(Integer ageLimit) { this.ageLimit = ageLimit; }
+
+    public Boolean getIsLicensed() { return isLicensed; }
+    public void setIsLicensed(Boolean isLicensed) { this.isLicensed = isLicensed; }
+
     public enum MangaStatus {
         ONGOING, COMPLETED, HIATUS, CANCELLED
+    }
+
+    public enum MangaType {
+        MANGA, MANHWA, MANHUA, WESTERN_COMIC, RUSSIAN_COMIC, OEL, OTHER
     }
 }

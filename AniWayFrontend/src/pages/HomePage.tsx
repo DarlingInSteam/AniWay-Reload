@@ -1,27 +1,24 @@
-import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Grid, List, Search, Flame } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { TrendingUp, Star, Clock, BookOpen, ArrowRight, Eye, Heart } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { MangaCard } from '@/components/manga/MangaCard'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { cn } from '@/lib/utils'
 
 export function HomePage() {
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
-  const [searchQuery, setSearchQuery] = useState('')
-
-  const { data: allManga, isLoading } = useQuery({
-    queryKey: ['manga'],
+  const { data: popularManga, isLoading: popularLoading } = useQuery({
+    queryKey: ['popular-manga'],
     queryFn: () => apiClient.getAllManga(),
+    staleTime: 5 * 60 * 1000, // 5 минут
   })
 
-  // Фильтрация по поисковому запросу
-  const filteredManga = allManga?.filter(manga =>
-    manga.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    manga.author?.toLowerCase().includes(searchQuery.toLowerCase())
-  ) || []
+  const { data: recentManga, isLoading: recentLoading } = useQuery({
+    queryKey: ['recent-manga'],
+    queryFn: () => apiClient.getAllManga(),
+    staleTime: 5 * 60 * 1000,
+  })
 
-  if (isLoading) {
+  if (popularLoading) {
     return (
       <div className="min-h-screen bg-manga-black flex items-center justify-center">
         <LoadingSpinner size="lg" />
@@ -29,97 +26,163 @@ export function HomePage() {
     )
   }
 
+  // Берем первые элементы для разных секций
+  const featuredManga = popularManga?.slice(0, 1)?.[0]
+  const trending = popularManga?.slice(0, 12) || []
+  const recent = recentManga?.slice(0, 12) || []
+
   return (
     <div className="min-h-screen bg-manga-black">
-      <div className="container mx-auto px-4 lg:px-8 py-8">
-        {/* Header Section */}
-        <div className="mb-8">
-          <div className="flex items-center space-x-3 mb-4">
-            <Flame className="h-8 w-8 text-manga-rating-orange" />
-            <h1 className="text-3xl lg:text-4xl font-bold text-white">Каталог манги</h1>
-          </div>
-          <p className="text-muted-foreground">
-            Найдено <span className="text-primary font-semibold">{filteredManga.length}</span> произведений
-          </p>
-        </div>
-
-        {/* Search and Controls Bar */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-8 p-4 bg-card rounded-xl border border-border/30">
-          {/* Search */}
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Поиск по названию или автору..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-secondary border border-border/30 rounded-lg text-white placeholder:text-muted-foreground focus:border-primary focus:outline-none transition-colors"
+      {/* Hero Section */}
+      {featuredManga && (
+        <section className="relative h-[50vh] md:h-[60vh] lg:h-[70vh] overflow-hidden">
+          <div className="absolute inset-0">
+            <img
+              src={featuredManga.coverImageUrl}
+              alt={featuredManga.title}
+              className="w-full h-full object-cover object-center"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement
+                target.src = '/placeholder-manga.jpg'
+              }}
             />
+            <div className="absolute inset-0 bg-gradient-to-t from-manga-black via-manga-black/50 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-r from-manga-black/80 via-transparent to-transparent" />
           </div>
 
-          {/* View Mode Toggle */}
-          <div className="flex bg-secondary rounded-lg p-1">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={cn(
-                'p-2 rounded-md transition-all duration-200',
-                viewMode === 'grid'
-                  ? 'bg-primary text-white shadow-sm'
-                  : 'text-muted-foreground hover:text-white'
-              )}
+          <div className="relative h-full flex items-center">
+            <div className="container mx-auto px-4 lg:px-8">
+              <div className="max-w-2xl">
+                <div className="flex items-center space-x-2 mb-4">
+                  <TrendingUp className="h-5 w-5 text-primary" />
+                  <span className="text-primary font-medium text-sm">Рекомендуем</span>
+                </div>
+
+                <h1 className="text-2xl md:text-4xl lg:text-5xl font-bold text-white mb-4 leading-tight">
+                  {featuredManga.title}
+                </h1>
+
+                <p className="text-muted-foreground text-sm md:text-base lg:text-lg mb-6 line-clamp-3">
+                  {featuredManga.description || 'Захватывающая манга, которая не оставит вас равнодушными. Присоединяйтесь к тысячам читателей и окунитесь в удивительный мир приключений.'}
+                </p>
+
+                <div className="flex flex-wrap items-center gap-4 mb-6">
+                  <div className="flex items-center space-x-1">
+                    <Star className="h-4 w-4 text-manga-rating fill-current" />
+                    <span className="text-white font-medium">{(4 + Math.random()).toFixed(1)}</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <Eye className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-muted-foreground">{Math.floor(Math.random() * 100000 + 10000).toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <BookOpen className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-muted-foreground">{featuredManga.totalChapters} глав</span>
+                  </div>
+                  <div className="px-2 py-1 bg-primary/20 text-primary text-xs font-medium rounded-full">
+                    {featuredManga.genre.split(',')[0]}
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Link
+                    to={`/manga/${featuredManga.id}`}
+                    className="inline-flex items-center px-6 py-3 bg-primary text-white font-semibold rounded-xl hover:bg-primary/90 transition-all duration-200 transform hover:scale-105"
+                  >
+                    <BookOpen className="mr-2 h-5 w-5" />
+                    Читать сейчас
+                  </Link>
+                  <Link
+                    to={`/manga/${featuredManga.id}`}
+                    className="inline-flex items-center px-6 py-3 bg-card text-white font-semibold rounded-xl hover:bg-card/80 transition-colors border border-border/30"
+                  >
+                    <Heart className="mr-2 h-5 w-5" />
+                    В закладки
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Main Content */}
+      <div className="container mx-auto px-4 lg:px-8 py-8 md:py-12">
+        {/* Trending Section */}
+        <section className="mb-12">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-3">
+              <TrendingUp className="h-6 w-6 text-primary" />
+              <h2 className="text-xl md:text-2xl font-bold text-white">Популярное</h2>
+            </div>
+            <Link
+              to="/catalog"
+              className="flex items-center text-primary hover:text-primary/80 transition-colors text-sm font-medium"
             >
-              <Grid className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={cn(
-                'p-2 rounded-md transition-all duration-200',
-                viewMode === 'list'
-                  ? 'bg-primary text-white shadow-sm'
-                  : 'text-muted-foreground hover:text-white'
-              )}
-            >
-              <List className="h-4 w-4" />
-            </button>
+              Смотреть все
+              <ArrowRight className="ml-1 h-4 w-4" />
+            </Link>
           </div>
-        </div>
 
-        {/* Empty State */}
-        {filteredManga.length === 0 && searchQuery && (
-          <div className="text-center py-16">
-            <Search className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-white mb-2">Ничего не найдено</h3>
-            <p className="text-muted-foreground">
-              Попробуйте изменить поисковый запрос или очистить фильтры
-            </p>
-          </div>
-        )}
-
-        {/* Manga Grid/List */}
-        {filteredManga.length > 0 && (
-          <div className={cn(
-            viewMode === 'grid'
-              ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 justify-items-center'
-              : 'flex flex-col gap-4'
-          )}>
-            {filteredManga.map((manga) => (
-              <MangaCard
-                key={manga.id}
-                manga={manga}
-                size={viewMode === 'grid' ? 'default' : 'compact'}
-              />
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4 lg:gap-6">
+            {trending.map((manga) => (
+              <MangaCard key={manga.id} manga={manga} />
             ))}
           </div>
-        )}
+        </section>
 
-        {/* Welcome message when no search */}
-        {filteredManga.length > 0 && !searchQuery && (
-          <div className="mt-12 text-center">
-            <p className="text-muted-foreground">
-              🔥 Добро пожаловать в каталог! Здесь вы найдете лучшие манги для чтения.
-            </p>
+        {/* Recent Updates Section */}
+        <section className="mb-12">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-3">
+              <Clock className="h-6 w-6 text-primary" />
+              <h2 className="text-xl md:text-2xl font-bold text-white">Недавние обновления</h2>
+            </div>
+            <Link
+              to="/catalog"
+              className="flex items-center text-primary hover:text-primary/80 transition-colors text-sm font-medium"
+            >
+              Смотреть все
+              <ArrowRight className="ml-1 h-4 w-4" />
+            </Link>
           </div>
-        )}
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4 lg:gap-6">
+            {recent.map((manga) => (
+              <MangaCard key={manga.id} manga={manga} />
+            ))}
+          </div>
+        </section>
+
+        {/* Stats Section */}
+        <section className="bg-card rounded-xl p-6 md:p-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div className="text-center">
+              <div className="text-2xl md:text-3xl font-bold text-white mb-2">
+                {popularManga?.length || 0}
+              </div>
+              <div className="text-muted-foreground text-sm">Манги</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl md:text-3xl font-bold text-white mb-2">
+                {Math.floor(Math.random() * 10000 + 5000).toLocaleString()}
+              </div>
+              <div className="text-muted-foreground text-sm">Глав</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl md:text-3xl font-bold text-white mb-2">
+                {Math.floor(Math.random() * 50000 + 10000).toLocaleString()}
+              </div>
+              <div className="text-muted-foreground text-sm">Читателей</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl md:text-3xl font-bold text-white mb-2">
+                {Math.floor(Math.random() * 1000000 + 100000).toLocaleString()}
+              </div>
+              <div className="text-muted-foreground text-sm">Просмотров</div>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   )

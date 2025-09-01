@@ -7,7 +7,9 @@ public class ChapterResponseDTO {
 
     private Long id;
     private Long mangaId;
-    private Integer chapterNumber;
+    private Double chapterNumber;
+    private Integer volumeNumber;
+    private Double originalChapterNumber;
     private String title;
     private Integer pageCount;
     private LocalDateTime publishedDate;
@@ -21,6 +23,8 @@ public class ChapterResponseDTO {
         this.id = chapter.getId();
         this.mangaId = chapter.getMangaId();
         this.chapterNumber = chapter.getChapterNumber();
+        this.volumeNumber = chapter.getVolumeNumber();
+        this.originalChapterNumber = chapter.getOriginalChapterNumber();
         this.title = chapter.getTitle();
         this.pageCount = chapter.getPageCount();
         this.publishedDate = chapter.getPublishedDate();
@@ -35,8 +39,14 @@ public class ChapterResponseDTO {
     public Long getMangaId() { return mangaId; }
     public void setMangaId(Long mangaId) { this.mangaId = mangaId; }
 
-    public Integer getChapterNumber() { return chapterNumber; }
-    public void setChapterNumber(Integer chapterNumber) { this.chapterNumber = chapterNumber; }
+    public Double getChapterNumber() { return chapterNumber; }
+    public void setChapterNumber(Double chapterNumber) { this.chapterNumber = chapterNumber; }
+
+    public Integer getVolumeNumber() { return volumeNumber; }
+    public void setVolumeNumber(Integer volumeNumber) { this.volumeNumber = volumeNumber; }
+
+    public Double getOriginalChapterNumber() { return originalChapterNumber; }
+    public void setOriginalChapterNumber(Double originalChapterNumber) { this.originalChapterNumber = originalChapterNumber; }
 
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }

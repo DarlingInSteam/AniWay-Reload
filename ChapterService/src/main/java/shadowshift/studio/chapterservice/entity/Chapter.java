@@ -23,7 +23,13 @@ public class Chapter {
     @NotNull(message = "Chapter number is required")
     @Min(value = 1, message = "Chapter number must be positive")
     @Column(name = "chapter_number", nullable = false)
-    private Integer chapterNumber;
+    private Double chapterNumber;
+
+    @Column(name = "volume_number")
+    private Integer volumeNumber;
+
+    @Column(name = "original_chapter_number")
+    private Double originalChapterNumber;
 
     @Size(max = 255, message = "Title must not exceed 255 characters")
     private String title;
@@ -57,7 +63,7 @@ public class Chapter {
     // Constructors
     public Chapter() {}
 
-    public Chapter(Long mangaId, Integer chapterNumber, String title) {
+    public Chapter(Long mangaId, Double chapterNumber, String title) {
         this.mangaId = mangaId;
         this.chapterNumber = chapterNumber;
         this.title = title;
@@ -70,8 +76,14 @@ public class Chapter {
     public Long getMangaId() { return mangaId; }
     public void setMangaId(Long mangaId) { this.mangaId = mangaId; }
 
-    public Integer getChapterNumber() { return chapterNumber; }
-    public void setChapterNumber(Integer chapterNumber) { this.chapterNumber = chapterNumber; }
+    public Double getChapterNumber() { return chapterNumber; }
+    public void setChapterNumber(Double chapterNumber) { this.chapterNumber = chapterNumber; }
+
+    public Integer getVolumeNumber() { return volumeNumber; }
+    public void setVolumeNumber(Integer volumeNumber) { this.volumeNumber = volumeNumber; }
+
+    public Double getOriginalChapterNumber() { return originalChapterNumber; }
+    public void setOriginalChapterNumber(Double originalChapterNumber) { this.originalChapterNumber = originalChapterNumber; }
 
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }

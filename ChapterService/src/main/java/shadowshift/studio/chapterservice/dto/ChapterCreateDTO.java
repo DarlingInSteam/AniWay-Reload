@@ -12,7 +12,11 @@ public class ChapterCreateDTO {
 
     @NotNull(message = "Chapter number is required")
     @Min(value = 1, message = "Chapter number must be positive")
-    private Integer chapterNumber;
+    private Double chapterNumber;
+
+    private Integer volumeNumber;
+
+    private Double originalChapterNumber;
 
     @Size(max = 255, message = "Title must not exceed 255 characters")
     private String title;
@@ -22,7 +26,7 @@ public class ChapterCreateDTO {
     // Constructors
     public ChapterCreateDTO() {}
 
-    public ChapterCreateDTO(Long mangaId, Integer chapterNumber, String title) {
+    public ChapterCreateDTO(Long mangaId, Double chapterNumber, String title) {
         this.mangaId = mangaId;
         this.chapterNumber = chapterNumber;
         this.title = title;
@@ -32,8 +36,14 @@ public class ChapterCreateDTO {
     public Long getMangaId() { return mangaId; }
     public void setMangaId(Long mangaId) { this.mangaId = mangaId; }
 
-    public Integer getChapterNumber() { return chapterNumber; }
-    public void setChapterNumber(Integer chapterNumber) { this.chapterNumber = chapterNumber; }
+    public Double getChapterNumber() { return chapterNumber; }
+    public void setChapterNumber(Double chapterNumber) { this.chapterNumber = chapterNumber; }
+
+    public Integer getVolumeNumber() { return volumeNumber; }
+    public void setVolumeNumber(Integer volumeNumber) { this.volumeNumber = volumeNumber; }
+
+    public Double getOriginalChapterNumber() { return originalChapterNumber; }
+    public void setOriginalChapterNumber(Double originalChapterNumber) { this.originalChapterNumber = originalChapterNumber; }
 
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }

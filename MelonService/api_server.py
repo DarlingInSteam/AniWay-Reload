@@ -12,6 +12,7 @@ import shutil
 import uuid
 from datetime import datetime
 import logging
+import requests
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -141,7 +142,21 @@ def ensure_cross_device_patch():
         except Exception as runtime_error:
             logger.error(f"Runtime patching failed: {runtime_error}")
 
-def update_task_status(task_id: str, status: str, progress: int, message: str, result: Optional[Dict] = None):
+def send_progress_to_manga_service(task_id, status, progress, message=None, error=None):
+    try:
+        payload = {
+            "status": status,
+            "progress": progress,
+            "message": message,
+            "error": error
+        }
+        url = f"http://manga-service:8081/api/parser/progress/{task_id}"
+        resp = requests.post(url, json=payload, timeout=5)
+        logger.info(f"Progress sent to MangaService: {payload}, response: {resp.status_code}")
+    except Exception as e:
+        logger.error(f"Failed to send progress to MangaService: {e}")
+
+def update_task_status(task_id: str, status: str, progress: int, message: str, result: Optional[Dict] = None, error: Optional[str] = None):
     """Обновляет статус задачи"""
     if task_id in tasks_storage:
         tasks_storage[task_id].status = status
@@ -150,6 +165,7 @@ def update_task_status(task_id: str, status: str, progress: int, message: str, r
         tasks_storage[task_id].updated_at = datetime.now().isoformat()
         if result:
             tasks_storage[task_id].result = result
+        send_progress_to_manga_service(task_id, status, progress, message, error)
 
 async def run_melon_command(command: List[str], task_id: str) -> Dict[str, Any]:
     """Запускает команду MelonService асинхронно"""
@@ -161,7 +177,7 @@ async def run_melon_command(command: List[str], task_id: str) -> Dict[str, Any]:
         full_command = ["python", "main.py"] + command[2:]  # убираем "python main.py"
 
         logger.info(f"Running command: {' '.join(full_command)}")
-        update_task_status(task_id, "running", 10, "Executing Melon command...")
+        update_task_status(task_id, "IMPORTING_MANGA", 10, "Executing Melon command...")
 
         # Запускаем процесс
         process = await asyncio.create_subprocess_exec(
@@ -359,10 +375,10 @@ async def get_chapter_image(filename: str, chapter: str, page: str):
         logger.error(f"Error serving image {filename}/{chapter}/{page}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# Добавляем новый эндпоинт для получения обложки как файла
+# Добавляем новый эндпо��нт для получения обложки как файла
 @app.get("/cover/{filename}")
 async def get_manga_cover(filename: str):
-    """Возвращает обложку манги как файл из папки images/{slug}/covers/"""
+    """Возвращает обложку манги как файл ��з папки images/{slug}/covers/"""
     try:
         # Правильный путь к обложкам: Output/mangalib/images/{slug}/covers/
         covers_path = get_melon_base_path() / "Output" / "mangalib" / "images" / filename / "covers"
@@ -412,14 +428,14 @@ async def execute_parse_task(task_id: str, slug: str, parser: str):
     try:
         ensure_utf8_patch()
         ensure_cross_device_patch()  # Добавляем новый патч
-        update_task_status(task_id, "running", 5, "Применены патчи")
+        update_task_status(task_id, "IMPORTING_MANGA", 5, "Применены патчи")
 
         # Запускаем парсинг
         command = ["python", "main.py", "parse", slug, "--use", parser]
         result = await run_melon_command(command, task_id)
 
         if result["success"]:
-            update_task_status(task_id, "running", 80, "Парсинг завершен, проверяем результат...")
+            update_task_status(task_id, "IMPORTING_MANGA", 80, "Парсинг завершен, проверяем результат...")
 
             # Проверяем, создался ли JSON файл
             json_path = get_melon_base_path() / "Output" / parser / "titles" / f"{slug}.json"
@@ -431,7 +447,7 @@ async def execute_parse_task(task_id: str, slug: str, parser: str):
 
                 update_task_status(
                     task_id,
-                    "completed",
+                    "COMPLETED",
                     100,
                     "Парсинг успешно завершен",
                     {
@@ -441,28 +457,33 @@ async def execute_parse_task(task_id: str, slug: str, parser: str):
                         "branches": len(manga_data.get("content", {}))
                     }
                 )
+
+                # Автоматически запускаем build после успешного парсинга
+                # Параметры: task_id, filename, parser, branch_id=None, archive_type="zip"
+                import asyncio
+                asyncio.create_task(execute_build_task(task_id, slug, parser, None, "simple"))
             else:
-                update_task_status(task_id, "failed", 100, "Парсинг выполнен, но JSON файл не найден")
+                update_task_status(task_id, "FAILED", 100, "Парсинг выполнен, но JSON файл не найден")
         else:
             update_task_status(
                 task_id,
-                "failed",
+                "FAILED",
                 100,
                 f"Ошибка парсинга: {result.get('stderr', 'Unknown error')}"
             )
 
     except Exception as e:
-        update_task_status(task_id, "failed", 100, f"Критическая ошибка: {str(e)}")
+        update_task_status(task_id, "FAILED", 100, f"Критическая ошибка: {str(e)}")
 
 async def execute_build_task(task_id: str, filename: str, parser: str, branch_id: Optional[str], archive_type: str):
     """Выполняет построение архива манги"""
     try:
-        update_task_status(task_id, "running", 10, "Начинаем построение архива...")
+        update_task_status(task_id, "IMPORTING_MANGA", 10, "Начинаем построение архива...")
 
         # Применяем патч перед каждым выполнением build команды
         ensure_cross_device_patch()
 
-        # Формируем команду
+        # ��ормируем команду
         command = ["python", "main.py", "build-manga", filename, "--use", parser]
 
         if branch_id:
@@ -480,7 +501,7 @@ async def execute_build_task(task_id: str, filename: str, parser: str, branch_id
         if result["success"]:
             update_task_status(
                 task_id,
-                "completed",
+                "COMPLETED",
                 100,
                 f"Архив успешно построен ({archive_type})",
                 {
@@ -496,14 +517,14 @@ async def execute_build_task(task_id: str, filename: str, parser: str, branch_id
 
             update_task_status(
                 task_id,
-                "failed",
+                "FAILED",
                 100,
                 error_msg
             )
 
     except Exception as e:
         logger.error(f"Critical error in build task {task_id}: {str(e)}")
-        update_task_status(task_id, "failed", 100, f"Критическая ошибка: {str(e)}")
+        update_task_status(task_id, "FAILED", 100, f"Критическая ошибка: {str(e)}")
 
 # Добавляем эндпоинт для удаления манги
 @app.delete("/delete/{filename}")

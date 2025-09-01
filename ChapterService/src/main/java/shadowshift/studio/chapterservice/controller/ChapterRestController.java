@@ -76,7 +76,7 @@ public class ChapterRestController {
     @GetMapping("/manga/{mangaId}/next/{chapterNumber}")
     public ResponseEntity<ChapterResponseDTO> getNextChapter(
             @PathVariable Long mangaId,
-            @PathVariable Integer chapterNumber) {
+            @PathVariable Double chapterNumber) {
         return chapterService.getNextChapter(mangaId, chapterNumber)
                 .map(chapter -> ResponseEntity.ok(chapter))
                 .orElse(ResponseEntity.notFound().build());
@@ -85,7 +85,7 @@ public class ChapterRestController {
     @GetMapping("/manga/{mangaId}/previous/{chapterNumber}")
     public ResponseEntity<ChapterResponseDTO> getPreviousChapter(
             @PathVariable Long mangaId,
-            @PathVariable Integer chapterNumber) {
+            @PathVariable Double chapterNumber) {
         return chapterService.getPreviousChapter(mangaId, chapterNumber)
                 .map(chapter -> ResponseEntity.ok(chapter))
                 .orElse(ResponseEntity.notFound().build());

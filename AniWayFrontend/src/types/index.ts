@@ -1,79 +1,92 @@
-// Типы для Manga API
+// Типы для API ответов
 export interface MangaResponseDTO {
-  id: number;
-  title: string;
-  description: string;
-  author: string;
-  artist: string;
-  genre: string;
-  status: 'ONGOING' | 'COMPLETED' | 'HIATUS' | 'CANCELLED';
-  releaseDate: string;
-  coverImageUrl: string;
-  totalChapters: number;
-  createdAt: string;
-  updatedAt: string;
+  id: number
+  title: string
+  author: string
+  artist?: string
+  genre: string
+  tags?: string
+  engName?: string
+  alternativeNames?: string
+  type: 'MANGA' | 'MANHWA' | 'MANHUA' | 'WESTERN_COMIC' | 'RUSSIAN_COMIC' | 'OEL' | 'OTHER'
+  ageLimit?: number
+  isLicensed?: boolean
+  status: 'ONGOING' | 'COMPLETED' | 'HIATUS' | 'CANCELLED'
+  description: string
+  releaseDate: string
+  coverImageUrl: string
+  chapterCount: number
+  totalChapters: number
+  createdAt: string
+  updatedAt: string
 }
 
-export interface MangaCreateDTO {
-  title: string;
-  description: string;
-  author: string;
-  artist: string;
-  genre: string;
-  status: 'ONGOING' | 'COMPLETED' | 'HIATUS' | 'CANCELLED';
-  releaseDate: string;
-  coverImageUrl: string;
-}
-
-// Типы для Chapter API
+// Типы для глав
 export interface ChapterDTO {
-  id: number;
-  mangaId: number;
-  chapterNumber: number;
-  title?: string;
-  publishedDate: string;
-  pageCount: number;
-  createdAt: string;
-  updatedAt: string;
+  id: number
+  mangaId: number
+  chapterNumber: number
+  volumeNumber?: number
+  originalChapterNumber?: number
+  title: string
+  pageCount: number
+  publishedDate: string
+  createdAt: string
+  updatedAt: string
 }
 
-export interface ChapterCreateDTO {
-  mangaId: number;
-  chapterNumber: number;
-  title?: string;
-  publishedDate: string;
-}
-
-// Типы для Image API
+// Типы для изображений глав
 export interface ChapterImageDTO {
-  id: number;
-  chapterId: number;
-  pageNumber: number;
-  imageKey: string;
-  originalFileName: string;
-  contentType: string;
-  fileSize: number;
-  uploadedAt: string;
+  id: number
+  mangaId?: number
+  chapterId: number
+  pageNumber: number
+  imageUrl: string
+  imageKey: string
+  fileSize: number
+  mimeType: string
+  width: number
+  height: number
+  createdAt: string
+  updatedAt: string
 }
 
-// Типы для поиска
+// Параметры поиска
 export interface SearchParams {
-  title?: string;
-  author?: string;
-  genre?: string;
-  status?: 'ONGOING' | 'COMPLETED' | 'HIATUS' | 'CANCELLED';
+  query?: string
+  genre?: string
+  status?: string
+  type?: string
+  sortBy?: string
+  sortOrder?: 'asc' | 'desc'
+  page?: number
+  limit?: number
 }
 
-// Типы для UI состояний
-export interface PaginationState {
-  page: number;
-  limit: number;
-  total: number;
+// Типы для прогресса парсинга
+export interface ProgressData {
+  task_id: string
+  status: string
+  progress: number
+  message: string
+  updated_at: string
+  result?: any
 }
 
-export interface ReadingState {
-  currentPage: number;
-  totalPages: number;
-  isFullscreen: boolean;
-  readingMode: 'single' | 'double';
+// Типы для WebSocket сообщений
+export interface WebSocketMessage {
+  type: 'connection' | 'progress' | 'log'
+  taskId?: string
+  data?: ProgressData
+  level?: string
+  message?: string
+  timestamp?: number
+  sessionId?: string
+}
+
+// Типы для логов
+export interface LogMessage {
+  level: string
+  message: string
+  timestamp: number
 }

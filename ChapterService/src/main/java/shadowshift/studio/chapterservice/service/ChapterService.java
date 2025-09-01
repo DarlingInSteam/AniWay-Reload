@@ -82,6 +82,8 @@ public class ChapterService {
         Chapter chapter = new Chapter();
         chapter.setMangaId(createDTO.getMangaId());
         chapter.setChapterNumber(createDTO.getChapterNumber());
+        chapter.setVolumeNumber(createDTO.getVolumeNumber());
+        chapter.setOriginalChapterNumber(createDTO.getOriginalChapterNumber());
         chapter.setTitle(createDTO.getTitle());
         if (createDTO.getPublishedDate() != null) {
             chapter.setPublishedDate(createDTO.getPublishedDate());
@@ -132,12 +134,12 @@ public class ChapterService {
         chapterRepository.deleteById(id);
     }
 
-    public Optional<ChapterResponseDTO> getNextChapter(Long mangaId, Integer currentChapterNumber) {
+    public Optional<ChapterResponseDTO> getNextChapter(Long mangaId, Double currentChapterNumber) {
         return chapterRepository.findNextChapter(mangaId, currentChapterNumber)
                 .map(ChapterResponseDTO::new);
     }
 
-    public Optional<ChapterResponseDTO> getPreviousChapter(Long mangaId, Integer currentChapterNumber) {
+    public Optional<ChapterResponseDTO> getPreviousChapter(Long mangaId, Double currentChapterNumber) {
         return chapterRepository.findPreviousChapter(mangaId, currentChapterNumber)
                 .map(ChapterResponseDTO::new);
     }
