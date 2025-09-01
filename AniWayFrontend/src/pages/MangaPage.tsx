@@ -134,442 +134,456 @@ export function MangaPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-black">
-      <div className="container mx-auto px-4 lg:px-8 py-4 md:py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-8">
-          {/* Left Column - Cover and Controls */}
-          <div className="lg:col-span-1">
-            <div className="lg:sticky lg:top-24 space-y-4 md:space-y-6">
-              {/* Cover Image */}
-              <div className="aspect-[3/4] rounded-xl overflow-hidden bg-card max-w-sm mx-auto lg:max-w-none">
-                <img
-                  src={manga.coverImageUrl}
-                  alt={manga.title}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement
-                    target.src = '/placeholder-manga.jpg'
-                  }}
-                />
-              </div>
+    <div className="min-h-screen bg-black relative">
+      {/* Background with blurred cover */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div
+          className="w-full h-96 lg:h-[500px] bg-cover bg-center opacity-20"
+          style={{
+            backgroundImage: `url(${manga.coverImageUrl})`,
+            filter: 'blur(20px) brightness(0.3)',
+            transform: 'scale(1.1)',
+          }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/50 to-black" />
+      </div>
 
-              {/* Title */}
-              <div className="text-center lg:text-left">
-                <h1 className="text-xl md:text-2xl font-bold text-white mb-2">{manga.title}</h1>
-              </div>
+      {/* Content */}
+      <div className="relative z-10">
+        <div className="container mx-auto px-4 lg:px-8 py-4 md:py-8">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-8">
+            {/* Left Column - Cover and Controls */}
+            <div className="lg:col-span-1">
+              <div className="lg:sticky lg:top-24 space-y-4 md:space-y-6">
+                {/* Cover Image */}
+                <div className="aspect-[3/4] rounded-xl overflow-hidden bg-white/5 backdrop-blur-sm max-w-sm mx-auto lg:max-w-none border border-white/10">
+                  <img
+                    src={manga.coverImageUrl}
+                    alt={manga.title}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement
+                      target.src = '/placeholder-manga.jpg'
+                    }}
+                  />
+                </div>
 
-              {/* Action Buttons - только на ПК */}
-              <div className="hidden lg:block space-y-3">
-                <button className="w-full bg-primary text-white py-3 rounded-xl font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
-                  <Play className="h-5 w-5" />
-                  Продолжить чтение
-                </button>
+                {/* Title */}
+                <div className="text-center lg:text-left">
+                  <h1 className="text-xl md:text-2xl font-bold text-white mb-2">{manga.title}</h1>
+                </div>
 
-                <button className="w-full bg-secondary text-white py-3 rounded-xl font-medium hover:bg-secondary/90 transition-colors flex items-center justify-center gap-2">
-                  <Bookmark className="h-5 w-5" />
-                  В закладки
-                </button>
-
-                <button className="w-full bg-card text-white py-3 rounded-xl font-medium hover:bg-card/80 transition-colors flex items-center justify-center gap-2 border border-border/30">
-                  <AlertTriangle className="h-5 w-5" />
-                  Подписаться на карты
-                </button>
-
-                {/* Quick Actions */}
-                <div className="flex gap-2">
-                  <button className="flex-1 bg-card text-white py-2 rounded-lg hover:bg-card/80 transition-colors flex items-center justify-center">
-                    <Heart className="h-4 w-4" />
+                {/* Action Buttons - только на ПК */}
+                <div className="hidden lg:block space-y-3">
+                  <button className="w-full bg-primary/90 backdrop-blur-sm text-white py-3 rounded-xl font-medium hover:bg-primary transition-colors flex items-center justify-center gap-2 border border-primary/20">
+                    <Play className="h-5 w-5" />
+                    Продолжить чтение
                   </button>
-                  <button className="flex-1 bg-card text-white py-2 rounded-lg hover:bg-card/80 transition-colors flex items-center justify-center">
-                    <Share className="h-4 w-4" />
+
+                  <button className="w-full bg-white/10 backdrop-blur-sm text-white py-3 rounded-xl font-medium hover:bg-white/20 transition-colors flex items-center justify-center gap-2 border border-white/20">
+                    <Bookmark className="h-5 w-5" />
+                    В закладки
                   </button>
-                  <button className="flex-1 bg-card text-white py-2 rounded-lg hover:bg-card/80 transition-colors flex items-center justify-center">
-                    <Edit className="h-4 w-4" />
+
+                  <button className="w-full bg-white/5 backdrop-blur-sm text-white py-3 rounded-xl font-medium hover:bg-white/10 transition-colors flex items-center justify-center gap-2 border border-white/10">
+                    <AlertTriangle className="h-5 w-5" />
+                    Подписаться на карты
                   </button>
+
+                  {/* Quick Actions */}
+                  <div className="flex gap-2">
+                    <button className="flex-1 bg-white/5 backdrop-blur-sm text-white py-2 rounded-lg hover:bg-white/10 transition-colors flex items-center justify-center border border-white/10">
+                      <Heart className="h-4 w-4" />
+                    </button>
+                    <button className="flex-1 bg-white/5 backdrop-blur-sm text-white py-2 rounded-lg hover:bg-white/10 transition-colors flex items-center justify-center border border-white/10">
+                      <Share className="h-4 w-4" />
+                    </button>
+                    <button className="flex-1 bg-white/5 backdrop-blur-sm text-white py-2 rounded-lg hover:bg-white/10 transition-colors flex items-center justify-center border border-white/10">
+                      <Edit className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Mobile Action Buttons */}
-            <div className="lg:hidden grid grid-cols-2 gap-3">
-              <button className="bg-primary text-white py-3 rounded-xl font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
-                <Play className="h-4 w-4" />
-                Продолжить
-              </button>
-              <button className="bg-secondary text-white py-3 rounded-xl font-medium hover:bg-secondary/90 transition-colors flex items-center justify-center gap-2">
-                <Bookmark className="h-4 w-4" />
-                В закладки
-              </button>
-            </div>
-
-            {/* Tabs */}
-            <div className="border-b border-border/30">
-              <div className="flex overflow-x-auto scrollbar-hide">
-                {tabs.map(tab => {
-                  if (tab.mobileOnly && isDesktop) return null
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id as any)}
-                      className={cn(
-                        'px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex-shrink-0',
-                        activeTab === tab.id
-                          ? 'border-primary text-primary'
-                          : 'border-transparent text-muted-foreground hover:text-white'
-                      )}
-                    >
-                      {tab.label}
-                    </button>
-                  )
-                })}
+            {/* Main Content */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Mobile Action Buttons */}
+              <div className="lg:hidden grid grid-cols-2 gap-3">
+                <button className="bg-primary/90 backdrop-blur-sm text-white py-3 rounded-xl font-medium hover:bg-primary transition-colors flex items-center justify-center gap-2 border border-primary/20">
+                  <Play className="h-4 w-4" />
+                  Продолжить
+                </button>
+                <button className="bg-white/10 backdrop-blur-sm text-white py-3 rounded-xl font-medium hover:bg-white/20 transition-colors flex items-center justify-center gap-2 border border-white/20">
+                  <Bookmark className="h-4 w-4" />
+                  В закладки
+                </button>
               </div>
-            </div>
 
-            {/* Tab Content */}
-            <div>
-              {/* Main Tab */}
-              {activeTab === 'main' && (
-                <div className="space-y-6">
-                  {/* Description */}
-                  <div className="bg-card rounded-xl p-4 md:p-6">
-                    <h3 className="text-lg font-bold text-white mb-3">Описание</h3>
-                    <div className="text-muted-foreground text-sm md:text-base">
-                      <div className={cn(
-                        'transition-all duration-300',
-                        showFullDescription ? '' : 'line-clamp-3'
-                      )}>
-                        {manga.description || 'Описание отсутствует. Это длинный текст описания манги, который может занимать много строк и нуждается в сокращении для лучшего отображения на странице.'}
-                      </div>
-                      {!showFullDescription && (
-                        <button
-                          onClick={() => setShowFullDescription(true)}
-                          className="flex items-center gap-1 text-primary mt-2 hover:text-primary/80 transition-colors"
-                        >
-                          <ChevronDown className="h-4 w-4" />
-                          Показать полностью
-                        </button>
-                      )}
-                      {showFullDescription && (
-                        <button
-                          onClick={() => setShowFullDescription(false)}
-                          className="flex items-center gap-1 text-primary mt-2 hover:text-primary/80 transition-colors"
-                        >
-                          <ChevronUp className="h-4 w-4" />
-                          Свернуть
-                        </button>
-                      )}
-                    </div>
-                  </div>
+              {/* Tabs */}
+              <div className="border-b border-white/20">
+                <div className="flex overflow-x-auto scrollbar-hide">
+                  {tabs.map(tab => {
+                    if (tab.mobileOnly && isDesktop) return null
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id as any)}
+                        className={cn(
+                          'px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex-shrink-0',
+                          activeTab === tab.id
+                            ? 'border-primary text-primary'
+                            : 'border-transparent text-muted-foreground hover:text-white'
+                        )}
+                      >
+                        {tab.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
 
-                  {/* Info Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Basic Info */}
-                    <div className="bg-card rounded-xl p-4 space-y-3">
-                      <h3 className="text-lg font-bold text-white">Информация</h3>
-
-                      <div>
-                        <div className="text-muted-foreground text-sm">Статус</div>
-                        <div className={cn('font-medium', getStatusColor(manga.status))}>
-                          {getStatusText(manga.status)}
+              {/* Tab Content */}
+              <div>
+                {/* Main Tab */}
+                {activeTab === 'main' && (
+                  <div className="space-y-6">
+                    {/* Description */}
+                    <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 md:p-6 border border-white/10">
+                      <h3 className="text-lg font-bold text-white mb-3">Описание</h3>
+                      <div className="text-muted-foreground text-sm md:text-base">
+                        <div className={cn(
+                          'transition-all duration-300',
+                          showFullDescription ? '' : 'line-clamp-3'
+                        )}>
+                          {manga.description || 'Описание отсутствует. Это длинный текст описания манги, который может занимать много строк и нуждается в сокращении для лучшего отображения на странице.'}
                         </div>
-                      </div>
-
-                      <div>
-                        <div className="text-muted-foreground text-sm">Год</div>
-                        <div className="text-white">{new Date(manga.releaseDate).getFullYear()}</div>
-                      </div>
-
-                      <div>
-                        <div className="text-muted-foreground text-sm">Возрастное ограничение</div>
-                        <div className="text-white">16+</div>
+                        {!showFullDescription && (
+                          <button
+                            onClick={() => setShowFullDescription(true)}
+                            className="flex items-center gap-1 text-primary mt-2 hover:text-primary/80 transition-colors"
+                          >
+                            <ChevronDown className="h-4 w-4" />
+                            Показать полностью
+                          </button>
+                        )}
+                        {showFullDescription && (
+                          <button
+                            onClick={() => setShowFullDescription(false)}
+                            className="flex items-center gap-1 text-primary mt-2 hover:text-primary/80 transition-colors"
+                          >
+                            <ChevronUp className="h-4 w-4" />
+                            Свернуть
+                          </button>
+                        )}
                       </div>
                     </div>
 
-                    {/* Genres */}
-                    <div className="bg-card rounded-xl p-4">
+                    {/* Genres - полная ширина */}
+                    <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 md:p-6 border border-white/10">
                       <h3 className="text-lg font-bold text-white mb-3">Жанры</h3>
                       <div className="flex flex-wrap gap-2">
                         {genres.map((genre, index) => (
-                          <span key={index} className="px-3 py-1 bg-secondary text-white text-sm rounded-full">
+                          <span key={index} className="px-3 py-1 bg-white/10 backdrop-blur-sm text-white text-sm rounded-full border border-white/20 hover:bg-white/20 transition-colors cursor-pointer">
                             {genre}
                           </span>
                         ))}
                       </div>
                     </div>
-                  </div>
 
-                  {/* Alternative Titles */}
-                  <div className="bg-card rounded-xl p-4">
-                    <h3 className="text-lg font-bold text-white mb-3">Альтернативные названия</h3>
-                    <div className="space-y-1">
-                      {alternativeTitles.map((title, index) => (
-                        <div key={index} className="text-muted-foreground text-sm">{title}</div>
-                      ))}
+                    {/* Info Section - полная ширина */}
+                    <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 md:p-6 border border-white/10">
+                      <h3 className="text-lg font-bold text-white mb-4">Информация</h3>
+                      <div className="space-y-4">
+                        <div className="flex flex-col md:flex-row md:items-center gap-2">
+                          <div className="text-muted-foreground text-sm min-w-[150px]">Статус</div>
+                          <div className="text-white font-medium">
+                            {getStatusText(manga.status)}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col md:flex-row md:items-center gap-2">
+                          <div className="text-muted-foreground text-sm min-w-[150px]">Год</div>
+                          <div className="text-white">{new Date(manga.releaseDate).getFullYear()}</div>
+                        </div>
+
+                        <div className="flex flex-col md:flex-row md:items-center gap-2">
+                          <div className="text-muted-foreground text-sm min-w-[150px]">Возрастное ограничение</div>
+                          <div className="text-white">16+</div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Statistics */}
-                  <div className="bg-card rounded-xl p-4">
-                    <h3 className="text-lg font-bold text-white mb-4">Статистика</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Rating Stats */}
-                      <div>
-                        <div className="text-muted-foreground text-sm mb-3">Оценки</div>
-                        <div className="space-y-2">
-                          {ratingStats.slice(0, showFullStats ? ratingStats.length : 3).map((stat) => (
-                            <div key={stat.rating} className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <Star className="h-4 w-4 text-accent fill-current" />
-                                <span className="text-white">{stat.rating}</span>
+                    {/* Alternative Titles */}
+                    <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 md:p-6 border border-white/10">
+                      <h3 className="text-lg font-bold text-white mb-3">Альтернативные названия</h3>
+                      <div className="space-y-1">
+                        {alternativeTitles.map((title, index) => (
+                          <div key={index} className="text-muted-foreground text-sm">{title}</div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Statistics */}
+                    <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 md:p-6 border border-white/10">
+                      <h3 className="text-lg font-bold text-white mb-4">Статистика</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Rating Stats */}
+                        <div>
+                          <div className="text-muted-foreground text-sm mb-3">Оценки</div>
+                          <div className="space-y-2">
+                            {ratingStats.slice(0, showFullStats ? ratingStats.length : 3).map((stat) => (
+                              <div key={stat.rating} className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Star className="h-4 w-4 text-accent fill-current" />
+                                  <span className="text-white">{stat.rating}</span>
+                                </div>
+                                <span className="text-muted-foreground">{stat.count}</span>
                               </div>
-                              <span className="text-muted-foreground">{stat.count}</span>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Bookmark Stats */}
+                        <div>
+                          <div className="text-muted-foreground text-sm mb-3">В закладках</div>
+                          <div className="space-y-2">
+                            {bookmarkStats.slice(0, showFullStats ? bookmarkStats.length : 3).map((stat) => (
+                              <div key={stat.status} className="flex items-center justify-between">
+                                <span className="text-white">{stat.status}</span>
+                                <span className="text-muted-foreground">{stat.count}</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </div>
 
-                      {/* Bookmark Stats */}
-                      <div>
-                        <div className="text-muted-foreground text-sm mb-3">В закладках</div>
-                        <div className="space-y-2">
-                          {bookmarkStats.slice(0, showFullStats ? bookmarkStats.length : 3).map((stat) => (
-                            <div key={stat.status} className="flex items-center justify-between">
-                              <span className="text-white">{stat.status}</span>
-                              <span className="text-muted-foreground">{stat.count}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+                      {!showFullStats && (
+                        <button
+                          onClick={() => setShowFullStats(true)}
+                          className="w-full mt-4 text-primary hover:text-primary/80 transition-colors text-sm"
+                        >
+                          Показать больше
+                        </button>
+                      )}
+                      {showFullStats && (
+                        <button
+                          onClick={() => setShowFullStats(false)}
+                          className="w-full mt-4 text-primary hover:text-primary/80 transition-colors text-sm"
+                        >
+                          Свернуть
+                        </button>
+                      )}
                     </div>
 
-                    {!showFullStats && (
-                      <button
-                        onClick={() => setShowFullStats(true)}
-                        className="w-full mt-4 text-primary hover:text-primary/80 transition-colors text-sm"
-                      >
-                        Показать больше
-                      </button>
-                    )}
-                    {showFullStats && (
-                      <button
-                        onClick={() => setShowFullStats(false)}
-                        className="w-full mt-4 text-primary hover:text-primary/80 transition-colors text-sm"
-                      >
-                        Свернуть
-                      </button>
-                    )}
-                  </div>
+                    {/* Comments Section */}
+                    <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 md:p-6 border border-white/10">
+                      <h3 className="text-lg font-bold text-white mb-4">Комментарии</h3>
 
-                  {/* Comments Section */}
-                  <div className="bg-card rounded-xl p-4">
-                    <h3 className="text-lg font-bold text-white mb-4">Комментарии</h3>
+                      {/* Comment Input */}
+                      <div className="mb-4">
+                        <textarea
+                          value={commentText}
+                          onChange={(e) => setCommentText(e.target.value)}
+                          placeholder="Оставьте свои мысли..."
+                          className="w-full p-3 bg-white/5 backdrop-blur-sm border border-white/20 rounded-lg text-white placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 resize-none"
+                          rows={3}
+                        />
+                        <div className="flex justify-end mt-2">
+                          <button className="px-4 py-2 bg-primary/90 backdrop-blur-sm text-white rounded-lg hover:bg-primary transition-colors flex items-center gap-2 border border-primary/20">
+                            <Send className="h-4 w-4" />
+                            Отправить
+                          </button>
+                        </div>
+                      </div>
 
-                    {/* Comment Input */}
-                    <div className="mb-4">
-                      <textarea
-                        value={commentText}
-                        onChange={(e) => setCommentText(e.target.value)}
-                        placeholder="Оставьте свои мысли..."
-                        className="w-full p-3 bg-secondary border border-border/30 rounded-lg text-white placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
-                        rows={3}
-                      />
-                      <div className="flex justify-end mt-2">
-                        <button className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-2">
-                          <Send className="h-4 w-4" />
-                          Отправить
+                      {/* Comment Filters */}
+                      <div className="flex gap-2 mb-4">
+                        <button
+                          onClick={() => setCommentFilter('new')}
+                          className={cn(
+                            'px-4 py-2 rounded-full text-sm font-medium transition-colors border',
+                            commentFilter === 'new'
+                              ? 'bg-primary/90 text-white border-primary/20'
+                              : 'bg-white/5 backdrop-blur-sm text-muted-foreground hover:text-white border-white/20 hover:bg-white/10'
+                          )}
+                        >
+                          Новые
+                        </button>
+                        <button
+                          onClick={() => setCommentFilter('popular')}
+                          className={cn(
+                            'px-4 py-2 rounded-full text-sm font-medium transition-colors border',
+                            commentFilter === 'popular'
+                              ? 'bg-primary/90 text-white border-primary/20'
+                              : 'bg-white/5 backdrop-blur-sm text-muted-foreground hover:text-white border-white/20 hover:bg-white/10'
+                          )}
+                        >
+                          Популярные
                         </button>
                       </div>
-                    </div>
 
-                    {/* Comment Filters */}
-                    <div className="flex gap-2 mb-4">
-                      <button
-                        onClick={() => setCommentFilter('new')}
-                        className={cn(
-                          'px-4 py-2 rounded-full text-sm font-medium transition-colors',
-                          commentFilter === 'new'
-                            ? 'bg-primary text-white'
-                            : 'bg-secondary text-muted-foreground hover:text-white'
-                        )}
-                      >
-                        Новые
-                      </button>
-                      <button
-                        onClick={() => setCommentFilter('popular')}
-                        className={cn(
-                          'px-4 py-2 rounded-full text-sm font-medium transition-colors',
-                          commentFilter === 'popular'
-                            ? 'bg-primary text-white'
-                            : 'bg-secondary text-muted-foreground hover:text-white'
-                        )}
-                      >
-                        Популярные
-                      </button>
-                    </div>
-
-                    {/* Comments List */}
-                    <div className="text-center py-8">
-                      <div className="text-muted-foreground">Раздел в разработке</div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Reviews Tab */}
-              {activeTab === 'reviews' && (
-                <div className="space-y-6">
-                  {/* Write Review */}
-                  <div className="bg-card rounded-xl p-4 md:p-6">
-                    <h3 className="text-lg font-bold text-white mb-4">Написать отзыв</h3>
-
-                    {/* Rating Selection */}
-                    <div className="mb-4">
-                      <div className="text-sm text-muted-foreground mb-2">Ваша оценка</div>
-                      <div className="flex gap-1">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <button
-                            key={star}
-                            onClick={() => setReviewRating(star)}
-                            className={cn(
-                              'p-1 transition-colors',
-                              star <= reviewRating ? 'text-accent' : 'text-muted-foreground'
-                            )}
-                          >
-                            <Star className="h-6 w-6 fill-current" />
-                          </button>
-                        ))}
-                        <span className="ml-2 text-white">{reviewRating}/5</span>
+                      {/* Comments List */}
+                      <div className="text-center py-8">
+                        <div className="text-muted-foreground">Раздел в разработке</div>
                       </div>
                     </div>
-
-                    {/* Review Text */}
-                    <textarea
-                      value={reviewText}
-                      onChange={(e) => setReviewText(e.target.value)}
-                      placeholder="Напишите ваш отзыв..."
-                      className="w-full p-3 bg-secondary border border-border/30 rounded-lg text-white placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none mb-4"
-                      rows={5}
-                    />
-
-                    <button className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
-                      Отправить отзыв
-                    </button>
                   </div>
+                )}
 
-                  {/* Reviews List */}
-                  <div className="bg-card rounded-xl p-4 md:p-6">
-                    <h3 className="text-lg font-bold text-white mb-4">Отзывы</h3>
-                    <div className="text-center py-8">
-                      <div className="text-muted-foreground">Раздел в разработке</div>
+                {/* Reviews Tab */}
+                {activeTab === 'reviews' && (
+                  <div className="space-y-6">
+                    {/* Write Review */}
+                    <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 md:p-6 border border-white/10">
+                      <h3 className="text-lg font-bold text-white mb-4">Написать отзыв</h3>
+
+                      {/* Rating Selection */}
+                      <div className="mb-4">
+                        <div className="text-sm text-muted-foreground mb-2">Ваша оценка</div>
+                        <div className="flex gap-1">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              onClick={() => setReviewRating(star)}
+                              className={cn(
+                                'p-1 transition-colors',
+                                star <= reviewRating ? 'text-accent' : 'text-muted-foreground'
+                              )}
+                            >
+                              <Star className="h-6 w-6 fill-current" />
+                            </button>
+                          ))}
+                          <span className="ml-2 text-white">{reviewRating}/5</span>
+                        </div>
+                      </div>
+
+                      {/* Review Text */}
+                      <textarea
+                        value={reviewText}
+                        onChange={(e) => setReviewText(e.target.value)}
+                        placeholder="Напишите ваш отзыв..."
+                        className="w-full p-3 bg-white/5 backdrop-blur-sm border border-white/20 rounded-lg text-white placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 resize-none mb-4"
+                        rows={5}
+                      />
+
+                      <button className="px-6 py-2 bg-primary/90 backdrop-blur-sm text-white rounded-lg hover:bg-primary transition-colors border border-primary/20">
+                        Отправить отзыв
+                      </button>
+                    </div>
+
+                    {/* Reviews List */}
+                    <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 md:p-6 border border-white/10">
+                      <h3 className="text-lg font-bold text-white mb-4">Отзывы</h3>
+                      <div className="text-center py-8">
+                        <div className="text-muted-foreground">Раздел в разработке</div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Chapters Tab */}
-              {activeTab === 'chapters' && (
-                <div className="space-y-3">
-                  {/* Заголовок с сортировкой */}
-                  <div className="flex items-center justify-between bg-card rounded-xl p-4">
-                    <h2 className="text-lg md:text-xl font-bold text-white">Главы</h2>
-                    <button
-                      onClick={toggleSort}
-                      className="flex items-center space-x-2 px-3 py-2 bg-secondary hover:bg-secondary/80 text-white rounded-lg transition-colors text-sm"
-                    >
-                      {chapterSort === 'asc' && (
-                        <>
-                          <ArrowUp className="h-4 w-4" />
-                          <span className="hidden sm:inline">По возрастанию</span>
-                        </>
-                      )}
-                      {chapterSort === 'desc' && (
-                        <>
-                          <ArrowDown className="h-4 w-4" />
-                          <span className="hidden sm:inline">По убыванию</span>
-                        </>
-                      )}
-                      {chapterSort === 'none' && (
-                        <>
-                          <ArrowUpDown className="h-4 w-4" />
-                          <span className="hidden sm:inline">Без сортировки</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                  {chaptersLoading ? (
-                    <div className="flex justify-center py-8">
-                      <LoadingSpinner />
-                    </div>
-                  ) : chapters?.length ? (
-                    getSortedChapters(chapters).map((chapter) => (
-                      <Link
-                        key={chapter.id}
-                        to={`/reader/${chapter.id}`}
-                        className="flex items-center p-3 md:p-4 bg-card rounded-xl hover:bg-card/80 transition-all duration-200 hover:shadow-lg group"
+                {/* Chapters Tab */}
+                {activeTab === 'chapters' && (
+                  <div className="space-y-3">
+                    {/* Заголовок с сортировкой */}
+                    <div className="flex items-center justify-between bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+                      <h2 className="text-lg md:text-xl font-bold text-white">Главы</h2>
+                      <button
+                        onClick={toggleSort}
+                        className="flex items-center space-x-2 px-3 py-2 bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white rounded-lg transition-colors text-sm border border-white/20"
                       >
-                        {/* Chapter Number */}
-                        <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 bg-primary/20 text-primary rounded-full mr-3 md:mr-4 font-bold text-sm md:text-base">
-                          {chapter.chapterNumber}
-                        </div>
-
-                        {/* Chapter Info */}
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-white font-medium group-hover:text-primary transition-colors text-sm md:text-base line-clamp-1">
-                            {chapter.title || `Глава ${chapter.chapterNumber}`}
-                          </h3>
-                          <p className="text-muted-foreground text-xs md:text-sm">
-                            {formatDate(chapter.publishedDate)}
-                          </p>
-                        </div>
-
-                        {/* Likes */}
-                        <div className="flex items-center space-x-2 text-muted-foreground flex-shrink-0">
-                          <Heart className="h-3 w-3 md:h-4 md:w-4" />
-                          <span className="text-xs md:text-sm">{Math.floor(Math.random() * 100) + 10}</span>
-                          <ChevronRight className="h-4 w-4 md:h-5 md:w-5 group-hover:translate-x-1 transition-transform" />
-                        </div>
-                      </Link>
-                    ))
-                  ) : (
-                    <div className="text-center py-12">
-                      <BookOpen className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                      <p className="text-muted-foreground">Главы пока не добавлены</p>
+                        {chapterSort === 'asc' && (
+                          <>
+                            <ArrowUp className="h-4 w-4" />
+                            <span className="hidden sm:inline">По возрастанию</span>
+                          </>
+                        )}
+                        {chapterSort === 'desc' && (
+                          <>
+                            <ArrowDown className="h-4 w-4" />
+                            <span className="hidden sm:inline">По убыванию</span>
+                          </>
+                        )}
+                        {chapterSort === 'none' && (
+                          <>
+                            <ArrowUpDown className="h-4 w-4" />
+                            <span className="hidden sm:inline">Без сортировки</span>
+                          </>
+                        )}
+                      </button>
                     </div>
-                  )}
-                </div>
-              )}
 
-              {/* Other Tabs - In Development */}
-              {['discussions', 'moments', 'cards', 'characters', 'similar'].includes(activeTab) && (
-                <div className="bg-card rounded-xl p-4 md:p-6 text-center">
-                  <div className="text-muted-foreground">Раздел в разработке</div>
-                </div>
-              )}
-            </div>
-          </div>
+                    {chaptersLoading ? (
+                      <div className="flex justify-center py-8">
+                        <LoadingSpinner />
+                      </div>
+                    ) : chapters?.length ? (
+                      getSortedChapters(chapters).map((chapter) => (
+                        <Link
+                          key={chapter.id}
+                          to={`/reader/${chapter.id}`}
+                          className="flex items-center p-3 md:p-4 bg-white/5 backdrop-blur-sm rounded-xl hover:bg-white/10 transition-all duration-200 hover:shadow-lg group border border-white/10"
+                        >
+                          {/* Chapter Number */}
+                          <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 bg-primary/20 text-primary rounded-full mr-3 md:mr-4 font-bold text-sm md:text-base backdrop-blur-sm border border-primary/30">
+                            {chapter.chapterNumber}
+                          </div>
 
-          {/* Right Sidebar - Similar Manga (только на ПК) */}
-          <div className="hidden lg:block lg:col-span-1">
-            <div className="lg:sticky lg:top-24">
-              <h3 className="text-lg md:text-xl font-bold text-white mb-4">Похожие</h3>
-              <div className="space-y-3">
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="flex space-x-3 p-3 bg-card rounded-lg hover:bg-card/80 transition-colors">
-                    <div className="w-16 h-20 bg-secondary rounded-lg flex-shrink-0"></div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-white font-medium text-sm line-clamp-2 mb-1">
-                        Название похожей манги {i}
-                      </h4>
-                      <p className="text-muted-foreground text-xs">
-                        Жанр • 2024
-                      </p>
-                    </div>
+                          {/* Chapter Info */}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-white font-medium group-hover:text-primary transition-colors text-sm md:text-base line-clamp-1">
+                              {chapter.title || `Глава ${chapter.chapterNumber}`}
+                            </h3>
+                            <p className="text-muted-foreground text-xs md:text-sm">
+                              {formatDate(chapter.publishedDate)}
+                            </p>
+                          </div>
+
+                          {/* Likes */}
+                          <div className="flex items-center space-x-2 text-muted-foreground flex-shrink-0">
+                            <Heart className="h-3 w-3 md:h-4 md:w-4" />
+                            <span className="text-xs md:text-sm">{Math.floor(Math.random() * 100) + 10}</span>
+                            <ChevronRight className="h-4 w-4 md:h-5 md:w-5 group-hover:translate-x-1 transition-transform" />
+                          </div>
+                        </Link>
+                      ))
+                    ) : (
+                      <div className="text-center py-12">
+                        <BookOpen className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                        <p className="text-muted-foreground">Главы пока не добавлены</p>
+                      </div>
+                    )}
                   </div>
-                ))}
+                )}
+
+                {/* Other Tabs - In Development */}
+                {['discussions', 'moments', 'cards', 'characters', 'similar'].includes(activeTab) && (
+                  <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 md:p-6 text-center border border-white/10">
+                    <div className="text-muted-foreground">Раздел в разработке</div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right Sidebar - Similar Manga (только на ПК) */}
+            <div className="hidden lg:block lg:col-span-1">
+              <div className="lg:sticky lg:top-24">
+                <h3 className="text-lg md:text-xl font-bold text-white mb-4">Похожие</h3>
+                <div className="space-y-3">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="flex space-x-3 p-3 bg-white/5 backdrop-blur-sm rounded-lg hover:bg-white/10 transition-colors border border-white/10">
+                      <div className="w-16 h-20 bg-white/10 rounded-lg flex-shrink-0"></div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-white font-medium text-sm line-clamp-2 mb-1">
+                          Название похожей манги {i}
+                        </h4>
+                        <p className="text-muted-foreground text-xs">
+                          Жанр • 2024
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
