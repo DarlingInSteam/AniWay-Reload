@@ -156,7 +156,7 @@ export function MangaPage() {
             <div className="lg:col-span-1">
               <div className="lg:sticky lg:top-24 space-y-4 md:space-y-6">
                 {/* Cover Image */}
-                <div className="aspect-[3/4] rounded-xl overflow-hidden bg-white/5 backdrop-blur-sm max-w-sm mx-auto lg:max-w-none border border-white/10">
+                <div className="aspect-[3/4] rounded-3xl overflow-hidden bg-white/5 backdrop-blur-sm max-w-sm mx-auto lg:max-w-none border border-white/10">
                   <img
                     src={manga.coverImageUrl}
                     alt={manga.title}
@@ -181,17 +181,17 @@ export function MangaPage() {
 
                 {/* Action Buttons - только на ПК */}
                 <div className="hidden lg:block space-y-3">
-                  <button className="w-full bg-primary/90 backdrop-blur-sm text-white py-3 rounded-xl font-medium hover:bg-primary transition-colors flex items-center justify-center gap-2 border border-primary/20">
+                  <button className="w-full bg-primary/90 backdrop-blur-sm text-white py-3 rounded-3xl font-medium hover:bg-primary transition-colors flex items-center justify-center gap-2 border border-primary/20">
                     <Play className="h-5 w-5" />
                     Продолжить чтение
                   </button>
 
-                  <button className="w-full bg-white/10 backdrop-blur-sm text-white py-3 rounded-xl font-medium hover:bg-white/20 transition-colors flex items-center justify-center gap-2 border border-white/20">
+                  <button className="w-full bg-white/10 backdrop-blur-sm text-white py-3 rounded-3xl font-medium hover:bg-white/20 transition-colors flex items-center justify-center gap-2 border border-white/20">
                     <Bookmark className="h-5 w-5" />
                     В закладки
                   </button>
 
-                  <button className="w-full bg-white/5 backdrop-blur-sm text-white py-3 rounded-xl font-medium hover:bg-white/10 transition-colors flex items-center justify-center gap-2 border border-white/10">
+                  <button className="w-full bg-white/5 backdrop-blur-sm text-white py-3 rounded-3xl font-medium hover:bg-white/10 transition-colors flex items-center justify-center gap-2 border border-white/10">
                     <AlertTriangle className="h-5 w-5" />
                     Подписаться на карты
                   </button>
@@ -216,11 +216,11 @@ export function MangaPage() {
             <div className="lg:col-span-2 -mt-2">
               {/* Mobile Action Buttons */}
               <div className="lg:hidden grid grid-cols-2 gap-3 mb-6">
-                <button className="bg-primary/90 backdrop-blur-sm text-white py-3 rounded-xl font-medium hover:bg-primary transition-colors flex items-center justify-center gap-2 border border-primary/20">
+                <button className="bg-primary/90 backdrop-blur-sm text-white py-3 rounded-3xl font-medium hover:bg-primary transition-colors flex items-center justify-center gap-2 border border-primary/20">
                   <Play className="h-4 w-4" />
                   Продолжить
                 </button>
-                <button className="bg-white/10 backdrop-blur-sm text-white py-3 rounded-xl font-medium hover:bg-white/20 transition-colors flex items-center justify-center gap-2 border border-white/20">
+                <button className="bg-white/10 backdrop-blur-sm text-white py-3 rounded-3xl font-medium hover:bg-white/20 transition-colors flex items-center justify-center gap-2 border border-white/20">
                   <Bookmark className="h-4 w-4" />
                   В закладки
                 </button>
@@ -255,7 +255,7 @@ export function MangaPage() {
                 {activeTab === 'main' && (
                   <div className="space-y-6">
                     {/* Description */}
-                    <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 md:p-6 border border-white/10">
+                    <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
                       <h3 className="text-lg font-bold text-white mb-3">Описание</h3>
                       <div className="text-muted-foreground text-sm md:text-base">
                         <div className={cn(
@@ -286,7 +286,7 @@ export function MangaPage() {
                     </div>
 
                     {/* Genres - полная ширина */}
-                    <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 md:p-6 border border-white/10">
+                    <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
                       <h3 className="text-lg font-bold text-white mb-3">Жанры</h3>
                       <div className="flex flex-wrap gap-2">
                         {genres.map((genre, index) => (
@@ -298,7 +298,7 @@ export function MangaPage() {
                     </div>
 
                     {/* Info Section - полная ширина */}
-                    <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 md:p-6 border border-white/10">
+                    <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
                       <h3 className="text-lg font-bold text-white mb-4">Информация</h3>
                       <div className="space-y-4">
                         <div className="flex flex-col md:flex-row md:items-center gap-2">
@@ -321,7 +321,7 @@ export function MangaPage() {
                     </div>
 
                     {/* Alternative Titles */}
-                    <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 md:p-6 border border-white/10">
+                    <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
                       <h3 className="text-lg font-bold text-white mb-3">Альтернативные названия</h3>
                       <div className="space-y-1">
                         {alternativeTitles.map((title, index) => (
@@ -331,7 +331,7 @@ export function MangaPage() {
                     </div>
 
                     {/* Statistics */}
-                    <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 md:p-6 border border-white/10">
+                    <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
                       <h3 className="text-lg font-bold text-white mb-4">Статистика</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Rating Stats */}
@@ -383,7 +383,7 @@ export function MangaPage() {
                     </div>
 
                     {/* Comments Section */}
-                    <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 md:p-6 border border-white/10">
+                    <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
                       <h3 className="text-lg font-bold text-white mb-4">Комментарии</h3>
 
                       {/* Comment Input */}
@@ -441,14 +441,14 @@ export function MangaPage() {
                 {activeTab === 'reviews' && (
                   <div className="space-y-6">
                     {/* Write Review */}
-                    <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 md:p-6 border border-white/10">
+                    <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
                       <h3 className="text-lg font-bold text-white mb-4">Написать отзыв</h3>
 
                       {/* Rating Selection */}
                       <div className="mb-4">
                         <div className="text-sm text-muted-foreground mb-2">Ваша оценка</div>
                         <div className="flex gap-1">
-                          {[1, 2, 3, 4, 5].map((star) => (
+                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((star) => (
                             <button
                               key={star}
                               onClick={() => setReviewRating(star)}
@@ -460,7 +460,7 @@ export function MangaPage() {
                               <Star className="h-6 w-6 fill-current" />
                             </button>
                           ))}
-                          <span className="ml-2 text-white">{reviewRating}/5</span>
+                          <span className="ml-2 text-white">{reviewRating}/10</span>
                         </div>
                       </div>
 
@@ -479,7 +479,7 @@ export function MangaPage() {
                     </div>
 
                     {/* Reviews List */}
-                    <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 md:p-6 border border-white/10">
+                    <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
                       <h3 className="text-lg font-bold text-white mb-4">Отзывы</h3>
                       <div className="text-center py-8">
                         <div className="text-muted-foreground">Раздел в разработке</div>
@@ -492,7 +492,7 @@ export function MangaPage() {
                 {activeTab === 'chapters' && (
                   <div className="space-y-3">
                     {/* Заголовок с сортировкой */}
-                    <div className="flex items-center justify-between bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+                    <div className="flex items-center justify-between bg-white/5 backdrop-blur-sm rounded-3xl p-4 border border-white/10">
                       <h2 className="text-lg md:text-xl font-bold text-white">Главы</h2>
                       <button
                         onClick={toggleSort}
@@ -528,7 +528,7 @@ export function MangaPage() {
                         <Link
                           key={chapter.id}
                           to={`/reader/${chapter.id}`}
-                          className="flex items-center p-3 md:p-4 bg-white/5 backdrop-blur-sm rounded-xl hover:bg-white/10 transition-all duration-200 hover:shadow-lg group border border-white/10"
+                          className="flex items-center p-3 md:p-4 bg-white/5 backdrop-blur-sm rounded-3xl hover:bg-white/10 transition-all duration-200 hover:shadow-lg group border border-white/10"
                         >
                           {/* Chapter Number */}
                           <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 bg-primary/20 text-primary rounded-full mr-3 md:mr-4 font-bold text-sm md:text-base backdrop-blur-sm border border-primary/30">
@@ -564,7 +564,7 @@ export function MangaPage() {
 
                 {/* Other Tabs - In Development */}
                 {['discussions', 'moments', 'cards', 'characters', 'similar'].includes(activeTab) && (
-                  <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 md:p-6 text-center border border-white/10">
+                  <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 text-center border border-white/10">
                     <div className="text-muted-foreground">Раздел в разработке</div>
                   </div>
                 )}
@@ -577,7 +577,7 @@ export function MangaPage() {
                 <h3 className="text-lg md:text-xl font-bold text-white mb-4">Похожие</h3>
                 <div className="space-y-3">
                   {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="flex space-x-3 p-3 bg-white/5 backdrop-blur-sm rounded-lg hover:bg-white/10 transition-colors border border-white/10">
+                    <div key={i} className="flex space-x-3 p-3 bg-white/5 backdrop-blur-sm rounded-3xl hover:bg-white/10 transition-colors border border-white/10">
                       <div className="w-16 h-20 bg-white/10 rounded-lg flex-shrink-0"></div>
                       <div className="flex-1 min-w-0">
                         <h4 className="text-white font-medium text-sm line-clamp-2 mb-1">
