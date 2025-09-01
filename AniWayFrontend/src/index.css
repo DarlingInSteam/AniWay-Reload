@@ -65,20 +65,7 @@
     -webkit-line-clamp: 3;
   }
 
-  /* Кастомные цвета для манга-сайта */
-  .bg-manga-black {
-    background-color: hsl(var(--manga-black));
-  }
-
-  .text-manga-rating {
-    color: hsl(var(--manga-rating));
-  }
-
-  .text-manga-rating-orange {
-    color: hsl(var(--manga-rating-orange));
-  }
-
-  /* Скрытие скроллбара для горизонтальных секций */
+  /* Скрыть скроллбар, но сохранить функциональность */
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -88,18 +75,64 @@
     display: none;
   }
 
-  /* Градиенты для обложек */
+  /* Анимации для плавных переходов */
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-in-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Улучшенные hover эффекты */
+  .manga-card {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+  }
+
+  .manga-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Градиент для обложек манги */
   .manga-gradient-overlay {
-    background: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.7) 100%);
+    background: linear-gradient(
+      to top,
+      rgba(0, 0, 0, 0.8) 0%,
+      rgba(0, 0, 0, 0.4) 50%,
+      transparent 100%
+    );
   }
 
-  .manga-card-hover {
-    transition: all 0.3s ease;
+  /* Улучшенные фокусные состояния для доступности */
+  .focus-visible:focus {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
   }
 
-  .manga-card-hover:hover {
-    transform: scale(1.05);
-    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+  /* Адаптивные контейнеры */
+  .container {
+    @apply mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  /* Адаптивные тексты */
+  .text-responsive-xl {
+    @apply text-xl sm:text-2xl lg:text-3xl xl:text-4xl;
+  }
+
+  .text-responsive-lg {
+    @apply text-lg sm:text-xl lg:text-2xl;
+  }
+
+  .text-responsive-base {
+    @apply text-sm sm:text-base lg:text-lg;
   }
 }
 
@@ -118,7 +151,7 @@
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-manga-black;
+  @apply bg-black;
 }
 
 ::-webkit-scrollbar-thumb {
@@ -162,6 +195,6 @@
 
 /* Стили для рейтинга */
 .rating-star {
-  @apply text-manga-rating;
+  @apply text-accent;
   filter: drop-shadow(0 0 2px rgba(255, 215, 0, 0.5));
 }

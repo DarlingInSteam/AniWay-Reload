@@ -10,16 +10,11 @@ interface MangaCardProps {
 }
 
 export function MangaCard({ manga, size = 'default', showMetadata = true }: MangaCardProps) {
+  // Адаптивные размеры для разных экранов
   const cardSizes = {
-    compact: 'aspect-[3/4] w-[160px] h-[213px]', // Фиксированные размеры
-    default: 'aspect-[3/4] w-[200px] h-[267px]', // Фиксированные размеры
-    large: 'aspect-[2/3] w-[240px] h-[360px]'    // Фиксированные размеры
-  }
-
-  const cardWidths = {
-    compact: 'w-[160px] max-w-[160px]',
-    default: 'w-[200px] max-w-[200px]',
-    large: 'w-[240px] max-w-[240px]'
+    compact: 'aspect-[3/4]', // Убираем фиксированные размеры
+    default: 'aspect-[3/4]',
+    large: 'aspect-[3/4]'
   }
 
   // Генерируем фейковый рейтинг для демонстрации (в реальном проекте это будет из API)
@@ -27,20 +22,17 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
   const views = Math.floor(Math.random() * 10000) + 1000
 
   return (
-    <div className={cn(
-      "group flex flex-col space-y-3 animate-fade-in flex-shrink-0",
-      cardWidths[size]
-    )}>
+    <div className="group flex flex-col space-y-2 md:space-y-3 animate-fade-in w-full">
       {/* Cover Image Card */}
       <Link
         to={`/manga/${manga.id}`}
-        className="manga-card block relative overflow-hidden rounded-xl"
+        className="manga-card block relative overflow-hidden rounded-lg md:rounded-xl"
       >
         <div className={cn('relative overflow-hidden', cardSizes[size])}>
           <img
             src={manga.coverImageUrl}
             alt={manga.title}
-            className="manga-cover h-full w-full object-cover"
+            className="manga-cover h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
             loading="lazy"
             onError={(e) => {
               const target = e.target as HTMLImageElement
@@ -49,12 +41,12 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
           />
 
           {/* Gradient Overlay for bottom text */}
-          <div className="manga-gradient-overlay absolute inset-0" />
+          <div className="manga-gradient-overlay absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
           {/* Status Badge */}
-          <div className="absolute top-3 left-3">
+          <div className="absolute top-2 md:top-3 left-2 md:left-3">
             <span className={cn(
-              'px-2 py-1 text-xs font-medium rounded-full backdrop-blur-sm',
+              'px-1.5 md:px-2 py-0.5 md:py-1 text-xs font-medium rounded-full backdrop-blur-sm',
               getStatusColor(manga.status)
             )}>
               {getStatusText(manga.status)}
@@ -62,51 +54,61 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
           </div>
 
           {/* Rating Badge */}
-          <div className="absolute top-3 right-3 flex items-center space-x-1 bg-black/70 backdrop-blur-sm px-2 py-1 rounded-full">
-            <Star className="h-3 w-3 text-manga-rating fill-current" />
+          <div className="absolute top-2 md:top-3 right-2 md:right-3 flex items-center space-x-1 bg-black/70 backdrop-blur-sm px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
+            <Star className="h-2.5 w-2.5 md:h-3 md:w-3 text-accent fill-current" />
             <span className="text-xs font-medium text-white">{rating}</span>
           </div>
 
           {/* Chapter Count */}
-          <div className="absolute bottom-3 right-3 bg-black/70 backdrop-blur-sm text-white px-2 py-1 rounded-md text-xs font-medium">
+          <div className="absolute bottom-2 md:bottom-3 right-2 md:right-3 bg-black/70 backdrop-blur-sm text-white px-1.5 md:px-2 py-0.5 md:py-1 rounded text-xs font-medium">
             {manga.totalChapters} гл.
+          </div>
+
+          {/* Hover overlay with quick actions */}
+          <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+            <div className="hidden md:flex items-center space-x-2">
+              <div className="bg-white/90 backdrop-blur-sm text-black px-3 py-1.5 rounded-full text-sm font-medium">
+                Читать
+              </div>
+            </div>
           </div>
         </div>
       </Link>
 
       {/* Metadata */}
       {showMetadata && (
-        <div className="space-y-2 px-1">
-          {/* Title */}
+        <div className="flex flex-col px-1 h-[4.5rem] md:h-[5rem]">
+          {/* Title - строго фиксированная высота для 2 строк */}
           <Link
             to={`/manga/${manga.id}`}
-            className="block"
+            className="block mb-1 md:mb-1.5"
           >
-            <h3 className="text-sm font-semibold text-white line-clamp-2 hover:text-primary transition-colors duration-200">
+            <h3 className="text-xs md:text-sm font-semibold text-white line-clamp-2 hover:text-primary transition-colors duration-200 leading-tight h-[2rem] md:h-[2.25rem] overflow-hidden">
               {manga.title}
             </h3>
           </Link>
 
-          {/* Genre and Year */}
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span className="line-clamp-1">
+          {/* Genre and Year - строго фиксированная высота */}
+          <div className="flex items-center justify-between text-xs text-muted-foreground h-4 mb-1">
+            <span className="line-clamp-1 flex-1 mr-2">
               {manga.genre.split(',')[0]}
             </span>
-            <span>
+            <span className="flex-shrink-0">
               {new Date(manga.releaseDate).getFullYear()}
             </span>
           </div>
 
-          {/* Rating and Views */}
-          <div className="flex items-center justify-between">
+          {/* Rating and Views - строго фиксированная высота */}
+          <div className="flex items-center justify-between h-4">
             <div className="flex items-center space-x-1">
-              <Star className="h-3 w-3 text-manga-rating fill-current" />
-              <span className="text-xs font-medium text-manga-rating">{rating}</span>
+              <Star className="h-2.5 w-2.5 md:h-3 md:w-3 text-accent fill-current" />
+              <span className="text-xs font-medium text-accent">{rating}</span>
             </div>
-            <div className="flex items-center space-x-3 text-xs text-muted-foreground">
+            <div className="flex items-center space-x-2 md:space-x-3 text-xs text-muted-foreground">
               <div className="flex items-center space-x-1">
-                <Eye className="h-3 w-3" />
-                <span>{views.toLocaleString()}</span>
+                <Eye className="h-2.5 w-2.5 md:h-3 md:w-3" />
+                <span className="hidden sm:inline">{views.toLocaleString()}</span>
+                <span className="sm:hidden">{(views / 1000).toFixed(0)}k</span>
               </div>
             </div>
           </div>
