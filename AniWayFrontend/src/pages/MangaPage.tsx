@@ -138,14 +138,14 @@ export function MangaPage() {
       {/* Background with blurred cover */}
       <div className="absolute inset-0 overflow-hidden">
         <div
-          className="w-full h-96 lg:h-[500px] bg-cover bg-center opacity-20"
+          className="w-full h-[600px] md:h-96 lg:h-[500px] bg-cover bg-center opacity-40"
           style={{
             backgroundImage: `url(${manga.coverImageUrl})`,
-            filter: 'blur(20px) brightness(0.3)',
+            filter: 'blur(20px) brightness(0.7)',
             transform: 'scale(1.1)',
           }}
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/50 to-black" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/40 to-black" />
       </div>
 
       {/* Content */}
@@ -171,6 +171,12 @@ export function MangaPage() {
                 {/* Title */}
                 <div className="text-center lg:text-left">
                   <h1 className="text-xl md:text-2xl font-bold text-white mb-2">{manga.title}</h1>
+                  {/* Mobile - Type and Year after title */}
+                  <div className="lg:hidden flex items-center justify-center gap-3 text-sm text-muted-foreground">
+                    <span>Манхва</span>
+                    <span>•</span>
+                    <span>{new Date(manga.releaseDate).getFullYear()}</span>
+                  </div>
                 </div>
 
                 {/* Action Buttons - только на ПК */}
@@ -207,9 +213,9 @@ export function MangaPage() {
             </div>
 
             {/* Main Content */}
-            <div className="lg:col-span-2 space-y-6">
+            <div className="lg:col-span-2 -mt-2">
               {/* Mobile Action Buttons */}
-              <div className="lg:hidden grid grid-cols-2 gap-3">
+              <div className="lg:hidden grid grid-cols-2 gap-3 mb-6">
                 <button className="bg-primary/90 backdrop-blur-sm text-white py-3 rounded-xl font-medium hover:bg-primary transition-colors flex items-center justify-center gap-2 border border-primary/20">
                   <Play className="h-4 w-4" />
                   Продолжить
@@ -221,7 +227,7 @@ export function MangaPage() {
               </div>
 
               {/* Tabs */}
-              <div className="border-b border-white/20">
+              <div className="border-b border-white/20 mb-6">
                 <div className="flex overflow-x-auto scrollbar-hide">
                   {tabs.map(tab => {
                     if (tab.mobileOnly && isDesktop) return null

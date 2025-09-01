@@ -4,24 +4,24 @@
 
 @layer base {
   :root {
-    --background: 0 0% 7%; /* #121212 - очень тёмно-серый */
+    --background: 0 0% 8%; /* #141414 - темно-серый, но заметный фон */
     --foreground: 0 0% 100%; /* #FFFFFF - белый */
-    --card: 0 0% 12.5%; /* #202020 - тёмно-серый для карточек */
+    --card: 0 0% 15%; /* #262626 - светлее для карточек */
     --card-foreground: 0 0% 100%;
-    --popover: 0 0% 12.5%;
+    --popover: 0 0% 15%;
     --popover-foreground: 0 0% 100%;
     --primary: 214 100% 59%; /* #3B82F6 - голубой для кнопок */
     --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 20%; /* #333333 - серый для вторичных элементов */
+    --secondary: 0 0% 25%; /* #404040 - светлее для вторичных элементов */
     --secondary-foreground: 0 0% 100%;
-    --muted: 0 0% 20%;
+    --muted: 0 0% 25%;
     --muted-foreground: 0 0% 70%; /* #B3B3B3 - светло-серый */
     --accent: 45 100% 50%; /* #FFD700 - золотой для рейтингов */
     --accent-foreground: 0 0% 0%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 25%; /* #404040 - границы */
-    --input: 0 0% 12.5%;
+    --border: 0 0% 30%; /* #4D4D4D - светлее границы */
+    --input: 0 0% 15%;
     --ring: 214 100% 59%;
     --radius: 0.75rem;
 
@@ -37,7 +37,7 @@
     @apply border-border;
   }
   body {
-    @apply bg-black text-foreground; /* Используем глубокий чёрный фон */
+    @apply bg-background text-foreground; /* Используем переменную background вместо black */
     font-feature-settings: "rlig" 1, "calt" 1;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
