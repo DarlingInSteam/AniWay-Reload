@@ -8,6 +8,7 @@ import {
 import { apiClient } from '@/lib/api'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { formatDate, getStatusColor, getStatusText, cn } from '@/lib/utils'
+import { formatChapterTitle, formatChapterNumber, formatVolumeNumber } from '@/lib/chapterUtils'
 
 export function MangaPage() {
   const { id } = useParams<{ id: string }>()
@@ -70,11 +71,30 @@ export function MangaPage() {
   const views = Math.floor(Math.random() * 100000) + 10000
   const likes = Math.floor(Math.random() * 5000) + 500
 
-  // Фейковые жанры
-  const genres = ['Экшен', 'Приключения', 'Драма', 'Фэнтези', 'Романтика', 'Комедия']
+  // Получаем жанры из API или используем фейковые
+  const genres = manga.genre ? manga.genre.split(',').map(g => g.trim()) : ['Экшен', 'Приключения', 'Драма', 'Фэнтези', 'Романтика', 'Комедия']
 
-  // Фейковые альтернативные названия
-  const alternativeTitles = ['Alternative Title 1', 'Alternative Title 2', 'タイトル']
+  // Получаем альтернативные названия из API
+  const alternativeTitles = manga.alternativeNames 
+    ? manga.alternativeNames.split(';').map(name => name.trim()).filter(name => name) 
+    : []
+
+  // Получаем теги из API
+  const tags = manga.tags ? manga.tags.split(',').map(t => t.trim()) : []
+
+  // Функция для получения отображаемого типа
+  const getTypeDisplay = (type?: string) => {
+    switch (type) {
+      case 'MANGA': return 'Манга'
+      case 'MANHWA': return 'Манхва'
+      case 'MANHUA': return 'Маньхуа'
+      case 'WESTERN_COMIC': return 'Западный комикс'
+      case 'RUSSIAN_COMIC': return 'Русский комикс'
+      case 'OEL': return 'OEL'
+      case 'OTHER': return 'Другое'
+      default: return 'Манга'
+    }
+  }
 
   // Фейковая статистика рейтингов
   const ratingStats = [
@@ -173,7 +193,7 @@ export function MangaPage() {
                   <h1 className="text-xl md:text-2xl font-bold text-white mb-2">{manga.title}</h1>
                   {/* Mobile - Type and Year after title */}
                   <div className="lg:hidden flex items-center justify-center gap-3 text-sm text-muted-foreground">
-                    <span>Манхва</span>
+                    <span>{getTypeDisplay(manga.type)}</span>
                     <span>•</span>
                     <span>{new Date(manga.releaseDate).getFullYear()}</span>
                   </div>
@@ -297,10 +317,31 @@ export function MangaPage() {
                       </div>
                     </div>
 
+                    {/* Tags - только если есть теги */}
+                    {tags.length > 0 && (
+                      <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
+                        <h3 className="text-lg font-bold text-white mb-3">Теги</h3>
+                        <div className="flex flex-wrap gap-2">
+                          {tags.map((tag, index) => (
+                            <span key={index} className="px-3 py-1 bg-primary/10 backdrop-blur-sm text-primary text-sm rounded-full border border-primary/30 hover:bg-primary/20 transition-colors cursor-pointer">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Info Section - полная ширина */}
                     <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
                       <h3 className="text-lg font-bold text-white mb-4">Информация</h3>
                       <div className="space-y-4">
+                        <div className="flex flex-col md:flex-row md:items-center gap-2">
+                          <div className="text-muted-foreground text-sm min-w-[150px]">Тип</div>
+                          <div className="text-white font-medium">
+                            {getTypeDisplay(manga.type)}
+                          </div>
+                        </div>
+
                         <div className="flex flex-col md:flex-row md:items-center gap-2">
                           <div className="text-muted-foreground text-sm min-w-[150px]">Статус</div>
                           <div className="text-white font-medium">
@@ -313,22 +354,56 @@ export function MangaPage() {
                           <div className="text-white">{new Date(manga.releaseDate).getFullYear()}</div>
                         </div>
 
-                        <div className="flex flex-col md:flex-row md:items-center gap-2">
-                          <div className="text-muted-foreground text-sm min-w-[150px]">Возрастное ограничение</div>
-                          <div className="text-white">16+</div>
-                        </div>
+                        {manga.author && (
+                          <div className="flex flex-col md:flex-row md:items-center gap-2">
+                            <div className="text-muted-foreground text-sm min-w-[150px]">Автор</div>
+                            <div className="text-white">{manga.author}</div>
+                          </div>
+                        )}
+
+                        {manga.artist && (
+                          <div className="flex flex-col md:flex-row md:items-center gap-2">
+                            <div className="text-muted-foreground text-sm min-w-[150px]">Художник</div>
+                            <div className="text-white">{manga.artist}</div>
+                          </div>
+                        )}
+
+                        {manga.ageLimit && (
+                          <div className="flex flex-col md:flex-row md:items-center gap-2">
+                            <div className="text-muted-foreground text-sm min-w-[150px]">Возрастное ограничение</div>
+                            <div className="text-white">{manga.ageLimit}+</div>
+                          </div>
+                        )}
+
+                        {manga.isLicensed !== undefined && (
+                          <div className="flex flex-col md:flex-row md:items-center gap-2">
+                            <div className="text-muted-foreground text-sm min-w-[150px]">Лицензия</div>
+                            <div className="text-white">
+                              {manga.isLicensed ? 'Лицензировано' : 'Не лицензировано'}
+                            </div>
+                          </div>
+                        )}
+
+                        {manga.engName && (
+                          <div className="flex flex-col md:flex-row md:items-center gap-2">
+                            <div className="text-muted-foreground text-sm min-w-[150px]">Английское название</div>
+                            <div className="text-white">{manga.engName}</div>
+                          </div>
+                        )}
                       </div>
                     </div>
 
-                    {/* Alternative Titles */}
-                    <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
-                      <h3 className="text-lg font-bold text-white mb-3">Альтернативные названия</h3>
-                      <div className="space-y-1">
-                        {alternativeTitles.map((title, index) => (
-                          <div key={index} className="text-muted-foreground text-sm">{title}</div>
-                        ))}
+                    {/* Alternative Titles - только если есть альтернативные названия */}
+                    {alternativeTitles.length > 0 && (
+                      <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
+                        <h3 className="text-lg font-bold text-white mb-3">Альтернативные названия</h3>
+                        <div className="space-y-1">
+                          {alternativeTitles.map((title, index) => (
+                            <div key={index} className="text-muted-foreground text-sm">{title}</div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     {/* Statistics */}
                     <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
@@ -532,17 +607,20 @@ export function MangaPage() {
                         >
                           {/* Chapter Number */}
                           <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 bg-primary/20 text-primary rounded-full mr-3 md:mr-4 font-bold text-sm md:text-base backdrop-blur-sm border border-primary/30">
-                            {chapter.chapterNumber}
+                            {formatChapterNumber(chapter)}
                           </div>
 
                           {/* Chapter Info */}
                           <div className="flex-1 min-w-0">
                             <h3 className="text-white font-medium group-hover:text-primary transition-colors text-sm md:text-base line-clamp-1">
-                              {chapter.title || `Глава ${chapter.chapterNumber}`}
+                              {formatChapterTitle(chapter)}
                             </h3>
-                            <p className="text-muted-foreground text-xs md:text-sm">
-                              {formatDate(chapter.publishedDate)}
-                            </p>
+                            <div className="flex items-center gap-2 text-muted-foreground text-xs md:text-sm">
+                              {formatVolumeNumber(chapter) && (
+                                <span className="text-primary/80">{formatVolumeNumber(chapter)}</span>
+                              )}
+                              <span>{formatDate(chapter.publishedDate)}</span>
+                            </div>
                           </div>
 
                           {/* Likes */}

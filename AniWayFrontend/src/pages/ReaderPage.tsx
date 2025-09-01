@@ -16,6 +16,7 @@ import {
 import { apiClient } from '@/lib/api'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { cn } from '@/lib/utils'
+import { formatChapterTitle } from '@/lib/chapterUtils'
 
 export function ReaderPage() {
   const { chapterId } = useParams<{ chapterId: string }>()
@@ -216,7 +217,7 @@ export function ReaderPage() {
             {/* Center - идеально центрированная информация о главе */}
             <div className="flex flex-col items-center justify-center text-center text-white">
               <h1 className="font-semibold text-base">
-                {chapter.title || `Глава ${chapter.chapterNumber}`}
+                {formatChapterTitle(chapter)}
               </h1>
               <p className="text-xs text-gray-400 mt-1">
                 {currentChapterIndex + 1} из {sortedChapters?.length || 0}
@@ -293,7 +294,7 @@ export function ReaderPage() {
           {images.map((image, index) => (
             <div key={image.id} className="relative mb-0 flex justify-center">
               <img
-                src={apiClient.getImageUrl(image.imageKey)}
+                src={image.imageUrl || apiClient.getImageUrl(image.imageKey)}
                 alt={`Страница ${image.pageNumber}`}
                 className={cn(
                   "block w-full h-auto transition-all duration-200",
@@ -355,7 +356,7 @@ export function ReaderPage() {
                   <div className="text-left min-w-0 flex-1">
                     <p className="text-muted-foreground text-xs sm:text-sm">Предыдущая глава</p>
                     <p className="text-white font-medium text-sm sm:text-base line-clamp-1">
-                      {previousChapter.title || `Глава ${previousChapter.chapterNumber}`}
+                      {formatChapterTitle(previousChapter)}
                     </p>
                   </div>
                 </Link>
@@ -385,7 +386,7 @@ export function ReaderPage() {
                   <div className="text-right min-w-0 flex-1">
                     <p className="text-muted-foreground text-xs sm:text-sm">Следующая глава</p>
                     <p className="text-white font-medium text-sm sm:text-base line-clamp-1">
-                      {nextChapter.title || `Глава ${nextChapter.chapterNumber}`}
+                      {formatChapterTitle(nextChapter)}
                     </p>
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />

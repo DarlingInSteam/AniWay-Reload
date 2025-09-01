@@ -14,6 +14,12 @@ public class MangaResponseDTO {
     private LocalDate releaseDate;
     private Manga.MangaStatus status;
     private String genre;
+    private String tags;
+    private String engName;
+    private String alternativeNames;
+    private Manga.MangaType type;
+    private Integer ageLimit;
+    private Boolean isLicensed;
     private String coverImageUrl;
     private Integer totalChapters;
     private LocalDateTime createdAt;
@@ -31,6 +37,12 @@ public class MangaResponseDTO {
         this.releaseDate = manga.getReleaseDate();
         this.status = manga.getStatus();
         this.genre = manga.getGenre();
+        this.tags = manga.getTags();
+        this.engName = manga.getEngName();
+        this.alternativeNames = manga.getAlternativeNames();
+        this.type = manga.getType();
+        this.ageLimit = manga.getAgeLimit();
+        this.isLicensed = manga.getIsLicensed();
         this.coverImageUrl = manga.getCoverImageUrl();
         this.totalChapters = manga.getTotalChapters();
         this.createdAt = manga.getCreatedAt();
@@ -61,6 +73,24 @@ public class MangaResponseDTO {
 
     public String getGenre() { return genre; }
     public void setGenre(String genre) { this.genre = genre; }
+
+    public String getTags() { return tags; }
+    public void setTags(String tags) { this.tags = tags; }
+
+    public String getEngName() { return engName; }
+    public void setEngName(String engName) { this.engName = engName; }
+
+    public String getAlternativeNames() { return alternativeNames; }
+    public void setAlternativeNames(String alternativeNames) { this.alternativeNames = alternativeNames; }
+
+    public Manga.MangaType getType() { return type; }
+    public void setType(Manga.MangaType type) { this.type = type; }
+
+    public Integer getAgeLimit() { return ageLimit; }
+    public void setAgeLimit(Integer ageLimit) { this.ageLimit = ageLimit; }
+
+    public Boolean getIsLicensed() { return isLicensed; }
+    public void setIsLicensed(Boolean isLicensed) { this.isLicensed = isLicensed; }
 
     public String getCoverImageUrl() { return coverImageUrl; }
     public void setCoverImageUrl(String coverImageUrl) { this.coverImageUrl = coverImageUrl; }

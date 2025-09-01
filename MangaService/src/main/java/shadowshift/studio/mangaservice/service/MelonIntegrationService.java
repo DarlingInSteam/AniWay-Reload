@@ -286,7 +286,115 @@ public class MelonIntegrationService {
                 manga.setDescription(description.trim());
             }
 
-            manga.setStatus(Manga.MangaStatus.ONGOING);
+            // Обрабатываем английское название
+            String engName = (String) mangaInfo.get("eng_name");
+            if (engName != null && !engName.trim().isEmpty()) {
+                manga.setEngName(engName.trim());
+            }
+
+            // Обрабатываем альтернативные названия
+            List<String> anotherNames = (List<String>) mangaInfo.get("another_names");
+            System.out.println("DEBUG: another_names = " + anotherNames);
+            if (anotherNames != null && !anotherNames.isEmpty()) {
+                String altNames = anotherNames.stream()
+                    .filter(name -> name != null && !name.trim().isEmpty())
+                    .map(String::trim)
+                    .collect(java.util.stream.Collectors.joining("; "));
+                
+                if (!altNames.isEmpty()) {
+                    System.out.println("DEBUG: Setting alternative names: " + altNames);
+                    manga.setAlternativeNames(altNames);
+                }
+            }
+
+            // Обрабатываем тип манги
+            String typeStr = (String) mangaInfo.get("type");
+            System.out.println("DEBUG: type from parser = " + typeStr);
+            if (typeStr != null && !typeStr.trim().isEmpty()) {
+                try {
+                    switch (typeStr.toLowerCase().trim()) {
+                        case "manhwa":
+                            manga.setType(Manga.MangaType.MANHWA);
+                            break;
+                        case "manhua":
+                            manga.setType(Manga.MangaType.MANHUA);
+                            break;
+                        case "western_comic":
+                        case "western comic":
+                            manga.setType(Manga.MangaType.WESTERN_COMIC);
+                            break;
+                        case "russian_comic":
+                        case "russian comic":
+                            manga.setType(Manga.MangaType.RUSSIAN_COMIC);
+                            break;
+                        case "oel":
+                            manga.setType(Manga.MangaType.OEL);
+                            break;
+                        case "manga":
+                            manga.setType(Manga.MangaType.MANGA);
+                            break;
+                        default:
+                            manga.setType(Manga.MangaType.OTHER);
+                    }
+                    System.out.println("DEBUG: Set type to: " + manga.getType());
+                } catch (Exception e) {
+                    manga.setType(Manga.MangaType.OTHER);
+                }
+            } else {
+                // Если тип не получен из парсера, устанавливаем MANGA по умолчанию
+                manga.setType(Manga.MangaType.MANGA);
+                System.out.println("DEBUG: No type from parser, set default MANGA");
+            }
+
+            // Обрабатываем возрастное ограничение
+            Object ageLimit = mangaInfo.get("age_limit");
+            if (ageLimit != null) {
+                try {
+                    manga.setAgeLimit(Integer.parseInt(ageLimit.toString().trim()));
+                } catch (NumberFormatException e) {
+                    // Игнорируем ошибки парсинга возраста
+                }
+            }
+
+            // Обрабатываем статус лицензирования
+            Object isLicensed = mangaInfo.get("is_licensed");
+            if (isLicensed != null) {
+                manga.setIsLicensed(Boolean.parseBoolean(isLicensed.toString()));
+            }
+
+            // Обрабатываем статус
+            String statusStr = (String) mangaInfo.get("status");
+            System.out.println("DEBUG: status from parser = " + statusStr);
+            if (statusStr != null && !statusStr.trim().isEmpty()) {
+                try {
+                    switch (statusStr.toLowerCase().trim()) {
+                        case "ongoing":
+                        case "продолжается":
+                            manga.setStatus(Manga.MangaStatus.ONGOING);
+                            break;
+                        case "completed":
+                        case "завершен":
+                            manga.setStatus(Manga.MangaStatus.COMPLETED);
+                            break;
+                        case "hiatus":
+                        case "заморожен":
+                            manga.setStatus(Manga.MangaStatus.HIATUS);
+                            break;
+                        case "cancelled":
+                        case "отменен":
+                            manga.setStatus(Manga.MangaStatus.CANCELLED);
+                            break;
+                        default:
+                            manga.setStatus(Manga.MangaStatus.ONGOING);
+                    }
+                    System.out.println("DEBUG: Set status to: " + manga.getStatus());
+                } catch (Exception e) {
+                    manga.setStatus(Manga.MangaStatus.ONGOING);
+                }
+            } else {
+                manga.setStatus(Manga.MangaStatus.ONGOING);
+                System.out.println("DEBUG: No status from parser, set default ONGOING");
+            }
 
             // Обрабатываем жанры
             List<String> genres = (List<String>) mangaInfo.get("genres");
@@ -299,6 +407,22 @@ public class MelonIntegrationService {
 
                 if (!filteredGenres.isEmpty()) {
                     manga.setGenre(String.join(", ", filteredGenres));
+                }
+            }
+
+            // Обрабатываем теги
+            List<String> tags = (List<String>) mangaInfo.get("tags");
+            System.out.println("DEBUG: tags = " + tags);
+            if (tags != null && !tags.isEmpty()) {
+                // Фильтруем пустые теги
+                List<String> filteredTags = tags.stream()
+                    .filter(tag -> tag != null && !tag.trim().isEmpty())
+                    .map(String::trim)
+                    .collect(java.util.stream.Collectors.toList());
+
+                if (!filteredTags.isEmpty()) {
+                    System.out.println("DEBUG: Setting tags: " + String.join(", ", filteredTags));
+                    manga.setTags(String.join(", ", filteredTags));
                 }
             }
 
@@ -595,6 +719,100 @@ public class MelonIntegrationService {
             }
         }
 
+        // DEBUG: Проверяем данные из парсинга
+        System.out.println("=== DEBUG PARSING DATA ===");
+        System.out.println("Filename: " + filename);
+        System.out.println("Full mangaInfo: " + mangaInfo);
+
+        // Обрабатываем тип манги (manga/manhwa/manhua)
+        String type = (String) mangaInfo.get("type");
+        System.out.println("DEBUG: Raw type from parsing: " + type);
+        if (type != null && !type.trim().isEmpty()) {
+            try {
+                Manga.MangaType mangaType = Manga.MangaType.valueOf(type.trim().toUpperCase());
+                manga.setType(mangaType);
+                System.out.println("DEBUG: Set manga type to: " + mangaType);
+            } catch (IllegalArgumentException e) {
+                System.err.println("DEBUG: Unknown manga type: " + type + ", setting to MANGA");
+                manga.setType(Manga.MangaType.MANGA);
+            }
+        } else {
+            System.out.println("DEBUG: No type found, setting to MANGA by default");
+            manga.setType(Manga.MangaType.MANGA);
+        }
+
+        // Обрабатываем английское название
+        String engName = (String) mangaInfo.get("eng_name");
+        System.out.println("DEBUG: Raw eng_name from parsing: " + engName);
+        if (engName != null && !engName.trim().isEmpty()) {
+            manga.setEngName(engName.trim());
+            System.out.println("DEBUG: Set eng_name to: " + engName.trim());
+        }
+
+        // Обрабатываем альтернативные названия
+        List<String> alternativeNames = (List<String>) mangaInfo.get("another_names");
+        System.out.println("DEBUG: Raw another_names from parsing: " + alternativeNames);
+        if (alternativeNames != null && !alternativeNames.isEmpty()) {
+            List<String> filteredNames = alternativeNames.stream()
+                .filter(name -> name != null && !name.trim().isEmpty())
+                .map(String::trim)
+                .collect(java.util.stream.Collectors.toList());
+
+            if (!filteredNames.isEmpty()) {
+                String alternativeNamesString = String.join(", ", filteredNames);
+                manga.setAlternativeNames(alternativeNamesString);
+                System.out.println("DEBUG: Set alternative_names to: " + alternativeNamesString);
+            }
+        }
+
+        // Обрабатываем теги
+        List<String> tags = (List<String>) mangaInfo.get("tags");
+        System.out.println("DEBUG: Raw tags from parsing: " + tags);
+        if (tags != null && !tags.isEmpty()) {
+            List<String> filteredTags = tags.stream()
+                .filter(tag -> tag != null && !tag.trim().isEmpty())
+                .map(String::trim)
+                .collect(java.util.stream.Collectors.toList());
+
+            if (!filteredTags.isEmpty()) {
+                String tagsString = String.join(", ", filteredTags);
+                manga.setTags(tagsString);
+                System.out.println("DEBUG: Set tags to: " + tagsString);
+            }
+        }
+
+        // Обрабатываем возрастной рейтинг
+        Object ageLimit = mangaInfo.get("age_limit");
+        System.out.println("DEBUG: Raw age_limit from parsing: " + ageLimit);
+        if (ageLimit != null && !ageLimit.toString().trim().isEmpty()) {
+            try {
+                int ageLimitInt = Integer.parseInt(ageLimit.toString().trim());
+                if (ageLimitInt >= 0 && ageLimitInt <= 21) {
+                    manga.setAgeLimit(ageLimitInt);
+                    System.out.println("DEBUG: Set age_limit to: " + ageLimitInt);
+                }
+            } catch (NumberFormatException e) {
+                System.err.println("DEBUG: Invalid age_limit format: " + ageLimit);
+            }
+        }
+
+        // Обрабатываем статус лицензии
+        Object isLicensed = mangaInfo.get("is_licensed");
+        System.out.println("DEBUG: Raw is_licensed from parsing: " + isLicensed);
+        if (isLicensed != null) {
+            if (isLicensed instanceof Boolean) {
+                manga.setIsLicensed((Boolean) isLicensed);
+                System.out.println("DEBUG: Set is_licensed to: " + isLicensed);
+            } else if (isLicensed instanceof String) {
+                String licensedStr = isLicensed.toString().toLowerCase();
+                boolean licensed = "true".equals(licensedStr) || "1".equals(licensedStr) || "yes".equals(licensedStr);
+                manga.setIsLicensed(licensed);
+                System.out.println("DEBUG: Set is_licensed to: " + licensed + " (parsed from string: " + licensedStr + ")");
+            }
+        }
+
+        System.out.println("=== END DEBUG PARSING ===");
+
         // СНАЧАЛА сохраняем мангу, чтобы получить ID
         manga = mangaRepository.save(manga);
         System.out.println("Manga saved with ID: " + manga.getId() + " for filename: " + filename);
@@ -849,15 +1067,62 @@ public class MelonIntegrationService {
             Map<String, Object> chapterData = chapters.get(i);
 
             try {
+                // DEBUG: Выводим информацию о главе
+                System.out.println("=== CHAPTER DEBUG ===");
+                System.out.println("Chapter data: " + chapterData);
+
                 // Создаем запрос к ChapterService
                 Map<String, Object> chapterRequest = new HashMap<>();
                 chapterRequest.put("mangaId", mangaId);
-                chapterRequest.put("chapterNumber", Integer.parseInt(chapterData.get("number").toString()));
 
-                // Обрабаты��аем title - может быть null
+                // Улучшенная обработка номера главы
+                Object volumeObj = chapterData.get("volume");
+                Object numberObj = chapterData.get("number");
+                
+                System.out.println("Raw volume: " + volumeObj);
+                System.out.println("Raw number: " + numberObj);
+
+                // Формируем уникальный номер главы с учетом тома
+                double chapterNumber;
+                int volume = 1;
+                double originalNumber = 1;
+                try {
+                    originalNumber = Double.parseDouble(numberObj.toString());
+                    volume = volumeObj != null ? Integer.parseInt(volumeObj.toString()) : 1;
+                    
+                    // Формула: том * 1000 + номер главы
+                    // Например: том 2, глава 12.5 = 2012.5
+                    chapterNumber = volume * 1000 + originalNumber;
+                    
+                    System.out.println("Calculated chapter number: " + chapterNumber);
+                } catch (NumberFormatException e) {
+                    // Если не можем распарсить как число, используем позицию в списке
+                    chapterNumber = i + 1;
+                    originalNumber = i + 1;
+                    System.out.println("Failed to parse number, using position: " + chapterNumber + ", error: " + e.getMessage());
+                }
+
+                chapterRequest.put("chapterNumber", chapterNumber);
+                chapterRequest.put("volumeNumber", volume);
+                chapterRequest.put("originalChapterNumber", originalNumber);
+
+                // Обрабатываем title - может быть null
                 Object titleObj = chapterData.get("name");
-                String title = titleObj != null ? titleObj.toString() : "Глава " + chapterData.get("number");
+                String title;
+                if (titleObj != null && !titleObj.toString().trim().isEmpty()) {
+                    title = titleObj.toString().trim();
+                } else {
+                    // Формируем красивое название
+                    if (volumeObj != null && !volumeObj.toString().equals("1")) {
+                        title = "Том " + volumeObj + ", Глава " + numberObj;
+                    } else {
+                        title = "Глава " + numberObj;
+                    }
+                }
                 chapterRequest.put("title", title);
+
+                System.out.println("Final chapter request: " + chapterRequest);
+                System.out.println("=== END CHAPTER DEBUG ===");
 
                 HttpHeaders headers = new HttpHeaders();
                 headers.setContentType(MediaType.APPLICATION_JSON);
@@ -875,7 +1140,7 @@ public class MelonIntegrationService {
                     // Импортируем страницы из MelonService
                     List<Map<String, Object>> slides = (List<Map<String, Object>>) chapterData.get("slides");
                     task.setStatus(ImportTaskService.TaskStatus.IMPORTING_PAGES);
-                    importChapterPagesFromMelonService(taskId, chapterId, slides, filename, chapterData.get("number").toString());
+                    importChapterPagesFromMelonService(taskId, chapterId, slides, filename, numberObj.toString());
 
                     // Обновляем прогресс
                     importTaskService.incrementImportedChapters(taskId);
@@ -883,10 +1148,15 @@ public class MelonIntegrationService {
                     // Устанавли��аем прогресс от 20% до 95%
                     int progress = 20 + (75 * (i + 1)) / chapters.size();
                     task.setProgress(progress);
+
+                    System.out.println("Successfully imported chapter: " + title + " with ID: " + chapterId);
+                } else {
+                    System.err.println("Failed to create chapter, response: " + response.getStatusCode());
                 }
 
             } catch (Exception e) {
                 System.err.println("Ошибка импорта главы " + chapterData.get("number") + ": " + e.getMessage());
+                e.printStackTrace();
             }
         }
     }
