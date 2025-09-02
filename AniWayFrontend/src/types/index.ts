@@ -141,6 +141,14 @@ export interface Bookmark {
   createdAt: string
   updatedAt: string
   manga?: MangaResponseDTO
+  // Поля для отображения информации о манге (из BookmarkDTO)
+  mangaTitle?: string
+  mangaCoverUrl?: string
+  // Поля для прогресса чтения
+  currentChapter?: number
+  totalChapters?: number
+  currentPage?: number
+  isCompleted?: boolean
 }
 
 export type BookmarkStatus = 'READING' | 'PLAN_TO_READ' | 'COMPLETED' | 'ON_HOLD' | 'DROPPED'

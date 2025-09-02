@@ -13,9 +13,9 @@
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
-      <module name="AuthService" options="-parameters" />
-      <module name="AuthService.main" options="-parameters" />
-      <module name="AuthService.test" options="-parameters" />
+      <module name="AuthService" options="-parameters -Xlint:-processing" />
+      <module name="AuthService.main" options="-parameters -Xlint:-processing" />
+      <module name="AuthService.test" options="-parameters -Xlint:-processing" />
       <module name="ChapterService" options="-parameters" />
       <module name="ChapterService.main" options="-parameters" />
       <module name="ChapterService.test" options="-parameters" />
