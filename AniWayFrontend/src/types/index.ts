@@ -90,3 +90,123 @@ export interface LogMessage {
   message: string
   timestamp: number
 }
+
+// Типы для пользователей и аутентификации
+export interface User {
+  id: number
+  username: string
+  email: string
+  displayName?: string
+  avatar?: string
+  bio?: string
+  role: 'USER' | 'ADMIN' | 'TRANSLATOR'
+  isEnabled: boolean
+  createdAt: string
+  lastLogin?: string
+  
+  // Statistics
+  chaptersReadCount?: number
+  likesGivenCount?: number
+  commentsCount?: number
+  
+  // Deprecated fields for backward compatibility
+  profilePicture?: string
+  registrationDate?: string
+  lastLoginDate?: string
+}
+
+export interface AuthResponse {
+  token: string
+  user: User
+}
+
+export interface LoginRequest {
+  username: string
+  password: string
+}
+
+export interface RegisterRequest {
+  username: string
+  email: string
+  password: string
+}
+
+// Типы для системы закладок
+export interface Bookmark {
+  id: number
+  userId: number
+  mangaId: number
+  status: BookmarkStatus
+  isFavorite: boolean
+  createdAt: string
+  updatedAt: string
+  manga?: MangaResponseDTO
+}
+
+export type BookmarkStatus = 'READING' | 'PLAN_TO_READ' | 'COMPLETED' | 'ON_HOLD' | 'DROPPED'
+
+export interface BookmarkRequest {
+  mangaId: number
+  status: BookmarkStatus
+  isFavorite?: boolean
+}
+
+// Типы для прогресса чтения
+export interface ReadingProgress {
+  id: number
+  userId: number
+  mangaId: number
+  chapterId: number
+  chapterNumber?: number
+  pageNumber: number
+  isCompleted: boolean
+  createdAt: string
+  updatedAt: string
+  manga?: MangaResponseDTO
+  chapter?: ChapterDTO
+  mangaTitle?: string
+  chapterTitle?: string
+}
+
+export interface ReadingProgressRequest {
+  mangaId: number
+  chapterId: number
+  pageNumber?: number
+  isCompleted?: boolean
+  chapterNumber?: number
+}
+
+// Типы для пользовательского профиля
+export interface UserProfile {
+  user: User
+  bookmarks: Bookmark[]
+  readingProgress: ReadingProgress[]
+  favoriteGenres?: string[]
+  readingStats?: ReadingStats
+}
+
+export interface ReadingStats {
+  totalMangaRead: number
+  totalChaptersRead: number
+  totalPagesRead: number
+  favoriteGenres: string[]
+  readingStreak: number
+  averageRating?: number
+}
+
+// Типы для поиска пользователей (админ функции)
+export interface UserSearchParams {
+  query?: string
+  role?: 'USER' | 'ADMIN' | 'TRANSLATOR'
+  page?: number
+  limit?: number
+  sortBy?: 'username' | 'email' | 'registrationDate' | 'lastLoginDate'
+  sortOrder?: 'asc' | 'desc'
+}
+
+export interface UserSearchResult {
+  users: User[]
+  total: number
+  page: number
+  totalPages: number
+}

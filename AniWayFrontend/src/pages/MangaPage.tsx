@@ -3,12 +3,16 @@ import { useQuery } from '@tanstack/react-query'
 import { useParams, Link } from 'react-router-dom'
 import {
   BookOpen, Play, Eye, Heart, Star, ChevronDown, ChevronUp, Send,
-  Bookmark, Edit, AlertTriangle, Share, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown
+  Bookmark, Edit, AlertTriangle, Share, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Check
 } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { formatDate, getStatusColor, getStatusText, cn } from '@/lib/utils'
 import { formatChapterTitle, formatChapterNumber, formatVolumeNumber } from '@/lib/chapterUtils'
+import { BookmarkControls } from '../components/bookmarks/BookmarkControls'
+import { ReadingProgressBar, LastReadChapter } from '../components/progress/ReadingProgress'
+import { ReadingButton } from '../components/reading/ReadingButton'
+import { useReadingProgress } from '@/hooks/useProgress'
 
 export function MangaPage() {
   const { id } = useParams<{ id: string }>()
@@ -44,6 +48,8 @@ export function MangaPage() {
     queryFn: () => apiClient.getMangaChapters(mangaId),
     enabled: !!mangaId,
   })
+
+  const { isChapterCompleted } = useReadingProgress()
 
   if (mangaLoading) {
     return (
@@ -201,15 +207,23 @@ export function MangaPage() {
 
                 {/* Action Buttons - только на ПК */}
                 <div className="hidden lg:block space-y-3">
-                  <button className="w-full bg-primary/90 backdrop-blur-sm text-white py-3 rounded-3xl font-medium hover:bg-primary transition-colors flex items-center justify-center gap-2 border border-primary/20">
-                    <Play className="h-5 w-5" />
-                    Продолжить чтение
-                  </button>
+                  {/* Кнопка чтения */}
+                  <ReadingButton 
+                    mangaId={mangaId} 
+                    firstChapterId={chapters && chapters.length > 0 ? chapters[0].id : undefined}
+                    allChapters={chapters}
+                    className="w-full"
+                  />
 
-                  <button className="w-full bg-white/10 backdrop-blur-sm text-white py-3 rounded-3xl font-medium hover:bg-white/20 transition-colors flex items-center justify-center gap-2 border border-white/20">
-                    <Bookmark className="h-5 w-5" />
-                    В закладки
-                  </button>
+                  {/* Компонент закладок */}
+                  <BookmarkControls mangaId={mangaId} className="w-full" />
+
+                  {/* Прогресс чтения */}
+                  <ReadingProgressBar 
+                    mangaId={mangaId} 
+                    totalChapters={manga.totalChapters} 
+                    className="mb-4" 
+                  />
 
                   <button className="w-full bg-white/5 backdrop-blur-sm text-white py-3 rounded-3xl font-medium hover:bg-white/10 transition-colors flex items-center justify-center gap-2 border border-white/10">
                     <AlertTriangle className="h-5 w-5" />
@@ -218,9 +232,6 @@ export function MangaPage() {
 
                   {/* Quick Actions */}
                   <div className="flex gap-2">
-                    <button className="flex-1 bg-white/5 backdrop-blur-sm text-white py-2 rounded-lg hover:bg-white/10 transition-colors flex items-center justify-center border border-white/10">
-                      <Heart className="h-4 w-4" />
-                    </button>
                     <button className="flex-1 bg-white/5 backdrop-blur-sm text-white py-2 rounded-lg hover:bg-white/10 transition-colors flex items-center justify-center border border-white/10">
                       <Share className="h-4 w-4" />
                     </button>
@@ -235,15 +246,24 @@ export function MangaPage() {
             {/* Main Content */}
             <div className="lg:col-span-2 -mt-2">
               {/* Mobile Action Buttons */}
-              <div className="lg:hidden grid grid-cols-2 gap-3 mb-6">
-                <button className="bg-primary/90 backdrop-blur-sm text-white py-3 rounded-3xl font-medium hover:bg-primary transition-colors flex items-center justify-center gap-2 border border-primary/20">
-                  <Play className="h-4 w-4" />
-                  Продолжить
-                </button>
-                <button className="bg-white/10 backdrop-blur-sm text-white py-3 rounded-3xl font-medium hover:bg-white/20 transition-colors flex items-center justify-center gap-2 border border-white/20">
-                  <Bookmark className="h-4 w-4" />
-                  В закладки
-                </button>
+              <div className="lg:hidden mb-6">
+                {/* Кнопка чтения */}
+                <ReadingButton 
+                  mangaId={mangaId} 
+                  firstChapterId={chapters && chapters.length > 0 ? chapters[0].id : undefined}
+                  allChapters={chapters}
+                  className="w-full mb-4"
+                />
+
+                {/* Прогресс чтения */}
+                <ReadingProgressBar 
+                  mangaId={mangaId} 
+                  totalChapters={manga.totalChapters} 
+                  className="mb-4" 
+                />
+
+                {/* Кнопки действий */}
+                <BookmarkControls mangaId={mangaId} />
               </div>
 
               {/* Tabs */}
@@ -599,38 +619,60 @@ export function MangaPage() {
                         <LoadingSpinner />
                       </div>
                     ) : chapters?.length ? (
-                      getSortedChapters(chapters).map((chapter) => (
-                        <Link
-                          key={chapter.id}
-                          to={`/reader/${chapter.id}`}
-                          className="flex items-center p-3 md:p-4 bg-white/5 backdrop-blur-sm rounded-3xl hover:bg-white/10 transition-all duration-200 hover:shadow-lg group border border-white/10"
-                        >
-                          {/* Chapter Number */}
-                          <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 bg-primary/20 text-primary rounded-full mr-3 md:mr-4 font-bold text-sm md:text-base backdrop-blur-sm border border-primary/30">
-                            {formatChapterNumber(chapter)}
-                          </div>
-
-                          {/* Chapter Info */}
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-white font-medium group-hover:text-primary transition-colors text-sm md:text-base line-clamp-1">
-                              {formatChapterTitle(chapter)}
-                            </h3>
-                            <div className="flex items-center gap-2 text-muted-foreground text-xs md:text-sm">
-                              {formatVolumeNumber(chapter) && (
-                                <span className="text-primary/80">{formatVolumeNumber(chapter)}</span>
-                              )}
-                              <span>{formatDate(chapter.publishedDate)}</span>
+                      getSortedChapters(chapters).map((chapter) => {
+                        const isCompleted = isChapterCompleted(chapter.id)
+                        return (
+                          <Link
+                            key={chapter.id}
+                            to={`/reader/${chapter.id}`}
+                            className={cn(
+                              "flex items-center p-3 md:p-4 bg-white/5 backdrop-blur-sm rounded-3xl hover:bg-white/10 transition-all duration-200 hover:shadow-lg group border border-white/10",
+                              isCompleted && "bg-green-500/10 border-green-500/20"
+                            )}
+                          >
+                            {/* Chapter Number */}
+                            <div className={cn(
+                              "flex items-center justify-center w-10 h-10 md:w-12 md:h-12 bg-primary/20 text-primary rounded-full mr-3 md:mr-4 font-bold text-sm md:text-base backdrop-blur-sm border border-primary/30",
+                              isCompleted && "bg-green-500/20 text-green-400 border-green-500/30"
+                            )}>
+                              {formatChapterNumber(chapter)}
                             </div>
-                          </div>
 
-                          {/* Likes */}
-                          <div className="flex items-center space-x-2 text-muted-foreground flex-shrink-0">
-                            <Heart className="h-3 w-3 md:h-4 md:w-4" />
-                            <span className="text-xs md:text-sm">{Math.floor(Math.random() * 100) + 10}</span>
-                            <ChevronRight className="h-4 w-4 md:h-5 md:w-5 group-hover:translate-x-1 transition-transform" />
-                          </div>
-                        </Link>
-                      ))
+                            {/* Chapter Info */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <h3 className={cn(
+                                  "text-white font-medium group-hover:text-primary transition-colors text-sm md:text-base line-clamp-1",
+                                  isCompleted && "text-green-400"
+                                )}>
+                                  {formatChapterTitle(chapter)}
+                                </h3>
+                                {isCompleted && (
+                                  <div className="flex items-center justify-center w-5 h-5 bg-green-500/20 rounded-full border border-green-500/30 flex-shrink-0">
+                                    <Check className="w-3 h-3 text-green-400" />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 text-muted-foreground text-xs md:text-sm">
+                                {formatVolumeNumber(chapter) && (
+                                  <span className="text-primary/80">{formatVolumeNumber(chapter)}</span>
+                                )}
+                                <span>{formatDate(chapter.publishedDate)}</span>
+                                {isCompleted && (
+                                  <span className="text-green-400 text-xs">• Прочитано</span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Likes */}
+                            <div className="flex items-center space-x-2 text-muted-foreground flex-shrink-0">
+                              <Heart className="h-3 w-3 md:h-4 md:w-4" />
+                              <span className="text-xs md:text-sm">{Math.floor(Math.random() * 100) + 10}</span>
+                              <ChevronRight className="h-4 w-4 md:h-5 md:w-5 group-hover:translate-x-1 transition-transform" />
+                            </div>
+                          </Link>
+                        )
+                      })
                     ) : (
                       <div className="text-center py-12">
                         <BookOpen className="mx-auto h-12 w-12 text-muted-foreground mb-4" />

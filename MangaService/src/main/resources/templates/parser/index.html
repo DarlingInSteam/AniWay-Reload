@@ -116,6 +116,94 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Пакетный парсинг -->
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-layer-group text-warning"></i>
+                            Пакетный парсинг
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Описание -->
+                        <div class="alert alert-warning">
+                            <h6><i class="fas fa-info-circle"></i> Пакетный режим:</h6>
+                            <p class="mb-1">Введите список слагов (по одному на строку) для автоматического парсинга и импорта всех манг.</p>
+                            <small class="text-muted">Каждая манга будет обработана последовательно: парсинг → скачивание → импорт. Большие манги могут занимать до 30 минут каждая.</small>
+                        </div>
+
+                        <!-- Форма пакетного парсинга -->
+                        <form id="batchParseForm">
+                            <div class="mb-3">
+                                <label for="mangaSlugs" class="form-label">
+                                    Список слагов <small class="text-muted">(по одному на строку)</small>
+                                </label>
+                                <textarea class="form-control" 
+                                         id="mangaSlugs" 
+                                         rows="5" 
+                                         placeholder="one-piece&#10;naruto&#10;bleach&#10;..." 
+                                         required></textarea>
+                                <div class="form-text">
+                                    Каждый слаг на новой строке. Пример: one-piece, naruto, bleach
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="autoImport" checked>
+                                        <label class="form-check-label" for="autoImport">
+                                            Автоматический импорт в систему
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <select class="form-select" id="batchParser">
+                                        <option value="mangalib" selected>MangaLib</option>
+                                        <option value="remanga">ReManga</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-warning mt-3" id="batchParseBtn">
+                                <i class="fas fa-play-circle"></i>
+                                Начать пакетный парсинг
+                            </button>
+                        </form>
+
+                        <!-- Прогресс пакетного парсинга -->
+                        <div id="batchProgressContainer" class="progress-container mt-4">
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between">
+                                    <h6 class="mb-0">Прогресс пакетного парсинга</h6>
+                                    <div>
+                                        <span id="batchCounter" class="badge bg-primary">0/0</span>
+                                        <span id="batchTimer" class="badge bg-secondary ms-1">00:00</span>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <!-- Прогресс бар -->
+                                    <div class="progress mb-3">
+                                        <div class="progress-bar progress-bar-striped" role="progressbar"
+                                             style="width: 0%" id="batchProgressBar">0%</div>
+                                    </div>
+
+                                    <!-- Текущая манга -->
+                                    <div class="alert alert-info" id="batchCurrentManga">
+                                        Подготовка к пакетному парсингу...
+                                    </div>
+
+                                    <!-- Результаты -->
+                                    <div id="batchResults" style="display: none;">
+                                        <h6>Результаты:</h6>
+                                        <div id="batchResultsList"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Правая колонка - Спаршенные манги -->
@@ -340,18 +428,18 @@
                                 <div class="col">
                                     <h6 class="mb-1">${manga.title}</h6>
                                     <small class="text-muted">
-                                        ${manga.author} • ${manga.branches} веток
+                                        ${manga.slug} • ${manga.chapters} глав • ${manga.branches} веток
                                     </small>
                                 </div>
                                 <div class="col-auto">
                                     <div class="btn-group" role="group">
                                         <button class="btn btn-sm btn-primary"
-                                                onclick="importManga('${manga.filename}')"
+                                                onclick="importManga('${manga.slug}')"
                                                 title="Импортировать мангу в систему">
                                             <i class="fas fa-upload"></i> Импорт
                                         </button>
                                         <button class="btn btn-sm btn-outline-danger"
-                                                onclick="deleteManga('${manga.filename}', '${manga.title}')"
+                                                onclick="deleteManga('${manga.slug}', '${manga.title}')"
                                                 title="Удалить мангу из MelonService">
                                             <i class="fas fa-trash"></i> Удалить
                                         </button>
@@ -371,6 +459,195 @@
                     </div>
                 `;
             }
+        }
+
+        // Обработка формы пакетного парсинга
+        document.getElementById('batchParseForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const slugsText = document.getElementById('mangaSlugs').value.trim();
+            if (!slugsText) {
+                alert('Введите список слагов');
+                return;
+            }
+
+            const slugs = slugsText.split('\n').map(s => s.trim()).filter(s => s);
+            if (slugs.length === 0) {
+                alert('Введите корректные слаги');
+                return;
+            }
+
+            const autoImport = document.getElementById('autoImport').checked;
+            const parser = document.getElementById('batchParser').value;
+
+            // Показываем прогресс
+            document.getElementById('batchProgressContainer').classList.add('show');
+            document.getElementById('batchParseBtn').disabled = true;
+            document.getElementById('batchCounter').textContent = `0/${slugs.length}`;
+
+            updateBatchStatus('info', 'Запускаем пакетный парсинг...');
+
+            try {
+                const response = await fetch('/parser/batch-start', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        slugs: slugs,
+                        autoImport: autoImport,
+                        parser: parser
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    updateBatchStatus('error', 'Ошибка: ' + data.error);
+                    document.getElementById('batchParseBtn').disabled = false;
+                    return;
+                }
+
+                currentBatchTaskId = data.task_id;
+                batchStartTime = Date.now();
+                startBatchStatusPolling();
+
+            } catch (error) {
+                updateBatchStatus('error', 'Ошибка запуска: ' + error.message);
+                document.getElementById('batchParseBtn').disabled = false;
+            }
+        });
+
+        let currentBatchTaskId = null;
+        let batchStatusInterval = null;
+        let batchStartTime = null;
+
+        // Запуск проверки статуса пакетного парсинга
+        function startBatchStatusPolling() {
+            if (batchStatusInterval) clearInterval(batchStatusInterval);
+
+            batchStatusInterval = setInterval(async () => {
+                if (!currentBatchTaskId) return;
+
+                try {
+                    const response = await fetch(`/parser/status/${currentBatchTaskId}`);
+                    const status = await response.json();
+
+                    updateBatchProgress(status.progress || 0);
+                    
+                    // Обновляем таймер
+                    if (batchStartTime) {
+                        const elapsed = Math.floor((Date.now() - batchStartTime) / 1000);
+                        const minutes = Math.floor(elapsed / 60);
+                        const seconds = elapsed % 60;
+                        document.getElementById('batchTimer').textContent = 
+                            `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                    }
+                    
+                    if (status.completed_slugs !== undefined && status.total_slugs !== undefined) {
+                        document.getElementById('batchCounter').textContent = 
+                            `${status.completed_slugs + status.failed_slugs}/${status.total_slugs}`;
+                    }
+
+                    if (status.current_slug) {
+                        updateBatchStatus('info', `Обрабатываем: ${status.current_slug}`);
+                    } else if (status.message) {
+                        updateBatchStatus('info', status.message);
+                    }
+
+                    if (status.status === 'completed') {
+                        handleBatchParsingCompleted(status);
+                        clearInterval(batchStatusInterval);
+                    } else if (status.status === 'failed') {
+                        handleBatchParsingFailed(status);
+                        clearInterval(batchStatusInterval);
+                    }
+                } catch (error) {
+                    console.error('Ошибка проверки статуса пакетного парсинга:', error);
+                }
+            }, 3000);
+        }
+
+        // Обработка завершения пакетного парсинга
+        function handleBatchParsingCompleted(status) {
+            const completed = status.completed_slugs || 0;
+            const failed = status.failed_slugs || 0;
+            const total = status.total_slugs || 0;
+
+            updateBatchStatus('success', `Пакетный парсинг завершен! Успешно: ${completed}, Ошибок: ${failed}`);
+            
+            // Показываем результаты
+            if (status.results && status.results.length > 0) {
+                displayBatchResults(status.results);
+            }
+
+            document.getElementById('batchParseBtn').disabled = false;
+            loadParsedManga(); // Обновляем список спаршенных манг
+        }
+
+        // Обработка ошибки пакетного парсинга
+        function handleBatchParsingFailed(status) {
+            updateBatchStatus('error', status.message || 'Ошибка пакетного парсинга');
+            document.getElementById('batchParseBtn').disabled = false;
+        }
+
+        // Отображение результатов пакетного парсинга
+        function displayBatchResults(results) {
+            const container = document.getElementById('batchResultsList');
+            const resultsDiv = document.getElementById('batchResults');
+            
+            let html = '';
+            results.forEach(result => {
+                if (result.status === 'completed') {
+                    // Для успешно обработанных манг
+                    let statusText = '';
+                    let statusClass = 'success';
+                    let icon = 'check-circle';
+                    
+                    if (result.import_status === 'success') {
+                        statusText = result.manga_info ? `${result.manga_info.title} - Импортировано` : 'Импортировано';
+                    } else if (result.import_status === 'failed') {
+                        statusText = `Обработано, но импорт неудался: ${result.import_error || 'Неизвестная ошибка'}`;
+                        statusClass = 'warning';
+                        icon = 'exclamation-triangle';
+                    } else {
+                        statusText = 'Обработано (импорт отключен)';
+                        statusClass = 'info';
+                        icon = 'info-circle';
+                    }
+                    
+                    html += `
+                        <div class="alert alert-${statusClass} py-2">
+                            <i class="fas fa-${icon}"></i>
+                            <strong>${result.slug}</strong> - ${statusText}
+                        </div>
+                    `;
+                } else {
+                    // Для неудачных обработок
+                    html += `
+                        <div class="alert alert-danger py-2">
+                            <i class="fas fa-times-circle"></i>
+                            <strong>${result.slug}</strong> - Ошибка на этапе "${result.step}": ${result.error || 'Неизвестная ошибка'}
+                        </div>
+                    `;
+                }
+            });
+            
+            container.innerHTML = html;
+            resultsDiv.style.display = 'block';
+        }
+
+        // Вспомогательные функции для пакетного парсинга
+        function updateBatchProgress(percent) {
+            const bar = document.getElementById('batchProgressBar');
+            bar.style.width = percent + '%';
+            bar.textContent = Math.round(percent) + '%';
+        }
+
+        function updateBatchStatus(type, message) {
+            const statusEl = document.getElementById('batchCurrentManga');
+            statusEl.className = `alert alert-${type === 'error' ? 'danger' : type === 'success' ? 'success' : 'info'}`;
+            statusEl.textContent = message;
         }
 
         // Вспомогательные функции

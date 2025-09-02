@@ -115,6 +115,7 @@ services:
       - manga-service
       - chapter-service
       - image-storage-service
+      - auth-service
     networks:
       - aniway-network
 
@@ -135,6 +136,32 @@ services:
     networks:
       - aniway-network
     restart: unless-stopped
+
+  # Auth Service - для разработки
+  auth-service:
+    build:
+      context: ./AuthService
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./AuthService/src:/app/src:ro
+      - ./AuthService/build.gradle.kts:/app/build.gradle.kts:ro
+      - gradle-cache-auth:/home/gradle/.gradle
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DEVTOOLS_RESTART_ENABLED=true
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://auth-postgres:5432/auth_db
+      - SPRING_DATASOURCE_USERNAME=auth_user
+      - SPRING_DATASOURCE_PASSWORD=auth_password
+      - JWT_SECRET=mySecretKey12345678901234567890123456789012345678901234567890
+      - JWT_EXPIRATION=86400000
+      - CORS_ALLOWED_ORIGINS=http://localhost:*,http://192.168.*.*:*,http://10.*.*.*:*
+    ports:
+      - "8085:8085"
+    depends_on:
+      auth-postgres:
+        condition: service_healthy
+    networks:
+      - aniway-network
 
   # Frontend - для разработки с hot-reload
   frontend:
@@ -162,6 +189,7 @@ volumes:
   gradle-cache-chapter:
   gradle-cache-image:
   gradle-cache-gateway:
+  gradle-cache-auth:
   node_modules-cache:
   melon_data:
   melon_logs:

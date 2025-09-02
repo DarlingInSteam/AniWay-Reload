@@ -17,11 +17,11 @@ spring:
       globalcors:
         cors-configurations:
           '[/**]':
-            allowed-origins:
-              - "http://localhost:3000"  # React/Vue/Angular dev server
-              - "http://localhost:5173"  # Vite dev server
-              - "http://localhost:8080"  # Gateway itself
-              - "http://localhost:8081"  # MangaService (для статических страниц)
+            allowed-origin-patterns: 
+              - "http://localhost:*"  # Все localhost порты
+              - "http://192.168.*.*:*" # Вся локальная сеть 192.168.x.x
+              - "http://10.*.*.*:*"    # Вся локальная сеть 10.x.x.x
+              - "http://172.16.*.*:*"  # Частная сеть 172.16.x.x
             allowed-methods:
               - GET
               - POST
@@ -44,6 +44,42 @@ spring:
           filters:
             - StripPrefix=3  # Исправляем: удаляем /api/manga/ws, оставляем /progress
           order: 0
+
+        # AuthService - Authentication and user management (HIGH PRIORITY)
+        - id: auth-api
+          uri: http://auth-service:8085
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - StripPrefix=0
+          order: 1
+
+        # AuthService - User management
+        - id: users-api
+          uri: http://auth-service:8085
+          predicates:
+            - Path=/api/users/**
+          filters:
+            - StripPrefix=0
+          order: 2
+
+        # AuthService - Bookmarks
+        - id: bookmarks-api
+          uri: http://auth-service:8085
+          predicates:
+            - Path=/api/bookmarks/**
+          filters:
+            - StripPrefix=0
+          order: 3
+
+        # AuthService - Reading progress
+        - id: progress-api
+          uri: http://auth-service:8085
+          predicates:
+            - Path=/api/progress/**
+          filters:
+            - StripPrefix=0
+          order: 4
 
         # MangaService - API endpoints
         - id: manga-api
@@ -107,7 +143,7 @@ spring:
             - Path=/api/parser/**
           filters:
             - StripPrefix=1
-          order: 1
+          order: 5
 
         # Статические ресурсы MangaService (favicon, CSS, JS)
         - id: manga-static
@@ -135,6 +171,6 @@ management:
 # Логирование
 logging:
   level:
-    org.springframework.cloud.gateway: DEBUG
-    org.springframework.web: DEBUG
-    shadowshift.studio: DEBUG
+    org.springframework.cloud.gateway: INFO
+    org.springframework.web: WARN
+    shadowshift.studio: INFO
