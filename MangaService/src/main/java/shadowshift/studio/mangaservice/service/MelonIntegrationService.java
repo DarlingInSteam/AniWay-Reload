@@ -60,6 +60,25 @@ public class MelonIntegrationService {
     }
 
     /**
+     * Запускает пакетный парсинг списка манги с автоматическим импортом
+     */
+    public Map<String, Object> startBatchParsing(List<String> slugs, String parser, Boolean autoImport) {
+        String url = melonServiceUrl + "/batch-parse";
+
+        Map<String, Object> request = new HashMap<>();
+        request.put("slugs", slugs);
+        request.put("parser", parser);
+        request.put("auto_import", autoImport);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(request, headers);
+
+        ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
+        return response.getBody();
+    }
+
+    /**
      * Запускает полный парсинг манги с автоматическим скачиванием изображений
      * Это основной метод, который должен и��пользоваться вместо startParsing
      */
@@ -1086,9 +1105,19 @@ public class MelonIntegrationService {
                 double chapterNumber;
                 int volume = 1;
                 double originalNumber = 1;
+                boolean isSpecialChapter = false;
+                
                 try {
-                    originalNumber = Double.parseDouble(numberObj.toString());
+                    // Сначала пытаемся получить том
                     volume = volumeObj != null ? Integer.parseInt(volumeObj.toString()) : 1;
+                } catch (NumberFormatException e) {
+                    volume = 1;
+                    System.out.println("Failed to parse volume, using default: " + e.getMessage());
+                }
+                
+                try {
+                    // Пытаемся распарсить номер главы как число
+                    originalNumber = Double.parseDouble(numberObj.toString());
                     
                     // Формула: том * 1000 + номер главы
                     // Например: том 2, глава 12.5 = 2012.5
@@ -1096,10 +1125,19 @@ public class MelonIntegrationService {
                     
                     System.out.println("Calculated chapter number: " + chapterNumber);
                 } catch (NumberFormatException e) {
-                    // Если не можем распарсить как число, используем позицию в списке
-                    chapterNumber = i + 1;
-                    originalNumber = i + 1;
-                    System.out.println("Failed to parse number, using position: " + chapterNumber + ", error: " + e.getMessage());
+                    // Если не можем распарсить как число, это специальная глава
+                    isSpecialChapter = true;
+                    
+                    // Для специальных глав используем хэш-код + базовый номер
+                    String numberStr = numberObj.toString().toLowerCase().trim();
+                    int hashCode = Math.abs(numberStr.hashCode()) % 1000; // Ограничиваем до 999
+                    
+                    // Формула для специальных глав: том * 1000 + 9000 + хэш
+                    // Это гарантирует, что специальные главы будут после обычных
+                    chapterNumber = volume * 1000 + 9000 + hashCode;
+                    originalNumber = chapterNumber; // Для специальных глав оригинальный номер = вычисленному
+                    
+                    System.out.println("Special chapter detected: '" + numberStr + "', calculated number: " + chapterNumber + ", error: " + e.getMessage());
                 }
 
                 chapterRequest.put("chapterNumber", chapterNumber);
@@ -1113,7 +1151,9 @@ public class MelonIntegrationService {
                     title = titleObj.toString().trim();
                 } else {
                     // Формируем красивое название
-                    if (volumeObj != null && !volumeObj.toString().equals("1")) {
+                    if (isSpecialChapter) {
+                        title = numberObj.toString(); // Оставляем оригинальное название для специальных глав
+                    } else if (volumeObj != null && !volumeObj.toString().equals("1")) {
                         title = "Том " + volumeObj + ", Глава " + numberObj;
                     } else {
                         title = "Глава " + numberObj;
@@ -1140,7 +1180,9 @@ public class MelonIntegrationService {
                     // Импортируем страницы из MelonService
                     List<Map<String, Object>> slides = (List<Map<String, Object>>) chapterData.get("slides");
                     task.setStatus(ImportTaskService.TaskStatus.IMPORTING_PAGES);
-                    importChapterPagesFromMelonService(taskId, chapterId, slides, filename, numberObj.toString());
+                    // Используем оригинальное название главы для URL-а в MelonService
+                    String originalChapterName = numberObj.toString();
+                    importChapterPagesFromMelonService(taskId, chapterId, slides, filename, originalChapterName);
 
                     // Обновляем прогресс
                     importTaskService.incrementImportedChapters(taskId);
@@ -1165,7 +1207,7 @@ public class MelonIntegrationService {
      * Импортирует страницы главы из MelonService через HTTP API
      */
     private void importChapterPagesFromMelonService(String taskId, Long chapterId, List<Map<String, Object>> slides,
-                                                   String mangaFilename, String chapterNumber) {
+                                                   String mangaFilename, String originalChapterName) {
         if (slides == null || slides.isEmpty()) {
             return;
         }
@@ -1182,9 +1224,11 @@ public class MelonIntegrationService {
             try {
                 Integer pageIndex = Integer.parseInt(slide.get("index").toString());
 
-                // Формируем URL изображения в MelonService
+                // Формируем URL изображения в MelonService используя оригинальное название главы
                 String imageUrl = String.format("%s/images/%s/%s/%d",
-                    melonServiceUrl, mangaFilename, chapterNumber, pageIndex);
+                    melonServiceUrl, mangaFilename, originalChapterName, pageIndex);
+
+                System.out.println("Importing page from URL: " + imageUrl);
 
                 // Создае�� запрос к ImageStorageService для импорта изображения по URL
                 Map<String, Object> pageRequest = new HashMap<>();

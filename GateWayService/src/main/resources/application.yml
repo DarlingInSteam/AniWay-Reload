@@ -17,11 +17,11 @@ spring:
       globalcors:
         cors-configurations:
           '[/**]':
-            allowed-origins: 
-              - "http://localhost:3000"  # React/Vue/Angular dev server
-              - "http://localhost:5173"  # Vite dev server
-              - "http://localhost:8080"  # Gateway itself
-              - "http://localhost:8081"  # MangaService (для статических страниц)
+            allowed-origin-patterns: 
+              - "http://localhost:*"  # Все localhost порты
+              - "http://192.168.*.*:*" # Вся локальная сеть 192.168.x.x
+              - "http://10.*.*.*:*"    # Вся локальная сеть 10.x.x.x
+              - "http://172.16.*.*:*"  # Частная сеть 172.16.x.x
             allowed-methods:
               - GET
               - POST
@@ -45,6 +45,42 @@ spring:
             - StripPrefix=3  # Исправляем: удаляем /api/manga/ws, оставляем /progress
           order: 0
 
+        # AuthService - Authentication and user management (HIGH PRIORITY)
+        - id: auth-api
+          uri: http://auth-service:8085
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - StripPrefix=0
+          order: 1
+
+        # AuthService - User management
+        - id: users-api
+          uri: http://auth-service:8085
+          predicates:
+            - Path=/api/users/**
+          filters:
+            - StripPrefix=0
+          order: 2
+
+        # AuthService - Bookmarks
+        - id: bookmarks-api
+          uri: http://auth-service:8085
+          predicates:
+            - Path=/api/bookmarks/**
+          filters:
+            - StripPrefix=0
+          order: 3
+
+        # AuthService - Reading progress
+        - id: progress-api
+          uri: http://auth-service:8085
+          predicates:
+            - Path=/api/progress/**
+          filters:
+            - StripPrefix=0
+          order: 4
+
         # MangaService - Parser API endpoints (ВЫСОКИЙ ПРИОРИТЕТ)
         - id: manga-parser
           uri: http://manga-service:8081
@@ -52,7 +88,7 @@ spring:
             - Path=/api/parser/**
           filters:
             - StripPrefix=1
-          order: 1
+          order: 5
 
         # MangaService - API endpoints
         - id: manga-api
@@ -136,8 +172,8 @@ management:
 # Логирование
 logging:
   level:
-    org.springframework.cloud.gateway: DEBUG
-    org.springframework.web.cors: DEBUG
-    shadowshift.studio.gatewayservice: DEBUG
+    org.springframework.cloud.gateway: INFO
+    org.springframework.web.cors: INFO
+    shadowshift.studio.gatewayservice: INFO
   pattern:
     console: "%d{HH:mm:ss.SSS} [%thread] %-5level [%logger{36}] - %msg%n"

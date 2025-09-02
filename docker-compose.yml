@@ -67,6 +67,27 @@ services:
       timeout: 5s
       retries: 5
 
+  auth-postgres:
+    image: postgres:16
+    container_name: auth-postgres
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: auth_user
+      POSTGRES_PASSWORD: auth_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5436:5432"
+    volumes:
+      - auth_postgres_data:/var/lib/postgresql/data
+      - ./AuthService/authDB.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auth_user -d auth_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # MinIO for image storage
   minio:
     image: minio/minio:latest
@@ -204,6 +225,7 @@ services:
       - manga-service
       - chapter-service
       - image-storage-service
+      - auth-service
     networks:
       - aniway-network
     restart: unless-stopped
@@ -229,6 +251,33 @@ services:
       timeout: 10s
       retries: 3
 
+  # Auth Service
+  auth-service:
+    build:
+      context: ./AuthService
+      dockerfile: Dockerfile
+    container_name: auth-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://auth-postgres:5432/auth_db
+      - SPRING_DATASOURCE_USERNAME=auth_user
+      - SPRING_DATASOURCE_PASSWORD=auth_password
+      - JWT_SECRET=mySecretKey12345678901234567890123456789012345678901234567890
+      - JWT_EXPIRATION=86400000
+    ports:
+      - "8085:8085"
+    depends_on:
+      auth-postgres:
+        condition: service_healthy
+    networks:
+      - aniway-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   # Frontend
   frontend:
     build:
@@ -247,6 +296,7 @@ volumes:
   manga_postgres_data:
   chapter_postgres_data:
   image_storage_postgres_data:
+  auth_postgres_data:
   minio_data:
   melon_data:
   melon_logs:

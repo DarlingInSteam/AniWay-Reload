@@ -4,9 +4,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
+import shadowshift.studio.mangaservice.config.ServiceUrlProperties;
 import shadowshift.studio.mangaservice.dto.MangaCreateDTO;
 import shadowshift.studio.mangaservice.dto.MangaResponseDTO;
 import shadowshift.studio.mangaservice.entity.Manga;
@@ -48,6 +51,7 @@ public class MangaService {
     private final ChapterServiceClient chapterServiceClient;
     private final MangaMapper mangaMapper;
     private final RestTemplate restTemplate;
+    private final ServiceUrlProperties serviceUrlProperties;
 
     @Value("${image.storage.service.url}")
     private String imageStorageServiceUrl;
@@ -62,16 +66,18 @@ public class MangaService {
      * @param chapterServiceClient клиент для работы с сервисом глав
      * @param mangaMapper маппер для преобразования между DTO и сущностями
      * @param restTemplate шаблон для выполнения REST-запросов
+     * @param serviceUrlProperties конфигурация URL сервисов
      */
-    @Autowired
     public MangaService(MangaRepository mangaRepository, 
                        ChapterServiceClient chapterServiceClient,
                        MangaMapper mangaMapper,
-                       RestTemplate restTemplate) {
+                       RestTemplate restTemplate,
+                       ServiceUrlProperties serviceUrlProperties) {
         this.mangaRepository = mangaRepository;
         this.chapterServiceClient = chapterServiceClient;
         this.mangaMapper = mangaMapper;
         this.restTemplate = restTemplate;
+        this.serviceUrlProperties = serviceUrlProperties;
         logger.info("Инициализирован MangaService");
     }
 
@@ -249,8 +255,8 @@ public class MangaService {
     /**
      * Удаляет мангу из системы.
      * 
-     * Выполняет мягкое удаление манги по идентификатору.
-     * В будущем может быть расширено для каскадного удаления связанных данных.
+     * Выполняет каскадное удаление манги по идентификатору.
+     * Удаляет саму мангу и все связанные с ней закладки пользователей.
      *
      * @param id идентификатор удаляемой манги
      * @throws IllegalArgumentException если id равен null или отрицательному значению
@@ -262,6 +268,10 @@ public class MangaService {
         
         try {
             if (mangaRepository.existsById(id)) {
+                // Сначала удаляем все закладки для этой манги
+                deleteBookmarksForManga(id);
+                
+                // Затем удаляем саму мангу
                 mangaRepository.deleteById(id);
                 logger.info("Манга с ID {} успешно удалена", id);
             } else {
@@ -270,6 +280,24 @@ public class MangaService {
         } catch (Exception e) {
             logger.error("Ошибка при удалении манги с ID {}: {}", id, e.getMessage(), e);
             throw new MangaServiceException("Не удалось удалить мангу", "MANGA_DELETE_ERROR", e) {};
+        }
+    }
+    
+    /**
+     * Удаляет все закладки для указанной манги через AuthService.
+     * 
+     * @param mangaId идентификатор манги
+     */
+    private void deleteBookmarksForManga(Long mangaId) {
+        try {
+            String authServiceUrl = serviceUrlProperties.getAuthServiceUrl();
+            String deleteBookmarksUrl = authServiceUrl + "/api/bookmarks/manga/" + mangaId;
+            
+            restTemplate.delete(deleteBookmarksUrl);
+            logger.info("Закладки для манги ID {} успешно удалены", mangaId);
+        } catch (Exception e) {
+            logger.warn("Не удалось удалить закладки для манги ID {}: {}", mangaId, e.getMessage());
+            // Не прерываем процесс удаления манги, если не удалось удалить закладки
         }
     }
 

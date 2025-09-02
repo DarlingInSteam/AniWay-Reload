@@ -36,6 +36,28 @@ public class ParserController {
         }
     }
 
+    @PostMapping("/batch-start")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> startBatchParsing(@RequestBody Map<String, Object> request) {
+        try {
+            @SuppressWarnings("unchecked")
+            List<String> slugs = (List<String>) request.get("slugs");
+            Boolean autoImport = (Boolean) request.getOrDefault("autoImport", true);
+            String parser = (String) request.getOrDefault("parser", "mangalib");
+            
+            if (slugs == null || slugs.isEmpty()) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Список слагов не может быть пустым"));
+            }
+            
+            Map<String, Object> response = melonService.startBatchParsing(slugs, parser, autoImport);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                .body(Map.of("error", "Ошибка запуска пакетного парсинга: " + e.getMessage()));
+        }
+    }
+
     @GetMapping("/status/{taskId}")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> getStatus(@PathVariable String taskId) {

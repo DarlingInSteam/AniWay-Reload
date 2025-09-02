@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { UserMenu } from '../auth/UserMenu'
+import { useAuth } from '../../contexts/AuthContext'
 
 export function Header() {
   const [searchQuery, setSearchQuery] = useState('')
@@ -13,11 +15,12 @@ export function Header() {
   const location = useLocation()
   const searchRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const { isAuthenticated, isAdmin, isTranslator } = useAuth()
 
   // Автодополнение поиска с обработкой ошибок
   const { data: suggestions, isError } = useQuery({
     queryKey: ['search-suggestions', searchQuery],
-    queryFn: () => apiClient.searchManga({ title: searchQuery }),
+    queryFn: () => apiClient.searchManga({ query: searchQuery }),
     enabled: searchQuery.length >= 2,
     staleTime: 30000, // Кешируем на 30 секунд
     retry: 1, // Пробуем только 1 раз при ошибке
@@ -187,17 +190,9 @@ export function Header() {
 
         {/* Правый блок: действия + бургер меню */}
         <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
-          {/* Кнопки действий - адаптивные */}
+          {/* Кнопки действий + UserMenu - адаптивные */}
           <div className="hidden md:flex items-center space-x-2">
-            <button className="p-1.5 md:p-2 rounded-full hover:bg-secondary transition-colors duration-200">
-              <Bell className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground hover:text-white" />
-            </button>
-            <button className="p-1.5 md:p-2 rounded-full hover:bg-secondary transition-colors duration-200">
-              <Bookmark className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground hover:text-white" />
-            </button>
-            <button className="p-1.5 md:p-2 rounded-full hover:bg-secondary transition-colors duration-200">
-              <User className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground hover:text-white" />
-            </button>
+            <UserMenu />
           </div>
 
           {/* Бургер меню - всегда показан */}
@@ -237,37 +232,58 @@ export function Header() {
                   >
                     Форум
                   </Link>
-                  {/* Мобильные кнопки действий - с текстом */}
-                  <button
-                    className="px-6 py-3 text-base text-white hover:bg-secondary transition-colors flex items-center gap-2"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    <Bell className="h-4 w-4" />
-                    Уведомления
-                  </button>
-                  <button
-                    className="px-6 py-3 text-base text-white hover:bg-secondary transition-colors flex items-center gap-2"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    <Bookmark className="h-4 w-4" />
-                    Закладки
-                  </button>
-                  <button
-                    className="px-6 py-3 text-base text-white hover:bg-secondary transition-colors flex items-center gap-2"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    <User className="h-4 w-4" />
-                    Профиль
-                  </button>
+
+                  {/* Пользовательские ссылки */}
+                  {isAuthenticated ? (
+                    <>
+                      <Link
+                        to="/profile"
+                        className="px-6 py-3 text-base text-white hover:bg-secondary transition-colors flex items-center gap-2"
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        <User className="h-4 w-4" />
+                        Профиль
+                      </Link>
+                      <Link
+                        to="/library"
+                        className="px-6 py-3 text-base text-white hover:bg-secondary transition-colors flex items-center gap-2"
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        <Bookmark className="h-4 w-4" />
+                        Библиотека
+                      </Link>
+                    </>
+                  ) : (
+                    <>
+                      <Link
+                        to="/login"
+                        className="px-6 py-3 text-base text-white hover:bg-secondary transition-colors flex items-center gap-2"
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        <User className="h-4 w-4" />
+                        Вход
+                      </Link>
+                      <Link
+                        to="/register"
+                        className="px-6 py-3 text-base text-white hover:bg-secondary transition-colors flex items-center gap-2"
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        Регистрация
+                      </Link>
+                    </>
+                  )}
                 </div>
-                {/* Управление мангой */}
-                <Link
-                  to="/admin/manga"
-                  className="px-6 py-3 text-base text-white hover:bg-secondary transition-colors flex items-center gap-2"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <Settings className="h-4 w-4" /> Управление
-                </Link>
+                
+                {/* Админские ссылки */}
+                {isAdmin && (
+                  <Link
+                    to="/admin/manga"
+                    className="px-6 py-3 text-base text-white hover:bg-secondary transition-colors flex items-center gap-2"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <Settings className="h-4 w-4" /> Управление
+                  </Link>
+                )}
               </div>
             )}
           </div>

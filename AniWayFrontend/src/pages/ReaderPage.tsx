@@ -17,6 +17,7 @@ import { apiClient } from '@/lib/api'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { cn } from '@/lib/utils'
 import { formatChapterTitle } from '@/lib/chapterUtils'
+import { useReadingProgress } from '@/hooks/useProgress'
 
 export function ReaderPage() {
   const { chapterId } = useParams<{ chapterId: string }>()
@@ -25,6 +26,10 @@ export function ReaderPage() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [imageWidth, setImageWidth] = useState<'fit' | 'full' | 'wide'>('fit')
   const [readingMode, setReadingMode] = useState<'vertical' | 'horizontal'>('vertical')
+  const [isAutoCompleted, setIsAutoCompleted] = useState(false)
+
+  // Reading progress tracking
+  const { trackChapterViewed, markChapterCompleted, isChapterCompleted, clearTrackedChapters } = useReadingProgress()
 
   const { data: chapter } = useQuery({
     queryKey: ['chapter', chapterId],
@@ -104,6 +109,80 @@ export function ReaderPage() {
   // Следующая глава имеет БОЛЬШИЙ номер (индекс +1)
   const nextChapter = sortedChapters?.[currentChapterIndex + 1]
 
+  // Track chapter view progress - выполняется только один раз при смене главы
+  useEffect(() => {
+    if (chapter && manga && sortedChapters) {
+      // Очищаем кэш отслеженных глав при смене главы
+      clearTrackedChapters()
+      
+      // Находим предыдущую главу для автоматического завершения
+      const currentIndex = sortedChapters.findIndex(ch => ch.id === chapter.id)
+      const prevChapter = currentIndex > 0 ? sortedChapters[currentIndex - 1] : undefined
+      
+      console.log('Tracking chapter view with auto-completion:', {
+        current: { id: chapter.id, chapterNumber: chapter.chapterNumber },
+        previous: prevChapter ? { id: prevChapter.id, chapterNumber: prevChapter.chapterNumber } : null
+      })
+      
+      // Отслеживаем просмотр главы при загрузке с автоматическим завершением предыдущей
+      trackChapterViewed(
+        manga.id, 
+        chapter.id, 
+        chapter.chapterNumber,
+        prevChapter ? { id: prevChapter.id, chapterNumber: prevChapter.chapterNumber } : undefined
+      ).catch(console.error)
+      
+      // Временное решение: если это последняя глава, автоматически помечаем как прочитанную
+      const isLastChapter = !nextChapter
+      if (isLastChapter) {
+        console.log('Auto-completing last chapter on view:', {
+          mangaId: manga.id,
+          chapterId: chapter.id,
+          chapterNumber: chapter.chapterNumber
+        })
+        
+        // Даем небольшую задержку, чтобы trackChapterViewed успел выполниться
+        setTimeout(() => {
+          markChapterCompleted(manga.id, chapter.id, chapter.chapterNumber)
+            .then(() => {
+              console.log('Last chapter auto-completed on view')
+            })
+            .catch(console.error)
+        }, 1000)
+      }
+    }
+  }, [chapter?.id, manga?.id]) // Только при смене главы или манги
+
+  // Navigation functions with progress tracking
+  const navigateToNextChapter = useCallback(async () => {
+    console.log('navigateToNextChapter called', { nextChapter, chapter, manga })
+    if (nextChapter && chapter && manga) {
+      try {
+        // Отмечаем текущую главу как прочитанную
+        console.log('Marking chapter as completed:', {
+          mangaId: manga.id,
+          chapterId: chapter.id,
+          chapterNumber: chapter.chapterNumber
+        })
+        await markChapterCompleted(manga.id, chapter.id, chapter.chapterNumber)
+        console.log('Chapter marked as completed successfully')
+        navigate(`/reader/${nextChapter.id}`)
+      } catch (error) {
+        console.error('Failed to mark chapter as completed:', error)
+        // Все равно переходим к следующей главе
+        navigate(`/reader/${nextChapter.id}`)
+      }
+    } else {
+      console.log('Cannot navigate to next chapter - missing data:', { nextChapter, chapter, manga })
+    }
+  }, [nextChapter, chapter, manga, markChapterCompleted, navigate])
+
+  const navigateToPreviousChapter = useCallback(() => {
+    if (previousChapter) {
+      navigate(`/reader/${previousChapter.id}`)
+    }
+  }, [previousChapter, navigate])
+
   // Click outside to close settings
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -129,18 +208,70 @@ export function ReaderPage() {
         e.preventDefault()
       }
       if (e.key === 'ArrowRight' && nextChapter) {
-        navigate(`/reader/${nextChapter.id}`)
+        navigateToNextChapter()
         e.preventDefault()
       }
       if (e.key === 'ArrowLeft' && previousChapter) {
-        navigate(`/reader/${previousChapter.id}`)
+        navigateToPreviousChapter()
         e.preventDefault()
       }
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [navigate, nextChapter, previousChapter])
+  }, [navigate, navigateToNextChapter, navigateToPreviousChapter, nextChapter, previousChapter])
+
+  // Auto-complete chapter when scrolled to bottom
+  useEffect(() => {
+    if (!chapter || !manga || !images || images.length === 0) return
+
+    // Reset auto-completion state when chapter changes
+    setIsAutoCompleted(false)
+
+    const handleScroll = () => {
+      // Skip if already auto-completed or manually completed
+      if (isAutoCompleted || isChapterCompleted(chapter.id)) return
+
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop
+      const windowHeight = window.innerHeight
+      const documentHeight = document.documentElement.scrollHeight
+      const scrollPercentage = (scrollTop + windowHeight) / documentHeight
+
+      // If user has scrolled to 90% of the page, mark chapter as completed
+      if (scrollPercentage >= 0.9) {
+        console.log('Auto-completing chapter due to scroll:', {
+          scrollPercentage,
+          mangaId: manga.id,
+          chapterId: chapter.id,
+          chapterNumber: chapter.chapterNumber
+        })
+        
+        setIsAutoCompleted(true) // Prevent multiple calls
+        
+        markChapterCompleted(manga.id, chapter.id, chapter.chapterNumber)
+          .then(() => {
+            console.log('Chapter auto-completed due to scroll')
+          })
+          .catch((error) => {
+            console.error('Failed to auto-complete chapter:', error)
+            setIsAutoCompleted(false) // Reset on error
+          })
+      }
+    }
+
+    // Throttle scroll events
+    let scrollTimeout: number
+    const throttledScroll = () => {
+      clearTimeout(scrollTimeout)
+      scrollTimeout = setTimeout(handleScroll, 500) // Check every 0.5 seconds max
+    }
+
+    window.addEventListener('scroll', throttledScroll)
+    return () => {
+      window.removeEventListener('scroll', throttledScroll)
+      clearTimeout(scrollTimeout)
+    }
+  }, [chapter, manga, images, markChapterCompleted, isAutoCompleted, isChapterCompleted])
 
   // Get image width class
   const getImageWidthClass = () => {
@@ -280,6 +411,24 @@ export function ReaderPage() {
             >
               {showUI ? 'Скрыть UI' : 'Показать UI'}
             </button>
+            {chapter && manga && (
+              <button
+                onClick={async () => {
+                  try {
+                    await markChapterCompleted(manga.id, chapter.id, chapter.chapterNumber)
+                    console.log('Chapter manually marked as completed')
+                  } catch (error) {
+                    console.error('Failed to mark chapter as completed:', error)
+                  }
+                }}
+                className="w-full text-left text-sm text-muted-foreground hover:text-white transition-colors p-2 rounded hover:bg-secondary"
+              >
+                <div className="flex items-center justify-between">
+                  <span>Завершить главу</span>
+                  <BookOpen className="h-5 w-5 text-green-500" />
+                </div>
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -348,8 +497,8 @@ export function ReaderPage() {
             <div className="flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0 gap-4">
               {/* Previous Chapter */}
               {previousChapter ? (
-                <Link
-                  to={`/reader/${previousChapter.id}`}
+                <button
+                  onClick={navigateToPreviousChapter}
                   className="flex items-center space-x-3 p-3 sm:p-4 bg-white/5 backdrop-blur-sm rounded-xl hover:bg-white/10 transition-all duration-200 group w-full sm:w-auto border border-white/10 hover:border-white/20"
                 >
                   <ChevronLeft className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
@@ -359,7 +508,7 @@ export function ReaderPage() {
                       {formatChapterTitle(previousChapter)}
                     </p>
                   </div>
-                </Link>
+                </button>
               ) : (
                 <div className="w-full sm:w-auto opacity-50 p-4">
                   <p className="text-muted-foreground text-center text-sm">Это первая глава</p>
@@ -379,8 +528,8 @@ export function ReaderPage() {
 
               {/* Next Chapter */}
               {nextChapter ? (
-                <Link
-                  to={`/reader/${nextChapter.id}`}
+                <button
+                  onClick={navigateToNextChapter}
                   className="flex items-center space-x-3 p-3 sm:p-4 bg-white/5 backdrop-blur-sm rounded-xl hover:bg-white/10 transition-all duration-200 group w-full sm:w-auto border border-white/10 hover:border-white/20"
                 >
                   <div className="text-right min-w-0 flex-1">
@@ -390,7 +539,7 @@ export function ReaderPage() {
                     </p>
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
-                </Link>
+                </button>
               ) : (
                 <div className="w-full sm:w-auto opacity-50 p-4">
                   <p className="text-muted-foreground text-center text-sm">Это последняя глава</p>

@@ -1,7 +1,10 @@
 import { Link } from 'react-router-dom'
-import { Calendar, User, Star, Eye, Heart } from 'lucide-react'
+import { Calendar, User, Star, Eye, Heart, Bookmark } from 'lucide-react'
 import { MangaResponseDTO } from '@/types'
 import { formatDate, getStatusColor, getStatusText, cn } from '@/lib/utils'
+import { useBookmarks } from '@/hooks/useBookmarks'
+import { useAuth } from '@/contexts/AuthContext'
+import { useReadingProgress } from '@/hooks/useProgress'
 
 interface MangaCardProps {
   manga: MangaResponseDTO
@@ -10,6 +13,10 @@ interface MangaCardProps {
 }
 
 export function MangaCard({ manga, size = 'default', showMetadata = true }: MangaCardProps) {
+  const { isAuthenticated } = useAuth()
+  const { getMangaBookmark } = useBookmarks()
+  const { getMangaReadingPercentage, getMangaProgress } = useReadingProgress()
+  
   // Адаптивные размеры для разных экранов
   const cardSizes = {
     compact: 'aspect-[3/4]', // Убираем фиксированные размеры
@@ -20,6 +27,44 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
   // Генерируем фейковый рейтинг для демонстрации (в реальном проекте это будет из API)
   const rating = (4 + Math.random()).toFixed(1)
   const views = Math.floor(Math.random() * 10000) + 1000
+
+  // Получаем статус закладки
+  const bookmarkInfo = isAuthenticated ? getMangaBookmark(manga.id) : null
+  const isInBookmarks = bookmarkInfo !== null
+  
+  // Получаем прогресс чтения
+  const readingProgress = isAuthenticated ? getMangaReadingPercentage(manga.id, manga.totalChapters) : 0
+  
+  // Вычисляем количество прочитанных глав более точно
+  const getReadChaptersCount = () => {
+    if (!isAuthenticated || manga.totalChapters === 0) return 0
+    const mangaProgressData = getMangaProgress(manga.id)
+    return mangaProgressData.filter((p: any) => p.isCompleted).length
+  }
+  
+  const readChapters = getReadChaptersCount()
+
+  const getBookmarkStatusText = (status: string) => {
+    switch (status) {
+      case 'READING': return 'Читаю'
+      case 'COMPLETED': return 'Прочитано'
+      case 'ON_HOLD': return 'Отложено'
+      case 'DROPPED': return 'Брошено'
+      case 'PLAN_TO_READ': return 'Запланировано'
+      default: return 'В закладках'
+    }
+  }
+
+  const getBookmarkStatusColor = (status: string) => {
+    switch (status) {
+      case 'READING': return 'bg-green-500'
+      case 'COMPLETED': return 'bg-blue-500'
+      case 'ON_HOLD': return 'bg-yellow-500'
+      case 'DROPPED': return 'bg-red-500'
+      case 'PLAN_TO_READ': return 'bg-purple-500'
+      default: return 'bg-gray-500'
+    }
+  }
 
   return (
     <div className="group flex flex-col space-y-2 md:space-y-3 animate-fade-in w-full">
@@ -53,15 +98,32 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
             </span>
           </div>
 
+          {/* Bookmark Status Badge */}
+          {isInBookmarks && bookmarkInfo && (
+            <div className="absolute top-2 md:top-3 left-2 md:left-3 mt-8">
+              <span className={cn(
+                'px-1.5 md:px-2 py-0.5 md:py-1 text-xs font-medium rounded-full backdrop-blur-sm text-white flex items-center gap-1',
+                getBookmarkStatusColor(bookmarkInfo.status)
+              )}>
+                <Bookmark className="h-2.5 w-2.5 md:h-3 md:w-3 fill-current" />
+                {getBookmarkStatusText(bookmarkInfo.status)}
+              </span>
+            </div>
+          )}
+
           {/* Rating Badge */}
           <div className="absolute top-2 md:top-3 right-2 md:right-3 flex items-center space-x-1 bg-black/70 backdrop-blur-sm px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
             <Star className="h-2.5 w-2.5 md:h-3 md:w-3 text-accent fill-current" />
             <span className="text-xs font-medium text-white">{rating}</span>
           </div>
 
-          {/* Chapter Count */}
+          {/* Chapter Count with Reading Progress */}
           <div className="absolute bottom-2 md:bottom-3 right-2 md:right-3 bg-black/70 backdrop-blur-sm text-white px-1.5 md:px-2 py-0.5 md:py-1 rounded text-xs font-medium">
-            {manga.totalChapters} гл.
+            {isAuthenticated && readChapters > 0 ? (
+              <span className="text-green-400">{readChapters}/{manga.totalChapters} гл.</span>
+            ) : (
+              <span>{manga.totalChapters} гл.</span>
+            )}
           </div>
 
           {/* Hover overlay with quick actions */}
