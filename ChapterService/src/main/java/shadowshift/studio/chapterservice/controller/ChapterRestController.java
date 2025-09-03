@@ -90,4 +90,26 @@ public class ChapterRestController {
                 .map(chapter -> ResponseEntity.ok(chapter))
                 .orElse(ResponseEntity.notFound().build());
     }
+
+    @PutMapping("/{id}/pagecount")
+    public ResponseEntity<?> updateChapterPageCount(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> request) {
+        try {
+            Integer pageCount = (Integer) request.get("pageCount");
+            if (pageCount == null) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "error", "pageCount is required"
+                ));
+            }
+            
+            ChapterResponseDTO updatedChapter = chapterService.updatePageCount(id, pageCount);
+            return ResponseEntity.ok(updatedChapter);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "Failed to update pageCount",
+                "message", e.getMessage()
+            ));
+        }
+    }
 }

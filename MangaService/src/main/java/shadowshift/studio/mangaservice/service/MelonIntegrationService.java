@@ -473,9 +473,79 @@ public class MelonIntegrationService {
             // СНАЧАЛА сохраняем мангу, чтобы получить ID
             manga = mangaRepository.save(manga);
             System.out.println("Manga saved with ID: " + manga.getId() + " for filename: " + filename);
-            // Формируем публичную ссылку на обложку для фронта
-            manga.setCoverImageUrl(melonServicePublicUrl + "/cover/" + filename);
-            manga = mangaRepository.save(manga);
+            
+            // Обрабатываем обложку ПОСЛЕ сохранения манги - скачиваем из MelonService и сохраняем в ImageStorageService
+            try {
+                // Скачиваем обложку из MelonService
+                String coverUrl = melonServiceUrl + "/cover/" + filename;
+                System.out.println("Downloading cover from MelonService: " + coverUrl);
+                ResponseEntity<byte[]> coverResponse = restTemplate.getForEntity(coverUrl, byte[].class);
+
+                if (coverResponse.getStatusCode().is2xxSuccessful() && coverResponse.getBody() != null) {
+                    System.out.println("Downloaded cover size: " + coverResponse.getBody().length + " bytes");
+                    
+                    // Определяем расширение файла по Content-Type
+                    String contentType = coverResponse.getHeaders().getFirst("Content-Type");
+                    String fileExtension = ".jpg"; // По умолчанию
+                    if (contentType != null) {
+                        if (contentType.contains("png")) {
+                            fileExtension = ".png";
+                        } else if (contentType.contains("webp")) {
+                            fileExtension = ".webp";
+                        }
+                    }
+
+                    // Сохраняем обложку как файл через ImageStorageService
+                    String coverFileName = "cover_" + filename + fileExtension;
+
+                    // Создаем multipart запрос для обложки
+                    MultiValueMap<String, Object> coverRequest = new LinkedMultiValueMap<>();
+
+                    // Создаем ByteArrayResource для отправки
+                    ByteArrayResource coverResource = new ByteArrayResource(coverResponse.getBody()) {
+                        @Override
+                        public String getFilename() {
+                            return coverFileName;
+                        }
+                    };
+                    coverRequest.add("file", coverResource);
+
+                    HttpHeaders coverHeaders = new HttpHeaders();
+                    coverHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
+                    HttpEntity<MultiValueMap<String, Object>> coverEntity = new HttpEntity<>(coverRequest, coverHeaders);
+
+                    // Сохраняем обложку в ImageStorageService
+                    ResponseEntity<Map> uploadResponse = restTemplate.postForEntity(
+                        "http://image-storage-service:8083/api/images/cover/" + manga.getId(),
+                        coverEntity,
+                        Map.class
+                    );
+
+                    if (uploadResponse.getStatusCode().is2xxSuccessful() && uploadResponse.getBody() != null) {
+                        String savedImageUrl = (String) uploadResponse.getBody().get("imageUrl");
+                        if (savedImageUrl != null && !savedImageUrl.isEmpty()) {
+                            manga.setCoverImageUrl(savedImageUrl);
+                            manga = mangaRepository.save(manga);
+                            System.out.println("Cover saved successfully: " + savedImageUrl);
+                        }
+                    } else {
+                        System.err.println("Failed to upload cover to ImageStorageService: " + uploadResponse.getStatusCode());
+                        // Fallback к MelonService URL
+                        manga.setCoverImageUrl(melonServicePublicUrl + "/cover/" + filename);
+                        manga = mangaRepository.save(manga);
+                    }
+                } else {
+                    System.err.println("Failed to download cover from MelonService: " + coverResponse.getStatusCode());
+                    // Fallback к MelonService URL
+                    manga.setCoverImageUrl(melonServicePublicUrl + "/cover/" + filename);
+                    manga = mangaRepository.save(manga);
+                }
+            } catch (Exception e) {
+                System.err.println("Error processing cover: " + e.getMessage());
+                // Fallback к MelonService URL
+                manga.setCoverImageUrl(melonServicePublicUrl + "/cover/" + filename);
+                manga = mangaRepository.save(manga);
+            }
 
 //            // Обрабатываем обложку ПОСЛЕ сохранения манги - скачиваем из MelonService и сохраняем как файл
 //            try {
@@ -1281,6 +1351,32 @@ public class MelonIntegrationService {
                 System.err.println("Ошибка при обработке страницы " + pageIndex + " для главы " + chapterId + ": " + e.getMessage());
                 e.printStackTrace();
             }
+        }
+        
+        // После успешной загрузки всех страниц, обновляем pageCount в ChapterService
+        try {
+            // Получаем актуальное количество страниц из ImageStorageService
+            String getPageCountUrl = "http://image-storage-service:8083/api/images/chapter/" + chapterId + "/count";
+            ResponseEntity<Integer> pageCountResponse = restTemplate.getForEntity(getPageCountUrl, Integer.class);
+            
+            if (pageCountResponse.getStatusCode().is2xxSuccessful() && pageCountResponse.getBody() != null) {
+                Integer actualPageCount = pageCountResponse.getBody();
+                
+                // Обновляем pageCount в ChapterService
+                Map<String, Object> updateRequest = new HashMap<>();
+                updateRequest.put("pageCount", actualPageCount);
+                
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_JSON);
+                HttpEntity<Map<String, Object>> updateEntity = new HttpEntity<>(updateRequest, headers);
+                
+                String updateChapterUrl = "http://chapter-service:8082/api/chapters/" + chapterId + "/pagecount";
+                restTemplate.put(updateChapterUrl, updateEntity);
+                
+                System.out.println("Updated chapter " + chapterId + " pageCount to: " + actualPageCount);
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to update pageCount for chapter " + chapterId + ": " + e.getMessage());
         }
     }
 }

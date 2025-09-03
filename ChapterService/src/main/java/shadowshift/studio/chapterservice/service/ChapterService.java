@@ -152,4 +152,15 @@ public class ChapterService {
                 .bodyToMono(Integer.class)
                 .block();
     }
+
+    public ChapterResponseDTO updatePageCount(Long chapterId, Integer pageCount) {
+        Chapter chapter = chapterRepository.findById(chapterId)
+                .orElseThrow(() -> new RuntimeException("Chapter not found with id: " + chapterId));
+        
+        chapter.setPageCount(pageCount);
+        Chapter savedChapter = chapterRepository.save(chapter);
+        
+        System.out.println("Updated chapter " + chapterId + " pageCount to: " + pageCount);
+        return new ChapterResponseDTO(savedChapter);
+    }
 }

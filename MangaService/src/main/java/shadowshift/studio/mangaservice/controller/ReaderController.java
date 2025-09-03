@@ -39,12 +39,16 @@ public class ReaderController {
                     .block();
 
             if (chapter == null) {
+                System.err.println("Chapter not found: " + chapterId);
                 return "redirect:/manga";
             }
+
+            System.out.println("Chapter " + chapterId + " pageCount: " + chapter.getPageCount());
 
             // Получаем информацию о манге
             MangaResponseDTO manga = mangaService.getMangaById(chapter.getMangaId()).orElse(null);
             if (manga == null) {
+                System.err.println("Manga not found for chapter: " + chapterId);
                 return "redirect:/manga";
             }
 
