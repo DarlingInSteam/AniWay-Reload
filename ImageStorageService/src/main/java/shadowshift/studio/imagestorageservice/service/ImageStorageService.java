@@ -566,8 +566,8 @@ public class ImageStorageService {
             imageRepository.delete(existingCover.get());
         }
 
-        // Генерируем уникальный ключ для объекта в MinIO
-        String objectKey = generateObjectKey(-1L, 0, file.getOriginalFilename());
+        // Генерируем уникальный ключ для объекта в MinIO (используем mangaId как page_number для уникальности)
+        String objectKey = generateObjectKey(-1L, mangaId.intValue(), file.getOriginalFilename());
 
         // Загружаем файл в MinIO
         minioClient.putObject(
@@ -592,7 +592,7 @@ public class ImageStorageService {
         ChapterImage chapterImage = new ChapterImage();
         chapterImage.setMangaId(mangaId); // Указываем manga_id для привязки к конкретной манге
         chapterImage.setChapterId(-1L); // -1 означает обложку
-        chapterImage.setPageNumber(0); // Для обложек всегда 0
+        chapterImage.setPageNumber(mangaId.intValue()); // Используем mangaId как page_number для уникальности
         chapterImage.setImageKey(objectKey);
         chapterImage.setImageUrl(generateImageUrl(objectKey));
         chapterImage.setFileSize(file.getSize());

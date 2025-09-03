@@ -195,10 +195,16 @@ public class BookmarkService {
         try {
             // Get manga info from MangaService
             String mangaUrl = mangaServiceUrl + "/api/manga/" + bookmark.getMangaId();
+            log.info("Fetching manga info from URL: {}", mangaUrl);
             ResponseEntity<Map> response = restTemplate.getForEntity(mangaUrl, Map.class);
+            
+            log.info("Response status: {}, body exists: {}", response.getStatusCode(), response.getBody() != null);
             
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 Map<String, Object> manga = response.getBody();
+                log.info("Manga data received: title={}, coverImageUrl={}", 
+                    manga.get("title"), manga.get("coverImageUrl"));
+                    
                 dto.setMangaTitle((String) manga.get("title"));
                 dto.setMangaCoverUrl((String) manga.get("coverImageUrl"));
                 
@@ -207,6 +213,8 @@ public class BookmarkService {
                 if (totalChaptersObj instanceof Integer) {
                     dto.setTotalChapters((Integer) totalChaptersObj);
                 }
+            } else {
+                log.warn("Failed to fetch manga info: status={}", response.getStatusCode());
             }
             
             // Get reading progress

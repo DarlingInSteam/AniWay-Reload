@@ -60,7 +60,38 @@ const ProfilePage = () => {
         if (response.ok) {
           const bookmarks = await response.json()
           console.log('Loaded bookmarks:', bookmarks)
-          setFavoriteBookmarks(bookmarks || [])
+          
+          // Дополнительно загружаем данные манги для закладок без названия/обложки
+          const enrichedBookmarks = await Promise.all(
+            bookmarks.map(async (bookmark: any) => {
+              if (!bookmark.mangaTitle || !bookmark.mangaCoverUrl) {
+                try {
+                  console.log(`Loading manga data for ID: ${bookmark.mangaId}`)
+                  const mangaResponse = await fetch(`/api/manga/${bookmark.mangaId}`, {
+                    headers: {
+                      'Authorization': `Bearer ${token}`,
+                      'Content-Type': 'application/json'
+                    }
+                  })
+                  
+                  if (mangaResponse.ok) {
+                    const mangaData = await mangaResponse.json()
+                    console.log(`Loaded manga data:`, mangaData)
+                    return {
+                      ...bookmark,
+                      mangaTitle: mangaData.title || bookmark.mangaTitle,
+                      mangaCoverUrl: mangaData.coverImageUrl || bookmark.mangaCoverUrl
+                    }
+                  }
+                } catch (error) {
+                  console.error(`Failed to load manga data for ID ${bookmark.mangaId}:`, error)
+                }
+              }
+              return bookmark
+            })
+          )
+          
+          setFavoriteBookmarks(enrichedBookmarks || [])
         } else {
           console.log('Failed to load bookmarks, response status:', response.status)
           const errorText = await response.text()
