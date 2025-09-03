@@ -530,21 +530,15 @@ public class MelonIntegrationService {
                         }
                     } else {
                         System.err.println("Failed to upload cover to ImageStorageService: " + uploadResponse.getStatusCode());
-                        // Fallback к MelonService URL
-                        manga.setCoverImageUrl(melonServicePublicUrl + "/cover/" + filename);
-                        manga = mangaRepository.save(manga);
+                        System.err.println("Cover will not be set for manga: " + manga.getTitle());
                     }
                 } else {
                     System.err.println("Failed to download cover from MelonService: " + coverResponse.getStatusCode());
-                    // Fallback к MelonService URL
-                    manga.setCoverImageUrl(melonServicePublicUrl + "/cover/" + filename);
-                    manga = mangaRepository.save(manga);
+                    System.err.println("Cover will not be set for manga: " + manga.getTitle());
                 }
             } catch (Exception e) {
                 System.err.println("Error processing cover: " + e.getMessage());
-                // Fallback к MelonService URL
-                manga.setCoverImageUrl(melonServicePublicUrl + "/cover/" + filename);
-                manga = mangaRepository.save(manga);
+                System.err.println("Cover will not be set for manga: " + manga.getTitle());
             }
 
 //            // Обрабатываем обложку ПОСЛЕ сохранения манги - скачиваем из MelonService и сохраняем как файл
@@ -905,86 +899,83 @@ public class MelonIntegrationService {
         // СНАЧАЛА сохраняем мангу, чтобы получить ID
         manga = mangaRepository.save(manga);
         System.out.println("Manga saved with ID: " + manga.getId() + " for filename: " + filename);
-        // Формируем публичную ссылку на обложку для фронта
-        manga.setCoverImageUrl(melonServicePublicUrl + "/cover/" + filename);
-        manga = mangaRepository.save(manga);
+        
+        // Обрабатываем обложку - скачиваем из MelonService и сохраняем как файл
+        try {
+            System.out.println("Starting cover processing for manga: " + filename);
+            // Скачиваем обложку из MelonService
+            String coverUrl = melonServiceUrl + "/cover/" + filename;
+            ResponseEntity<byte[]> coverResponse = restTemplate.getForEntity(coverUrl, byte[].class);
 
-//        // Обрабатываем обложку - скачиваем из MelonService и сохраняем как файл
-//        try {
-//            System.out.println("Starting cover processing for manga: " + filename);
-//            // Скачиваем обложку из MelonService
-//            String coverUrl = melonServiceUrl + "/cover/" + filename;
-//            ResponseEntity<byte[]> coverResponse = restTemplate.getForEntity(coverUrl, byte[].class);
-//
-//            if (coverResponse.getStatusCode().is2xxSuccessful() && coverResponse.getBody() != null) {
-//                System.out.println("Cover downloaded successfully from: " + coverUrl);
-//                // Определяем расширение файла по Content-Type
-//                String contentType = coverResponse.getHeaders().getFirst("Content-Type");
-//                String fileExtension = ".jpg"; // По умолчанию
-//                if (contentType != null) {
-//                    if (contentType.contains("png")) {
-//                        fileExtension = ".png";
-//                    } else if (contentType.contains("webp")) {
-//                        fileExtension = ".webp";
-//                    }
-//                }
-//
-//                // Сохраняем обложку как файл через специальный эндпоинт для обложек
-//                String coverFileName = "cover_" + filename + fileExtension;
-//
-//                // Создаем multipart запрос для специального эндпоинта обложек
-//                MultiValueMap<String, Object> coverRequest = new LinkedMultiValueMap<>();
-//
-//                // Создаем ByteArrayResource для отправки
-//                ByteArrayResource coverResource = new ByteArrayResource(coverResponse.getBody()) {
-//                    @Override
-//                    public String getFilename() {
-//                        return coverFileName;
-//                    }
-//                };
-//                coverRequest.add("file", coverResource);
-//
-//                HttpHeaders coverHeaders = new HttpHeaders();
-//                coverHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
-//                HttpEntity<MultiValueMap<String, Object>> coverEntity = new HttpEntity<>(coverRequest, coverHeaders);
-//
-//                System.out.println("Uploading cover to ImageStorageService for manga ID: " + manga.getId());
-//                // ОСНОВНОЙ путь - всегда сохраняем в Minio через ImageStorageService
-//                ResponseEntity<Map> uploadResponse = restTemplate.postForEntity(
-//                    "http://image-storage-service:8083/api/images/cover/" + manga.getId(),
-//                    coverEntity,
-//                    Map.class
-//                );
-//
-//                if (uploadResponse.getStatusCode().is2xxSuccessful() && uploadResponse.getBody() != null) {
-//                    String savedImageUrl = (String) uploadResponse.getBody().get("imageUrl");
-//                    if (savedImageUrl != null) {
-//                        // Если путь не содержит http, формируем публичный URL
-//                        if (!savedImageUrl.startsWith("http")) {
-//                            savedImageUrl = "http://image-storage-service:8083/api/images/public/" + savedImageUrl;
-//                        }
-//                        manga.setCoverImageUrl(savedImageUrl);
-//                        manga = mangaRepository.save(manga); // Сохраняем обновленный URL
-//                        System.out.println("Cover saved successfully to Minio for manga: " + filename + " with URL: " + savedImageUrl);
-//                    }
-//                } else {
-//                    System.err.println("Failed to save cover to Minio for manga " + filename +
-//                        ", status: " + uploadResponse.getStatusCode());
-//                    // Fallback - пробуем использовать обложку из JSON
-//                    setFallbackCoverFromJson(manga, mangaInfo);
-//                }
-//            } else {
-//                System.err.println("Failed to download cover for manga: " + filename +
-//                    ", status: " + coverResponse.getStatusCode());
-//                // Fallback - пробуем использовать обложку из JSON
-//                setFallbackCoverFromJson(manga, mangaInfo);
-//            }
-//        } catch (Exception e) {
-//            System.err.println("Error processing cover for manga " + filename + ": " + e.getMessage());
-//            e.printStackTrace();
-//            // Fallback - пробуем использовать обложку из JSON
-//            setFallbackCoverFromJson(manga, mangaInfo);
-//        }
+            if (coverResponse.getStatusCode().is2xxSuccessful() && coverResponse.getBody() != null) {
+                System.out.println("Cover downloaded successfully from: " + coverUrl);
+                // Определяем расширение файла по Content-Type
+                String contentType = coverResponse.getHeaders().getFirst("Content-Type");
+                String fileExtension = ".jpg"; // По умолчанию
+                if (contentType != null) {
+                    if (contentType.contains("png")) {
+                        fileExtension = ".png";
+                    } else if (contentType.contains("webp")) {
+                        fileExtension = ".webp";
+                    }
+                }
+
+                // Сохраняем обложку как файл через специальный эндпоинт для обложек
+                String coverFileName = "cover_" + filename + fileExtension;
+
+                // Создаем multipart запрос для специального эндпоинта обложек
+                MultiValueMap<String, Object> coverRequest = new LinkedMultiValueMap<>();
+
+                // Создаем ByteArrayResource для отправки
+                ByteArrayResource coverResource = new ByteArrayResource(coverResponse.getBody()) {
+                    @Override
+                    public String getFilename() {
+                        return coverFileName;
+                    }
+                };
+                coverRequest.add("file", coverResource);
+
+                HttpHeaders coverHeaders = new HttpHeaders();
+                coverHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
+                HttpEntity<MultiValueMap<String, Object>> coverEntity = new HttpEntity<>(coverRequest, coverHeaders);
+
+                System.out.println("Uploading cover to ImageStorageService for manga ID: " + manga.getId());
+                // ОСНОВНОЙ путь - всегда сохраняем в Minio через ImageStorageService
+                ResponseEntity<Map> uploadResponse = restTemplate.postForEntity(
+                    "http://image-storage-service:8083/api/images/cover/" + manga.getId(),
+                    coverEntity,
+                    Map.class
+                );
+
+                if (uploadResponse.getStatusCode().is2xxSuccessful() && uploadResponse.getBody() != null) {
+                    String savedImageUrl = (String) uploadResponse.getBody().get("imageUrl");
+                    if (savedImageUrl != null) {
+                        // Если путь не содержит http, формируем публичный URL
+                        if (!savedImageUrl.startsWith("http")) {
+                            savedImageUrl = "http://image-storage-service:8083/api/images/public/" + savedImageUrl;
+                        }
+                        manga.setCoverImageUrl(savedImageUrl);
+                        manga = mangaRepository.save(manga); // Сохраняем обновленный URL
+                        System.out.println("Cover saved successfully to Minio for manga: " + filename + " with URL: " + savedImageUrl);
+                    }
+                } else {
+                    System.err.println("Failed to save cover to Minio for manga " + filename +
+                        ", status: " + uploadResponse.getStatusCode());
+                    // Fallback - пробуем использовать обложку из JSON
+                    setFallbackCoverFromJson(manga, mangaInfo);
+                }
+            } else {
+                System.err.println("Failed to download cover for manga: " + filename +
+                    ", status: " + coverResponse.getStatusCode());
+                // Fallback - пробуем использовать обложку из JSON
+                setFallbackCoverFromJson(manga, mangaInfo);
+            }
+        } catch (Exception e) {
+            System.err.println("Error processing cover for manga " + filename + ": " + e.getMessage());
+            e.printStackTrace();
+            // Fallback - пробуем использовать обложку из JSON
+            setFallbackCoverFromJson(manga, mangaInfo);
+        }
 
         return manga;
     }
