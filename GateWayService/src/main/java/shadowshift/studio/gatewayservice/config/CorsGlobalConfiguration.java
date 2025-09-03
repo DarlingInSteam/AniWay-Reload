@@ -24,7 +24,11 @@ public class CorsGlobalConfiguration {
             "http://10.*.*.*:*",      // Локальная сеть 10.x.x.x
             "http://172.16.*.*:*",    // Частная сеть 172.16.x.x
             "http://172.17.*.*:*",    // Docker сеть 172.17.x.x
-            "http://172.18.*.*:*"     // Docker сеть 172.18.x.x
+            "http://172.18.*.*:*",    // Docker сеть 172.18.x.x
+            "http://*.*.*.*",         // Любые HTTP IP адреса
+            "https://*.*.*.*",        // Любые HTTPS IP адреса  
+            "http://*.yandexcloud.net", // Yandex Cloud
+            "https://*.yandexcloud.net" // Yandex Cloud HTTPS
         ));
         
         // Разрешенные методы
