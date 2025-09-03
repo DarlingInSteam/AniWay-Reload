@@ -1,0 +1,220 @@
+version: '3.8'
+
+services:
+  # Frontend
+  aniway-frontend:
+    build:
+      context: ./AniWayFrontend
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    networks:
+      - aniway-network
+
+  # Gateway Service
+  gateway-service:
+    build:
+      context: ./GateWayService
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - EUREKA_CLIENT_ENABLED=false
+    restart: unless-stopped
+    depends_on:
+      - auth-service
+      - manga-service
+      - comment-service
+      - chapter-service
+      - image-storage-service
+    networks:
+      - aniway-network
+
+  # Auth Service
+  auth-service:
+    build:
+      context: ./AuthService
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://auth-postgres:5432/authdb
+      - SPRING_DATASOURCE_USERNAME=authuser
+      - SPRING_DATASOURCE_PASSWORD=authpass123
+    restart: unless-stopped
+    depends_on:
+      - auth-postgres
+    networks:
+      - aniway-network
+
+  # Manga Service
+  manga-service:
+    build:
+      context: ./MangaService
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://manga-postgres:5432/mangadb
+      - SPRING_DATASOURCE_USERNAME=mangauser
+      - SPRING_DATASOURCE_PASSWORD=mangapass123
+    restart: unless-stopped
+    depends_on:
+      - manga-postgres
+    networks:
+      - aniway-network
+
+  # Comment Service
+  comment-service:
+    build:
+      context: ./CommentService
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://comment-postgres:5432/commentdb
+      - SPRING_DATASOURCE_USERNAME=commentuser
+      - SPRING_DATASOURCE_PASSWORD=commentpass123
+    restart: unless-stopped
+    depends_on:
+      - comment-postgres
+    networks:
+      - aniway-network
+
+  # Chapter Service
+  chapter-service:
+    build:
+      context: ./ChapterService
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://chapter-postgres:5432/chapterdb
+      - SPRING_DATASOURCE_USERNAME=chapteruser
+      - SPRING_DATASOURCE_PASSWORD=chapterpass123
+    restart: unless-stopped
+    depends_on:
+      - chapter-postgres
+    networks:
+      - aniway-network
+
+  # Image Storage Service
+  image-storage-service:
+    build:
+      context: ./ImageStorageService
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://image-postgres:5432/imagedb
+      - SPRING_DATASOURCE_USERNAME=imageuser
+      - SPRING_DATASOURCE_PASSWORD=imagepass123
+      - YC_ACCESS_KEY=${YC_ACCESS_KEY}
+      - YC_SECRET_KEY=${YC_SECRET_KEY}
+      - YC_BUCKET_NAME=${YC_BUCKET_NAME:-manga-images-bucket}
+    restart: unless-stopped
+    depends_on:
+      - image-postgres
+    networks:
+      - aniway-network
+
+  # Databases
+  auth-postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: authdb
+      POSTGRES_USER: authuser
+      POSTGRES_PASSWORD: authpass123
+    volumes:
+      - auth_data:/var/lib/postgresql/data
+      - ./AuthService/authDB.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+    networks:
+      - aniway-network
+
+  manga-postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: mangadb
+      POSTGRES_USER: mangauser
+      POSTGRES_PASSWORD: mangapass123
+    volumes:
+      - manga_data:/var/lib/postgresql/data
+      - ./MangaService/mangaDB.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+    networks:
+      - aniway-network
+
+  comment-postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: commentdb
+      POSTGRES_USER: commentuser
+      POSTGRES_PASSWORD: commentpass123
+    volumes:
+      - comment_data:/var/lib/postgresql/data
+      - ./CommentService/commentDB.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+    networks:
+      - aniway-network
+
+  chapter-postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: chapterdb
+      POSTGRES_USER: chapteruser
+      POSTGRES_PASSWORD: chapterpass123
+    volumes:
+      - chapter_data:/var/lib/postgresql/data
+      - ./ChapterService/chapterDB.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+    networks:
+      - aniway-network
+
+  image-postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: imagedb
+      POSTGRES_USER: imageuser
+      POSTGRES_PASSWORD: imagepass123
+    volumes:
+      - image_data:/var/lib/postgresql/data
+      - ./ImageStorageService/imageStorageDB.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+    networks:
+      - aniway-network
+
+volumes:
+  auth_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/aniway/auth_data
+  manga_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/aniway/manga_data
+  comment_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/aniway/comment_data
+  chapter_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/aniway/chapter_data
+  image_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/aniway/image_data
+
+networks:
+  aniway-network:
+    driver: bridge
