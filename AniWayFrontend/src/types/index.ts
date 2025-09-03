@@ -218,3 +218,6 @@ export interface UserSearchResult {
   page: number
   totalPages: number
 }
+
+// Типы для комментариев
+export * from './comments'

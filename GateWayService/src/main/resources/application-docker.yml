@@ -136,6 +136,14 @@ spring:
           filters:
             - StripPrefix=0
 
+        # CommentService - API endpoints
+        - id: comments-api
+          uri: http://comment-service:8086
+          predicates:
+            - Path=/api/comments/**
+          filters:
+            - StripPrefix=0
+
         # MangaService - Parser API endpoints (через MangaService для правильной интеграции)
         - id: manga-parser
           uri: http://manga-service:8081

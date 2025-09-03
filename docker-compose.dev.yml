@@ -164,6 +164,32 @@ services:
     networks:
       - aniway-network
 
+  # Comment Service - для разработки
+  comment-service:
+    build:
+      context: ./CommentService
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./CommentService/src:/app/src:ro
+      - ./CommentService/build.gradle.kts:/app/build.gradle.kts:ro
+      - gradle-cache-comment:/home/gradle/.gradle
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DEVTOOLS_RESTART_ENABLED=true
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://comment-postgres:5432/comment_db
+      - SPRING_DATASOURCE_USERNAME=comment_user
+      - SPRING_DATASOURCE_PASSWORD=comment_password
+      - JWT_SECRET=mySecretKey12345678901234567890123456789012345678901234567890
+      - JWT_EXPIRATION=86400000
+      - AUTH_SERVICE_URL=http://auth-service:8085
+    ports:
+      - "8086:8086"
+    depends_on:
+      comment-postgres:
+        condition: service_healthy
+    networks:
+      - aniway-network
+
   # Frontend - для разработки с hot-reload
   frontend:
     build:
@@ -191,6 +217,7 @@ volumes:
   gradle-cache-image:
   gradle-cache-gateway:
   gradle-cache-auth:
+  gradle-cache-comment:
   node_modules-cache:
   melon_data:
   melon_logs:

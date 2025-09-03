@@ -143,14 +143,48 @@ public class AuthController {
         }
     }
     
+    /**
+     * Валидация JWT токена и получение информации о пользователе
+     */
+    @PostMapping("/validate")
+    public ResponseEntity<?> validateToken(@RequestHeader("Authorization") String authHeader) {
+        try {
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                return ResponseEntity.badRequest().body("Invalid token format");
+            }
+            
+            String token = authHeader.substring(7);
+            User user = authService.validateTokenAndGetUser(token);
+            
+            if (user != null) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("valid", true);
+                response.put("userId", user.getId());
+                response.put("username", user.getUsername());
+                response.put("role", user.getRole());
+                return ResponseEntity.ok(response);
+            } else {
+                return ResponseEntity.status(401).body(Map.of("valid", false, "error", "Invalid token"));
+            }
+        } catch (Exception e) {
+            log.error("Token validation failed: {}", e.getMessage());
+            return ResponseEntity.status(401).body(Map.of("valid", false, "error", e.getMessage()));
+        }
+    }
+    
     private UserDTO convertToUserDTO(User user) {
         return UserDTO.builder()
                 .id(user.getId())
-                .username(user.getUsername())
+                .username(user.getDisplayName() != null ? user.getDisplayName() : user.getUsername())
                 .email(user.getEmail())
+                .displayName(user.getDisplayName())
+                .avatar(user.getAvatar())
+                .bio(user.getBio())
                 .role(user.getRole())
                 .registrationDate(user.getCreatedAt())
                 .lastLoginDate(user.getLastLogin())
+                .createdAt(user.getCreatedAt())
+                .lastLogin(user.getLastLogin())
                 .build();
     }
 }

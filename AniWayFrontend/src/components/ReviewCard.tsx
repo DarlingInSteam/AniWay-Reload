@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
+import { MessageCircle } from 'lucide-react';
 import RatingStars from './RatingStars';
+import { CommentSection } from './comments/CommentSection';
 
 export interface ReviewData {
   id: number;
@@ -38,6 +40,7 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
   onDelete
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showComments, setShowComments] = useState(false);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -198,6 +201,15 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
             </svg>
             <span>{review.dislikesCount}</span>
           </button>
+
+          {/* Comments button */}
+          <button
+            onClick={() => setShowComments(!showComments)}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium text-gray-400 hover:bg-blue-500/10 hover:text-blue-400 transition-colors"
+          >
+            <MessageCircle className="w-4 h-4" />
+            <span>Комментарии</span>
+          </button>
         </div>
 
         {/* Trust factor */}
@@ -205,6 +217,18 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
           Фактор доверия: <span className="font-medium">{review.trustFactor.toFixed(1)}</span>
         </div>
       </div>
+
+      {/* Comments Section */}
+      {showComments && (
+        <div className="mt-4 pt-4 border-t border-gray-700">
+          <CommentSection
+            targetId={review.id}
+            type="REVIEW"
+            title="Комментарии к отзыву"
+            maxLevel={2}
+          />
+        </div>
+      )}
     </div>
   );
 };

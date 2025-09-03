@@ -82,4 +82,24 @@ public class AuthService {
         
         return userService.convertToDTO(user);
     }
+    
+    /**
+     * Валидация JWT токена и получение пользователя
+     */
+    public User validateTokenAndGetUser(String token) {
+        try {
+            String username = jwtService.extractUsername(token);
+            User user = userRepository.findByUsername(username).orElse(null);
+            
+            if (user != null && jwtService.isTokenValid(token, user)) {
+                return user;
+            }
+            
+            return null;
+            
+        } catch (Exception e) {
+            log.error("Token validation failed: {}", e.getMessage());
+            return null;
+        }
+    }
 }

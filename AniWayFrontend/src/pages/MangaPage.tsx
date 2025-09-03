@@ -13,6 +13,7 @@ import { BookmarkControls } from '../components/bookmarks/BookmarkControls'
 import { ReadingProgressBar, LastReadChapter } from '../components/progress/ReadingProgress'
 import { ReadingButton } from '../components/reading/ReadingButton'
 import { useReadingProgress } from '@/hooks/useProgress'
+import { CommentSection } from '../components/comments/CommentSection'
 import MangaReviews from '../components/MangaReviews'
 
 export function MangaPage() {
@@ -479,54 +480,13 @@ export function MangaPage() {
                     {/* Comments Section */}
                     <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
                       <h3 className="text-lg font-bold text-white mb-4">Комментарии</h3>
-
-                      {/* Comment Input */}
-                      <div className="mb-4">
-                        <textarea
-                          value={commentText}
-                          onChange={(e) => setCommentText(e.target.value)}
-                          placeholder="Оставьте свои мысли..."
-                          className="w-full p-3 bg-white/5 backdrop-blur-sm border border-white/20 rounded-lg text-white placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 resize-none"
-                          rows={3}
-                        />
-                        <div className="flex justify-end mt-2">
-                          <button className="px-4 py-2 bg-primary/90 backdrop-blur-sm text-white rounded-lg hover:bg-primary transition-colors flex items-center gap-2 border border-primary/20">
-                            <Send className="h-4 w-4" />
-                            Отправить
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Comment Filters */}
-                      <div className="flex gap-2 mb-4">
-                        <button
-                          onClick={() => setCommentFilter('new')}
-                          className={cn(
-                            'px-4 py-2 rounded-full text-sm font-medium transition-colors border',
-                            commentFilter === 'new'
-                              ? 'bg-primary/90 text-white border-primary/20'
-                              : 'bg-white/5 backdrop-blur-sm text-muted-foreground hover:text-white border-white/20 hover:bg-white/10'
-                          )}
-                        >
-                          Новые
-                        </button>
-                        <button
-                          onClick={() => setCommentFilter('popular')}
-                          className={cn(
-                            'px-4 py-2 rounded-full text-sm font-medium transition-colors border',
-                            commentFilter === 'popular'
-                              ? 'bg-primary/90 text-white border-primary/20'
-                              : 'bg-white/5 backdrop-blur-sm text-muted-foreground hover:text-white border-white/20 hover:bg-white/10'
-                          )}
-                        >
-                          Популярные
-                        </button>
-                      </div>
-
+            
                       {/* Comments List */}
-                      <div className="text-center py-8">
-                        <div className="text-muted-foreground">Раздел в разработке</div>
-                      </div>
+                      <CommentSection
+                        targetId={mangaId}
+                        type="MANGA"
+                        title="Обсуждение манги"
+                      />
                     </div>
                   </div>
                 )}

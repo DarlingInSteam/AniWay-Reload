@@ -4,6 +4,7 @@
   <component name="FrameworkDetectionExcludesConfiguration">
     <file type="web" url="file://$PROJECT_DIR$/AuthService" />
     <file type="web" url="file://$PROJECT_DIR$/ChapterService" />
+    <file type="web" url="file://$PROJECT_DIR$/CommentService" />
     <file type="web" url="file://$PROJECT_DIR$/GateWayService" />
     <file type="web" url="file://$PROJECT_DIR$/ImageStorageService" />
     <file type="web" url="file://$PROJECT_DIR$/MangaService" />

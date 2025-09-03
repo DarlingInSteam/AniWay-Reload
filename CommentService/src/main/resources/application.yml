@@ -1,0 +1,94 @@
+server:
+  port: 8086
+
+spring:
+  application:
+    name: comment-service
+  
+  # Database configuration
+  datasource:
+    url: jdbc:postgresql://localhost:5437/comment_db
+    username: comment_user
+    password: comment_password
+    driver-class-name: org.postgresql.Driver
+  
+  # JPA configuration
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    defer-datasource-initialization: false
+  
+  # Jackson configuration for proper DateTime serialization
+  jackson:
+    time-zone: UTC
+    date-format: yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'
+    serialization:
+      write-dates-as-timestamps: false
+  
+  # Security configuration
+  security:
+    jwt:
+      secret: mySecretKey12345678901234567890123456789012345678901234567890
+      expiration: 86400000
+
+# Services URLs
+services:
+  auth-service-url: http://localhost:8085
+
+# Actuator configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
+# Logging configuration
+logging:
+  level:
+    shadowshift.studio.commentservice: INFO
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level [%logger{36}] - %msg%n"
+
+---
+# Development profile
+spring:
+  config:
+    activate:
+      on-profile: dev
+  
+  datasource:
+    url: jdbc:postgresql://comment-postgres:5432/comment_db
+    
+  jpa:
+    show-sql: true
+    hibernate:
+      ddl-auto: update
+
+services:
+  auth-service-url: http://auth-service:8085
+
+---
+# Production profile  
+spring:
+  config:
+    activate:
+      on-profile: prod
+      
+  datasource:
+    url: jdbc:postgresql://comment-postgres:5432/comment_db
+    
+  jpa:
+    show-sql: false
+
+services:
+  auth-service-url: http://auth-service:8085

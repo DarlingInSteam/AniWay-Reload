@@ -81,6 +81,15 @@ spring:
             - StripPrefix=0
           order: 4
 
+        # CommentService - Comments API
+        - id: comments-api
+          uri: http://comment-service:8086
+          predicates:
+            - Path=/api/comments/**
+          filters:
+            - StripPrefix=0
+          order: 5
+
         # MangaService - Parser API endpoints (ВЫСОКИЙ ПРИОРИТЕТ)
         - id: manga-parser
           uri: http://manga-service:8081
@@ -88,7 +97,7 @@ spring:
             - Path=/api/parser/**
           filters:
             - StripPrefix=1
-          order: 5
+          order: 6
 
         # MangaService - API endpoints
         - id: manga-api

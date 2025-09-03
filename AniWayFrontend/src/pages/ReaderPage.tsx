@@ -11,13 +11,15 @@ import {
   BookOpen,
   Eye,
   ZoomIn,
-  ZoomOut
+  ZoomOut,
+  MessageCircle
 } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { cn } from '@/lib/utils'
 import { formatChapterTitle } from '@/lib/chapterUtils'
 import { useReadingProgress } from '@/hooks/useProgress'
+import { CommentSection } from '@/components/comments/CommentSection'
 
 export function ReaderPage() {
   const { chapterId } = useParams<{ chapterId: string }>()
@@ -27,6 +29,7 @@ export function ReaderPage() {
   const [imageWidth, setImageWidth] = useState<'fit' | 'full' | 'wide'>('fit')
   const [readingMode, setReadingMode] = useState<'vertical' | 'horizontal'>('vertical')
   const [isAutoCompleted, setIsAutoCompleted] = useState(false)
+  const [showComments, setShowComments] = useState(false)
 
   // Reading progress tracking
   const { trackChapterViewed, markChapterCompleted, isChapterCompleted, clearTrackedChapters } = useReadingProgress()
@@ -526,6 +529,17 @@ export function ReaderPage() {
                 </Link>
               )}
 
+              {/* Comments Toggle Button */}
+              <button
+                onClick={() => setShowComments(!showComments)}
+                className="flex items-center justify-center px-4 sm:px-6 py-3 bg-blue-600/90 backdrop-blur-sm text-white rounded-xl font-semibold hover:bg-blue-600 transition-all duration-200 transform hover:scale-105 border border-blue-500/20 shadow-lg shadow-blue-500/20"
+              >
+                <MessageCircle className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="text-sm sm:text-base">
+                  {showComments ? 'Скрыть комментарии' : 'Комментарии'}
+                </span>
+              </button>
+
               {/* Next Chapter */}
               {nextChapter ? (
                 <button
@@ -548,6 +562,20 @@ export function ReaderPage() {
             </div>
           </div>
         </div>
+
+        {/* Comments Section */}
+        {showComments && chapter && (
+          <div className="bg-gradient-to-r from-card/30 via-card/50 to-card/30 backdrop-blur-sm border-t border-white/10 py-6 sm:py-8">
+            <div className="container mx-auto px-4">
+              <CommentSection
+                targetId={chapter.id}
+                type="CHAPTER"
+                title={`Комментарии к главе ${chapter.chapterNumber}`}
+                maxLevel={3}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Improved Keyboard Shortcuts Help */}

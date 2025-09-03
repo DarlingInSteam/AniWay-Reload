@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { authService } from '../services/authService'
+import { CommentSection } from '../components/comments/CommentSection'
 import { 
   User, 
   Edit3, 
@@ -513,89 +514,14 @@ const ProfilePage = () => {
 
         {/* Comments Section */}
         <div className="bg-card/50 backdrop-blur-xl rounded-3xl p-6 border border-border/30 mt-8">
-          <h3 className="text-xl font-bold text-foreground flex items-center gap-2 mb-6">
-            <MessageCircle className="w-5 h-5 text-primary" />
-            Комментарии к профилю
-          </h3>
-          
-          {/* Comment Input */}
-          <div className="mb-6">
-            <div className="flex gap-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-primary to-accent rounded-full flex items-center justify-center text-white font-bold">
-                У
-              </div>
-              <div className="flex-1">
-                <textarea
-                  placeholder="Оставить комментарий..."
-                  className="w-full bg-card/50 border border-border/30 rounded-xl p-3 text-foreground placeholder-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-                  rows={3}
-                />
-                <div className="flex justify-end mt-2">
-                  <button className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg transition-colors">
-                    Отправить
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Comments List */}
-          <div className="space-y-4">
-            {/* Mock comments */}
-            {[
-              {
-                id: 1,
-                user: 'MangaFan123',
-                avatar: '🥷',
-                time: '2 часа назад',
-                text: 'Отличная коллекция манги! Особенно нравится твой выбор в жанре сёнен 👍'
-              },
-              {
-                id: 2,
-                user: 'OtakuReader',
-                avatar: '🔥',
-                time: '1 день назад',
-                text: 'Впечатляющий прогресс чтения! Как успеваешь столько читать?'
-              },
-              {
-                id: 3,
-                user: 'AnimeGirl',
-                avatar: '🌸',
-                time: '3 дня назад',
-                text: 'Можешь посоветовать что-то из своего списка избранного?'
-              }
-            ].map((comment) => (
-              <div key={comment.id} className="flex gap-3 p-4 bg-card/30 rounded-xl">
-                <div className="w-10 h-10 bg-gradient-to-r from-primary/20 to-accent/20 rounded-full flex items-center justify-center text-lg">
-                  {comment.avatar}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium text-foreground">{comment.user}</span>
-                    <span className="text-muted-foreground text-sm">•</span>
-                    <span className="text-muted-foreground text-sm">{comment.time}</span>
-                  </div>
-                  <p className="text-foreground">{comment.text}</p>
-                  <div className="flex items-center gap-4 mt-2">
-                    <button className="text-muted-foreground hover:text-primary text-sm transition-colors">
-                      Ответить
-                    </button>
-                    <button className="text-muted-foreground hover:text-red-500 text-sm transition-colors flex items-center gap-1">
-                      <Heart className="w-3 h-3" />
-                      2
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Load More */}
-          <div className="text-center mt-6">
-            <button className="text-primary hover:text-primary/80 font-medium transition-colors">
-              Загрузить ещё комментарии
-            </button>
-          </div>
+          {userProfile && (
+            <CommentSection
+              targetId={userProfile.id}
+              type="PROFILE"
+              title="Комментарии к профилю"
+              maxLevel={3}
+            />
+          )}
         </div>
       </div>
     </div>

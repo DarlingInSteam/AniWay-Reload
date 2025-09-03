@@ -88,6 +88,27 @@ services:
       timeout: 5s
       retries: 5
 
+  comment-postgres:
+    image: postgres:16
+    container_name: comment-postgres
+    environment:
+      POSTGRES_DB: comment_db
+      POSTGRES_USER: comment_user
+      POSTGRES_PASSWORD: comment_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5437:5432"
+    volumes:
+      - comment_postgres_data:/var/lib/postgresql/data
+      - ./CommentService/commentDB.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U comment_user -d comment_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # MinIO for image storage
   minio:
     image: minio/minio:latest
@@ -279,6 +300,34 @@ services:
       timeout: 10s
       retries: 3
 
+  # Comment Service
+  comment-service:
+    build:
+      context: ./CommentService
+      dockerfile: Dockerfile
+    container_name: comment-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://comment-postgres:5432/comment_db
+      - SPRING_DATASOURCE_USERNAME=comment_user
+      - SPRING_DATASOURCE_PASSWORD=comment_password
+      - JWT_SECRET=mySecretKey12345678901234567890123456789012345678901234567890
+      - JWT_EXPIRATION=86400000
+      - AUTH_SERVICE_URL=http://auth-service:8085
+    ports:
+      - "8086:8086"
+    depends_on:
+      comment-postgres:
+        condition: service_healthy
+    networks:
+      - aniway-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   # Frontend
   frontend:
     build:
@@ -298,6 +347,7 @@ volumes:
   chapter_postgres_data:
   image_storage_postgres_data:
   auth_postgres_data:
+  comment_postgres_data:
   minio_data:
   melon_data:
   melon_logs:
