@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { TrendingUp, Star, Clock, BookOpen, ArrowRight, Eye, Heart } from 'lucide-react'
 import { apiClient } from '@/lib/api'
-import { MangaCard } from '@/components/manga/MangaCard'
+import { MangaCardWithTooltip } from '@/components/manga'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 
 export function HomePage() {
@@ -126,7 +126,7 @@ export function HomePage() {
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4 lg:gap-6">
             {trending.map((manga) => (
-              <MangaCard key={manga.id} manga={manga} />
+              <MangaCardWithTooltip key={manga.id} manga={manga} />
             ))}
           </div>
         </section>
@@ -149,7 +149,7 @@ export function HomePage() {
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4 lg:gap-6">
             {recent.map((manga) => (
-              <MangaCard key={manga.id} manga={manga} />
+              <MangaCardWithTooltip key={manga.id} manga={manga} />
             ))}
           </div>
         </section>

@@ -1,15 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { Grid, List, Filter, ArrowUpDown, ArrowUp, ArrowDown, X } from 'lucide-react'
+import { Grid, Filter, ArrowUpDown, ArrowUp, ArrowDown, X } from 'lucide-react'
 import { apiClient } from '@/lib/api'
-import { MangaCard } from '@/components/manga/MangaCard'
+import { MangaCardWithTooltip } from '@/components/manga'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { cn } from '@/lib/utils'
 
 export function CatalogPage() {
-  const [searchParams, setSearchParams] = useSearchParams()
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [searchParams] = useSearchParams()
   const [showFilters, setShowFilters] = useState(false)
   const [activeType, setActiveType] = useState('манга')
   const [sortOrder, setSortOrder] = useState('По популярности')
@@ -82,9 +81,9 @@ export function CatalogPage() {
         <div className="flex flex-col gap-4 mb-6">
           {/* Мобильная версия: улучшенные компактные кнопки */}
           <div className="lg:hidden">
-            {/* Компактная панель управления на мобильном */}
+            {/* Компактная панель управления на м��бильном */}
             <div className="flex items-center gap-3 mb-4">
-              {/* Сортировка - улучшенная кнопка */}
+              {/* Сортировка - ул��чшенная кнопка */}
               <div className="relative">
                 <button
                   className="flex items-center justify-center w-11 h-11 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/15 transition-all duration-200 shadow-lg"
@@ -141,7 +140,7 @@ export function CatalogPage() {
                 )}
               </div>
 
-              {/* Индикатор текущей сортировки - улучшенный стиль */}
+              {/* Индикатор ��екущей сортировки - улучшенный стиль */}
               <div className="flex-1 min-w-0 bg-white/10 backdrop-blur-sm rounded-xl px-3 py-2 border border-white/20">
                 <div className="text-xs text-muted-foreground truncate">
                   <span className="text-white font-medium">{sortOrder}</span>
@@ -303,17 +302,11 @@ export function CatalogPage() {
         )}
 
         {/* Manga Grid - улучшенная сетка с анимацией */}
-        <div className={cn(
-          'animate-fade-in',
-          viewMode === 'grid'
-            ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4 lg:gap-6'
-            : 'flex flex-col gap-4',
-        )}>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4 lg:gap-6 animate-fade-in">
           {manga?.map((item) => (
-            <MangaCard
+            <MangaCardWithTooltip
               key={item.id}
               manga={item}
-              size={viewMode === 'grid' ? 'default' : 'large'}
             />
           ))}
         </div>
