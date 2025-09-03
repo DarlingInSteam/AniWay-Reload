@@ -80,7 +80,9 @@ build_states: Dict[str, Dict[str, Any]] = {}  # task_id -> {"slug": str, "is_rea
 
 # Вспомогательные функции
 def get_melon_base_path() -> Path:
-    return Path("/app")
+    # В dev режиме volumes монтируются в /data, в prod - в /app
+    base_path = os.getenv('MELON_BASE_PATH', '/app')
+    return Path(base_path)
 
 def ensure_utf8_patch():
     """Применяет критический патч для UTF-8 кодировки"""
