@@ -3,9 +3,9 @@ package shadowshift.studio.imagestorageservice.service;
 import io.minio.*;
 import io.minio.errors.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import shadowshift.studio.imagestorageservice.config.YandexStorageProperties;
 import shadowshift.studio.imagestorageservice.dto.ChapterImageResponseDTO;
 import shadowshift.studio.imagestorageservice.entity.ChapterImage;
 import shadowshift.studio.imagestorageservice.repository.ChapterImageRepository;
@@ -36,14 +36,8 @@ public class ImageStorageService {
     @Autowired
     private MinioClient minioClient;
 
-    @Value("${minio.bucket-name}")
-    private String bucketName;
-
-    @Value("${minio.endpoint}")
-    private String minioEndpoint;
-
-    @Value("${minio.public.endpoint}")
-    private String minioPublicEndpoint;
+    @Autowired
+    private YandexStorageProperties yandexProperties;
 
     public List<ChapterImageResponseDTO> getImagesByChapterId(Long chapterId) {
         return imageRepository.findByChapterIdOrderByPageNumberAsc(chapterId)
@@ -113,7 +107,7 @@ public class ImageStorageService {
             // Загружаем изображение в MinIO
             minioClient.putObject(
                     PutObjectArgs.builder()
-                            .bucket(bucketName)
+                            .bucket(yandexProperties.getBucketName())
                             .object(imageKey)
                             .stream(new ByteArrayInputStream(imageBytes), imageBytes.length, -1)
                             .contentType(contentType)
@@ -186,7 +180,7 @@ public class ImageStorageService {
             // Загружаем файл в MinIO
             minioClient.putObject(
                     PutObjectArgs.builder()
-                            .bucket(bucketName)
+                            .bucket(yandexProperties.getBucketName())
                             .object(objectKey)
                             .stream(inputStream, file.getSize(), -1)
                             .contentType(file.getContentType())
@@ -231,7 +225,7 @@ public class ImageStorageService {
             // Загружаем файл в MinIO
             minioClient.putObject(
                     PutObjectArgs.builder()
-                            .bucket(bucketName)
+                            .bucket(yandexProperties.getBucketName())
                             .object(objectKey)
                             .stream(file.getInputStream(), file.getSize(), -1)
                             .contentType(file.getContentType())
@@ -314,7 +308,7 @@ public class ImageStorageService {
             // Загружаем файл в MinIO
             minioClient.putObject(
                     PutObjectArgs.builder()
-                            .bucket(bucketName)
+                            .bucket(yandexProperties.getBucketName())
                             .object(objectKey)
                             .stream(file.getInputStream(), file.getSize(), -1)
                             .contentType(file.getContentType())
@@ -361,7 +355,7 @@ public class ImageStorageService {
             // Уд��ляем из MinIO
             minioClient.removeObject(
                     RemoveObjectArgs.builder()
-                            .bucket(bucketName)
+                            .bucket(yandexProperties.getBucketName())
                             .object(image.getImageKey())
                             .build()
             );
@@ -381,7 +375,7 @@ public class ImageStorageService {
         for (ChapterImage image : images) {
             minioClient.removeObject(
                     RemoveObjectArgs.builder()
-                            .bucket(bucketName)
+                            .bucket(yandexProperties.getBucketName())
                             .object(image.getImageKey())
                             .build()
             );
@@ -398,7 +392,7 @@ public class ImageStorageService {
         try {
             GetObjectResponse response = minioClient.getObject(
                     GetObjectArgs.builder()
-                            .bucket(bucketName)
+                            .bucket(yandexProperties.getBucketName())
                             .object(imageKey)
                             .build()
             );
@@ -462,7 +456,7 @@ public class ImageStorageService {
         try (java.io.FileInputStream fileInputStream = new java.io.FileInputStream(localFile)) {
             minioClient.putObject(
                     PutObjectArgs.builder()
-                            .bucket(bucketName)
+                            .bucket(yandexProperties.getBucketName())
                             .object(objectKey)
                             .stream(fileInputStream, localFile.length(), -1)
                             .contentType("image/jpeg") // Предполагаем, что все изображения JPG
@@ -498,14 +492,29 @@ public class ImageStorageService {
             ErrorResponseException, IOException, NoSuchAlgorithmException, InvalidKeyException,
             InvalidResponseException, XmlParserException, InternalException {
 
-        boolean exists = minioClient.bucketExists(
-                BucketExistsArgs.builder().bucket(bucketName).build()
-        );
-
-        if (!exists) {
-            minioClient.makeBucket(
-                    MakeBucketArgs.builder().bucket(bucketName).build()
+        try {
+            boolean exists = minioClient.bucketExists(
+                    BucketExistsArgs.builder().bucket(yandexProperties.getBucketName()).build()
             );
+
+            if (!exists) {
+                System.out.println("Bucket '" + yandexProperties.getBucketName() + "' does not exist, creating...");
+                minioClient.makeBucket(
+                        MakeBucketArgs.builder().bucket(yandexProperties.getBucketName()).build()
+                );
+                System.out.println("Bucket '" + yandexProperties.getBucketName() + "' created successfully");
+            } else {
+                System.out.println("Bucket '" + yandexProperties.getBucketName() + "' already exists");
+            }
+        } catch (ErrorResponseException e) {
+            // Если получаем 400 Bad Request при проверке bucket'а, 
+            // предполагаем что bucket существует, но у нас нет прав на проверку
+            if (e.response() != null && e.response().code() == 400) {
+                System.out.println("Cannot check bucket existence (403/400), assuming bucket exists: " + yandexProperties.getBucketName());
+                // Не создаем bucket, предполагаем что он существует
+            } else {
+                throw e; // Перебрасываем другие ошибки
+            }
         }
     }
 
@@ -519,7 +528,7 @@ public class ImageStorageService {
     }
 
     private String generateImageUrl(String objectKey) {
-        return String.format("%s/%s/%s", minioPublicEndpoint, bucketName, objectKey);
+        return String.format("%s/%s/%s", yandexProperties.getPublicEndpoint(), yandexProperties.getBucketName(), objectKey);
     }
 
     private String getFileExtension(String filename) {
@@ -549,7 +558,7 @@ public class ImageStorageService {
             // Удаляем старую обложку из MinIO
             minioClient.removeObject(
                     RemoveObjectArgs.builder()
-                            .bucket(bucketName)
+                            .bucket(yandexProperties.getBucketName())
                             .object(existingCover.get().getImageKey())
                             .build()
             );
@@ -563,7 +572,7 @@ public class ImageStorageService {
         // Загружаем файл в MinIO
         minioClient.putObject(
                 PutObjectArgs.builder()
-                        .bucket(bucketName)
+                        .bucket(yandexProperties.getBucketName())
                         .object(objectKey)
                         .stream(file.getInputStream(), file.getSize(), -1)
                         .contentType(file.getContentType())

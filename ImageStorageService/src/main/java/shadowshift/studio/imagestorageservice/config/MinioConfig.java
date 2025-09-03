@@ -1,28 +1,28 @@
 package shadowshift.studio.imagestorageservice.config;
 
 import io.minio.MinioClient;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class MinioConfig {
 
-    @Value("${minio.endpoint}")
-    private String endpoint;
-
-    @Value("${minio.access-key}")
-    private String accessKey;
-
-    @Value("${minio.secret-key}")
-    private String secretKey;
+    @Autowired
+    private YandexStorageProperties yandexProperties;
 
     @Bean
     public MinioClient minioClient() {
+        System.out.println("Configuring MinioClient for Yandex Object Storage");
+        System.out.println("Endpoint: " + yandexProperties.getEndpoint());
+        System.out.println("Region: " + yandexProperties.getRegion());
+        System.out.println("Access Key: " + (yandexProperties.getAccessKey() != null ? 
+            yandexProperties.getAccessKey().substring(0, Math.min(yandexProperties.getAccessKey().length(), 8)) + "..." : "null"));
+        
         return MinioClient.builder()
-                .endpoint(endpoint)
-                .credentials(accessKey, secretKey)
-                .region("ru-central1")  // Регион Yandex Cloud
+                .endpoint(yandexProperties.getEndpoint())
+                .credentials(yandexProperties.getAccessKey(), yandexProperties.getSecretKey())
+                .region(yandexProperties.getRegion())
                 .build();
     }
 }
