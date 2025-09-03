@@ -127,7 +127,15 @@ services:
     ports:
       - "8084:8084"
     volumes:
-      - ./MelonService:/app:ro
+      # Монтируем отдельные файлы/папки вместо всего /app
+      - ./MelonService/api_server.py:/app/api_server.py:ro
+      - ./MelonService/main.py:/app/main.py:ro
+      - ./MelonService/requirements.txt:/app/requirements.txt:ro
+      - ./MelonService/Source:/app/Source:ro
+      - ./MelonService/Parsers:/app/Parsers:ro
+      - ./MelonService/Templates:/app/Templates:ro
+      - ./MelonService/Docs:/app/Docs:ro
+      # Volume директории (НЕ read-only)
       - melon_data:/app/Output
       - melon_logs:/app/Logs
       - melon_temp:/app/Temp
