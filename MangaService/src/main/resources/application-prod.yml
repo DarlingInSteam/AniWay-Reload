@@ -1,0 +1,38 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://manga-postgres:5432/mangadb?useUnicode=true&characterEncoding=UTF-8
+    username: mangauser
+    password: mangapass123
+
+# Other services URLs (using Docker service names)
+chapter:
+  service:
+    url: ${CHAPTER_SERVICE_URL:http://chapter-service:8082}
+
+# Services configuration
+services:
+  auth-service-url: ${AUTH_SERVICE_URL:http://auth-service:8080}
+  chapter-service-url: ${CHAPTER_SERVICE_URL:http://chapter-service:8082}
+  image-storage-service-url: ${IMAGE_STORAGE_SERVICE_URL:http://image-storage-service:8083}
+  melon-service-url: ${MELON_SERVICE_URL:http://melon-service:8084}
+  melon-service-public-url: http://84.201.152.162:8084
+
+# MinIO/Yandex Object Storage configuration
+minio:
+  endpoint: ${YANDEX_STORAGE_ENDPOINT:https://storage.yandexcloud.net}
+  access-key: ${YANDEX_ACCESS_KEY}
+  secret-key: ${YANDEX_SECRET_KEY}
+  bucket-name: ${YANDEX_BUCKET_NAME:aniway-images}
+
+# JWT configuration
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: 86400
+
+# Logging for debugging service communication
+logging:
+  level:
+    "[com.aniway.mangaservice]": DEBUG
+    "[com.aniway.mangaservice.client]": DEBUG
+    "[org.springframework.web.client]": DEBUG
+    "[org.apache.http]": DEBUG
