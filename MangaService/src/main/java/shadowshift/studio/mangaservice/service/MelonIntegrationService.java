@@ -1221,49 +1221,65 @@ public class MelonIntegrationService {
 
         // Импортируем страницы последовательно через HTTP API MelonService
         for (Map<String, Object> slide : slides) {
+            Integer pageIndex = Integer.parseInt(slide.get("index").toString());
+
+            // Формируем URL изображения в MelonService используя оригинальное название главы
+            String imageUrl = String.format("%s/images/%s/%s/%d",
+                melonServiceUrl, mangaFilename, originalChapterName, pageIndex);
+
+            System.out.println("Importing page from URL: " + imageUrl);
+
             try {
-                Integer pageIndex = Integer.parseInt(slide.get("index").toString());
+                // Скачиваем изображение из MelonService в MangaService
+                System.out.println("Downloading image from MelonService: " + imageUrl);
+                ResponseEntity<byte[]> imageResponse = restTemplate.getForEntity(imageUrl, byte[].class);
+                
+                if (!imageResponse.getStatusCode().is2xxSuccessful() || imageResponse.getBody() == null) {
+                    System.err.println("Failed to download image from MelonService: " + imageUrl + ", status: " + imageResponse.getStatusCode());
+                    continue;
+                }
+                
+                byte[] imageBytes = imageResponse.getBody();
+                System.out.println("Downloaded image size: " + imageBytes.length + " bytes");
 
-                // Формируем URL изображения в MelonService используя оригинальное название главы
-                String imageUrl = String.format("%s/images/%s/%s/%d",
-                    melonServiceUrl, mangaFilename, originalChapterName, pageIndex);
+                // Создаем ByteArrayResource из скачанного изображения
+                String filename = "page_" + pageIndex + ".jpg";
+                ByteArrayResource imageResource = new ByteArrayResource(imageBytes) {
+                    @Override
+                    public String getFilename() {
+                        return filename;
+                    }
+                };
 
-                System.out.println("Importing page from URL: " + imageUrl);
-
-                // Создае�� запрос к ImageStorageService для импорта изображения по URL
-                Map<String, Object> pageRequest = new HashMap<>();
-                pageRequest.put("chapterId", chapterId);
-                pageRequest.put("pageNumber", pageIndex);
-                pageRequest.put("imageUrl", imageUrl);
+                // Отправляем файл в ImageStorageService
+                MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+                body.add("file", imageResource);
 
                 HttpHeaders headers = new HttpHeaders();
-                headers.setContentType(MediaType.APPLICATION_JSON);
-                HttpEntity<Map<String, Object>> entity = new HttpEntity<>(pageRequest, headers);
+                headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+                HttpEntity<MultiValueMap<String, Object>> entity = new HttpEntity<>(body, headers);
 
-                // Синхронный запрос для сохранения порядка страниц
-                ResponseEntity<Map> response = restTemplate.postForEntity(
-                    "http://image-storage-service:8083/api/images/upload-from-url",
-                    entity,
-                    Map.class
-                );
+                // Отправляем в ImageStorageService endpoint для загрузки файла
+                String uploadUrl = "http://image-storage-service:8083/api/images/chapter/" + chapterId + "/page/" + pageIndex;
+                ResponseEntity<Map> response = restTemplate.postForEntity(uploadUrl, entity, Map.class);
 
                 // Проверяем успешность импорта страницы
                 if (response.getStatusCode().is2xxSuccessful()) {
                     importTaskService.incrementImportedPages(taskId);
-
+                    System.out.println("Successfully imported page " + pageIndex + " for chapter " + chapterId);
                     // Небольшая пауза между страницами для стабильности
                     Thread.sleep(50);
                 } else {
                     System.err.println("Ошибка импорта страницы " + pageIndex + " для главы " + chapterId + ": HTTP " + response.getStatusCode());
                 }
-
+                
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 System.err.println("Импорт страниц был прерван для главы " + chapterId);
                 break;
             } catch (Exception e) {
-                System.err.println("Ошибка импорта страницы для главы " + chapterId + ": " + e.getMessage());
-                // Продолжаем импорт следующих страниц несмотря на ошибку
+                System.err.println("Ошибка при обработке страницы " + pageIndex + " для главы " + chapterId + ": " + e.getMessage());
+                e.printStackTrace();
             }
         }
     }
