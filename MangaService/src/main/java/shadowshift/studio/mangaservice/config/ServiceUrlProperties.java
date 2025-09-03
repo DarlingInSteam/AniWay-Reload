@@ -7,9 +7,9 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "services")
 public class ServiceUrlProperties {
     
-    private String authServiceUrl = "http://localhost:8080";
-    private String chapterServiceUrl = "http://localhost:8082";
-    private String imageStorageServiceUrl = "http://localhost:8083";
+    private String authServiceUrl = "http://auth-service:8085";
+    private String chapterServiceUrl = "http://chapter-service:8082";
+    private String imageStorageServiceUrl = "http://image-storage-service:8083";
     private String melonServiceUrl = "http://melon-service:8084";
     private String melonServicePublicUrl = "http://localhost:8084";
     

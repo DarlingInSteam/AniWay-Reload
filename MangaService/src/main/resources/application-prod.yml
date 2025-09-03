@@ -11,7 +11,7 @@ chapter:
 
 # Services configuration
 services:
-  auth-service-url: ${AUTH_SERVICE_URL:http://auth-service:8080}
+  auth-service-url: ${AUTH_SERVICE_URL:http://auth-service:8085}
   chapter-service-url: ${CHAPTER_SERVICE_URL:http://chapter-service:8082}
   image-storage-service-url: ${IMAGE_STORAGE_SERVICE_URL:http://image-storage-service:8083}
   melon-service-url: ${MELON_SERVICE_URL:http://melon-service:8084}

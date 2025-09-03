@@ -64,7 +64,7 @@ services:
       - MELON_SERVICE_URL=http://melon-service:8084
       - CHAPTER_SERVICE_URL=http://chapter-service:8082
       - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
-      - AUTH_SERVICE_URL=http://auth-service:8080
+      - AUTH_SERVICE_URL=http://auth-service:8085
       - JWT_SECRET=${JWT_SECRET}
       - YANDEX_ACCESS_KEY=${YANDEX_ACCESS_KEY}
       - YANDEX_SECRET_KEY=${YANDEX_SECRET_KEY}
@@ -73,6 +73,8 @@ services:
     restart: unless-stopped
     depends_on:
       - manga-postgres
+      - chapter-service
+      - image-storage-service
     networks:
       - aniway-network
 
