@@ -29,10 +29,12 @@ git checkout experimental-branch
 
 # Настройка файрвола
 echo "🔥 Configuring firewall..."
-sudo ufw allow 22/tcp  # SSH
-sudo ufw allow 80/tcp  # HTTP
-sudo ufw allow 443/tcp # HTTPS
-sudo ufw allow 8080/tcp # API Gateway
+sudo ufw allow 22/tcp    # SSH
+sudo ufw allow 80/tcp    # HTTP (Frontend Production)
+sudo ufw allow 443/tcp   # HTTPS
+sudo ufw allow 5173/tcp  # Frontend Dev Server (Vite)
+sudo ufw allow 8080/tcp  # API Gateway
+sudo ufw allow 9000/tcp  # MinIO (if needed for dev)
 sudo ufw --force enable
 
 # Создание директорий для данных
