@@ -31,6 +31,7 @@ services:
       - comment-service
       - chapter-service
       - image-storage-service
+      - melon-service
     networks:
       - aniway-network
 
@@ -60,6 +61,7 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://manga-postgres:5432/mangadb
       - SPRING_DATASOURCE_USERNAME=mangauser
       - SPRING_DATASOURCE_PASSWORD=mangapass123
+      - MELON_SERVICE_URL=http://melon-service:8084
     restart: unless-stopped
     depends_on:
       - manga-postgres
@@ -76,6 +78,9 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://comment-postgres:5432/commentdb
       - SPRING_DATASOURCE_USERNAME=commentuser
       - SPRING_DATASOURCE_PASSWORD=commentpass123
+      - JWT_SECRET=${JWT_SECRET:-mySecretKey12345678901234567890123456789012345678901234567890}
+      - JWT_EXPIRATION=86400000
+      - AUTH_SERVICE_URL=http://auth-service:8085
     restart: unless-stopped
     depends_on:
       - comment-postgres
@@ -119,6 +124,24 @@ services:
     restart: unless-stopped
     depends_on:
       - image-postgres
+    networks:
+      - aniway-network
+
+  # Melon Service - парсер манги
+  melon-service:
+    build:
+      context: ./MelonService
+      dockerfile: Dockerfile
+    environment:
+      - PYTHONUNBUFFERED=1
+    ports:
+      - "8084:8084"
+    volumes:
+      - ./MelonService:/app
+      - melon_data:/app/Output
+      - melon_logs:/app/Logs
+      - melon_temp:/app/Temp
+    restart: unless-stopped
     networks:
       - aniway-network
 
@@ -219,6 +242,24 @@ volumes:
       type: none
       o: bind
       device: /var/lib/aniway/image_data
+  melon_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/aniway/melon_data
+  melon_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/aniway/melon_logs
+  melon_temp:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/aniway/melon_temp
 
 networks:
   aniway-network:
