@@ -243,23 +243,8 @@ volumes:
       o: bind
       device: /var/lib/aniway/image_data
   melon_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /var/lib/aniway/melon_data
   melon_logs:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /var/lib/aniway/melon_logs
   melon_temp:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /var/lib/aniway/melon_temp
 
 networks:
   aniway-network:
