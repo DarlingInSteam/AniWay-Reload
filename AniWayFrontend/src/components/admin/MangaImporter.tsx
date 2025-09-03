@@ -52,7 +52,7 @@ export function MangaImporter() {
       if (response.ok) {
         const data = await response.json()
         // Добавляем coverImageUrl для каждой манги
-        const melonApiUrl = import.meta.env.VITE_MELON_API_URL || '/api/parser'
+        const melonApiUrl = '/api/parser'
         const parsedWithCover = data.map((manga: ParsedManga) => ({
           ...manga,
           coverImageUrl: `${melonApiUrl}/cover/${manga.filename}`

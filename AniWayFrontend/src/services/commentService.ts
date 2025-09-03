@@ -6,7 +6,7 @@ import {
 } from '@/types/comments'
 
 class CommentService {
-  private readonly API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api') + '/comments'
+  private readonly API_BASE = '/api/comments'
 
   private getAuthHeaders(): Record<string, string> {
     const token = localStorage.getItem('auth-token')
@@ -17,7 +17,11 @@ class CommentService {
   }
 
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
-    const response = await fetch(`${this.API_BASE}${endpoint}`, {
+    // Используем относительный URL, который будет относиться к текущему хосту
+    const url = `${this.API_BASE}${endpoint}`;
+    console.log('Requesting comments from URL:', url);
+    
+    const response = await fetch(url, {
       ...options,
       headers: {
         ...this.getAuthHeaders(),
