@@ -17,21 +17,35 @@ export function Header() {
   const menuRef = useRef<HTMLDivElement>(null)
   const { isAuthenticated, isAdmin, isTranslator } = useAuth()
 
-  // Автодополнение поиска с обработкой ошибок
-  const { data: suggestions, isError } = useQuery({
-    queryKey: ['search-suggestions', searchQuery],
+  // Универсальный поиск манги
+  const { data: mangaSuggestions, isError: mangaError } = useQuery({
+    queryKey: ['search-manga-suggestions', searchQuery],
     queryFn: () => apiClient.searchManga({ query: searchQuery }),
     enabled: searchQuery.length >= 2,
-    staleTime: 30000, // Кешируем на 30 секунд
-    retry: 1, // Пробуем только 1 раз при ошибке
+    staleTime: 30000,
+    retry: 1,
     retryDelay: 1000,
   })
 
-  const handleSuggestionClick = (mangaId: number, title: string) => {
-    // Переходим сразу на страницу манги
+  // Универсальный поиск пользователей
+  const { data: userSuggestions, isError: userError } = useQuery({
+    queryKey: ['search-user-suggestions', searchQuery],
+    queryFn: () => apiClient.searchUsers({ query: searchQuery, limit: 6 }),
+    enabled: searchQuery.length >= 2,
+    staleTime: 30000,
+    retry: 1,
+    retryDelay: 1000,
+  })
+
+  const handleMangaSuggestionClick = (mangaId: number, title: string) => {
     navigate(`/manga/${mangaId}`)
     setShowSuggestions(false)
-    // Очищаем поле поиска после перехода
+    setSearchQuery('')
+  }
+
+  const handleUserSuggestionClick = (userId: number, username: string) => {
+    navigate(`/profile/${userId}`)
+    setShowSuggestions(false)
     setSearchQuery('')
   }
 
@@ -71,12 +85,17 @@ export function Header() {
 
   // Показываем автодополнение при вводе
   useEffect(() => {
-    if (searchQuery.length >= 2 && suggestions?.length && !isError) {
-      setShowSuggestions(true)
+    if (searchQuery.length >= 2) {
+      if ((mangaSuggestions && mangaSuggestions.length > 0 && !mangaError) || 
+          (userSuggestions && userSuggestions.users && userSuggestions.users.length > 0 && !userError)) {
+        setShowSuggestions(true)
+      } else {
+        setShowSuggestions(false)
+      }
     } else {
       setShowSuggestions(false)
     }
-  }, [searchQuery, suggestions, isError])
+  }, [searchQuery, mangaSuggestions, userSuggestions, mangaError, userError])
 
   return (
     <header className="sticky top-0 z-50 w-full bg-manga-black/95 backdrop-blur-md border-b border-border/20">
@@ -110,20 +129,23 @@ export function Header() {
           </nav>
         </div>
 
-        {/* Центр: Поиск - разное поведение для мобильных и десктопа */}
+        {/* Центр: Универсальный поиск */}
         <div className="flex-1 max-w-md mx-4 lg:absolute lg:left-1/2 lg:top-1/2 lg:transform lg:-translate-x-1/2 lg:-translate-y-1/2 lg:w-full lg:max-w-xl lg:px-0">
           <div ref={searchRef}>
             <div className="relative">
               <Search className="absolute left-3 md:left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 md:h-5 md:w-5 text-muted-foreground" />
               <input
                 type="search"
-                placeholder="Поиск манги..."
+                placeholder="Поиск манги и пользователей..."
                 className="w-full h-10 md:h-12 pl-10 md:pl-12 pr-10 md:pr-12 rounded-full bg-card border border-border/30 text-white placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-200 text-sm md:text-base"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => {
-                  if (searchQuery.length >= 2 && suggestions?.length && !isError) {
-                    setShowSuggestions(true)
+                  if (searchQuery.length >= 2) {
+                    if ((mangaSuggestions && mangaSuggestions.length > 0 && !mangaError) || 
+                        (userSuggestions && userSuggestions.users && userSuggestions.users.length > 0 && !userError)) {
+                      setShowSuggestions(true)
+                    }
                   }
                 }}
               />
@@ -137,152 +159,218 @@ export function Header() {
                 </button>
               )}
 
-              {/* Autocomplete Suggestions - адаптивные */}
-              {showSuggestions && suggestions && suggestions.length > 0 && (
+              {/* Универсальные результаты поиска */}
+              {showSuggestions && ((mangaSuggestions && mangaSuggestions.length > 0) || (userSuggestions && userSuggestions.users && userSuggestions.users.length > 0)) && (
                 <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border/30 rounded-xl shadow-2xl max-h-80 overflow-y-auto z-50">
-                  {suggestions.slice(0, 8).map((manga) => (
-                    <button
-                      key={manga.id}
-                      type="button"
-                      onClick={() => handleSuggestionClick(manga.id, manga.title)}
-                      className="w-full flex items-center p-3 hover:bg-secondary/50 transition-colors first:rounded-t-xl last:rounded-b-xl"
-                    >
-                      <img
-                        src={manga.coverImageUrl}
-                        alt={manga.title}
-                        className="w-10 h-12 md:w-12 md:h-16 object-cover rounded-lg mr-3 flex-shrink-0"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement
-                          target.src = '/placeholder-manga.jpg'
-                        }}
-                      />
-                      <div className="flex-1 text-left">
-                        <h4 className="text-white font-medium line-clamp-1 text-sm md:text-base">{manga.title}</h4>
-                        <p className="text-muted-foreground text-xs md:text-sm">
-                          {manga.genre.split(',')[0]} • {new Date(manga.releaseDate).getFullYear()}
-                        </p>
+                  
+                  {/* Секция манги */}
+                  {mangaSuggestions && mangaSuggestions.length > 0 && (
+                    <div>
+                      <div className="px-4 py-2 bg-white/5 border-b border-white/10">
+                        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Манга</h3>
                       </div>
-                    </button>
-                  ))}
-
-                  {/* Show message if no direct matches */}
-                  {searchQuery.length >= 2 && suggestions.length === 0 && !isError && (
-                    <div className="p-4 text-center">
-                      <p className="text-muted-foreground text-sm">
-                        По запросу "{searchQuery}" ничего не найдено
-                      </p>
+                      {mangaSuggestions.slice(0, 4).map((manga) => (
+                        <button
+                          key={manga.id}
+                          type="button"
+                          onClick={() => handleMangaSuggestionClick(manga.id, manga.title)}
+                          className="w-full flex items-center p-3 hover:bg-secondary/50 transition-colors"
+                        >
+                          <img
+                            src={manga.coverImageUrl || '/placeholder-manga.jpg'}
+                            alt={manga.title}
+                            className="w-10 h-12 md:w-12 md:h-16 object-cover rounded-lg mr-3 flex-shrink-0"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement
+                              target.src = '/placeholder-manga.jpg'
+                            }}
+                          />
+                          <div className="flex-1 text-left min-w-0">
+                            <h4 className="font-medium text-white truncate text-sm md:text-base">
+                              {manga.title}
+                            </h4>
+                            <p className="text-xs md:text-sm text-muted-foreground truncate">
+                              {manga.genre.split(',')[0]} • {new Date(manga.releaseDate).getFullYear()}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
                     </div>
                   )}
-                </div>
-              )}
 
-              {/* Error state for suggestions */}
-              {searchQuery.length >= 2 && isError && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border/30 rounded-xl p-3 z-50">
-                  <p className="text-muted-foreground text-sm text-center">
-                    Поиск временно недоступен
-                  </p>
+                  {/* Секция пользователей */}
+                  {userSuggestions && userSuggestions.users && userSuggestions.users.length > 0 && (
+                    <div>
+                      <div className="px-4 py-2 bg-white/5 border-b border-white/10">
+                        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Пользователи</h3>
+                      </div>
+                      {userSuggestions.users.slice(0, 4).map((user) => (
+                        <button
+                          key={user.id}
+                          type="button"
+                          onClick={() => handleUserSuggestionClick(user.id, user.username)}
+                          className="w-full flex items-center p-3 hover:bg-secondary/50 transition-colors"
+                        >
+                          <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mr-3 flex-shrink-0">
+                            <User className="w-5 h-5 md:w-6 md:h-6 text-white" />
+                          </div>
+                          <div className="flex-1 text-left min-w-0">
+                            <h4 className="font-medium text-white truncate text-sm md:text-base">
+                              {user.username}
+                            </h4>
+                            <p className="text-xs md:text-sm text-muted-foreground truncate">
+                              {user.role === 'ADMIN' && '👑 Администратор'}
+                              {user.role === 'TRANSLATOR' && '📝 Переводчик'}
+                              {user.role === 'USER' && '👤 Пользователь'}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Сообщение если ничего не найдено */}
+                  {searchQuery.length >= 2 && 
+                   (!mangaSuggestions || mangaSuggestions.length === 0) && 
+                   (!userSuggestions || !userSuggestions.users || userSuggestions.users.length === 0) && 
+                   !mangaError && !userError && (
+                    <div className="p-4 text-center text-sm text-muted-foreground">
+                      <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p>Ничего не найдено</p>
+                      <p className="text-xs mt-1">Попробуйте изменить запрос</p>
+                    </div>
+                  )}
+
+                  {/* Ошибка загрузки */}
+                  {searchQuery.length >= 2 && (mangaError || userError) && (
+                    <div className="p-4 text-center text-sm text-muted-foreground">
+                      <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p>Ошибка при поиске</p>
+                      <p className="text-xs mt-1">Попробуйте позже</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           </div>
         </div>
 
-        {/* Правый блок: действия + бургер меню */}
+        {/* Правый блок: действия пользователя */}
         <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
-          {/* Кнопки действий + UserMenu - адаптивные */}
-          <div className="hidden md:flex items-center space-x-2">
-            <UserMenu />
-          </div>
-
-          {/* Бургер меню - всегда показан */}
-          <div className="relative" ref={menuRef}>
-            <button
-              className="p-2 rounded-full hover:bg-card transition-colors duration-200 flex items-center justify-center"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            >
-              {mobileMenuOpen ? (
-                <X className="h-5 w-5 md:h-6 md:w-6 text-muted-foreground" />
-              ) : (
-                <Menu className="h-5 w-5 md:h-6 md:w-6 text-muted-foreground" />
-              )}
-            </button>
-            {mobileMenuOpen && (
-              <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-border/30 rounded-xl shadow-lg z-50 flex flex-col">
-                {/* Мобильная навигация - только на мобильных */}
-                <div className="lg:hidden border-b border-border/30">
-                  <Link
-                    to="/catalog"
-                    className="px-6 py-3 text-base text-white hover:bg-secondary transition-colors flex items-center gap-2"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Каталог
-                  </Link>
-                  <Link
-                    to="#"
-                    className="px-6 py-3 text-base text-white hover:bg-secondary transition-colors flex items-center gap-2"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Топы
-                  </Link>
-                  <Link
-                    to="#"
-                    className="px-6 py-3 text-base text-white hover:bg-secondary transition-colors flex items-center gap-2"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Форум
-                  </Link>
-
-                  {/* Пользовательские ссылки */}
-                  {isAuthenticated ? (
-                    <>
-                      <Link
-                        to="/profile"
-                        className="px-6 py-3 text-base text-white hover:bg-secondary transition-colors flex items-center gap-2"
-                        onClick={() => setMobileMenuOpen(false)}
-                      >
-                        <User className="h-4 w-4" />
-                        Профиль
-                      </Link>
-                      <Link
-                        to="/library"
-                        className="px-6 py-3 text-base text-white hover:bg-secondary transition-colors flex items-center gap-2"
-                        onClick={() => setMobileMenuOpen(false)}
-                      >
-                        <Bookmark className="h-4 w-4" />
-                        Библиотека
-                      </Link>
-                    </>
-                  ) : (
-                    <>
-                      <Link
-                        to="/login"
-                        className="px-6 py-3 text-base text-white hover:bg-secondary transition-colors flex items-center gap-2"
-                        onClick={() => setMobileMenuOpen(false)}
-                      >
-                        <User className="h-4 w-4" />
-                        Вход
-                      </Link>
-                      <Link
-                        to="/register"
-                        className="px-6 py-3 text-base text-white hover:bg-secondary transition-colors flex items-center gap-2"
-                        onClick={() => setMobileMenuOpen(false)}
-                      >
-                        Регистрация
-                      </Link>
-                    </>
-                  )}
-                </div>
+          {isAuthenticated ? (
+            <>
+              {/* Иконки действий - скрываем на мобилке */}
+              <div className="hidden md:flex items-center gap-1 lg:gap-2">
+                <Link
+                  to="/library"
+                  className="p-2 lg:p-3 rounded-xl hover:bg-secondary/50 text-muted-foreground hover:text-white transition-colors duration-200"
+                  title="Библиотека"
+                >
+                  <Bookmark className="h-5 w-5" />
+                </Link>
                 
-                {/* Админские ссылки */}
-                {isAdmin && (
+                <button
+                  className="p-2 lg:p-3 rounded-xl hover:bg-secondary/50 text-muted-foreground hover:text-white transition-colors duration-200"
+                  title="Уведомления"
+                >
+                  <Bell className="h-5 w-5" />
+                </button>
+
+                {(isAdmin || isTranslator) && (
                   <Link
-                    to="/admin/manga"
-                    className="px-6 py-3 text-base text-white hover:bg-secondary transition-colors flex items-center gap-2"
-                    onClick={() => setMobileMenuOpen(false)}
+                    to="/admin"
+                    className="p-2 lg:p-3 rounded-xl hover:bg-secondary/50 text-muted-foreground hover:text-white transition-colors duration-200"
+                    title="Админ панель"
                   >
-                    <Settings className="h-4 w-4" /> Управление
+                    <Settings className="h-5 w-5" />
                   </Link>
+                )}
+              </div>
+
+              {/* Пользовательское меню */}
+              <UserMenu />
+            </>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Link
+                to="/login"
+                className="px-3 py-2 md:px-4 md:py-2 text-sm font-medium text-muted-foreground hover:text-white transition-colors duration-200"
+              >
+                Войти
+              </Link>
+              <Link
+                to="/register"
+                className="px-3 py-2 md:px-4 md:py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors duration-200"
+              >
+                Регистрация
+              </Link>
+            </div>
+          )}
+
+          {/* Бургер-меню для мобилки */}
+          <div className="lg:hidden ml-2" ref={menuRef}>
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 rounded-xl hover:bg-secondary/50 text-muted-foreground hover:text-white transition-colors duration-200"
+            >
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+
+            {/* Мобильное меню */}
+            {mobileMenuOpen && (
+              <div className="absolute top-full right-0 mt-2 w-56 bg-card border border-border/30 rounded-xl shadow-2xl py-2 z-50">
+                <Link
+                  to="/catalog"
+                  className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Каталог
+                </Link>
+                <Link
+                  to="#"
+                  className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Топы
+                </Link>
+                <Link
+                  to="#"
+                  className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Форум
+                </Link>
+                
+                {isAuthenticated && (
+                  <>
+                    <hr className="my-2 border-border/30" />
+                    <Link
+                      to="/library"
+                      className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <Bookmark className="h-4 w-4 mr-3" />
+                      Библиотека
+                    </Link>
+                    <button
+                      className="flex items-center w-full px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <Bell className="h-4 w-4 mr-3" />
+                      Уведомления
+                    </button>
+                    
+                    {(isAdmin || isTranslator) && (
+                      <Link
+                        to="/admin"
+                        className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        <Settings className="h-4 w-4 mr-3" />
+                        Админ панель
+                      </Link>
+                    )}
+                  </>
                 )}
               </div>
             )}

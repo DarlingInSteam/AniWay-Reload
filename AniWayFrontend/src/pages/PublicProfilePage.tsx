@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
+import { useParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { authService } from '../services/authService'
+import { apiClient } from '../lib/api'
+import { User } from '../types'
 import { 
-  User, 
-  Edit3, 
-  Camera, 
-  Settings,
+  User as UserIcon, 
+  Camera,
+  UserPlus,
+  MessageSquare,
   BookOpen, 
   Heart, 
   Trophy, 
@@ -18,111 +20,88 @@ import {
   Sparkles,
   Zap,
   Users,
-  MessageCircle
+  MessageCircle,
+  ArrowLeft
 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
-const ProfilePage = () => {
-  const { user: userProfile, loading: userLoading } = useAuth()
-
-  // Load favorite bookmarks
+const PublicProfilePage = () => {
+  const { userId } = useParams<{ userId: string }>()
+  const { user: currentUser } = useAuth()
+  const [userProfile, setUserProfile] = useState<User | null>(null)
   const [favoriteBookmarks, setFavoriteBookmarks] = useState<any[]>([])
-  const [bookmarksLoading, setBookmarksLoading] = useState(false)
-  
-  // Load reading stats
   const [readingStats, setReadingStats] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [bookmarksLoading, setBookmarksLoading] = useState(false)
   const [statsLoading, setStatsLoading] = useState(false)
 
+  const isOwnProfile = currentUser && userProfile && currentUser.id === userProfile.id
+
   useEffect(() => {
-    const loadFavoriteBookmarks = async () => {
+    const loadProfile = async () => {
+      if (!userId) return
+
       try {
+        setLoading(true)
+        
+        // Загружаем публичный профиль пользователя
+        const profile = await apiClient.getUserPublicProfile(parseInt(userId))
+        setUserProfile(profile)
+
+        // Загружаем реальные данные пользователя
         setBookmarksLoading(true)
-        const token = authService.getToken()
-        console.log('Token exists:', !!token)
-        console.log('Is authenticated:', authService.isAuthenticated())
-        
-        if (!token || !authService.isAuthenticated()) {
-          console.log('No valid token found, skipping bookmark load')
-          return
-        }
-
-        console.log('Making request to /api/bookmarks/favorites')
-        const response = await fetch('/api/bookmarks/favorites', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        })
-
-        console.log('Response status:', response.status)
-        console.log('Response ok:', response.ok)
-        
-        if (response.ok) {
-          const bookmarks = await response.json()
-          console.log('Loaded bookmarks:', bookmarks)
-          setFavoriteBookmarks(bookmarks || [])
-        } else {
-          console.log('Failed to load bookmarks, response status:', response.status)
-          const errorText = await response.text()
-          console.log('Error response:', errorText)
-        }
-      } catch (error) {
-        console.error('Error loading favorite bookmarks:', error)
-        setFavoriteBookmarks([])
-      } finally {
-        setBookmarksLoading(false)
-      }
-    }
-
-    const loadReadingStats = async () => {
-      try {
         setStatsLoading(true)
-        const token = authService.getToken()
         
-        if (!token || !authService.isAuthenticated()) {
-          console.log('No valid token found, skipping stats load')
-          return
+        try {
+          // Пытаемся загрузить публичные закладки пользователя
+          const bookmarks = await apiClient.getUserPublicBookmarks(profile.username)
+          console.log('Loaded public bookmarks:', bookmarks)
+          setFavoriteBookmarks(bookmarks || [])
+        } catch (bookmarkError) {
+          console.error('Failed to load public bookmarks:', bookmarkError)
+          setFavoriteBookmarks([])
+        } finally {
+          setBookmarksLoading(false)
         }
 
-        console.log('Making request to /api/auth/progress/stats')
-        const response = await fetch('/api/auth/progress/stats', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        })
-
-        if (response.ok) {
-          const stats = await response.json()
-          console.log('Loaded reading stats:', stats)
-          setReadingStats(stats)
-        } else {
-          console.log('Failed to load stats, response status:', response.status)
-          const errorText = await response.text()
-          console.log('Error response:', errorText)
+        try {
+          // Для публичных профилей статистика может быть недоступна
+          // В будущем можно создать endpoint для публичной статистики
+          console.log('Public stats not available for other users')
+          setReadingStats({
+            totalChaptersRead: 0,
+            mangasStarted: 0,
+            completedManga: 0,
+            readingStreak: 0
+          })
+        } catch (statsError) {
+          console.error('Failed to load reading stats:', statsError)
+          setReadingStats(null)
+        } finally {
+          setStatsLoading(false)
         }
+        
       } catch (error) {
-        console.error('Error loading reading stats:', error)
-        setReadingStats(null)
+        console.error('Error loading profile:', error)
+        setError('Не удалось загрузить профиль пользователя')
       } finally {
-        setStatsLoading(false)
+        setLoading(false)
       }
     }
 
-    if (userProfile) {
-      loadFavoriteBookmarks()
-      loadReadingStats()
-    }
-  }, [userProfile])
+    loadProfile()
+  }, [userId])
 
-  // Статистика (используем реальные данные если есть, иначе mock)
-  const chaptersRead = readingStats?.totalChaptersRead || readingStats?.chaptersRead || userProfile?.chaptersReadCount || 0
-  const completedManga = readingStats?.completedManga || favoriteBookmarks?.filter(b => b.status === 'COMPLETED')?.length || 8
+  // Статистика (используем реальные данные если есть, иначе 0 для публичных профилей)
+  const chaptersRead = readingStats?.totalChaptersRead || readingStats?.chaptersRead || 0
+  const completedManga = readingStats?.completedManga || favoriteBookmarks?.filter(b => b.status === 'COMPLETED')?.length || 0
   
   const mockStats = {
     chaptersRead: chaptersRead,
-    mangasStarted: readingStats?.mangasStarted || favoriteBookmarks?.length || 12,
+    mangasStarted: readingStats?.mangasStarted || 0,
     completedManga: completedManga,
-    streak: readingStats?.readingStreak || 7,
+    streak: readingStats?.readingStreak || 0,
     level: Math.floor(chaptersRead / 50) + 1,
     exp: chaptersRead % 50,
     nextLevelExp: 50
@@ -131,8 +110,8 @@ const ProfilePage = () => {
   const mockAchievements = [
     { id: 1, name: 'Первые шаги', description: 'Прочитать первую мангу', icon: '🌟', unlocked: true },
     { id: 2, name: 'Книжный червь', description: 'Прочитать 100 глав', icon: '📚', unlocked: true },
-    { id: 3, name: 'Марафонец', description: '7 дней подряд', icon: '🏃‍♂️', unlocked: true },
-    { id: 4, name: 'Коллекционер', description: '10 манг в избранном', icon: '💎', unlocked: false }
+    { id: 3, name: 'Марафонец', description: '7 дней подряд', icon: '🏃‍♂️', unlocked: false },
+    { id: 4, name: 'Коллекционер', description: '10 манг в избранном', icon: '💎', unlocked: true }
   ]
 
   const mockActivity = [
@@ -140,16 +119,30 @@ const ProfilePage = () => {
     { type: 'favorite', manga: 'Naruto', time: '1 день назад' },
     { type: 'completed', manga: 'Death Note', time: '3 дня назад' },
     { type: 'read', manga: 'Attack on Titan', chapter: 25, time: '5 дней назад' },
-    { type: 'favorite', manga: 'Dragon Ball', time: '1 неделю назад' },
-    { type: 'read', manga: 'My Hero Academia', chapter: 18, time: '1 неделю назад' },
-    { type: 'completed', manga: 'Fullmetal Alchemist', time: '2 недели назад' },
-    { type: 'read', manga: 'Demon Slayer', chapter: 12, time: '2 недели назад' }
+    { type: 'favorite', manga: 'Dragon Ball', time: '1 неделю назад' }
   ]
 
-  if (userLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-foreground mb-4">Ошибка</h1>
+          <p className="text-muted-foreground mb-6">{error}</p>
+          <Link 
+            to="/" 
+            className="bg-primary text-primary-foreground px-6 py-2 rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            Вернуться на главную
+          </Link>
+        </div>
       </div>
     )
   }
@@ -164,16 +157,22 @@ const ProfilePage = () => {
       </div>
 
       <div className="relative z-10 container mx-auto px-4 py-8">
+        {/* Back Button */}
+        <div className="mb-6">
+          <Link 
+            to="/" 
+            className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Назад к поиску
+          </Link>
+        </div>
+
         {/* Header Section */}
         <div className="relative mb-8">
           {/* Cover Photo */}
           <div className="h-64 bg-gradient-to-r from-primary/80 via-primary to-secondary rounded-2xl relative overflow-hidden">
             <div className="absolute inset-0 bg-black/20"></div>
-            <div className="absolute top-4 right-4">
-              <button className="bg-white/20 backdrop-blur-sm p-2 rounded-xl hover:bg-white/30 transition-all border border-white/20">
-                <Camera className="w-5 h-5 text-white" />
-              </button>
-            </div>
           </div>
 
           {/* Profile Info */}
@@ -183,14 +182,11 @@ const ProfilePage = () => {
                 {/* Avatar */}
                 <div className="relative">
                   <div className="w-24 h-24 bg-gradient-to-r from-primary to-secondary rounded-xl flex items-center justify-center relative border border-border/30">
-                    <User className="w-10 h-10 text-white" />
+                    <UserIcon className="w-10 h-10 text-white" />
                     <div className="absolute -bottom-2 -right-2 bg-green-500 w-6 h-6 rounded-full border-2 border-card flex items-center justify-center">
                       <div className="w-2 h-2 bg-white rounded-full"></div>
                     </div>
                   </div>
-                  <button className="absolute -bottom-1 -right-1 bg-card/80 backdrop-blur-sm p-1.5 rounded-lg hover:bg-card transition-all border border-border/30">
-                    <Edit3 className="w-3 h-3 text-muted-foreground" />
-                  </button>
                 </div>
 
                 {/* User Info */}
@@ -212,7 +208,7 @@ const ProfilePage = () => {
                   <div className="flex flex-wrap items-center gap-4 text-muted-foreground text-sm">
                     <div className="flex items-center gap-1">
                       <Calendar className="w-4 h-4" />
-                      <span>На сайте с {new Date(userProfile?.createdAt || '').toLocaleDateString()}</span>
+                      <span>На сайте с {new Date(userProfile?.registrationDate || userProfile?.createdAt || '').toLocaleDateString()}</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <MapPin className="w-4 h-4" />
@@ -236,14 +232,18 @@ const ProfilePage = () => {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex gap-2">
-                  <button className="bg-secondary backdrop-blur-sm px-4 py-2 rounded-xl hover:bg-secondary/80 transition-all text-muted-foreground border border-border/30">
-                    <Settings className="w-4 h-4" />
-                  </button>
-                  <button className="bg-primary px-6 py-2 rounded-xl hover:bg-primary/80 transition-all text-primary-foreground font-medium">
-                    Редактировать
-                  </button>
-                </div>
+                {!isOwnProfile && (
+                  <div className="flex gap-2">
+                    <button className="bg-secondary backdrop-blur-sm px-4 py-2 rounded-xl hover:bg-secondary/80 transition-all text-muted-foreground border border-border/30 flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4" />
+                      Написать
+                    </button>
+                    <button className="bg-primary px-6 py-2 rounded-xl hover:bg-primary/80 transition-all text-primary-foreground font-medium flex items-center gap-2">
+                      <UserPlus className="w-4 h-4" />
+                      Добавить в друзья
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -328,70 +328,9 @@ const ProfilePage = () => {
                   <p className="text-muted-foreground">Загрузка избранного...</p>
                 </div>
               ) : (
-                /* Показываем демо данные, если нет реальных закладок */
-                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {[
-                    { 
-                      id: 'demo1', 
-                      mangaTitle: 'One Piece', 
-                      mangaCoverUrl: 'https://via.placeholder.com/300x400/3B82F6/white?text=One+Piece',
-                      currentChapter: 43,
-                      totalChapters: 100 
-                    },
-                    { 
-                      id: 'demo2', 
-                      mangaTitle: 'Naruto', 
-                      mangaCoverUrl: 'https://via.placeholder.com/300x400/FFD700/black?text=Naruto',
-                      currentChapter: 25,
-                      totalChapters: 72 
-                    },
-                    { 
-                      id: 'demo3', 
-                      mangaTitle: 'Attack on Titan', 
-                      mangaCoverUrl: 'https://via.placeholder.com/300x400/EF4444/white?text=AOT',
-                      currentChapter: 18,
-                      totalChapters: 50 
-                    },
-                    { 
-                      id: 'demo4', 
-                      mangaTitle: 'Death Note', 
-                      mangaCoverUrl: 'https://via.placeholder.com/300x400/1F2937/white?text=Death+Note',
-                      currentChapter: 12,
-                      totalChapters: 12 
-                    }
-                  ].map((bookmark: any) => (
-                    <div key={bookmark.id} className="group cursor-pointer">
-                      <div className="aspect-[3/4] bg-card/30 rounded-2xl overflow-hidden mb-3 relative hover:scale-105 transition-all duration-300">
-                        <img 
-                          src={bookmark.mangaCoverUrl} 
-                          alt={bookmark.mangaTitle}
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                        
-                        {/* Progress indicator */}
-                        <div className="absolute bottom-3 left-3 right-3">
-                          <div className="bg-black/70 backdrop-blur-sm rounded-lg p-2">
-                            <div className="flex justify-between items-center text-white text-xs mb-1">
-                              <span>Глава {bookmark.currentChapter}</span>
-                              <span>{Math.round((bookmark.currentChapter / bookmark.totalChapters) * 100)}%</span>
-                            </div>
-                            <div className="bg-white/20 rounded-full h-1">
-                              <div 
-                                className="bg-gradient-to-r from-primary to-accent h-1 rounded-full transition-all"
-                                style={{ 
-                                  width: `${Math.min(100, (bookmark.currentChapter / bookmark.totalChapters) * 100)}%` 
-                                }}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <h4 className="text-foreground text-sm font-medium truncate group-hover:text-primary transition-colors">
-                        {bookmark.mangaTitle}
-                      </h4>
-                    </div>
-                  ))}
+                <div className="text-center py-12">
+                  <Heart className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
+                  <p className="text-muted-foreground">Пользователь пока не добавил мангу в избранное</p>
                 </div>
               )}
             </div>
@@ -466,7 +405,7 @@ const ProfilePage = () => {
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Среднее в день</span>
-                  <span className="text-foreground font-medium">2.5 главы</span>
+                  <span className="text-foreground font-medium">2.1 главы</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Любимый жанр</span>
@@ -474,11 +413,11 @@ const ProfilePage = () => {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Время чтения</span>
-                  <span className="text-foreground font-medium">42ч в месяц</span>
+                  <span className="text-foreground font-medium">28ч в месяц</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Рейтинг</span>
-                  <span className="text-foreground font-medium">#1,234</span>
+                  <span className="text-foreground font-medium">#2,156</span>
                 </div>
               </div>
             </div>
@@ -496,7 +435,7 @@ const ProfilePage = () => {
                     <Users className="w-4 h-4" />
                     Друзья
                   </span>
-                  <span className="text-muted-foreground">15</span>
+                  <span className="text-muted-foreground">12</span>
                 </button>
                 
                 <button className="w-full flex items-center justify-between p-3 bg-card/30 rounded-xl hover:bg-card/50 transition-colors text-foreground">
@@ -504,7 +443,7 @@ const ProfilePage = () => {
                     <MessageCircle className="w-4 h-4" />
                     Комментарии
                   </span>
-                  <span className="text-muted-foreground">48</span>
+                  <span className="text-muted-foreground">23</span>
                 </button>
               </div>
             </div>
@@ -518,26 +457,28 @@ const ProfilePage = () => {
             Комментарии к профилю
           </h3>
           
-          {/* Comment Input */}
-          <div className="mb-6">
-            <div className="flex gap-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-primary to-accent rounded-full flex items-center justify-center text-white font-bold">
-                У
-              </div>
-              <div className="flex-1">
-                <textarea
-                  placeholder="Оставить комментарий..."
-                  className="w-full bg-card/50 border border-border/30 rounded-xl p-3 text-foreground placeholder-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-                  rows={3}
-                />
-                <div className="flex justify-end mt-2">
-                  <button className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg transition-colors">
-                    Отправить
-                  </button>
+          {/* Comment Input - только если не свой профиль */}
+          {!isOwnProfile && (
+            <div className="mb-6">
+              <div className="flex gap-3">
+                <div className="w-10 h-10 bg-gradient-to-r from-primary to-accent rounded-full flex items-center justify-center text-white font-bold">
+                  {currentUser?.username?.charAt(0)?.toUpperCase() || 'У'}
+                </div>
+                <div className="flex-1">
+                  <textarea
+                    placeholder="Оставить комментарий..."
+                    className="w-full bg-card/50 border border-border/30 rounded-xl p-3 text-foreground placeholder-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+                    rows={3}
+                  />
+                  <div className="flex justify-end mt-2">
+                    <button className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg transition-colors">
+                      Отправить
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Comments List */}
           <div className="space-y-4">
@@ -602,5 +543,4 @@ const ProfilePage = () => {
   )
 }
 
-export { ProfilePage }
-export default ProfilePage
+export default PublicProfilePage

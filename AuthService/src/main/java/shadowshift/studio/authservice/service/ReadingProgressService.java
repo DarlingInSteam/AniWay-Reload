@@ -167,14 +167,21 @@ public class ReadingProgressService {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
         
-        // Use stored counter instead of dynamic count to preserve achievements
-        // even when manga is deleted for legal reasons
-        Integer totalChaptersRead = user.getChaptersReadCount();
+        // Calculate actual completed chapters from database instead of using cached counter
+        Long actualCompletedChapters = readingProgressRepository.countCompletedChaptersByUser(user.getId());
         Long mangasStarted = readingProgressRepository.countDistinctMangasByUser(user.getId());
         Long totalProgressEntries = readingProgressRepository.countByUserId(user.getId());
         
+        // Update user's cached counter if it's different from actual count
+        if (!actualCompletedChapters.equals(user.getChaptersReadCount().longValue())) {
+            user.setChaptersReadCount(actualCompletedChapters.intValue());
+            userRepository.save(user);
+            log.info("Updated user {} chapters count from {} to {}", username, user.getChaptersReadCount(), actualCompletedChapters);
+        }
+        
         Map<String, Object> stats = new HashMap<>();
-        stats.put("totalChaptersRead", totalChaptersRead);
+        stats.put("totalChaptersRead", actualCompletedChapters);
+        stats.put("chaptersRead", actualCompletedChapters);  // Добавляем оба ключа для совместимости
         stats.put("mangasStarted", mangasStarted);
         stats.put("totalProgressEntries", totalProgressEntries);
         

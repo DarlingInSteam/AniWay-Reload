@@ -5,6 +5,7 @@ import { formatDate, getStatusColor, getStatusText, cn } from '@/lib/utils'
 import { useBookmarks } from '@/hooks/useBookmarks'
 import { useAuth } from '@/contexts/AuthContext'
 import { useReadingProgress } from '@/hooks/useProgress'
+import { useRating } from '@/hooks/useRating'
 
 interface MangaCardProps {
   manga: MangaResponseDTO
@@ -16,6 +17,7 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
   const { isAuthenticated } = useAuth()
   const { getMangaBookmark } = useBookmarks()
   const { getMangaReadingPercentage, getMangaProgress } = useReadingProgress()
+  const { rating } = useRating(manga.id)
   
   // Адаптивные размеры для разных экранов
   const cardSizes = {
@@ -24,8 +26,7 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
     large: 'aspect-[3/4]'
   }
 
-  // Генерируем фейковый рейтинг для демонстрации (в реальном проекте это будет из API)
-  const rating = (4 + Math.random()).toFixed(1)
+  // Генерируем фейковые просмотры для демонстрации (в реальном проекте это будет из API)
   const views = Math.floor(Math.random() * 10000) + 1000
 
   // Получаем статус закладки
@@ -114,7 +115,9 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
           {/* Rating Badge */}
           <div className="absolute top-2 md:top-3 right-2 md:right-3 flex items-center space-x-1 bg-black/70 backdrop-blur-sm px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
             <Star className="h-2.5 w-2.5 md:h-3 md:w-3 text-accent fill-current" />
-            <span className="text-xs font-medium text-white">{rating}</span>
+            <span className="text-xs font-medium text-white">
+              {rating?.averageRating ? rating.averageRating.toFixed(1) : '—'}
+            </span>
           </div>
 
           {/* Chapter Count with Reading Progress */}
@@ -164,7 +167,9 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
           <div className="flex items-center justify-between h-4">
             <div className="flex items-center space-x-1">
               <Star className="h-2.5 w-2.5 md:h-3 md:w-3 text-accent fill-current" />
-              <span className="text-xs font-medium text-accent">{rating}</span>
+              <span className="text-xs font-medium text-accent">
+                {rating?.averageRating ? rating.averageRating.toFixed(1) : '—'}
+              </span>
             </div>
             <div className="flex items-center space-x-2 md:space-x-3 text-xs text-muted-foreground">
               <div className="flex items-center space-x-1">

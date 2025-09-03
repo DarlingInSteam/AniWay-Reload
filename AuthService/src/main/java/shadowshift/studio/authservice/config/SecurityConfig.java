@@ -3,6 +3,7 @@ package shadowshift.studio.authservice.config;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -55,6 +56,11 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/login", "/api/auth/register").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/api/admin/bookmarks/cleanup-orphaned").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/auth/reviews/manga/*/rating").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/auth/reviews/manga/*").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/auth/users/search").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/auth/users/*/public").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/bookmarks/user/*").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )

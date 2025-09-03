@@ -28,8 +28,9 @@ public class BookmarkService {
     private final BookmarkRepository bookmarkRepository;
     private final UserRepository userRepository;
     private final RestTemplate restTemplate;
+    private final ReadingProgressService readingProgressService;
     
-    @Value("${manga.service.url:http://localhost:8081}")
+    @Value("${manga.service.url}")
     private String mangaServiceUrl;
     
     public BookmarkDTO addOrUpdateBookmark(String username, Long mangaId, BookmarkStatus status, Boolean isFavorite) {
@@ -74,7 +75,7 @@ public class BookmarkService {
         
         List<Bookmark> bookmarks = bookmarkRepository.findByUserId(user.getId());
         return bookmarks.stream()
-                .map(this::convertToDTO)
+                .map(this::convertToDTOWithMangaInfo)
                 .collect(Collectors.toList());
     }
     
@@ -94,7 +95,7 @@ public class BookmarkService {
         
         List<Bookmark> favorites = bookmarkRepository.findByUserIdAndIsFavoriteTrue(user.getId());
         return favorites.stream()
-                .map(this::convertToDTO)
+                .map(this::convertToDTOWithMangaInfo)
                 .collect(Collectors.toList());
     }
     
@@ -186,5 +187,70 @@ public class BookmarkService {
                 .createdAt(bookmark.getCreatedAt())
                 .updatedAt(bookmark.getUpdatedAt())
                 .build();
+    }
+
+    private BookmarkDTO convertToDTOWithMangaInfo(Bookmark bookmark) {
+        BookmarkDTO dto = convertToDTO(bookmark);
+        
+        try {
+            // Get manga info from MangaService
+            String mangaUrl = mangaServiceUrl + "/api/manga/" + bookmark.getMangaId();
+            ResponseEntity<Map> response = restTemplate.getForEntity(mangaUrl, Map.class);
+            
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                Map<String, Object> manga = response.getBody();
+                dto.setMangaTitle((String) manga.get("title"));
+                dto.setMangaCoverUrl((String) manga.get("coverImageUrl"));
+                
+                // Get total chapters from manga
+                Object totalChaptersObj = manga.get("totalChapters");
+                if (totalChaptersObj instanceof Integer) {
+                    dto.setTotalChapters((Integer) totalChaptersObj);
+                }
+            }
+            
+            // Get reading progress
+            try {
+                var user = userRepository.findById(bookmark.getUserId());
+                if (user.isPresent()) {
+                    var latestProgress = readingProgressService.getLatestProgressForManga(
+                        user.get().getUsername(), bookmark.getMangaId()
+                    );
+                    if (latestProgress.isPresent()) {
+                        var progress = latestProgress.get();
+                        if (progress.getChapterNumber() != null) {
+                            // Извлекаем номер главы из формата XYYY (последние 3 цифры)
+                            int chapterNumber = extractChapterNumber(progress.getChapterNumber().intValue());
+                            dto.setCurrentChapter(chapterNumber);
+                        }
+                        dto.setCurrentPage(progress.getPageNumber());
+                        dto.setIsCompleted(progress.getIsCompleted());
+                    }
+                }
+            } catch (Exception progressException) {
+                log.debug("Failed to fetch reading progress for bookmark {}: {}", 
+                    bookmark.getId(), progressException.getMessage());
+            }
+            
+        } catch (Exception e) {
+            log.warn("Failed to fetch manga info for bookmark {}: {}", bookmark.getId(), e.getMessage());
+        }
+        
+        return dto;
+    }
+    
+    /**
+     * Извлекает номер главы из формата XYYY, где X - том, YYY - глава
+     * @param fullChapterNumber полный номер главы в формате XYYY
+     * @return номер главы (последние 3 цифры)
+     */
+    private int extractChapterNumber(int fullChapterNumber) {
+        if (fullChapterNumber >= 1000) {
+            // Для чисел >= 1000 берем последние 3 цифры
+            return fullChapterNumber % 1000;
+        } else {
+            // Для чисел < 1000 возвращаем как есть
+            return fullChapterNumber;
+        }
     }
 }

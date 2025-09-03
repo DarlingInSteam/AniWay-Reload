@@ -6,6 +6,7 @@ import { ReaderPage } from './pages/ReaderPage'
 import { AdminMangaPage } from './pages/AdminMangaPage'
 import { AuthPage } from './pages/AuthPage'
 import { ProfilePage } from './pages/ProfilePage'
+import PublicProfilePage from './pages/PublicProfilePage'
 import { LibraryPage } from './pages/LibraryPage'
 import { AuthProvider, ProtectedRoute } from './contexts/AuthContext'
 import { Toaster } from 'sonner'
@@ -30,6 +31,7 @@ function App() {
               <ProfilePage />
             </ProtectedRoute>
           } />
+          <Route path="/profile/:userId" element={<PublicProfilePage />} />
           <Route path="/library" element={
             <ProtectedRoute>
               <LibraryPage />

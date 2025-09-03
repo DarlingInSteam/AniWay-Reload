@@ -2,15 +2,21 @@ package shadowshift.studio.authservice.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import shadowshift.studio.authservice.dto.UserDTO;
+import shadowshift.studio.authservice.entity.Role;
 import shadowshift.studio.authservice.entity.User;
 import shadowshift.studio.authservice.repository.ReadingProgressRepository;
 import shadowshift.studio.authservice.repository.UserRepository;
 
+import jakarta.persistence.criteria.Predicate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -47,6 +53,48 @@ public class UserService implements UserDetailsService {
         return users.stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
+    }
+    
+    // Новый метод для расширенного поиска с пагинацией
+    public Page<User> searchUsers(String query, String role, Pageable pageable) {
+        return userRepository.findAll(buildSearchSpecification(query, role), pageable);
+    }
+    
+    public User findById(Long id) {
+        return userRepository.findById(id).orElse(null);
+    }
+    
+    public User findByUsername(String username) {
+        return userRepository.findByUsername(username).orElse(null);
+    }
+    
+    private Specification<User> buildSearchSpecification(String query, String role) {
+        return (root, criteriaQuery, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            
+            // Поиск по имени пользователя
+            if (query != null && !query.trim().isEmpty()) {
+                String likePattern = "%" + query.toLowerCase() + "%";
+                predicates.add(
+                    criteriaBuilder.like(
+                        criteriaBuilder.lower(root.get("username")), 
+                        likePattern
+                    )
+                );
+            }
+            
+            // Фильтр по роли
+            if (role != null && !role.trim().isEmpty()) {
+                try {
+                    Role roleEnum = Role.valueOf(role.toUpperCase());
+                    predicates.add(criteriaBuilder.equal(root.get("role"), roleEnum));
+                } catch (IllegalArgumentException e) {
+                    // Игнорируем невалидные роли
+                }
+            }
+            
+            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+        };
     }
     
     public List<UserDTO> getTopReaders() {

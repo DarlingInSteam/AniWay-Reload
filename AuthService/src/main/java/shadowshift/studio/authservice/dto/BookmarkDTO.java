@@ -24,4 +24,10 @@ public class BookmarkDTO {
     // Manga info for display
     private String mangaTitle;
     private String mangaCoverUrl;
+    
+    // Reading progress info
+    private Integer currentChapter;
+    private Integer totalChapters;
+    private Integer currentPage;
+    private Boolean isCompleted;
 }

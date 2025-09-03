@@ -264,6 +264,7 @@ services:
       - SPRING_DATASOURCE_PASSWORD=auth_password
       - JWT_SECRET=mySecretKey12345678901234567890123456789012345678901234567890
       - JWT_EXPIRATION=86400000
+      - MANGA_SERVICE_URL=http://manga-service:8081
     ports:
       - "8085:8085"
     depends_on:
