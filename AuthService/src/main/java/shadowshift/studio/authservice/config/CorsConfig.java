@@ -15,17 +15,22 @@ public class CorsConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         
-        // Разрешаем все локальные адреса для разработки
+        // Разрешаем все адреса для продакшена  
         configuration.setAllowedOriginPatterns(Arrays.asList(
             "http://localhost:*",
             "http://192.168.*.*:*",
-            "http://10.*.*.*:*",
-            "http://172.16.*.*:*"
+            "http://10.*.*.*:*", 
+            "http://172.16.*.*:*",
+            "http://*.*.*.*",         // Любые HTTP IP адреса
+            "https://*.*.*.*",        // Любые HTTPS IP адреса
+            "http://*.yandexcloud.net", 
+            "https://*.yandexcloud.net"
         ));
         
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L);
         
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
