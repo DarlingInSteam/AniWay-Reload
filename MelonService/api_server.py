@@ -99,20 +99,19 @@ def ensure_utf8_patch():
             logger.info("UTF-8 patch applied successfully")
 
 def ensure_directories():
-    """Создает необходимые директории для работы приложения только если они не существуют"""
+    """Создает необходимые поддиректории внутри уже смонтированных volumes"""
     base_path = get_melon_base_path()
     
-    # Создаем основные директории
-    directories = [
-        base_path / "Output",
+    # Создаем только поддиректории внутри уже смонтированных volumes
+    # Output, Logs, Temp будут созданы Docker как mount points
+    subdirectories = [
+        base_path / "Output" / "mangalib",
         base_path / "Output" / "mangalib" / "titles",
         base_path / "Output" / "mangalib" / "archives", 
-        base_path / "Output" / "mangalib" / "images",
-        base_path / "Logs",
-        base_path / "Temp"
+        base_path / "Output" / "mangalib" / "images"
     ]
     
-    for directory in directories:
+    for directory in subdirectories:
         try:
             if directory.exists():
                 logger.info(f"Directory already exists: {directory}")
@@ -121,6 +120,19 @@ def ensure_directories():
                 logger.info(f"Directory created: {directory}")
         except Exception as e:
             logger.error(f"Failed to create directory {directory}: {e}")
+    
+    # Проверяем, что основные volume директории доступны
+    main_volumes = [
+        base_path / "Output",
+        base_path / "Logs", 
+        base_path / "Temp"
+    ]
+    
+    for volume_dir in main_volumes:
+        if volume_dir.exists() and volume_dir.is_dir():
+            logger.info(f"Volume directory is accessible: {volume_dir}")
+        else:
+            logger.warning(f"Volume directory not accessible: {volume_dir}")
 
 # Инициализация при старте приложения
 @app.on_event("startup")

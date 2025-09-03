@@ -25,9 +25,6 @@ RUN if [ -f "dublib/Methods/Filesystem.py" ]; then \
     echo "UTF-8 patch applied"; \
 fi
 
-# Создаем необходимые директории (НЕ создаем Logs, Temp, Output - они будут volumes)
-RUN mkdir -p /tmp/init
-
 # Открываем порт для API
 EXPOSE 8084
 
