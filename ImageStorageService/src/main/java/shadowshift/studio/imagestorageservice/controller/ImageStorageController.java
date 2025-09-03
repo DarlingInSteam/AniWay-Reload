@@ -48,11 +48,19 @@ public class ImageStorageController {
             @PathVariable Integer pageNumber,
             @RequestParam("file") MultipartFile file) {
         try {
+            System.out.println("Uploading image for chapter: " + chapterId + ", page: " + pageNumber);
+            System.out.println("File size: " + file.getSize() + " bytes");
+            System.out.println("File type: " + file.getContentType());
+            
             ChapterImageResponseDTO uploadedImage = imageStorageService.uploadImage(chapterId, pageNumber, file);
             return ResponseEntity.status(HttpStatus.CREATED).body(uploadedImage);
         } catch (RuntimeException e) {
+            System.err.println("Runtime error uploading image: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         } catch (Exception e) {
+            System.err.println("Exception uploading image: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.internalServerError().body("Upload failed: " + e.getMessage());
         }
     }

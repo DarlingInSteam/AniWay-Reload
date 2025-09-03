@@ -172,23 +172,26 @@ public class ImageStorageService {
         // Генерируем уникальный ключ для объекта в MinIO
         String objectKey = generateObjectKey(chapterId, pageNumber, file.getOriginalFilename());
 
-        // Загружаем файл в MinIO
-        minioClient.putObject(
-                PutObjectArgs.builder()
-                        .bucket(bucketName)
-                        .object(objectKey)
-                        .stream(file.getInputStream(), file.getSize(), -1)
-                        .contentType(file.getContentType())
-                        .build()
-        );
-
-        // Получаем размеры изображения
+        // Сначала получаем размеры изображения
         BufferedImage bufferedImage = ImageIO.read(file.getInputStream());
         Integer width = null;
         Integer height = null;
         if (bufferedImage != null) {
             width = bufferedImage.getWidth();
             height = bufferedImage.getHeight();
+        }
+
+        // Создаем новый поток для загрузки в MinIO
+        try (InputStream inputStream = file.getInputStream()) {
+            // Загружаем файл в MinIO
+            minioClient.putObject(
+                    PutObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(objectKey)
+                            .stream(inputStream, file.getSize(), -1)
+                            .contentType(file.getContentType())
+                            .build()
+            );
         }
 
         // Создаем запись в базе данных

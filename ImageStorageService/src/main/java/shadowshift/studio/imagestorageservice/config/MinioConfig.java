@@ -22,6 +22,7 @@ public class MinioConfig {
         return MinioClient.builder()
                 .endpoint(endpoint)
                 .credentials(accessKey, secretKey)
+                .region("ru-central1")  // Регион Yandex Cloud
                 .build();
     }
 }
