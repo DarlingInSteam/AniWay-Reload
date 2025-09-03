@@ -18,10 +18,17 @@ spring:
         cors-configurations:
           '[/**]':
             allowed-origin-patterns: 
-              - "http://localhost:*"  # Все localhost порты
-              - "http://192.168.*.*:*" # Вся локальная сеть 192.168.x.x
-              - "http://10.*.*.*:*"    # Вся локальная сеть 10.x.x.x
-              - "http://172.16.*.*:*"  # Частная сеть 172.16.x.x
+              - "http://localhost:*"     # Все localhost порты
+              - "http://127.0.0.1:*"     # Все 127.0.0.1 порты
+              - "http://192.168.*.*:*"   # Локальная сеть 192.168.x.x
+              - "http://10.*.*.*:*"      # Локальная сеть 10.x.x.x
+              - "http://172.16.*.*:*"    # Частная сеть 172.16.x.x
+              - "http://172.17.*.*:*"    # Docker сеть 172.17.x.x
+              - "http://172.18.*.*:*"    # Docker сеть 172.18.x.x
+              - "http://*.*.*.*"         # Любые HTTP IP адреса
+              - "https://*.*.*.*"        # Любые HTTPS IP адреса  
+              - "http://*.yandexcloud.net" # Yandex Cloud
+              - "https://*.yandexcloud.net" # Yandex Cloud HTTPS
             allowed-methods:
               - GET
               - POST
@@ -29,6 +36,7 @@ spring:
               - DELETE
               - OPTIONS
               - HEAD
+              - PATCH
             allowed-headers:
               - "*"
             allow-credentials: true
