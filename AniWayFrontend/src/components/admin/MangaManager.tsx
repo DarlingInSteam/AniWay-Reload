@@ -65,7 +65,7 @@ export function MangaManager() {
     queryFn: async () => {
       if (searchQuery.trim()) {
         return apiClient.searchManga({
-          title: searchQuery,
+          query: searchQuery,
           status: statusFilter !== 'all' ? statusFilter : undefined
         })
       }
@@ -181,7 +181,7 @@ export function MangaManager() {
 
             <div className="space-y-2">
               <Label htmlFor="status-filter">Статус</Label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | 'ONGOING' | 'COMPLETED' | 'HIATUS' | 'CANCELLED')}>
                 <SelectTrigger>
                   <SelectValue placeholder="Выберите статус" />
                 </SelectTrigger>

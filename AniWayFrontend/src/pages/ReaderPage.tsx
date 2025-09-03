@@ -263,7 +263,7 @@ export function ReaderPage() {
     }
 
     // Throttle scroll events
-    let scrollTimeout: number
+    let scrollTimeout: ReturnType<typeof setTimeout>
     const throttledScroll = () => {
       clearTimeout(scrollTimeout)
       scrollTimeout = setTimeout(handleScroll, 500) // Check every 0.5 seconds max

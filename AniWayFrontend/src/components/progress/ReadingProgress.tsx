@@ -120,10 +120,10 @@ export const LastReadChapter: React.FC<LastReadChapterProps> = ({ mangaId, class
     return null
   }
 
-  const isCompleted = lastRead.page >= lastRead.totalPages
+  const isCompleted = lastRead.isCompleted
   const progressText = isCompleted 
     ? 'Прочитана' 
-    : `Стр. ${lastRead.page}/${lastRead.totalPages}`
+    : `Стр. ${lastRead.pageNumber}/${lastRead.chapter?.pageCount || 0}`
 
   return (
     <div className={`${className}`}>
@@ -133,12 +133,12 @@ export const LastReadChapter: React.FC<LastReadChapterProps> = ({ mangaId, class
             Последняя глава: {lastRead.chapter?.chapterNumber || `Глава ${lastRead.chapterId}`}
           </p>
           <p className="text-xs text-muted-foreground">
-            {progressText} • {new Date(lastRead.lastReadAt).toLocaleDateString()}
+            {progressText} • {new Date(lastRead.updatedAt).toLocaleDateString()}
           </p>
         </div>
         
         <a
-          href={`/manga/${mangaId}/chapter/${lastRead.chapterId}${!isCompleted ? `?page=${lastRead.page}` : ''}`}
+          href={`/manga/${mangaId}/chapter/${lastRead.chapterId}${!isCompleted ? `?page=${lastRead.pageNumber}` : ''}`}
           className="px-3 py-1 bg-primary text-white text-sm rounded-md hover:bg-primary/80 transition-colors"
         >
           {isCompleted ? 'Перечитать' : 'Продолжить'}
@@ -183,15 +183,15 @@ export const RecentlyRead: React.FC<RecentlyReadProps> = ({ limit = 5, className
               </p>
               <p className="text-sm text-muted-foreground">
                 Глава {progress.chapter?.chapterNumber || progress.chapterId} • 
-                Стр. {progress.page}/{progress.totalPages}
+                Стр. {progress.pageNumber}/{progress.chapter?.pageCount || 0}
               </p>
               <p className="text-xs text-muted-foreground">
-                {new Date(progress.lastReadAt).toLocaleDateString()}
+                {new Date(progress.updatedAt).toLocaleDateString()}
               </p>
             </div>
             
             <a
-              href={`/manga/${progress.mangaId}/chapter/${progress.chapterId}?page=${progress.page}`}
+              href={`/manga/${progress.mangaId}/chapter/${progress.chapterId}?page=${progress.pageNumber}`}
               className="px-3 py-1 bg-primary text-white text-sm rounded-md hover:bg-primary/80 transition-colors"
             >
               Продолжить
