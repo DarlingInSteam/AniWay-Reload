@@ -127,15 +127,12 @@ services:
     ports:
       - "8084:8084"
     volumes:
-      # Монтируем исходный код (без read-only для volume compatibility)
-      - ./MelonService:/app/src
-      # Volume директории в другом месте
-      - melon_data:/data/Output
-      - melon_logs:/data/Logs
-      - melon_temp:/data/Temp
+      - ./MelonService:/app
+      - melon_data:/app/Output
+      - melon_logs:/app/Logs
+      - melon_temp:/app/Temp
     environment:
-      - PYTHONPATH=/app/src
-      - MELON_BASE_PATH=/data
+      - PYTHONPATH=/app
     networks:
       - aniway-network
     restart: unless-stopped
