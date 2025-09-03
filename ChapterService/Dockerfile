@@ -12,8 +12,8 @@ COPY build.gradle.kts settings.gradle.kts ./
 # Копируем исходный код
 COPY src ./src
 
-# Собираем проект
-RUN ./gradlew build -x test --no-daemon
+# Даем права на выполнение gradlew и собираем проект
+RUN chmod +x ./gradlew && ./gradlew build -x test --no-daemon
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
