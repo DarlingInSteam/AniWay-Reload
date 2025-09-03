@@ -132,6 +132,22 @@ class CommentService {
   }
 
   /**
+   * Получение количества комментариев для цели
+   */
+  async getCommentsCount(
+    targetId: number,
+    type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW'
+  ): Promise<number> {
+    const params = new URLSearchParams({
+      targetId: targetId.toString(),
+      type
+    })
+
+    const result = await this.request<{ count: number }>(`/count?${params}`)
+    return result.count || 0
+  }
+
+  /**
    * Получение статистики реакций
    */
   async getReactionStats(commentId: number): Promise<CommentReactionDTO> {

@@ -186,6 +186,15 @@ public class CommentService {
     }
 
     /**
+     * Получение количества комментариев для определенного объекта
+     */
+    public long getCommentsCount(Long targetId, CommentType type) {
+        log.info("Getting comments count for target {} with type {}", targetId, type);
+        
+        return commentRepository.countByTargetIdAndCommentTypeAndIsDeleted(targetId, type, false);
+    }
+
+    /**
      * Добавление реакции на комментарий
      */
     @Transactional

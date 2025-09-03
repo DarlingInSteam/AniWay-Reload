@@ -14,6 +14,7 @@ export interface ReviewData {
   comment: string;
   likesCount: number;
   dislikesCount: number;
+  commentsCount: number;
   trustFactor: number;
   trustFactorColor: string;
   createdAt: string;
@@ -209,6 +210,11 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
           >
             <MessageCircle className="w-4 h-4" />
             <span>Комментарии</span>
+            {review.commentsCount > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded-full text-xs font-semibold">
+                {review.commentsCount}
+              </span>
+            )}
           </button>
         </div>
 

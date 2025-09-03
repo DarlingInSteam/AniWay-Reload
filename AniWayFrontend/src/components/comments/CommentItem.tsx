@@ -49,26 +49,12 @@ export function CommentItem({
 }: CommentItemProps) {
   const { user, isAuthenticated } = useAuth()
   const [showReplyForm, setShowReplyForm] = useState(false)
-  const [showReplies, setShowReplies] = useState(true)
-  const [showAllReplies, setShowAllReplies] = useState(false)
+  const [showReplies, setShowReplies] = useState(level <= 1) // Сворачиваем ответы после 1 уровня по умолчанию
   const [isEditing, setIsEditing] = useState(false)
 
   const isOwner = user?.id === comment.userId
   const canEdit = isOwner && !comment.isDeleted
   const hasReplies = comment.replies && comment.replies.length > 0
-  
-  // Определяем пороговый уровень для сворачивания
-  const COLLAPSE_LEVEL = 3
-  const shouldCollapseDeep = level >= COLLAPSE_LEVEL && !showAllReplies
-  
-  // Показываем только первые несколько ответов на глубоких уровнях
-  const visibleReplies = shouldCollapseDeep && hasReplies 
-    ? comment.replies?.slice(0, 2) 
-    : comment.replies
-  
-  const hiddenRepliesCount = shouldCollapseDeep && hasReplies 
-    ? Math.max(0, (comment.replies?.length || 0) - 2)
-    : 0
 
   const formatDate = (dateString: string) => {
     return formatDistanceToNow(dateString, { 
@@ -99,10 +85,10 @@ export function CommentItem({
   if (comment.isDeleted) {
     return (
       <div className={cn(
-        "p-4 rounded-lg bg-gray-800/30 border border-gray-700/50",
+        "p-4 rounded-3xl bg-white/5 backdrop-blur-sm border border-white/10",
         level > 0 && "ml-6"
       )}>
-        <p className="text-gray-500 italic">Комментарий удален</p>
+        <p className="text-gray-400 italic">Комментарий удален</p>
         {hasReplies && (
           <div className="mt-4 space-y-3">
             {comment.replies?.map((reply) => (
@@ -127,7 +113,7 @@ export function CommentItem({
 
   return (
     <div className={cn(
-      "p-4 rounded-lg bg-gray-800/50 border border-gray-700/30",
+      "p-4 rounded-3xl bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/10 transition-colors group",
       level > 0 && "ml-6"
     )}>
       {/* Заголовок комментария */}
@@ -140,11 +126,11 @@ export function CommentItem({
             </AvatarFallback>
           </Avatar>
           <div>
-            <span className="font-medium text-white">{comment.username}</span>
-            <div className="flex items-center space-x-2 text-sm text-gray-400">
+            <span className="font-medium text-white group-hover:text-primary transition-colors">{comment.username}</span>
+            <div className="flex items-center space-x-2 text-sm text-gray-400 group-hover:text-primary/80 transition-colors">
               <span>{formatDate(comment.createdAt)}</span>
               {comment.isEdited && (
-                <span className="text-xs bg-gray-700 px-2 py-0.5 rounded">
+                <span className="text-xs bg-gray-700 px-2 py-0.5 rounded group-hover:bg-primary/20 group-hover:text-primary transition-colors">
                   отредактировано
                 </span>
               )}
@@ -188,7 +174,7 @@ export function CommentItem({
         />
       ) : (
         <div className="mb-3">
-          <p className="text-gray-200 whitespace-pre-wrap leading-relaxed">
+          <p className="text-white whitespace-pre-wrap leading-relaxed group-hover:text-primary/90 transition-colors">
             {comment.content}
           </p>
         </div>
@@ -233,7 +219,7 @@ export function CommentItem({
             variant="ghost"
             size="sm"
             onClick={() => setShowReplyForm(!showReplyForm)}
-            className="h-8 px-2 text-gray-400 hover:text-blue-400"
+            className="h-8 px-2 text-gray-400 hover:text-primary transition-colors"
           >
             <MessageCircle className="h-4 w-4 mr-1" />
             Ответить
@@ -246,7 +232,7 @@ export function CommentItem({
             variant="ghost"
             size="sm"
             onClick={() => setShowReplies(!showReplies)}
-            className="h-8 px-2 text-gray-400 hover:text-white"
+            className="h-8 px-2 text-gray-400 hover:text-primary transition-colors"
           >
             {showReplies ? (
               <ChevronUp className="h-4 w-4 mr-1" />
@@ -275,7 +261,7 @@ export function CommentItem({
       {/* Ответы */}
       {hasReplies && showReplies && (
         <div className="mt-4 space-y-3">
-          {visibleReplies?.map((reply) => (
+          {comment.replies?.map((reply) => (
             <CommentItem
               key={reply.id}
               comment={reply}
@@ -289,18 +275,6 @@ export function CommentItem({
               maxLevel={maxLevel}
             />
           ))}
-          
-          {/* Кнопка "Показать все ответы" для глубокой вложенности */}
-          {hiddenRepliesCount > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowAllReplies(true)}
-              className="h-8 px-2 text-blue-400 hover:text-blue-300"
-            >
-              Показать все {hiddenRepliesCount} ответ{hiddenRepliesCount > 1 ? 'а' : ''}
-            </Button>
-          )}
         </div>
       )}
     </div>

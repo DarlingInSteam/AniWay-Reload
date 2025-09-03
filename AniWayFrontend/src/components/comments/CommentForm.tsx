@@ -55,7 +55,7 @@ export function CommentForm({
           onChange={(e) => setContent(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          className="min-h-[80px] resize-none bg-gray-800/50 border-gray-600 text-white placeholder:text-gray-400 focus:border-primary"
+          className="min-h-[80px] resize-none bg-white/10 backdrop-blur-sm border-white/20 text-white placeholder:text-gray-400 focus:border-primary rounded-2xl"
           maxLength={maxLength}
         />
         <div className="absolute bottom-2 right-2 text-xs text-gray-500">

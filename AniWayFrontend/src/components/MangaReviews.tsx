@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { authService } from '../services/authService';
+import { commentService } from '../services/commentService';
 import RatingStars from './RatingStars';
 import ReviewCard, { ReviewData } from './ReviewCard';
 import ReviewForm from './ReviewForm';
@@ -51,7 +52,21 @@ export const MangaReviews: React.FC<MangaReviewsProps> = ({
       });
       if (response.ok) {
         const data = await response.json();
-        setReviews(data);
+        
+        // Загружаем количество комментариев для каждого отзыва
+        const reviewsWithComments = await Promise.all(
+          data.map(async (review: ReviewData) => {
+            try {
+              const commentsCount = await commentService.getCommentsCount(review.id, 'REVIEW');
+              return { ...review, commentsCount };
+            } catch (error) {
+              console.error(`Failed to load comments count for review ${review.id}:`, error);
+              return { ...review, commentsCount: 0 };
+            }
+          })
+        );
+        
+        setReviews(reviewsWithComments);
       }
     } catch (error) {
       console.error('Failed to load reviews:', error);
@@ -82,7 +97,15 @@ export const MangaReviews: React.FC<MangaReviewsProps> = ({
       });
       if (response.ok) {
         const data = await response.json();
-        setUserReview(data);
+        
+        // Загружаем количество комментариев для пользовательского отзыва
+        try {
+          const commentsCount = await commentService.getCommentsCount(data.id, 'REVIEW');
+          setUserReview({ ...data, commentsCount });
+        } catch (error) {
+          console.error(`Failed to load comments count for user review ${data.id}:`, error);
+          setUserReview({ ...data, commentsCount: 0 });
+        }
       }
     } catch (error) {
       console.error('Failed to load user review:', error);
@@ -104,7 +127,7 @@ export const MangaReviews: React.FC<MangaReviewsProps> = ({
 
       if (response.ok) {
         const newReview = await response.json();
-        setUserReview(newReview);
+        setUserReview({ ...newReview, commentsCount: 0 });
         setShowForm(false);
         await loadReviews();
         await loadRatingData();
@@ -137,7 +160,9 @@ export const MangaReviews: React.FC<MangaReviewsProps> = ({
 
       if (response.ok) {
         const updatedReview = await response.json();
-        setUserReview(updatedReview);
+        // Сохраняем текущее количество комментариев
+        const currentCommentsCount = editingReview.commentsCount || 0;
+        setUserReview({ ...updatedReview, commentsCount: currentCommentsCount });
         setEditingReview(null);
         await loadReviews();
         await loadRatingData();

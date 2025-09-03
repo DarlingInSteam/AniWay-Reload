@@ -118,4 +118,9 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
         @Param("isDeleted") boolean isDeleted, 
         Pageable pageable
     );
+    
+    /**
+     * Подсчет всех комментариев для объекта определенного типа (включая ответы)
+     */
+    long countByTargetIdAndCommentTypeAndIsDeleted(Long targetId, CommentType commentType, boolean isDeleted);
 }

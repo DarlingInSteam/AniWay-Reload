@@ -179,6 +179,27 @@ public class CommentController {
     }
 
     /**
+     * Получение количества комментариев для определенного объекта
+     */
+    @GetMapping("/count")
+    public ResponseEntity<CommentCountResponseDTO> getCommentsCount(
+            @RequestParam Long targetId,
+            @RequestParam CommentType type) {
+        try {
+            log.info("Getting comments count for target {} with type {}", targetId, type);
+            
+            long count = commentService.getCommentsCount(targetId, type);
+            CommentCountResponseDTO response = CommentCountResponseDTO.builder()
+                    .count(count)
+                    .build();
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error getting comments count for target {} with type {}", targetId, type, e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+    }
+
+    /**
      * Получение ID текущего пользователя из контекста безопасности
      */
     private Long getCurrentUserId() {

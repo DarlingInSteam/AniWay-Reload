@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { MessageCircle, Filter, SortAsc, SortDesc } from 'lucide-react'
 import { useComments } from '@/hooks/useComments'
 import { useAuth } from '@/contexts/AuthContext'
+import { commentService } from '@/services/commentService'
 import { CommentItem } from './CommentItem'
 import { CommentForm } from './CommentForm'
 import { Button } from '@/components/ui/button'
@@ -24,6 +25,7 @@ export function CommentSection({
   const { isAuthenticated } = useAuth()
   const [sortBy, setSortBy] = useState<'createdAt' | 'likesCount'>('createdAt')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [totalCommentsCount, setTotalCommentsCount] = useState<number>(0)
 
   const {
     comments,
@@ -34,6 +36,36 @@ export function CommentSection({
     addReaction,
     isCreating
   } = useComments(targetId, type)
+
+  // Загружаем общее количество комментариев
+  useEffect(() => {
+    const loadCommentsCount = async () => {
+      try {
+        const count = await commentService.getCommentsCount(targetId, type)
+        setTotalCommentsCount(count)
+      } catch (error) {
+        console.error('Failed to load comments count:', error)
+      }
+    }
+
+    loadCommentsCount()
+  }, [targetId, type])
+
+  // Обновляем счётчик при изменении комментариев
+  useEffect(() => {
+    const loadCommentsCount = async () => {
+      try {
+        const count = await commentService.getCommentsCount(targetId, type)
+        setTotalCommentsCount(count)
+      } catch (error) {
+        console.error('Failed to load comments count:', error)
+      }
+    }
+
+    if (comments.length > 0) {
+      loadCommentsCount()
+    }
+  }, [comments, targetId, type])
 
   const handleCreateComment = (content: string) => {
     createComment({
@@ -78,7 +110,7 @@ export function CommentSection({
           <MessageCircle className="h-6 w-6 text-primary" />
           <h2 className="text-xl font-semibold text-white">{title}</h2>
           <span className="text-sm text-gray-400">
-            ({comments.length})
+            ({totalCommentsCount})
           </span>
         </div>
 
@@ -111,7 +143,7 @@ export function CommentSection({
 
       {/* Форма создания комментария */}
       {isAuthenticated ? (
-        <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/50">
+        <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 border border-white/10">
           <CommentForm
             onSubmit={handleCreateComment}
             placeholder="Поделитесь своими мыслями..."
@@ -119,7 +151,7 @@ export function CommentSection({
           />
         </div>
       ) : (
-        <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/50 text-center">
+        <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 border border-white/10 text-center">
           <p className="text-gray-400 mb-2">
             Войдите в аккаунт, чтобы оставлять комментарии
           </p>
