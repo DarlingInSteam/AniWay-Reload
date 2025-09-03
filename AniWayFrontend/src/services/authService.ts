@@ -2,7 +2,7 @@ import { AuthResponse, LoginRequest, RegisterRequest, User } from '../types'
 
 class AuthService {
   private baseUrl = '/api'
-  private tokenKey = 'auth-token'
+  private tokenKey = 'authToken'
 
   // Получить токен из localStorage
   getToken(): string | null {

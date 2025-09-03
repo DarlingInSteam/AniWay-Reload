@@ -9,7 +9,7 @@ class CommentService {
   private readonly API_BASE = '/api/comments'
 
   private getAuthHeaders(): Record<string, string> {
-    const token = localStorage.getItem('auth-token')
+    const token = localStorage.getItem('authToken')
     return {
       'Content-Type': 'application/json',
       ...(token && { 'Authorization': `Bearer ${token}` })

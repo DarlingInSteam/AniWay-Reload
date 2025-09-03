@@ -29,12 +29,11 @@ spring:
     date-format: yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'
     serialization:
       write-dates-as-timestamps: false
-  
-  # Security configuration
-  security:
-    jwt:
-      secret: mySecretKey12345678901234567890123456789012345678901234567890
-      expiration: 86400000
+
+# Security configuration
+jwt:
+  secret: ${JWT_SECRET:mySecretKey12345678901234567890123456789012345678901234567890}
+  expiration: 86400000
 
 # Services URLs
 services:

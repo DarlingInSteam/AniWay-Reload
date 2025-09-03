@@ -17,10 +17,10 @@ import java.util.Date;
 @Slf4j
 public class JwtTokenProvider {
 
-    @Value("${spring.security.jwt.secret}")
+    @Value("${jwt.secret}")
     private String jwtSecret;
 
-    @Value("${spring.security.jwt.expiration}")
+    @Value("${jwt.expiration}")
     private int jwtExpiration;
 
     private SecretKey getSigningKey() {
