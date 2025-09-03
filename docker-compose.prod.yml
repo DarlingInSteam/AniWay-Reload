@@ -111,6 +111,11 @@ services:
       - YC_ACCESS_KEY=${YC_ACCESS_KEY}
       - YC_SECRET_KEY=${YC_SECRET_KEY}
       - YC_BUCKET_NAME=${YC_BUCKET_NAME:-manga-images-bucket}
+      - minio.endpoint=https://storage.yandexcloud.net
+      - minio.public.endpoint=https://storage.yandexcloud.net
+      - minio.access-key=${YC_ACCESS_KEY}
+      - minio.secret-key=${YC_SECRET_KEY}
+      - minio.bucket-name=${YC_BUCKET_NAME:-manga-images-bucket}
     restart: unless-stopped
     depends_on:
       - image-postgres
