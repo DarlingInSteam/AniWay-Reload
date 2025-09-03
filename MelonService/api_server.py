@@ -80,9 +80,7 @@ build_states: Dict[str, Dict[str, Any]] = {}  # task_id -> {"slug": str, "is_rea
 
 # Вспомогательные функции
 def get_melon_base_path() -> Path:
-    # В dev режиме volumes монтируются в /data, в prod - в /app
-    base_path = os.getenv('MELON_BASE_PATH', '/app')
-    return Path(base_path)
+    return Path("/app")
 
 def ensure_utf8_patch():
     """Применяет критический патч для UTF-8 кодировки"""
@@ -99,51 +97,6 @@ def ensure_utf8_patch():
             )
             dublib_path.write_text(content, encoding='utf-8')
             logger.info("UTF-8 patch applied successfully")
-
-def ensure_directories():
-    """Создает необходимые поддиректории внутри уже смонтированных volumes"""
-    base_path = get_melon_base_path()
-    
-    # Создаем только поддиректории внутри уже смонтированных volumes
-    # Output, Logs, Temp будут созданы Docker как mount points
-    subdirectories = [
-        base_path / "Output" / "mangalib",
-        base_path / "Output" / "mangalib" / "titles",
-        base_path / "Output" / "mangalib" / "archives", 
-        base_path / "Output" / "mangalib" / "images"
-    ]
-    
-    for directory in subdirectories:
-        try:
-            if directory.exists():
-                logger.info(f"Directory already exists: {directory}")
-            else:
-                directory.mkdir(parents=True, exist_ok=True)
-                logger.info(f"Directory created: {directory}")
-        except Exception as e:
-            logger.error(f"Failed to create directory {directory}: {e}")
-    
-    # Проверяем, что основные volume директории доступны
-    main_volumes = [
-        base_path / "Output",
-        base_path / "Logs", 
-        base_path / "Temp"
-    ]
-    
-    for volume_dir in main_volumes:
-        if volume_dir.exists() and volume_dir.is_dir():
-            logger.info(f"Volume directory is accessible: {volume_dir}")
-        else:
-            logger.warning(f"Volume directory not accessible: {volume_dir}")
-
-# Инициализация при старте приложения
-@app.on_event("startup")
-async def startup_event():
-    """Инициализация при старте приложения"""
-    logger.info("Starting MelonService API...")
-    ensure_directories()
-    ensure_utf8_patch()
-    logger.info("MelonService API startup completed")
 
 def ensure_cross_device_patch():
     """Исправляет ошибку 'Invalid cross-device link' в MangaBuilder"""
