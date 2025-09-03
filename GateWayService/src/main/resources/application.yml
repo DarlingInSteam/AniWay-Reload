@@ -107,6 +107,15 @@ spring:
             - StripPrefix=1
           order: 6
 
+        # MangaService - Parser Web UI (веб-интерфейс парсера)
+        - id: manga-parser-web
+          uri: http://manga-service:8081
+          predicates:
+            - Path=/parser/**
+          filters:
+            - StripPrefix=0
+          order: 7
+
         # MangaService - API endpoints
         - id: manga-api
           uri: http://manga-service:8081
