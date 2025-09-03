@@ -98,6 +98,39 @@ def ensure_utf8_patch():
             dublib_path.write_text(content, encoding='utf-8')
             logger.info("UTF-8 patch applied successfully")
 
+def ensure_directories():
+    """Создает необходимые директории для работы приложения только если они не существуют"""
+    base_path = get_melon_base_path()
+    
+    # Создаем основные директории
+    directories = [
+        base_path / "Output",
+        base_path / "Output" / "mangalib" / "titles",
+        base_path / "Output" / "mangalib" / "archives", 
+        base_path / "Output" / "mangalib" / "images",
+        base_path / "Logs",
+        base_path / "Temp"
+    ]
+    
+    for directory in directories:
+        try:
+            if directory.exists():
+                logger.info(f"Directory already exists: {directory}")
+            else:
+                directory.mkdir(parents=True, exist_ok=True)
+                logger.info(f"Directory created: {directory}")
+        except Exception as e:
+            logger.error(f"Failed to create directory {directory}: {e}")
+
+# Инициализация при старте приложения
+@app.on_event("startup")
+async def startup_event():
+    """Инициализация при старте приложения"""
+    logger.info("Starting MelonService API...")
+    ensure_directories()
+    ensure_utf8_patch()
+    logger.info("MelonService API startup completed")
+
 def ensure_cross_device_patch():
     """Исправляет ошибку 'Invalid cross-device link' в MangaBuilder"""
     builder_path = get_melon_base_path() / "Parsers" / "MangaBuilder.py"

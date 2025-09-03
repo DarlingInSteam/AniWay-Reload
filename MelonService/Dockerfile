@@ -31,8 +31,8 @@ RUN if [ -f "Source/Core/Base/Builders/MangaBuilder.py" ]; then \
     echo "Cross-device link patch applied"; \
 fi
 
-# Создаем необходимые директории
-RUN mkdir -p Output/mangalib/titles Output/mangalib/archives Output/mangalib/images Logs Temp
+# Создаем необходимые директории (НЕ создаем Logs, Temp, Output - они будут volumes)
+RUN mkdir -p /tmp/init
 
 # Открываем порт для API
 EXPOSE 8084
