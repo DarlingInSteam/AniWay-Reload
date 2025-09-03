@@ -6,7 +6,7 @@ import {
 } from '@/types/comments'
 
 class CommentService {
-  private readonly API_BASE = 'http://localhost:8080/api/comments'
+  private readonly API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api') + '/comments'
 
   private getAuthHeaders(): Record<string, string> {
     const token = localStorage.getItem('auth-token')
