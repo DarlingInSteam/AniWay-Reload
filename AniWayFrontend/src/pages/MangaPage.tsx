@@ -13,6 +13,7 @@ import { BookmarkControls } from '../components/bookmarks/BookmarkControls'
 import { ReadingProgressBar, LastReadChapter } from '../components/progress/ReadingProgress'
 import { ReadingButton } from '../components/reading/ReadingButton'
 import { useReadingProgress } from '@/hooks/useProgress'
+import MangaReviews from '../components/MangaReviews'
 
 export function MangaPage() {
   const { id } = useParams<{ id: string }>()
@@ -21,8 +22,6 @@ export function MangaPage() {
   const [chapterSort, setChapterSort] = useState<'asc' | 'desc' | 'none'>('asc')
   const [showFullDescription, setShowFullDescription] = useState(false)
   const [showFullStats, setShowFullStats] = useState(false)
-  const [reviewText, setReviewText] = useState('')
-  const [reviewRating, setReviewRating] = useState(5)
   const [commentText, setCommentText] = useState('')
   const [commentFilter, setCommentFilter] = useState<'new' | 'popular'>('new')
   const [isDesktop, setIsDesktop] = useState(false)
@@ -535,51 +534,10 @@ export function MangaPage() {
                 {/* Reviews Tab */}
                 {activeTab === 'reviews' && (
                   <div className="space-y-6">
-                    {/* Write Review */}
-                    <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
-                      <h3 className="text-lg font-bold text-white mb-4">Написать отзыв</h3>
-
-                      {/* Rating Selection */}
-                      <div className="mb-4">
-                        <div className="text-sm text-muted-foreground mb-2">Ваша оценка</div>
-                        <div className="flex gap-1">
-                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((star) => (
-                            <button
-                              key={star}
-                              onClick={() => setReviewRating(star)}
-                              className={cn(
-                                'p-1 transition-colors',
-                                star <= reviewRating ? 'text-accent' : 'text-muted-foreground'
-                              )}
-                            >
-                              <Star className="h-6 w-6 fill-current" />
-                            </button>
-                          ))}
-                          <span className="ml-2 text-white">{reviewRating}/10</span>
-                        </div>
-                      </div>
-
-                      {/* Review Text */}
-                      <textarea
-                        value={reviewText}
-                        onChange={(e) => setReviewText(e.target.value)}
-                        placeholder="Напишите ваш отзыв..."
-                        className="w-full p-3 bg-white/5 backdrop-blur-sm border border-white/20 rounded-lg text-white placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 resize-none mb-4"
-                        rows={5}
-                      />
-
-                      <button className="px-6 py-2 bg-primary/90 backdrop-blur-sm text-white rounded-lg hover:bg-primary transition-colors border border-primary/20">
-                        Отправить отзыв
-                      </button>
-                    </div>
-
-                    {/* Reviews List */}
-                    <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
-                      <h3 className="text-lg font-bold text-white mb-4">Отзывы</h3>
-                      <div className="text-center py-8">
-                        <div className="text-muted-foreground">Раздел в разработке</div>
-                      </div>
-                    </div>
+                    <MangaReviews 
+                      mangaId={mangaId} 
+                      mangaTitle={manga?.title || 'Манга'} 
+                    />
                   </div>
                 )}
 

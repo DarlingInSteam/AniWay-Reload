@@ -75,7 +75,7 @@ public class BookmarkService {
         
         List<Bookmark> bookmarks = bookmarkRepository.findByUserId(user.getId());
         return bookmarks.stream()
-                .map(this::convertToDTO)
+                .map(this::convertToDTOWithMangaInfo)
                 .collect(Collectors.toList());
     }
     

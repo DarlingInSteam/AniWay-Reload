@@ -24,6 +24,10 @@ public class UserDTO {
     private LocalDateTime createdAt;
     private LocalDateTime lastLogin;
     
+    // Alias fields for frontend compatibility
+    private LocalDateTime registrationDate;
+    private LocalDateTime lastLoginDate;
+    
     // Statistics
     private Integer chaptersReadCount;
     private Integer likesGivenCount;
