@@ -28,6 +28,12 @@ public class CorsGlobalConfiguration {
             "http://*.*.*.*",         // Любые HTTP IP адреса
             "https://*.*.*.*",        // Любые HTTPS IP адреса  
             "http://*.yandexcloud.net", // Yandex Cloud
+            "https://aniway.space",   // Основной домен HTTPS
+            "http://aniway.space",    // Основной домен HTTP
+            "https://www.aniway.space", // WWW HTTPS
+            "http://www.aniway.space",  // WWW HTTP
+            "http://84.201.152.162",  // Прямой IP HTTP
+            "https://84.201.152.162", // Прямой IP HTTPS
             "https://*.yandexcloud.net" // Yandex Cloud HTTPS
         ));
         

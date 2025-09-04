@@ -26,6 +26,7 @@ import java.util.List;
 @RequestMapping("/api/comments")
 @RequiredArgsConstructor
 @Slf4j
+@CrossOrigin(origins = "*")
 public class CommentController {
 
     private final CommentService commentService;

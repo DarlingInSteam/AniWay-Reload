@@ -24,7 +24,13 @@ public class CorsConfig {
             "http://*.*.*.*",         // Любые HTTP IP адреса
             "https://*.*.*.*",        // Любые HTTPS IP адреса
             "http://*.yandexcloud.net", 
-            "https://*.yandexcloud.net"
+            "https://*.yandexcloud.net",
+            "https://aniway.space",   // Основной домен HTTPS
+            "http://aniway.space",    // Основной домен HTTP
+            "https://www.aniway.space", // WWW HTTPS
+            "http://www.aniway.space",  // WWW HTTP
+            "http://84.201.152.162",  // Прямой IP HTTP
+            "https://84.201.152.162"  // Прямой IP HTTPS
         ));
         
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"));
