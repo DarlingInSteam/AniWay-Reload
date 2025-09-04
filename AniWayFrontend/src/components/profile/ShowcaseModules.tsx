@@ -15,14 +15,9 @@ import {
   Folder,
   MessageSquare,
   Trophy,
-  Image,
-  Users,
   Star,
-  Clock,
-  Eye,
   MoreHorizontal
 } from 'lucide-react';
-import { useState } from 'react';
 
 interface ShowcaseModuleProps {
   title: string;

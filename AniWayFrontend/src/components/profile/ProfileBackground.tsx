@@ -15,7 +15,6 @@ interface ProfileBackgroundProps {
 export function ProfileBackground({
   profile,
   isOwnProfile,
-  onBackgroundUpdate,
   children
 }: ProfileBackgroundProps) {
   const [backgroundUploadOpen, setBackgroundUploadOpen] = useState(false);
