@@ -109,48 +109,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # MinIO for image storage
-  minio:
-    image: minio/minio:latest
-    container_name: minio
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    volumes:
-      - minio_data:/data
-    command: server /data --console-address ":9001"
-    networks:
-      - aniway-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # MinIO initialization service
-  minio-init:
-    image: minio/mc:latest
-    container_name: minio-init
-    depends_on:
-      minio:
-        condition: service_healthy
-    volumes:
-      - ./init-minio.sh:/init-minio.sh
-    networks:
-      - aniway-network
-    entrypoint: >
-      /bin/sh -c "
-      sleep 10 &&
-      mc alias set minio-local http://minio:9000 minioadmin minioadmin &&
-      mc mb minio-local/manga-images --ignore-existing &&
-      mc anonymous set public minio-local/manga-images &&
-      echo 'MinIO initialization completed'
-      "
-    restart: "no"
-
   # Image Storage Service
   image-storage-service:
     build:
@@ -158,13 +116,10 @@ services:
       dockerfile: Dockerfile
     container_name: image-storage-service
     environment:
+      - SPRING_PROFILES_ACTIVE=prod
       - SPRING_DATASOURCE_URL=jdbc:postgresql://image-storage-postgres:5432/image_storage_db
       - SPRING_DATASOURCE_USERNAME=image_user
       - SPRING_DATASOURCE_PASSWORD=image_password
-      - MINIO_ENDPOINT=http://minio:9000
-      - MINIO_PUBLIC_ENDPOINT=http://192.168.0.3:9000
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin
       - MANGA_SERVICE_URL=http://manga-service:8081
       - CHAPTER_SERVICE_URL=http://chapter-service:8082
     ports:
@@ -173,8 +128,6 @@ services:
       - melon_data:/app/Output  # Общий том с MelonService для доступа к скачанным изображениям
     depends_on:
       image-storage-postgres:
-        condition: service_healthy
-      minio:
         condition: service_healthy
     networks:
       - aniway-network
@@ -187,6 +140,7 @@ services:
       dockerfile: Dockerfile
     container_name: chapter-service
     environment:
+      - SPRING_PROFILES_ACTIVE=prod
       - SPRING_DATASOURCE_URL=jdbc:postgresql://chapter-postgres:5432/chapter_db
       - SPRING_DATASOURCE_USERNAME=chapter_user
       - SPRING_DATASOURCE_PASSWORD=chapter_password
@@ -208,14 +162,11 @@ services:
       dockerfile: Dockerfile
     container_name: manga-service
     environment:
+      - SPRING_PROFILES_ACTIVE=prod
       - SPRING_DATASOURCE_URL=jdbc:postgresql://manga-postgres:5432/manga_db
       - SPRING_DATASOURCE_USERNAME=manga_user
       - SPRING_DATASOURCE_PASSWORD=manga_password
-      - MINIO_ENDPOINT=http://minio:9000
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin
       - MELON_SERVICE_URL=http://melon-service:8084
-      - MELON_SERVICE_PUBLIC_URL=http://192.168.0.3:8084
       - CHAPTER_SERVICE_URL=http://chapter-service:8082
       - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
     ports:
@@ -236,7 +187,7 @@ services:
       dockerfile: Dockerfile
     container_name: gateway-service
     environment:
-      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_PROFILES_ACTIVE=prod
       - MANGA_SERVICE_URL=http://manga-service:8081
       - CHAPTER_SERVICE_URL=http://chapter-service:8082
       - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
@@ -348,7 +299,6 @@ volumes:
   image_storage_postgres_data:
   auth_postgres_data:
   comment_postgres_data:
-  minio_data:
   melon_data:
   melon_logs:
   melon_temp:

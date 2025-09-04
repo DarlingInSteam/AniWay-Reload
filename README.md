@@ -2,6 +2,31 @@
 
 Полнофункциональная платформа для чтения манги, построенная на микросервисной архитектуре с современным React frontend и Spring Boot backend.
 
+## 🚀 Быстрый запуск
+
+### Разработка (с локальным MinIO)
+```bash
+docker-compose -f docker-compose.dev.yml up -d --build
+```
+
+### Продакшен (с Yandex Object Storage)
+```bash
+docker-compose -f docker-compose.prod.yml up -d --build
+```
+
+**Доступ:**
+- **Разработка:** http://localhost:3000 (frontend), http://localhost:9001 (MinIO Console)
+- **Продакшен:** http://localhost или http://aniway.space (порт 80)
+- **API Gateway:** http://localhost:8080 (в обоих режимах)
+
+📖 **Подробная документация:** [DEPLOYMENT.md](./DEPLOYMENT.md)
+
+## 📋 Требования
+
+- Docker & Docker Compose
+- Для продакшена: Yandex Cloud Object Storage credentials в `application-prod.properties` файлах
+- Для разработки: ничего дополнительного не нужно
+
 ## Архитектура системы
 
 ### Backend (Микросервисы)

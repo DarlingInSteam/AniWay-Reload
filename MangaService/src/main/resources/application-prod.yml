@@ -17,18 +17,6 @@ services:
   melon-service-url: ${MELON_SERVICE_URL:http://melon-service:8084}
   melon-service-public-url: http://84.201.152.162:8084
 
-# MinIO/Yandex Object Storage configuration
-minio:
-  endpoint: ${YANDEX_STORAGE_ENDPOINT:https://storage.yandexcloud.net}
-  access-key: ${YANDEX_ACCESS_KEY}
-  secret-key: ${YANDEX_SECRET_KEY}
-  bucket-name: ${YANDEX_BUCKET_NAME:aniway-images}
-
-# JWT configuration
-jwt:
-  secret: ${JWT_SECRET}
-  expiration: 86400
-
 # Logging for debugging service communication
 logging:
   level:
