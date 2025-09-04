@@ -1,5 +1,3 @@
-version: '3.8'
-
 networks:
   aniway-network:
     driver: bridge
@@ -211,6 +209,154 @@ services:
     networks:
       - aniway-network
 
+  # PostgreSQL databases for development
+  manga-postgres:
+    image: postgres:16
+    container_name: manga-postgres-dev
+    environment:
+      POSTGRES_DB: manga_db
+      POSTGRES_USER: manga_user
+      POSTGRES_PASSWORD: manga_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5435:5432"
+    volumes:
+      - manga_postgres_data:/var/lib/postgresql/data
+      - ./MangaService/mangaDB.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U manga_user -d manga_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  chapter-postgres:
+    image: postgres:16
+    container_name: chapter-postgres-dev
+    environment:
+      POSTGRES_DB: chapter_db
+      POSTGRES_USER: chapter_user
+      POSTGRES_PASSWORD: chapter_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5433:5432"
+    volumes:
+      - chapter_postgres_data:/var/lib/postgresql/data
+      - ./ChapterService/chapterDB.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chapter_user -d chapter_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  image-storage-postgres:
+    image: postgres:16
+    container_name: image-storage-postgres-dev
+    environment:
+      POSTGRES_DB: image_storage_db
+      POSTGRES_USER: image_user
+      POSTGRES_PASSWORD: image_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5434:5432"
+    volumes:
+      - image_storage_postgres_data:/var/lib/postgresql/data
+      - ./ImageStorageService/imageStorageDB.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U image_user -d image_storage_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  auth-postgres:
+    image: postgres:16
+    container_name: auth-postgres-dev
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: auth_user
+      POSTGRES_PASSWORD: auth_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5436:5432"
+    volumes:
+      - auth_postgres_data:/var/lib/postgresql/data
+      - ./AuthService/authDB.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auth_user -d auth_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  comment-postgres:
+    image: postgres:16
+    container_name: comment-postgres-dev
+    environment:
+      POSTGRES_DB: comment_db
+      POSTGRES_USER: comment_user
+      POSTGRES_PASSWORD: comment_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5437:5432"
+    volumes:
+      - comment_postgres_data:/var/lib/postgresql/data
+      - ./CommentService/commentDB.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U comment_user -d comment_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO for development
+  minio:
+    image: minio/minio:latest
+    container_name: minio-dev
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO initialization service
+  minio-init:
+    image: minio/mc:latest
+    container_name: minio-init-dev
+    depends_on:
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./init-minio.sh:/init-minio.sh
+    networks:
+      - aniway-network
+    entrypoint: >
+      /bin/sh -c "
+      sleep 10 &&
+      mc alias set minio-local http://minio:9000 minioadmin minioadmin &&
+      mc mb minio-local/manga-images --ignore-existing &&
+      mc anonymous set public minio-local/manga-images &&
+      echo 'MinIO initialization completed'
+      "
+    restart: "no"
+
 volumes:
   gradle-cache-manga:
   gradle-cache-chapter:
@@ -219,6 +365,12 @@ volumes:
   gradle-cache-auth:
   gradle-cache-comment:
   node_modules-cache:
+  manga_postgres_data:
+  chapter_postgres_data:
+  image_storage_postgres_data:
+  auth_postgres_data:
+  comment_postgres_data:
+  minio_data:
   melon_data:
   melon_logs:
   melon_temp:

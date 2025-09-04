@@ -64,12 +64,6 @@ services:
       - MELON_SERVICE_URL=http://melon-service:8084
       - CHAPTER_SERVICE_URL=http://chapter-service:8082
       - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
-      - AUTH_SERVICE_URL=http://auth-service:8085
-      - JWT_SECRET=${JWT_SECRET}
-      - YANDEX_ACCESS_KEY=${YANDEX_ACCESS_KEY}
-      - YANDEX_SECRET_KEY=${YANDEX_SECRET_KEY}
-      - YANDEX_BUCKET_NAME=${YANDEX_BUCKET_NAME}
-      - YANDEX_STORAGE_ENDPOINT=${YANDEX_STORAGE_ENDPOINT}
     restart: unless-stopped
     depends_on:
       - manga-postgres
@@ -123,14 +117,6 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://image-postgres:5432/imagedb
       - SPRING_DATASOURCE_USERNAME=imageuser
       - SPRING_DATASOURCE_PASSWORD=imagepass123
-      - YC_ACCESS_KEY=${YC_ACCESS_KEY}
-      - YC_SECRET_KEY=${YC_SECRET_KEY}
-      - YC_BUCKET_NAME=${YC_BUCKET_NAME:-manga-images-bucket}
-      - minio.endpoint=https://storage.yandexcloud.net
-      - minio.public.endpoint=https://storage.yandexcloud.net
-      - minio.access-key=${YC_ACCESS_KEY}
-      - minio.secret-key=${YC_SECRET_KEY}
-      - minio.bucket-name=${YC_BUCKET_NAME:-manga-images-bucket}
     restart: unless-stopped
     depends_on:
       - image-postgres
