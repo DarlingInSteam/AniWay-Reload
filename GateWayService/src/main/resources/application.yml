@@ -28,6 +28,10 @@ spring:
               - "http://*.*.*.*"         # Любые HTTP IP адреса
               - "https://*.*.*.*"        # Любые HTTPS IP адреса  
               - "http://*.yandexcloud.net" # Yandex Cloud
+              - "https://aniway.space"   # Основной домен
+              - "http://aniway.space"    # Основной домен HTTP
+              - "https://www.aniway.space" # WWW версия
+              - "http://www.aniway.space"  # WWW версия HTTP
               - "https://*.yandexcloud.net" # Yandex Cloud HTTPS
             allowed-methods:
               - GET
