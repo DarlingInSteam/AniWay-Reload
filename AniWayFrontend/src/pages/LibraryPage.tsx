@@ -106,8 +106,73 @@ export const LibraryPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Двухколоночная структура */}
-        <div className="flex flex-col lg:flex-row gap-6">
+        {/* Мобильная версия - список закладок и кнопка редактирования сверху */}
+        <div className="lg:hidden mb-6 space-y-4">
+          {/* Кнопка редактирования закладок */}
+          <button
+            className="w-full h-12 px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white hover:bg-white/15 transition-all duration-200 flex items-center justify-center gap-2 font-medium"
+            disabled
+            title="Функция в разработке"
+          >
+            <Edit className="h-5 w-5" />
+            Редактировать закладки
+          </button>
+
+          {/* Список закладок */}
+          <div className="bg-card/30 backdrop-blur-sm border border-border/30 rounded-xl p-4">
+            <h3 className="text-lg font-semibold text-white mb-4">Закладки</h3>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setSelectedStatus('ALL')}
+                className={`text-center px-3 py-2 rounded-lg font-medium transition-colors text-sm ${
+                  selectedStatus === 'ALL'
+                    ? 'bg-primary text-white'
+                    : 'text-muted-foreground hover:text-white hover:bg-white/10'
+                }`}
+              >
+                Все ({bookmarks.length})
+              </button>
+
+              <button
+                onClick={() => setSelectedStatus('FAVORITES')}
+                className={`text-center px-3 py-2 rounded-lg font-medium transition-colors text-sm ${
+                  selectedStatus === 'FAVORITES'
+                    ? 'bg-red-500 text-white'
+                    : 'text-muted-foreground hover:text-white hover:bg-white/10'
+                }`}
+              >
+                ❤️ Избранное ({getStatusCount('FAVORITES')})
+              </button>
+
+              {Object.entries(statusLabels).map(([status, label]) => (
+                <button
+                  key={status}
+                  onClick={() => setSelectedStatus(status as BookmarkStatus)}
+                  className={`text-center px-3 py-2 rounded-lg font-medium transition-colors text-sm ${
+                    selectedStatus === status
+                      ? `text-white ${statusColors[status as BookmarkStatus]}`
+                      : 'text-muted-foreground hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  {label} ({getStatusCount(status as BookmarkStatus)})
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Поиск в мобильной версии */}
+          <input
+            type="text"
+            placeholder="Поиск по названию, автору или жанру..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full px-4 py-3 bg-card border border-border/30 rounded-xl text-white placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-200"
+          />
+        </div>
+
+        {/* Десктопная версия - двухколоночная структура */}
+        <div className="hidden lg:flex flex-row gap-6">
           {/* Левый столбец - шире */}
           <div className="flex-1 lg:flex-[2]">
             {/* Поиск */}
@@ -212,6 +277,38 @@ export const LibraryPage: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Список манг для мобильной версии */}
+        <div className="lg:hidden">
+          {filteredBookmarks.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="text-6xl mb-4">📚</div>
+              <h3 className="text-xl font-medium text-white mb-2">
+                {searchQuery ? 'Ничего не найдено' : 'Пока нет закладок'}
+              </h3>
+              <p className="text-muted-foreground mb-6">
+                {searchQuery
+                  ? 'Попробуйте изменить поисковый запрос'
+                  : 'Добавьте манги в закладки, чтобы отслеживать свой прогресс чтения'
+                }
+              </p>
+              {!searchQuery && (
+                <a
+                  href="/catalog"
+                  className="inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/80 transition-colors"
+                >
+                  Перейти к каталогу
+                </a>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4 animate-fade-in">
+              {filteredBookmarks.map((bookmark) => (
+                <BookmarkMangaCard key={bookmark.id} bookmark={bookmark} />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
