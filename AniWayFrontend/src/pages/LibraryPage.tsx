@@ -22,11 +22,21 @@ const statusColors: Record<BookmarkStatus, string> = {
   DROPPED: 'bg-red-500'
 }
 
+type SortOption = 'bookmark_updated' | 'manga_updated' | 'chapters_count' | 'alphabetical'
+
+const sortOptions: Record<SortOption, string> = {
+  bookmark_updated: 'По дате добавления в закладки',
+  manga_updated: 'По дате обновления тайтла',
+  chapters_count: 'По количеству глав',
+  alphabetical: 'По алфавиту'
+}
+
 export const LibraryPage: React.FC = () => {
   const { isAuthenticated } = useAuth()
   const { bookmarks, loading, getBookmarksByStatus, getFavorites } = useBookmarks()
   const [selectedStatus, setSelectedStatus] = useState<BookmarkStatus | 'FAVORITES' | 'ALL'>('ALL')
   const [searchQuery, setSearchQuery] = useState('')
+  const [sortBy, setSortBy] = useState<SortOption>('bookmark_updated')
 
   if (!isAuthenticated) {
     return (
@@ -41,6 +51,39 @@ export const LibraryPage: React.FC = () => {
         </div>
       </div>
     )
+  }
+
+  const sortBookmarks = (bookmarksToSort: any[], sortOption: SortOption) => {
+    const sorted = [...bookmarksToSort]
+
+    switch (sortOption) {
+      case 'bookmark_updated':
+        return sorted.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())
+
+      case 'manga_updated':
+        return sorted.sort((a, b) => {
+          const dateA = new Date(a.manga?.updatedAt || a.manga?.createdAt || 0).getTime()
+          const dateB = new Date(b.manga?.updatedAt || b.manga?.createdAt || 0).getTime()
+          return dateB - dateA
+        })
+
+      case 'chapters_count':
+        return sorted.sort((a, b) => {
+          const chaptersA = a.manga?.totalChapters || 0
+          const chaptersB = b.manga?.totalChapters || 0
+          return chaptersB - chaptersA
+        })
+
+      case 'alphabetical':
+        return sorted.sort((a, b) => {
+          const titleA = (a.manga?.title || a.mangaTitle || '').toLowerCase()
+          const titleB = (b.manga?.title || b.mangaTitle || '').toLowerCase()
+          return titleA.localeCompare(titleB, 'ru')
+        })
+
+      default:
+        return sorted
+    }
   }
 
   const getFilteredBookmarks = () => {
@@ -71,7 +114,8 @@ export const LibraryPage: React.FC = () => {
       })
     }
 
-    return filtered
+    // Сортировка
+    return sortBookmarks(filtered, sortBy)
   }
 
   const filteredBookmarks = getFilteredBookmarks()
@@ -169,6 +213,22 @@ export const LibraryPage: React.FC = () => {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full px-4 py-3 bg-card border border-border/30 rounded-xl text-white placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-200"
           />
+
+          {/* Сортировка в мобильной версии */}
+          <div className="bg-card/30 backdrop-blur-sm border border-border/30 rounded-xl p-4">
+            <label className="block text-sm font-medium text-white mb-2">Сортировка</label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortOption)}
+              className="w-full px-3 py-2 bg-card border border-border/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-200"
+            >
+              {Object.entries(sortOptions).map(([value, label]) => (
+                <option key={value} value={value} className="bg-card text-white">
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* Десктопная версия - двухколоночная структура */}
@@ -176,7 +236,7 @@ export const LibraryPage: React.FC = () => {
           {/* Левый столбец - шире */}
           <div className="flex-1 lg:flex-[2]">
             {/* Поиск */}
-            <div className="mb-6">
+            <div className="mb-4">
               <input
                 type="text"
                 placeholder="Поиск по названию, автору или жанру..."
@@ -184,6 +244,22 @@ export const LibraryPage: React.FC = () => {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full px-4 py-3 bg-card border border-border/30 rounded-xl text-white placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-200"
               />
+            </div>
+
+            {/* Сортировка в десктопной версии */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-white mb-2">Сортировка</label>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                className="px-3 py-2 bg-card border border-border/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-200"
+              >
+                {Object.entries(sortOptions).map(([value, label]) => (
+                  <option key={value} value={value} className="bg-card text-white">
+                    {label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Список манг */}
