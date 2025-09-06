@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { BookmarkStatus } from '../types'
 import { BookmarkBadge } from '../components/bookmarks/BookmarkControls'
 import { BookmarkMangaCard } from '../components/manga/BookmarkMangaCard'
+import { Edit } from 'lucide-react'
 
 const statusLabels: Record<BookmarkStatus, string> = {
   READING: 'Читаю',
@@ -29,7 +30,7 @@ export const LibraryPage: React.FC = () => {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-manga-black">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-white mb-4">
             Требуется авторизация
@@ -54,11 +55,20 @@ export const LibraryPage: React.FC = () => {
 
     // Поиск
     if (searchQuery) {
-      filtered = filtered.filter(bookmark =>
-        bookmark.manga?.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        bookmark.manga?.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        bookmark.manga?.genre.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+      const query = searchQuery.toLowerCase()
+      filtered = filtered.filter(bookmark => {
+        // Получаем название из разных возможных источников
+        const title = bookmark.manga?.title || bookmark.mangaTitle || ''
+        const author = bookmark.manga?.author || ''
+        const genre = bookmark.manga?.genre || ''
+
+        // Ищем совпадения в названии, авторе или жанре
+        return (
+          title.toLowerCase().includes(query) ||
+          author.toLowerCase().includes(query) ||
+          genre.toLowerCase().includes(query)
+        )
+      })
     }
 
     return filtered
@@ -75,111 +85,135 @@ export const LibraryPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-manga-black">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
       </div>
     )
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8 bg-manga-black min-h-screen">
-      {/* Заголовок */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white mb-2">Моя библиотека</h1>
-        <p className="text-muted-foreground">Управляйте своими закладками и отслеживайте прогресс чтения</p>
-      </div>
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-4 lg:px-8 py-4 md:py-8">
+        {/* Заголовок */}
+        <div className="mb-6 md:mb-8">
+          <div className="text-center">
+            <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-2 bg-gradient-to-r from-white to-muted-foreground bg-clip-text text-transparent">
+              Моя библиотека
+            </h1>
+            <p className="text-muted-foreground text-sm md:text-base">
+              Управляйте своими закладками и отслеживайте прогресс чтения
+            </p>
+          </div>
+        </div>
 
-      {/* Поиск */}
-      <div className="mb-6">
-        <div className="max-w-md">
-          <input
-            type="text"
-            placeholder="Поиск по названию, автору или жанру..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-2 bg-card border border-border/30 rounded-lg text-white placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50"
-          />
+        {/* Двухколоночная структура */}
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Левый столбец - шире */}
+          <div className="flex-1 lg:flex-[2]">
+            {/* Поиск */}
+            <div className="mb-6">
+              <input
+                type="text"
+                placeholder="Поиск по названию, автору или жанру..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-4 py-3 bg-card border border-border/30 rounded-xl text-white placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-200"
+              />
+            </div>
+
+            {/* Список манг */}
+            {filteredBookmarks.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="text-6xl mb-4">📚</div>
+                <h3 className="text-xl font-medium text-white mb-2">
+                  {searchQuery ? 'Ничего не найдено' : 'Пока нет закладок'}
+                </h3>
+                <p className="text-muted-foreground mb-6">
+                  {searchQuery
+                    ? 'Попробуйте изменить поисковый запрос'
+                    : 'Добавьте манги в закладки, чтобы отслеживать свой прогресс чтения'
+                  }
+                </p>
+                {!searchQuery && (
+                  <a
+                    href="/catalog"
+                    className="inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/80 transition-colors"
+                  >
+                    Перейти к каталогу
+                  </a>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4 lg:gap-6 animate-fade-in">
+                {filteredBookmarks.map((bookmark) => (
+                  <BookmarkMangaCard key={bookmark.id} bookmark={bookmark} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Правый столбец - уже */}
+          <div className="w-full lg:w-80 lg:flex-shrink-0">
+            {/* Контейнер с sticky позиционированием */}
+            <div className="sticky top-4 space-y-6">
+              {/* Кнопка редактирования закладок */}
+              <div>
+                <button
+                  className="w-full h-12 px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white hover:bg-white/15 transition-all duration-200 flex items-center justify-center gap-2 font-medium"
+                  disabled
+                  title="Функция в разработке"
+                >
+                  <Edit className="h-5 w-5" />
+                  Редактировать закладки
+                </button>
+              </div>
+
+              {/* Список закладок */}
+              <div className="bg-card/30 backdrop-blur-sm border border-border/30 rounded-xl p-4 max-h-[calc(100vh-8rem)] overflow-y-auto">
+                <h3 className="text-lg font-semibold text-white mb-4">Закладки</h3>
+
+                <div className="space-y-2">
+                  <button
+                    onClick={() => setSelectedStatus('ALL')}
+                    className={`w-full text-left px-3 py-2 rounded-lg font-medium transition-colors ${
+                      selectedStatus === 'ALL'
+                        ? 'bg-primary text-white'
+                        : 'text-muted-foreground hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    Все ({bookmarks.length})
+                  </button>
+
+                  <button
+                    onClick={() => setSelectedStatus('FAVORITES')}
+                    className={`w-full text-left px-3 py-2 rounded-lg font-medium transition-colors ${
+                      selectedStatus === 'FAVORITES'
+                        ? 'bg-red-500 text-white'
+                        : 'text-muted-foreground hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    ❤️ Избранное ({getStatusCount('FAVORITES')})
+                  </button>
+
+                  {Object.entries(statusLabels).map(([status, label]) => (
+                    <button
+                      key={status}
+                      onClick={() => setSelectedStatus(status as BookmarkStatus)}
+                      className={`w-full text-left px-3 py-2 rounded-lg font-medium transition-colors ${
+                        selectedStatus === status
+                          ? `text-white ${statusColors[status as BookmarkStatus]}`
+                          : 'text-muted-foreground hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      {label} ({getStatusCount(status as BookmarkStatus)})
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-
-      {/* Фильтры */}
-      <div className="mb-8">
-        <div className="flex flex-wrap gap-3">
-          <button
-            onClick={() => setSelectedStatus('ALL')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              selectedStatus === 'ALL'
-                ? 'bg-primary text-white'
-                : 'bg-white/10 text-white hover:bg-white/20'
-            }`}
-          >
-            Все ({bookmarks.length})
-          </button>
-
-          <button
-            onClick={() => setSelectedStatus('FAVORITES')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              selectedStatus === 'FAVORITES'
-                ? 'bg-red-500 text-white'
-                : 'bg-white/10 text-white hover:bg-white/20'
-            }`}
-          >
-            ❤️ Избранное ({getStatusCount('FAVORITES')})
-          </button>
-
-          {Object.entries(statusLabels).map(([status, label]) => (
-            <button
-              key={status}
-              onClick={() => setSelectedStatus(status as BookmarkStatus)}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors relative ${
-                selectedStatus === status
-                  ? 'text-white'
-                  : 'bg-white/10 text-white hover:bg-white/20'
-              }`}
-              style={{
-                backgroundColor: selectedStatus === status ? statusColors[status as BookmarkStatus].replace('bg-', '') : undefined
-              }}
-            >
-              {selectedStatus === status && (
-                <div className={`absolute inset-0 ${statusColors[status as BookmarkStatus]} rounded-lg`} />
-              )}
-              <span className="relative">
-                {label} ({getStatusCount(status as BookmarkStatus)})
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Список манг */}
-      {filteredBookmarks.length === 0 ? (
-        <div className="text-center py-12">
-          <div className="text-6xl mb-4">📚</div>
-          <h3 className="text-xl font-medium text-gray-900 mb-2">
-            {searchQuery ? 'Ничего не найдено' : 'Пока нет закладок'}
-          </h3>
-          <p className="text-gray-600 mb-6">
-            {searchQuery 
-              ? 'Попробуйте изменить поисковый запрос' 
-              : 'Добавьте манги в закладки, чтобы отслеживать свой прогресс чтения'
-            }
-          </p>
-          {!searchQuery && (
-            <a
-              href="/catalog"
-              className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-            >
-              Перейти к каталогу
-            </a>
-          )}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
-          {filteredBookmarks.map((bookmark) => (
-            <BookmarkMangaCard key={bookmark.id} bookmark={bookmark} />
-          ))}
-        </div>
-      )}
     </div>
   )
 }
