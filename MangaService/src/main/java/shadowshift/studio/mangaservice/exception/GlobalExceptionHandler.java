@@ -22,8 +22,7 @@ import java.util.stream.Collectors;
  * обеспечивая единообразные ответы об ошибках и логирование.
  * Следует принципу единственной ответственности.
  *
- * @author AniWay Development Team
- * @since 1.0.0
+ * @author ShadowShiftStudio
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -175,45 +174,126 @@ public class GlobalExceptionHandler {
         private LocalDateTime timestamp;
         private Map<String, Object> details;
 
+        /**
+         * Создает новый билдер для ErrorResponse.
+         *
+         * @return билдер
+         */
         public static Builder builder() {
             return new Builder();
         }
 
-        // Getters
+        /**
+         * Возвращает код ошибки.
+         *
+         * @return код ошибки
+         */
         public String getErrorCode() { return errorCode; }
+
+        /**
+         * Устанавливает код ошибки.
+         *
+         * @param errorCode код ошибки
+         */
+        public void setErrorCode(String errorCode) { this.errorCode = errorCode; }
+
+        /**
+         * Возвращает сообщение об ошибке.
+         *
+         * @return сообщение об ошибке
+         */
         public String getMessage() { return message; }
+
+        /**
+         * Устанавливает сообщение об ошибке.
+         *
+         * @param message сообщение об ошибке
+         */
+        public void setMessage(String message) { this.message = message; }
+
+        /**
+         * Возвращает временную метку ошибки.
+         *
+         * @return временная метка
+         */
         public LocalDateTime getTimestamp() { return timestamp; }
+
+        /**
+         * Устанавливает временную метку ошибки.
+         *
+         * @param timestamp временная метка
+         */
+        public void setTimestamp(LocalDateTime timestamp) { this.timestamp = timestamp; }
+
+        /**
+         * Возвращает детали ошибки.
+         *
+         * @return детали ошибки
+         */
         public Map<String, Object> getDetails() { return details; }
 
-        // Setters
-        public void setErrorCode(String errorCode) { this.errorCode = errorCode; }
-        public void setMessage(String message) { this.message = message; }
-        public void setTimestamp(LocalDateTime timestamp) { this.timestamp = timestamp; }
+        /**
+         * Устанавливает детали ошибки.
+         *
+         * @param details детали ошибки
+         */
         public void setDetails(Map<String, Object> details) { this.details = details; }
 
+        /**
+         * Билдер для создания экземпляров ErrorResponse.
+         */
         public static class Builder {
             private final ErrorResponse response = new ErrorResponse();
 
+            /**
+             * Устанавливает код ошибки.
+             *
+             * @param errorCode код ошибки
+             * @return билдер
+             */
             public Builder errorCode(String errorCode) {
                 response.errorCode = errorCode;
                 return this;
             }
 
+            /**
+             * Устанавливает сообщение об ошибке.
+             *
+             * @param message сообщение об ошибке
+             * @return билдер
+             */
             public Builder message(String message) {
                 response.message = message;
                 return this;
             }
 
+            /**
+             * Устанавливает временную метку ошибки.
+             *
+             * @param timestamp временная метка
+             * @return билдер
+             */
             public Builder timestamp(LocalDateTime timestamp) {
                 response.timestamp = timestamp;
                 return this;
             }
 
+            /**
+             * Устанавливает детали ошибки.
+             *
+             * @param details детали ошибки
+             * @return билдер
+             */
             public Builder details(Map<String, ?> details) {
                 response.details = new HashMap<>(details);
                 return this;
             }
 
+            /**
+             * Создает экземпляр ErrorResponse.
+             *
+             * @return экземпляр ErrorResponse
+             */
             public ErrorResponse build() {
                 return response;
             }

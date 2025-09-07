@@ -37,9 +37,7 @@ import java.util.Optional;
  * - Транзакционная безопасность операций
  * - Полное логирование всех операций
  * 
- * @author AniWay Development Team
- * @version 2.0.0
- * @since 1.0.0
+ * @author ShadowShiftStudio
  */
 @Service
 @Transactional
@@ -424,17 +422,41 @@ public class MangaService {
     }
 
     // Внутренние классы исключений для лучшей читаемости
+    /**
+     * Исключение, выбрасываемое когда запрашиваемая манга не найдена.
+     */
     public static class MangaNotFoundException extends MangaServiceException {
+
+        /**
+         * Конструктор с ID манги.
+         *
+         * @param mangaId ID манги, которая не найдена
+         */
         public MangaNotFoundException(Long mangaId) {
             super(String.format("Манга с ID %d не найдена", mangaId), "MANGA_NOT_FOUND");
         }
     }
 
+    /**
+     * Исключение, выбрасываемое при ошибках валидации данных манги.
+     */
     public static class MangaValidationException extends MangaServiceException {
+
+        /**
+         * Конструктор с сообщением об ошибке.
+         *
+         * @param message описание ошибки валидации
+         */
         public MangaValidationException(String message) {
             super(message, "MANGA_VALIDATION_ERROR");
         }
         
+        /**
+         * Конструктор с сообщением об ошибке и причиной.
+         *
+         * @param message описание ошибки валидации
+         * @param cause первопричина исключения
+         */
         public MangaValidationException(String message, Throwable cause) {
             super(message, "MANGA_VALIDATION_ERROR", cause);
         }

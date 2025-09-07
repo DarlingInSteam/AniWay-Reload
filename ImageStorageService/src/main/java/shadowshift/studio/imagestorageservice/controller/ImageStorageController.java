@@ -13,6 +13,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * REST контроллер для управления хранением и получением изображений.
+ * Предоставляет API для загрузки, получения, удаления и управления изображениями глав манги,
+ * включая обложки и страницы контента.
+ *
+ * @author ShadowShiftStudio
+ */
 @RestController
 @RequestMapping("/api/images")
 @CrossOrigin(origins = "*")
@@ -21,12 +28,25 @@ public class ImageStorageController {
     @Autowired
     private ImageStorageService imageStorageService;
 
+    /**
+     * Получает список всех изображений для указанной главы.
+     *
+     * @param chapterId идентификатор главы
+     * @return список изображений главы
+     */
     @GetMapping("/chapter/{chapterId}")
     public ResponseEntity<List<ChapterImageResponseDTO>> getImagesByChapterId(@PathVariable Long chapterId) {
         List<ChapterImageResponseDTO> images = imageStorageService.getImagesByChapterId(chapterId);
         return ResponseEntity.ok(images);
     }
 
+    /**
+     * Получает изображение по номеру страницы для указанной главы.
+     *
+     * @param chapterId идентификатор главы
+     * @param pageNumber номер страницы
+     * @return изображение страницы или 404 если не найдено
+     */
     @GetMapping("/chapter/{chapterId}/page/{pageNumber}")
     public ResponseEntity<ChapterImageResponseDTO> getImageByChapterAndPage(
             @PathVariable Long chapterId,
@@ -36,35 +56,48 @@ public class ImageStorageController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    /**
+     * Получает количество страниц в указанной главе.
+     *
+     * @param chapterId идентификатор главы
+     * @return количество страниц
+     */
     @GetMapping("/chapter/{chapterId}/count")
     public ResponseEntity<Integer> getPageCountByChapterId(@PathVariable Long chapterId) {
         Integer count = imageStorageService.getPageCountByChapterId(chapterId);
         return ResponseEntity.ok(count);
     }
 
+    /**
+     * Загружает одиночное изображение для указанной страницы главы.
+     *
+     * @param chapterId идентификатор главы
+     * @param pageNumber номер страницы
+     * @param file файл изображения для загрузки
+     * @return загруженное изображение или сообщение об ошибке
+     */
     @PostMapping("/chapter/{chapterId}/page/{pageNumber}")
     public ResponseEntity<?> uploadSingleImage(
             @PathVariable Long chapterId,
             @PathVariable Integer pageNumber,
             @RequestParam("file") MultipartFile file) {
         try {
-            System.out.println("Uploading image for chapter: " + chapterId + ", page: " + pageNumber);
-            System.out.println("File size: " + file.getSize() + " bytes");
-            System.out.println("File type: " + file.getContentType());
-            
             ChapterImageResponseDTO uploadedImage = imageStorageService.uploadImage(chapterId, pageNumber, file);
             return ResponseEntity.status(HttpStatus.CREATED).body(uploadedImage);
         } catch (RuntimeException e) {
-            System.err.println("Runtime error uploading image: " + e.getMessage());
-            e.printStackTrace();
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         } catch (Exception e) {
-            System.err.println("Exception uploading image: " + e.getMessage());
-            e.printStackTrace();
             return ResponseEntity.internalServerError().body("Upload failed: " + e.getMessage());
         }
     }
 
+    /**
+     * Загружает несколько изображений для главы с автоматической нумерацией страниц.
+     *
+     * @param chapterId идентификатор главы
+     * @param files список файлов изображений
+     * @return список загруженных изображений или сообщение об ошибке
+     */
     @PostMapping("/chapter/{chapterId}/multiple")
     public ResponseEntity<?> uploadMultipleImages(
             @PathVariable Long chapterId,
@@ -77,6 +110,14 @@ public class ImageStorageController {
         }
     }
 
+    /**
+     * Загружает несколько изображений для главы с указанием начального номера страницы.
+     *
+     * @param chapterId идентификатор главы
+     * @param files список файлов изображений
+     * @param startPage начальный номер страницы
+     * @return список загруженных изображений или сообщение об ошибке
+     */
     @PostMapping("/chapter/{chapterId}/multiple-ordered")
     public ResponseEntity<?> uploadMultipleImagesWithOrder(
             @PathVariable Long chapterId,
@@ -90,6 +131,13 @@ public class ImageStorageController {
         }
     }
 
+    /**
+     * Изменяет порядок страниц в главе на основе предоставленного списка идентификаторов изображений.
+     *
+     * @param chapterId идентификатор главы
+     * @param imageIds список идентификаторов изображений в новом порядке
+     * @return список изображений с обновленным порядком или сообщение об ошибке
+     */
     @PostMapping("/chapter/{chapterId}/reorder")
     public ResponseEntity<?> reorderPages(
             @PathVariable Long chapterId,
@@ -102,13 +150,24 @@ public class ImageStorageController {
         }
     }
 
+    /**
+     * Получает превью изображений для указанной главы.
+     *
+     * @param chapterId идентификатор главы
+     * @return список изображений для превью
+     */
     @GetMapping("/chapter/{chapterId}/preview")
     public ResponseEntity<List<ChapterImageResponseDTO>> getChapterPreview(@PathVariable Long chapterId) {
         List<ChapterImageResponseDTO> images = imageStorageService.getImagesByChapterId(chapterId);
         return ResponseEntity.ok(images);
     }
 
-    // Новый эндпоинт для загрузки изображений по URL из MelonService
+    /**
+     * Загружает изображение по URL для указанной страницы главы.
+     *
+     * @param request объект с параметрами: chapterId, pageNumber, imageUrl
+     * @return загруженное изображение или сообщение об ошибке
+     */
     @PostMapping("/upload-from-url")
     public ResponseEntity<?> uploadImageFromUrl(@RequestBody Map<String, Object> request) {
         try {
@@ -127,6 +186,12 @@ public class ImageStorageController {
         }
     }
 
+    /**
+     * Удаляет изображение по его идентификатору.
+     *
+     * @param imageId идентификатор изображения для удаления
+     * @return 204 No Content при успешном удалении или сообщение об ошибке
+     */
     @DeleteMapping("/{imageId}")
     public ResponseEntity<?> deleteImage(@PathVariable Long imageId) {
         try {
@@ -137,6 +202,12 @@ public class ImageStorageController {
         }
     }
 
+    /**
+     * Удаляет все изображения для указанной главы.
+     *
+     * @param chapterId идентификатор главы
+     * @return 204 No Content при успешном удалении или сообщение об ошибке
+     */
     @DeleteMapping("/chapter/{chapterId}")
     public ResponseEntity<?> deleteAllChapterImages(@PathVariable Long chapterId) {
         try {
@@ -147,6 +218,13 @@ public class ImageStorageController {
         }
     }
 
+    /**
+     * Проксирует изображение по его ключу в хранилище.
+     * Предоставляет прямой доступ к изображениям с настройками кэширования.
+     *
+     * @param request HTTP запрос с путем к изображению
+     * @return байты изображения с соответствующими заголовками или 404 если не найдено
+     */
     @GetMapping("/proxy/**")
     public ResponseEntity<byte[]> proxyImage(HttpServletRequest request) {
         try {
@@ -165,6 +243,12 @@ public class ImageStorageController {
         }
     }
 
+    /**
+     * Импортирует изображение из локального файла системы.
+     *
+     * @param request объект с параметрами: chapterId, pageNumber, localImagePath
+     * @return импортированное изображение или сообщение об ошибке
+     */
     @PostMapping("/import-from-local-file")
     public ResponseEntity<?> importFromLocalFile(@RequestBody Map<String, Object> request) {
         try {
@@ -181,11 +265,16 @@ public class ImageStorageController {
         }
     }
 
-    // Специальный эндпоинт для загрузки обложек манги
+    /**
+     * Загружает обложку манги.
+     * Использует специальный идентификатор главы (-1) для обложек.
+     *
+     * @param file файл обложки для загрузки
+     * @return загруженная обложка или сообщение об ошибке
+     */
     @PostMapping("/cover")
     public ResponseEntity<?> uploadCover(@RequestParam("file") MultipartFile file) {
         try {
-            // Используем специальный chapterId = -1 для обложек
             ChapterImageResponseDTO uploadedCover = imageStorageService.uploadImage(-1L, 0, file);
             return ResponseEntity.status(HttpStatus.CREATED).body(uploadedCover);
         } catch (RuntimeException e) {
@@ -195,7 +284,13 @@ public class ImageStorageController {
         }
     }
 
-    // Специальный эндпоинт для загрузки обложек манги с привязкой к manga_id
+    /**
+     * Загружает обложку для конкретной манги.
+     *
+     * @param mangaId идентификатор манги
+     * @param file файл обложки для загрузки
+     * @return загруженная обложка или сообщение об ошибке
+     */
     @PostMapping("/cover/{mangaId}")
     public ResponseEntity<?> uploadCoverForManga(@PathVariable Long mangaId, @RequestParam("file") MultipartFile file) {
         try {
@@ -208,11 +303,15 @@ public class ImageStorageController {
         }
     }
 
-    // Специальный эндпоинт для получения обложек манги
+    /**
+     * Получает обложку для указанной манги.
+     *
+     * @param mangaId идентификатор манги
+     * @return обложка манги или 404 если не найдена
+     */
     @GetMapping("/cover/{mangaId}")
     public ResponseEntity<?> getCoverByMangaId(@PathVariable Long mangaId) {
         try {
-            // Ищем обложку для данной манги (chapter_id = -1, но manga_id указывает на конкретную мангу)
             Optional<ChapterImageResponseDTO> cover = imageStorageService.getCoverByMangaId(mangaId);
             if (cover.isPresent()) {
                 return ResponseEntity.ok(cover.get());

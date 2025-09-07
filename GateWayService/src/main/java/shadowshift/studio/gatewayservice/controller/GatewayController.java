@@ -19,16 +19,15 @@ import java.util.Map;
 
 /**
  * Контроллер для мониторинга состояния API Gateway и подключенных сервисов.
+ * Предоставляет REST API для получения информации о маршрутах, состоянии сервисов
+ * и метриках производительности Gateway.
  *
- * ВРЕМЕННО ОТКЛЮЧЕН для исправления конфликта со Spring Cloud Gateway.
- * Spring Cloud Gateway работает на WebFlux, а @RestController на servlet стеке.
- * Они не могут сосуществовать в одном приложении.
+ * Временно отключен из-за архитектурного конфликта между Spring Cloud Gateway
+ * (работает на WebFlux) и стандартным @RestController (работает на servlet стеке).
+ * Требуется рефакторинг для совместного использования обоих стеков.
  *
- * @author AniWay Development Team
- * @version 1.0.0
+ * @author ShadowShiftStudio
  */
-// @RestController  // ВРЕМЕННО ОТКЛЮЧЕН
-// @RequestMapping("/api/gateway")  // ВРЕМЕННО ОТКЛЮЧЕН
 public class GatewayController {
 
     private static final Logger logger = LoggerFactory.getLogger(GatewayController.class);
@@ -41,6 +40,4 @@ public class GatewayController {
         this.routeLocator = routeLocator;
         this.webClientBuilder = webClientBuilder;
     }
-
-    // Все методы временно отключены до исправления архитектуры
 }

@@ -8,6 +8,15 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * REST-контроллер для управления прогрессом задач импорта манги.
+ *
+ * Предоставляет API для обновления статуса и прогресса выполнения задач импорта,
+ * позволяя внешним системам (парсерам) сообщать о текущем состоянии обработки.
+ * Обеспечивает валидацию входящих данных и корректное обновление состояния задач.
+ *
+ * @author ShadowShiftStudio
+ */
 @RestController
 @RequestMapping("/api/parser/progress")
 public class ProgressController {
@@ -17,9 +26,20 @@ public class ProgressController {
     @Autowired
     private ImportTaskService importTaskService;
 
+    /**
+     * Обновляет прогресс выполнения задачи импорта.
+     *
+     * Принимает данные о текущем статусе, прогрессе, сообщении и возможной ошибке
+     * для указанной задачи импорта. Выполняет валидацию входных данных и обновляет
+     * состояние задачи в системе.
+     *
+     * @param taskId уникальный идентификатор задачи импорта
+     * @param payload данные обновления прогресса, содержащие статус, прогресс, сообщение и ошибку
+     * @return ResponseEntity с результатом операции обновления
+     */
     @PostMapping("/{taskId}")
     public ResponseEntity<?> updateProgress(@PathVariable String taskId, @RequestBody Map<String, Object> payload) {
-        logger.info("ProgressController: received payload for task {}: {}", taskId, payload);
+        logger.info("Получен запрос на обновление прогресса для задачи {}: {}", taskId, payload);
         try {
             String status = (String) payload.get("status");
             Integer progress = payload.get("progress") != null ? ((Number) payload.get("progress")).intValue() : null;
@@ -27,9 +47,10 @@ public class ProgressController {
             String error = (String) payload.get("error");
 
             if (status == null) {
-                logger.error("ProgressController: missing status field");
+                logger.error("Отсутствует обязательное поле 'status'");
                 return ResponseEntity.badRequest().body(Map.of("error", "Missing status field"));
             }
+
             String statusUpper = status.toUpperCase();
             boolean validStatus = false;
             for (ImportTaskService.TaskStatus s : ImportTaskService.TaskStatus.values()) {
@@ -38,8 +59,9 @@ public class ProgressController {
                     break;
                 }
             }
+
             if (!validStatus) {
-                logger.error("ProgressController: invalid status value: {}", status);
+                logger.error("Некорректное значение статуса: {}", status);
                 return ResponseEntity.badRequest().body(Map.of("error", "Invalid status value: " + status));
             }
 
@@ -55,7 +77,7 @@ public class ProgressController {
 
             return ResponseEntity.ok().build();
         } catch (Exception e) {
-            logger.error("ProgressController: error processing payload: {}", e.getMessage(), e);
+            logger.error("Ошибка при обработке запроса на обновление прогресса: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }

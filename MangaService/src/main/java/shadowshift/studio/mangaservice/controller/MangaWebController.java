@@ -16,7 +16,12 @@ import shadowshift.studio.mangaservice.service.MangaService;
 import java.util.ArrayList;
 import java.util.List;
 
-// DTO для главы (нужно создать или импортировать)
+/**
+ * DTO класс для представления информации о главе манги.
+ * Используется для передачи данных о главах между сервисами.
+ *
+ * @author ShadowShiftStudio
+ */
 class ChapterResponseDTO {
     private Long id;
     private Long mangaId;
@@ -24,23 +29,86 @@ class ChapterResponseDTO {
     private String title;
     private Integer pageCount;
 
-    // Getters and setters
+    /**
+     * Получает идентификатор главы.
+     *
+     * @return идентификатор главы
+     */
     public Long getId() { return id; }
+
+    /**
+     * Устанавливает идентификатор главы.
+     *
+     * @param id идентификатор главы
+     */
     public void setId(Long id) { this.id = id; }
 
+    /**
+     * Получает идентификатор манги.
+     *
+     * @return идентификатор манги
+     */
     public Long getMangaId() { return mangaId; }
+
+    /**
+     * Устанавливает идентификатор манги.
+     *
+     * @param mangaId идентификатор манги
+     */
     public void setMangaId(Long mangaId) { this.mangaId = mangaId; }
 
+    /**
+     * Получает номер главы.
+     *
+     * @return номер главы
+     */
     public Integer getChapterNumber() { return chapterNumber; }
+
+    /**
+     * Устанавливает номер главы.
+     *
+     * @param chapterNumber номер главы
+     */
     public void setChapterNumber(Integer chapterNumber) { this.chapterNumber = chapterNumber; }
 
+    /**
+     * Получает заголовок главы.
+     *
+     * @return заголовок главы
+     */
     public String getTitle() { return title; }
+
+    /**
+     * Устанавливает заголовок главы.
+     *
+     * @param title заголовок главы
+     */
     public void setTitle(String title) { this.title = title; }
 
+    /**
+     * Получает количество страниц в главе.
+     *
+     * @return количество страниц
+     */
     public Integer getPageCount() { return pageCount; }
+
+    /**
+     * Устанавливает количество страниц в главе.
+     *
+     * @param pageCount количество страниц
+     */
     public void setPageCount(Integer pageCount) { this.pageCount = pageCount; }
 }
 
+/**
+ * Веб-контроллер для управления мангой через веб-интерфейс.
+ *
+ * Предоставляет веб-страницы и формы для выполнения операций CRUD над мангой,
+ * включая создание, просмотр, редактирование и удаление. Контроллер работает
+ * с шаблонами представлений и перенаправляет запросы в соответствующие сервисы.
+ *
+ * @author ShadowShiftStudio
+ */
 @Controller
 @RequestMapping("/manga")
 public class MangaWebController {
@@ -54,7 +122,12 @@ public class MangaWebController {
     @Value("${chapter.service.url}")
     private String chapterServiceUrl;
 
-    // Каталог манги
+    /**
+     * Отображает страницу каталога со списком всех манг.
+     *
+     * @param model модель для передачи данных в представление
+     * @return имя шаблона страницы каталога
+     */
     @GetMapping
     public String catalogPage(Model model) {
         List<MangaResponseDTO> mangaList = mangaService.getAllManga();
@@ -62,13 +135,18 @@ public class MangaWebController {
         return "manga/catalog";
     }
 
-    // Страница конкретной манги с описанием и главами
+    /**
+     * Отображает детальную страницу конкретной манги с ее главами.
+     *
+     * @param id идентификатор манги
+     * @param model модель для передачи данных в представление
+     * @return имя шаблона детальной страницы или перенаправление при ошибке
+     */
     @GetMapping("/{id}")
     public String mangaDetailPage(@PathVariable Long id, Model model) {
         return mangaService.getMangaById(id)
                 .map(manga -> {
                     model.addAttribute("manga", manga);
-                    // Получаем список глав из ChapterService
                     try {
                         List<ChapterResponseDTO> chapters = getChaptersFromService(id);
                         model.addAttribute("chapters", chapters);
@@ -81,7 +159,12 @@ public class MangaWebController {
                 .orElse("redirect:/manga");
     }
 
-    // Форма для создания новой манги
+    /**
+     * Отображает форму для создания новой манги.
+     *
+     * @param model модель для передачи данных в представление
+     * @return имя шаблона формы создания
+     */
     @GetMapping("/create")
     public String createMangaForm(Model model) {
         model.addAttribute("mangaCreateDTO", new MangaCreateDTO());
@@ -89,7 +172,15 @@ public class MangaWebController {
         return "manga/create";
     }
 
-    // Обработка создания манги
+    /**
+     * Обрабатывает создание новой манги через веб-форму.
+     *
+     * @param mangaCreateDTO DTO с данными для создания манги
+     * @param bindingResult результат валидации данных формы
+     * @param model модель для передачи данных в представление
+     * @param redirectAttributes атрибуты для перенаправления с сообщениями
+     * @return перенаправление на страницу созданной манги или обратно на форму при ошибках
+     */
     @PostMapping("/create")
     public String createManga(
             @Valid @ModelAttribute MangaCreateDTO mangaCreateDTO,
@@ -114,7 +205,13 @@ public class MangaWebController {
         }
     }
 
-    // Форма для редактирования манги
+    /**
+     * Отображает форму для редактирования существующей манги.
+     *
+     * @param id идентификатор редактируемой манги
+     * @param model модель для передачи данных в представление
+     * @return имя шаблона формы редактирования или перенаправление при ошибке
+     */
     @GetMapping("/{id}/edit")
     public String editMangaForm(@PathVariable Long id, Model model) {
         return mangaService.getMangaById(id)
@@ -136,7 +233,16 @@ public class MangaWebController {
                 .orElse("redirect:/manga");
     }
 
-    // Обработка редактирования манги
+    /**
+     * Обрабатывает обновление данных манги через веб-форму.
+     *
+     * @param id идентификатор обновляемой манги
+     * @param mangaCreateDTO DTO с обновленными данными манги
+     * @param bindingResult результат валидации данных формы
+     * @param model модель для передачи данных в представление
+     * @param redirectAttributes атрибуты для перенаправления с сообщениями
+     * @return перенаправление на страницу манги или обратно на форму при ошибках
+     */
     @PostMapping("/{id}/edit")
     public String editManga(
             @PathVariable Long id,
@@ -168,7 +274,13 @@ public class MangaWebController {
         }
     }
 
-    // Удаление манги
+    /**
+     * Удаляет мангу по ее идентификатору.
+     *
+     * @param id идентификатор удаляемой манги
+     * @param redirectAttributes атрибуты для перенаправления с сообщениями
+     * @return перенаправление на страницу каталога
+     */
     @PostMapping("/{id}/delete")
     public String deleteManga(@PathVariable Long id, RedirectAttributes redirectAttributes) {
         try {
@@ -180,7 +292,12 @@ public class MangaWebController {
         return "redirect:/manga";
     }
 
-    // Приватный метод для получения глав из ChapterService
+    /**
+     * Получает список глав для указанной манги из ChapterService.
+     *
+     * @param mangaId идентификатор манги
+     * @return список глав манги
+     */
     private List<ChapterResponseDTO> getChaptersFromService(Long mangaId) {
         try {
             WebClient webClient = webClientBuilder.build();
@@ -193,7 +310,6 @@ public class MangaWebController {
 
             return chapters != null ? chapters : new ArrayList<>();
         } catch (Exception e) {
-            System.err.println("Error fetching chapters from ChapterService: " + e.getMessage());
             return new ArrayList<>();
         }
     }

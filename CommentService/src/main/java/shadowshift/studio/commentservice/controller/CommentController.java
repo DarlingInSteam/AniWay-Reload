@@ -16,11 +16,24 @@ import shadowshift.studio.commentservice.enums.ReactionType;
 import shadowshift.studio.commentservice.security.UserPrincipal;
 import shadowshift.studio.commentservice.service.CommentService;
 
-import jakarta.validation.Valid;
-import java.util.List;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Контроллер для работы с комментариями
+ * REST контроллер для управления комментариями.
+ * Предоставляет API endpoints для создания, чтения, обновления и удаления комментариев,
+ * а также для работы с реакциями и получения статистики.
+ *
+ * @author ShadowShiftStudio
  */
 @RestController
 @RequestMapping("/api/comments")
@@ -32,14 +45,18 @@ public class CommentController {
     private final CommentService commentService;
 
     /**
-     * Создание нового комментария
+     * Создать новый комментарий.
+     *
+     * @param createDTO DTO с данными для создания комментария
+     * @return ResponseEntity с созданным комментарием и статусом 201 CREATED
+     * @throws RuntimeException если пользователь не аутентифицирован
      */
     @PostMapping
     public ResponseEntity<CommentResponseDTO> createComment(@Valid @RequestBody CommentCreateDTO createDTO) {
         try {
             Long userId = getCurrentUserId();
             log.info("Creating comment for target {} by user {}", createDTO.getTargetId(), userId);
-            
+
             CommentResponseDTO response = commentService.createComment(createDTO, userId);
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (Exception e) {
@@ -49,7 +66,12 @@ public class CommentController {
     }
 
     /**
-     * Обновление комментария
+     * Обновить существующий комментарий.
+     *
+     * @param commentId идентификатор комментария для обновления
+     * @param updateDTO DTO с новыми данными комментария
+     * @return ResponseEntity с обновленным комментарием и статусом 200 OK
+     * @throws RuntimeException если пользователь не имеет прав на обновление или не аутентифицирован
      */
     @PutMapping("/{commentId}")
     public ResponseEntity<CommentResponseDTO> updateComment(
@@ -58,7 +80,7 @@ public class CommentController {
         try {
             Long userId = getCurrentUserId();
             log.info("Updating comment {} by user {}", commentId, userId);
-            
+
             CommentResponseDTO response = commentService.updateComment(commentId, updateDTO, userId);
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
@@ -71,14 +93,18 @@ public class CommentController {
     }
 
     /**
-     * Удаление комментария
+     * Удалить комментарий.
+     *
+     * @param commentId идентификатор комментария для удаления
+     * @return ResponseEntity с пустым телом и статусом 204 NO CONTENT
+     * @throws RuntimeException если пользователь не имеет прав на удаление или не аутентифицирован
      */
     @DeleteMapping("/{commentId}")
     public ResponseEntity<Void> deleteComment(@PathVariable Long commentId) {
         try {
             Long userId = getCurrentUserId();
             log.info("Deleting comment {} by user {}", commentId, userId);
-            
+
             commentService.deleteComment(commentId, userId);
             return ResponseEntity.noContent().build();
         } catch (RuntimeException e) {
@@ -91,7 +117,15 @@ public class CommentController {
     }
 
     /**
-     * Получение комментариев для определенного объекта
+     * Получить список комментариев для указанного объекта с пагинацией и сортировкой.
+     *
+     * @param targetId идентификатор целевого объекта (манга, глава и т.д.)
+     * @param type тип комментария
+     * @param page номер страницы (начиная с 0)
+     * @param size размер страницы
+     * @param sortBy поле для сортировки
+     * @param sortDir направление сортировки (asc/desc)
+     * @return ResponseEntity со списком комментариев и статусом 200 OK
      */
     @GetMapping
     public ResponseEntity<List<CommentResponseDTO>> getComments(
@@ -103,11 +137,11 @@ public class CommentController {
             @RequestParam(defaultValue = "desc") String sortDir) {
         try {
             log.info("Getting comments for target {} with type {}", targetId, type);
-            
-            Sort sort = Sort.by(sortDir.equalsIgnoreCase("desc") ? 
+
+            Sort sort = Sort.by(sortDir.equalsIgnoreCase("desc") ?
                     Sort.Direction.DESC : Sort.Direction.ASC, sortBy);
             Pageable pageable = PageRequest.of(page, size, sort);
-            
+
             List<CommentResponseDTO> comments = commentService.getCommentsByTarget(targetId, type, pageable);
             return ResponseEntity.ok(comments);
         } catch (Exception e) {
@@ -117,7 +151,14 @@ public class CommentController {
     }
 
     /**
-     * Получение ответов на комментарий
+     * Получить ответы на указанный комментарий с пагинацией и сортировкой.
+     *
+     * @param parentCommentId идентификатор родительского комментария
+     * @param page номер страницы (начиная с 0)
+     * @param size размер страницы
+     * @param sortBy поле для сортировки
+     * @param sortDir направление сортировки (asc/desc)
+     * @return ResponseEntity со списком ответов и статусом 200 OK
      */
     @GetMapping("/{parentCommentId}/replies")
     public ResponseEntity<List<CommentResponseDTO>> getReplies(
@@ -128,11 +169,11 @@ public class CommentController {
             @RequestParam(defaultValue = "asc") String sortDir) {
         try {
             log.info("Getting replies for comment {}", parentCommentId);
-            
-            Sort sort = Sort.by(sortDir.equalsIgnoreCase("desc") ? 
+
+            Sort sort = Sort.by(sortDir.equalsIgnoreCase("desc") ?
                     Sort.Direction.DESC : Sort.Direction.ASC, sortBy);
             Pageable pageable = PageRequest.of(page, size, sort);
-            
+
             List<CommentResponseDTO> replies = commentService.getReplies(parentCommentId, pageable);
             return ResponseEntity.ok(replies);
         } catch (Exception e) {
@@ -142,7 +183,12 @@ public class CommentController {
     }
 
     /**
-     * Добавление реакции на комментарий
+     * Добавить реакцию на комментарий.
+     *
+     * @param commentId идентификатор комментария
+     * @param reactionType тип реакции
+     * @return ResponseEntity с пустым телом и статусом 200 OK
+     * @throws RuntimeException если пользователь не аутентифицирован
      */
     @PostMapping("/{commentId}/reactions")
     public ResponseEntity<Void> addReaction(
@@ -151,7 +197,7 @@ public class CommentController {
         try {
             Long userId = getCurrentUserId();
             log.info("Adding reaction {} to comment {} by user {}", reactionType, commentId, userId);
-            
+
             commentService.addReaction(commentId, reactionType, userId);
             return ResponseEntity.ok().build();
         } catch (RuntimeException e) {
@@ -164,13 +210,16 @@ public class CommentController {
     }
 
     /**
-     * Получение статистики реакций для комментария
+     * Получить статистику реакций для комментария.
+     *
+     * @param commentId идентификатор комментария
+     * @return ResponseEntity со статистикой реакций и статусом 200 OK
      */
     @GetMapping("/{commentId}/reactions")
     public ResponseEntity<CommentReactionDTO> getReactionStats(@PathVariable Long commentId) {
         try {
             log.info("Getting reaction stats for comment {}", commentId);
-            
+
             CommentReactionDTO stats = commentService.getReactionStats(commentId);
             return ResponseEntity.ok(stats);
         } catch (Exception e) {
@@ -180,7 +229,11 @@ public class CommentController {
     }
 
     /**
-     * Получение количества комментариев для определенного объекта
+     * Получить количество комментариев для указанного объекта.
+     *
+     * @param targetId идентификатор целевого объекта
+     * @param type тип комментария
+     * @return ResponseEntity с количеством комментариев и статусом 200 OK
      */
     @GetMapping("/count")
     public ResponseEntity<CommentCountResponseDTO> getCommentsCount(
@@ -188,7 +241,7 @@ public class CommentController {
             @RequestParam CommentType type) {
         try {
             log.info("Getting comments count for target {} with type {}", targetId, type);
-            
+
             long count = commentService.getCommentsCount(targetId, type);
             CommentCountResponseDTO response = CommentCountResponseDTO.builder()
                     .count(count)
@@ -201,13 +254,16 @@ public class CommentController {
     }
 
     /**
-     * Получение всех комментариев пользователя для профиля
+     * Получить все комментарии пользователя для отображения в профиле.
+     *
+     * @param userId идентификатор пользователя
+     * @return ResponseEntity со списком комментариев пользователя и статусом 200 OK
      */
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<CommentResponseDTO>> getUserComments(@PathVariable Long userId) {
         try {
             log.info("Getting comments for user {}", userId);
-            
+
             List<CommentResponseDTO> comments = commentService.getAllUserComments(userId);
             return ResponseEntity.ok(comments);
         } catch (Exception e) {
@@ -217,7 +273,10 @@ public class CommentController {
     }
 
     /**
-     * Получение ID текущего пользователя из контекста безопасности
+     * Получить идентификатор текущего аутентифицированного пользователя.
+     *
+     * @return идентификатор пользователя
+     * @throws RuntimeException если пользователь не аутентифицирован
      */
     private Long getCurrentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -229,7 +288,11 @@ public class CommentController {
     }
 
     /**
-     * Обработка ошибок
+     * Обработчик исключений типа RuntimeException.
+     * Возвращает структурированный ответ об ошибке.
+     *
+     * @param e исключение RuntimeException
+     * @return ResponseEntity с информацией об ошибке и статусом 400 BAD REQUEST
      */
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ErrorResponseDTO> handleRuntimeException(RuntimeException e) {
@@ -241,6 +304,13 @@ public class CommentController {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
+    /**
+     * Обработчик общих исключений.
+     * Возвращает структурированный ответ об ошибке.
+     *
+     * @param e общее исключение
+     * @return ResponseEntity с информацией об ошибке и статусом 500 INTERNAL SERVER ERROR
+     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponseDTO> handleException(Exception e) {
         log.error("Unexpected error", e);

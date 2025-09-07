@@ -3,14 +3,12 @@ package shadowshift.studio.gatewayservice.config;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Конфигурация Gateway для настройки различных аспектов безопасности.
+ * Основная конфигурация Gateway Service.
+ * Служит базовым конфигурационным классом для настройки компонентов шлюза.
+ * CORS конфигурация вынесена в отдельный класс CorsGlobalConfiguration для лучшей организации кода.
  *
- * CORS конфигурация перенесена в CorsGlobalConfiguration.
- *
- * @author AniWay Development Team
- * @version 1.0.0
+ * @author ShadowShiftStudio
  */
 @Configuration
 public class GatewayConfig {
-    // CORS конфигурация теперь в CorsGlobalConfiguration
 }

@@ -17,6 +17,12 @@ import java.time.LocalDate;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * Сервис для интеграции с MelonService.
+ * Предоставляет методы для парсинга, импорта и управления мангой через внешний сервис Melon.
+ *
+ * @author ShadowShiftStudio
+ */
 @Service
 public class MelonIntegrationService {
 
@@ -32,9 +38,15 @@ public class MelonIntegrationService {
     @Autowired
     private ProgressWebSocketHandler webSocketHandler;
 
+    /**
+     * URL сервиса Melon.
+     */
     @Value("${melon.service.url:http://melon-service:8084}")
     private String melonServiceUrl;
 
+    /**
+     * Публичный URL сервиса Melon.
+     */
     @Value("${melon.service.public.url:http://localhost:8084}")
     private String melonServicePublicUrl;
 

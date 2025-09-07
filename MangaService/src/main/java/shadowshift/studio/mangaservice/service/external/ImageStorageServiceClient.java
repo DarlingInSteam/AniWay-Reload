@@ -11,8 +11,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Простой клиент для взаимодействия с ImageStorageService.
- * Восстановленная версия без сложной обработки ошибок для стабильной работы.
+ * Клиент для взаимодействия с внешним ImageStorageService.
+ * Предоставляет методы для получения изображений глав манги.
+ *
+ * @author ShadowShiftStudio
  */
 @Service
 public class ImageStorageServiceClient {
@@ -22,6 +24,12 @@ public class ImageStorageServiceClient {
     private final WebClient.Builder webClientBuilder;
     private final String imageStorageServiceUrl;
 
+    /**
+     * Конструктор для инициализации клиента.
+     *
+     * @param webClientBuilder билдер для создания WebClient
+     * @param imageStorageServiceUrl URL внешнего сервиса хранения изображений
+     */
     @Autowired
     public ImageStorageServiceClient(WebClient.Builder webClientBuilder,
                                    @Value("${image.storage.service.url}") String imageStorageServiceUrl) {
