@@ -35,10 +35,17 @@ public class RateLimitFilter implements WebFilter {
         this.authProperties = authProperties;
     }
 
-    private Bucket createNewBucket() {
-        // Allow higher burst and decent sustained rate: 300 tokens burst, refill 120 per minute
-        Bandwidth limit = Bandwidth.classic(300, Refill.greedy(120, Duration.ofMinutes(1)));
-        return Bucket4j.builder().addLimit(limit).build();
+    private Bucket createBucketForKey(String key) {
+        // Different limits for authenticated users and anonymous IPs
+        if (key.startsWith("user:")) {
+            // authenticated users: burst 300, refill 120/min
+            Bandwidth limit = Bandwidth.classic(300, Refill.greedy(120, Duration.ofMinutes(1)));
+            return Bucket4j.builder().addLimit(limit).build();
+        } else {
+            // anonymous IPs: stricter burst 60, refill 30/min
+            Bandwidth limit = Bandwidth.classic(60, Refill.greedy(30, Duration.ofMinutes(1)));
+            return Bucket4j.builder().addLimit(limit).build();
+        }
     }
 
     private boolean isPublicPath(String path) {
@@ -74,18 +81,20 @@ public class RateLimitFilter implements WebFilter {
             key = "ip:" + ip;
         }
 
-        Bucket bucket = buckets.computeIfAbsent(key, k -> createNewBucket());
+        Bucket bucket = buckets.computeIfAbsent(key, k -> createBucketForKey(k));
         ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
         if (!probe.isConsumed()) {
             long waitForRefillSeconds = probe.getNanosToWaitForRefill() / 1_000_000_000L;
             logger.warn("Rate limit exceeded for key={}; remaining={}", key, probe.getRemainingTokens());
             exchange.getResponse().getHeaders().add("Retry-After", String.valueOf(waitForRefillSeconds));
-            exchange.getResponse().getHeaders().add("X-RateLimit-Limit", String.valueOf(300));
+            int limitValue = key.startsWith("user:") ? 300 : 60;
+            exchange.getResponse().getHeaders().add("X-RateLimit-Limit", String.valueOf(limitValue));
             exchange.getResponse().getHeaders().add("X-RateLimit-Remaining", String.valueOf(probe.getRemainingTokens()));
             exchange.getResponse().setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
             return exchange.getResponse().setComplete();
         } else {
-            exchange.getResponse().getHeaders().add("X-RateLimit-Limit", String.valueOf(300));
+            int limitValue = key.startsWith("user:") ? 300 : 60;
+            exchange.getResponse().getHeaders().add("X-RateLimit-Limit", String.valueOf(limitValue));
             exchange.getResponse().getHeaders().add("X-RateLimit-Remaining", String.valueOf(probe.getRemainingTokens()));
         }
 
