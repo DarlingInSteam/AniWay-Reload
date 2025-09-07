@@ -23,11 +23,12 @@ const statusColors: Record<BookmarkStatus, string> = {
 }
 
 type SortOption = 'bookmark_updated' | 'manga_updated' | 'chapters_count' | 'alphabetical'
+type SortOrder = 'asc' | 'desc'
 
 const sortOptions: Record<SortOption, string> = {
-  bookmark_updated: 'По дате добавления в закладки',
-  manga_updated: 'По дате обновления тайтла',
-  chapters_count: 'По количеству глав',
+  bookmark_updated: 'По новизне',
+  manga_updated: 'По дате обновления',
+  chapters_count: 'По кол-ву глав',
   alphabetical: 'По алфавиту'
 }
 
@@ -37,6 +38,7 @@ export const LibraryPage: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState<BookmarkStatus | 'FAVORITES' | 'ALL'>('ALL')
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<SortOption>('bookmark_updated')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
 
   if (!isAuthenticated) {
     return (
@@ -58,27 +60,31 @@ export const LibraryPage: React.FC = () => {
 
     switch (sortOption) {
       case 'bookmark_updated':
-        return sorted.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())
+        return sorted.sort((a, b) => {
+          const dateA = new Date(a.updatedAt || a.createdAt || 0).getTime()
+          const dateB = new Date(b.updatedAt || b.createdAt || 0).getTime()
+          return sortOrder === 'desc' ? dateB - dateA : dateA - dateB
+        })
 
       case 'manga_updated':
         return sorted.sort((a, b) => {
           const dateA = new Date(a.manga?.updatedAt || a.manga?.createdAt || 0).getTime()
           const dateB = new Date(b.manga?.updatedAt || b.manga?.createdAt || 0).getTime()
-          return dateB - dateA
+          return sortOrder === 'desc' ? dateB - dateA : dateA - dateB
         })
 
       case 'chapters_count':
         return sorted.sort((a, b) => {
           const chaptersA = a.manga?.totalChapters || 0
           const chaptersB = b.manga?.totalChapters || 0
-          return chaptersB - chaptersA
+          return sortOrder === 'desc' ? chaptersB - chaptersA : chaptersA - chaptersB
         })
 
       case 'alphabetical':
         return sorted.sort((a, b) => {
           const titleA = (a.manga?.title || a.mangaTitle || '').toLowerCase()
           const titleB = (b.manga?.title || b.mangaTitle || '').toLowerCase()
-          return titleA.localeCompare(titleB, 'ru')
+          return sortOrder === 'desc' ? titleB.localeCompare(titleA, 'ru') : titleA.localeCompare(titleB, 'ru')
         })
 
       default:
@@ -215,19 +221,44 @@ export const LibraryPage: React.FC = () => {
           />
 
           {/* Сортировка в мобильной версии */}
-          <div className="bg-card/30 backdrop-blur-sm border border-border/30 rounded-xl p-4">
+          <div>
             <label className="block text-sm font-medium text-white mb-2">Сортировка</label>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortOption)}
-              className="w-full px-3 py-2 bg-card border border-border/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-200"
-            >
-              {Object.entries(sortOptions).map(([value, label]) => (
-                <option key={value} value={value} className="bg-card text-white">
-                  {label}
-                </option>
-              ))}
-            </select>
+            <div className="flex gap-3 items-end">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                className="px-3 py-2 bg-card border border-border/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-200"
+              >
+                {Object.entries(sortOptions).map(([value, label]) => (
+                  <option key={value} value={value} className="bg-card text-white">
+                    {label}
+                  </option>
+                ))}
+              </select>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setSortOrder('desc')}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    sortOrder === 'desc'
+                      ? 'bg-primary text-white'
+                      : 'bg-card/50 text-muted-foreground hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  По убыванию
+                </button>
+                <button
+                  onClick={() => setSortOrder('asc')}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    sortOrder === 'asc'
+                      ? 'bg-primary text-white'
+                      : 'bg-card/50 text-muted-foreground hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  По возрастанию
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -249,17 +280,42 @@ export const LibraryPage: React.FC = () => {
             {/* Сортировка в десктопной версии */}
             <div className="mb-6">
               <label className="block text-sm font-medium text-white mb-2">Сортировка</label>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SortOption)}
-                className="px-3 py-2 bg-card border border-border/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-200"
-              >
-                {Object.entries(sortOptions).map(([value, label]) => (
-                  <option key={value} value={value} className="bg-card text-white">
-                    {label}
-                  </option>
-                ))}
-              </select>
+              <div className="flex gap-3 items-end">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as SortOption)}
+                  className="px-3 py-2 bg-card border border-border/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-200"
+                >
+                  {Object.entries(sortOptions).map(([value, label]) => (
+                    <option key={value} value={value} className="bg-card text-white">
+                      {label}
+                    </option>
+                  ))}
+                </select>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setSortOrder('desc')}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      sortOrder === 'desc'
+                        ? 'bg-primary text-white'
+                        : 'bg-card/50 text-muted-foreground hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    По убыванию
+                  </button>
+                  <button
+                    onClick={() => setSortOrder('asc')}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      sortOrder === 'asc'
+                        ? 'bg-primary text-white'
+                        : 'bg-card/50 text-muted-foreground hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    По возрастанию
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Список манг */}
