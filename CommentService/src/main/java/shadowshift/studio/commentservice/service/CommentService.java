@@ -253,6 +253,19 @@ public class CommentService {
     }
 
     /**
+     * Получение всех комментариев пользователя
+     */
+    public List<CommentResponseDTO> getAllUserComments(Long userId, Pageable pageable) {
+        log.info("Getting all comments for user {}", userId);
+        
+        Page<Comment> userComments = commentRepository.findUserRootComments(userId, pageable);
+        
+        return userComments.getContent().stream()
+                .map(this::mapToResponseDTOWithoutReplies)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * Маппинг в DTO с дочерними комментариями
      */
     private CommentResponseDTO mapToResponseDTOWithChildren(Comment comment) {
@@ -295,6 +308,38 @@ public class CommentService {
                 .isDeleted(comment.getIsDeleted())
                 .likesCount(reactionStats.getLikesCount())
                 .dislikesCount(reactionStats.getDislikesCount())
+                .build();
+    }
+
+    /**
+     * Маппинг Comment в CommentResponseDTO без ответов (для профиля пользователя)
+     */
+    private CommentResponseDTO mapToResponseDTOWithoutReplies(Comment comment) {
+        // Получаем информацию о пользователе через AuthService
+        UserInfoDTO userInfo = authService.getUserInfo(comment.getUserId());
+        
+        // Получаем статистику реакций
+        CommentReactionDTO reactionStats = getReactionStats(comment.getId());
+        
+        // Подсчитываем количество ответов
+        int repliesCount = commentRepository.findByParentCommentIdAndIsDeleted(comment.getId(), false).size();
+        
+        return CommentResponseDTO.builder()
+                .id(comment.getId())
+                .content(comment.getContent())
+                .userId(comment.getUserId())
+                .username(userInfo != null ? userInfo.getUsername() : "Unknown")
+                .userAvatar(userInfo != null ? userInfo.getAvatar() : null)
+                .targetId(comment.getTargetId())
+                .type(comment.getType())
+                .parentCommentId(comment.getParentCommentId())
+                .createdAt(comment.getCreatedAt())
+                .updatedAt(comment.getUpdatedAt())
+                .isEdited(comment.getIsEdited() != null && comment.getIsEdited())
+                .isDeleted(comment.getIsDeleted())
+                .likesCount(reactionStats.getLikesCount())
+                .dislikesCount(reactionStats.getDislikesCount())
+                .repliesCount(repliesCount)
                 .build();
     }
 }

@@ -201,6 +201,31 @@ public class CommentController {
     }
 
     /**
+     * Получение всех комментариев пользователя для профиля
+     */
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<List<CommentResponseDTO>> getUserComments(
+            @PathVariable Long userId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir) {
+        try {
+            log.info("Getting comments for user {}", userId);
+            
+            Sort sort = Sort.by(sortDir.equalsIgnoreCase("desc") ? 
+                    Sort.Direction.DESC : Sort.Direction.ASC, sortBy);
+            Pageable pageable = PageRequest.of(page, size, sort);
+            
+            List<CommentResponseDTO> comments = commentService.getAllUserComments(userId, pageable);
+            return ResponseEntity.ok(comments);
+        } catch (Exception e) {
+            log.error("Error getting comments for user {}", userId, e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+    }
+
+    /**
      * Получение ID текущего пользователя из контекста безопасности
      */
     private Long getCurrentUserId() {
