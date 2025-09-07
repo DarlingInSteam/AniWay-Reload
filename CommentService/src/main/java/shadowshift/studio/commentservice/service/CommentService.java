@@ -255,12 +255,12 @@ public class CommentService {
     /**
      * Получение всех комментариев пользователя
      */
-    public List<CommentResponseDTO> getAllUserComments(Long userId, Pageable pageable) {
+    public List<CommentResponseDTO> getAllUserComments(Long userId) {
         log.info("Getting all comments for user {}", userId);
         
-        Page<Comment> userComments = commentRepository.findUserRootComments(userId, pageable);
+        List<Comment> userComments = commentRepository.findAllUserRootComments(userId);
         
-        return userComments.getContent().stream()
+        return userComments.stream()
                 .map(this::mapToResponseDTOWithoutReplies)
                 .collect(Collectors.toList());
     }

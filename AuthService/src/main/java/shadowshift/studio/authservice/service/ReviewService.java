@@ -187,6 +187,19 @@ public class ReviewService {
                 .ratingDistribution(ratingCounts)
                 .build();
     }
+
+    /**
+     * Получение всех ревью пользователя
+     */
+    public List<ReviewDTO> getAllUserReviews(Long userId) {
+        log.info("Getting all reviews for user {}", userId);
+        
+        List<Review> userReviews = reviewRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        
+        return userReviews.stream()
+                .map(review -> convertToDTO(review, null))
+                .collect(Collectors.toList());
+    }
     
     private void updateReviewCounts(Review review) {
         Long likes = reviewLikeRepository.countLikesByReviewId(review.getId());

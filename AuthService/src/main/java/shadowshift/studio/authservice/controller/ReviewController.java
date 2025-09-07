@@ -120,6 +120,21 @@ public class ReviewController {
         MangaRatingDTO rating = reviewService.getMangaRating(mangaId);
         return ResponseEntity.ok(rating);
     }
+
+    /**
+     * Получение всех ревью пользователя для профиля
+     */
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<List<ReviewDTO>> getUserReviews(@PathVariable Long userId) {
+        try {
+            log.info("Getting reviews for user {}", userId);
+            List<ReviewDTO> reviews = reviewService.getAllUserReviews(userId);
+            return ResponseEntity.ok(reviews);
+        } catch (Exception e) {
+            log.error("Error getting reviews for user {}", userId, e);
+            return ResponseEntity.badRequest().build();
+        }
+    }
     
     // Request DTOs
     public static class CreateReviewRequest {
