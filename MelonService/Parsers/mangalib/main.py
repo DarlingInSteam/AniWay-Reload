@@ -8,7 +8,26 @@ from dublib.WebRequestor import WebRequestor
 from datetime import datetime
 from time import sleep
 
-class Parser(MangaParser):
+class Parser(	def amend(self, branch: Branch, chapter: Chapter):
+		"""
+		Дополняет главу дайными о слайдах.
+			branch – данные ветви;
+			chapter – данные главы.
+		"""
+
+		# Логируем начало парсинга главы
+		total_chapters = sum(len(b.chapters) for b in self._Title.branches) if hasattr(self._Title, 'branches') else 1
+		current_chapter_index = 1  # Можно улучшить подсчет индекса главы
+		self._Portals.chapter_parsing_start(self._Title, chapter, current_chapter_index, total_chapters)
+
+		Slides = self.__GetSlides(branch.id, chapter)
+
+		for Slide in Slides:
+			chapter.add_slide(Slide["link"], Slide["width"], Slide["height"])
+
+		# Логируем завершение парсинга главы
+		slides_count = len(Slides)
+		self._Portals.chapter_parsing_complete(self._Title, chapter, current_chapter_index, total_chapters, slides_count)er):
 	"""Парсер."""
 
 	#==========================================================================================#
@@ -286,6 +305,9 @@ class Parser(MangaParser):
 					"height": Data[SlideIndex]["height"]
 				}
 				Slides.append(Buffer)
+
+				# Логируем загрузку каждого изображения
+				self._Portals.chapter_download_start(self._Title, chapter, SlideIndex + 1, len(Data))
 
 		else: self._Portals.request_error(Response, "Unable to request chapter content.", exception = False)
 
