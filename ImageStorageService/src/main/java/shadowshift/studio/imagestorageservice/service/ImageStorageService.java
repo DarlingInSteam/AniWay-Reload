@@ -27,6 +27,13 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+/**
+ * Сервис для управления хранением и обработкой изображений глав манги.
+ * Предоставляет функциональность для загрузки, получения, удаления изображений,
+ * работы с MinIO хранилищем Yandex Object Storage и управления метаданными изображений.
+ *
+ * @author ShadowShiftStudio
+ */
 @Service
 public class ImageStorageService {
 
@@ -39,6 +46,12 @@ public class ImageStorageService {
     @Autowired
     private YandexStorageProperties yandexProperties;
 
+    /**
+     * Получает список всех изображений для указанной главы, отсортированных по номеру страницы.
+     *
+     * @param chapterId идентификатор главы
+     * @return список изображений главы
+     */
     public List<ChapterImageResponseDTO> getImagesByChapterId(Long chapterId) {
         return imageRepository.findByChapterIdOrderByPageNumberAsc(chapterId)
                 .stream()
@@ -46,65 +59,84 @@ public class ImageStorageService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Получает изображение по идентификатору главы и номеру страницы.
+     *
+     * @param chapterId идентификатор главы
+     * @param pageNumber номер страницы
+     * @return Optional с изображением или пустой Optional если изображение не найдено
+     */
     public Optional<ChapterImageResponseDTO> getImageByChapterAndPage(Long chapterId, Integer pageNumber) {
         return imageRepository.findByChapterIdAndPageNumber(chapterId, pageNumber)
                 .map(ChapterImageResponseDTO::new);
     }
 
+    /**
+     * Получает обложку для указанной манги.
+     *
+     * @param mangaId идентификатор манги
+     * @return Optional с обложкой или пустой Optional если обложка не найдена
+     */
     public Optional<ChapterImageResponseDTO> getCoverByMangaId(Long mangaId) {
         return imageRepository.findByMangaIdAndChapterId(mangaId, -1L)
                 .map(ChapterImageResponseDTO::new);
     }
 
+    /**
+     * Получает количество страниц в указанной главе.
+     *
+     * @param chapterId идентификатор главы
+     * @return количество страниц
+     */
     public Integer getPageCountByChapterId(Long chapterId) {
         return imageRepository.countByChapterId(chapterId);
     }
 
-    // Метод для переноса изображения из MelonService в MinIO
+    /**
+     * Загружает изображение по URL в хранилище MinIO для указанной страницы главы.
+     * Используется для переноса изображений из внешних источников (например, MelonService).
+     *
+     * @param chapterId идентификатор главы
+     * @param pageNumber номер страницы
+     * @param imageUrl URL изображения для загрузки
+     * @return загруженное изображение
+     * @throws RuntimeException если загрузка или обработка изображения не удалась
+     */
     public ChapterImageResponseDTO uploadImageFromUrl(Long chapterId, Integer pageNumber, String imageUrl) {
         try {
-            // Проверяем, существует ли уже изображение для этой главы и страницы
             Optional<ChapterImage> existingImage = imageRepository.findByChapterIdAndPageNumber(chapterId, pageNumber);
             if (existingImage.isPresent()) {
-                // Если изображение уже существует, возвращаем его
                 return new ChapterImageResponseDTO(existingImage.get());
             }
 
-            // Создаем bucket если он не существует
             createBucketIfNotExists();
 
-            // Скачиваем изображение по URL из MelonService
             URL url = new URL(imageUrl);
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("GET");
-            connection.setConnectTimeout(10000); // 10 секунд
-            connection.setReadTimeout(30000); // 30 секунд
+            connection.setConnectTimeout(10000);
+            connection.setReadTimeout(30000);
 
             if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
                 throw new RuntimeException("Failed to download image from MelonService: " + imageUrl +
                         ", response code: " + connection.getResponseCode());
             }
 
-            // Читаем содержимое изображения
             InputStream inputStream = connection.getInputStream();
             byte[] imageBytes = inputStream.readAllBytes();
             inputStream.close();
 
-            // Определяем тип изображения
             String contentType = connection.getContentType();
             if (contentType == null || !contentType.startsWith("image/")) {
-                contentType = "image/jpeg"; // По умолчанию
+                contentType = "image/jpeg";
             }
 
-            // Получаем размеры изображения
             BufferedImage bufferedImage = ImageIO.read(new ByteArrayInputStream(imageBytes));
             int width = bufferedImage != null ? bufferedImage.getWidth() : 0;
             int height = bufferedImage != null ? bufferedImage.getHeight() : 0;
 
-            // Генерируем уникальное имя файла для MinIO
             String imageKey = generateObjectKey(chapterId, pageNumber, "page_" + pageNumber + ".jpg");
 
-            // Загружаем изображение в MinIO
             minioClient.putObject(
                     PutObjectArgs.builder()
                             .bucket(yandexProperties.getBucketName())
@@ -114,10 +146,8 @@ public class ImageStorageService {
                             .build()
             );
 
-            // Формируем URL для доступа к изображению в MinIO
             String minioImageUrl = generateImageUrl(imageKey);
 
-            // Сохраняем информацию о изображении в базе данных
             ChapterImage chapterImage = new ChapterImage();
             chapterImage.setChapterId(chapterId);
             chapterImage.setPageNumber(pageNumber);
@@ -140,21 +170,43 @@ public class ImageStorageService {
         }
     }
 
+    /**
+     * Генерирует ключ для изображения в MinIO хранилище.
+     *
+     * @param chapterId идентификатор главы
+     * @param pageNumber номер страницы
+     * @return сгенерированный ключ объекта
+     */
     private String generateImageKey(Long chapterId, Integer pageNumber) {
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
         return String.format("chapters/%d/pages/%d_%s_%s.jpg",
                 chapterId, pageNumber, timestamp, UUID.randomUUID().toString().substring(0, 8));
     }
 
+    /**
+     * Загружает одиночное изображение для указанной страницы главы.
+     *
+     * @param chapterId идентификатор главы
+     * @param pageNumber номер страницы
+     * @param file файл изображения для загрузки
+     * @return загруженное изображение
+     * @throws IOException при ошибках ввода-вывода
+     * @throws ServerException при ошибках сервера MinIO
+     * @throws InsufficientDataException при недостатке данных
+     * @throws ErrorResponseException при ошибках ответа MinIO
+     * @throws NoSuchAlgorithmException при отсутствии алгоритма
+     * @throws InvalidKeyException при недействительном ключе
+     * @throws InvalidResponseException при недействительном ответе
+     * @throws XmlParserException при ошибках парсинга XML
+     * @throws InternalException при внутренних ошибках
+     */
     public ChapterImageResponseDTO uploadImage(Long chapterId, Integer pageNumber, MultipartFile file)
             throws IOException, ServerException, InsufficientDataException, ErrorResponseException,
             NoSuchAlgorithmException, InvalidKeyException, InvalidResponseException, XmlParserException,
             InternalException {
 
-        // Создаем bucket если он не существует
         createBucketIfNotExists();
 
-        // Проверяем, что изображение с таким номером страницы еще не существует
         Optional<ChapterImage> existingImage = imageRepository
                 .findByChapterIdAndPageNumber(chapterId, pageNumber);
 
@@ -163,10 +215,8 @@ public class ImageStorageService {
                     " already exists for chapter " + chapterId);
         }
 
-        // Генерируем уникальный ключ для объекта в MinIO
         String objectKey = generateObjectKey(chapterId, pageNumber, file.getOriginalFilename());
 
-        // Сначала получаем размеры изображения
         BufferedImage bufferedImage = ImageIO.read(file.getInputStream());
         Integer width = null;
         Integer height = null;
@@ -175,9 +225,7 @@ public class ImageStorageService {
             height = bufferedImage.getHeight();
         }
 
-        // Создаем новый поток для загрузки в MinIO
         try (InputStream inputStream = file.getInputStream()) {
-            // Загружаем файл в MinIO
             minioClient.putObject(
                     PutObjectArgs.builder()
                             .bucket(yandexProperties.getBucketName())
@@ -188,7 +236,6 @@ public class ImageStorageService {
             );
         }
 
-        // Создаем запись в базе данных
         ChapterImage chapterImage = new ChapterImage();
         chapterImage.setChapterId(chapterId);
         chapterImage.setPageNumber(pageNumber);
@@ -203,6 +250,22 @@ public class ImageStorageService {
         return new ChapterImageResponseDTO(savedImage);
     }
 
+    /**
+     * Загружает несколько изображений для главы с автоматической нумерацией страниц.
+     *
+     * @param chapterId идентификатор главы
+     * @param files список файлов изображений
+     * @return список загруженных изображений
+     * @throws IOException при ошибках ввода-вывода
+     * @throws ServerException при ошибках сервера MinIO
+     * @throws InsufficientDataException при недостатке данных
+     * @throws ErrorResponseException при ошибках ответа MinIO
+     * @throws NoSuchAlgorithmException при отсутствии алгоритма
+     * @throws InvalidKeyException при недействительном ключе
+     * @throws InvalidResponseException при недействительном ответе
+     * @throws XmlParserException при ошибках парсинга XML
+     * @throws InternalException при внутренних ошибках
+     */
     public List<ChapterImageResponseDTO> uploadMultipleImages(Long chapterId, List<MultipartFile> files)
             throws IOException, ServerException, InsufficientDataException, ErrorResponseException,
             NoSuchAlgorithmException, InvalidKeyException, InvalidResponseException, XmlParserException,
@@ -210,7 +273,6 @@ public class ImageStorageService {
 
         createBucketIfNotExists();
 
-        // Получаем следующий доступный номер страницы
         Integer nextPageNumber = getNextAvailablePageNumber(chapterId);
 
         List<ChapterImageResponseDTO> uploadedImages = new java.util.ArrayList<>();
@@ -219,10 +281,8 @@ public class ImageStorageService {
             MultipartFile file = files.get(i);
             Integer pageNumber = nextPageNumber + i;
 
-            // Генерируем уникальный ключ для объекта в MinIO
             String objectKey = generateObjectKey(chapterId, pageNumber, file.getOriginalFilename());
 
-            // Загружаем файл в MinIO
             minioClient.putObject(
                     PutObjectArgs.builder()
                             .bucket(yandexProperties.getBucketName())
@@ -232,7 +292,6 @@ public class ImageStorageService {
                             .build()
             );
 
-            // Получаем размеры изображения
             BufferedImage bufferedImage = ImageIO.read(file.getInputStream());
             Integer width = null;
             Integer height = null;
@@ -241,7 +300,6 @@ public class ImageStorageService {
                 height = bufferedImage.getHeight();
             }
 
-            // Создаем запись в базе данных
             ChapterImage chapterImage = new ChapterImage();
             chapterImage.setChapterId(chapterId);
             chapterImage.setPageNumber(pageNumber);
@@ -259,6 +317,24 @@ public class ImageStorageService {
         return uploadedImages;
     }
 
+    /**
+     * Загружает несколько изображений для главы с указанием начального номера страницы.
+     * Файлы сортируются по имени для обеспечения предсказуемого порядка.
+     *
+     * @param chapterId идентификатор главы
+     * @param files список файлов изображений
+     * @param startPage начальный номер страницы
+     * @return список загруженных изображений
+     * @throws IOException при ошибках ввода-вывода
+     * @throws ServerException при ошибках сервера MinIO
+     * @throws InsufficientDataException при недостатке данных
+     * @throws ErrorResponseException при ошибках ответа MinIO
+     * @throws NoSuchAlgorithmException при отсутствии алгоритма
+     * @throws InvalidKeyException при недействительном ключе
+     * @throws InvalidResponseException при недействительном ответе
+     * @throws XmlParserException при ошибках парсинга XML
+     * @throws InternalException при внутренних ошибках
+     */
     public List<ChapterImageResponseDTO> uploadMultipleImagesWithOrder(Long chapterId, List<MultipartFile> files, Integer startPage)
             throws IOException, ServerException, InsufficientDataException, ErrorResponseException,
             NoSuchAlgorithmException, InvalidKeyException, InvalidResponseException, XmlParserException,
@@ -266,13 +342,6 @@ public class ImageStorageService {
 
         createBucketIfNotExists();
 
-        // Логируем исходный порядок файлов
-        System.out.println("=== DEBUG: Original file order ===");
-        for (int i = 0; i < files.size(); i++) {
-            System.out.println("File " + i + ": " + files.get(i).getOriginalFilename());
-        }
-
-        // Сортируем файлы по имени для обеспечения предсказуемого порядка
         List<MultipartFile> sortedFiles = new ArrayList<>(files);
         sortedFiles.sort((f1, f2) -> {
             String name1 = f1.getOriginalFilename();
@@ -282,19 +351,12 @@ public class ImageStorageService {
             return name1.compareToIgnoreCase(name2);
         });
 
-        // Логируем отсортированный порядок файлов
-        System.out.println("=== DEBUG: Sorted file order ===");
-        for (int i = 0; i < sortedFiles.size(); i++) {
-            System.out.println("Sorted File " + i + ": " + sortedFiles.get(i).getOriginalFilename() + " → will be page " + (startPage + i));
-        }
-
         List<ChapterImageResponseDTO> uploadedImages = new java.util.ArrayList<>();
 
         for (int i = 0; i < sortedFiles.size(); i++) {
             MultipartFile file = sortedFiles.get(i);
             Integer pageNumber = startPage + i;
 
-            // Проверяем, что страница с таким номером не существует
             Optional<ChapterImage> existingImage = imageRepository
                     .findByChapterIdAndPageNumber(chapterId, pageNumber);
 
@@ -302,10 +364,8 @@ public class ImageStorageService {
                 throw new RuntimeException("Page " + pageNumber + " already exists for chapter " + chapterId);
             }
 
-            // Генерируем уникальный ключ для объекта в MinIO
             String objectKey = generateObjectKey(chapterId, pageNumber, file.getOriginalFilename());
 
-            // Загружаем файл в MinIO
             minioClient.putObject(
                     PutObjectArgs.builder()
                             .bucket(yandexProperties.getBucketName())
@@ -315,7 +375,6 @@ public class ImageStorageService {
                             .build()
             );
 
-            // Получаем размеры изображения
             BufferedImage bufferedImage = ImageIO.read(file.getInputStream());
             Integer width = null;
             Integer height = null;
@@ -324,7 +383,6 @@ public class ImageStorageService {
                 height = bufferedImage.getHeight();
             }
 
-            // Создаем запись в базе данных
             ChapterImage chapterImage = new ChapterImage();
             chapterImage.setChapterId(chapterId);
             chapterImage.setPageNumber(pageNumber);
@@ -337,13 +395,25 @@ public class ImageStorageService {
 
             ChapterImage savedImage = imageRepository.save(chapterImage);
             uploadedImages.add(new ChapterImageResponseDTO(savedImage));
-
-            System.out.println("Uploaded: " + file.getOriginalFilename() + " → page " + pageNumber);
         }
 
         return uploadedImages;
     }
 
+    /**
+     * Удаляет изображение по его идентификатору из MinIO хранилища и базы данных.
+     *
+     * @param imageId идентификатор изображения для удаления
+     * @throws ServerException при ошибках сервера MinIO
+     * @throws InsufficientDataException при недостатке данных
+     * @throws ErrorResponseException при ошибках ответа MinIO
+     * @throws IOException при ошибках ввода-вывода
+     * @throws NoSuchAlgorithmException при отсутствии алгоритма
+     * @throws InvalidKeyException при недействительном ключе
+     * @throws InvalidResponseException при недействительном ответе
+     * @throws XmlParserException при ошибках парсинга XML
+     * @throws InternalException при внутренних ошибках
+     */
     public void deleteImage(Long imageId) throws ServerException, InsufficientDataException, ErrorResponseException,
             IOException, NoSuchAlgorithmException, InvalidKeyException, InvalidResponseException,
             XmlParserException, InternalException {
@@ -352,7 +422,6 @@ public class ImageStorageService {
         if (imageOpt.isPresent()) {
             ChapterImage image = imageOpt.get();
 
-            // Уд��ляем из MinIO
             minioClient.removeObject(
                     RemoveObjectArgs.builder()
                             .bucket(yandexProperties.getBucketName())
@@ -360,18 +429,30 @@ public class ImageStorageService {
                             .build()
             );
 
-            // Удаляем из базы данных
             imageRepository.delete(image);
         }
     }
 
+    /**
+     * Удаляет все изображения для указанной главы из MinIO хранилища и базы данных.
+     *
+     * @param chapterId идентификатор главы
+     * @throws ServerException при ошибках сервера MinIO
+     * @throws InsufficientDataException при недостатке данных
+     * @throws ErrorResponseException при ошибках ответа MinIO
+     * @throws IOException при ошибках ввода-вывода
+     * @throws NoSuchAlgorithmException при отсутствии алгоритма
+     * @throws InvalidKeyException при недействительном ключе
+     * @throws InvalidResponseException при недействительном ответе
+     * @throws XmlParserException при ошибках парсинга XML
+     * @throws InternalException при внутренних ошибках
+     */
     public void deleteAllChapterImages(Long chapterId) throws ServerException, InsufficientDataException,
             ErrorResponseException, IOException, NoSuchAlgorithmException, InvalidKeyException,
             InvalidResponseException, XmlParserException, InternalException {
 
         List<ChapterImage> images = imageRepository.findByChapterIdOrderByPageNumberAsc(chapterId);
 
-        // Удаляем все изображения из MinIO
         for (ChapterImage image : images) {
             minioClient.removeObject(
                     RemoveObjectArgs.builder()
@@ -381,10 +462,24 @@ public class ImageStorageService {
             );
         }
 
-        // Удаляем все записи из базы данных
         imageRepository.deleteByChapterId(chapterId);
     }
 
+    /**
+     * Получает байты изображения по его ключу из MinIO хранилища.
+     *
+     * @param imageKey ключ изображения в хранилище
+     * @return массив байтов изображения
+     * @throws ServerException при ошибках сервера MinIO
+     * @throws InsufficientDataException при недостатке данных
+     * @throws ErrorResponseException при ошибках ответа MinIO
+     * @throws IOException при ошибках ввода-вывода
+     * @throws NoSuchAlgorithmException при отсутствии алгоритма
+     * @throws InvalidKeyException при недействительном ключе
+     * @throws InvalidResponseException при недействительном ответе
+     * @throws XmlParserException при ошибках парсинга XML
+     * @throws InternalException при внутренних ошибках
+     */
     public byte[] getImageBytes(String imageKey) throws ServerException, InsufficientDataException,
             ErrorResponseException, IOException, NoSuchAlgorithmException, InvalidKeyException,
             InvalidResponseException, XmlParserException, InternalException {
@@ -402,10 +497,16 @@ public class ImageStorageService {
         }
     }
 
+    /**
+     * Изменяет порядок страниц в главе на основе предоставленного списка идентификаторов изображений.
+     *
+     * @param chapterId идентификатор главы
+     * @param imageIds список идентификаторов изображений в новом порядке
+     * @return список изображений с обновленным порядком
+     */
     public List<ChapterImageResponseDTO> reorderPages(Long chapterId, List<Long> imageIds) {
         List<ChapterImage> images = new ArrayList<>();
 
-        // Получаем изображения в порядке переданных ID
         for (Long imageId : imageIds) {
             Optional<ChapterImage> imageOpt = imageRepository.findById(imageId);
             if (imageOpt.isPresent() && imageOpt.get().getChapterId().equals(chapterId)) {
@@ -413,28 +514,41 @@ public class ImageStorageService {
             }
         }
 
-        // Переназначаем номера страниц
         for (int i = 0; i < images.size(); i++) {
             ChapterImage image = images.get(i);
             image.setPageNumber(i + 1);
             imageRepository.save(image);
         }
 
-        // Возвращаем обновленный список
         return images.stream()
                 .map(ChapterImageResponseDTO::new)
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Импортирует изображение из локального файла в MinIO хранилище.
+     *
+     * @param chapterId идентификатор главы
+     * @param pageNumber номер страницы
+     * @param localImagePath путь к локальному файлу изображения
+     * @return импортированное изображение
+     * @throws IOException при ошибках ввода-вывода
+     * @throws ServerException при ошибках сервера MinIO
+     * @throws InsufficientDataException при недостатке данных
+     * @throws ErrorResponseException при ошибках ответа MinIO
+     * @throws NoSuchAlgorithmException при отсутствии алгоритма
+     * @throws InvalidKeyException при недействительном ключе
+     * @throws InvalidResponseException при недействительном ответе
+     * @throws XmlParserException при ошибках парсинга XML
+     * @throws InternalException при внутренних ошибках
+     */
     public ChapterImageResponseDTO importFromLocalFile(Long chapterId, Integer pageNumber, String localImagePath)
             throws IOException, ServerException, InsufficientDataException, ErrorResponseException,
             NoSuchAlgorithmException, InvalidKeyException, InvalidResponseException, XmlParserException,
             InternalException {
 
-        // Создаем bucket если он не существует
         createBucketIfNotExists();
 
-        // Проверяем, что изображение с таким номером страницы еще не существует
         Optional<ChapterImage> existingImage = imageRepository
                 .findByChapterIdAndPageNumber(chapterId, pageNumber);
 
@@ -443,28 +557,24 @@ public class ImageStorageService {
                     " already exists for chapter " + chapterId);
         }
 
-        // Проверяем существование локального файла
         java.io.File localFile = new java.io.File(localImagePath);
         if (!localFile.exists()) {
             throw new RuntimeException("Local image file not found: " + localImagePath);
         }
 
-        // Генерируем уникальный ключ для объекта в MinIO
         String objectKey = generateObjectKey(chapterId, pageNumber, localFile.getName());
 
-        // Загружаем файл из локального пути в MinIO
         try (java.io.FileInputStream fileInputStream = new java.io.FileInputStream(localFile)) {
             minioClient.putObject(
                     PutObjectArgs.builder()
                             .bucket(yandexProperties.getBucketName())
                             .object(objectKey)
                             .stream(fileInputStream, localFile.length(), -1)
-                            .contentType("image/jpeg") // Предполагаем, что все изображения JPG
+                            .contentType("image/jpeg")
                             .build()
             );
         }
 
-        // Получаем размеры изображения
         BufferedImage bufferedImage = ImageIO.read(localFile);
         Integer width = null;
         Integer height = null;
@@ -473,7 +583,6 @@ public class ImageStorageService {
             height = bufferedImage.getHeight();
         }
 
-        // Создаем запись в базе данных
         ChapterImage chapterImage = new ChapterImage();
         chapterImage.setChapterId(chapterId);
         chapterImage.setPageNumber(pageNumber);
@@ -488,6 +597,19 @@ public class ImageStorageService {
         return new ChapterImageResponseDTO(savedImage);
     }
 
+    /**
+     * Создает bucket в MinIO если он не существует.
+     *
+     * @throws ServerException при ошибках сервера MinIO
+     * @throws InsufficientDataException при недостатке данных
+     * @throws ErrorResponseException при ошибках ответа MinIO
+     * @throws IOException при ошибках ввода-вывода
+     * @throws NoSuchAlgorithmException при отсутствии алгоритма
+     * @throws InvalidKeyException при недействительном ключе
+     * @throws InvalidResponseException при недействительном ответе
+     * @throws XmlParserException при ошибках парсинга XML
+     * @throws InternalException при внутренних ошибках
+     */
     private void createBucketIfNotExists() throws ServerException, InsufficientDataException,
             ErrorResponseException, IOException, NoSuchAlgorithmException, InvalidKeyException,
             InvalidResponseException, XmlParserException, InternalException {
@@ -498,26 +620,26 @@ public class ImageStorageService {
             );
 
             if (!exists) {
-                System.out.println("Bucket '" + yandexProperties.getBucketName() + "' does not exist, creating...");
                 minioClient.makeBucket(
                         MakeBucketArgs.builder().bucket(yandexProperties.getBucketName()).build()
                 );
-                System.out.println("Bucket '" + yandexProperties.getBucketName() + "' created successfully");
-            } else {
-                System.out.println("Bucket '" + yandexProperties.getBucketName() + "' already exists");
             }
         } catch (ErrorResponseException e) {
-            // Если получаем 400 Bad Request при проверке bucket'а, 
-            // предполагаем что bucket существует, но у нас нет прав на проверку
             if (e.response() != null && e.response().code() == 400) {
-                System.out.println("Cannot check bucket existence (403/400), assuming bucket exists: " + yandexProperties.getBucketName());
-                // Не создаем bucket, предполагаем что он существует
             } else {
-                throw e; // Перебрасываем другие ошибки
+                throw e;
             }
         }
     }
 
+    /**
+     * Генерирует уникальный ключ для объекта в MinIO хранилище.
+     *
+     * @param chapterId идентификатор главы
+     * @param pageNumber номер страницы
+     * @param originalFilename оригинальное имя файла
+     * @return сгенерированный ключ объекта
+     */
     private String generateObjectKey(Long chapterId, Integer pageNumber, String originalFilename) {
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
         String extension = getFileExtension(originalFilename);
@@ -527,10 +649,22 @@ public class ImageStorageService {
                 chapterId, pageNumber, timestamp, uniqueId, extension);
     }
 
+    /**
+     * Генерирует публичный URL для доступа к изображению в MinIO.
+     *
+     * @param objectKey ключ объекта в хранилище
+     * @return публичный URL изображения
+     */
     private String generateImageUrl(String objectKey) {
         return String.format("%s/%s/%s", yandexProperties.getPublicEndpoint(), yandexProperties.getBucketName(), objectKey);
     }
 
+    /**
+     * Получает расширение файла из имени файла.
+     *
+     * @param filename имя файла
+     * @return расширение файла или пустая строка если расширение не найдено
+     */
     private String getFileExtension(String filename) {
         if (filename == null || !filename.contains(".")) {
             return "";
@@ -538,38 +672,55 @@ public class ImageStorageService {
         return filename.substring(filename.lastIndexOf("."));
     }
 
+    /**
+     * Получает следующий доступный номер страницы для главы.
+     *
+     * @param chapterId идентификатор главы
+     * @return следующий доступный номер страницы
+     */
     private Integer getNextAvailablePageNumber(Long chapterId) {
         return imageRepository.findMaxPageNumberByChapterId(chapterId)
                 .map(maxPage -> maxPage + 1)
                 .orElse(1);
     }
 
+    /**
+     * Загружает обложку для указанной манги.
+     * Если обложка уже существует, она заменяется новой.
+     *
+     * @param mangaId идентификатор манги
+     * @param file файл обложки для загрузки
+     * @return загруженная обложка
+     * @throws IOException при ошибках ввода-вывода
+     * @throws ServerException при ошибках сервера MinIO
+     * @throws InsufficientDataException при недостатке данных
+     * @throws ErrorResponseException при ошибках ответа MinIO
+     * @throws NoSuchAlgorithmException при отсутствии алгоритма
+     * @throws InvalidKeyException при недействительном ключе
+     * @throws InvalidResponseException при недействительном ответе
+     * @throws XmlParserException при ошибках парсинга XML
+     * @throws InternalException при внутренних ошибках
+     */
     public ChapterImageResponseDTO uploadCoverForManga(Long mangaId, MultipartFile file)
             throws IOException, ServerException, InsufficientDataException, ErrorResponseException,
             NoSuchAlgorithmException, InvalidKeyException, InvalidResponseException, XmlParserException,
             InternalException {
 
-        // Создаем bucket если он не существует
         createBucketIfNotExists();
 
-        // Проверяем, есть ли уже обложка для этой манги
         Optional<ChapterImage> existingCover = imageRepository.findByMangaIdAndChapterId(mangaId, -1L);
         if (existingCover.isPresent()) {
-            // Удаляем старую обложку из MinIO
             minioClient.removeObject(
                     RemoveObjectArgs.builder()
                             .bucket(yandexProperties.getBucketName())
                             .object(existingCover.get().getImageKey())
                             .build()
             );
-            // Удаляем запись из базы данных
             imageRepository.delete(existingCover.get());
         }
 
-        // Генерируем уникальный ключ для объекта в MinIO (используем mangaId как page_number для уникальности)
         String objectKey = generateObjectKey(-1L, mangaId.intValue(), file.getOriginalFilename());
 
-        // Загружаем файл в MinIO
         minioClient.putObject(
                 PutObjectArgs.builder()
                         .bucket(yandexProperties.getBucketName())
@@ -579,7 +730,6 @@ public class ImageStorageService {
                         .build()
         );
 
-        // Получаем размеры изображения
         BufferedImage bufferedImage = ImageIO.read(file.getInputStream());
         Integer width = null;
         Integer height = null;
@@ -588,11 +738,10 @@ public class ImageStorageService {
             height = bufferedImage.getHeight();
         }
 
-        // Создаем запись в базе данных
         ChapterImage chapterImage = new ChapterImage();
-        chapterImage.setMangaId(mangaId); // Указываем manga_id для привязки к конкретной манге
-        chapterImage.setChapterId(-1L); // -1 означает обложку
-        chapterImage.setPageNumber(mangaId.intValue()); // Используем mangaId как page_number для уникальности
+        chapterImage.setMangaId(mangaId);
+        chapterImage.setChapterId(-1L);
+        chapterImage.setPageNumber(mangaId.intValue());
         chapterImage.setImageKey(objectKey);
         chapterImage.setImageUrl(generateImageUrl(objectKey));
         chapterImage.setFileSize(file.getSize());

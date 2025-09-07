@@ -9,16 +9,51 @@ import java.util.concurrent.CompletableFuture;
 import java.util.Map;
 import java.util.HashMap;
 
+/**
+ * Сервис для управления задачами импорта манги.
+ * Предоставляет функциональность для создания, обновления и отслеживания прогресса задач импорта.
+ *
+ * @author ShadowShiftStudio
+ */
 @Service
 public class ImportTaskService {
 
     @Autowired
     private ProgressWebSocketHandler webSocketHandler;
 
+    /**
+     * Перечисление статусов задачи импорта.
+     */
     public enum TaskStatus {
-        PENDING, IMPORTING_MANGA, IMPORTING_CHAPTERS, IMPORTING_PAGES, COMPLETED, FAILED
+        /**
+         * Задача ожидает выполнения.
+         */
+        PENDING,
+        /**
+         * Импорт манги.
+         */
+        IMPORTING_MANGA,
+        /**
+         * Импорт глав.
+         */
+        IMPORTING_CHAPTERS,
+        /**
+         * Импорт страниц.
+         */
+        IMPORTING_PAGES,
+        /**
+         * Задача завершена успешно.
+         */
+        COMPLETED,
+        /**
+         * Задача завершилась с ошибкой.
+         */
+        FAILED
     }
 
+    /**
+     * Класс, представляющий задачу импорта.
+     */
     public static class ImportTask {
         private String taskId;
         private TaskStatus status;
@@ -34,6 +69,11 @@ public class ImportTaskService {
         private int importedPages;
         private String errorMessage;
 
+        /**
+         * Конструктор для создания задачи импорта.
+         *
+         * @param taskId уникальный идентификатор задачи
+         */
         public ImportTask(String taskId) {
             this.taskId = taskId;
             this.status = TaskStatus.PENDING;
@@ -43,51 +83,179 @@ public class ImportTaskService {
             this.updatedAt = LocalDateTime.now();
         }
 
-        // Getters and setters
+        /**
+         * Возвращает идентификатор задачи.
+         *
+         * @return идентификатор задачи
+         */
         public String getTaskId() { return taskId; }
 
+        /**
+         * Возвращает статус задачи.
+         *
+         * @return статус задачи
+         */
         public TaskStatus getStatus() { return status; }
+
+        /**
+         * Устанавливает статус задачи.
+         *
+         * @param status новый статус задачи
+         */
         public void setStatus(TaskStatus status) {
             this.status = status;
             this.updatedAt = LocalDateTime.now();
         }
 
+        /**
+         * Возвращает прогресс задачи в процентах.
+         *
+         * @return прогресс задачи
+         */
         public int getProgress() { return progress; }
+
+        /**
+         * Устанавливает прогресс задачи.
+         *
+         * @param progress новый прогресс задачи
+         */
         public void setProgress(int progress) {
             this.progress = progress;
             this.updatedAt = LocalDateTime.now();
         }
 
+        /**
+         * Возвращает сообщение о состоянии задачи.
+         *
+         * @return сообщение
+         */
         public String getMessage() { return message; }
+
+        /**
+         * Устанавливает сообщение о состоянии задачи.
+         *
+         * @param message новое сообщение
+         */
         public void setMessage(String message) {
             this.message = message;
             this.updatedAt = LocalDateTime.now();
         }
 
+        /**
+         * Возвращает дату создания задачи.
+         *
+         * @return дата создания
+         */
         public LocalDateTime getCreatedAt() { return createdAt; }
+
+        /**
+         * Возвращает дату последнего обновления задачи.
+         *
+         * @return дата обновления
+         */
         public LocalDateTime getUpdatedAt() { return updatedAt; }
 
+        /**
+         * Возвращает идентификатор манги.
+         *
+         * @return идентификатор манги
+         */
         public Long getMangaId() { return mangaId; }
+
+        /**
+         * Устанавливает идентификатор манги.
+         *
+         * @param mangaId идентификатор манги
+         */
         public void setMangaId(Long mangaId) { this.mangaId = mangaId; }
 
+        /**
+         * Возвращает заголовок манги.
+         *
+         * @return заголовок манги
+         */
         public String getTitle() { return title; }
+
+        /**
+         * Устанавливает заголовок манги.
+         *
+         * @param title заголовок манги
+         */
         public void setTitle(String title) { this.title = title; }
 
+        /**
+         * Возвращает общее количество глав.
+         *
+         * @return общее количество глав
+         */
         public int getTotalChapters() { return totalChapters; }
+
+        /**
+         * Устанавливает общее количество глав.
+         *
+         * @param totalChapters общее количество глав
+         */
         public void setTotalChapters(int totalChapters) { this.totalChapters = totalChapters; }
 
+        /**
+         * Возвращает количество импортированных глав.
+         *
+         * @return количество импортированных глав
+         */
         public int getImportedChapters() { return importedChapters; }
+
+        /**
+         * Устанавливает количество импортированных глав.
+         *
+         * @param importedChapters количество импортированных глав
+         */
         public void setImportedChapters(int importedChapters) { this.importedChapters = importedChapters; }
 
+        /**
+         * Возвращает общее количество страниц.
+         *
+         * @return общее количество страниц
+         */
         public int getTotalPages() { return totalPages; }
+
+        /**
+         * Устанавливает общее количество страниц.
+         *
+         * @param totalPages общее количество страниц
+         */
         public void setTotalPages(int totalPages) { this.totalPages = totalPages; }
 
+        /**
+         * Возвращает количество импортированных страниц.
+         *
+         * @return количество импортированных страниц
+         */
         public int getImportedPages() { return importedPages; }
+
+        /**
+         * Устанавливает количество импортированных страниц.
+         *
+         * @param importedPages количество импортированных страниц
+         */
         public void setImportedPages(int importedPages) { this.importedPages = importedPages; }
 
+        /**
+         * Возвращает сообщение об ошибке.
+         *
+         * @return сообщение об ошибке
+         */
         public String getErrorMessage() { return errorMessage; }
+
+        /**
+         * Устанавливает сообщение об ошибке.
+         *
+         * @param errorMessage сообщение об ошибке
+         */
         public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
 
+        /**
+         * Обновляет прогресс задачи на основе импортированных глав.
+         */
         public void updateProgress() {
             if (totalChapters > 0) {
                 this.progress = Math.min(100, (importedChapters * 100) / totalChapters);
@@ -95,6 +263,11 @@ public class ImportTaskService {
             this.updatedAt = LocalDateTime.now();
         }
 
+        /**
+         * Преобразует задачу в карту для передачи данных.
+         *
+         * @return карта с данными задачи
+         */
         public Map<String, Object> toMap() {
             Map<String, Object> result = new HashMap<>();
             result.put("taskId", taskId);
@@ -116,16 +289,36 @@ public class ImportTaskService {
 
     private final Map<String, ImportTask> tasks = new ConcurrentHashMap<>();
 
+    /**
+     * Создает новую задачу импорта.
+     *
+     * @param taskId уникальный идентификатор задачи
+     * @return созданная задача
+     */
     public ImportTask createTask(String taskId) {
         ImportTask task = new ImportTask(taskId);
         tasks.put(taskId, task);
         return task;
     }
 
+    /**
+     * Возвращает задачу по идентификатору.
+     *
+     * @param taskId идентификатор задачи
+     * @return задача или null, если не найдена
+     */
     public ImportTask getTask(String taskId) {
         return tasks.get(taskId);
     }
 
+    /**
+     * Обновляет статус, прогресс и сообщение задачи.
+     *
+     * @param taskId идентификатор задачи
+     * @param status новый статус
+     * @param progress новый прогресс
+     * @param message новое сообщение
+     */
     public void updateTask(String taskId, TaskStatus status, int progress, String message) {
         ImportTask task = tasks.get(taskId);
         if (task != null) {
@@ -138,6 +331,11 @@ public class ImportTaskService {
         }
     }
 
+    /**
+     * Обновляет прогресс задачи на основе импортированных глав.
+     *
+     * @param taskId идентификатор задачи
+     */
     public void updateTaskProgress(String taskId) {
         ImportTask task = tasks.get(taskId);
         if (task != null) {
@@ -148,6 +346,11 @@ public class ImportTaskService {
         }
     }
 
+    /**
+     * Помечает задачу как завершенную.
+     *
+     * @param taskId идентификатор задачи
+     */
     public void markTaskCompleted(String taskId) {
         ImportTask task = tasks.get(taskId);
         if (task != null) {
@@ -160,6 +363,12 @@ public class ImportTaskService {
         }
     }
 
+    /**
+     * Помечает задачу как завершившуюся с ошибкой.
+     *
+     * @param taskId идентификатор задачи
+     * @param errorMessage сообщение об ошибке
+     */
     public void markTaskFailed(String taskId, String errorMessage) {
         ImportTask task = tasks.get(taskId);
         if (task != null) {
@@ -172,6 +381,11 @@ public class ImportTaskService {
         }
     }
 
+    /**
+     * Увеличивает счетчик импортированных глав.
+     *
+     * @param taskId идентификатор задачи
+     */
     public void incrementImportedChapters(String taskId) {
         ImportTask task = tasks.get(taskId);
         if (task != null) {
@@ -184,6 +398,11 @@ public class ImportTaskService {
         }
     }
 
+    /**
+     * Увеличивает счетчик импортированных страниц.
+     *
+     * @param taskId идентификатор задачи
+     */
     public void incrementImportedPages(String taskId) {
         ImportTask task = tasks.get(taskId);
         if (task != null) {

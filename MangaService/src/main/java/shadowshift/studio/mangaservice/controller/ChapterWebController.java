@@ -16,6 +16,13 @@ import shadowshift.studio.mangaservice.service.MangaService;
 
 import java.util.List;
 
+/**
+ * Веб-контроллер для управления главами манги через веб-интерфейс.
+ * Предоставляет функциональность для создания, удаления глав и загрузки изображений страниц.
+ * Интегрируется с ChapterService и ImageStorageService для выполнения операций.
+ *
+ * @author ShadowShiftStudio
+ */
 @Controller
 @RequestMapping("/chapters")
 public class ChapterWebController {
@@ -32,7 +39,13 @@ public class ChapterWebController {
     @Value("${image.storage.service.url}")
     private String imageStorageServiceUrl;
 
-    // Форма для создания новой главы
+    /**
+     * Отображает форму для создания новой главы манги.
+     *
+     * @param mangaId идентификатор манги, для которой создается глава
+     * @param model модель для передачи данных в представление
+     * @return имя шаблона для отображения формы создания главы
+     */
     @GetMapping("/create")
     public String createChapterForm(@RequestParam Long mangaId, Model model) {
         return mangaService.getMangaById(mangaId)
@@ -46,7 +59,17 @@ public class ChapterWebController {
                 .orElse("redirect:/manga");
     }
 
-    // Обработка создания главы с загрузкой изображений
+    /**
+     * Обрабатывает создание новой главы с возможностью загрузки изображений страниц.
+     *
+     * @param chapterDTO DTO с данными для создания главы
+     * @param bindingResult результат валидации данных формы
+     * @param images список файлов изображений для загрузки
+     * @param startPage начальный номер страницы для загрузки изображений
+     * @param model модель для передачи данных в представление
+     * @param redirectAttributes атрибуты для перенаправления с сообщениями
+     * @return перенаправление на страницу манги или обратно на форму при ошибках
+     */
     @PostMapping("/create")
     public String createChapter(
             @Valid @ModelAttribute ChapterCreateFormDTO chapterDTO,
@@ -66,13 +89,11 @@ public class ChapterWebController {
         }
 
         try {
-            // Создаем объект для отправки в ChapterService
             ChapterCreateRequestDTO requestDTO = new ChapterCreateRequestDTO();
             requestDTO.setMangaId(chapterDTO.getMangaId());
             requestDTO.setChapterNumber(chapterDTO.getChapterNumber());
             requestDTO.setTitle(chapterDTO.getTitle());
 
-            // Создаем главу через ChapterService
             WebClient webClient = webClientBuilder.build();
             ChapterResponseDTO createdChapter = webClient.post()
                     .uri(chapterServiceUrl + "/api/chapters")
@@ -82,14 +103,12 @@ public class ChapterWebController {
                     .block();
 
             if (createdChapter != null) {
-                // Если есть изображения, загружаем их в ImageStorageService
                 if (images != null && !images.isEmpty() && images.get(0) != null && !images.get(0).isEmpty()) {
                     try {
                         uploadImagesToChapterWithOrder(createdChapter.getId(), images, startPage);
                         redirectAttributes.addFlashAttribute("successMessage",
                             "Глава " + chapterDTO.getChapterNumber() + " успешно создана с " + images.size() + " страницами, начиная со страницы " + startPage + "!");
                     } catch (Exception e) {
-                        System.err.println("Error uploading images: " + e.getMessage());
                         redirectAttributes.addFlashAttribute("successMessage",
                             "Глава " + chapterDTO.getChapterNumber() + " создана, но возникла ошибка при загрузке изображений.");
                     }
@@ -104,8 +123,6 @@ public class ChapterWebController {
             }
 
         } catch (Exception e) {
-            System.err.println("Error creating chapter: " + e.getMessage());
-            e.printStackTrace();
             model.addAttribute("errorMessage", "Ошибка создания главы: " + e.getMessage());
             return mangaService.getMangaById(chapterDTO.getMangaId())
                     .map(manga -> {
@@ -116,14 +133,18 @@ public class ChapterWebController {
         }
     }
 
-    // Удаление главы через веб-интерфейс
+    /**
+     * Удаляет главу по ее идентификатору через веб-интерфейс.
+     *
+     * @param id идентификатор главы для удаления
+     * @return ResponseEntity с результатом операции
+     */
     @DeleteMapping("/{id}")
     @ResponseBody
     public ResponseEntity<String> deleteChapter(@PathVariable Long id) {
         try {
             WebClient webClient = webClientBuilder.build();
 
-            // Удаляем главу через ChapterService (который в свою очередь удалит изображения)
             webClient.delete()
                     .uri(chapterServiceUrl + "/api/chapters/" + id)
                     .retrieve()
@@ -132,17 +153,20 @@ public class ChapterWebController {
 
             return ResponseEntity.ok("Chapter deleted successfully");
         } catch (Exception e) {
-            System.err.println("Error deleting chapter: " + e.getMessage());
             return ResponseEntity.internalServerError().body("Failed to delete chapter: " + e.getMessage());
         }
     }
 
-    // Метод для загрузки изображений в ImageStorageService
+    /**
+     * Загружает изображения для указанной главы в ImageStorageService.
+     *
+     * @param chapterId идентификатор главы
+     * @param images список изображений для загрузки
+     */
     private void uploadImagesToChapter(Long chapterId, List<MultipartFile> images) {
         try {
             WebClient webClient = webClientBuilder.build();
 
-            // Отправляем изображения в ImageStorageService
             webClient.post()
                     .uri(imageStorageServiceUrl + "/api/images/chapter/" + chapterId + "/multiple")
                     .contentType(org.springframework.http.MediaType.MULTIPART_FORM_DATA)
@@ -152,33 +176,22 @@ public class ChapterWebController {
                     .retrieve()
                     .bodyToMono(String.class)
                     .block();
-
-            System.out.println("Successfully uploaded " + images.size() + " images for chapter " + chapterId);
         } catch (Exception e) {
-            System.err.println("Error uploading images to ImageStorageService: " + e.getMessage());
             throw e;
         }
     }
 
-    // Метод для загрузки изображений в ImageStorageService с учетом порядка страниц
+    /**
+     * Загружает изображения для указанной главы с учетом порядка страниц.
+     *
+     * @param chapterId идентификатор главы
+     * @param images список изображений для загрузки
+     * @param startPage начальный номер страницы
+     */
     private void uploadImagesToChapterWithOrder(Long chapterId, List<MultipartFile> images, Integer startPage) {
         try {
-            // DEBUG: Логируем информацию о загружаемых файлах
-            System.out.println("=== DEBUG: uploadImagesToChapterWithOrder ===");
-            System.out.println("ChapterId: " + chapterId);
-            System.out.println("StartPage: " + startPage);
-            System.out.println("Number of images: " + images.size());
-
-            for (int i = 0; i < images.size(); i++) {
-                MultipartFile image = images.get(i);
-                System.out.println("Image " + i + ": filename=" + image.getOriginalFilename() +
-                                 ", size=" + image.getSize() +
-                                 ", will be page " + (startPage + i));
-            }
-
             WebClient webClient = webClientBuilder.build();
 
-            // Создаем multipart данные с учетом порядка страниц
             org.springframework.util.MultiValueMap<String, Object> multipartData = new org.springframework.util.LinkedMultiValueMap<>();
             for (int i = 0; i < images.size(); i++) {
                 MultipartFile image = images.get(i);
@@ -191,17 +204,13 @@ public class ChapterWebController {
                             }
                         };
                         multipartData.add("files", resource);
-                        System.out.println("Added to multipart: " + image.getOriginalFilename() + " at index " + i);
                     } catch (Exception e) {
-                        System.err.println("Error processing image " + i + ": " + e.getMessage());
+                        // Продолжаем обработку других изображений при ошибке с одним файлом
                     }
                 }
             }
 
-            // Отправляем изображения в ImageStorageService с использованием упорядоченного endpoint
-            System.out.println("Calling endpoint: " + imageStorageServiceUrl + "/api/images/chapter/" + chapterId + "/multiple-ordered?startPage=" + startPage);
-
-            String response = webClient.post()
+            webClient.post()
                     .uri(imageStorageServiceUrl + "/api/images/chapter/" + chapterId + "/multiple-ordered?startPage=" + startPage)
                     .contentType(org.springframework.http.MediaType.MULTIPART_FORM_DATA)
                     .body(org.springframework.web.reactive.function.BodyInserters.fromMultipartData(
@@ -210,17 +219,17 @@ public class ChapterWebController {
                     .retrieve()
                     .bodyToMono(String.class)
                     .block();
-
-            System.out.println("ImageStorageService response: " + response);
-            System.out.println("Successfully uploaded " + images.size() + " images for chapter " + chapterId + " with order starting from page " + startPage);
         } catch (Exception e) {
-            System.err.println("Error uploading images to ImageStorageService: " + e.getMessage());
-            e.printStackTrace();
             throw e;
         }
     }
 
-    // Вспомогательный метод для создания multipart данных
+    /**
+     * Создает multipart данные для отправки изображений.
+     *
+     * @param images список файлов изображений
+     * @return MultiValueMap с подготовленными данными для отправки
+     */
     private org.springframework.util.MultiValueMap<String, Object> createMultipartData(List<MultipartFile> images) {
         org.springframework.util.LinkedMultiValueMap<String, Object> parts = new org.springframework.util.LinkedMultiValueMap<>();
 
@@ -234,9 +243,9 @@ public class ChapterWebController {
                             return image.getOriginalFilename();
                         }
                     };
-                    parts.add("files", resource);  // Изменено с "images" на "files"
+                    parts.add("files", resource);
                 } catch (Exception e) {
-                    System.err.println("Error processing image " + i + ": " + e.getMessage());
+                    // Продолжаем обработку других изображений при ошибке с одним файлом
                 }
             }
         }
@@ -244,41 +253,120 @@ public class ChapterWebController {
         return parts;
     }
 
-    // DTO класс для формы создания главы
+    /**
+     * DTO класс для формы создания главы манги.
+     * Содержит данные, необходимые для создания новой главы через веб-интерфейс.
+     *
+     * @author ShadowShiftStudio
+     */
     public static class ChapterCreateFormDTO {
         private Long mangaId;
         private Integer chapterNumber;
         private String title;
 
-        // Getters and Setters
+        /**
+         * Получает идентификатор манги.
+         *
+         * @return идентификатор манги
+         */
         public Long getMangaId() { return mangaId; }
+
+        /**
+         * Устанавливает идентификатор манги.
+         *
+         * @param mangaId идентификатор манги
+         */
         public void setMangaId(Long mangaId) { this.mangaId = mangaId; }
 
+        /**
+         * Получает номер главы.
+         *
+         * @return номер главы
+         */
         public Integer getChapterNumber() { return chapterNumber; }
+
+        /**
+         * Устанавливает номер главы.
+         *
+         * @param chapterNumber номер главы
+         */
         public void setChapterNumber(Integer chapterNumber) { this.chapterNumber = chapterNumber; }
 
+        /**
+         * Получает заголовок главы.
+         *
+         * @return заголовок главы
+         */
         public String getTitle() { return title; }
+
+        /**
+         * Устанавливает заголовок главы.
+         *
+         * @param title заголовок главы
+         */
         public void setTitle(String title) { this.title = title; }
     }
 
-    // DTO для отправки запроса в ChapterService
+    /**
+     * DTO класс для отправки запроса на создание главы в ChapterService.
+     * Содержит минимальный набор данных, необходимых для создания главы.
+     *
+     * @author ShadowShiftStudio
+     */
     public static class ChapterCreateRequestDTO {
         private Long mangaId;
         private Integer chapterNumber;
         private String title;
 
-        // Getters and Setters
+        /**
+         * Получает идентификатор манги.
+         *
+         * @return идентификатор манги
+         */
         public Long getMangaId() { return mangaId; }
+
+        /**
+         * Устанавливает идентификатор манги.
+         *
+         * @param mangaId идентификатор манги
+         */
         public void setMangaId(Long mangaId) { this.mangaId = mangaId; }
 
+        /**
+         * Получает номер главы.
+         *
+         * @return номер главы
+         */
         public Integer getChapterNumber() { return chapterNumber; }
+
+        /**
+         * Устанавливает номер главы.
+         *
+         * @param chapterNumber номер главы
+         */
         public void setChapterNumber(Integer chapterNumber) { this.chapterNumber = chapterNumber; }
 
+        /**
+         * Получает заголовок главы.
+         *
+         * @return заголовок главы
+         */
         public String getTitle() { return title; }
+
+        /**
+         * Устанавливает заголовок главы.
+         *
+         * @param title заголовок главы
+         */
         public void setTitle(String title) { this.title = title; }
     }
 
-    // DTO для ответа от ChapterService
+    /**
+     * DTO класс для ответа от ChapterService при создании или получении главы.
+     * Содержит полную информацию о главе манги.
+     *
+     * @author ShadowShiftStudio
+     */
     public static class ChapterResponseDTO {
         private Long id;
         private Long mangaId;
@@ -286,20 +374,74 @@ public class ChapterWebController {
         private String title;
         private Integer pageCount;
 
-        // Getters and Setters
+        /**
+         * Получает идентификатор главы.
+         *
+         * @return идентификатор главы
+         */
         public Long getId() { return id; }
+
+        /**
+         * Устанавливает идентификатор главы.
+         *
+         * @param id идентификатор главы
+         */
         public void setId(Long id) { this.id = id; }
 
+        /**
+         * Получает идентификатор манги.
+         *
+         * @return идентификатор манги
+         */
         public Long getMangaId() { return mangaId; }
+
+        /**
+         * Устанавливает идентификатор манги.
+         *
+         * @param mangaId идентификатор манги
+         */
         public void setMangaId(Long mangaId) { this.mangaId = mangaId; }
 
+        /**
+         * Получает номер главы.
+         *
+         * @return номер главы
+         */
         public Integer getChapterNumber() { return chapterNumber; }
+
+        /**
+         * Устанавливает номер главы.
+         *
+         * @param chapterNumber номер главы
+         */
         public void setChapterNumber(Integer chapterNumber) { this.chapterNumber = chapterNumber; }
 
+        /**
+         * Получает заголовок главы.
+         *
+         * @return заголовок главы
+         */
         public String getTitle() { return title; }
+
+        /**
+         * Устанавливает заголовок главы.
+         *
+         * @param title заголовок главы
+         */
         public void setTitle(String title) { this.title = title; }
 
+        /**
+         * Получает количество страниц в главе.
+         *
+         * @return количество страниц
+         */
         public Integer getPageCount() { return pageCount; }
+
+        /**
+         * Устанавливает количество страниц в главе.
+         *
+         * @param pageCount количество страниц
+         */
         public void setPageCount(Integer pageCount) { this.pageCount = pageCount; }
     }
 }

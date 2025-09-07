@@ -23,7 +23,7 @@ import java.util.List;
 /**
  * REST-контроллер для управления мангой через API.
  *
- * Предостав��яет полный набор RESTful эндпоинтов для выполнения операций
+ * Предоставляет полный набор RESTful эндпоинтов для выполнения операций
  * создания, чтения, обновления и удаления (CRUD) над сущностями манги.
  * Контроллер сосредоточен исключительно на обработке HTTP-запросов и
  * делегирует бизнес-логику соответствующим сервисным слоям.
@@ -32,14 +32,12 @@ import java.util.List;
  * - GET /api/manga - получение списка всех манг
  * - GET /api/manga/{id} - получение конкретной манги
  * - POST /api/manga - создание новой манги
- * - PUT /api/manga/{id} - обновление существующе�� манги
+ * - PUT /api/manga/{id} - обновление существующей манги
  * - DELETE /api/manga/{id} - удаление манги
  * - PUT /api/manga/{id}/cover - обновление обложки манги
  * - GET /api/manga/{id}/chapters - получение глав конкретной манги
  *
- * @author AniWay Development Team
- * @version 2.0.0
- * @since 1.0.0
+ * @author ShadowShiftStudio
  */
 @RestController
 @RequestMapping("/api/manga")
@@ -126,7 +124,7 @@ public class MangaRestController {
                     return ResponseEntity.ok(manga);
                 })
                 .orElseGet(() -> {
-                    logger.debug("API ответ: манга с ID {} ��е найдена", id);
+                    logger.debug("API ответ: манга с ID {} не найдена", id);
                     return ResponseEntity.notFound().build();
                 });
     }
@@ -134,7 +132,7 @@ public class MangaRestController {
     /**
      * Создает новую мангу в системе.
      *
-     * @param createDTO вал��дированные данные для создания манги
+     * @param createDTO валидированные данные для создания манги
      * @return ResponseEntity с созданной мангой и HTTP статусом 201
      */
     @PostMapping
@@ -176,7 +174,7 @@ public class MangaRestController {
     /**
      * Удаляет мангу из системы.
      *
-     * @param id ����дентификатор удаляем��й манги
+     * @param id идентификатор удаляемой манги
      * @return ResponseEntity с HTTP статусом 204 (No Content)
      */
     @DeleteMapping("/{id}")
@@ -201,11 +199,11 @@ public class MangaRestController {
             @PathVariable Long id,
             @RequestBody String imageUrl) {
 
-        logger.info("API ��апрос: обновление обложки манги с ID {}", id);
+        logger.info("API запрос: обновление обложки манги с ID {}", id);
 
         mangaService.updateCoverImage(id, imageUrl);
 
-        logger.info("API ответ: ��бложка манги с ID {} обно��лена", id);
+        logger.info("API ответ: обложка манги с ID {} обновлена", id);
         return ResponseEntity.ok().build();
     }
 
@@ -213,7 +211,7 @@ public class MangaRestController {
      * Получает список глав для конкретной манги.
      *
      * Делегирует запрос в ChapterService через клиент,
-     * обеспечивая ра����еление ответственности между микросервисами.
+     * обеспечивая разделение ответственности между микросервисами.
      *
      * @param id идентификатор манги
      * @return ResponseEntity со списком глав манги
@@ -229,19 +227,32 @@ public class MangaRestController {
     }
 }
 
-// Временное решение: возвращаем ImageProxy функциональность в MangaRestController
+/**
+ * Временный контроллер для проксирования изображений.
+ *
+ * Обеспечивает доступ к изображениям через MangaService,
+ * перенаправляя запросы в ImageStorageService.
+ * Используется как промежуточное решение до полной интеграции.
+ *
+ * @author ShadowShiftStudio
+ */
 @RestController
 @CrossOrigin(origins = "*")
 class ImageProxyControllerTemp {
 
     private static final Logger logger = LoggerFactory.getLogger(ImageProxyControllerTemp.class);
 
-    @Autowired
     private WebClient.Builder webClientBuilder;
 
     @Value("${image.storage.service.url}")
     private String imageStorageServiceUrl;
 
+    /**
+     * Получает список изображений для указанной главы.
+     *
+     * @param chapterId идентификатор главы
+     * @return ResponseEntity со списком изображений главы
+     */
     @GetMapping("/api/images/chapter/{chapterId}")
     public ResponseEntity<List<ChapterImageDTO>> getChapterImages(@PathVariable Long chapterId) {
         logger.debug("API запрос: получение изображений для главы с ID {}", chapterId);
@@ -265,6 +276,12 @@ class ImageProxyControllerTemp {
         }
     }
 
+    /**
+     * Проксирует запросы к изображениям через ImageStorageService.
+     *
+     * @param request HTTP запрос с путем к изображению
+     * @return ResponseEntity с байтами изображения или 404 если не найдено
+     */
     @GetMapping("/api/images/proxy/**")
     public ResponseEntity<byte[]> proxyImage(HttpServletRequest request) {
         try {

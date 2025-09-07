@@ -13,9 +13,7 @@ import java.util.Optional;
  * слабую связанность и возможность легкого тестирования через моки.
  * Следует принципу инверсии зависимостей из SOLID.
  *
- * @author AniWay Development Team
- * @version 2.0.0
- * @since 1.0.0
+ * @author ShadowShiftStudio
  */
 public interface IMangaService {
 
@@ -87,5 +85,7 @@ public interface IMangaService {
      * @throws IllegalArgumentException если параметры некорректны
      * @throws MangaNotFoundException если манга не найдена
      */
+    void updateCoverImage(Long mangaId, String imageUrl);
+}
     void updateCoverImage(Long mangaId, String imageUrl);
 }

@@ -21,7 +21,12 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Сервис для работы с комментариями
+ * Сервис для управления комментариями и реакциями.
+ * Предоставляет бизнес-логику для создания, обновления, удаления комментариев,
+ * управления древовидной структурой комментариев, обработки реакций пользователей
+ * и получения статистики комментариев.
+ *
+ * @author ShadowShiftStudio
  */
 @Service
 @RequiredArgsConstructor
@@ -32,29 +37,34 @@ public class CommentService {
     private final CommentRepository commentRepository;
     private final CommentReactionRepository commentReactionRepository;
     private final AuthService authService;
-    
+
     private static final int EDIT_TIME_LIMIT_DAYS = 7;
 
     /**
-     * Создание нового комментария
+     * Создает новый комментарий для указанного объекта.
+     * Выполняет валидацию входных данных, проверяет существование родительского комментария
+     * и обеспечивает корректность древовидной структуры комментариев.
+     *
+     * @param createDTO DTO с данными для создания комментария
+     * @param userId идентификатор пользователя, создающего комментарий
+     * @return CommentResponseDTO созданного комментария
+     * @throws RuntimeException если родительский комментарий не найден или принадлежит другому объекту
      */
     @Transactional
     public CommentResponseDTO createComment(CommentCreateDTO createDTO, Long userId) {
-        log.info("Creating comment for target {} with type {} by user {}", 
+        log.info("Creating comment for target {} with type {} by user {}",
                 createDTO.getTargetId(), createDTO.getType(), userId);
-        
-        // Проверяем существование родительского комментария, если указан
+
         if (createDTO.getParentCommentId() != null) {
             Comment parentComment = commentRepository.findById(createDTO.getParentCommentId())
                 .orElseThrow(() -> new RuntimeException("Parent comment not found"));
-            
-            // Родительский комментарий должен быть к тому же объекту
+
             if (!parentComment.getTargetId().equals(createDTO.getTargetId()) ||
                 parentComment.getType() != createDTO.getType()) {
                 throw new RuntimeException("Parent comment belongs to different target");
             }
         }
-        
+
         Comment comment = Comment.builder()
                 .content(createDTO.getContent())
                 .userId(userId)
@@ -64,84 +74,96 @@ public class CommentService {
                 .updatedAt(LocalDateTime.now(ZoneOffset.UTC))
                 .isDeleted(false)
                 .build();
-        
-        // Устанавливаем родительский комментарий, если есть
+
         if (createDTO.getParentCommentId() != null) {
             Comment parentComment = commentRepository.findById(createDTO.getParentCommentId())
                     .orElseThrow(() -> new RuntimeException("Parent comment not found"));
             comment.setParentComment(parentComment);
         }
-        
+
         Comment savedComment = commentRepository.save(comment);
         log.info("Comment created with ID: {}", savedComment.getId());
-        
+
         return mapToResponseDTO(savedComment);
     }
 
     /**
-     * Обновление комментария
+     * Обновляет содержимое существующего комментария.
+     * Проверяет права пользователя на редактирование, временные ограничения
+     * и статус комментария перед выполнением обновления.
+     *
+     * @param commentId идентификатор обновляемого комментария
+     * @param updateDTO DTO с новыми данными комментария
+     * @param userId идентификатор пользователя, выполняющего обновление
+     * @return CommentResponseDTO обновленного комментария
+     * @throws RuntimeException если комментарий не найден, пользователь не имеет прав,
+     *                         истек срок редактирования или комментарий удален
      */
     @Transactional
     public CommentResponseDTO updateComment(Long commentId, CommentUpdateDTO updateDTO, Long userId) {
         log.info("Updating comment {} by user {}", commentId, userId);
-        
+
         Comment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new RuntimeException("Comment not found"));
-        
-        // Проверяем права на редактирование
+
         if (!comment.getUserId().equals(userId)) {
             throw new RuntimeException("You can only edit your own comments");
         }
-        
-        // Проверяем временные ограничения (7 дней)
+
         if (comment.getCreatedAt().isBefore(LocalDateTime.now(ZoneOffset.UTC).minusDays(EDIT_TIME_LIMIT_DAYS))) {
             throw new RuntimeException("Comment editing time limit exceeded");
         }
-        
+
         if (comment.getIsDeleted()) {
             throw new RuntimeException("Cannot edit deleted comment");
         }
-        
+
         comment.setContent(updateDTO.getContent());
         comment.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
         comment.setIsEdited(true);
-        
+
         Comment savedComment = commentRepository.save(comment);
         log.info("Comment {} updated successfully", commentId);
-        
+
         return mapToResponseDTO(savedComment);
     }
 
     /**
-     * Удаление комментария
+     * Выполняет мягкое удаление комментария и всех его дочерних комментариев.
+     * Проверяет права пользователя на удаление и рекурсивно удаляет
+     * всю ветвь комментариев в древовидной структуре.
+     *
+     * @param commentId идентификатор удаляемого комментария
+     * @param userId идентификатор пользователя, выполняющего удаление
+     * @throws RuntimeException если комментарий не найден или пользователь не имеет прав
      */
     @Transactional
     public void deleteComment(Long commentId, Long userId) {
         log.info("Deleting comment {} by user {}", commentId, userId);
-        
+
         Comment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new RuntimeException("Comment not found"));
-        
-        // Проверяем права на удаление
+
         if (!comment.getUserId().equals(userId)) {
             throw new RuntimeException("You can only delete your own comments");
         }
-        
-        // Мягкое удаление
+
         comment.setIsDeleted(true);
         comment.setDeletedAt(LocalDateTime.now(ZoneOffset.UTC));
         comment.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
-        
+
         commentRepository.save(comment);
-        
-        // Также мягко удаляем все дочерние комментарии
+
         deleteChildComments(commentId);
-        
+
         log.info("Comment {} and its children deleted successfully", commentId);
     }
 
     /**
-     * Рекурсивное удаление дочерних комментариев
+     * Рекурсивно удаляет все дочерние комментарии указанного комментария.
+     * Используется для поддержания целостности древовидной структуры при удалении.
+     *
+     * @param parentCommentId идентификатор родительского комментария
      */
     private void deleteChildComments(Long parentCommentId) {
         List<Comment> children = commentRepository.findByParentCommentIdAndIsDeleted(parentCommentId, false);
@@ -150,101 +172,125 @@ public class CommentService {
             child.setDeletedAt(LocalDateTime.now(ZoneOffset.UTC));
             child.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
             commentRepository.save(child);
-            
-            // Рекурсивно удаляем детей
+
             deleteChildComments(child.getId());
         }
     }
 
     /**
-     * Получение комментариев для определенного объекта
+     * Получает список корневых комментариев для указанного объекта с пагинацией.
+     * Возвращает только комментарии верхнего уровня с полной информацией
+     * о дочерних комментариях для каждого корневого комментария.
+     *
+     * @param targetId идентификатор целевого объекта
+     * @param type тип комментария
+     * @param pageable параметры пагинации и сортировки
+     * @return список комментариев с дочерними комментариями
      */
     public List<CommentResponseDTO> getCommentsByTarget(Long targetId, CommentType type, Pageable pageable) {
         log.info("Getting comments for target {} with type {}", targetId, type);
-        
-        // Получаем только корневые комментарии (без родителя)
+
         Page<Comment> comments = commentRepository.findByTargetIdAndCommentTypeAndParentCommentIsNullAndIsDeleted(
                 targetId, type, false, pageable);
-        
+
         return comments.getContent().stream()
                 .map(this::mapToResponseDTOWithChildren)
                 .collect(Collectors.toList());
     }
 
     /**
-     * Получение ответов на комментарий
+     * Получает список ответов на указанный комментарий с пагинацией.
+     * Возвращает прямые ответы на комментарий с полной информацией
+     * о их дочерних комментариях.
+     *
+     * @param parentCommentId идентификатор родительского комментария
+     * @param pageable параметры пагинации и сортировки
+     * @return список ответов на комментарий
      */
     public List<CommentResponseDTO> getReplies(Long parentCommentId, Pageable pageable) {
         log.info("Getting replies for comment {}", parentCommentId);
-        
+
         Page<Comment> replies = commentRepository.findByParentCommentIdAndIsDeleted(
                 parentCommentId, false, pageable);
-        
+
         return replies.getContent().stream()
                 .map(this::mapToResponseDTOWithChildren)
                 .collect(Collectors.toList());
     }
 
     /**
-     * Получение количества комментариев для определенного объекта
+     * Получает общее количество комментариев для указанного объекта.
+     * Подсчитывает все комментарии (включая ответы) для объекта определенного типа.
+     *
+     * @param targetId идентификатор целевого объекта
+     * @param type тип комментария
+     * @return количество комментариев
      */
     public long getCommentsCount(Long targetId, CommentType type) {
         log.info("Getting comments count for target {} with type {}", targetId, type);
-        
+
         return commentRepository.countByTargetIdAndCommentTypeAndIsDeleted(targetId, type, false);
     }
 
     /**
-     * Добавление реакции на комментарий
+     * Добавляет, изменяет или удаляет реакцию пользователя на комментарий.
+     * Если реакция того же типа уже существует - удаляет ее.
+     * Если реакция другого типа существует - изменяет тип.
+     * Если реакции нет - создает новую.
+     *
+     * @param commentId идентификатор комментария
+     * @param reactionType тип реакции (лайк/дизлайк)
+     * @param userId идентификатор пользователя
+     * @throws RuntimeException если комментарий не найден или удален
      */
     @Transactional
     public void addReaction(Long commentId, ReactionType reactionType, Long userId) {
         log.info("Adding reaction {} to comment {} by user {}", reactionType, commentId, userId);
-        
+
         Comment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new RuntimeException("Comment not found"));
-        
+
         if (comment.getIsDeleted()) {
             throw new RuntimeException("Cannot react to deleted comment");
         }
-        
-        // Проверяем, есть ли уже реакция от этого пользователя
-        Optional<CommentReaction> existingReaction = 
+
+        Optional<CommentReaction> existingReaction =
                 commentReactionRepository.findByCommentIdAndUserId(commentId, userId);
-        
+
         if (existingReaction.isPresent()) {
             CommentReaction reaction = existingReaction.get();
             if (reaction.getReactionType() == reactionType) {
-                // Убираем реакцию, если она такая же
                 commentReactionRepository.delete(reaction);
                 log.info("Removed existing reaction {} from comment {}", reactionType, commentId);
             } else {
-                // Меняем тип реакции
                 reaction.setReactionType(reactionType);
                 commentReactionRepository.save(reaction);
                 log.info("Changed reaction to {} for comment {}", reactionType, commentId);
             }
         } else {
-            // Добавляем новую реакцию
             CommentReaction reaction = CommentReaction.builder()
                     .comment(comment)
                     .userId(userId)
                     .reactionType(reactionType)
                     .createdAt(LocalDateTime.now(ZoneOffset.UTC))
                     .build();
-            
+
             commentReactionRepository.save(reaction);
             log.info("Added new reaction {} to comment {}", reactionType, commentId);
         }
     }
 
     /**
-     * Получение статистики реакций для комментария
+     * Получает статистику реакций для указанного комментария.
+     * Подсчитывает количество лайков и дизлайков.
+     *
+     * @param commentId идентификатор комментария
+     * @return CommentReactionDTO со статистикой реакций
      */
     public CommentReactionDTO getReactionStats(Long commentId) {
         long likesCount = commentReactionRepository.countByCommentIdAndReactionType(commentId, ReactionType.LIKE);
         long dislikesCount = commentReactionRepository.countByCommentIdAndReactionType(commentId, ReactionType.DISLIKE);
-        
+
         return CommentReactionDTO.builder()
                 .commentId(commentId)
                 .likesCount(likesCount)
@@ -253,46 +299,56 @@ public class CommentService {
     }
 
     /**
-     * Получение всех комментариев пользователя
+     * Получает все корневые комментарии пользователя для отображения в профиле.
+     * Возвращает комментарии без полной информации о дочерних комментариях
+     * для оптимизации производительности.
+     *
+     * @param userId идентификатор пользователя
+     * @return список комментариев пользователя
      */
     public List<CommentResponseDTO> getAllUserComments(Long userId) {
         log.info("Getting all comments for user {}", userId);
-        
+
         List<Comment> userComments = commentRepository.findAllUserRootComments(userId);
-        
+
         return userComments.stream()
                 .map(this::mapToResponseDTOWithoutReplies)
                 .collect(Collectors.toList());
     }
 
     /**
-     * Маппинг в DTO с дочерними комментариями
+     * Преобразует сущность Comment в CommentResponseDTO с полной информацией о дочерних комментариях.
+     * Рекурсивно строит древовидную структуру комментариев для отображения.
+     *
+     * @param comment сущность комментария для преобразования
+     * @return CommentResponseDTO с дочерними комментариями
      */
     private CommentResponseDTO mapToResponseDTOWithChildren(Comment comment) {
         CommentResponseDTO dto = mapToResponseDTO(comment);
-        
-        // Получаем дочерние комментарии (первый уровень)
+
         List<Comment> children = commentRepository.findByParentCommentIdAndIsDeleted(comment.getId(), false);
         List<CommentResponseDTO> childrenDTOs = children.stream()
-                .map(this::mapToResponseDTOWithChildren) // Рекурсивный вызов для получения всех уровней
+                .map(this::mapToResponseDTOWithChildren)
                 .collect(Collectors.toList());
-        
+
         dto.setReplies(childrenDTOs);
         dto.setRepliesCount(children.size());
-        
+
         return dto;
     }
 
     /**
-     * Маппинг Comment в CommentResponseDTO
+     * Преобразует сущность Comment в CommentResponseDTO с базовой информацией.
+     * Получает данные пользователя через AuthService и статистику реакций.
+     *
+     * @param comment сущность комментария для преобразования
+     * @return CommentResponseDTO с базовой информацией
      */
     private CommentResponseDTO mapToResponseDTO(Comment comment) {
-        // Получаем информацию о пользователе через AuthService
         UserInfoDTO userInfo = authService.getUserInfo(comment.getUserId());
-        
-        // Получаем статистику реакций
+
         CommentReactionDTO reactionStats = getReactionStats(comment.getId());
-        
+
         return CommentResponseDTO.builder()
                 .id(comment.getId())
                 .content(comment.getContent())
@@ -312,18 +368,19 @@ public class CommentService {
     }
 
     /**
-     * Маппинг Comment в CommentResponseDTO без ответов (для профиля пользователя)
+     * Преобразует сущность Comment в CommentResponseDTO без информации о дочерних комментариях.
+     * Используется для отображения комментариев в профиле пользователя с подсчетом количества ответов.
+     *
+     * @param comment сущность комментария для преобразования
+     * @return CommentResponseDTO без дочерних комментариев
      */
     private CommentResponseDTO mapToResponseDTOWithoutReplies(Comment comment) {
-        // Получаем информацию о пользователе через AuthService
         UserInfoDTO userInfo = authService.getUserInfo(comment.getUserId());
-        
-        // Получаем статистику реакций
+
         CommentReactionDTO reactionStats = getReactionStats(comment.getId());
-        
-        // Подсчитываем количество ответов
+
         int repliesCount = commentRepository.findByParentCommentIdAndIsDeleted(comment.getId(), false).size();
-        
+
         return CommentResponseDTO.builder()
                 .id(comment.getId())
                 .content(comment.getContent())

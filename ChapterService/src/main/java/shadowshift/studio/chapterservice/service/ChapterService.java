@@ -12,6 +12,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+/**
+ * Сервис для управления главами манги.
+ * Предоставляет бизнес-логику для операций CRUD с главами, включая интеграцию с сервисом хранения изображений.
+ *
+ * @author ShadowShiftStudio
+ */
 @Service
 public class ChapterService {
 
@@ -24,6 +30,13 @@ public class ChapterService {
     @Value("${image.storage.service.url}")
     private String imageStorageServiceUrl;
 
+    /**
+     * Получить все главы для указанной манги.
+     * Автоматически синхронизирует количество страниц с сервисом хранения изображений.
+     *
+     * @param mangaId идентификатор манги
+     * @return список DTO глав манги
+     */
     public List<ChapterResponseDTO> getChaptersByMangaId(Long mangaId) {
         return chapterRepository.findByMangaIdOrderByChapterNumberAsc(mangaId)
                 .stream()
@@ -47,6 +60,13 @@ public class ChapterService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Получить главу по ее идентификатору.
+     * Автоматически синхронизирует количество страниц с сервисом хранения изображений.
+     *
+     * @param id идентификатор главы
+     * @return Optional с DTO главы или пустой Optional если глава не найдена
+     */
     public Optional<ChapterResponseDTO> getChapterById(Long id) {
         return chapterRepository.findById(id)
                 .map(chapter -> {
@@ -65,10 +85,23 @@ public class ChapterService {
                 });
     }
 
+    /**
+     * Получить количество глав для указанной манги.
+     *
+     * @param mangaId идентификатор манги
+     * @return количество глав
+     */
     public Integer getChapterCountByMangaId(Long mangaId) {
         return chapterRepository.countByMangaId(mangaId);
     }
 
+    /**
+     * Создать новую главу.
+     *
+     * @param createDTO DTO с данными для создания главы
+     * @return DTO созданной главы
+     * @throws RuntimeException если глава с таким номером уже существует
+     */
     public ChapterResponseDTO createChapter(ChapterCreateDTO createDTO) {
         // Проверяем, что глава с таким номером еще не существует
         Optional<Chapter> existingChapter = chapterRepository
@@ -93,6 +126,14 @@ public class ChapterService {
         return new ChapterResponseDTO(savedChapter);
     }
 
+    /**
+     * Обновить существующую главу.
+     *
+     * @param id идентификатор главы для обновления
+     * @param updateDTO DTO с новыми данными главы
+     * @return Optional с DTO обновленной главы или пустой Optional если глава не найдена
+     * @throws RuntimeException если новая нумерация главы конфликтует с существующими
+     */
     public Optional<ChapterResponseDTO> updateChapter(Long id, ChapterCreateDTO updateDTO) {
         return chapterRepository.findById(id)
                 .map(chapter -> {
@@ -117,6 +158,12 @@ public class ChapterService {
                 });
     }
 
+    /**
+     * Удалить главу по ее идентификатору.
+     * Также удаляет связанные изображения из сервиса хранения.
+     *
+     * @param id идентификатор главы для удаления
+     */
     public void deleteChapter(Long id) {
         // Удаляем связанные изображения перед удалением главы
         try {
@@ -134,16 +181,36 @@ public class ChapterService {
         chapterRepository.deleteById(id);
     }
 
+    /**
+     * Получить следующую главу после указанной.
+     *
+     * @param mangaId идентификатор манги
+     * @param currentChapterNumber номер текущей главы
+     * @return Optional со следующей главой или пустой Optional
+     */
     public Optional<ChapterResponseDTO> getNextChapter(Long mangaId, Double currentChapterNumber) {
         return chapterRepository.findNextChapter(mangaId, currentChapterNumber)
                 .map(ChapterResponseDTO::new);
     }
 
+    /**
+     * Получить предыдущую главу перед указанной.
+     *
+     * @param mangaId идентификатор манги
+     * @param currentChapterNumber номер текущей главы
+     * @return Optional с предыдущей главой или пустой Optional
+     */
     public Optional<ChapterResponseDTO> getPreviousChapter(Long mangaId, Double currentChapterNumber) {
         return chapterRepository.findPreviousChapter(mangaId, currentChapterNumber)
                 .map(ChapterResponseDTO::new);
     }
 
+    /**
+     * Получить количество страниц главы из сервиса хранения изображений.
+     *
+     * @param chapterId идентификатор главы
+     * @return количество страниц
+     */
     private Integer getPageCountFromImageService(Long chapterId) {
         WebClient webClient = webClientBuilder.build();
         return webClient.get()
@@ -153,13 +220,21 @@ public class ChapterService {
                 .block();
     }
 
+    /**
+     * Обновить количество страниц для главы.
+     *
+     * @param chapterId идентификатор главы
+     * @param pageCount новое количество страниц
+     * @return DTO обновленной главы
+     * @throws RuntimeException если глава не найдена
+     */
     public ChapterResponseDTO updatePageCount(Long chapterId, Integer pageCount) {
         Chapter chapter = chapterRepository.findById(chapterId)
                 .orElseThrow(() -> new RuntimeException("Chapter not found with id: " + chapterId));
-        
+
         chapter.setPageCount(pageCount);
         Chapter savedChapter = chapterRepository.save(chapter);
-        
+
         System.out.println("Updated chapter " + chapterId + " pageCount to: " + pageCount);
         return new ChapterResponseDTO(savedChapter);
     }

@@ -7,8 +7,7 @@ package shadowshift.studio.mangaservice.exception;
  * в приложении, обеспечивая единообразную обработку ошибок и следуя
  * принципу единственной ответственности.
  *
- * @author AniWay Development Team
- * @since 1.0.0
+ * @author ShadowShiftStudio
  */
 public abstract class MangaServiceException extends RuntimeException {
 
@@ -52,6 +51,11 @@ public abstract class MangaServiceException extends RuntimeException {
  */
 class MangaNotFoundException extends MangaServiceException {
 
+    /**
+     * Конструктор с ID манги.
+     *
+     * @param mangaId ID манги, которая не найдена
+     */
     public MangaNotFoundException(Long mangaId) {
         super(String.format("Манга с ID %d не найдена", mangaId), "MANGA_NOT_FOUND");
     }
@@ -62,10 +66,21 @@ class MangaNotFoundException extends MangaServiceException {
  */
 class MangaValidationException extends MangaServiceException {
 
+    /**
+     * Конструктор с сообщением об ошибке.
+     *
+     * @param message описание ошибки валидации
+     */
     public MangaValidationException(String message) {
         super(message, "MANGA_VALIDATION_ERROR");
     }
 
+    /**
+     * Конструктор с сообщением об ошибке и причиной.
+     *
+     * @param message описание ошибки валидации
+     * @param cause первопричина исключения
+     */
     public MangaValidationException(String message, Throwable cause) {
         super(message, "MANGA_VALIDATION_ERROR", cause);
     }
@@ -76,11 +91,24 @@ class MangaValidationException extends MangaServiceException {
  */
 class ExternalServiceException extends MangaServiceException {
 
+    /**
+     * Конструктор с именем сервиса и операцией.
+     *
+     * @param serviceName имя недоступного сервиса
+     * @param operation выполняемая операция
+     */
     public ExternalServiceException(String serviceName, String operation) {
         super(String.format("Сервис %s недоступен при выполнении операции: %s", serviceName, operation),
               "EXTERNAL_SERVICE_ERROR");
     }
 
+    /**
+     * Конструктор с именем сервиса, операцией и причиной.
+     *
+     * @param serviceName имя сервиса
+     * @param operation выполняемая операция
+     * @param cause первопричина исключения
+     */
     public ExternalServiceException(String serviceName, String operation, Throwable cause) {
         super(String.format("Ошибка при обращении к сервису %s (операция: %s): %s",
               serviceName, operation, cause.getMessage()), "EXTERNAL_SERVICE_ERROR", cause);

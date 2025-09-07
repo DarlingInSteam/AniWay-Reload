@@ -7,17 +7,37 @@ import org.springframework.stereotype.Repository;
 import shadowshift.studio.mangaservice.entity.Manga;
 import java.util.List;
 
+/**
+ * Репозиторий для работы с сущностями Manga.
+ * Предоставляет методы для поиска и фильтрации манги в базе данных.
+ *
+ * @author ShadowShiftStudio
+ */
 @Repository
 public interface MangaRepository extends JpaRepository<Manga, Long> {
 
-    // Поиск по названию (для MVP не нужен, но может пригодиться)
+    /**
+     * Ищет манги по частичному совпадению названия, игнорируя регистр.
+     *
+     * @param title часть названия манги
+     * @return список найденных манг
+     */
     List<Manga> findByTitleContainingIgnoreCase(String title);
 
-    // Получение всех манг, отсортированных по дате создания (для каталога)
+    /**
+     * Возвращает все манги, отсортированные по дате создания в убывающем порядке.
+     *
+     * @return список манг
+     */
     @Query("SELECT m FROM Manga m ORDER BY m.createdAt DESC")
     List<Manga> findAllOrderByCreatedAtDesc();
 
-    // Получение манг по статусу
+    /**
+     * Ищет манги по статусу.
+     *
+     * @param status статус манги
+     * @return список манг с указанным статусом
+     */
     List<Manga> findByStatus(Manga.MangaStatus status);
 
     /**

@@ -11,6 +11,13 @@ import shadowshift.studio.chapterservice.service.ChapterService;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * REST контроллер для управления главами манги.
+ * Предоставляет полный набор CRUD операций для работы с главами,
+ * включая получение, создание, обновление и удаление глав.
+ *
+ * @author ShadowShiftStudio
+ */
 @RestController
 @RequestMapping("/api/chapters")
 @CrossOrigin(origins = "*")
@@ -19,12 +26,24 @@ public class ChapterRestController {
     @Autowired
     private ChapterService chapterService;
 
+    /**
+     * Получает список всех глав для указанной манги.
+     *
+     * @param mangaId идентификатор манги
+     * @return список глав манги
+     */
     @GetMapping("/manga/{mangaId}")
     public ResponseEntity<List<ChapterResponseDTO>> getChaptersByMangaId(@PathVariable Long mangaId) {
         List<ChapterResponseDTO> chapters = chapterService.getChaptersByMangaId(mangaId);
         return ResponseEntity.ok(chapters);
     }
 
+    /**
+     * Получает главу по ее идентификатору.
+     *
+     * @param id идентификатор главы
+     * @return информация о главе или 404, если глава не найдена
+     */
     @GetMapping("/{id}")
     public ResponseEntity<ChapterResponseDTO> getChapterById(@PathVariable Long id) {
         return chapterService.getChapterById(id)
@@ -32,12 +51,24 @@ public class ChapterRestController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    /**
+     * Получает количество глав для указанной манги.
+     *
+     * @param mangaId идентификатор манги
+     * @return количество глав
+     */
     @GetMapping("/count/{mangaId}")
     public ResponseEntity<Integer> getChapterCountByMangaId(@PathVariable Long mangaId) {
         Integer count = chapterService.getChapterCountByMangaId(mangaId);
         return ResponseEntity.ok(count);
     }
 
+    /**
+     * Создает новую главу.
+     *
+     * @param createDTO данные для создания главы
+     * @return созданная глава или ошибка валидации
+     */
     @PostMapping
     public ResponseEntity<?> createChapter(@Valid @RequestBody ChapterCreateDTO createDTO) {
         try {
@@ -51,6 +82,13 @@ public class ChapterRestController {
         }
     }
 
+    /**
+     * Обновляет существующую главу.
+     *
+     * @param id идентификатор обновляемой главы
+     * @param updateDTO новые данные главы
+     * @return обновленная глава или ошибка валидации
+     */
     @PutMapping("/{id}")
     public ResponseEntity<?> updateChapter(
             @PathVariable Long id,
@@ -67,12 +105,25 @@ public class ChapterRestController {
         }
     }
 
+    /**
+     * Удаляет главу по ее идентификатору.
+     *
+     * @param id идентификатор удаляемой главы
+     * @return статус успешного удаления
+     */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteChapter(@PathVariable Long id) {
         chapterService.deleteChapter(id);
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * Получает следующую главу после указанной.
+     *
+     * @param mangaId идентификатор манги
+     * @param chapterNumber номер текущей главы
+     * @return следующая глава или 404, если следующей главы нет
+     */
     @GetMapping("/manga/{mangaId}/next/{chapterNumber}")
     public ResponseEntity<ChapterResponseDTO> getNextChapter(
             @PathVariable Long mangaId,
@@ -82,6 +133,13 @@ public class ChapterRestController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    /**
+     * Получает предыдущую главу перед указанной.
+     *
+     * @param mangaId идентификатор манги
+     * @param chapterNumber номер текущей главы
+     * @return предыдущая глава или 404, если предыдущей главы нет
+     */
     @GetMapping("/manga/{mangaId}/previous/{chapterNumber}")
     public ResponseEntity<ChapterResponseDTO> getPreviousChapter(
             @PathVariable Long mangaId,
@@ -91,6 +149,13 @@ public class ChapterRestController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    /**
+     * Обновляет количество страниц в главе.
+     *
+     * @param id идентификатор главы
+     * @param request объект с полем pageCount
+     * @return обновленная глава или ошибка валидации
+     */
     @PutMapping("/{id}/pagecount")
     public ResponseEntity<?> updateChapterPageCount(
             @PathVariable Long id,
@@ -102,7 +167,7 @@ public class ChapterRestController {
                     "error", "pageCount is required"
                 ));
             }
-            
+
             ChapterResponseDTO updatedChapter = chapterService.updatePageCount(id, pageCount);
             return ResponseEntity.ok(updatedChapter);
         } catch (RuntimeException e) {

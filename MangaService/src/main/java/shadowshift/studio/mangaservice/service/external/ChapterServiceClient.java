@@ -13,8 +13,10 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Простой клиент для взаимодействия с ChapterService.
- * Восстановленная версия без сложной обработки ошибок для стабильной работы.
+ * Клиент для взаимодействия с внешним ChapterService.
+ * Предоставляет методы для получения данных о главах манги.
+ *
+ * @author ShadowShiftStudio
  */
 @Service
 public class ChapterServiceClient {
@@ -24,6 +26,12 @@ public class ChapterServiceClient {
     private final WebClient.Builder webClientBuilder;
     private final String chapterServiceUrl;
 
+    /**
+     * Конструктор для инициализации клиента.
+     *
+     * @param webClientBuilder билдер для создания WebClient
+     * @param chapterServiceUrl URL внешнего сервиса глав
+     */
     @Autowired
     public ChapterServiceClient(WebClient.Builder webClientBuilder,
                                @Value("${chapter.service.url}") String chapterServiceUrl) {

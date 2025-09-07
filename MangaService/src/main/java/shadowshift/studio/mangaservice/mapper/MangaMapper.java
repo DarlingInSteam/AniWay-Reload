@@ -15,8 +15,7 @@ import java.util.stream.Collectors;
  * ответственности между слоями приложения и упрощая поддержку кода.
  * Следует принципу единственной ответственности SOLID.
  *
- * @author AniWay Development Team
- * @since 1.0.0
+ * @author ShadowShiftStudio
  */
 @Component
 public class MangaMapper {
@@ -117,4 +116,5 @@ public class MangaMapper {
         existingManga.setGenre(updateDTO.getGenre());
         existingManga.setCoverImageUrl(updateDTO.getCoverImageUrl());
     }
+}
 }

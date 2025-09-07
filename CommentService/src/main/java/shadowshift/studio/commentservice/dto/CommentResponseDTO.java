@@ -11,57 +11,105 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * DTO для ответа с информацией о комментарии
+ * DTO для ответа с полной информацией о комментарии.
+ * Содержит все данные комментария, включая информацию о пользователе, реакциях,
+ * метаданные и древовидную структуру ответов.
+ *
+ * @author ShadowShiftStudio
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class CommentResponseDTO {
-    
+
+    /** Уникальный идентификатор комментария */
     private Long id;
+
+    /** Содержимое комментария */
     private String content;
+
+    /** Тип комментария (определяет к какому объекту относится) */
     private CommentType commentType;
+
+    /** Идентификатор целевого объекта (манга, глава и т.д.) */
     private Long targetId;
+
+    /** Идентификатор автора комментария */
     private Long userId;
-    private String username; // Получается из AuthService
-    private String userAvatarUrl; // Получается из AuthService
-    
-    // Информация о родительском комментарии
+
+    /** Имя пользователя автора комментария */
+    private String username;
+
+    /** URL аватара пользователя автора комментария */
+    private String userAvatarUrl;
+
+    /** Идентификатор родительского комментария (для ответов) */
     private Long parentCommentId;
+
+    /** Имя автора родительского комментария */
     private String parentCommentAuthor;
-    
-    // Статистика реакций
+
+    /** Количество лайков на комментарий */
     private Long likesCount;
+
+    /** Количество дизлайков на комментарий */
     private Long dislikesCount;
-    private ReactionType userReaction; // Реакция текущего пользователя
-    
-    // Метаданные
+
+    /** Реакция текущего пользователя на комментарий */
+    private ReactionType userReaction;
+
+    /** Флаг, указывающий, был ли комментарий отредактирован */
     private Boolean isEdited;
+
+    /** Флаг, указывающий, был ли комментарий удален */
     private Boolean isDeleted;
-    private Boolean canEdit; // Может ли текущий пользователь редактировать
-    private Boolean canDelete; // Может ли текущий пользователь удалить
-    private Integer depthLevel; // Уровень вложенности
-    
-    // Временные метки
+
+    /** Флаг, указывающий, может ли текущий пользователь редактировать комментарий */
+    private Boolean canEdit;
+
+    /** Флаг, указывающий, может ли текущий пользователь удалить комментарий */
+    private Boolean canDelete;
+
+    /** Уровень вложенности комментария в древовидной структуре */
+    private Integer depthLevel;
+
+    /** Дата и время создания комментария */
     private LocalDateTime createdAt;
+
+    /** Дата и время последнего обновления комментария */
     private LocalDateTime updatedAt;
-    
-    // Ответы на комментарий (для древовидной структуры)
+
+    /** Список ответов на комментарий (для древовидной структуры) */
     private List<CommentResponseDTO> replies;
-    
-    // Количество ответов (для пагинации)
+
+    /** Общее количество ответов на комментарий */
     private Integer repliesCount;
-    
+
     /**
-     * Методы для совместимости с сервисом
+     * Статический класс билдера для создания экземпляров CommentResponseDTO.
+     * Предоставляет fluent API для удобного создания объектов с дополнительными методами.
      */
     public static class CommentResponseDTOBuilder {
+        /**
+         * Установить URL аватара пользователя.
+         * Метод для совместимости с внешними сервисами.
+         *
+         * @param userAvatar URL аватара пользователя
+         * @return билдер для цепочки вызовов
+         */
         public CommentResponseDTOBuilder userAvatar(String userAvatar) {
             this.userAvatarUrl = userAvatar;
             return this;
         }
-        
+
+        /**
+         * Установить тип комментария.
+         * Метод для совместимости с внешними сервисами.
+         *
+         * @param type тип комментария
+         * @return билдер для цепочки вызовов
+         */
         public CommentResponseDTOBuilder type(CommentType type) {
             this.commentType = type;
             return this;
