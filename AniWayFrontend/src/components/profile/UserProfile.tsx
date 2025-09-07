@@ -9,19 +9,24 @@ import {
   ReadingProgressModule,
   Collections,
   Reviews,
-  Achievements
+  Achievements,
+  UserComments
 } from './ShowcaseModules';
 import { UserProfile as UserProfileType, UserProfileProps, UserReview } from '@/types/profile';
+import { CommentResponseDTO } from '@/types/comments';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { profileService } from '@/services/profileService';
+import { commentService } from '@/services/commentService';
 import { useAuth } from '@/contexts/AuthContext';
 
 export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   const [profile, setProfile] = useState<UserProfileType | null>(null);
   const [profileData, setProfileData] = useState<any>(null);
   const [userReviews, setUserReviews] = useState<UserReview[]>([]);
+  const [userComments, setUserComments] = useState<CommentResponseDTO[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [commentsLoading, setCommentsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
@@ -48,6 +53,18 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
           // Не считаем это критической ошибкой, просто оставляем пустой массив
         } finally {
           setReviewsLoading(false);
+        }
+
+        // Загружаем комментарии пользователя
+        setCommentsLoading(true);
+        try {
+          const comments = await commentService.getUserComments(parseInt(userId));
+          setUserComments(comments);
+        } catch (commentError) {
+          console.error('Ошибка при загрузке комментариев:', commentError);
+          // Не считаем это критической ошибкой, просто оставляем пустой массив
+        } finally {
+          setCommentsLoading(false);
         }
 
         // Преобразуем данные в формат UserProfile
@@ -221,10 +238,11 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
           {/* Левая колонка - Табы и основной контент */}
           <div className="lg:col-span-8">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-              <TabsList className="grid grid-cols-4 bg-white/3 backdrop-blur-md border border-white/8 rounded-xl shadow-lg">
+              <TabsList className="grid grid-cols-5 bg-white/3 backdrop-blur-md border border-white/8 rounded-xl shadow-lg">
                 <TabsTrigger value="overview" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Обзор</TabsTrigger>
                 <TabsTrigger value="library" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Библиотека</TabsTrigger>
-                <TabsTrigger value="reviews" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Комментарии</TabsTrigger>
+                <TabsTrigger value="reviews" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Отзывы</TabsTrigger>
+                <TabsTrigger value="comments" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Комментарии</TabsTrigger>
                 <TabsTrigger value="achievements" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Достижения</TabsTrigger>
               </TabsList>
 
@@ -254,6 +272,16 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
                       </div>
                     )}
                   </>
+                )}
+              </TabsContent>
+
+              <TabsContent value="comments" className="space-y-6">
+                {commentsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <LoadingSpinner />
+                  </div>
+                ) : (
+                  <UserComments comments={userComments} isOwnProfile={isOwnProfile} />
                 )}
               </TabsContent>
 
@@ -291,10 +319,11 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
           />
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid grid-cols-2 md:grid-cols-4 bg-white/3 backdrop-blur-md border border-white/8 rounded-xl shadow-lg">
+            <TabsList className="grid grid-cols-2 md:grid-cols-5 bg-white/3 backdrop-blur-md border border-white/8 rounded-xl shadow-lg">
               <TabsTrigger value="overview" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Обзор</TabsTrigger>
               <TabsTrigger value="library" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Библиотека</TabsTrigger>
               <TabsTrigger value="reviews" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Отзывы</TabsTrigger>
+              <TabsTrigger value="comments" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Комментарии</TabsTrigger>
               <TabsTrigger value="achievements" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Достижения</TabsTrigger>
             </TabsList>
 
@@ -315,6 +344,16 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
                 </div>
               ) : (
                 <Reviews reviews={userReviews} isOwnProfile={isOwnProfile} />
+              )}
+            </TabsContent>
+
+            <TabsContent value="comments" className="space-y-6">
+              {commentsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <LoadingSpinner />
+                </div>
+              ) : (
+                <UserComments comments={userComments} isOwnProfile={isOwnProfile} />
               )}
             </TabsContent>
 

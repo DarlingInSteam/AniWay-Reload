@@ -342,9 +342,18 @@ class ApiClient {
   }
 
   async getUserReviews(userId?: number): Promise<any[]> {
-    // TODO: Реализовать получение отзывов пользователя когда будет готов бэкенд API
-    console.warn('Получение отзывов пользователя временно отключено - API не реализован');
-    return [];
+    try {
+      if (userId) {
+        return await this.request<any[]>(`/auth/reviews/user/${userId}`);
+      } else {
+        // Если не передан userId, получаем отзывы текущего пользователя
+        const currentUser = await this.getCurrentUser();
+        return await this.request<any[]>(`/auth/reviews/user/${currentUser.id}`);
+      }
+    } catch (error) {
+      console.error('Ошибка получения отзывов пользователя:', error);
+      return [];
+    }
   }
 
   async getMangaReviews(mangaId: number): Promise<any[]> {

@@ -5,6 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { UserProfile } from '@/types/profile';
 import { Edit, Save, X, ExternalLink } from 'lucide-react';
+import { LevelIndicator, getMockLevelData } from './LevelIndicator';
 
 interface ProfileSummaryProps {
   profile: UserProfile;
@@ -15,6 +16,9 @@ interface ProfileSummaryProps {
 export function ProfileSummary({ profile, isOwnProfile, onProfileUpdate }: ProfileSummaryProps) {
   const [isEditingBio, setIsEditingBio] = useState(false);
   const [newBio, setNewBio] = useState(profile.bio || '');
+
+  // Получаем данные для индикатора уровня
+  const levelData = getMockLevelData(profile.mangaRead || 0, profile.chaptersRead || 0);
 
   const handleBioSubmit = () => {
     onProfileUpdate?.({ bio: newBio });
@@ -36,7 +40,12 @@ export function ProfileSummary({ profile, isOwnProfile, onProfileUpdate }: Profi
   };
 
   return (
-    <Card className="bg-white/3 backdrop-blur-md border border-white/8 shadow-lg">
+    <div className="space-y-6">
+      {/* Индикатор уровня */}
+      <LevelIndicator levelData={levelData} />
+      
+      {/* Карточка "О пользователе" */}
+      <Card className="bg-white/3 backdrop-blur-md border border-white/8 shadow-lg">
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           О пользователе
@@ -165,5 +174,6 @@ export function ProfileSummary({ profile, isOwnProfile, onProfileUpdate }: Profi
         </div>
       </CardContent>
     </Card>
+    </div>
   );
 }

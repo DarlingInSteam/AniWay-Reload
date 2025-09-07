@@ -4,11 +4,12 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import {
   FavoriteManga,
-  ReadingProgress,
+  UserReadingProgress,
   UserCollection,
   UserReview,
   Achievement
 } from '@/types/profile';
+import { CommentResponseDTO } from '@/types/comments';
 import {
   Heart,
   BookOpen,
@@ -16,7 +17,9 @@ import {
   MessageSquare,
   Trophy,
   Star,
-  MoreHorizontal
+  MoreHorizontal,
+  ThumbsUp,
+  Reply
 } from 'lucide-react';
 
 interface ShowcaseModuleProps {
@@ -101,7 +104,7 @@ export function FavoriteComics({ favorites, isOwnProfile }: FavoriteComicsProps)
 }
 
 interface ReadingProgressProps {
-  progress: ReadingProgress[];
+  progress: UserReadingProgress[];
   isOwnProfile: boolean;
 }
 
@@ -297,6 +300,88 @@ export function Achievements({ achievements, isOwnProfile }: AchievementsProps) 
         <Button variant="outline" className="w-full mt-4 border-gray-600 text-gray-300">
           Показать все ({achievements.length})
         </Button>
+      )}
+    </ShowcaseModule>
+  );
+}
+
+// Вспомогательная функция для получения типа комментария на русском
+function getCommentTypeText(type: string): string {
+  switch (type) {
+    case 'MANGA':
+      return 'Манга';
+    case 'CHAPTER':
+      return 'Глава';
+    case 'PROFILE':
+      return 'Профиль';
+    case 'REVIEW':
+      return 'Отзыв';
+    default:
+      return type;
+  }
+}
+
+interface UserCommentsProps {
+  comments: CommentResponseDTO[];
+  isOwnProfile: boolean;
+}
+
+export function UserComments({ comments, isOwnProfile }: UserCommentsProps) {
+  const displayedComments = comments.slice(0, 5);
+
+  return (
+    <ShowcaseModule
+      title="Комментарии"
+      icon={<MessageSquare className="w-5 h-5 text-blue-500" />}
+      isEditable={false}
+    >
+      {displayedComments.length > 0 ? (
+        <div className="space-y-4">
+          {displayedComments.map((comment) => (
+            <div key={comment.id} className="border-b border-gray-700 last:border-b-0 pb-4 last:pb-0">
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-xs border-gray-600 text-gray-300">
+                    {getCommentTypeText(comment.type)}
+                  </Badge>
+                  <span className="text-xs text-gray-500">#{comment.targetId}</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <div className="flex items-center gap-1">
+                    <ThumbsUp className="w-3 h-3" />
+                    <span>{comment.likesCount}</span>
+                  </div>
+                  {comment.repliesCount && comment.repliesCount > 0 && (
+                    <div className="flex items-center gap-1">
+                      <Reply className="w-3 h-3" />
+                      <span>{comment.repliesCount}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <p className="text-sm text-gray-300 line-clamp-3 mb-2">
+                {comment.content}
+              </p>
+              <div className="flex items-center justify-between text-xs text-gray-500">
+                <span>{new Date(comment.createdAt).toLocaleDateString('ru-RU')}</span>
+                {comment.isEdited && (
+                  <span className="text-gray-400">(отредактирован)</span>
+                )}
+              </div>
+            </div>
+          ))}
+          {comments.length > 5 && (
+            <Button variant="outline" className="w-full mt-4 border-gray-600 text-gray-300">
+              Показать все комментарии ({comments.length})
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className="text-center py-8 text-gray-400">
+          <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
+          <p className="text-lg mb-2">💬 {isOwnProfile ? 'Ваши комментарии' : 'Комментарии пользователя'}</p>
+          <p>{isOwnProfile ? 'Напишите первый комментарий' : 'Пользователь пока не оставлял комментариев'}</p>
+        </div>
       )}
     </ShowcaseModule>
   );

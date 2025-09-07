@@ -152,6 +152,13 @@ class CommentService {
   }
 
   /**
+   * Получение всех комментариев пользователя
+   */
+  async getUserComments(userId: number): Promise<CommentResponseDTO[]> {
+    return this.request(`/user/${userId}`)
+  }
+
+  /**
    * Получение статистики реакций
    */
   async getReactionStats(commentId: number): Promise<CommentReactionDTO> {

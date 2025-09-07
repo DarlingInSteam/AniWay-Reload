@@ -79,15 +79,31 @@ class ReviewsService {
   async getUserReviews(userId?: number): Promise<UserReview[]> {
     try {
       const reviews = await apiClient.getUserReviews(userId);
-      return reviews.map(review => ({
-        id: review.id.toString(),
-        mangaId: review.mangaId,
-        mangaTitle: review.mangaTitle || 'Неизвестная манга',
-        rating: review.rating,
-        text: review.comment || '',
-        createdAt: new Date(review.createdAt),
-        likes: review.likesCount || 0
-      }));
+      
+      // Получаем данные манги для каждого отзыва
+      const reviewsWithMangaData = await Promise.all(
+        reviews.map(async (review) => {
+          let mangaTitle = `Манга ${review.mangaId}`;
+          try {
+            const manga = await apiClient.getMangaById(review.mangaId);
+            mangaTitle = manga.title || mangaTitle;
+          } catch (error) {
+            console.warn(`Не удалось загрузить данные манги ${review.mangaId}:`, error);
+          }
+
+          return {
+            id: review.id.toString(),
+            mangaId: review.mangaId,
+            mangaTitle,
+            rating: review.rating,
+            text: review.comment || '',
+            createdAt: new Date(review.createdAt),
+            likes: review.likesCount || 0
+          };
+        })
+      );
+
+      return reviewsWithMangaData;
     } catch (error) {
       console.error('Ошибка при получении отзывов пользователя:', error);
       throw new Error('Не удалось загрузить отзывы');
@@ -100,10 +116,20 @@ class ReviewsService {
   async getMangaReviews(mangaId: number): Promise<UserReview[]> {
     try {
       const reviews = await apiClient.getMangaReviews(mangaId);
+      
+      // Получаем данные манги один раз для всех отзывов
+      let mangaTitle = `Манга ${mangaId}`;
+      try {
+        const manga = await apiClient.getMangaById(mangaId);
+        mangaTitle = manga.title || mangaTitle;
+      } catch (error) {
+        console.warn(`Не удалось загрузить данные манги ${mangaId}:`, error);
+      }
+
       return reviews.map(review => ({
         id: review.id,
         mangaId: review.mangaId,
-        mangaTitle: review.manga?.title || 'Неизвестная манга',
+        mangaTitle,
         rating: review.rating,
         text: review.text,
         createdAt: new Date(review.createdAt),
