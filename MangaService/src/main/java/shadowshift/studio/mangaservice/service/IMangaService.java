@@ -87,5 +87,4 @@ public interface IMangaService {
      */
     void updateCoverImage(Long mangaId, String imageUrl);
 }
-    void updateCoverImage(Long mangaId, String imageUrl);
-}
+

@@ -117,4 +117,3 @@ public class MangaMapper {
         existingManga.setCoverImageUrl(updateDTO.getCoverImageUrl());
     }
 }
-}
