@@ -37,7 +37,7 @@ public class BookmarkController {
      * Внутренний класс для запроса на добавление или обновление закладки.
      */
     @Data
-    class BookmarkRequest {
+    static class BookmarkRequest {
         private Long mangaId;
         private BookmarkStatus status;
         private Boolean isFavorite;
