@@ -14,6 +14,12 @@ import java.util.HashMap;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+/**
+ * Сервис для управления прогрессом чтения пользователей.
+ * Предоставляет функциональность обновления, получения и удаления прогресса чтения манги.
+ *
+ * @author ShadowShiftStudio
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -23,6 +29,20 @@ public class ReadingProgressService {
     private final UserRepository userRepository;
     private final UserService userService;
     
+    /**
+     * Обновляет прогресс чтения для пользователя.
+     * Если прогресс уже существует, обновляет страницу и статус завершения.
+     * Если нет, создает новый прогресс.
+     *
+     * @param username имя пользователя
+     * @param mangaId идентификатор манги
+     * @param chapterId идентификатор главы
+     * @param chapterNumber номер главы
+     * @param pageNumber номер страницы
+     * @param isCompleted флаг завершения главы
+     * @return объект DTO прогресса чтения
+     * @throws IllegalArgumentException если пользователь не найден
+     */
     public ReadingProgressDTO updateProgress(String username, Long mangaId, Long chapterId, 
                                            Double chapterNumber, Integer pageNumber, Boolean isCompleted) {
         var user = userRepository.findByUsername(username)
@@ -49,12 +69,9 @@ public class ReadingProgressService {
         
         readingProgressRepository.save(progress);
         
-        // Update user statistics if chapter is completed
         if (isCompleted) {
-            // Check if this is a new completion (not just updating existing completed progress)
             boolean wasAlreadyCompleted = existingProgress.isPresent() && existingProgress.get().getIsCompleted();
             if (!wasAlreadyCompleted) {
-                // This is a new chapter completion, increment counter
                 userService.incrementChapterCount(username);
             }
         }
@@ -64,6 +81,14 @@ public class ReadingProgressService {
         return convertToDTO(progress);
     }
     
+    /**
+     * Получает последний прогресс чтения для указанной манги.
+     *
+     * @param username имя пользователя
+     * @param mangaId идентификатор манги
+     * @return Optional с DTO прогресса чтения
+     * @throws IllegalArgumentException если пользователь не найден
+     */
     public Optional<ReadingProgressDTO> getLatestProgressForManga(String username, Long mangaId) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -76,6 +101,13 @@ public class ReadingProgressService {
                 .map(this::convertToDTO);
     }
     
+    /**
+     * Получает весь прогресс чтения пользователя.
+     *
+     * @param username имя пользователя
+     * @return список DTO прогресса чтения
+     * @throws IllegalArgumentException если пользователь не найден
+     */
     public List<ReadingProgressDTO> getUserProgress(String username) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -86,6 +118,13 @@ public class ReadingProgressService {
                 .collect(Collectors.toList());
     }
     
+    /**
+     * Получает завершенные главы пользователя.
+     *
+     * @param username имя пользователя
+     * @return список DTO завершенных глав
+     * @throws IllegalArgumentException если пользователь не найден
+     */
     public List<ReadingProgressDTO> getCompletedChapters(String username) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -96,6 +135,14 @@ public class ReadingProgressService {
                 .collect(Collectors.toList());
     }
     
+    /**
+     * Получает прогресс чтения для указанной манги.
+     *
+     * @param username имя пользователя
+     * @param mangaId идентификатор манги
+     * @return список DTO прогресса чтения для манги
+     * @throws IllegalArgumentException если пользователь не найден
+     */
     public List<ReadingProgressDTO> getMangaProgress(String username, Long mangaId) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -107,6 +154,14 @@ public class ReadingProgressService {
                 .collect(Collectors.toList());
     }
     
+    /**
+     * Получает прогресс чтения для указанной главы.
+     *
+     * @param username имя пользователя
+     * @param chapterId идентификатор главы
+     * @return объект DTO прогресса чтения или null, если не найден
+     * @throws IllegalArgumentException если пользователь не найден
+     */
     public ReadingProgressDTO getChapterProgress(String username, Long chapterId) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -117,11 +172,27 @@ public class ReadingProgressService {
         return progress.map(this::convertToDTO).orElse(null);
     }
     
+    /**
+     * Сохраняет прогресс чтения из DTO.
+     *
+     * @param username имя пользователя
+     * @param progressData данные прогресса чтения
+     * @return объект DTO сохраненного прогресса
+     */
     public ReadingProgressDTO saveProgress(String username, ReadingProgressDTO progressData) {
         return updateProgress(username, progressData.getMangaId(), progressData.getChapterId(),
                 progressData.getChapterNumber(), progressData.getPageNumber(), progressData.getIsCompleted());
     }
     
+    /**
+     * Обновляет существующий прогресс чтения по идентификатору.
+     *
+     * @param username имя пользователя
+     * @param id идентификатор прогресса
+     * @param progressData новые данные прогресса
+     * @return объект DTO обновленного прогресса
+     * @throws IllegalArgumentException если пользователь или прогресс не найден, или доступ запрещен
+     */
     public ReadingProgressDTO updateProgress(String username, Long id, ReadingProgressDTO progressData) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -141,13 +212,19 @@ public class ReadingProgressService {
         readingProgressRepository.save(progress);
         
         if (progressData.getIsCompleted() && !wasCompleted) {
-            // This is a new chapter completion, increment counter
             userService.incrementChapterCount(username);
         }
         
         return convertToDTO(progress);
     }
     
+    /**
+     * Удаляет прогресс чтения по идентификатору.
+     *
+     * @param username имя пользователя
+     * @param id идентификатор прогресса
+     * @throws IllegalArgumentException если пользователь или прогресс не найден, или доступ запрещен
+     */
     public void deleteProgress(String username, Long id) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -163,6 +240,14 @@ public class ReadingProgressService {
         readingProgressRepository.delete(progress);
     }
     
+    /**
+     * Получает статистику чтения пользователя.
+     * Включает количество прочитанных глав, начатых манг и записей прогресса.
+     *
+     * @param username имя пользователя
+     * @return карта со статистикой чтения
+     * @throws IllegalArgumentException если пользователь не найден
+     */
     public Map<String, Object> getReadingStats(String username) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -181,7 +266,7 @@ public class ReadingProgressService {
         
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalChaptersRead", actualCompletedChapters);
-        stats.put("chaptersRead", actualCompletedChapters);  // Добавляем оба ключа для совместимости
+        stats.put("chaptersRead", actualCompletedChapters);
         stats.put("mangasStarted", mangasStarted);
         stats.put("totalProgressEntries", totalProgressEntries);
         

@@ -1,0 +1,518 @@
+openapi: 3.0.3
+info:
+  title: AniWay CommentService API
+  description: |
+    API для управления комментариями и реакциями в системе AniWay.
+
+    ## Архитектура
+    Все запросы к CommentService должны идти через Gateway Service на порт 8080.
+    В production окружении используйте домен вашего сервера вместо localhost.
+
+    ## Аутентификация
+    Для создания, обновления и удаления комментариев требуется JWT токен в заголовке Authorization.
+
+    ## Типы комментариев
+    - **MANGA** - комментарии к манге
+    - **CHAPTER** - комментарии к главе
+    - **PROFILE** - комментарии в профиле пользователя
+    - **REVIEW** - комментарии к отзыву
+
+    ## Реакции
+    Поддерживаются два типа реакций: LIKE (лайк) и DISLIKE (дизлайк).
+  version: 1.0.0
+  contact:
+    name: AniWay Development Team
+    email: support@aniway.com
+
+servers:
+  - url: http://localhost:8080
+    description: Gateway Service (Локальная разработка)
+  - url: https://your-domain.com:8080
+    description: Gateway Service (Production)
+
+tags:
+  - name: Комментарии
+    description: Управление комментариями
+  - name: Реакции
+    description: Управление реакциями на комментарии
+
+paths:
+  /api/comments:
+    post:
+      tags:
+        - Комментарии
+      summary: Создать комментарий
+      description: Создает новый комментарий для указанного объекта
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommentCreateDTO'
+            example:
+              content: "Отличная манга! Рекомендую всем."
+              commentType: "MANGA"
+              targetId: 123
+      responses:
+        '201':
+          description: Комментарий создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentResponseDTO'
+        '400':
+          description: Ошибка валидации данных
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponseDTO'
+        '401':
+          description: Необходима аутентификация
+
+    get:
+      tags:
+        - Комментарии
+      summary: Получить комментарии
+      description: Получить список комментариев для указанного объекта с пагинацией
+      parameters:
+        - name: targetId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID целевого объекта
+        - name: type
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/CommentType'
+          description: Тип комментария
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Номер страницы (начиная с 0)
+        - name: size
+          in: query
+          schema:
+            type: integer
+            default: 20
+          description: Количество комментариев на страницу
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            default: createdAt
+          description: Поле для сортировки
+        - name: sortDir
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+          description: Направление сортировки
+      responses:
+        '200':
+          description: Список комментариев получен
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CommentResponseDTO'
+        '400':
+          description: Ошибка валидации параметров
+
+  /api/comments/{commentId}:
+    put:
+      tags:
+        - Комментарии
+      summary: Обновить комментарий
+      description: Обновляет содержимое существующего комментария
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID комментария
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommentUpdateDTO'
+            example:
+              content: "Обновленный комментарий"
+      responses:
+        '200':
+          description: Комментарий обновлен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentResponseDTO'
+        '403':
+          description: Нет прав на редактирование
+        '404':
+          description: Комментарий не найден
+
+    delete:
+      tags:
+        - Комментарии
+      summary: Удалить комментарий
+      description: Удаляет комментарий (только автор или администратор)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID комментария
+      responses:
+        '204':
+          description: Комментарий удален
+        '403':
+          description: Нет прав на удаление
+        '404':
+          description: Комментарий не найден
+
+  /api/comments/{parentCommentId}/replies:
+    get:
+      tags:
+        - Комментарии
+      summary: Получить ответы на комментарий
+      description: Получить список ответов на указанный комментарий
+      parameters:
+        - name: parentCommentId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID родительского комментария
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Номер страницы
+        - name: size
+          in: query
+          schema:
+            type: integer
+            default: 10
+          description: Количество ответов на страницу
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            default: createdAt
+          description: Поле для сортировки
+        - name: sortDir
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+          description: Направление сортировки
+      responses:
+        '200':
+          description: Список ответов получен
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CommentResponseDTO'
+        '404':
+          description: Родительский комментарий не найден
+
+  /api/comments/{commentId}/reactions:
+    post:
+      tags:
+        - Реакции
+      summary: Добавить реакцию
+      description: Добавляет лайк или дизлайк к комментарию
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID комментария
+        - name: reactionType
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/ReactionType'
+          description: Тип реакции
+      responses:
+        '200':
+          description: Реакция добавлена
+        '400':
+          description: Неверный тип реакции
+        '403':
+          description: Нет прав на добавление реакции
+        '404':
+          description: Комментарий не найден
+
+    get:
+      tags:
+        - Реакции
+      summary: Получить статистику реакций
+      description: Получить количество лайков и дизлайков для комментария
+      parameters:
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID комментария
+      responses:
+        '200':
+          description: Статистика реакций получена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentReactionDTO'
+        '404':
+          description: Комментарий не найден
+
+  /api/comments/count:
+    get:
+      tags:
+        - Комментарии
+      summary: Получить количество комментариев
+      description: Получить общее количество комментариев для указанного объекта
+      parameters:
+        - name: targetId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID целевого объекта
+        - name: type
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/CommentType'
+          description: Тип комментария
+      responses:
+        '200':
+          description: Количество комментариев получено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentCountResponseDTO'
+        '400':
+          description: Ошибка валидации параметров
+
+  /api/comments/user/{userId}:
+    get:
+      tags:
+        - Комментарии
+      summary: Получить комментарии пользователя
+      description: Получить все комментарии указанного пользователя
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID пользователя
+      responses:
+        '200':
+          description: Комментарии пользователя получены
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CommentResponseDTO'
+        '404':
+          description: Пользователь не найден
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    CommentCreateDTO:
+      type: object
+      required:
+        - content
+        - commentType
+        - targetId
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 5000
+          description: Содержимое комментария
+        commentType:
+          $ref: '#/components/schemas/CommentType'
+        targetId:
+          type: integer
+          format: int64
+          description: ID целевого объекта (манги, главы, профиля и т.д.)
+        parentCommentId:
+          type: integer
+          format: int64
+          description: ID родительского комментария (для ответов)
+
+    CommentUpdateDTO:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 5000
+          description: Новое содержимое комментария
+
+    CommentResponseDTO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: ID комментария
+        content:
+          type: string
+          description: Содержимое комментария
+        commentType:
+          $ref: '#/components/schemas/CommentType'
+        targetId:
+          type: integer
+          format: int64
+          description: ID целевого объекта
+        userId:
+          type: integer
+          format: int64
+          description: ID автора комментария
+        username:
+          type: string
+          description: Имя пользователя автора
+        userAvatarUrl:
+          type: string
+          description: URL аватара автора
+        parentCommentId:
+          type: integer
+          format: int64
+          description: ID родительского комментария
+        parentCommentAuthor:
+          type: string
+          description: Автор родительского комментария
+        likesCount:
+          type: integer
+          format: int64
+          description: Количество лайков
+        dislikesCount:
+          type: integer
+          format: int64
+          description: Количество дизлайков
+        userReaction:
+          $ref: '#/components/schemas/ReactionType'
+        isEdited:
+          type: boolean
+          description: Был ли комментарий отредактирован
+        isDeleted:
+          type: boolean
+          description: Был ли комментарий удален
+        canEdit:
+          type: boolean
+          description: Может ли текущий пользователь редактировать
+        canDelete:
+          type: boolean
+          description: Может ли текущий пользователь удалить
+        depthLevel:
+          type: integer
+          description: Уровень вложенности комментария
+        createdAt:
+          type: string
+          format: date-time
+          description: Дата создания
+        updatedAt:
+          type: string
+          format: date-time
+          description: Дата последнего обновления
+
+    CommentReactionDTO:
+      type: object
+      properties:
+        commentId:
+          type: integer
+          format: int64
+          description: ID комментария
+        reactionType:
+          $ref: '#/components/schemas/ReactionType'
+        likesCount:
+          type: integer
+          format: int64
+          description: Количество лайков
+        dislikesCount:
+          type: integer
+          format: int64
+          description: Количество дизлайков
+
+    CommentCountResponseDTO:
+      type: object
+      properties:
+        count:
+          type: integer
+          format: int64
+          description: Общее количество комментариев
+
+    CommentType:
+      type: string
+      enum:
+        - MANGA
+        - CHAPTER
+        - PROFILE
+        - REVIEW
+      description: |
+        Тип комментария:
+        * `MANGA` - комментарий к манге
+        * `CHAPTER` - комментарий к главе
+        * `PROFILE` - комментарий в профиле пользователя
+        * `REVIEW` - комментарий к отзыву
+
+    ReactionType:
+      type: string
+      enum:
+        - LIKE
+        - DISLIKE
+      description: |
+        Тип реакции:
+        * `LIKE` - лайк
+        * `DISLIKE` - дизлайк
+
+    ErrorResponseDTO:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Сообщение об ошибке
+        status:
+          type: integer
+          description: HTTP статус код

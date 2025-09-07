@@ -16,6 +16,14 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Контроллер для управления отзывами и рейтингами пользователей в системе.
+ * Предоставляет REST API для создания, обновления, удаления отзывов,
+ * лайков/дизлайков, получения отзывов по манге и рейтингов.
+ *
+ * @author ShadowShiftStudio
+ * @version 1.0
+ */
 @RestController
 @RequestMapping("/api/auth/reviews")
 @RequiredArgsConstructor
@@ -24,6 +32,15 @@ public class ReviewController {
     
     private final ReviewService reviewService;
     
+    /**
+     * Создает новый отзыв для манги.
+     *
+     * @param mangaId идентификатор манги
+     * @param request объект с данными отзыва
+     * @param authentication объект аутентификации
+     * @return ResponseEntity с ReviewDTO или ошибкой
+     * @throws IllegalArgumentException в случае ошибки создания
+     */
     @PostMapping("/manga/{mangaId}")
     public ResponseEntity<ReviewDTO> createReview(
             @PathVariable Long mangaId,
@@ -39,6 +56,15 @@ public class ReviewController {
         }
     }
     
+    /**
+     * Обновляет существующий отзыв.
+     *
+     * @param reviewId идентификатор отзыва
+     * @param request объект с обновленными данными отзыва
+     * @param authentication объект аутентификации
+     * @return ResponseEntity с ReviewDTO или ошибкой
+     * @throws IllegalArgumentException в случае ошибки обновления
+     */
     @PutMapping("/{reviewId}")
     public ResponseEntity<ReviewDTO> updateReview(
             @PathVariable Long reviewId,
@@ -54,6 +80,14 @@ public class ReviewController {
         }
     }
     
+    /**
+     * Удаляет отзыв пользователя.
+     *
+     * @param reviewId идентификатор отзыва
+     * @param authentication объект аутентификации
+     * @return ResponseEntity с подтверждением или ошибкой
+     * @throws IllegalArgumentException в случае ошибки удаления
+     */
     @DeleteMapping("/{reviewId}")
     public ResponseEntity<Void> deleteReview(
             @PathVariable Long reviewId,
@@ -68,6 +102,14 @@ public class ReviewController {
         }
     }
     
+    /**
+     * Ставит лайк отзыву.
+     *
+     * @param reviewId идентификатор отзыва
+     * @param authentication объект аутентификации
+     * @return ResponseEntity с ReviewDTO или ошибкой
+     * @throws IllegalArgumentException в случае ошибки лайка
+     */
     @PostMapping("/{reviewId}/like")
     public ResponseEntity<ReviewDTO> likeReview(
             @PathVariable Long reviewId,
@@ -82,6 +124,14 @@ public class ReviewController {
         }
     }
     
+    /**
+     * Ставит дизлайк отзыву.
+     *
+     * @param reviewId идентификатор отзыва
+     * @param authentication объект аутентификации
+     * @return ResponseEntity с ReviewDTO или ошибкой
+     * @throws IllegalArgumentException в случае ошибки дизлайка
+     */
     @PostMapping("/{reviewId}/dislike")
     public ResponseEntity<ReviewDTO> dislikeReview(
             @PathVariable Long reviewId,
@@ -96,6 +146,13 @@ public class ReviewController {
         }
     }
     
+    /**
+     * Получает все отзывы для манги.
+     *
+     * @param mangaId идентификатор манги
+     * @param authentication объект аутентификации (может быть null)
+     * @return ResponseEntity со списком ReviewDTO
+     */
     @GetMapping("/manga/{mangaId}")
     public ResponseEntity<List<ReviewDTO>> getReviewsByManga(
             @PathVariable Long mangaId,
@@ -105,6 +162,13 @@ public class ReviewController {
         return ResponseEntity.ok(reviews);
     }
     
+    /**
+     * Получает отзыв пользователя для манги.
+     *
+     * @param mangaId идентификатор манги
+     * @param authentication объект аутентификации
+     * @return ResponseEntity с ReviewDTO или 404, если не найдено
+     */
     @GetMapping("/manga/{mangaId}/my")
     public ResponseEntity<ReviewDTO> getUserReviewForManga(
             @PathVariable Long mangaId,
@@ -115,6 +179,12 @@ public class ReviewController {
                      .orElse(ResponseEntity.notFound().build());
     }
     
+    /**
+     * Получает рейтинг манги.
+     *
+     * @param mangaId идентификатор манги
+     * @return ResponseEntity с MangaRatingDTO
+     */
     @GetMapping("/manga/{mangaId}/rating")
     public ResponseEntity<MangaRatingDTO> getMangaRating(@PathVariable Long mangaId) {
         MangaRatingDTO rating = reviewService.getMangaRating(mangaId);
@@ -122,7 +192,11 @@ public class ReviewController {
     }
 
     /**
-     * Получение всех ревью пользователя для профиля
+     * Получает все отзывы пользователя для профиля.
+     *
+     * @param userId идентификатор пользователя
+     * @return ResponseEntity со списком ReviewDTO или ошибкой
+     * @throws Exception в случае ошибки получения данных
      */
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<ReviewDTO>> getUserReviews(@PathVariable Long userId) {
@@ -136,7 +210,12 @@ public class ReviewController {
         }
     }
     
-    // Request DTOs
+    /**
+     * Внутренний класс для запроса на создание отзыва.
+     *
+     * @author ShadowShiftStudio
+     * @version 1.0
+     */
     public static class CreateReviewRequest {
         @NotNull
         @Min(1)
@@ -151,6 +230,12 @@ public class ReviewController {
         public void setComment(String comment) { this.comment = comment; }
     }
     
+    /**
+     * Внутренний класс для запроса на обновление отзыва.
+     *
+     * @author ShadowShiftStudio
+     * @version 1.0
+     */
     public static class UpdateReviewRequest {
         @NotNull
         @Min(1)

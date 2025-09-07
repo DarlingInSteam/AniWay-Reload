@@ -10,7 +10,14 @@ import shadowshift.studio.authservice.service.ActivityService;
 import java.util.List;
 
 /**
- * Контроллер для получения активности пользователя
+ * Контроллер для управления активностью пользователей в системе аутентификации.
+ * Предоставляет REST API для получения различных типов активности пользователя,
+ * таких как общая активность, активность чтения и активность ревью.
+ * Поддерживает CORS для указанных origins.
+ *
+ * @author [Ваше имя или команда, если применимо]
+ * @version 1.0
+ * @since [Дата или версия релиза]
  */
 @RestController
 @RequestMapping("/api/auth/activity")
@@ -22,7 +29,12 @@ public class ActivityController {
     private final ActivityService activityService;
     
     /**
-     * Получение полной ленты активности пользователя
+     * Получает полную ленту активности пользователя.
+     *
+     * @param userId идентификатор пользователя
+     * @param limit максимальное количество записей активности (по умолчанию 20)
+     * @return ResponseEntity с списком ActivityDTO или ошибкой
+     * @throws Exception в случае ошибки при получении данных
      */
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<ActivityDTO>> getUserActivity(
@@ -39,7 +51,12 @@ public class ActivityController {
     }
     
     /**
-     * Получение только активности чтения
+     * Получает активность пользователя, связанную с чтением.
+     *
+     * @param userId идентификатор пользователя
+     * @param limit максимальное количество записей активности (по умолчанию 20)
+     * @return ResponseEntity с списком ActivityDTO или ошибкой
+     * @throws Exception в случае ошибки при получении данных
      */
     @GetMapping("/user/{userId}/reading")
     public ResponseEntity<List<ActivityDTO>> getUserReadingActivity(
@@ -56,7 +73,12 @@ public class ActivityController {
     }
     
     /**
-     * Получение только активности ревью
+     * Получает активность пользователя, связанную с ревью.
+     *
+     * @param userId идентификатор пользователя
+     * @param limit максимальное количество записей активности (по умолчанию 20)
+     * @return ResponseEntity с списком ActivityDTO или ошибкой
+     * @throws Exception в случае ошибки при получении данных
      */
     @GetMapping("/user/{userId}/reviews")
     public ResponseEntity<List<ActivityDTO>> getUserReviewActivity(

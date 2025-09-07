@@ -10,6 +10,15 @@ import shadowshift.studio.authservice.service.UserService;
 
 import java.util.List;
 
+/**
+ * Контроллер для управления пользователями в системе.
+ * Предоставляет REST API для получения, обновления профилей пользователей,
+ * поиска пользователей и получения топ-читателей.
+ * Поддерживает CORS для указанных origins.
+ *
+ * @author ShadowShiftStudio
+ * @version 1.0
+ */
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
@@ -19,6 +28,13 @@ public class UserController {
     
     private final UserService userService;
     
+    /**
+     * Получает информацию о текущем аутентифицированном пользователе.
+     *
+     * @param authentication объект аутентификации
+     * @return ResponseEntity с UserDTO или 404, если не найдено
+     * @throws Exception в случае ошибки получения данных
+     */
     @GetMapping("/me")
     public ResponseEntity<UserDTO> getCurrentUser(Authentication authentication) {
         try {
@@ -30,6 +46,14 @@ public class UserController {
         }
     }
     
+    /**
+     * Обновляет профиль текущего пользователя.
+     *
+     * @param updateRequest объект с данными для обновления
+     * @param authentication объект аутентификации
+     * @return ResponseEntity с UserDTO или ошибкой
+     * @throws Exception в случае ошибки обновления
+     */
     @PutMapping("/me")
     public ResponseEntity<UserDTO> updateCurrentUser(
             @RequestBody UserDTO updateRequest,
@@ -44,6 +68,13 @@ public class UserController {
         }
     }
     
+    /**
+     * Получает пользователя по идентификатору.
+     *
+     * @param id идентификатор пользователя
+     * @return ResponseEntity с UserDTO или 404, если не найдено
+     * @throws Exception в случае ошибки получения данных
+     */
     @GetMapping("/{id}")
     public ResponseEntity<UserDTO> getUserById(@PathVariable Long id) {
         try {
@@ -55,6 +86,13 @@ public class UserController {
         }
     }
     
+    /**
+     * Получает пользователя по имени пользователя.
+     *
+     * @param username имя пользователя
+     * @return ResponseEntity с UserDTO или 404, если не найдено
+     * @throws Exception в случае ошибки получения данных
+     */
     @GetMapping("/username/{username}")
     public ResponseEntity<UserDTO> getUserByUsername(@PathVariable String username) {
         try {
@@ -66,6 +104,13 @@ public class UserController {
         }
     }
     
+    /**
+     * Выполняет поиск пользователей по запросу.
+     *
+     * @param query строка поиска
+     * @return ResponseEntity со списком UserDTO или ошибкой
+     * @throws Exception в случае ошибки поиска
+     */
     @GetMapping("/search")
     public ResponseEntity<List<UserDTO>> searchUsers(@RequestParam String query) {
         try {
@@ -77,6 +122,12 @@ public class UserController {
         }
     }
     
+    /**
+     * Получает список топ-читателей.
+     *
+     * @return ResponseEntity со списком UserDTO или ошибкой
+     * @throws Exception в случае ошибки получения данных
+     */
     @GetMapping("/top-readers")
     public ResponseEntity<List<UserDTO>> getTopReaders() {
         try {
@@ -88,6 +139,14 @@ public class UserController {
         }
     }
     
+    /**
+     * Обновляет профиль пользователя (альтернативный эндпоинт).
+     *
+     * @param updateRequest объект с данными для обновления
+     * @param authentication объект аутентификации
+     * @return ResponseEntity с UserDTO или ошибкой
+     * @throws Exception в случае ошибки обновления
+     */
     @PutMapping("/profile")
     public ResponseEntity<UserDTO> updateProfile(
             @RequestBody UserDTO updateRequest,

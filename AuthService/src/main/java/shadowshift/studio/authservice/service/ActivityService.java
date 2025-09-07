@@ -15,7 +15,11 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Сервис для получения активности пользователя
+ * Сервис для управления и получения активности пользователей.
+ * Предоставляет функциональность для формирования ленты активности на основе
+ * прогресса чтения и отзывов пользователей.
+ *
+ * @author ShadowShiftStudio
  */
 @Service
 @RequiredArgsConstructor
@@ -26,37 +30,37 @@ public class ActivityService {
     private final ReviewRepository reviewRepository;
     
     /**
-     * Получение ленты активности пользователя
+     * Получает ленту активности пользователя, включая завершенные главы и отзывы.
+     * Активности сортируются по времени в обратном порядке (сначала новые).
+     *
+     * @param userId идентификатор пользователя
+     * @param limit максимальное количество возвращаемых активностей
+     * @return список активностей пользователя
      */
     public List<ActivityDTO> getUserActivity(Long userId, int limit) {
         log.info("Getting activity for user {} with limit {}", userId, limit);
         
         List<ActivityDTO> activities = new ArrayList<>();
         
-        // Получаем завершенные главы (последние 50 для оптимизации)
         List<ReadingProgress> completedChapters = readingProgressRepository
                 .findByUserIdAndIsCompletedOrderByUpdatedAtDesc(userId, true)
                 .stream()
                 .limit(50)
                 .collect(Collectors.toList());
         
-        // Преобразуем в активности чтения
         for (ReadingProgress progress : completedChapters) {
             activities.add(createChapterActivity(progress));
         }
         
-        // Получаем ревью пользователя (последние 20 для оптимизации)
         List<Review> userReviews = reviewRepository.findByUserIdOrderByCreatedAtDesc(userId)
                 .stream()
                 .limit(20)
                 .collect(Collectors.toList());
         
-        // Преобразуем в активности ревью
         for (Review review : userReviews) {
             activities.add(createReviewActivity(review));
         }
         
-        // Сортируем по времени (сначала новые) и ограничиваем количество
         return activities.stream()
                 .sorted(Comparator.comparing(ActivityDTO::getTimestamp).reversed())
                 .limit(limit)
@@ -64,7 +68,12 @@ public class ActivityService {
     }
     
     /**
-     * Получение только активности чтения
+     * Получает активность пользователя, связанную только с чтением глав.
+     * Возвращает список завершенных глав в порядке убывания времени обновления.
+     *
+     * @param userId идентификатор пользователя
+     * @param limit максимальное количество возвращаемых активностей чтения
+     * @return список активностей чтения пользователя
      */
     public List<ActivityDTO> getUserReadingActivity(Long userId, int limit) {
         log.info("Getting reading activity for user {} with limit {}", userId, limit);
@@ -81,7 +90,12 @@ public class ActivityService {
     }
     
     /**
-     * Получение только активности ревью
+     * Получает активность пользователя, связанную только с отзывами.
+     * Возвращает список созданных отзывов в порядке убывания времени создания.
+     *
+     * @param userId идентификатор пользователя
+     * @param limit максимальное количество возвращаемых активностей отзывов
+     * @return список активностей отзывов пользователя
      */
     public List<ActivityDTO> getUserReviewActivity(Long userId, int limit) {
         log.info("Getting review activity for user {} with limit {}", userId, limit);
@@ -97,13 +111,16 @@ public class ActivityService {
     }
     
     /**
-     * Создание активности для прочитанной главы
+     * Создает объект активности для завершенной главы.
+     * Формирует сообщение и ссылку на основе данных прогресса чтения.
+     *
+     * @param progress объект прогресса чтения
+     * @return объект активности для главы
      */
     private ActivityDTO createChapterActivity(ReadingProgress progress) {
         String message = String.format("Прочитана глава %.1f", progress.getChapterNumber());
         
-        // TODO: Получить название манги из MangaService через API
-        String mangaTitle = "манги"; // заглушка, позже получаем из MangaService
+        String mangaTitle = "манги";
         if (mangaTitle != null && !mangaTitle.equals("манги")) {
             message = String.format("Прочитана глава %.1f манги '%s'", 
                     progress.getChapterNumber(), mangaTitle);
@@ -124,13 +141,16 @@ public class ActivityService {
     }
     
     /**
-     * Создание активности для ревью
+     * Создает объект активности для созданного отзыва.
+     * Формирует сообщение и ссылку на основе данных отзыва.
+     *
+     * @param review объект отзыва
+     * @return объект активности для отзыва
      */
     private ActivityDTO createReviewActivity(Review review) {
         String message = String.format("Оставлен отзыв с оценкой %d/10", review.getRating());
         
-        // TODO: Получить название манги из MangaService через API
-        String mangaTitle = "манги"; // заглушка
+        String mangaTitle = "манги";
         if (mangaTitle != null && !mangaTitle.equals("манги")) {
             message = String.format("Оставлен отзыв с оценкой %d/10 для манги '%s'", 
                     review.getRating(), mangaTitle);

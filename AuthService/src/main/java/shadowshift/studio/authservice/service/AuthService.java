@@ -13,6 +13,13 @@ import shadowshift.studio.authservice.repository.UserRepository;
 
 import java.time.LocalDateTime;
 
+/**
+ * Сервис для управления аутентификацией и авторизацией пользователей.
+ * Предоставляет функциональность регистрации, входа в систему,
+ * валидации токенов и получения информации о текущем пользователе.
+ *
+ * @author ShadowShiftStudio
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -24,8 +31,16 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final UserService userService;
     
+    /**
+     * Регистрирует нового пользователя в системе.
+     * Проверяет уникальность имени пользователя и email, создает нового пользователя
+     * с закодированным паролем и генерирует JWT токен.
+     *
+     * @param request объект запроса на регистрацию
+     * @return объект ответа аутентификации с токеном и данными пользователя
+     * @throws IllegalArgumentException если имя пользователя или email уже существуют
+     */
     public AuthResponse register(RegisterRequest request) {
-        // Check if user already exists
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new IllegalArgumentException("Username already exists");
         }
@@ -34,7 +49,6 @@ public class AuthService {
             throw new IllegalArgumentException("Email already exists");
         }
         
-        // Create new user
         var user = User.builder()
                 .username(request.getUsername())
                 .email(request.getEmail())
@@ -55,6 +69,14 @@ public class AuthService {
         return AuthResponse.of(jwtToken, userService.convertToDTO(user));
     }
     
+    /**
+     * Аутентифицирует пользователя по имени пользователя и паролю.
+     * Обновляет время последнего входа и генерирует новый JWT токен.
+     *
+     * @param request объект запроса на вход
+     * @return объект ответа аутентификации с токеном и данными пользователя
+     * @throws IllegalArgumentException если пользователь не найден
+     */
     public AuthResponse authenticate(LoginRequest request) {
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
@@ -66,7 +88,6 @@ public class AuthService {
         var user = userRepository.findByUsernameOrEmail(request.getUsername(), request.getUsername())
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
         
-        // Update last login
         user.setLastLogin(LocalDateTime.now());
         userRepository.save(user);
         
@@ -76,6 +97,13 @@ public class AuthService {
         return AuthResponse.of(jwtToken, userService.convertToDTO(user));
     }
     
+    /**
+     * Получает данные текущего пользователя по имени пользователя.
+     *
+     * @param username имя пользователя
+     * @return объект DTO с данными пользователя
+     * @throws IllegalArgumentException если пользователь не найден
+     */
     public UserDTO getCurrentUser(String username) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -84,7 +112,12 @@ public class AuthService {
     }
     
     /**
-     * Валидация JWT токена и получение пользователя
+     * Валидирует JWT токен и возвращает соответствующего пользователя.
+     * Извлекает имя пользователя из токена, проверяет его валидность
+     * и возвращает пользователя, если токен действителен.
+     *
+     * @param token JWT токен для валидации
+     * @return объект пользователя, если токен валиден, иначе null
      */
     public User validateTokenAndGetUser(String token) {
         try {

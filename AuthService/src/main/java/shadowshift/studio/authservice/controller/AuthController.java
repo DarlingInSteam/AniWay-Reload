@@ -18,6 +18,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Контроллер для аутентификации и управления пользователями в системе.
+ * Предоставляет REST API для регистрации, входа, получения профиля пользователя,
+ * поиска пользователей, валидации токенов и других операций аутентификации.
+ * Поддерживает CORS для указанных origins.
+ *
+ * @author [Ваше имя или команда, если применимо]
+ * @version 1.0
+ * @since [Дата или версия релиза]
+ */
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -28,6 +38,13 @@ public class AuthController {
     private final AuthService authService;
     private final UserService userService;
     
+    /**
+     * Регистрирует нового пользователя в системе.
+     *
+     * @param request объект с данными для регистрации
+     * @return ResponseEntity с AuthResponse или ошибкой
+     * @throws IllegalArgumentException если регистрация не удалась
+     */
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
         try {
@@ -39,6 +56,13 @@ public class AuthController {
         }
     }
     
+    /**
+     * Аутентифицирует пользователя и возвращает токен.
+     *
+     * @param request объект с данными для входа
+     * @return ResponseEntity с AuthResponse или ошибкой
+     * @throws Exception в случае ошибки аутентификации
+     */
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> authenticate(@Valid @RequestBody LoginRequest request) {
         try {
@@ -50,6 +74,13 @@ public class AuthController {
         }
     }
     
+    /**
+     * Получает информацию о текущем аутентифицированном пользователе.
+     *
+     * @param authentication объект аутентификации
+     * @return ResponseEntity с UserDTO или ошибкой
+     * @throws Exception в случае ошибки получения данных
+     */
     @GetMapping("/me")
     public ResponseEntity<UserDTO> getCurrentUser(Authentication authentication) {
         try {
@@ -61,13 +92,29 @@ public class AuthController {
         }
     }
     
+    /**
+     * Выполняет выход пользователя (для JWT обрабатывается на клиенте).
+     *
+     * @return ResponseEntity с подтверждением
+     */
     @PostMapping("/logout")
     public ResponseEntity<Void> logout() {
         // In JWT, logout is handled on the client side by removing the token
         return ResponseEntity.ok().build();
     }
     
-    // Поиск пользователей
+    /**
+     * Выполняет поиск пользователей по заданным критериям.
+     *
+     * @param query строка поиска (опционально)
+     * @param role роль пользователя (опционально)
+     * @param page номер страницы (по умолчанию 0)
+     * @param limit количество элементов на странице (по умолчанию 10)
+     * @param sortBy поле для сортировки (по умолчанию "username")
+     * @param sortOrder порядок сортировки ("asc" или "desc", по умолчанию "asc")
+     * @return ResponseEntity с результатами поиска или ошибкой
+     * @throws Exception в случае ошибки поиска
+     */
     @GetMapping("/users/search")
     public ResponseEntity<Map<String, Object>> searchUsers(
             @RequestParam(required = false) String query,
@@ -99,7 +146,13 @@ public class AuthController {
         }
     }
     
-    // Получение публичного профиля пользователя
+    /**
+     * Получает публичный профиль пользователя.
+     *
+     * @param userId идентификатор пользователя
+     * @return ResponseEntity с UserDTO (без приватной информации) или ошибкой
+     * @throws Exception в случае ошибки получения данных
+     */
     @GetMapping("/users/{userId}/public")
     public ResponseEntity<UserDTO> getPublicUserProfile(@PathVariable Long userId) {
         try {
@@ -119,7 +172,14 @@ public class AuthController {
         }
     }
     
-    // Получение полного профиля пользователя (только для владельца или админа)
+    /**
+     * Получает полный профиль пользователя (только для владельца или админа).
+     *
+     * @param userId идентификатор пользователя
+     * @param authentication объект аутентификации
+     * @return ResponseEntity с UserDTO или ошибкой (403 если нет прав)
+     * @throws Exception в случае ошибки получения данных
+     */
     @GetMapping("/users/{userId}")
     public ResponseEntity<UserDTO> getUserProfile(@PathVariable Long userId, Authentication authentication) {
         try {
@@ -144,7 +204,11 @@ public class AuthController {
     }
     
     /**
-     * Валидация JWT токена и получение информации о пользователе
+     * Валидирует JWT токен и возвращает информацию о пользователе.
+     *
+     * @param authHeader заголовок Authorization с токеном
+     * @return ResponseEntity с результатом валидации или ошибкой
+     * @throws Exception в случае ошибки валидации
      */
     @PostMapping("/validate")
     public ResponseEntity<?> validateToken(@RequestHeader("Authorization") String authHeader) {
@@ -172,6 +236,12 @@ public class AuthController {
         }
     }
     
+    /**
+     * Преобразует объект User в UserDTO.
+     *
+     * @param user объект User
+     * @return UserDTO с данными пользователя
+     */
     private UserDTO convertToUserDTO(User user) {
         return UserDTO.builder()
                 .id(user.getId())

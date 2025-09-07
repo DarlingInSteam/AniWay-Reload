@@ -1,0 +1,387 @@
+openapi: 3.0.3
+info:
+  title: AniWay ChapterService API
+  description: |
+    API для управления главами манги в системе AniWay.
+
+    ## Архитектура
+    Все запросы к ChapterService должны идти через Gateway Service на порт 8080.
+    В production окружении используйте домен вашего сервера вместо localhost.
+
+    ## Аутентификация
+    Для создания, обновления и удаления глав требуется JWT токен в заголовке Authorization.
+  version: 1.0.0
+  contact:
+    name: AniWay Development Team
+    email: support@aniway.com
+
+servers:
+  - url: http://localhost:8080
+    description: Development server (via Gateway)
+  - url: https://your-domain.com:8080
+    description: Production server (via Gateway)
+
+tags:
+  - name: Chapters
+    description: Управление главами манги
+
+paths:
+  /api/chapters/manga/{mangaId}:
+    get:
+      tags:
+        - Chapters
+      summary: Получить все главы манги
+      description: Возвращает список всех глав для указанной манги
+      parameters:
+        - name: mangaId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID манги
+      responses:
+        '200':
+          description: Список глав получен
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChapterResponseDTO'
+        '404':
+          description: Манга не найдена
+
+  /api/chapters/{id}:
+    get:
+      tags:
+        - Chapters
+      summary: Получить главу по ID
+      description: Возвращает информацию о главе по её ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID главы
+      responses:
+        '200':
+          description: Глава найдена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChapterResponseDTO'
+        '404':
+          description: Глава не найдена
+
+    put:
+      tags:
+        - Chapters
+      summary: Обновить главу
+      description: Обновляет информацию о главе
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID главы
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChapterCreateDTO'
+      responses:
+        '200':
+          description: Глава обновлена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChapterResponseDTO'
+        '400':
+          description: Ошибка валидации данных
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Глава не найдена
+
+    delete:
+      tags:
+        - Chapters
+      summary: Удалить главу
+      description: Удаляет главу по ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID главы
+      responses:
+        '204':
+          description: Глава удалена
+        '404':
+          description: Глава не найдена
+
+  /api/chapters/count/{mangaId}:
+    get:
+      tags:
+        - Chapters
+      summary: Получить количество глав манги
+      description: Возвращает общее количество глав для указанной манги
+      parameters:
+        - name: mangaId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID манги
+      responses:
+        '200':
+          description: Количество получено
+          content:
+            application/json:
+              schema:
+                type: integer
+                format: int32
+
+  /api/chapters:
+    post:
+      tags:
+        - Chapters
+      summary: Создать новую главу
+      description: Создает новую главу для манги
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChapterCreateDTO'
+      responses:
+        '201':
+          description: Глава создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChapterResponseDTO'
+        '400':
+          description: Ошибка валидации данных
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/chapters/manga/{mangaId}/next/{chapterNumber}:
+    get:
+      tags:
+        - Chapters
+      summary: Получить следующую главу
+      description: Возвращает следующую главу после указанного номера
+      parameters:
+        - name: mangaId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID манги
+        - name: chapterNumber
+          in: path
+          required: true
+          schema:
+            type: number
+            format: double
+          description: Номер текущей главы
+      responses:
+        '200':
+          description: Следующая глава найдена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChapterResponseDTO'
+        '404':
+          description: Следующая глава не найдена
+
+  /api/chapters/manga/{mangaId}/previous/{chapterNumber}:
+    get:
+      tags:
+        - Chapters
+      summary: Получить предыдущую главу
+      description: Возвращает предыдущую главу перед указанным номером
+      parameters:
+        - name: mangaId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID манги
+        - name: chapterNumber
+          in: path
+          required: true
+          schema:
+            type: number
+            format: double
+          description: Номер текущей главы
+      responses:
+        '200':
+          description: Предыдущая глава найдена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChapterResponseDTO'
+        '404':
+          description: Предыдущая глава не найдена
+
+  /api/chapters/{id}/pagecount:
+    put:
+      tags:
+        - Chapters
+      summary: Обновить количество страниц
+      description: Обновляет количество страниц в главе
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID главы
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - pageCount
+              properties:
+                pageCount:
+                  type: integer
+                  format: int32
+                  minimum: 1
+                  description: Количество страниц в главе
+      responses:
+        '200':
+          description: Количество страниц обновлено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChapterResponseDTO'
+        '400':
+          description: Ошибка валидации данных
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Глава не найдена
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ChapterCreateDTO:
+      type: object
+      required:
+        - mangaId
+        - chapterNumber
+      properties:
+        mangaId:
+          type: integer
+          format: int64
+          description: ID манги, к которой принадлежит глава
+        chapterNumber:
+          type: number
+          format: double
+          minimum: 1
+          description: Номер главы
+        volumeNumber:
+          type: integer
+          format: int32
+          description: Номер тома (опционально)
+        originalChapterNumber:
+          type: number
+          format: double
+          description: Оригинальный номер главы (опционально)
+        title:
+          type: string
+          maxLength: 255
+          description: Название главы (опционально)
+        publishedDate:
+          type: string
+          format: date-time
+          description: Дата публикации (опционально)
+
+    ChapterResponseDTO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: ID главы
+        mangaId:
+          type: integer
+          format: int64
+          description: ID манги
+        chapterNumber:
+          type: number
+          format: double
+          description: Номер главы
+        volumeNumber:
+          type: integer
+          format: int32
+          description: Номер тома
+        originalChapterNumber:
+          type: number
+          format: double
+          description: Оригинальный номер главы
+        title:
+          type: string
+          description: Название главы
+        pageCount:
+          type: integer
+          format: int32
+          description: Количество страниц
+        publishedDate:
+          type: string
+          format: date-time
+          description: Дата публикации
+        createdAt:
+          type: string
+          format: date-time
+          description: Дата создания
+        updatedAt:
+          type: string
+          format: date-time
+          description: Дата последнего обновления
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Тип ошибки
+        message:
+          type: string
+          description: Сообщение об ошибке

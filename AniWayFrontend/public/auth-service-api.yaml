@@ -1,0 +1,1351 @@
+openapi: 3.0.3
+info:
+  title: AniWay AuthService API
+  version: 1.0.0
+  description: |
+    API для аутентификации и управления пользователями платформы AniWay.
+
+    ## Архитектура
+    В production окружении все сервисы доступны через Gateway Service.
+    API endpoints, перечисленные ниже, являются специфичными для сервиса путями,
+    которые маршрутизируются через gateway (обычно на порт 8080).
+
+    ## Серверные URL
+    - **Локальная разработка**: Прямой доступ к auth-service на порт 8081
+    - **Локальное production**: Доступ через gateway-service на порт 8080
+    - **Production**: Доступ через gateway-service на вашем домене порт 8080
+
+    Этот API предоставляет полный функционал управления пользователями:
+    - Регистрация и аутентификация пользователей
+    - Управление JWT токенами
+    - Профили пользователей и закладки
+    - Отслеживание прогресса чтения
+    - Отзывы и рейтинги
+    - Административные операции
+
+  contact:
+    name: ShadowShift Studio
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8081
+    description: Auth Service (Локальная разработка)
+  - url: http://localhost:8080
+    description: Gateway Service (Локальное production)
+  - url: https://your-domain.com:8080
+    description: Gateway Service (Production)
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/auth/register:
+    post:
+      tags:
+        - Аутентификация
+      summary: Регистрация нового пользователя
+      description: Создает новую учетную запись пользователя с предоставленными учетными данными
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              username: "john_doe"
+              email: "john@example.com"
+              password: "securePassword123"
+              displayName: "John Doe"
+      responses:
+        '200':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid request data or user already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/login:
+    post:
+      tags:
+        - Аутентификация
+      summary: Аутентификация пользователя
+      description: Аутентифицирует учетные данные пользователя и возвращает JWT токен
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              username: "john_doe"
+              password: "securePassword123"
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/me:
+    get:
+      tags:
+        - Управление пользователями
+      summary: Получить профиль текущего пользователя
+      description: Возвращает профиль текущего аутентифицированного пользователя
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDTO'
+        '401':
+          description: Unauthorized
+        '404':
+          description: User not found
+
+  /api/auth/logout:
+    post:
+      tags:
+        - Аутентификация
+      summary: Выход из системы
+      description: Завершает текущую сессию (удаление токена на стороне клиента)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+
+  /api/auth/users/search:
+    get:
+      tags:
+        - Управление пользователями
+      summary: Поиск пользователей с пагинацией
+      description: Поиск пользователей с опциональной фильтрацией и пагинацией
+      parameters:
+        - name: query
+          in: query
+          schema:
+            type: string
+          description: Поисковый запрос для имени пользователя
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [USER, ADMIN, MODERATOR]
+          description: Фильтр по роли пользователя
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Номер страницы (начиная с 0)
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+          description: Количество результатов на страницу
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            default: username
+          description: Поле для сортировки
+        - name: sortOrder
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+          description: Порядок сортировки
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSearchResponse'
+
+  /api/auth/users/{userId}/public:
+    get:
+      tags:
+        - User Management
+      summary: Get public user profile
+      description: Returns public profile information for any user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: User ID
+      responses:
+        '200':
+          description: Публичный профиль получен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDTO'
+        '404':
+          description: Пользователь не найден
+
+  /api/auth/users/{userId}:
+    get:
+      tags:
+        - Управление пользователями
+      summary: Получить полный профиль пользователя
+      description: Возвращает полную информацию о профиле (только владелец или админ)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID пользователя
+      responses:
+        '200':
+          description: Полный профиль получен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDTO'
+        '403':
+          description: Доступ запрещен
+        '404':
+          description: Пользователь не найден
+
+  /api/auth/validate:
+    post:
+      tags:
+        - Аутентификация
+      summary: Валидация JWT токена
+      description: Валидирует JWT токен и возвращает информацию о пользователе
+      parameters:
+        - name: Authorization
+          in: header
+          required: true
+          schema:
+            type: string
+          description: Bearer токен
+      responses:
+        '200':
+          description: Token is valid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDTO'
+        '401':
+          description: Invalid token
+
+  /api/auth/activity/user/{userId}:
+    get:
+      tags:
+        - Activity
+      summary: Get user activity feed
+      description: Returns user's activity feed including reading and reviews
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: User ID
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+          description: Maximum number of activities
+      responses:
+        '200':
+          description: Activity feed retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ActivityDTO'
+
+  /api/auth/activity/user/{userId}/reading:
+    get:
+      tags:
+        - Активность
+      summary: Получить активность чтения пользователя
+      description: Возвращает активность чтения пользователя
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: User ID
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+          description: Maximum number of activities
+      responses:
+        '200':
+          description: Reading activity retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ActivityDTO'
+
+  /api/auth/activity/user/{userId}/reviews:
+    get:
+      tags:
+        - Активность
+      summary: Получить активность отзывов пользователя
+      description: Возвращает активность пользователя, связанную с отзывами
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: User ID
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+          description: Maximum number of activities
+      responses:
+        '200':
+          description: Review activity retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ActivityDTO'
+
+  /api/bookmarks:
+    get:
+      tags:
+        - Bookmarks
+      summary: Get user bookmarks
+      description: Returns all bookmarks for the authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Bookmarks retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookmarkDTO'
+
+    post:
+      tags:
+        - Bookmarks
+      summary: Add or update bookmark
+      description: Creates or updates a bookmark for a manga
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookmarkRequest'
+      responses:
+        '200':
+          description: Bookmark created/updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookmarkDTO'
+
+  /api/bookmarks/{mangaId}:
+    delete:
+      tags:
+        - Bookmarks
+      summary: Remove bookmark
+      description: Removes bookmark for specified manga
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: mangaId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Manga ID
+      responses:
+        '200':
+          description: Bookmark removed
+
+  /api/bookmarks/status/{status}:
+    get:
+      tags:
+        - Закладки
+      summary: Получить закладки по статусу
+      description: Возвращает закладки пользователя, отфильтрованные по статусу
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [READING, COMPLETED, ON_HOLD, DROPPED, PLAN_TO_READ]
+          description: Bookmark status
+      responses:
+        '200':
+          description: Filtered bookmarks retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookmarkDTO'
+
+  /api/bookmarks/favorites:
+    get:
+      tags:
+        - Закладки
+      summary: Получить избранные закладки
+      description: Возвращает избранные закладки пользователя
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Favorite bookmarks retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookmarkDTO'
+
+  /api/bookmarks/manga/{mangaId}:
+    get:
+      tags:
+        - Bookmarks
+      summary: Get bookmark for manga
+      description: Returns bookmark for specific manga
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: mangaId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Manga ID
+      responses:
+        '200':
+          description: Bookmark retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookmarkDTO'
+
+    delete:
+      tags:
+        - Bookmarks
+      summary: Remove all bookmarks for manga
+      description: Removes all bookmarks for specified manga (admin operation)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: mangaId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Manga ID
+      responses:
+        '200':
+          description: Bookmarks removed
+
+  /api/bookmarks/user/{username}:
+    get:
+      tags:
+        - Bookmarks
+      summary: Get user bookmarks by username
+      description: Returns bookmarks for specific user
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Username
+      responses:
+        '200':
+          description: User bookmarks retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookmarkDTO'
+
+  /api/bookmarks/cleanup-orphaned:
+    delete:
+      tags:
+        - Bookmarks
+      summary: Cleanup orphaned bookmarks
+      description: Removes bookmarks without associated users or manga (admin operation)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Cleanup completed
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+
+  /api/auth/progress:
+    get:
+      tags:
+        - Прогресс чтения
+      summary: Получить прогресс чтения пользователя
+      description: Возвращает весь прогресс чтения для аутентифицированного пользователя
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Reading progress retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReadingProgressDTO'
+
+    post:
+      tags:
+        - Reading Progress
+      summary: Save reading progress
+      description: Creates new reading progress entry
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReadingProgressDTO'
+      responses:
+        '200':
+          description: Progress saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadingProgressDTO'
+
+  /api/auth/progress/manga/{mangaId}:
+    get:
+      tags:
+        - Reading Progress
+      summary: Get progress for manga
+      description: Returns reading progress for specific manga
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: mangaId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Manga ID
+      responses:
+        '200':
+          description: Manga progress retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReadingProgressDTO'
+
+  /api/auth/progress/chapter/{chapterId}:
+    get:
+      tags:
+        - Прогресс чтения
+      summary: Получить прогресс для главы
+      description: Возвращает прогресс чтения для конкретной главы
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: chapterId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Chapter ID
+      responses:
+        '200':
+          description: Chapter progress retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadingProgressDTO'
+        '404':
+          description: Progress not found
+
+  /api/auth/progress/{id}:
+    put:
+      tags:
+        - Прогресс чтения
+      summary: Обновить прогресс чтения
+      description: Обновляет существующий прогресс чтения
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Progress ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReadingProgressDTO'
+      responses:
+        '200':
+          description: Progress updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadingProgressDTO'
+
+    delete:
+      tags:
+        - Reading Progress
+      summary: Delete reading progress
+      description: Removes reading progress entry
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Progress ID
+      responses:
+        '200':
+          description: Progress deleted
+
+  /api/auth/progress/stats:
+    get:
+      tags:
+        - Reading Progress
+      summary: Get reading statistics
+      description: Returns user's reading statistics
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Statistics retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+
+  /api/auth/reviews/manga/{mangaId}:
+    post:
+      tags:
+        - Reviews
+      summary: Create review
+      description: Creates a new review for a manga
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: mangaId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Manga ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReviewRequest'
+      responses:
+        '200':
+          description: Review created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewDTO'
+
+    get:
+      tags:
+        - Отзывы
+      summary: Получить отзывы для манги
+      description: Возвращает все отзывы для манги
+      parameters:
+        - name: mangaId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Manga ID
+      responses:
+        '200':
+          description: Reviews retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReviewDTO'
+
+  /api/auth/reviews/{reviewId}:
+    put:
+      tags:
+        - Отзывы
+      summary: Обновить отзыв
+      description: Обновляет существующий отзыв
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Review ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateReviewRequest'
+      responses:
+        '200':
+          description: Review updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewDTO'
+
+    delete:
+      tags:
+        - Reviews
+      summary: Delete review
+      description: Deletes a review
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Review ID
+      responses:
+        '200':
+          description: Review deleted
+
+  /api/auth/reviews/manga/{mangaId}/rating:
+    get:
+      tags:
+        - Reviews
+      summary: Get manga rating
+      description: Returns rating statistics for a manga
+      parameters:
+        - name: mangaId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Manga ID
+      responses:
+        '200':
+          description: Rating retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MangaRatingDTO'
+
+  /api/auth/reviews/manga/{mangaId}/my:
+    get:
+      tags:
+        - Отзывы
+      summary: Получить мой отзыв для манги
+      description: Возвращает отзыв текущего пользователя для манги
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: mangaId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Manga ID
+      responses:
+        '200':
+          description: Review retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewDTO'
+        '404':
+          description: Review not found
+
+  /api/auth/reviews/{reviewId}/like:
+    post:
+      tags:
+        - Отзывы
+      summary: Лайкнуть отзыв
+      description: Добавляет лайк к отзыву
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Review ID
+      responses:
+        '200':
+          description: Review liked
+
+  /api/auth/reviews/{reviewId}/dislike:
+    post:
+      tags:
+        - Отзывы
+      summary: Дизлайкнуть отзыв
+      description: Добавляет дизлайк к отзыву
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Review ID
+      responses:
+        '200':
+          description: Review disliked
+
+  /api/auth/reviews/user/{userId}:
+    get:
+      tags:
+        - Reviews
+      summary: Get user reviews
+      description: Returns all reviews by specific user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: User ID
+      responses:
+        '200':
+          description: User reviews retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReviewDTO'
+
+  /api/users/me:
+    get:
+      tags:
+        - User Management
+      summary: Get current user
+      description: Returns current authenticated user profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDTO'
+
+    put:
+      tags:
+        - Управление пользователями
+      summary: Обновить текущего пользователя
+      description: Обновляет профиль текущего пользователя
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserDTO'
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDTO'
+
+  /api/users/{id}:
+    get:
+      tags:
+        - Управление пользователями
+      summary: Получить пользователя по ID
+      description: Возвращает профиль пользователя по ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: User ID
+      responses:
+        '200':
+          description: User retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDTO'
+
+  /api/users/username/{username}:
+    get:
+      tags:
+        - Управление пользователями
+      summary: Получить пользователя по имени пользователя
+      description: Возвращает профиль пользователя по имени пользователя
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Username
+      responses:
+        '200':
+          description: User retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDTO'
+
+  /api/users/search:
+    get:
+      tags:
+        - Управление пользователями
+      summary: Поиск пользователей
+      description: Ищет пользователей по запросу
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search query
+      responses:
+        '200':
+          description: Users found
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserDTO'
+
+  /api/users/top-readers:
+    get:
+      tags:
+        - Управление пользователями
+      summary: Получить топ читателей
+      description: Возвращает топ читателей по количеству глав
+      responses:
+        '200':
+          description: Top readers retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserDTO'
+
+  /api/users/profile:
+    put:
+      tags:
+        - Управление пользователями
+      summary: Обновить профиль пользователя
+      description: Обновляет информацию профиля пользователя
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserDTO'
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDTO'
+
+  /api/admin/bookmarks/cleanup-orphaned:
+    delete:
+      tags:
+        - Администрирование
+      summary: Очистка потерянных закладок
+      description: Удаляет закладки без связанных пользователей или манги (только админ)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Cleanup completed
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+
+  /api/admin/bookmarks/manga/{mangaId}:
+    delete:
+      tags:
+        - Администрирование
+      summary: Удалить все закладки для манги
+      description: Удаляет все закладки для указанной манги (только админ)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: mangaId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Manga ID
+      responses:
+        '200':
+          description: Bookmarks removed
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required:
+        - username
+        - email
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+        displayName:
+          type: string
+
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/UserDTO'
+
+    UserDTO:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+        displayName:
+          type: string
+        avatar:
+          type: string
+        bio:
+          type: string
+        role:
+          type: string
+          enum: [USER, ADMIN, MODERATOR]
+        isEnabled:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        lastLogin:
+          type: string
+          format: date-time
+        chaptersReadCount:
+          type: integer
+        likesGivenCount:
+          type: integer
+        commentsCount:
+          type: integer
+
+    UserSearchResponse:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserDTO'
+        total:
+          type: integer
+        page:
+          type: integer
+        totalPages:
+          type: integer
+
+    ActivityDTO:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        activityType:
+          type: string
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        mangaId:
+          type: integer
+        mangaTitle:
+          type: string
+        chapterId:
+          type: integer
+        chapterNumber:
+          type: number
+        reviewId:
+          type: integer
+        actionUrl:
+          type: string
+
+    BookmarkRequest:
+      type: object
+      required:
+        - mangaId
+      properties:
+        mangaId:
+          type: integer
+        status:
+          type: string
+          enum: [READING, COMPLETED, ON_HOLD, DROPPED, PLAN_TO_READ]
+        isFavorite:
+          type: boolean
+
+    BookmarkDTO:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        mangaId:
+          type: integer
+        status:
+          type: string
+        isFavorite:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        mangaTitle:
+          type: string
+        mangaCoverUrl:
+          type: string
+        totalChapters:
+          type: integer
+        currentChapter:
+          type: integer
+        currentPage:
+          type: integer
+        isCompleted:
+          type: boolean
+
+    ReadingProgressDTO:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        mangaId:
+          type: integer
+        chapterId:
+          type: integer
+        chapterNumber:
+          type: number
+        pageNumber:
+          type: integer
+        isCompleted:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateReviewRequest:
+      type: object
+      required:
+        - rating
+      properties:
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 10
+        comment:
+          type: string
+
+    UpdateReviewRequest:
+      type: object
+      required:
+        - rating
+      properties:
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 10
+        comment:
+          type: string
+
+    ReviewDTO:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        username:
+          type: string
+        userDisplayName:
+          type: string
+        userAvatar:
+          type: string
+        mangaId:
+          type: integer
+        rating:
+          type: integer
+        comment:
+          type: string
+        likesCount:
+          type: integer
+        dislikesCount:
+          type: integer
+        trustFactor:
+          type: number
+        trustFactorColor:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        isEdited:
+          type: boolean
+        canEdit:
+          type: boolean
+        canDelete:
+          type: boolean
+        userLiked:
+          type: boolean
+
+    MangaRatingDTO:
+      type: object
+      properties:
+        mangaId:
+          type: integer
+        averageRating:
+          type: number
+        totalReviews:
+          type: integer
+        ratingDistribution:
+          type: array
+          items:
+            type: integer
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        error:
+          type: string
+        timestamp:
+          type: string
+          format: date-time

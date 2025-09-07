@@ -18,6 +18,13 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+/**
+ * Сервис для управления отзывами пользователей на мангу.
+ * Предоставляет функциональность создания, обновления, удаления отзывов,
+ * лайков/дизлайков и получения рейтингов манги.
+ *
+ * @author ShadowShiftStudio
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -27,12 +34,21 @@ public class ReviewService {
     private final ReviewLikeRepository reviewLikeRepository;
     private final UserRepository userRepository;
     
+    /**
+     * Создает новый отзыв пользователя на мангу.
+     *
+     * @param username имя пользователя
+     * @param mangaId идентификатор манги
+     * @param rating оценка от 1 до 10
+     * @param comment текст отзыва
+     * @return объект DTO созданного отзыва
+     * @throws IllegalArgumentException если пользователь не найден, уже имеет отзыв или оценка некорректна
+     */
     @Transactional
     public ReviewDTO createReview(String username, Long mangaId, Integer rating, String comment) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
         
-        // Check if user already has a review for this manga
         if (reviewRepository.existsByUserIdAndMangaId(user.getId(), mangaId)) {
             throw new IllegalArgumentException("User already has a review for this manga");
         }
@@ -54,6 +70,16 @@ public class ReviewService {
         return convertToDTO(review, username);
     }
     
+    /**
+     * Обновляет существующий отзыв пользователя.
+     *
+     * @param username имя пользователя
+     * @param reviewId идентификатор отзыва
+     * @param rating новая оценка от 1 до 10
+     * @param comment новый текст отзыва
+     * @return объект DTO обновленного отзыва
+     * @throws IllegalArgumentException если пользователь, отзыв не найден, доступ запрещен или редактирование невозможно
+     */
     @Transactional
     public ReviewDTO updateReview(String username, Long reviewId, Integer rating, String comment) {
         User user = userRepository.findByUsername(username)
@@ -85,6 +111,13 @@ public class ReviewService {
         return convertToDTO(review, username);
     }
     
+    /**
+     * Удаляет отзыв пользователя.
+     *
+     * @param username имя пользователя
+     * @param reviewId идентификатор отзыва
+     * @throws IllegalArgumentException если пользователь или отзыв не найден, или доступ запрещен
+     */
     @Transactional
     public void deleteReview(String username, Long reviewId) {
         User user = userRepository.findByUsername(username)
@@ -97,7 +130,6 @@ public class ReviewService {
             throw new IllegalArgumentException("Access denied");
         }
         
-        // Delete all likes/dislikes for this review
         reviewLikeRepository.deleteAll(reviewLikeRepository.findAll().stream()
                 .filter(like -> like.getReviewId().equals(reviewId))
                 .collect(Collectors.toList()));
@@ -106,6 +138,16 @@ public class ReviewService {
         log.info("Deleted review {} by user {}", reviewId, username);
     }
     
+    /**
+     * Ставит лайк или дизлайк на отзыв.
+     * Если пользователь уже голосовал, обновляет голос или удаляет его при повторном нажатии.
+     *
+     * @param username имя пользователя
+     * @param reviewId идентификатор отзыва
+     * @param isLike true для лайка, false для дизлайка
+     * @return объект DTO отзыва с обновленными счетчиками
+     * @throws IllegalArgumentException если пользователь или отзыв не найден
+     */
     @Transactional
     public ReviewDTO likeReview(String username, Long reviewId, boolean isLike) {
         User user = userRepository.findByUsername(username)
@@ -114,23 +156,19 @@ public class ReviewService {
         Review review = reviewRepository.findById(reviewId)
                 .orElseThrow(() -> new IllegalArgumentException("Review not found"));
         
-        // Check if user already voted on this review
         Optional<ReviewLike> existingLike = reviewLikeRepository.findByUserIdAndReviewId(user.getId(), reviewId);
         
         if (existingLike.isPresent()) {
             ReviewLike like = existingLike.get();
             if (like.getIsLike().equals(isLike)) {
-                // Same vote - remove it
                 reviewLikeRepository.delete(like);
                 log.info("Removed {} from review {} by user {}", isLike ? "like" : "dislike", reviewId, username);
             } else {
-                // Different vote - update it
                 like.setIsLike(isLike);
                 reviewLikeRepository.save(like);
                 log.info("Changed vote to {} on review {} by user {}", isLike ? "like" : "dislike", reviewId, username);
             }
         } else {
-            // New vote
             ReviewLike like = ReviewLike.builder()
                     .userId(user.getId())
                     .reviewId(reviewId)
@@ -140,12 +178,18 @@ public class ReviewService {
             log.info("Added {} to review {} by user {}", isLike ? "like" : "dislike", reviewId, username);
         }
         
-        // Update review counts
         updateReviewCounts(review);
         
         return convertToDTO(review, username);
     }
     
+    /**
+     * Получает все отзывы на мангу, отсортированные по фактору доверия.
+     *
+     * @param mangaId идентификатор манги
+     * @param currentUsername имя текущего пользователя (для определения прав редактирования)
+     * @return список DTO отзывов
+     */
     public List<ReviewDTO> getReviewsByManga(Long mangaId, String currentUsername) {
         List<Review> reviews = reviewRepository.findByMangaIdOrderByTrustFactorDesc(mangaId);
         return reviews.stream()
@@ -153,6 +197,14 @@ public class ReviewService {
                 .collect(Collectors.toList());
     }
     
+    /**
+     * Получает отзыв пользователя на указанную мангу.
+     *
+     * @param username имя пользователя
+     * @param mangaId идентификатор манги
+     * @return Optional с DTO отзыва, если существует
+     * @throws IllegalArgumentException если пользователь не найден
+     */
     public Optional<ReviewDTO> getUserReviewForManga(String username, Long mangaId) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -161,11 +213,16 @@ public class ReviewService {
                 .map(review -> convertToDTO(review, username));
     }
     
+    /**
+     * Получает рейтинг манги с распределением оценок.
+     *
+     * @param mangaId идентификатор манги
+     * @return объект DTO с рейтингом манги
+     */
     public MangaRatingDTO getMangaRating(Long mangaId) {
         Double avgRating = reviewRepository.getAverageRatingByMangaId(mangaId);
         Long totalReviews = reviewRepository.countReviewsByMangaId(mangaId);
         
-        // Get rating distribution
         List<Object[]> distribution = reviewRepository.getRatingDistributionByMangaId(mangaId);
         Long[] ratingCounts = new Long[10];
         for (int i = 0; i < 10; i++) {
@@ -189,7 +246,10 @@ public class ReviewService {
     }
 
     /**
-     * Получение всех ревью пользователя
+     * Получает все отзывы пользователя, отсортированные по дате создания (сначала новые).
+     *
+     * @param userId идентификатор пользователя
+     * @return список DTO отзывов пользователя
      */
     public List<ReviewDTO> getAllUserReviews(Long userId) {
         log.info("Getting all reviews for user {}", userId);
@@ -214,7 +274,6 @@ public class ReviewService {
         User reviewer = userRepository.findById(review.getUserId()).orElse(null);
         User currentUser = currentUsername != null ? userRepository.findByUsername(currentUsername).orElse(null) : null;
         
-        // Check user's vote on this review
         Boolean userLiked = null;
         if (currentUser != null) {
             Optional<ReviewLike> userVote = reviewLikeRepository.findByUserIdAndReviewId(currentUser.getId(), review.getId());
