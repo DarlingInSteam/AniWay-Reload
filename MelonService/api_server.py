@@ -13,7 +13,7 @@ import requests
 import uvicorn
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
 # Настройка логирования
@@ -72,8 +72,17 @@ class BatchParseStatus(BaseModel):
     current_slug: Optional[str] = None
     results: List[Dict[str, Any]] = []
 
+class LogEntry(BaseModel):
+    timestamp: str
+    level: str
+    message: str
+    task_id: Optional[str] = None
+
 # Глобальное хранилище задач (в production лучше использовать Redis)
 tasks_storage: Dict[str, ParseStatus] = {}
+
+# Хранилище логов для задач
+task_logs: Dict[str, List[LogEntry]] = {}
 
 # Хранилище состояний билда для синхронизации
 build_states: Dict[str, Dict[str, Any]] = {}  # task_id -> {"slug": str, "is_ready": bool, "files_ready": bool}
@@ -82,7 +91,42 @@ build_states: Dict[str, Dict[str, Any]] = {}  # task_id -> {"slug": str, "is_rea
 def get_melon_base_path() -> Path:
     return Path("/app")
 
-def ensure_utf8_patch():
+def log_task_message(task_id: str, level: str, message: str):
+    """Добавляет сообщение в логи задачи"""
+    if task_id not in task_logs:
+        task_logs[task_id] = []
+    
+    log_entry = LogEntry(
+        timestamp=datetime.now().isoformat(),
+        level=level,
+        message=message,
+        task_id=task_id
+    )
+    
+    task_logs[task_id].append(log_entry)
+    
+    # Ограничиваем количество логов (последние 1000)
+    if len(task_logs[task_id]) > 1000:
+        task_logs[task_id] = task_logs[task_id][-1000:]
+
+def update_task_status(task_id: str, status: str, progress: int, message: str, result_data: Dict[str, Any] = None):
+    """Обновляет статус задачи"""
+    if task_id in tasks_storage:
+        tasks_storage[task_id].status = status
+        tasks_storage[task_id].progress = progress
+        tasks_storage[task_id].message = message
+        tasks_storage[task_id].updated_at = datetime.now().isoformat()
+        
+        # Логируем изменение статуса
+        log_task_message(task_id, "INFO", f"Status: {status}, Progress: {progress}%, Message: {message}")
+        
+        if result_data:
+            if hasattr(tasks_storage[task_id], 'results'):
+                tasks_storage[task_id].results.append(result_data)
+            elif hasattr(tasks_storage[task_id], 'current_slug'):
+                tasks_storage[task_id].current_slug = result_data.get('filename', '')
+        
+        logger.info(f"Task {task_id}: {status} - {progress}% - {message}")
     """Применяет критический патч для UTF-8 кодировки"""
     dublib_path = get_melon_base_path() / "dublib" / "Methods" / "Filesystem.py"
 
@@ -139,7 +183,7 @@ def update_task_status(task_id: str, status: str, progress: int, message: str, r
         send_progress_to_manga_service(task_id, status, progress, message, error)
 
 async def run_melon_command(command: List[str], task_id: str, timeout: int = 600) -> Dict[str, Any]:
-    """Запускает команду MelonService асинхронно с поддержкой timeout"""
+    """Запускает команду MelonService асинхронно с поддержкой timeout и логирования в реальном времени"""
     try:
         # Активируем виртуальное окружение и запускаем команду
         base_path = get_melon_base_path()
@@ -148,7 +192,7 @@ async def run_melon_command(command: List[str], task_id: str, timeout: int = 600
         full_command = ["python", "main.py"] + command[2:]  # убираем "python main.py"
 
         logger.info(f"Running command: {' '.join(full_command)}")
-        update_task_status(task_id, "IMPORTING_MANGA", 10, "Executing Melon command...")
+        update_task_status(task_id, "RUNNING", 5, f"Запуск команды: {' '.join(full_command)}")
 
         # Запускаем процесс с timeout
         process = await asyncio.create_subprocess_exec(
@@ -158,35 +202,68 @@ async def run_melon_command(command: List[str], task_id: str, timeout: int = 600
             stderr=asyncio.subprocess.PIPE
         )
 
-        try:
-            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
-        except asyncio.TimeoutError:
-            process.kill()
-            await process.wait()
-            return {
-                "success": False,
-                "stdout": "",
-                "stderr": f"Command timed out after {timeout} seconds"
-            }
+        # Читаем вывод в реальном времени
+        stdout_lines = []
+        stderr_lines = []
+        
+        # Читаем stdout
+        if process.stdout:
+            while True:
+                line = await process.stdout.readline()
+                if not line:
+                    break
+                line_str = line.decode('utf-8', errors='ignore').strip()
+                if line_str:
+                    stdout_lines.append(line_str)
+                    log_task_message(task_id, "INFO", line_str)
+                    
+                    # Обновляем прогресс на основе вывода
+                    if "Chapter" in line_str and "completed" in line_str:
+                        # Пример: "[1/10] Chapter 1.1 completed (15 slides)"
+                        update_task_status(task_id, "RUNNING", min(90, 10 + len(stdout_lines)), f"Парсинг: {line_str}")
+                    elif "Parsing" in line_str and "..." in line_str:
+                        update_task_status(task_id, "RUNNING", min(90, 10 + len(stdout_lines)), f"Парсинг: {line_str}")
+                    elif "Building" in line_str:
+                        update_task_status(task_id, "RUNNING", min(90, 10 + len(stdout_lines)), f"Билдинг: {line_str}")
+                    elif "Done in" in line_str:
+                        update_task_status(task_id, "RUNNING", 95, f"Завершено: {line_str}")
 
-        if process.returncode == 0:
-            logger.info("Command completed successfully")
+        # Читаем stderr
+        if process.stderr:
+            while True:
+                line = await process.stderr.readline()
+                if not line:
+                    break
+                line_str = line.decode('utf-8', errors='ignore').strip()
+                if line_str:
+                    stderr_lines.append(line_str)
+                    logger.warning(f"[{task_id}] STDERR: {line_str}")
+
+        # Ждем завершения процесса
+        return_code = await process.wait()
+
+        stdout = '\n'.join(stdout_lines)
+        stderr = '\n'.join(stderr_lines)
+
+        if return_code == 0:
+            logger.info(f"[{task_id}] Command completed successfully")
+            update_task_status(task_id, "RUNNING", 95, "Команда выполнена успешно")
             return {
                 "success": True,
-                "stdout": stdout.decode('utf-8', errors='ignore'),
-                "stderr": stderr.decode('utf-8', errors='ignore')
+                "stdout": stdout,
+                "stderr": stderr
             }
         else:
-            logger.error(f"Command failed with return code {process.returncode}")
+            logger.error(f"[{task_id}] Command failed with return code {return_code}")
             return {
                 "success": False,
-                "stdout": stdout.decode('utf-8', errors='ignore'),
-                "stderr": stderr.decode('utf-8', errors='ignore'),
-                "return_code": process.returncode
+                "stdout": stdout,
+                "stderr": stderr,
+                "return_code": return_code
             }
 
     except Exception as e:
-        logger.error(f"Error running command: {str(e)}")
+        logger.error(f"[{task_id}] Error running command: {str(e)}")
         return {
             "success": False,
             "error": str(e)
@@ -363,9 +440,47 @@ async def execute_batch_parse_task(task_id: str, slugs: List[str], parser: str, 
 
 # Эндпоинты
 
+@app.get("/tasks")
+async def get_all_tasks():
+    """Получение списка всех задач"""
+    tasks = []
+    for task_id, task in tasks_storage.items():
+        task_dict = {
+            "task_id": task.task_id,
+            "status": task.status,
+            "progress": task.progress,
+            "message": task.message,
+            "created_at": task.created_at,
+            "updated_at": task.updated_at,
+            "total_slugs": getattr(task, 'total_slugs', 1),
+            "completed_slugs": getattr(task, 'completed_slugs', 0),
+            "failed_slugs": getattr(task, 'failed_slugs', 0),
+            "current_slug": getattr(task, 'current_slug', None),
+        }
+        tasks.append(task_dict)
+    
+    # Сортируем по времени создания (новые сверху)
+    tasks.sort(key=lambda x: x['created_at'], reverse=True)
+    return tasks
+
+@app.post("/tasks/clear-completed")
+async def clear_completed_tasks():
+    """Очистка завершенных и неудачных задач"""
+    completed_tasks = []
+    for task_id, task in list(tasks_storage.items()):
+        if task.status in ["completed", "failed"]:
+            completed_tasks.append(task_id)
+            del tasks_storage[task_id]
+            if task_id in task_logs:
+                del task_logs[task_id]
+            if task_id in build_states:
+                del build_states[task_id]
+    
+    return {"cleared": len(completed_tasks), "task_ids": completed_tasks}
+
 @app.get("/")
 async def get_main():
-    return {"message": "MelonService API Server", "status": "running"}
+    return {"message": "MelonService API Server", "status": "running", "monitor": "/monitor.html"}
 
 @app.post("/parse")
 async def parse_manga(request: ParseRequest, background_tasks: BackgroundTasks):
@@ -446,6 +561,41 @@ async def start_batch_parse(request: BatchParseRequest):
 async def batch_parse_alias(request: BatchParseRequest):
     """Алиас для batch-start - запускает пакетный парсинг списка манги"""
     return await start_batch_parse(request)
+
+@app.get("/logs/{task_id}")
+async def get_task_logs(task_id: str, limit: int = 100):
+    """Получение логов задачи"""
+    if task_id not in task_logs:
+        raise HTTPException(status_code=404, detail="Task logs not found")
+    
+    logs = task_logs[task_id]
+    if limit > 0:
+        logs = logs[-limit:]
+    
+    return {"task_id": task_id, "logs": [log.dict() for log in logs]}
+
+@app.get("/logs/{task_id}/stream")
+async def stream_task_logs(task_id: str):
+    """Получение логов задачи в режиме реального времени (SSE)"""
+    if task_id not in task_logs:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    def generate():
+        last_log_index = 0
+        while True:
+            if task_id in task_logs and len(task_logs[task_id]) > last_log_index:
+                new_logs = task_logs[task_id][last_log_index:]
+                for log_entry in new_logs:
+                    yield f"data: {log_entry.json()}\n\n"
+                last_log_index = len(task_logs[task_id])
+            
+            # Проверяем, завершена ли задача
+            if task_id in tasks_storage and tasks_storage[task_id].status in ["completed", "failed"]:
+                break
+                
+            await asyncio.sleep(1)
+    
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 @app.get("/status/{task_id}")
 async def get_task_status(task_id: str):

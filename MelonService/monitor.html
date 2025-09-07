@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MelonService - Мониторинг задач</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .task-form {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        input, select, button {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        input[type="text"] {
+            flex: 1;
+            min-width: 200px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .task-item {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            background-color: #fafafa;
+        }
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .task-id {
+            font-weight: bold;
+            color: #007bff;
+        }
+        .task-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-pending { background-color: #fff3cd; color: #856404; }
+        .status-running { background-color: #d1ecf1; color: #0c5460; }
+        .status-completed { background-color: #d4edda; color: #155724; }
+        .status-failed { background-color: #f8d7da; color: #721c24; }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: #007bff;
+            transition: width 0.3s ease;
+        }
+        .task-details {
+            font-size: 14px;
+            color: #666;
+        }
+        .logs-container {
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f8f9fa;
+        }
+        .log-entry {
+            padding: 8px 12px;
+            border-bottom: 1px solid #eee;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .log-level-INFO { color: #0066cc; }
+        .log-level-WARNING { color: #856404; }
+        .log-level-ERROR { color: #721c24; }
+        .log-timestamp {
+            color: #999;
+            margin-right: 10px;
+        }
+        .refresh-btn {
+            background-color: #28a745;
+            margin-left: 10px;
+        }
+        .refresh-btn:hover {
+            background-color: #1e7e34;
+        }
+        .clear-btn {
+            background-color: #dc3545;
+            margin-left: 10px;
+        }
+        .clear-btn:hover {
+            background-color: #c82333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MelonService - Мониторинг задач</h1>
+
+        <div class="task-form">
+            <input type="text" id="slugInput" placeholder="Введите slug манги" value="test-manga">
+            <select id="parserSelect">
+                <option value="mangalib">mangalib</option>
+                <option value="remanga">remanga</option>
+                <option value="ranobes">ranobes</option>
+            </select>
+            <button onclick="startParse()">Начать парсинг</button>
+            <button onclick="startBuild()">Начать билдинг</button>
+            <button onclick="refreshTasks()" class="refresh-btn">Обновить</button>
+            <button onclick="clearCompleted()" class="clear-btn">Очистить завершенные</button>
+        </div>
+
+        <div id="tasksContainer">
+            <!-- Задачи будут добавляться сюда -->
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        let currentTaskId = null;
+        let logEventSource = null;
+
+        async function startParse() {
+            const slug = document.getElementById('slugInput').value;
+            const parser = document.getElementById('parserSelect').value;
+
+            if (!slug) {
+                alert('Введите slug манги');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/parse`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ slug, parser })
+                });
+
+                const result = await response.json();
+                currentTaskId = result.task_id;
+                startLogStreaming(currentTaskId);
+                refreshTasks();
+            } catch (error) {
+                console.error('Error starting parse:', error);
+                alert('Ошибка при запуске парсинга');
+            }
+        }
+
+        async function startBuild() {
+            const slug = document.getElementById('slugInput').value;
+            const parser = document.getElementById('parserSelect').value;
+
+            if (!slug) {
+                alert('Введите slug манги');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/build`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ slug, parser })
+                });
+
+                const result = await response.json();
+                currentTaskId = result.task_id;
+                startLogStreaming(currentTaskId);
+                refreshTasks();
+            } catch (error) {
+                console.error('Error starting build:', error);
+                alert('Ошибка при запуске билдинга');
+            }
+        }
+
+        async function refreshTasks() {
+            try {
+                const response = await fetch(`${API_BASE}/tasks`);
+                const tasks = await response.json();
+                displayTasks(tasks);
+            } catch (error) {
+                console.error('Error refreshing tasks:', error);
+            }
+        }
+
+        async function clearCompleted() {
+            try {
+                const response = await fetch(`${API_BASE}/tasks/clear-completed`, {
+                    method: 'POST'
+                });
+                if (response.ok) {
+                    refreshTasks();
+                }
+            } catch (error) {
+                console.error('Error clearing completed tasks:', error);
+            }
+        }
+
+        function displayTasks(tasks) {
+            const container = document.getElementById('tasksContainer');
+            container.innerHTML = '';
+
+            if (tasks.length === 0) {
+                container.innerHTML = '<p>Нет активных задач</p>';
+                return;
+            }
+
+            tasks.forEach(task => {
+                const taskElement = createTaskElement(task);
+                container.appendChild(taskElement);
+            });
+        }
+
+        function createTaskElement(task) {
+            const div = document.createElement('div');
+            div.className = 'task-item';
+            div.id = `task-${task.task_id}`;
+
+            const statusClass = `status-${task.status.toLowerCase()}`;
+
+            div.innerHTML = `
+                <div class="task-header">
+                    <span class="task-id">Задача: ${task.task_id}</span>
+                    <span class="task-status ${statusClass}">${task.status.toUpperCase()}</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${task.progress}%"></div>
+                </div>
+                <div class="task-details">
+                    <div>Прогресс: ${task.progress}%</div>
+                    <div>Сообщение: ${task.message}</div>
+                    <div>Создано: ${new Date(task.created_at).toLocaleString()}</div>
+                    ${task.total_slugs ? `<div>Всего: ${task.total_slugs}, Успешно: ${task.completed_slugs}, Ошибок: ${task.failed_slugs}</div>` : ''}
+                    ${task.current_slug ? `<div>Текущая манга: ${task.current_slug}</div>` : ''}
+                </div>
+                <div class="logs-container" id="logs-${task.task_id}" style="display: none;">
+                    <div class="log-entry">Загрузка логов...</div>
+                </div>
+                <button onclick="toggleLogs('${task.task_id}')" style="margin-top: 10px;">Показать логи</button>
+            `;
+
+            return div;
+        }
+
+        function toggleLogs(taskId) {
+            const logsContainer = document.getElementById(`logs-${taskId}`);
+            if (logsContainer.style.display === 'none') {
+                logsContainer.style.display = 'block';
+                loadLogs(taskId);
+            } else {
+                logsContainer.style.display = 'none';
+            }
+        }
+
+        async function loadLogs(taskId) {
+            try {
+                const response = await fetch(`${API_BASE}/logs/${taskId}?limit=50`);
+                const data = await response.json();
+                displayLogs(taskId, data.logs);
+            } catch (error) {
+                console.error('Error loading logs:', error);
+            }
+        }
+
+        function displayLogs(taskId, logs) {
+            const container = document.getElementById(`logs-${taskId}`);
+            container.innerHTML = '';
+
+            if (logs.length === 0) {
+                container.innerHTML = '<div class="log-entry">Логи отсутствуют</div>';
+                return;
+            }
+
+            logs.forEach(log => {
+                const logElement = document.createElement('div');
+                logElement.className = `log-entry log-level-${log.level}`;
+                logElement.innerHTML = `
+                    <span class="log-timestamp">${new Date(log.timestamp).toLocaleTimeString()}</span>
+                    <span>${log.message}</span>
+                `;
+                container.appendChild(logElement);
+            });
+
+            // Прокрутка к последнему логу
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function startLogStreaming(taskId) {
+            if (logEventSource) {
+                logEventSource.close();
+            }
+
+            logEventSource = new EventSource(`${API_BASE}/logs/${taskId}/stream`);
+
+            logEventSource.onmessage = function(event) {
+                const logEntry = JSON.parse(event.data);
+                const logsContainer = document.getElementById(`logs-${taskId}`);
+
+                if (logsContainer && logsContainer.style.display !== 'none') {
+                    const logElement = document.createElement('div');
+                    logElement.className = `log-entry log-level-${logEntry.level}`;
+                    logElement.innerHTML = `
+                        <span class="log-timestamp">${new Date(logEntry.timestamp).toLocaleTimeString()}</span>
+                        <span>${logEntry.message}</span>
+                    `;
+                    logsContainer.appendChild(logElement);
+                    logsContainer.scrollTop = logsContainer.scrollHeight;
+                }
+            };
+
+            logEventSource.onerror = function(error) {
+                console.error('EventSource error:', error);
+            };
+        }
+
+        // Автоматическое обновление задач каждые 5 секунд
+        setInterval(refreshTasks, 5000);
+
+        // Загрузка задач при загрузке страницы
+        document.addEventListener('DOMContentLoaded', refreshTasks);
+    </script>
+</body>
+</html>
