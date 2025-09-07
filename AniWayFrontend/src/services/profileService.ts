@@ -12,6 +12,13 @@ import {
   Achievement
 } from '@/types/profile';
 
+// Импортируем новые сервисы
+import { favoritesService } from './favoritesService';
+import { collectionService } from './collectionService';
+import { readingProgressService } from './readingProgressService';
+import { reviewsService } from './reviewsService';
+import { extendedProfileService } from './extendedProfileService';
+
 class ProfileService {
   // Получить данные профиля пользователя
   async getProfileData(userId: string): Promise<ProfileDataResponse> {
@@ -40,25 +47,27 @@ class ProfileService {
     }
   }
 
-  // Получить пользователя по ID
+  // Получить пользователя по ID (исправлен под реальный API)
   private async getUserById(userId: string): Promise<User> {
     try {
       const userIdNumber = parseInt(userId);
 
-      // Попробуем получить публичный профиль пользователя
-      return await apiClient.getUserPublicProfile(userIdNumber);
-    } catch (error) {
-      // Если не удалось получить профиль другого пользователя,
-      // проверяем, возможно это текущий пользователь
+      // Сначала проверяем, не запрашиваем ли мы текущего пользователя
       try {
         const currentUser = await authService.getCurrentUser();
         if (currentUser.id.toString() === userId) {
+          console.log('ProfileService: Returning current authenticated user');
           return currentUser;
         }
       } catch (currentUserError) {
-        console.error('Ошибка получения текущего пользователя:', currentUserError);
+        console.log('ProfileService: Not authenticated, will try public profile');
       }
 
+      // Для другого пользователя используем публичный API
+      console.log(`ProfileService: Fetching public profile for user ID: ${userIdNumber}`);
+      return await apiClient.getUserPublicProfile(userIdNumber);
+    } catch (error) {
+      console.error(`ProfileService: Error getting user profile for ID ${userId}:`, error);
       throw new Error('Пользователь не найден');
     }
   }
@@ -144,11 +153,10 @@ class ProfileService {
   }
 
   // Преобразовать прогресс чтения в UserReadingProgress
-  getReadingProgressData(readingProgress: ReadingProgress[], bookmarks: Bookmark[]): UserReadingProgress[] {
+  getReadingProgressData(readingProgress: ReadingProgress[]): UserReadingProgress[] {
     return readingProgress
       .filter(progress => !progress.isCompleted && progress.manga)
       .map(progress => {
-        const bookmark = bookmarks.find(b => b.mangaId === progress.mangaId);
         return {
           ...progress,
           title: progress.manga?.title || 'Неизвестная манга',
@@ -318,6 +326,199 @@ class ProfileService {
     }
 
     return achievements;
+  }
+
+  // НОВЫЕ МЕТОДЫ ДЛЯ КРИТИЧЕСКИ ВАЖНОГО ФУНКЦИОНАЛА
+
+  /**
+   * Обновить список избранных манга
+   */
+  async updateFavorites(mangaIds: number[]): Promise<{ success: boolean; message: string }> {
+    return favoritesService.updateFavorites(mangaIds);
+  }
+
+  /**
+   * Добавить мангу в избранное
+   */
+  async addToFavorites(mangaId: number): Promise<{ success: boolean; message: string }> {
+    return favoritesService.addToFavorites(mangaId);
+  }
+
+  /**
+   * Удалить мангу из избранного
+   */
+  async removeFromFavorites(mangaId: number): Promise<{ success: boolean; message: string }> {
+    return favoritesService.removeFromFavorites(mangaId);
+  }
+
+  /**
+   * Переключить статус избранного
+   */
+  async toggleFavorite(mangaId: number): Promise<{ success: boolean; message: string; isFavorite: boolean }> {
+    return favoritesService.toggleFavorite(mangaId);
+  }
+
+  /**
+   * Создать новую коллекцию
+   */
+  async createCollection(data: { name: string; description?: string; isPublic?: boolean; mangaIds?: number[] }) {
+    return collectionService.createCollection(data);
+  }
+
+  /**
+   * Обновить существующую коллекцию
+   */
+  async updateCollection(id: string, data: { name?: string; description?: string; isPublic?: boolean; mangaIds?: number[] }) {
+    return collectionService.updateCollection(id, data);
+  }
+
+  /**
+   * Удалить коллекцию
+   */
+  async deleteCollection(id: string): Promise<{ success: boolean; message: string }> {
+    return collectionService.deleteCollection(id);
+  }
+
+  /**
+   * Получить коллекции пользователя
+   */
+  async getUserCollections(): Promise<UserCollection[]> {
+    return collectionService.getUserCollections();
+  }
+
+  /**
+   * Обновить прогресс чтения
+   */
+  async updateReadingProgress(mangaId: number, data: {
+    chapterNumber: number;
+    pageNumber?: number;
+    status?: 'READING' | 'COMPLETED' | 'ON_HOLD' | 'DROPPED' | 'PLAN_TO_READ';
+    isCompleted?: boolean;
+  }) {
+    return readingProgressService.updateReadingProgress(mangaId, data);
+  }
+
+  /**
+   * Отметить главу как прочитанную
+   */
+  async markChapterAsRead(mangaId: number, chapterNumber: number): Promise<{ success: boolean; message: string }> {
+    return readingProgressService.markChapterAsRead(mangaId, chapterNumber);
+  }
+
+  /**
+   * Отметить мангу как завершенную
+   */
+  async markMangaAsCompleted(mangaId: number): Promise<{ success: boolean; message: string }> {
+    return readingProgressService.markMangaAsCompleted(mangaId);
+  }
+
+  /**
+   * Создать новый отзыв
+   */
+  async createReview(data: {
+    mangaId: number;
+    rating: number;
+    text: string;
+    spoilerWarning?: boolean;
+  }) {
+    return reviewsService.createReview(data);
+  }
+
+  /**
+   * Обновить существующий отзыв
+   */
+  async updateReview(reviewId: string, data: {
+    rating?: number;
+    text?: string;
+    spoilerWarning?: boolean;
+  }) {
+    return reviewsService.updateReview(reviewId, data);
+  }
+
+  /**
+   * Удалить отзыв
+   */
+  async deleteReview(reviewId: string): Promise<{ success: boolean; message: string }> {
+    return reviewsService.deleteReview(reviewId);
+  }
+
+  /**
+   * Получить отзывы пользователя
+   */
+  async getUserReviews(userId?: number) {
+    return reviewsService.getUserReviews(userId);
+  }
+
+  /**
+   * Обновить настройки профиля
+   */
+  async updateProfileSettings(data: {
+    displayName?: string;
+    bio?: string;
+    backgroundImage?: string;
+    socialLinks?: any;
+    privacySettings?: any;
+  }) {
+    return extendedProfileService.updateProfileSettings(data);
+  }
+
+  /**
+   * Загрузить аватар
+   */
+  async uploadAvatar(file: File): Promise<{ success: boolean; avatarUrl: string; message: string }> {
+    return extendedProfileService.uploadAvatar(file);
+  }
+
+  /**
+   * Получить статистику профиля
+   */
+  async getProfileStatistics() {
+    return extendedProfileService.getProfileStatistics();
+  }
+
+  /**
+   * Получить активность профиля
+   */
+  async getProfileActivity(userId?: number, limit?: number) {
+    return extendedProfileService.getProfileActivity(userId, limit);
+  }
+
+  // ОБНОВЛЕННЫЕ СУЩЕСТВУЮЩИЕ МЕТОДЫ
+
+  /**
+   * Получить избранную мангу с использованием нового API
+   */
+  async getFavoriteMangasUpdated(): Promise<FavoriteManga[]> {
+    try {
+      return await favoritesService.getFavorites();
+    } catch (error) {
+      console.error('Ошибка при получении избранного:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Получить прогресс чтения с использованием нового API
+   */
+  async getReadingProgressUpdated(): Promise<UserReadingProgress[]> {
+    try {
+      return await readingProgressService.getUserProgress();
+    } catch (error) {
+      console.error('Ошибка при получении прогресса чтения:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Получить коллекции с использованием нового API
+   */
+  async getCollectionsUpdated(): Promise<UserCollection[]> {
+    try {
+      return await collectionService.getUserCollections();
+    } catch (error) {
+      console.error('Ошибка при получении коллекций:', error);
+      return [];
+    }
   }
 }
 

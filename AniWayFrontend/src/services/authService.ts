@@ -86,7 +86,7 @@ class AuthService {
 
   // Получить текущего пользователя
   async getCurrentUser(): Promise<User> {
-    const response = await fetch(`${this.baseUrl}/users/me`, {
+    const response = await fetch(`${this.baseUrl}/auth/me`, {
       headers: this.getAuthHeaders()
     })
 
@@ -99,7 +99,7 @@ class AuthService {
 
   // Обновить профиль пользователя
   async updateProfile(data: Partial<User>): Promise<User> {
-    const response = await fetch(`${this.baseUrl}/users/me`, {
+    const response = await fetch(`${this.baseUrl}/auth/me`, {
       method: 'PUT',
       headers: this.getAuthHeaders(),
       body: JSON.stringify(data)
@@ -107,6 +107,19 @@ class AuthService {
 
     if (!response.ok) {
       throw new Error('Failed to update profile')
+    }
+
+    return response.json()
+  }
+
+  // Получить пользователя по ID (исправлен эндпоинт)
+  async getUserById(id: number): Promise<User> {
+    const response = await fetch(`${this.baseUrl}/auth/users/${id}`, {
+      headers: this.getAuthHeaders()
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch user')
     }
 
     return response.json()

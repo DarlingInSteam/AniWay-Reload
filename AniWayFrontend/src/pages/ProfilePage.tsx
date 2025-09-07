@@ -7,11 +7,12 @@ export function ProfilePage(): React.ReactElement {
   const { userId } = useParams<{ userId: string }>();
   const { user } = useAuth();
 
-  // Определяем, является ли это собственным профилем пользователя
-  const isOwnProfile = user?.id === userId;
-
   // Если userId не передан, используем ID текущего пользователя
-  const targetUserId = userId || user?.id;
+  const targetUserId = userId || user?.id?.toString();
+
+  // Определяем, является ли это собственным профилем пользователя
+  // Если userId не передан или равен ID текущего пользователя, то это собственный профиль
+  const isOwnProfile = !userId || user?.id?.toString() === userId;
 
   if (!targetUserId) {
     return (

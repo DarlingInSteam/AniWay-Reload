@@ -11,7 +11,7 @@ import {
   Reviews,
   Achievements
 } from './ShowcaseModules';
-import { UserProfile as UserProfileType, UserProfileProps } from '@/types/profile';
+import { UserProfile as UserProfileType, UserProfileProps, UserReview } from '@/types/profile';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { profileService } from '@/services/profileService';
@@ -20,6 +20,8 @@ import { useAuth } from '@/contexts/AuthContext';
 export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   const [profile, setProfile] = useState<UserProfileType | null>(null);
   const [profileData, setProfileData] = useState<any>(null);
+  const [userReviews, setUserReviews] = useState<UserReview[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
@@ -35,6 +37,18 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
         // Загружаем данные профиля из API
         const data = await profileService.getProfileData(userId);
         setProfileData(data);
+
+        // Загружаем отзывы пользователя
+        setReviewsLoading(true);
+        try {
+          const reviews = await profileService.getUserReviews(parseInt(userId));
+          setUserReviews(reviews);
+        } catch (reviewError) {
+          console.error('Ошибка при загрузке отзывов:', reviewError);
+          // Не считаем это критической ошибкой, просто оставляем пустой массив
+        } finally {
+          setReviewsLoading(false);
+        }
 
         // Преобразуем данные в формат UserProfile
         const userProfile: UserProfileType = {
@@ -147,13 +161,12 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
 
   // Подготавливаем данные для компонентов
   const favoriteMangas = profileData ? profileService.getFavoriteMangas(profileData.bookmarks) : [];
-  const readingProgress = profileData ? profileService.getReadingProgressData(profileData.readingProgress, profileData.bookmarks) : [];
+  const readingProgress = profileData ? profileService.getReadingProgressData(profileData.readingProgress) : [];
   const collections = profileData ? profileService.getCollectionsFromBookmarks(profileData.bookmarks) : [];
   const userActivities = profileData ? profileService.generateUserActivity(profileData.readingProgress, profileData.bookmarks) : [];
   const achievements = profileData?.readingStats ? profileService.generateAchievements(profileData.readingStats) : [];
-
+  
   // Заглушки для данных, которые пока не реализованы
-  const mockReviews: any[] = []; // TODO: Добавить систему отзывов
   const mockFriends: any[] = []; // TODO: Добавить систему друзей
   const mockCommunities: any[] = []; // TODO: Добавить систему сообществ
   const mockComments: any[] = []; // TODO: Добавить комментарии к профилю
@@ -192,7 +205,6 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
     <ProfileBackground
       profile={profile}
       isOwnProfile={isOwnProfile}
-      onBackgroundUpdate={(backgroundImage) => handleProfileUpdate({ backgroundImage })}
     >
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* Заголовок профиля - по центру */}
@@ -212,7 +224,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               <TabsList className="grid grid-cols-4 bg-white/3 backdrop-blur-md border border-white/8 rounded-xl shadow-lg">
                 <TabsTrigger value="overview" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Обзор</TabsTrigger>
                 <TabsTrigger value="library" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Библиотека</TabsTrigger>
-                <TabsTrigger value="reviews" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Отзывы</TabsTrigger>
+                <TabsTrigger value="reviews" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Комментарии</TabsTrigger>
                 <TabsTrigger value="achievements" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Достижения</TabsTrigger>
               </TabsList>
 
@@ -228,12 +240,20 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               </TabsContent>
 
               <TabsContent value="reviews" className="space-y-6">
-                <Reviews reviews={mockReviews} isOwnProfile={isOwnProfile} />
-                {mockReviews.length === 0 && (
-                  <div className="text-center py-12 text-gray-400">
-                    <p className="text-lg mb-2">📝 Система отзывов</p>
-                    <p>Функция находится в разработке</p>
+                {reviewsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <LoadingSpinner />
                   </div>
+                ) : (
+                  <>
+                    <Reviews reviews={userReviews} isOwnProfile={isOwnProfile} />
+                    {userReviews.length === 0 && (
+                      <div className="text-center py-12 text-gray-400">
+                        <p className="text-lg mb-2">📝 {isOwnProfile ? 'Ваши отзывы' : 'Отзывы пользователя'}</p>
+                        <p>{isOwnProfile ? 'Напишите первый отзыв на мангу' : 'Пользователь пока не оставлял отзывов'}</p>
+                      </div>
+                    )}
+                  </>
                 )}
               </TabsContent>
 
@@ -289,7 +309,13 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
             </TabsContent>
 
             <TabsContent value="reviews" className="space-y-6">
-              <Reviews reviews={mockReviews} isOwnProfile={isOwnProfile} />
+              {reviewsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <LoadingSpinner />
+                </div>
+              ) : (
+                <Reviews reviews={userReviews} isOwnProfile={isOwnProfile} />
+              )}
             </TabsContent>
 
             <TabsContent value="achievements" className="space-y-6">
