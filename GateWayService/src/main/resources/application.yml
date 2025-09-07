@@ -4,6 +4,12 @@ server:
 spring:
   application:
     name: gateway-service
+  # JWKS URL for validating JWT tokens
+  # Auth introspection / public paths configuration (used by JwtAuthFilter)
+  auth:
+    introspect-url: "http://auth-service:8085/api/auth/validate"
+    public-paths: "/api/auth/**,/api/health/**,/api/public/**"
+    cache-ttl-seconds: 300
   
   # File upload configuration for Gateway
   servlet:

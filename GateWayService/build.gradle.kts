@@ -36,6 +36,12 @@ dependencies {
     // Validation
     implementation("org.springframework.boot:spring-boot-starter-validation")
 
+    // JWT verification (Nimbus JOSE)
+    implementation("com.nimbusds:nimbus-jose-jwt:10.5")
+
+    // Rate limiting (Bucket4j)
+    implementation("com.bucket4j:bucket4j-core:8.2.0")
+
     // DevTools для разработки
     developmentOnly("org.springframework.boot:spring-boot-devtools")
 
