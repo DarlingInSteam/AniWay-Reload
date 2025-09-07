@@ -25,6 +25,9 @@ public interface ReadingProgressRepository extends JpaRepository<ReadingProgress
     @Query("SELECT rp FROM ReadingProgress rp WHERE rp.userId = :userId AND rp.isCompleted = true")
     List<ReadingProgress> findCompletedChapters(@Param("userId") Long userId);
     
+    @Query("SELECT rp FROM ReadingProgress rp WHERE rp.userId = :userId AND rp.isCompleted = :isCompleted ORDER BY rp.updatedAt DESC")
+    List<ReadingProgress> findByUserIdAndIsCompletedOrderByUpdatedAtDesc(@Param("userId") Long userId, @Param("isCompleted") Boolean isCompleted);
+    
     @Query("SELECT COUNT(rp) FROM ReadingProgress rp WHERE rp.userId = :userId AND rp.isCompleted = true")
     Long countCompletedChaptersByUser(@Param("userId") Long userId);
     
