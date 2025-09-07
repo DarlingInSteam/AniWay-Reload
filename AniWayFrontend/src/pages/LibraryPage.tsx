@@ -1,10 +1,11 @@
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useBookmarks } from '../hooks/useBookmarks'
 import { useAuth } from '../contexts/AuthContext'
 import { BookmarkStatus } from '../types'
 import { BookmarkBadge } from '../components/bookmarks/BookmarkControls'
 import { BookmarkMangaCard } from '../components/manga/BookmarkMangaCard'
-import { Edit } from 'lucide-react'
+import { Edit, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { cn } from '../lib/utils'
 
 const statusLabels: Record<BookmarkStatus, string> = {
   READING: 'Читаю',
@@ -39,6 +40,27 @@ export const LibraryPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<SortOption>('bookmark_updated')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
+  const [showSortDropdown, setShowSortDropdown] = useState(false)
+
+  // Ref для обработки кликов вне области dropdown
+  const sortDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Закрываем dropdown сортировки при клике вне его области
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(event.target as Node)) {
+        setShowSortDropdown(false)
+      }
+    }
+
+    if (showSortDropdown) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showSortDropdown])
 
   if (!isAuthenticated) {
     return (
@@ -221,44 +243,61 @@ export const LibraryPage: React.FC = () => {
           />
 
           {/* Сортировка в мобильной версии */}
-          <div>
+          <div className="relative">
             <label className="block text-sm font-medium text-white mb-2">Сортировка</label>
-            <div className="flex gap-3 items-end">
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SortOption)}
-                className="px-3 py-2 bg-card border border-border/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-200"
-              >
-                {Object.entries(sortOptions).map(([value, label]) => (
-                  <option key={value} value={value} className="bg-card text-white">
-                    {label}
-                  </option>
-                ))}
-              </select>
+            <button
+              className="flex items-center justify-between w-full rounded-xl px-4 h-11 text-sm font-medium bg-white/5 backdrop-blur-sm hover:bg-white/10 transition-all duration-200 border border-white/10 shadow-lg"
+              type="button"
+              onClick={() => setShowSortDropdown(!showSortDropdown)}
+            >
+              <span className="flex-1 text-left text-white truncate pr-2">{sortOptions[sortBy]}</span>
+              <ArrowUpDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            </button>
+            {showSortDropdown && (
+              <div ref={sortDropdownRef} className="absolute left-0 top-full mt-2 w-72 bg-card rounded-xl shadow-xl z-50 border border-border animate-fade-in">
+                <div className="p-4">
+                  <div className="text-xs text-muted-foreground mb-3 font-medium">Сортировать по:</div>
+                  <div className="space-y-1 mb-4">
+                    {Object.entries(sortOptions).map(([value, label]) => (
+                      <button
+                        key={value}
+                        onClick={() => { setSortBy(value as SortOption); setShowSortDropdown(false); }}
+                        className={cn(
+                          'w-full text-left px-3 py-2 text-sm transition-all duration-200 border-b-2',
+                          sortBy === value
+                            ? 'text-blue-500 border-blue-500'
+                            : 'text-muted-foreground hover:text-white border-transparent hover:border-muted'
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
 
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setSortOrder('desc')}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    sortOrder === 'desc'
-                      ? 'bg-primary text-white'
-                      : 'bg-card/50 text-muted-foreground hover:text-white hover:bg-white/10'
-                  }`}
-                >
-                  По убыванию
-                </button>
-                <button
-                  onClick={() => setSortOrder('asc')}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    sortOrder === 'asc'
-                      ? 'bg-primary text-white'
-                      : 'bg-card/50 text-muted-foreground hover:text-white hover:bg-white/10'
-                  }`}
-                >
-                  По возрастанию
-                </button>
+                  <div className="text-xs text-muted-foreground mb-3 font-medium">Направление:</div>
+                  <div className="flex gap-2">
+                    {[
+                      { label: 'По убыванию', value: 'desc', icon: ArrowDown },
+                      { label: 'По возрастанию', value: 'asc', icon: ArrowUp }
+                    ].map(dir => (
+                      <button
+                        key={dir.value}
+                        onClick={() => { setSortOrder(dir.value as SortOrder); setShowSortDropdown(false); }}
+                        className={cn(
+                          'flex-1 flex items-center gap-2 px-3 py-2 text-sm transition-all duration-200 border-b-2',
+                          sortOrder === dir.value
+                            ? 'text-blue-500 border-blue-500'
+                            : 'text-muted-foreground hover:text-white border-transparent hover:border-muted'
+                        )}
+                      >
+                        <dir.icon className="h-4 w-4" />
+                        {dir.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
@@ -280,41 +319,60 @@ export const LibraryPage: React.FC = () => {
             {/* Сортировка в десктопной версии */}
             <div className="mb-6">
               <label className="block text-sm font-medium text-white mb-2">Сортировка</label>
-              <div className="flex gap-3 items-end">
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as SortOption)}
-                  className="px-3 py-2 bg-card border border-border/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-200"
+              <div className="relative w-56 flex-shrink-0">
+                <button
+                  className="flex items-center justify-between w-full rounded-xl px-4 h-11 text-sm font-medium bg-white/5 backdrop-blur-sm hover:bg-white/10 transition-all duration-200 border border-white/10 shadow-lg"
+                  type="button"
+                  onClick={() => setShowSortDropdown(!showSortDropdown)}
                 >
-                  {Object.entries(sortOptions).map(([value, label]) => (
-                    <option key={value} value={value} className="bg-card text-white">
-                      {label}
-                    </option>
-                  ))}
-                </select>
+                  <span className="flex-1 text-left text-white truncate pr-2">{sortOptions[sortBy]}</span>
+                  <ArrowUpDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                </button>
+                {showSortDropdown && (
+                  <div ref={sortDropdownRef} className="absolute left-0 top-full mt-2 w-72 bg-card rounded-xl shadow-xl z-50 border border-border animate-fade-in">
+                    <div className="p-4">
+                      <div className="text-xs text-muted-foreground mb-3 font-medium">Сортировать по:</div>
+                      <div className="space-y-1 mb-4">
+                        {Object.entries(sortOptions).map(([value, label]) => (
+                          <button
+                            key={value}
+                            onClick={() => { setSortBy(value as SortOption); setShowSortDropdown(false); }}
+                            className={cn(
+                              'w-full text-left px-3 py-2 text-sm transition-all duration-200 border-b-2',
+                              sortBy === value
+                                ? 'text-blue-500 border-blue-500'
+                                : 'text-muted-foreground hover:text-white border-transparent hover:border-muted'
+                            )}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
 
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setSortOrder('desc')}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      sortOrder === 'desc'
-                        ? 'bg-primary text-white'
-                        : 'bg-card/50 text-muted-foreground hover:text-white hover:bg-white/10'
-                    }`}
-                  >
-                    По убыванию
-                  </button>
-                  <button
-                    onClick={() => setSortOrder('asc')}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      sortOrder === 'asc'
-                        ? 'bg-primary text-white'
-                        : 'bg-card/50 text-muted-foreground hover:text-white hover:bg-white/10'
-                    }`}
-                  >
-                    По возрастанию
-                  </button>
-                </div>
+                      <div className="text-xs text-muted-foreground mb-3 font-medium">Направление:</div>
+                      <div className="flex gap-2">
+                        {[
+                          { label: 'По убыванию', value: 'desc', icon: ArrowDown },
+                          { label: 'По возрастанию', value: 'asc', icon: ArrowUp }
+                        ].map(dir => (
+                          <button
+                            key={dir.value}
+                            onClick={() => { setSortOrder(dir.value as SortOrder); setShowSortDropdown(false); }}
+                            className={cn(
+                              'flex-1 flex items-center gap-2 px-3 py-2 text-sm transition-all duration-200 border-b-2',
+                              sortOrder === dir.value
+                                ? 'text-blue-500 border-blue-500'
+                                : 'text-muted-foreground hover:text-white border-transparent hover:border-muted'
+                            )}
+                          >
+                            <dir.icon className="h-4 w-4" />
+                            {dir.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
