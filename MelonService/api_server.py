@@ -580,7 +580,7 @@ async def stream_task_logs(task_id: str):
     if task_id not in task_logs:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    def generate():
+    async def generate():
         last_log_index = 0
         while True:
             if task_id in task_logs and len(task_logs[task_id]) > last_log_index:
