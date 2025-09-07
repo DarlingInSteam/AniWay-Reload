@@ -1,0 +1,629 @@
+openapi: 3.0.3
+info:
+  title: AniWay ImageStorageService API
+  description: |
+    API для управления хранением и загрузкой изображений в системе AniWay.
+
+    ## Архитектура
+    Все запросы к ImageStorageService должны идти через Gateway Service на порт 8080.
+    В production окружении используйте домен вашего сервера вместо localhost.
+
+    ## Хранение изображений
+    Сервис использует MinIO для хранения изображений и поддерживает:
+    - Загрузку изображений глав манги
+    - Управление обложками манги
+    - Проксирование изображений
+    - Импорт изображений из различных источников
+
+    ## Типы изображений
+    - **Изображения глав** - страницы манги (chapterId > 0)
+    - **Обложки манги** - обложки манги (chapterId = -1 или специальный endpoint)
+    - **Прокси изображения** - доступ к изображениям через прокси
+
+    ## Поддерживаемые форматы
+    Сервис поддерживает основные форматы изображений: JPEG, PNG, WebP, GIF.
+  version: 1.0.0
+  contact:
+    name: AniWay Development Team
+    email: support@aniway.com
+
+servers:
+  - url: http://localhost:8080
+    description: Gateway Service (Локальная разработка)
+  - url: https://your-domain.com:8080
+    description: Gateway Service (Production)
+
+tags:
+  - name: Изображения глав
+    description: Управление изображениями глав манги
+  - name: Обложки манги
+    description: Управление обложками манги
+  - name: Прокси
+    description: Проксирование изображений
+  - name: Импорт
+    description: Импорт изображений из различных источников
+
+paths:
+  /api/images/chapter/{chapterId}:
+    get:
+      tags:
+        - Изображения глав
+      summary: Получить все изображения главы
+      description: Возвращает список всех изображений для указанной главы манги
+      parameters:
+        - name: chapterId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID главы манги
+      responses:
+        '200':
+          description: Список изображений получен
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChapterImageResponseDTO'
+        '404':
+          description: Глава не найдена
+
+    delete:
+      tags:
+        - Изображения глав
+      summary: Удалить все изображения главы
+      description: Удаляет все изображения указанной главы
+      parameters:
+        - name: chapterId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID главы манги
+      responses:
+        '204':
+          description: Все изображения удалены
+        '500':
+          description: Ошибка сервера
+
+  /api/images/chapter/{chapterId}/page/{pageNumber}:
+    get:
+      tags:
+        - Изображения глав
+      summary: Получить изображение по номеру страницы
+      description: Возвращает изображение для указанной главы и номера страницы
+      parameters:
+        - name: chapterId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID главы манги
+        - name: pageNumber
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+          description: Номер страницы
+      responses:
+        '200':
+          description: Изображение найдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChapterImageResponseDTO'
+        '404':
+          description: Изображение не найдено
+
+    post:
+      tags:
+        - Изображения глав
+      summary: Загрузить изображение страницы
+      description: Загружает изображение для указанной страницы главы
+      parameters:
+        - name: chapterId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID главы манги
+        - name: pageNumber
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+          description: Номер страницы
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Файл изображения (JPEG, PNG, WebP, GIF)
+      responses:
+        '201':
+          description: Изображение загружено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChapterImageResponseDTO'
+        '400':
+          description: Ошибка валидации файла
+        '500':
+          description: Ошибка сервера
+
+  /api/images/chapter/{chapterId}/count:
+    get:
+      tags:
+        - Изображения глав
+      summary: Получить количество страниц в главе
+      description: Возвращает общее количество страниц в указанной главе
+      parameters:
+        - name: chapterId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID главы манги
+      responses:
+        '200':
+          description: Количество получено
+          content:
+            application/json:
+              schema:
+                type: integer
+                format: int32
+
+  /api/images/chapter/{chapterId}/multiple:
+    post:
+      tags:
+        - Изображения глав
+      summary: Загрузить несколько изображений
+      description: Загружает несколько изображений для главы (автоматическая нумерация)
+      parameters:
+        - name: chapterId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID главы манги
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: Список файлов изображений
+      responses:
+        '201':
+          description: Изображения загружены
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChapterImageResponseDTO'
+        '400':
+          description: Ошибка валидации файлов
+        '500':
+          description: Ошибка сервера
+
+  /api/images/chapter/{chapterId}/multiple-ordered:
+    post:
+      tags:
+        - Изображения глав
+      summary: Загрузить изображения с указанием начальной страницы
+      description: Загружает несколько изображений начиная с указанного номера страницы
+      parameters:
+        - name: chapterId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID главы манги
+        - name: startPage
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int32
+          description: Номер страницы для начала загрузки
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: Список файлов изображений
+      responses:
+        '201':
+          description: Изображения загружены
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChapterImageResponseDTO'
+        '400':
+          description: Ошибка валидации
+        '500':
+          description: Ошибка сервера
+
+  /api/images/chapter/{chapterId}/reorder:
+    post:
+      tags:
+        - Изображения глав
+      summary: Изменить порядок страниц
+      description: Изменяет порядок изображений в главе
+      parameters:
+        - name: chapterId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID главы манги
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                imageIds:
+                  type: array
+                  items:
+                    type: integer
+                    format: int64
+                  description: Список ID изображений в новом порядке
+            example:
+              imageIds: [1, 3, 2, 4]
+      responses:
+        '200':
+          description: Порядок изменен
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChapterImageResponseDTO'
+        '400':
+          description: Ошибка валидации
+        '500':
+          description: Ошибка сервера
+
+  /api/images/chapter/{chapterId}/preview:
+    get:
+      tags:
+        - Изображения глав
+      summary: Получить превью главы
+      description: Возвращает все изображения главы для превью
+      parameters:
+        - name: chapterId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID главы манги
+      responses:
+        '200':
+          description: Превью получено
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChapterImageResponseDTO'
+
+  /api/images/upload-from-url:
+    post:
+      tags:
+        - Импорт
+      summary: Загрузить изображение по URL
+      description: Загружает изображение по URL (используется MelonService)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - chapterId
+                - pageNumber
+                - imageUrl
+              properties:
+                chapterId:
+                  type: integer
+                  format: int64
+                  description: ID главы манги
+                pageNumber:
+                  type: integer
+                  format: int32
+                  description: Номер страницы
+                imageUrl:
+                  type: string
+                  format: uri
+                  description: URL изображения для загрузки
+            example:
+              chapterId: 123
+              pageNumber: 1
+              imageUrl: "https://example.com/image.jpg"
+      responses:
+        '201':
+          description: Изображение загружено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChapterImageResponseDTO'
+        '400':
+          description: Ошибка валидации
+        '500':
+          description: Ошибка сервера
+
+  /api/images/import-from-local-file:
+    post:
+      tags:
+        - Импорт
+      summary: Импортировать изображение из локального файла
+      description: Импортирует изображение из локального файла на сервере
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - chapterId
+                - pageNumber
+                - localImagePath
+              properties:
+                chapterId:
+                  type: integer
+                  format: int64
+                  description: ID главы манги
+                pageNumber:
+                  type: integer
+                  format: int32
+                  description: Номер страницы
+                localImagePath:
+                  type: string
+                  description: Путь к локальному файлу на сервере
+            example:
+              chapterId: 123
+              pageNumber: 1
+              localImagePath: "/tmp/image.jpg"
+      responses:
+        '201':
+          description: Изображение импортировано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChapterImageResponseDTO'
+        '400':
+          description: Ошибка валидации
+        '500':
+          description: Ошибка сервера
+
+  /api/images/{imageId}:
+    delete:
+      tags:
+        - Изображения глав
+      summary: Удалить изображение
+      description: Удаляет указанное изображение
+      parameters:
+        - name: imageId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID изображения
+      responses:
+        '204':
+          description: Изображение удалено
+        '404':
+          description: Изображение не найдено
+        '500':
+          description: Ошибка сервера
+
+  /api/images/proxy/{imageKey}:
+    get:
+      tags:
+        - Прокси
+      summary: Получить изображение через прокси
+      description: Возвращает изображение по ключу через прокси с кешированием
+      parameters:
+        - name: imageKey
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Ключ изображения в хранилище
+      responses:
+        '200':
+          description: Изображение получено
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Изображение не найдено
+
+  /api/images/cover:
+    post:
+      tags:
+        - Обложки манги
+      summary: Загрузить обложку манги
+      description: Загружает обложку манги (использует chapterId = -1)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Файл обложки
+      responses:
+        '201':
+          description: Обложка загружена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChapterImageResponseDTO'
+        '400':
+          description: Ошибка валидации
+        '500':
+          description: Ошибка сервера
+
+  /api/images/cover/{mangaId}:
+    post:
+      tags:
+        - Обложки манги
+      summary: Загрузить обложку для конкретной манги
+      description: Загружает обложку и привязывает её к указанной манге
+      parameters:
+        - name: mangaId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID манги
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Файл обложки
+      responses:
+        '201':
+          description: Обложка загружена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChapterImageResponseDTO'
+        '400':
+          description: Ошибка валидации
+        '500':
+          description: Ошибка сервера
+
+    get:
+      tags:
+        - Обложки манги
+      summary: Получить обложку манги
+      description: Возвращает обложку для указанной манги
+      parameters:
+        - name: mangaId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID манги
+      responses:
+        '200':
+          description: Обложка найдена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChapterImageResponseDTO'
+        '404':
+          description: Обложка не найдена
+
+components:
+  schemas:
+    ChapterImageResponseDTO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: ID изображения
+        mangaId:
+          type: integer
+          format: int64
+          description: ID манги
+        chapterId:
+          type: integer
+          format: int64
+          description: ID главы (-1 для обложек)
+        pageNumber:
+          type: integer
+          format: int32
+          description: Номер страницы
+        imageUrl:
+          type: string
+          format: uri
+          description: URL изображения
+        imageKey:
+          type: string
+          description: Ключ изображения в хранилище
+        fileSize:
+          type: integer
+          format: int64
+          description: Размер файла в байтах
+        mimeType:
+          type: string
+          description: MIME тип файла
+        width:
+          type: integer
+          format: int32
+          description: Ширина изображения в пикселях
+        height:
+          type: integer
+          format: int32
+          description: Высота изображения в пикселях
+        createdAt:
+          type: string
+          format: date-time
+          description: Дата создания
+        updatedAt:
+          type: string
+          format: date-time
+          description: Дата последнего обновления
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Сообщение об ошибке
+        status:
+          type: integer
+          description: HTTP статус код

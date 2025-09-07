@@ -8,6 +8,16 @@ import shadowshift.studio.authservice.service.BookmarkService;
 
 import java.util.Map;
 
+/**
+ * Контроллер для административных операций в системе аутентификации.
+ * Предоставляет REST API для управления закладками, включая очистку
+ * осиротевших закладок и удаление всех закладок для конкретной манги.
+ * Поддерживает CORS для указанных origins.
+ *
+ * @author [Ваше имя или команда, если применимо]
+ * @version 1.0
+ * @since [Дата или версия релиза]
+ */
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
@@ -17,6 +27,12 @@ public class AdminController {
     
     private final BookmarkService bookmarkService;
     
+    /**
+     * Очищает осиротевшие закладки (закладки без связанных пользователей или манги).
+     *
+     * @return ResponseEntity с результатом операции (Map с деталями) или ошибкой
+     * @throws Exception в случае ошибки при выполнении очистки
+     */
     @DeleteMapping("/bookmarks/cleanup-orphaned")
     public ResponseEntity<Map<String, Object>> cleanupOrphanedBookmarks() {
         try {
@@ -29,6 +45,13 @@ public class AdminController {
         }
     }
     
+    /**
+     * Удаляет все закладки для указанной манги.
+     *
+     * @param mangaId идентификатор манги
+     * @return ResponseEntity с подтверждением успешного удаления или ошибкой
+     * @throws Exception в случае ошибки при удалении закладок
+     */
     @DeleteMapping("/bookmarks/manga/{mangaId}")
     public ResponseEntity<Void> removeAllBookmarksForManga(@PathVariable Long mangaId) {
         try {

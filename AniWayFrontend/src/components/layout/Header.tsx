@@ -126,6 +126,12 @@ export function Header() {
             >
               Форум
             </Link>
+            <Link
+              to="/api-docs"
+              className="text-sm font-medium text-muted-foreground hover:text-white transition-colors duration-200 whitespace-nowrap"
+            >
+              API Docs
+            </Link>
           </nav>
         </div>
 
@@ -339,6 +345,13 @@ export function Header() {
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Форум
+                </Link>
+                <Link
+                  to="/api-docs"
+                  className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  📚 API Документация
                 </Link>
                 
                 {isAuthenticated && (

@@ -1,9 +1,26 @@
 package shadowshift.studio.authservice.entity;
 
+/**
+ * Перечисление статусов закладки.
+ * Определяет возможные статусы закладки пользователя на мангу.
+ *
+ * @author ShadowShiftStudio
+ * @version 1.0
+ */
 public enum BookmarkStatus {
-    READING,        // Читаю
-    PLAN_TO_READ,   // Буду читать
-    COMPLETED,      // Прочитано
-    ON_HOLD,        // Отложено
-    DROPPED         // Брошено
+    
+    /** Читаю. */
+    READING,
+    
+    /** Буду читать. */
+    PLAN_TO_READ,
+    
+    /** Прочитано. */
+    COMPLETED,
+    
+    /** Отложено. */
+    ON_HOLD,
+    
+    /** Брошено. */
+    DROPPED
 }

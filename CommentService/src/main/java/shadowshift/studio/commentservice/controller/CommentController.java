@@ -201,6 +201,22 @@ public class CommentController {
     }
 
     /**
+     * Получение всех комментариев пользователя для профиля
+     */
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<List<CommentResponseDTO>> getUserComments(@PathVariable Long userId) {
+        try {
+            log.info("Getting comments for user {}", userId);
+            
+            List<CommentResponseDTO> comments = commentService.getAllUserComments(userId);
+            return ResponseEntity.ok(comments);
+        } catch (Exception e) {
+            log.error("Error getting comments for user {}", userId, e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+    }
+
+    /**
      * Получение ID текущего пользователя из контекста безопасности
      */
     private Long getCurrentUserId() {

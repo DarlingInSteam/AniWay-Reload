@@ -14,13 +14,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-@Data
-class BookmarkRequest {
-    private Long mangaId;
-    private BookmarkStatus status;
-    private Boolean isFavorite;
-}
-
+/**
+ * Контроллер для управления закладками пользователей в системе.
+ * Предоставляет REST API для добавления, обновления, удаления закладок,
+ * получения закладок по статусу, избранных и других операций.
+ * Поддерживает CORS для указанных origins.
+ *
+ * @author [Ваше имя или команда, если применимо]
+ * @version 1.0
+ * @since [Дата или версия релиза]
+ */
 @RestController
 @RequestMapping("/api/bookmarks")
 @RequiredArgsConstructor
@@ -30,6 +33,24 @@ public class BookmarkController {
     
     private final BookmarkService bookmarkService;
     
+    /**
+     * Внутренний класс для запроса на добавление или обновление закладки.
+     */
+    @Data
+    class BookmarkRequest {
+        private Long mangaId;
+        private BookmarkStatus status;
+        private Boolean isFavorite;
+    }
+    
+    /**
+     * Добавляет или обновляет закладку для пользователя.
+     *
+     * @param request объект с данными закладки
+     * @param authentication объект аутентификации
+     * @return ResponseEntity с BookmarkDTO или ошибкой
+     * @throws Exception в случае ошибки добавления/обновления
+     */
     @PostMapping
     public ResponseEntity<BookmarkDTO> addOrUpdateBookmark(
             @RequestBody BookmarkRequest request,
@@ -49,6 +70,14 @@ public class BookmarkController {
         }
     }
     
+    /**
+     * Удаляет закладку пользователя для указанной манги.
+     *
+     * @param mangaId идентификатор манги
+     * @param authentication объект аутентификации
+     * @return ResponseEntity с подтверждением или ошибкой
+     * @throws Exception в случае ошибки удаления
+     */
     @DeleteMapping("/{mangaId}")
     public ResponseEntity<Void> removeBookmark(
             @PathVariable Long mangaId,
@@ -63,6 +92,13 @@ public class BookmarkController {
         }
     }
     
+    /**
+     * Удаляет все закладки для указанной манги (административная операция).
+     *
+     * @param mangaId идентификатор манги
+     * @return ResponseEntity с подтверждением или ошибкой
+     * @throws Exception в случае ошибки удаления
+     */
     @DeleteMapping("/manga/{mangaId}")
     public ResponseEntity<Void> removeAllBookmarksForManga(@PathVariable Long mangaId) {
         try {
@@ -75,6 +111,12 @@ public class BookmarkController {
         }
     }
     
+    /**
+     * Очищает осиротевшие закладки (административная операция).
+     *
+     * @return ResponseEntity с результатом операции или ошибкой
+     * @throws Exception в случае ошибки очистки
+     */
     @DeleteMapping("/cleanup-orphaned")
     public ResponseEntity<Map<String, Object>> cleanupOrphanedBookmarks() {
         try {
@@ -87,6 +129,13 @@ public class BookmarkController {
         }
     }
     
+    /**
+     * Получает все закладки текущего пользователя.
+     *
+     * @param authentication объект аутентификации
+     * @return ResponseEntity со списком BookmarkDTO или ошибкой
+     * @throws Exception в случае ошибки получения данных
+     */
     @GetMapping
     public ResponseEntity<List<BookmarkDTO>> getUserBookmarks(Authentication authentication) {
         try {
@@ -98,6 +147,14 @@ public class BookmarkController {
         }
     }
     
+    /**
+     * Получает закладки пользователя по статусу.
+     *
+     * @param status статус закладки
+     * @param authentication объект аутентификации
+     * @return ResponseEntity со списком BookmarkDTO или ошибкой
+     * @throws Exception в случае ошибки получения данных
+     */
     @GetMapping("/status/{status}")
     public ResponseEntity<List<BookmarkDTO>> getUserBookmarksByStatus(
             @PathVariable BookmarkStatus status,
@@ -114,6 +171,13 @@ public class BookmarkController {
         }
     }
     
+    /**
+     * Получает избранные закладки пользователя.
+     *
+     * @param authentication объект аутентификации
+     * @return ResponseEntity со списком BookmarkDTO или ошибкой
+     * @throws Exception в случае ошибки получения данных
+     */
     @GetMapping("/favorites")
     public ResponseEntity<List<BookmarkDTO>> getUserFavorites(Authentication authentication) {
         try {
@@ -125,6 +189,14 @@ public class BookmarkController {
         }
     }
     
+    /**
+     * Получает закладку пользователя для указанной манги.
+     *
+     * @param mangaId идентификатор манги
+     * @param authentication объект аутентификации
+     * @return ResponseEntity с BookmarkDTO или 404, если не найдено, или ошибкой
+     * @throws Exception в случае ошибки получения данных
+     */
     @GetMapping("/manga/{mangaId}")
     public ResponseEntity<BookmarkDTO> getUserBookmarkForManga(
             @PathVariable Long mangaId,
@@ -142,6 +214,13 @@ public class BookmarkController {
         }
     }
     
+    /**
+     * Получает публичные закладки пользователя по имени.
+     *
+     * @param username имя пользователя
+     * @return ResponseEntity со списком BookmarkDTO или ошибкой
+     * @throws Exception в случае ошибки получения данных
+     */
     @GetMapping("/user/{username}")
     public ResponseEntity<List<BookmarkDTO>> getPublicBookmarks(@PathVariable String username) {
         try {

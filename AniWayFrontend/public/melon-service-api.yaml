@@ -1,0 +1,667 @@
+openapi: 3.0.3
+info:
+  title: AniWay MelonService API
+  description: |
+    API для парсинга и обработки манги в системе AniWay.
+
+    ## Архитектура
+    MelonService является специализированным сервисом для парсинга манги из внешних источников.
+    Все запросы к MelonService должны идти через Gateway Service на порт 8080.
+    В production окружении используйте домен вашего сервера вместо localhost.
+
+    ## Основные возможности
+    - **Парсинг манги** - автоматическое извлечение информации о манге из внешних источников
+    - **Пакетная обработка** - одновременный парсинг нескольких тайтлов
+    - **Управление контентом** - хранение и организация спарсенной манги
+    - **Извлечение изображений** - получение обложек и страниц манги
+    - **Мониторинг задач** - отслеживание прогресса парсинга в реальном времени
+
+    ## Поддерживаемые парсеры
+    - **newtoki** - основной парсер для корейской манги
+    - **mangalib** - парсер для русской манги
+    - **Другие парсеры** - поддержка дополнительных источников
+
+    ## Форматы данных
+    - **JSON** - метаданные манги (название, описание, главы)
+    - **Изображения** - страницы манги в форматах PNG, JPG, WebP
+    - **Архивы** - структурированное хранение контента
+
+    ## Асинхронная обработка
+    Все операции парсинга выполняются асинхронно с возвратом task_id для отслеживания прогресса.
+    Используйте endpoint `/status/{task_id}` для получения текущего состояния задачи.
+  version: 1.0.0
+  contact:
+    name: AniWay Development Team
+    email: support@aniway.com
+
+servers:
+  - url: http://localhost:8080
+    description: Gateway Service (Локальная разработка)
+  - url: https://your-domain.com:8080
+    description: Gateway Service (Production)
+
+tags:
+  - name: Управление парсингом
+    description: Основные операции парсинга манги
+  - name: Пакетная обработка
+    description: Работа с множественными задачами
+  - name: Мониторинг
+    description: Отслеживание состояния задач
+  - name: Управление контентом
+    description: Работа с спарсенной мангой
+  - name: Извлечение изображений
+    description: Получение изображений и обложек
+  - name: Система
+    description: Системная информация
+
+paths:
+  /:
+    get:
+      tags:
+        - Система
+      summary: Статус сервиса
+      description: Получение информации о состоянии MelonService
+      responses:
+        '200':
+          description: Сервис работает
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "MelonService API Server"
+                  status:
+                    type: string
+                    example: "running"
+
+  /parse:
+    post:
+      tags:
+        - Управление парсингом
+      summary: Парсинг одной манги
+      description: |
+        Запускает процесс парсинга одной манги из внешнего источника.
+
+        **Процесс включает:**
+        - Извлечение метаданных (название, описание, автор)
+        - Получение списка глав
+        - Скачивание изображений страниц
+        - Сохранение в структурированном формате
+
+        **Время выполнения:** 5-30 минут в зависимости от размера манги
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParseRequest'
+            example:
+              slug: "some-manga-slug"
+              parser: "newtoki"
+      responses:
+        '200':
+          description: Задача парсинга создана
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  task_id:
+                    type: string
+                    description: ID задачи для отслеживания
+                    example: "123e4567-e89b-12d3-a456-426614174000"
+                  status:
+                    type: string
+                    example: "pending"
+        '500':
+          description: Ошибка сервера
+
+  /build:
+    post:
+      tags:
+        - Управление парсингом
+      summary: Сборка манги
+      description: |
+        Создает структурированный архив из спарсенной манги.
+
+        **Поддерживаемые типы сборки:**
+        - **simple** - базовая структура папок
+        - **advanced** - расширенная структура с метаданными
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BuildRequest'
+            example:
+              slug: "some-manga-slug"
+              parser: "newtoki"
+              type: "simple"
+      responses:
+        '200':
+          description: Задача сборки создана
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  task_id:
+                    type: string
+                    description: ID задачи для отслеживания
+                  status:
+                    type: string
+                    example: "pending"
+        '500':
+          description: Ошибка сервера
+
+  /batch-start:
+    post:
+      tags:
+        - Пакетная обработка
+      summary: Пакетный парсинг
+      description: |
+        Запускает одновременный парсинг нескольких манг.
+
+        **Особенности:**
+        - Асинхронная обработка всех тайтлов
+        - Отдельный этап импорта для каждой манги
+        - Подробная статистика по каждой задаче
+        - Возможность автоматического импорта в MangaService
+
+        **Рекомендации:**
+        - Не более 10 манг одновременно для оптимальной производительности
+        - Используйте auto_import для автоматической интеграции
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchParseRequest'
+            example:
+              slugs: ["manga1", "manga2", "manga3"]
+              parser: "newtoki"
+              auto_import: true
+      responses:
+        '200':
+          description: Пакетный парсинг запущен
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  task_id:
+                    type: string
+                    description: ID задачи для отслеживания
+                  status:
+                    type: string
+                    example: "started"
+        '500':
+          description: Ошибка сервера
+
+  /batch-parse:
+    post:
+      tags:
+        - Пакетная обработка
+      summary: Пакетный парсинг (алиас)
+      description: Алиас для /batch-start - запускает одновременный парсинг нескольких манг
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchParseRequest'
+      responses:
+        '200':
+          description: Пакетный парсинг запущен
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  task_id:
+                    type: string
+                  status:
+                    type: string
+
+  /status/{task_id}:
+    get:
+      tags:
+        - Мониторинг
+      summary: Статус задачи
+      description: |
+        Получение детального статуса выполнения задачи парсинга.
+
+        **Информация о прогрессе:**
+        - Текущий этап обработки
+        - Процент выполнения (0-100)
+        - Количество обработанных/неудачных элементов
+        - Текущий обрабатываемый элемент
+        - Детальные результаты по каждой манге
+
+        **Статусы задач:**
+        - **pending** - задача в очереди
+        - **running** - выполняется
+        - **completed** - завершена успешно
+        - **failed** - завершена с ошибками
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID задачи парсинга
+          example: "123e4567-e89b-12d3-a456-426614174000"
+      responses:
+        '200':
+          description: Статус задачи получен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskStatus'
+        '404':
+          description: Задача не найдена
+        '500':
+          description: Ошибка сервера
+
+  /list-parsed:
+    get:
+      tags:
+        - Управление контентом
+      summary: Список спарсенных манг
+      description: |
+        Получение списка всех спарсенных манг с базовой информацией.
+
+        **Информация включает:**
+        - Slug (идентификатор) манги
+        - Название манги
+        - Использованный парсер
+        - Количество глав
+        - Количество веток (branches)
+      responses:
+        '200':
+          description: Список получен
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  manga_list:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        slug:
+                          type: string
+                          description: Идентификатор манги
+                        title:
+                          type: string
+                          description: Название манги
+                        parser:
+                          type: string
+                          description: Парсер, использованный для обработки
+                        chapters:
+                          type: integer
+                          description: Общее количество глав
+                        branches:
+                          type: integer
+                          description: Количество веток
+        '500':
+          description: Ошибка сервера
+
+  /delete/{filename}:
+    delete:
+      tags:
+        - Управление контентом
+      summary: Удаление манги
+      description: |
+        Полное удаление спарсенной манги из системы.
+
+        **Удаляемые элементы:**
+        - JSON файл с метаданными
+        - Папка с изображениями
+        - Все связанные файлы
+
+        **Внимание:** Операция необратима
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Slug манги для удаления
+          example: "some-manga-slug"
+      responses:
+        '200':
+          description: Результат удаления
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: Успешность операции
+                  message:
+                    type: string
+                    description: Сообщение о результате
+                  deleted_items:
+                    type: array
+                    items:
+                      type: string
+                    description: Список удаленных элементов
+                examples:
+                  success:
+                    value:
+                      success: true
+                      message: "Манга 'some-manga' успешно удалена"
+                      deleted_items: ["JSON файл: some-manga.json", "Папка с изображениями: some-manga"]
+                  not_found:
+                    value:
+                      success: false
+                      message: "Манга 'unknown-manga' не найдена"
+        '500':
+          description: Ошибка сервера
+
+  /manga-info/{filename}:
+    get:
+      tags:
+        - Управление контентом
+      summary: Информация о манге
+      description: |
+        Получение полной информации о спарсенной манге в формате JSON.
+
+        **Включает:**
+        - Метаданные (название, описание, автор)
+        - Список глав с информацией о страницах
+        - Информация о ветках (branches)
+        - Дополнительные поля в зависимости от парсера
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Slug манги
+          example: "some-manga-slug"
+      responses:
+        '200':
+          description: Информация о манге
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Полная структура данных манги в формате парсера
+                example:
+                  title: "One Piece"
+                  localized_name: "Ван Пис"
+                  eng_name: "One Piece"
+                  slug: "one-piece"
+                  content:
+                    main:
+                      - chapter: "1"
+                        title: "Romance Dawn"
+                        pages: 45
+                      - chapter: "2"
+                        title: "They Call Him Straw Hat"
+                        pages: 38
+        '404':
+          description: Манга не найдена
+        '500':
+          description: Ошибка сервера
+
+  /images/{filename}/{chapter}/{page}:
+    get:
+      tags:
+        - Извлечение изображений
+      summary: Получение страницы манги
+      description: |
+        Получение конкретной страницы из главы манги.
+
+        **Поддерживаемые форматы:**
+        - PNG
+        - JPG/JPEG
+        - WebP
+
+        **Кэширование:** Изображения кэшируются на 1 час
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Slug манги
+          example: "one-piece"
+        - name: chapter
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Номер главы
+          example: "1"
+        - name: page
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Номер страницы
+          example: "1"
+      responses:
+        '200':
+          description: Изображение страницы
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Изображение не найдено
+        '500':
+          description: Ошибка сервера
+
+  /cover/{filename}:
+    get:
+      tags:
+        - Извлечение изображений
+      summary: Получение обложки манги
+      description: |
+        Получение обложки спарсенной манги.
+
+        **Поддерживаемые форматы:**
+        - PNG
+        - JPG/JPEG
+        - WebP
+
+        **Кэширование:** Обложки кэшируются на 24 часа
+
+        **Поиск обложки:**
+        1. Стандартные пути (cover.jpg, cover.png, cover.webp)
+        2. Папка covers с UUID файлами
+        3. Автоматический выбор первого подходящего изображения
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Slug манги
+          example: "one-piece"
+      responses:
+        '200':
+          description: Обложка манги
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Обложка не найдена
+        '500':
+          description: Ошибка сервера
+
+components:
+  schemas:
+    ParseRequest:
+      type: object
+      required:
+        - slug
+      properties:
+        slug:
+          type: string
+          description: Slug манги для парсинга
+          example: "one-piece"
+        parser:
+          type: string
+          default: "newtoki"
+          description: Парсер для использования
+          example: "newtoki"
+
+    BuildRequest:
+      type: object
+      required:
+        - slug
+      properties:
+        slug:
+          type: string
+          description: Slug манги для сборки
+          example: "one-piece"
+        parser:
+          type: string
+          default: "newtoki"
+          description: Парсер для использования
+          example: "newtoki"
+        type:
+          type: string
+          default: "simple"
+          description: Тип сборки
+          example: "simple"
+
+    BatchParseRequest:
+      type: object
+      required:
+        - slugs
+      properties:
+        slugs:
+          type: array
+          items:
+            type: string
+          description: Список slug'ов для парсинга
+          example: ["one-piece", "naruto", "bleach"]
+        parser:
+          type: string
+          default: "newtoki"
+          description: Парсер для использования
+          example: "newtoki"
+        auto_import:
+          type: boolean
+          default: true
+          description: Автоматический импорт после парсинга
+          example: true
+
+    TaskStatus:
+      type: object
+      properties:
+        task_id:
+          type: string
+          description: ID задачи
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+          description: Статус задачи
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Процент выполнения
+        message:
+          type: string
+          description: Текущее сообщение о прогрессе
+        created_at:
+          type: string
+          format: date-time
+          description: Время создания задачи
+        updated_at:
+          type: string
+          format: date-time
+          description: Время последнего обновления
+        total_slugs:
+          type: integer
+          description: Общее количество манг в задаче
+        completed_slugs:
+          type: integer
+          description: Количество завершенных манг
+        failed_slugs:
+          type: integer
+          description: Количество неудачных манг
+        current_slug:
+          type: string
+          description: Текущая обрабатываемая манга
+        results:
+          type: array
+          items:
+            type: object
+            description: Результаты обработки каждой манги
+        build_state:
+          type: object
+          description: Состояние сборки (если применимо)
+
+    ErrorResponse:
+      type: object
+      properties:
+        detail:
+          type: string
+          description: Описание ошибки
+        status_code:
+          type: integer
+          description: HTTP код ошибки
+
+    MangaInfo:
+      type: object
+      description: Полная информация о манге
+      properties:
+        title:
+          type: string
+          description: Название манги
+        localized_name:
+          type: string
+          description: Локализованное название
+        eng_name:
+          type: string
+          description: Английское название
+        slug:
+          type: string
+          description: Slug идентификатор
+        content:
+          type: object
+          description: Структура контента по веткам
+          additionalProperties:
+            type: array
+            items:
+              type: object
+              properties:
+                chapter:
+                  type: string
+                  description: Номер главы
+                title:
+                  type: string
+                  description: Название главы
+                pages:
+                  type: integer
+                  description: Количество страниц

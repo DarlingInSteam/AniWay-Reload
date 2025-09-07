@@ -20,6 +20,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+/**
+ * Сервис для управления закладками пользователей на мангу.
+ * Предоставляет функциональность добавления, обновления, удаления закладок,
+ * получения списков закладок и избранного, а также очистки orphaned закладок.
+ *
+ * @author ShadowShiftStudio
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -33,6 +40,18 @@ public class BookmarkService {
     @Value("${manga.service.url}")
     private String mangaServiceUrl;
     
+    /**
+     * Добавляет или обновляет закладку для пользователя.
+     * Если закладка уже существует, обновляет статус и флаг избранного.
+     * Если нет, создает новую закладку.
+     *
+     * @param username имя пользователя
+     * @param mangaId идентификатор манги
+     * @param status статус закладки
+     * @param isFavorite флаг избранного (может быть null)
+     * @return объект DTO закладки
+     * @throws IllegalArgumentException если пользователь не найден
+     */
     public BookmarkDTO addOrUpdateBookmark(String username, Long mangaId, BookmarkStatus status, Boolean isFavorite) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -61,6 +80,13 @@ public class BookmarkService {
         return convertToDTO(bookmark);
     }
     
+    /**
+     * Удаляет закладку пользователя для указанной манги.
+     *
+     * @param username имя пользователя
+     * @param mangaId идентификатор манги
+     * @throws IllegalArgumentException если пользователь не найден
+     */
     public void removeBookmark(String username, Long mangaId) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -69,6 +95,13 @@ public class BookmarkService {
         log.info("Bookmark removed for user: {} manga: {}", username, mangaId);
     }
     
+    /**
+     * Получает все закладки пользователя с дополнительной информацией о манге.
+     *
+     * @param username имя пользователя
+     * @return список DTO закладок с информацией о манге
+     * @throws IllegalArgumentException если пользователь не найден
+     */
     public List<BookmarkDTO> getUserBookmarks(String username) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -79,6 +112,14 @@ public class BookmarkService {
                 .collect(Collectors.toList());
     }
     
+    /**
+     * Получает закладки пользователя по указанному статусу.
+     *
+     * @param username имя пользователя
+     * @param status статус закладки
+     * @return список DTO закладок
+     * @throws IllegalArgumentException если пользователь не найден
+     */
     public List<BookmarkDTO> getUserBookmarksByStatus(String username, BookmarkStatus status) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -89,6 +130,13 @@ public class BookmarkService {
                 .collect(Collectors.toList());
     }
     
+    /**
+     * Получает избранные закладки пользователя с дополнительной информацией о манге.
+     *
+     * @param username имя пользователя
+     * @return список DTO избранных закладок с информацией о манге
+     * @throws IllegalArgumentException если пользователь не найден
+     */
     public List<BookmarkDTO> getUserFavorites(String username) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -99,6 +147,14 @@ public class BookmarkService {
                 .collect(Collectors.toList());
     }
     
+    /**
+     * Получает закладку пользователя для указанной манги.
+     *
+     * @param username имя пользователя
+     * @param mangaId идентификатор манги
+     * @return Optional с DTO закладки, если существует
+     * @throws IllegalArgumentException если пользователь не найден
+     */
     public Optional<BookmarkDTO> getUserBookmarkForManga(String username, Long mangaId) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -107,6 +163,14 @@ public class BookmarkService {
                 .map(this::convertToDTO);
     }
     
+    /**
+     * Получает количество закладок пользователя по указанному статусу.
+     *
+     * @param username имя пользователя
+     * @param status статус закладки
+     * @return количество закладок
+     * @throws IllegalArgumentException если пользователь не найден
+     */
     public Long getBookmarkCountByStatus(String username, BookmarkStatus status) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -114,6 +178,12 @@ public class BookmarkService {
         return bookmarkRepository.countByUserIdAndStatus(user.getId(), status);
     }
     
+    /**
+     * Удаляет все закладки для указанной манги.
+     * Используется при удалении манги из системы.
+     *
+     * @param mangaId идентификатор манги
+     */
     @Transactional
     public void removeAllBookmarksForManga(Long mangaId) {
         try {
@@ -125,6 +195,12 @@ public class BookmarkService {
         }
     }
     
+    /**
+     * Очищает orphaned закладки - закладки на несуществующие манги.
+     * Проверяет существование каждой манги через MangaService и удаляет закладки на несуществующие.
+     *
+     * @return результат очистки с информацией о проверенных мангах и удаленных закладках
+     */
     @Transactional
     public Map<String, Object> cleanupOrphanedBookmarks() {
         log.info("Starting cleanup of orphaned bookmarks");
@@ -134,7 +210,6 @@ public class BookmarkService {
         int checkedCount = 0;
         
         try {
-            // Получаем все уникальные mangaId из закладок
             List<Long> uniqueMangaIds = bookmarkRepository.findAll()
                     .stream()
                     .map(Bookmark::getMangaId)
@@ -193,7 +268,6 @@ public class BookmarkService {
         BookmarkDTO dto = convertToDTO(bookmark);
         
         try {
-            // Get manga info from MangaService
             String mangaUrl = mangaServiceUrl + "/api/manga/" + bookmark.getMangaId();
             log.info("Fetching manga info from URL: {}", mangaUrl);
             ResponseEntity<Map> response = restTemplate.getForEntity(mangaUrl, Map.class);
@@ -208,7 +282,6 @@ public class BookmarkService {
                 dto.setMangaTitle((String) manga.get("title"));
                 dto.setMangaCoverUrl((String) manga.get("coverImageUrl"));
                 
-                // Get total chapters from manga
                 Object totalChaptersObj = manga.get("totalChapters");
                 if (totalChaptersObj instanceof Integer) {
                     dto.setTotalChapters((Integer) totalChaptersObj);
@@ -217,7 +290,6 @@ public class BookmarkService {
                 log.warn("Failed to fetch manga info: status={}", response.getStatusCode());
             }
             
-            // Get reading progress
             try {
                 var user = userRepository.findById(bookmark.getUserId());
                 if (user.isPresent()) {

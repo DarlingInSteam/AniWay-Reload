@@ -8,6 +8,7 @@ import { AuthPage } from './pages/AuthPage'
 import { ProfilePage } from './pages/ProfilePage'
 import PublicProfilePage from './pages/PublicProfilePage'
 import { LibraryPage } from './pages/LibraryPage'
+import ApiDocsPage from './pages/ApiDocsPage'
 import { AuthProvider, ProtectedRoute } from './contexts/AuthContext'
 import { Toaster } from 'sonner'
 
@@ -47,6 +48,9 @@ function App() {
               <LibraryPage />
             </ProtectedRoute>
           } />
+          
+          {/* API Документация */}
+          <Route path="/api-docs" element={<ApiDocsPage />} />
           
           {/* Админские маршруты */}
           <Route path="/admin/manga" element={
