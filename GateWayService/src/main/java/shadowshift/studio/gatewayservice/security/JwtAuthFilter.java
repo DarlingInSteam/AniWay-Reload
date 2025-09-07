@@ -5,6 +5,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ServerWebExchange;
@@ -21,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * JwtAuthFilter теперь использует introspect endpoint AuthService и кеширует результаты на configurable TTL.
  */
 @Component
+@Order(Ordered.HIGHEST_PRECEDENCE)
 public class JwtAuthFilter implements WebFilter {
 
     private static final Logger logger = LoggerFactory.getLogger(JwtAuthFilter.class);
