@@ -91,6 +91,22 @@ build_states: Dict[str, Dict[str, Any]] = {}  # task_id -> {"slug": str, "is_rea
 def get_melon_base_path() -> Path:
     return Path("/app")
 
+def ensure_utf8_patch():
+    """Применяет критический патч для UTF-8 кодировки"""
+    dublib_path = get_melon_base_path() / "dublib" / "Methods" / "Filesystem.py"
+
+    if dublib_path.exists():
+        content = dublib_path.read_text(encoding='utf-8')
+        # Проверяем, нужен ли патч
+        if 'open(path, "w")' in content and 'encoding="utf-8"' not in content:
+            logger.info("Applying UTF-8 patch to dublib...")
+            content = content.replace(
+                'open(path, "w")',
+                'open(path, "w", encoding="utf-8")'
+            )
+            dublib_path.write_text(content, encoding='utf-8')
+            logger.info("UTF-8 patch applied successfully")
+
 def log_task_message(task_id: str, level: str, message: str):
     """Добавляет сообщение в логи задачи"""
     if task_id not in task_logs:
