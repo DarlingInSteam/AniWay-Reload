@@ -1,0 +1,30 @@
+# Exclude Source/ directory from language statistics
+MelonService/Source/** linguist-vendored
+
+# Also exclude common Python cache and build files
+__pycache__/** linguist-vendored
+*.pyc linguist-vendored
+*.pyo linguist-vendored
+*.pyd linguist-vendored
+.Python linguist-vendored
+build/** linguist-vendored
+develop-eggs/** linguist-vendored
+dist/** linguist-vendored
+downloads/** linguist-vendored
+eggs/** linguist-vendored
+.eggs/** linguist-vendored
+lib/** linguist-vendored
+lib64/** linguist-vendored
+parts/** linguist-vendored
+sdist/** linguist-vendored
+var/** linguist-vendored
+wheels/** linguist-vendored
+*.egg-info/** linguist-vendored
+.installed.cfg linguist-vendored
+*.egg linguist-vendored
+
+# Node.js files
+node_modules/** linguist-vendored
+npm-debug.log* linguist-vendored
+yarn-debug.log* linguist-vendored
+yarn-error.log* linguist-vendored
