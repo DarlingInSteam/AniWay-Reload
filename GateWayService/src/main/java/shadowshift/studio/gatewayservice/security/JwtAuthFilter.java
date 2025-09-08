@@ -45,8 +45,18 @@ public class JwtAuthFilter implements WebFilter {
 
         // check public paths
         for (String p : authProperties.getPublicPaths()) {
-            if (path.startsWith(p.replace("**", ""))) {
-                return chain.filter(exchange);
+            String trimmed = p.trim();
+            if (trimmed.endsWith("/**")) {
+                String prefix = trimmed.substring(0, trimmed.length() - 3);
+                if (path.startsWith(prefix)) {
+                    logger.debug("Path {} is public (matches {})", path, trimmed);
+                    return chain.filter(exchange);
+                }
+            } else {
+                if (path.equals(trimmed) || path.startsWith(trimmed)) {
+                    logger.debug("Path {} is public (matches {})", path, trimmed);
+                    return chain.filter(exchange);
+                }
             }
         }
 
