@@ -12,15 +12,27 @@ import {
   Bookmark,
   Trophy
 } from 'lucide-react';
+import { UserStatistics } from './UserStatistics';
+import { UserActivityFeed } from './UserActivityFeed';
 
 interface ProfileSidebarProps {
   friends: Friend[];
   communities: Community[];
   activities: UserActivity[];
   isOwnProfile: boolean;
+  userId: number; // Добавляем userId для загрузки данных
+  profileData?: {
+    readingStats?: {
+      totalMangaRead: number;
+      totalChaptersRead: number;
+      totalPagesRead?: number;
+      favoriteGenres?: string[];
+      readingStreak?: number;
+    };
+  };
 }
 
-export function ProfileSidebar({ friends, communities, activities, isOwnProfile }: ProfileSidebarProps) {
+export function ProfileSidebar({ friends, communities, activities, isOwnProfile, userId, profileData }: ProfileSidebarProps) {
   const formatActivityTime = (timestamp: Date) => {
     const now = new Date();
     const diff = now.getTime() - timestamp.getTime();
@@ -30,16 +42,6 @@ export function ProfileSidebar({ friends, communities, activities, isOwnProfile 
     if (days > 0) return `${days}д`;
     if (hours > 0) return `${hours}ч`;
     return 'сейчас';
-  };
-
-  const getActivityIcon = (type: UserActivity['type']) => {
-    const icons = {
-      read: <BookOpen className="w-4 h-4 text-blue-400" />,
-      review: <Star className="w-4 h-4 text-yellow-400" />,
-      bookmark: <Bookmark className="w-4 h-4 text-green-400" />,
-      achievement: <Trophy className="w-4 h-4 text-purple-400" />
-    };
-    return icons[type];
   };
 
   const getRoleColor = (role: Community['role']) => {
@@ -171,81 +173,17 @@ export function ProfileSidebar({ friends, communities, activities, isOwnProfile 
         </CardContent>
       </Card>
 
-      {/* Активность */}
-      <Card className="bg-white/3 backdrop-blur-md border border-white/8 shadow-lg">
-        <CardHeader className="pb-4">
-          <CardTitle className="flex items-center gap-2">
-            <Activity className="w-5 h-5 text-green-400" />
-            <span>Активность</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {activities.length > 0 ? (
-            <div className="space-y-3">
-              {activities.slice(0, 8).map((activity) => (
-                <div key={activity.id} className="flex items-start gap-3 text-sm p-2 rounded-lg hover:bg-white/3 transition-all duration-200">
-                  <div className="mt-0.5">
-                    {getActivityIcon(activity.type)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-gray-200 leading-relaxed">
-                      {activity.description}
-                    </div>
-                    <div className="text-xs text-gray-400 mt-1">
-                      {formatActivityTime(activity.timestamp)} назад
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {activities.length > 8 && (
-                <Button variant="outline" size="sm" className="w-full border-white/15 bg-white/3 text-gray-300 hover:bg-white/8 mt-4">
-                  Показать больше
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="text-center py-6 text-gray-400 text-sm">
-              <Activity className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p>{isOwnProfile ? 'Нет активности' : 'Пользователь неактивен'}</p>
-              <p className="text-xs mt-1">Начните читать мангу, чтобы увидеть активность</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Активность с реальными данными */}
+      <UserActivityFeed 
+        userId={userId}
+        isOwnProfile={isOwnProfile}
+      />
 
-      {/* Статистика чтения */}
-      <Card className="bg-white/3 backdrop-blur-md border border-white/8 shadow-lg">
-        <CardHeader className="pb-4">
-          <CardTitle className="flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-orange-400" />
-            <span>Статистика</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex justify-between items-center py-2 px-3 rounded-lg bg-white/3">
-              <span className="text-sm text-gray-300">Манги прочитано</span>
-              <span className="text-sm font-medium text-white">Загружается...</span>
-            </div>
-            <div className="flex justify-between items-center py-2 px-3 rounded-lg bg-white/3">
-              <span className="text-sm text-gray-300">Глав прочитано</span>
-              <span className="text-sm font-medium text-white">Загружается...</span>
-            </div>
-            <div className="flex justify-between items-center py-2 px-3 rounded-lg bg-white/3">
-              <span className="text-sm text-gray-300">Время чтения</span>
-              <span className="text-sm font-medium text-white">Загружается...</span>
-            </div>
-            <div className="flex justify-between items-center py-2 px-3 rounded-lg bg-white/3">
-              <span className="text-sm text-gray-300">В закладках</span>
-              <span className="text-sm font-medium text-white">Загружается...</span>
-            </div>
-            <div className="flex justify-between items-center py-2 px-3 rounded-lg bg-white/3">
-              <span className="text-sm text-gray-300">В избранном</span>
-              <span className="text-sm font-medium text-white">Загружается...</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Статистика чтения с реальными данными */}
+      <UserStatistics 
+        userId={userId}
+        profileData={profileData?.readingStats}
+      />
     </div>
   );
 }

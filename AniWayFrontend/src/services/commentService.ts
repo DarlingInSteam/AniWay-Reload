@@ -136,6 +136,15 @@ class CommentService {
   }
 
   /**
+   * Удаление реакции с комментария
+   */
+  async removeReaction(commentId: number): Promise<void> {
+    return this.request(`/${commentId}/reactions`, {
+      method: 'DELETE'
+    })
+  }
+
+  /**
    * Получение количества комментариев для цели
    */
   async getCommentsCount(

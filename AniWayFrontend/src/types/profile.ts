@@ -18,6 +18,10 @@ export interface UserProfile {
   totalReadingTime: number;
   mangaRead: number;
   chaptersRead: number;
+  
+  // Дополнительные поля из публичного API
+  likesGivenCount?: number;
+  commentsCount?: number;
 }
 
 export interface SocialLinks {

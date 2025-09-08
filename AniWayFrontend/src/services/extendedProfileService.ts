@@ -74,7 +74,18 @@ class ExtendedProfileService {
    */
   async getProfileStatistics(): Promise<ProfileStatistics> {
     try {
-      return await apiClient.getProfileStatistics();
+      // Используем новое Auth API для получения статистики
+      const { authService } = await import('./authServiceExtended');
+      const stats = await authService.getReadingStatistics();
+      
+      return {
+        totalReadingTimeMinutes: stats.totalReadingTimeMinutes || 0,
+        totalMangaRead: stats.totalMangaRead || 0,
+        totalChaptersRead: stats.totalChaptersRead || 0,
+        favoriteGenres: stats.favoriteGenres || [],
+        readingStreak: stats.readingStreak || 0,
+        averageRating: stats.averageRating || 0
+      };
     } catch (error) {
       console.error('Ошибка при получении статистики профиля:', error);
       throw new Error('Не удалось загрузить статистику');
@@ -86,17 +97,92 @@ class ExtendedProfileService {
    */
   async getProfileActivity(userId?: number, limit: number = 10): Promise<UserActivity[]> {
     try {
-      const activities = await apiClient.getProfileActivity(userId, limit);
+      // Используем новое Auth API для получения активности
+      const { authService } = await import('./authServiceExtended');
+      
+      if (!userId) {
+        throw new Error('ID пользователя обязателен для получения активности');
+      }
+
+      const activities = await authService.getUserActivity(userId, limit);
+      
       return activities.map(activity => ({
-        id: activity.id,
-        type: activity.type,
-        description: activity.description,
+        id: activity.id.toString(),
+        type: this.mapActivityType(activity.activityType),
+        description: activity.message,
         timestamp: new Date(activity.timestamp),
-        relatedMangaId: activity.relatedMangaId
+        relatedMangaId: activity.mangaId
       }));
     } catch (error) {
       console.error('Ошибка при получении активности профиля:', error);
       throw new Error('Не удалось загрузить активность');
+    }
+  }
+
+  /**
+   * Получить активность чтения пользователя
+   */
+  async getReadingActivity(userId: number, limit: number = 10): Promise<UserActivity[]> {
+    try {
+      const { authService } = await import('./authServiceExtended');
+      const activities = await authService.getUserReadingActivity(userId, limit);
+      
+      return activities.map(activity => ({
+        id: activity.id.toString(),
+        type: 'read',
+        description: activity.message,
+        timestamp: new Date(activity.timestamp),
+        relatedMangaId: activity.mangaId
+      }));
+    } catch (error) {
+      console.error('Ошибка при получении активности чтения:', error);
+      throw new Error('Не удалось загрузить активность чтения');
+    }
+  }
+
+  /**
+   * Получить активность отзывов пользователя
+   */
+  async getReviewActivity(userId: number, limit: number = 10): Promise<UserActivity[]> {
+    try {
+      const { authService } = await import('./authServiceExtended');
+      const activities = await authService.getUserReviewActivity(userId, limit);
+      
+      return activities.map(activity => ({
+        id: activity.id.toString(),
+        type: 'review',
+        description: activity.message,
+        timestamp: new Date(activity.timestamp),
+        relatedMangaId: activity.mangaId
+      }));
+    } catch (error) {
+      console.error('Ошибка при получении активности отзывов:', error);
+      throw new Error('Не удалось загрузить активность отзывов');
+    }
+  }
+
+  /**
+   * Маппинг типов активности из API в типы приложения
+   */
+  private mapActivityType(apiType: string): 'read' | 'review' | 'bookmark' | 'achievement' {
+    switch (apiType.toLowerCase()) {
+      case 'reading':
+      case 'read':
+      case 'chapter_read':
+        return 'read';
+      case 'review':
+      case 'review_created':
+      case 'review_updated':
+        return 'review';
+      case 'bookmark':
+      case 'bookmark_added':
+      case 'bookmark_updated':
+        return 'bookmark';
+      case 'achievement':
+      case 'level_up':
+        return 'achievement';
+      default:
+        return 'read'; // по умолчанию
     }
   }
 

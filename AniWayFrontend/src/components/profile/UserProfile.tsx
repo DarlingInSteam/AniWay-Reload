@@ -13,9 +13,10 @@ import {
   UserComments
 } from './ShowcaseModules';
 import { UserProfile as UserProfileType, UserProfileProps, UserReview } from '@/types/profile';
-import { CommentResponseDTO } from '@/types/comments';
+import { CommentResponseDTO, CommentCreateDTO } from '@/types/comments';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { CommentSection } from '@/components/comments/CommentSection';
 import { profileService } from '@/services/profileService';
 import { commentService } from '@/services/commentService';
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,9 +25,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   const [profile, setProfile] = useState<UserProfileType | null>(null);
   const [profileData, setProfileData] = useState<any>(null);
   const [userReviews, setUserReviews] = useState<UserReview[]>([]);
-  const [userComments, setUserComments] = useState<CommentResponseDTO[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
-  const [commentsLoading, setCommentsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
@@ -55,18 +54,6 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
           setReviewsLoading(false);
         }
 
-        // Загружаем комментарии пользователя
-        setCommentsLoading(true);
-        try {
-          const comments = await commentService.getUserComments(parseInt(userId));
-          setUserComments(comments);
-        } catch (commentError) {
-          console.error('Ошибка при загрузке комментариев:', commentError);
-          // Не считаем это критической ошибкой, просто оставляем пустой массив
-        } finally {
-          setCommentsLoading(false);
-        }
-
         // Преобразуем данные в формат UserProfile
         const userProfile: UserProfileType = {
           id: data.user.id.toString(),
@@ -84,10 +71,16 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
           joinedDate: new Date(data.user.createdAt),
           totalReadingTime: 0, // TODO: Добавить отслеживание времени чтения
           mangaRead: data.readingStats?.totalMangaRead || 0,
-          chaptersRead: data.readingStats?.totalChaptersRead || 0
+          chaptersRead: data.readingStats?.totalChaptersRead || 0,
+          
+          // Новые поля из публичного API
+          likesGivenCount: data.user.likesGivenCount || 0,
+          commentsCount: data.user.commentsCount || 0,
         };
 
         setProfile(userProfile);
+        // Сохраняем данные профиля для передачи в компоненты
+        setProfileData(data);
       } catch (err) {
         console.error('Ошибка при загрузке профиля:', err);
         setError('Не удалось загрузить данные профиля');
@@ -107,9 +100,29 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
             totalReadingTime: 0,
             mangaRead: currentUser.chaptersReadCount || 0,
             chaptersRead: currentUser.chaptersReadCount || 0,
-            favoriteGenres: []
+            favoriteGenres: [],
+            
+            // Добавляем новые поля из публичного API
+            likesGivenCount: currentUser.likesGivenCount || 0,
+            commentsCount: currentUser.commentsCount || 0,
           };
+          
+          // Создаем fallback данные профиля
+          const fallbackProfileData = {
+            user: currentUser,
+            bookmarks: [],
+            readingProgress: [],
+            readingStats: {
+              totalMangaRead: 0,
+              totalChaptersRead: currentUser.chaptersReadCount || 0,
+              totalPagesRead: 0,
+              favoriteGenres: [],
+              readingStreak: 0
+            }
+          };
+          
           setProfile(fallbackProfile);
+          setProfileData(fallbackProfileData);
           setError(null);
         }
       } finally {
@@ -186,7 +199,6 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   // Заглушки для данных, которые пока не реализованы
   const mockFriends: any[] = []; // TODO: Добавить систему друзей
   const mockCommunities: any[] = []; // TODO: Добавить систему сообществ
-  const mockComments: any[] = []; // TODO: Добавить комментарии к профилю
 
   if (loading) {
     return (
@@ -276,13 +288,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               </TabsContent>
 
               <TabsContent value="comments" className="space-y-6">
-                {commentsLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <LoadingSpinner />
-                  </div>
-                ) : (
-                  <UserComments comments={userComments} isOwnProfile={isOwnProfile} />
-                )}
+                <UserComments userId={parseInt(userId)} isOwnProfile={isOwnProfile} />
               </TabsContent>
 
               <TabsContent value="achievements" className="space-y-6">
@@ -306,6 +312,8 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               communities={mockCommunities}
               activities={userActivities}
               isOwnProfile={isOwnProfile}
+              userId={parseInt(profile.id)}
+              profileData={profileData}
             />
           </div>
         </div>
@@ -348,13 +356,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
             </TabsContent>
 
             <TabsContent value="comments" className="space-y-6">
-              {commentsLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <LoadingSpinner />
-                </div>
-              ) : (
-                <UserComments comments={userComments} isOwnProfile={isOwnProfile} />
-              )}
+              <UserComments userId={parseInt(userId)} isOwnProfile={isOwnProfile} />
             </TabsContent>
 
             <TabsContent value="achievements" className="space-y-6">
@@ -367,15 +369,16 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
             communities={mockCommunities}
             activities={userActivities}
             isOwnProfile={isOwnProfile}
+            userId={parseInt(profile.id)}
+            profileData={profileData}
           />
         </div>
 
         {/* Футер профиля */}
         <div className="mt-8">
           <ProfileFooter
-            comments={mockComments}
+            userId={parseInt(userId)}
             isOwnProfile={isOwnProfile}
-            canComment={true}
             onShare={handleShare}
             onExportData={handleExportData}
           />

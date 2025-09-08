@@ -5,7 +5,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { UserProfile } from '@/types/profile';
 import { Edit, Save, X, ExternalLink } from 'lucide-react';
-import { LevelIndicator, getMockLevelData } from './LevelIndicator';
 
 interface ProfileSummaryProps {
   profile: UserProfile;
@@ -16,9 +15,6 @@ interface ProfileSummaryProps {
 export function ProfileSummary({ profile, isOwnProfile, onProfileUpdate }: ProfileSummaryProps) {
   const [isEditingBio, setIsEditingBio] = useState(false);
   const [newBio, setNewBio] = useState(profile.bio || '');
-
-  // Получаем данные для индикатора уровня
-  const levelData = getMockLevelData(profile.mangaRead || 0, profile.chaptersRead || 0);
 
   const handleBioSubmit = () => {
     onProfileUpdate?.({ bio: newBio });
@@ -41,9 +37,6 @@ export function ProfileSummary({ profile, isOwnProfile, onProfileUpdate }: Profi
 
   return (
     <div className="space-y-6">
-      {/* Индикатор уровня */}
-      <LevelIndicator levelData={levelData} />
-      
       {/* Карточка "О пользователе" */}
       <Card className="bg-white/3 backdrop-blur-md border border-white/8 shadow-lg">
       <CardHeader>
@@ -101,7 +94,15 @@ export function ProfileSummary({ profile, isOwnProfile, onProfileUpdate }: Profi
             </div>
           ) : (
             <div className="text-gray-200 whitespace-pre-wrap p-3 rounded-lg bg-white/3">
-              {profile.bio || (isOwnProfile ? 'Добавьте описание о себе' : 'Пользователь не добавил описание')}
+              {profile.bio ? (
+                profile.bio 
+              ) : isOwnProfile ? (
+                'Добавьте описание о себе'
+              ) : (
+                <div>
+                  <p className="text-gray-400">Пользователь не добавил описание</p>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -165,8 +166,8 @@ export function ProfileSummary({ profile, isOwnProfile, onProfileUpdate }: Profi
           </div>
         )}
 
-        {/* Дата регистрации */}
-        <div className="pt-4 border-t border-white/8">
+        {/* Дата регистрации и статистика активности */}
+        <div className="pt-4 border-t border-white/8 space-y-3">
           <div className="flex items-center justify-between text-sm py-2 px-3 rounded-lg bg-white/3">
             <span className="text-gray-300">Присоединился</span>
             <span className="text-gray-200">{formatJoinDate(profile.joinedDate)}</span>

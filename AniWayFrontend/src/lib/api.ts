@@ -127,6 +127,43 @@ class ApiClient {
     return this.request<any[]>(`/bookmarks/user/${username}`);
   }
 
+  // Публичные данные пользователя по userId
+  async getUserPublicBookmarksByUserId(userId: number): Promise<any[]> {
+    // TODO: BACKEND - Добавить публичный эндпоинт для получения пользовательских закладок
+    // Предлагаемый эндпоинт: GET /auth/users/{userId}/public/bookmarks
+    console.warn(`TODO: Публичные закладки не реализованы на бэкенде для пользователя ${userId}`);
+    
+    // Временная заглушка - возвращаем пустой массив
+    // После реализации на бэкенде раскомментировать код ниже:
+    /*
+    try {
+      return this.request<any[]>(`/auth/users/${userId}/public/bookmarks`);
+    } catch (error) {
+      console.log(`Публичные закладки недоступны для пользователя ${userId}`);
+      return [];
+    }
+    */
+    return [];
+  }
+
+  async getUserPublicProgressByUserId(userId: number): Promise<any[]> {
+    // TODO: BACKEND - Добавить публичный эндпоинт для получения прогресса чтения пользователя
+    // Предлагаемый эндпоинт: GET /auth/users/{userId}/public/progress
+    console.warn(`TODO: Публичный прогресс не реализован на бэкенде для пользователя ${userId}`);
+    
+    // Временная заглушка - возвращаем пустой массив
+    // После реализации на бэкенде раскомментировать код ниже:
+    /*
+    try {
+      return this.request<any[]>(`/auth/users/${userId}/public/progress`);
+    } catch (error) {
+      console.log(`Публичный прогресс недоступен для пользователя ${userId}`);
+      return [];
+    }
+    */
+    return [];
+  }
+
   async getUserBookmarksByStatus(status: string): Promise<any[]> {
     return this.request<any[]>(`/bookmarks/status/${status}`);
   }
@@ -250,6 +287,76 @@ class ApiClient {
   }
 
   // 3. Управление прогрессом чтения (используем существующий API)
+  // Дополнительные API для получения информации для комментариев
+  async getMangaTitle(mangaId: number): Promise<string | null> {
+    try {
+      const manga = await this.getMangaById(mangaId);
+      return manga.title;
+    } catch (error) {
+      console.error(`Ошибка получения названия манги ${mangaId}:`, error);
+      return null;
+    }
+  }
+
+  async getChapterTitle(chapterId: number): Promise<{ title: string; mangaTitle: string } | null> {
+    try {
+      const chapter = await this.getChapterById(chapterId);
+      const mangaTitle = await this.getMangaTitle(chapter.mangaId);
+      return {
+        title: chapter.title || `Глава ${chapter.chapterNumber}`,
+        mangaTitle: mangaTitle || `Манга #${chapter.mangaId}`
+      };
+    } catch (error) {
+      console.error(`Ошибка получения информации о главе ${chapterId}:`, error);
+      return null;
+    }
+  }
+
+  async getUsernameById(userId: number): Promise<string | null> {
+    try {
+      const user = await this.getUserProfile(userId);
+      return user.username;
+    } catch (error) {
+      console.error(`Ошибка получения имени пользователя ${userId}:`, error);
+      return null;
+    }
+  }
+
+  // Пакетное получение информации для комментариев
+  async getCommentTargetInfo(type: string, targetId: number): Promise<{ text: string; icon: string; color: string } | null> {
+    try {
+      switch (type) {
+        case 'MANGA':
+          const mangaTitle = await this.getMangaTitle(targetId);
+          return mangaTitle 
+            ? { text: mangaTitle, icon: '📖', color: 'text-purple-400' }
+            : { text: `Манга #${targetId}`, icon: '📖', color: 'text-purple-400' };
+
+        case 'CHAPTER':
+          const chapterInfo = await this.getChapterTitle(targetId);
+          return chapterInfo 
+            ? { text: `${chapterInfo.title} (${chapterInfo.mangaTitle})`, icon: '📄', color: 'text-blue-400' }
+            : { text: `Глава #${targetId}`, icon: '📄', color: 'text-blue-400' };
+
+        case 'PROFILE':
+          const username = await this.getUsernameById(targetId);
+          return username 
+            ? { text: `@${username}`, icon: '👤', color: 'text-green-400' }
+            : { text: `Профиль #${targetId}`, icon: '👤', color: 'text-green-400' };
+
+        case 'REVIEW':
+          // Для отзывов пока используем простое отображение
+          return { text: `Отзыв #${targetId}`, icon: '⭐', color: 'text-yellow-400' };
+
+        default:
+          return { text: `${type} #${targetId}`, icon: '❓', color: 'text-gray-400' };
+      }
+    } catch (error) {
+      console.error(`Ошибка получения информации о цели комментария ${type}:${targetId}:`, error);
+      return { text: `${type} #${targetId}`, icon: '❓', color: 'text-gray-400' };
+    }
+  }
+
   async updateReadingProgress(mangaId: number, data: {
     chapterNumber: number;
     pageNumber?: number;
@@ -461,6 +568,54 @@ class ApiClient {
   // Утилитарный метод для получения URL изображения через прокси
   getImageUrl(imageKey: string): string {
     return `${API_BASE_URL}/images/proxy/${imageKey}`;
+  }
+
+  // Comments API - методы для работы с комментариями
+  async getCommentById(commentId: number): Promise<any> {
+    return this.request<any>(`/comments/${commentId}`);
+  }
+
+  async getCommentReplies(parentCommentId: number, page = 0, size = 10): Promise<any[]> {
+    return this.request<any[]>(`/comments/${parentCommentId}/replies?page=${page}&size=${size}`);
+  }
+
+  async getUserComments(userId: number): Promise<any[]> {
+    return this.request<any[]>(`/comments/user/${userId}`);
+  }
+
+  async createComment(data: {
+    content: string;
+    commentType: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW';
+    targetId: number;
+    parentCommentId?: number;
+  }): Promise<any> {
+    return this.request<any>('/comments', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateComment(commentId: number, content: string): Promise<any> {
+    return this.request<any>(`/comments/${commentId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ content }),
+    });
+  }
+
+  async deleteComment(commentId: number): Promise<void> {
+    await this.request<void>(`/comments/${commentId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async addCommentReaction(commentId: number, reactionType: 'LIKE' | 'DISLIKE'): Promise<void> {
+    await this.request<void>(`/comments/${commentId}/reactions?reactionType=${reactionType}`, {
+      method: 'POST',
+    });
+  }
+
+  async getCommentReactions(commentId: number): Promise<any> {
+    return this.request<any>(`/comments/${commentId}/reactions`);
   }
 }
 

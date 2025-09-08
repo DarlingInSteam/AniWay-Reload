@@ -5,8 +5,9 @@ import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { UserProfile } from '@/types/profile';
-import { Camera, Edit, UserPlus, MessageCircle, Settings } from 'lucide-react';
+import { Camera, Edit, UserPlus, MessageCircle, Settings, MoreHorizontal } from 'lucide-react';
 
 interface ProfileHeaderProps {
   profile: UserProfile;
@@ -18,6 +19,36 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
   const [isEditingUsername, setIsEditingUsername] = useState(false);
   const [newUsername, setNewUsername] = useState(profile.username);
   const [avatarUploadOpen, setAvatarUploadOpen] = useState(false);
+
+  // Вычисляем уровень пользователя и прогресс
+  const levels = [
+    { level: 1, xpRequired: 0 },
+    { level: 2, xpRequired: 50 },
+    { level: 3, xpRequired: 150 },
+    { level: 4, xpRequired: 300 },
+    { level: 5, xpRequired: 500 },
+    { level: 6, xpRequired: 750 },
+    { level: 7, xpRequired: 1000 },
+    { level: 8, xpRequired: 1500 },
+    { level: 9, xpRequired: 2000 },
+    { level: 10, xpRequired: 3000 },
+  ];
+  const totalActivity = (profile.mangaRead || 0) * 10 + (profile.chaptersRead || 0);
+  
+  let userLevel = 1;
+  for (let i = levels.length - 1; i >= 0; i--) {
+    if (totalActivity >= levels[i].xpRequired) {
+      userLevel = levels[i].level;
+      break;
+    }
+  }
+  const currentLevelData = levels[userLevel - 1];
+  const nextLevelData = levels[userLevel] || levels[levels.length - 1];
+  const xpForCurrentLevel = currentLevelData.xpRequired;
+  const xpForNextLevel = nextLevelData.xpRequired;
+  const progressXP = totalActivity - xpForCurrentLevel;
+  const totalXPForNextLevel = xpForNextLevel - xpForCurrentLevel;
+  const progressPercentage = userLevel >= 10 ? 100 : (totalXPForNextLevel > 0 ? Math.min(100, (progressXP / totalXPForNextLevel) * 100) : 0);
 
   const handleUsernameSubmit = () => {
     if (newUsername.trim() && newUsername !== profile.username) {
@@ -102,11 +133,12 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
           )}
         </div>
 
-        {/* Информация о пользователе */}
+        {/* Основная информация пользователя */}
         <div className="flex-1 text-center md:text-left">
-          <div className="flex flex-col md:flex-row md:items-center gap-2 mb-2">
+          {/* Имя пользователя */}
+          <div className="mb-2">
             {isEditingUsername ? (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 justify-center md:justify-start">
                 <Input
                   value={newUsername}
                   onChange={(e) => setNewUsername(e.target.value)}
@@ -130,7 +162,7 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 justify-center md:justify-start">
                 <h1 className="text-2xl md:text-3xl font-bold text-white">
                   {profile.username}
                 </h1>
@@ -148,21 +180,8 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
             )}
           </div>
 
-          <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-4">
-            <Badge className={`${getLevelBadgeColor(profile.level)} font-semibold backdrop-blur-sm`}>
-              Уровень {profile.level}
-            </Badge>
-
-            <div className="flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full backdrop-blur-sm">
-              <div className={`w-3 h-3 rounded-full ${profile.isOnline ? 'bg-green-400' : 'bg-gray-400'}`} />
-              <span className="text-sm text-gray-200">
-                {profile.isOnline ? 'В сети' : formatLastSeen(profile.lastSeen)}
-              </span>
-            </div>
-          </div>
-
           {/* Статистика */}
-          <div className="flex flex-wrap justify-center md:justify-start gap-6 text-sm text-gray-200 mb-4">
+          <div className="flex flex-wrap justify-center md:justify-start gap-6 text-sm text-gray-200">
             <div className="text-center px-3 py-2 bg-white/5 rounded-lg backdrop-blur-sm">
               <div className="font-semibold text-white">{profile.mangaRead}</div>
               <div>Прочитано манги</div>
@@ -178,25 +197,86 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
           </div>
         </div>
 
-        {/* Кнопки действий */}
-        <div className="flex flex-col gap-2 min-w-[140px]">
-          {isOwnProfile ? (
-            <Button className="bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/30 backdrop-blur-sm">
-              <Settings className="w-4 h-4 mr-2" />
-              Настройки
-            </Button>
-          ) : (
-            <>
-              <Button className="bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/30 backdrop-blur-sm">
-                <UserPlus className="w-4 h-4 mr-2" />
-                Добавить в друзья
-              </Button>
-              <Button variant="outline" className="border-white/20 bg-white/5 text-gray-300 hover:bg-white/10 backdrop-blur-sm">
-                <MessageCircle className="w-4 h-4 mr-2" />
-                Сообщение
-              </Button>
-            </>
-          )}
+        {/* Правая панель с уровнем и кнопками на нижней границе */}
+        <div className="flex flex-col justify-between items-end min-w-[260px] h-full">
+          {/* Индикатор уровня посередине справа */}
+          <div className="flex flex-col items-end gap-2">
+            <Badge className={`${getLevelBadgeColor(userLevel)} font-semibold backdrop-blur-sm text-lg px-4 py-2`}>
+              Уровень {userLevel}
+            </Badge>
+            {/* Прогресс-бар уровня */}
+            {userLevel < 10 && (
+              <div className="w-48 mt-2 mb-2">
+                <div className="flex justify-between text-xs text-gray-400 mb-1">
+                  <span>Прогресс</span>
+                  <span>{Math.round(progressPercentage)}%</span>
+                </div>
+                <div className="relative h-3 bg-white/10 rounded-full overflow-hidden">
+                  <div 
+                    className={`absolute left-0 top-0 h-full bg-gradient-to-r from-blue-400 to-blue-600 transition-all duration-500 ease-out rounded-full`}
+                    style={{ width: `${progressPercentage}%` }}
+                  >
+                    <div className="absolute inset-0 bg-white/20 animate-pulse rounded-full"></div>
+                  </div>
+                </div>
+                <div className="flex justify-between text-xs text-gray-400 mt-1">
+                  <span>{Math.max(0, progressXP)} XP</span>
+                  <span>{totalXPForNextLevel} XP</span>
+                </div>
+              </div>
+            )}
+            {userLevel >= 10 && (
+              <div className="w-48 mt-2 mb-2 text-center">
+                <div className="text-sm text-yellow-400 font-medium">
+                  🌟 Максимальный уровень достигнут!
+                </div>
+              </div>
+            )}
+            <div className="flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full backdrop-blur-sm">
+              <div className={`w-3 h-3 rounded-full ${profile.isOnline ? 'bg-green-400' : 'bg-gray-400'}`} />
+              <span className="text-sm text-gray-200">
+                {profile.isOnline ? 'В сети' : formatLastSeen(profile.lastSeen)}
+              </span>
+            </div>
+          </div>
+
+          {/* Кнопки действий строго на нижней границе справа */}
+          <div className="flex flex-wrap items-center gap-2 justify-end mt-auto pt-6">
+            {!isOwnProfile && (
+              <>
+                <Button className="bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/30 backdrop-blur-sm">
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  Добавить в друзья
+                </Button>
+                <Button variant="outline" className="border-white/20 bg-white/5 text-gray-300 hover:bg-white/10 backdrop-blur-sm">
+                  <MessageCircle className="w-4 h-4 mr-2" />
+                  Сообщение
+                </Button>
+              </>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="border-white/20 bg-white/5 text-gray-300 hover:bg-white/10 backdrop-blur-sm">
+                  <MoreHorizontal className="w-4 h-4 mr-2" />
+                  Ещё...
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {isOwnProfile && (
+                  <DropdownMenuItem className="text-white hover:bg-white/10 focus:bg-white/10">
+                    <Settings className="w-4 h-4 mr-2" />
+                    Настройки
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem className="text-white hover:bg-white/10 focus:bg-white/10">
+                  Поделиться профилем
+                </DropdownMenuItem>
+                <DropdownMenuItem className="text-white hover:bg-white/10 focus:bg-white/10">
+                  Пожаловаться
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </div>
     </Card>
