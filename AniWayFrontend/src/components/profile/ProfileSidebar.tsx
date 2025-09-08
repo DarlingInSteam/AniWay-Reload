@@ -177,6 +177,7 @@ export function ProfileSidebar({ friends, communities, activities, isOwnProfile,
       <UserActivityFeed 
         userId={userId}
         isOwnProfile={isOwnProfile}
+        limit={4}
       />
 
       {/* Статистика чтения с реальными данными */}

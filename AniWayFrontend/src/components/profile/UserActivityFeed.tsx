@@ -32,7 +32,7 @@ export function UserActivityFeed({
   userId, 
   isOwnProfile, 
   className = '',
-  limit = 8
+  limit = 4
 }: UserActivityFeedProps) {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,14 +72,13 @@ export function UserActivityFeed({
   }, [userId, limit]);
 
   const formatActivityTime = (timestamp: Date): string => {
-    const now = new Date();
-    const diff = now.getTime() - timestamp.getTime();
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const days = Math.floor(hours / 24);
-
-    if (days > 0) return `${days}д назад`;
-    if (hours > 0) return `${hours}ч назад`;
-    return 'только что';
+    return new Date(timestamp).toLocaleString('ru-RU', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   const getActivityIcon = (type: ActivityItem['type']) => {

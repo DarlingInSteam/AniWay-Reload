@@ -268,12 +268,6 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
                     Настройки
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem className="text-white hover:bg-white/10 focus:bg-white/10">
-                  Поделиться профилем
-                </DropdownMenuItem>
-                <DropdownMenuItem className="text-white hover:bg-white/10 focus:bg-white/10">
-                  Пожаловаться
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { extendedProfileService } from '@/services/extendedProfileService';
+import { reviewsService } from '@/services/reviewsService';
 
 interface StatisticsData {
   totalMangaRead: number;
@@ -39,10 +40,26 @@ export function UserStatistics({ userId, className = '', profileData }: UserStat
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const calculateAverageRating = async (userId?: number): Promise<number> => {
+    try {
+      const reviews = await reviewsService.getUserReviews(userId);
+      if (reviews.length === 0) return 0;
+      
+      const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
+      return totalRating / reviews.length;
+    } catch (error) {
+      console.error('Ошибка при расчете средней оценки:', error);
+      return 0;
+    }
+  };
+
   const loadStatistics = async () => {
     try {
       setLoading(true);
       setError(null);
+      
+      // Рассчитываем среднюю оценку из отзывов пользователя
+      const averageRating = await calculateAverageRating(userId);
       
       // Если переданы данные профиля, используем их
       if (profileData) {
@@ -52,7 +69,7 @@ export function UserStatistics({ userId, className = '', profileData }: UserStat
           totalReadingTimeMinutes: 0, // TODO: Добавить отслеживание времени
           favoriteGenres: profileData.favoriteGenres || [],
           readingStreak: profileData.readingStreak || 0,
-          averageRating: 0 // TODO: Добавить рейтинги
+          averageRating: averageRating
         });
         setLoading(false);
         return;
@@ -65,7 +82,7 @@ export function UserStatistics({ userId, className = '', profileData }: UserStat
         totalReadingTimeMinutes: stats.totalReadingTimeMinutes || 0,
         favoriteGenres: stats.favoriteGenres || [],
         readingStreak: stats.readingStreak || 0,
-        averageRating: stats.averageRating || 0
+        averageRating: averageRating // Используем рассчитанную среднюю оценку
       });
     } catch (err) {
       console.error('Ошибка загрузки статистики:', err);

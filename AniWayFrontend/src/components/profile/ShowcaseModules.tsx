@@ -358,7 +358,8 @@ interface UserCommentsProps {
 }
 
 export function UserComments({ userId, isOwnProfile }: UserCommentsProps) {
-  const { comments, loading, error } = useUserComments(userId, 5);
+  const [showAll, setShowAll] = useState(false);
+  const { comments, loading, error } = useUserComments(userId, showAll ? 50 : 5);
 
   const getCommentTypeText = (type: string): string => {
     switch (type) {
@@ -543,8 +544,12 @@ export function UserComments({ userId, isOwnProfile }: UserCommentsProps) {
           })}
           
           {comments.length >= 5 && (
-            <Button variant="outline" className="w-full mt-4 border-gray-600 text-gray-300 hover:bg-white/8">
-              Показать все комментарии
+            <Button 
+              variant="outline" 
+              className="w-full mt-4 border-gray-600 text-gray-300 hover:bg-white/8"
+              onClick={() => setShowAll(!showAll)}
+            >
+              {showAll ? 'Скрыть комментарии' : 'Показать все комментарии'}
             </Button>
           )}
         </div>
