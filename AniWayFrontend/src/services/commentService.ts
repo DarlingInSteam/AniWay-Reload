@@ -136,6 +136,15 @@ class CommentService {
   }
 
   /**
+   * Удаление реакции с комментария
+   */
+  async removeReaction(commentId: number): Promise<void> {
+    return this.request(`/${commentId}/reactions`, {
+      method: 'DELETE'
+    })
+  }
+
+  /**
    * Получение количества комментариев для цели
    */
   async getCommentsCount(
@@ -149,6 +158,13 @@ class CommentService {
 
     const result = await this.request<{ count: number }>(`/count?${params}`)
     return result.count || 0
+  }
+
+  /**
+   * Получение всех комментариев пользователя
+   */
+  async getUserComments(userId: number): Promise<CommentResponseDTO[]> {
+    return this.request(`/user/${userId}`)
   }
 
   /**

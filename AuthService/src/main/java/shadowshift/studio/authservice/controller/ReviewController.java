@@ -209,7 +209,24 @@ public class ReviewController {
             return ResponseEntity.badRequest().build();
         }
     }
-    
+    /**
+     * Получает отзыв по идентификатору.
+     *
+     * @param reviewId идентификатор отзыва
+     * @param authentication объект аутентификации (может быть null)
+     * @return ResponseEntity с ReviewDTO или 404, если не найдено
+     */
+    @GetMapping("/{reviewId}")
+    public ResponseEntity<ReviewDTO> getReviewById(
+            @PathVariable Long reviewId,
+            Authentication authentication) {
+        String username = authentication != null ? authentication.getName() : null;
+        Optional<ReviewDTO> review = reviewService.getReviewById(reviewId, username);
+        return review.map(ResponseEntity::ok)
+                     .orElse(ResponseEntity.notFound().build());
+    }
+
+
     /**
      * Внутренний класс для запроса на создание отзыва.
      *

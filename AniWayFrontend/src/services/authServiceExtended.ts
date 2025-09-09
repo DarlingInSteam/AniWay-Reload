@@ -1,5 +1,31 @@
 import { AuthResponse, LoginRequest, RegisterRequest, User } from '../types'
 
+// Типы для активности
+export interface ActivityDTO {
+  id: number
+  userId: number
+  activityType: string
+  message: string
+  timestamp: string
+  mangaId?: number
+  mangaTitle?: string
+  chapterId?: number
+  chapterNumber?: number
+  reviewId?: number
+  actionUrl?: string
+}
+
+// Типы для статистики
+export interface ReadingStatistics {
+  totalMangaRead?: number
+  totalChaptersRead?: number
+  totalPagesRead?: number
+  totalReadingTimeMinutes?: number
+  favoriteGenres?: string[]
+  readingStreak?: number
+  averageRating?: number
+}
+
 class AuthService {
   private baseUrl = '/api'
   private tokenKey = 'authToken'
@@ -123,6 +149,81 @@ class AuthService {
     }
 
     return response.json()
+  }
+
+  // === НОВЫЕ МЕТОДЫ ДЛЯ АКТИВНОСТИ ===
+
+  /**
+   * Получить активность пользователя
+   */
+  async getUserActivity(userId: number, limit: number = 20): Promise<ActivityDTO[]> {
+    const response = await fetch(`${this.baseUrl}/auth/activity/user/${userId}?limit=${limit}`, {
+      headers: this.getAuthHeaders()
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch user activity')
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Получить активность чтения пользователя
+   */
+  async getUserReadingActivity(userId: number, limit: number = 20): Promise<ActivityDTO[]> {
+    const response = await fetch(`${this.baseUrl}/auth/activity/user/${userId}/reading?limit=${limit}`, {
+      headers: this.getAuthHeaders()
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch user reading activity')
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Получить активность отзывов пользователя
+   */
+  async getUserReviewActivity(userId: number, limit: number = 20): Promise<ActivityDTO[]> {
+    const response = await fetch(`${this.baseUrl}/auth/activity/user/${userId}/reviews?limit=${limit}`, {
+      headers: this.getAuthHeaders()
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch user review activity')
+    }
+
+    return response.json()
+  }
+
+  // === НОВЫЕ МЕТОДЫ ДЛЯ СТАТИСТИКИ ===
+
+  /**
+   * Получить статистику чтения пользователя
+   */
+  async getReadingStatistics(): Promise<ReadingStatistics> {
+    const response = await fetch(`${this.baseUrl}/auth/progress/stats`, {
+      headers: this.getAuthHeaders()
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch reading statistics')
+    }
+
+    const stats = await response.json()
+    
+    // Преобразуем строковые значения в числовые если необходимо
+    return {
+      totalMangaRead: parseInt(stats.totalMangaRead) || 0,
+      totalChaptersRead: parseInt(stats.totalChaptersRead) || 0,
+      totalPagesRead: parseInt(stats.totalPagesRead) || 0,
+      totalReadingTimeMinutes: parseInt(stats.totalReadingTimeMinutes) || 0,
+      favoriteGenres: Array.isArray(stats.favoriteGenres) ? stats.favoriteGenres : [],
+      readingStreak: parseInt(stats.readingStreak) || 0,
+      averageRating: parseFloat(stats.averageRating) || 0
+    }
   }
 
   // Получить роль пользователя из токена

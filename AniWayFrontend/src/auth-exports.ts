@@ -31,7 +31,6 @@ export { progressService } from './services/progressService'
 
 // Pages
 export { AuthPage } from './pages/AuthPage'
-export { ProfilePage } from './pages/ProfilePage'
 export { LibraryPage } from './pages/LibraryPage'
 
 // Types

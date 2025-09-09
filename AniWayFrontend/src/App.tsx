@@ -6,7 +6,6 @@ import { ReaderPage } from './pages/ReaderPage'
 import { AdminMangaPage } from './pages/AdminMangaPage'
 import { AuthPage } from './pages/AuthPage'
 import { ProfilePage } from './pages/ProfilePage'
-import PublicProfilePage from './pages/PublicProfilePage'
 import { LibraryPage } from './pages/LibraryPage'
 import ApiDocsPage from './pages/ApiDocsPage'
 import { AuthProvider, ProtectedRoute } from './contexts/AuthContext'
@@ -32,12 +31,7 @@ function App() {
               <ProfilePage />
             </ProtectedRoute>
           } />
-          <Route path="/profile/:userId" element={<PublicProfilePage />} />
-          <Route path="/library" element={
-            <ProtectedRoute>
-              <LibraryPage />
-            </ProtectedRoute>
-          } />
+          <Route path="/profile/:userId" element={<ProfilePage />} />
           <Route path="/bookmarks" element={
             <ProtectedRoute>
               <LibraryPage />
