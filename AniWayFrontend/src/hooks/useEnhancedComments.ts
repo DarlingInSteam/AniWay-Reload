@@ -134,9 +134,9 @@ export function useEnhancedComments(
         // Обрабатываем комментарии с полученными данными
         const enhanced = commentsToProcess.map((comment): EnhancedCommentResponseDTO => {
           let targetInfo = {
-            text: `${getCommentTypeText(comment.type)} #${comment.targetId}`,
-            icon: getCommentTypeIcon(comment.type),
-            color: getCommentTypeColor(comment.type)
+            text: `${getCommentTypeText(comment.type || 'UNKNOWN')} #${comment.targetId}`,
+            icon: getCommentTypeIcon(comment.type || 'UNKNOWN'),
+            color: getCommentTypeColor(comment.type || 'UNKNOWN')
           };
 
           // Устанавливаем конкретную информацию на основе типа
@@ -209,9 +209,9 @@ export function useEnhancedComments(
         const fallbackComments: EnhancedCommentResponseDTO[] = comments.slice(0, maxComments).map((comment: CommentResponseDTO) => ({
           ...comment,
           targetInfo: {
-            text: `${getCommentTypeText(comment.type)} #${comment.targetId}`,
-            icon: getCommentTypeIcon(comment.type),
-            color: getCommentTypeColor(comment.type)
+            text: `${getCommentTypeText(comment.type || 'UNKNOWN')} #${comment.targetId}`,
+            icon: getCommentTypeIcon(comment.type || 'UNKNOWN'),
+            color: getCommentTypeColor(comment.type || 'UNKNOWN')
           }
         }));
         setEnhancedComments(fallbackComments);

@@ -76,7 +76,7 @@ export default function CommentTestPage() {
 
         <div className="bg-gray-800 rounded-lg p-6">
           <UserComments 
-            comments={testComments} 
+            userId={1} 
             isOwnProfile={true} 
           />
         </div>
