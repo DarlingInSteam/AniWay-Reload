@@ -386,7 +386,7 @@ export function UserComments({ userId, isOwnProfile }: UserCommentsProps) {
     }
   };
 
-  const calculateRating = (comment: HookEnhancedCommentResponseDTO) => {
+  const calculateRating = (comment: CommentResponseDTO) => {
     return comment.likesCount - comment.dislikesCount;
   };
 
@@ -426,134 +426,6 @@ export function UserComments({ userId, isOwnProfile }: UserCommentsProps) {
     );
   }
 
-  // Вспомогательная функция для рендера дерева комментариев
-  const renderCommentTree = (comment: any, depth = 0) => {
-    const rating = calculateRating(comment);
-    const commentType = comment.commentType || comment.type;
-    const isReply = comment.parentCommentId !== null;
-
-    return (
-      <div key={comment.id} className={`border-b border-gray-700 last:border-b-0 pb-4 last:pb-0 ml-${depth * 4}`}> {/* отступ для вложенности */}
-        {/* Заголовок комментария */}
-        <div className="flex items-start justify-between mb-2">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <Badge variant="outline" className="text-xs border-gray-600 text-gray-300">
-                {getCommentTypeText(commentType || 'UNKNOWN')}
-              </Badge>
-              <span className={`text-xs flex items-center gap-1 ${getCommentTypeColor(commentType || 'UNKNOWN')}`}>
-                <span>{getCommentTypeIcon(commentType || 'UNKNOWN')}</span>
-                <span className="truncate max-w-48">
-                  {commentType} #{comment.targetId}
-                </span>
-              </span>
-            </div>
-            <div className="text-xs text-gray-500 mb-1">
-              от <span className="text-blue-400 font-medium">{comment.username}</span>
-              {isReply && comment.parentCommentAuthor && (
-                <span className="ml-2 text-orange-400">
-                  в ответ на @{comment.parentCommentAuthor}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-3 text-xs flex-shrink-0 ml-2">
-            <div className={`flex items-center gap-1 font-medium ${
-              rating > 0 ? 'text-green-400' : 
-              rating < 0 ? 'text-red-400' : 'text-gray-400'
-            }`}>
-              <ThumbsUp className={`w-3 h-3 ${rating < 0 ? 'rotate-180' : ''}`} />
-              <span>{rating > 0 ? `+${rating}` : rating}</span>
-            </div>
-          </div>
-        </div>
-        <div className="relative">
-          {isReply && (
-            <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-orange-400 to-transparent"></div>
-          )}
-          {/* Цитата родительского комментария (если есть данные) */}
-          {isReply && comment.parentCommentContent && (
-            <div className="mb-2 pl-3 border-l-2 border-orange-400/30">
-              <div className="bg-gray-800/50 rounded-md p-2 text-xs">
-                <div className="flex items-center gap-1 mb-1 text-orange-400">
-                  <Reply className="w-3 h-3" />
-                  <span>@{comment.parentCommentAuthor || 'Неизвестный'}:</span>
-                </div>
-                <p className="text-gray-400 italic line-clamp-2">
-                  "{comment.parentCommentContent}"
-                </p>
-              </div>
-            </div>
-          )}
-          <p className={`text-sm text-gray-300 line-clamp-3 mb-2 ${isReply ? 'pl-3' : 'pl-2'} ${
-            isReply ? 'border-l-2 border-orange-400/30' : 'border-l-2 border-gray-700'
-          }`}>
-            {comment.content}
-          </p>
-        </div>
-        <div className="flex items-center justify-between text-xs text-gray-500 mt-2">
-          <span className="flex items-center gap-2">
-            <time dateTime={comment.createdAt}>
-              {new Date(comment.createdAt).toLocaleString('ru-RU', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })}
-            </time>
-          </span>
-          <div className="flex items-center gap-2">
-            {comment.isEdited && (
-              <span className="text-yellow-400 text-xs px-1.5 py-0.5 rounded bg-yellow-400/10">
-                ред.
-              </span>
-            )}
-            {comment.isDeleted && (
-              <span className="text-red-400 text-xs px-1.5 py-0.5 rounded bg-red-400/10">
-                удален
-              </span>
-            )}
-          </div>
-        </div>
-        {/* Рекурсивно рендерим ответы (replies) */}
-        {comment.replies && comment.replies.length > 0 && (
-          <div className="ml-4 mt-2">
-            {comment.replies.map((reply: any) => renderCommentTree(reply, depth + 1))}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // Если комментарий — ответ, показываем сначала родительский комментарий, затем сам ответ
-  const renderUserComments = () => {
-    return comments.map((comment) => {
-      // Если это ответ на комментарий и есть информация о родительском комментарии
-      if (comment.parentCommentId && comment.parentCommentContent && comment.parentCommentAuthor) {
-        return (
-          <div key={comment.id} className="mb-6">
-            {/* Родительский комментарий */}
-            <div className="bg-gray-800/30 rounded-lg p-3 mb-2">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs text-gray-400">Исходный комментарий:</span>
-                <span className="text-blue-400 font-medium text-sm">@{comment.parentCommentAuthor}</span>
-              </div>
-              <p className="text-sm text-gray-300 italic">"{comment.parentCommentContent}"</p>
-            </div>
-            {/* Ответ пользователя */}
-            <div className="ml-4 border-l-2 border-orange-400/30 pl-3">
-              {renderCommentTree(comment)}
-            </div>
-          </div>
-        );
-      } else {
-        // Обычный комментарий (или корневой)
-        return renderCommentTree(comment);
-      }
-    });
-  };
-
   return (
     <ShowcaseModule
       title="Комментарии пользователя"
@@ -562,7 +434,110 @@ export function UserComments({ userId, isOwnProfile }: UserCommentsProps) {
     >
       {comments.length > 0 ? (
         <div className="space-y-4">
-          {renderUserComments()}
+          {comments.map((comment) => {
+            const rating = calculateRating(comment);
+            const isReply = comment.parentCommentId !== null;
+            const commentType = (comment as any).commentType || comment.type;
+
+            return (
+              <div key={comment.id} className="border-b border-gray-700 last:border-b-0 pb-4 last:pb-0">
+                {/* Заголовок комментария */}
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <Badge variant="outline" className="text-xs border-gray-600 text-gray-300">
+                        {getCommentTypeText(commentType || 'UNKNOWN')}
+                      </Badge>
+                      <span className={`text-xs flex items-center gap-1 ${getCommentTypeColor(commentType || 'UNKNOWN')}`}>
+                        <span>{getCommentTypeIcon(commentType || 'UNKNOWN')}</span>
+                        <span className="truncate max-w-48">
+                          {commentType} #{comment.targetId}
+                        </span>
+                      </span>
+                    </div>
+
+                    {/* Информация об авторе */}
+                    <div className="text-xs text-gray-500 mb-1">
+                      от <span className="text-blue-400 font-medium">{comment.username}</span>
+                      {isReply && comment.parentCommentAuthor && (
+                        <span className="ml-2 text-orange-400">
+                          в ответ на @{comment.parentCommentAuthor}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Рейтинг и статистика */}
+                  <div className="flex items-center gap-3 text-xs flex-shrink-0 ml-2">
+                    <div className={`flex items-center gap-1 font-medium ${
+                      rating > 0 ? 'text-green-400' : 
+                      rating < 0 ? 'text-red-400' : 'text-gray-400'
+                    }`}>
+                      <ThumbsUp className={`w-3 h-3 ${rating < 0 ? 'rotate-180' : ''}`} />
+                      <span>{rating > 0 ? `+${rating}` : rating}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Содержимое комментария */}
+                <div className="relative">
+                  {isReply && (
+                    <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-orange-400 to-transparent"></div>
+                  )}
+
+                  {/* Цитата родительского комментария (если есть) */}
+                  {isReply && comment.parentCommentContent && (
+                    <div className="mb-2 pl-3 border-l-2 border-orange-400/30">
+                      <div className="bg-gray-800/50 rounded-md p-2 text-xs">
+                        <div className="flex items-center gap-1 mb-1 text-orange-400">
+                          <Reply className="w-3 h-3" />
+                          <span>@{comment.parentCommentAuthor}:</span>
+                        </div>
+                        <p className="text-gray-400 italic line-clamp-2">
+                          "{comment.parentCommentContent}"
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <p className={`text-sm text-gray-300 line-clamp-3 mb-2 ${isReply ? 'pl-3' : 'pl-2'} ${
+                    isReply ? 'border-l-2 border-orange-400/30' : 'border-l-2 border-gray-700'
+                  }`}>
+                    {comment.content}
+                  </p>
+                </div>
+
+                {/* Метаинформация */}
+                <div className="flex items-center justify-between text-xs text-gray-500 mt-2">
+                  <span className="flex items-center gap-2">
+                    <time dateTime={comment.createdAt}>
+                      {new Date(comment.createdAt).toLocaleString('ru-RU', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </time>
+                  </span>
+
+                  <div className="flex items-center gap-2">
+                    {comment.isEdited && (
+                      <span className="text-yellow-400 text-xs px-1.5 py-0.5 rounded bg-yellow-400/10">
+                        ред.
+                      </span>
+                    )}
+                    {comment.isDeleted && (
+                      <span className="text-red-400 text-xs px-1.5 py-0.5 rounded bg-red-400/10">
+                        удален
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
           {comments.length >= 5 && (
             <Button 
               variant="outline" 
