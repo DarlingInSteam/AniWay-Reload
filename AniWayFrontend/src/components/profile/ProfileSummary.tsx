@@ -65,7 +65,7 @@ export function ProfileSummary({ profile, isOwnProfile, onProfileUpdate }: Profi
                 value={newBio}
                 onChange={(e) => setNewBio(e.target.value)}
                 placeholder="Расскажите о себе..."
-                className="min-h-[100px] bg-white/8 border-white/15 resize-none text-white placeholder:text-gray-400 focus:border-white/25"
+                className="min-h-[100px] bg-gray-800/50 border-gray-600 resize-none text-gray-100 placeholder:text-gray-400 focus:border-gray-400 focus:ring-2 focus:ring-gray-400/20"
                 maxLength={1000}
               />
               <div className="flex items-center justify-between">

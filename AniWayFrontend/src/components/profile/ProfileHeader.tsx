@@ -19,6 +19,7 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
   const [isEditingUsername, setIsEditingUsername] = useState(false);
   const [newUsername, setNewUsername] = useState(profile.username);
   const [avatarUploadOpen, setAvatarUploadOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Вычисляем уровень пользователя и прогресс
   const levels = [
@@ -88,7 +89,8 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
   };
 
   return (
-    <Card className="relative p-6 bg-white/5 backdrop-blur-md border border-white/10 shadow-lg">
+    <>
+      <Card className="relative p-6 bg-white/5 backdrop-blur-md border border-white/10 shadow-lg">
       <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
         {/* Аватар */}
         <div className="relative group">
@@ -263,7 +265,10 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {isOwnProfile && (
-                  <DropdownMenuItem className="text-white hover:bg-white/10 focus:bg-white/10">
+                  <DropdownMenuItem 
+                    className="text-white hover:bg-white/10 focus:bg-white/10"
+                    onClick={() => setSettingsOpen(true)}
+                  >
                     <Settings className="w-4 h-4 mr-2" />
                     Настройки
                   </DropdownMenuItem>
@@ -274,5 +279,115 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
         </div>
       </div>
     </Card>
+
+    {/* Диалог настроек профиля */}
+    <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+      <DialogContent className="bg-black backdrop-blur-md border border-white/10 max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="text-white text-xl">Настройки профиля</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-6 max-h-[70vh] overflow-y-auto">
+          {/* Основные настройки */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium text-white">Основные настройки</h3>
+            
+            {/* Отображаемое имя */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">Отображаемое имя</label>
+              <Input
+                defaultValue={profile.displayName || profile.username}
+                className="bg-gray-800/50 border-gray-600 text-gray-100 focus:border-gray-400"
+                placeholder="Ваше отображаемое имя"
+              />
+              <p className="text-xs text-gray-400">Это имя будут видеть другие пользователи</p>
+            </div>
+
+            {/* Email */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">Email</label>
+              <Input
+                defaultValue={profile.email}
+                className="bg-gray-800/50 border-gray-600 text-gray-100 focus:border-gray-400"
+                placeholder="your.email@example.com"
+                type="email"
+              />
+            </div>
+          </div>
+
+          {/* Настройки приватности */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium text-white">Настройки приватности</h3>
+            <div className="grid grid-cols-1 gap-4">
+              <div className="flex items-center justify-between p-3 bg-gray-800/30 rounded-lg">
+                <div>
+                  <p className="text-sm font-medium text-gray-200">Показывать мою активность</p>
+                  <p className="text-xs text-gray-400">Другие пользователи смогут видеть ваши комментарии и отзывы</p>
+                </div>
+                <Button variant="outline" size="sm" className="border-gray-600">Включено</Button>
+              </div>
+              
+              <div className="flex items-center justify-between p-3 bg-gray-800/30 rounded-lg">
+                <div>
+                  <p className="text-sm font-medium text-gray-200">Показывать прогресс чтения</p>
+                  <p className="text-xs text-gray-400">Отображение текущего прогресса чтения в профиле</p>
+                </div>
+                <Button variant="outline" size="sm" className="border-gray-600">Включено</Button>
+              </div>
+              
+              <div className="flex items-center justify-between p-3 bg-gray-800/30 rounded-lg">
+                <div>
+                  <p className="text-sm font-medium text-gray-200">Показывать избранное</p>
+                  <p className="text-xs text-gray-400">Отображение списка любимой манги в профиле</p>
+                </div>
+                <Button variant="outline" size="sm" className="border-gray-600">Включено</Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Уведомления */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium text-white">Уведомления</h3>
+            <div className="grid grid-cols-1 gap-4">
+              <div className="flex items-center justify-between p-3 bg-gray-800/30 rounded-lg">
+                <div>
+                  <p className="text-sm font-medium text-gray-200">Email-уведомления</p>
+                  <p className="text-xs text-gray-400">Получать уведомления на электронную почту</p>
+                </div>
+                <Button variant="outline" size="sm" className="border-gray-600">Отключено</Button>
+              </div>
+              
+              <div className="flex items-center justify-between p-3 bg-gray-800/30 rounded-lg">
+                <div>
+                  <p className="text-sm font-medium text-gray-200">Уведомления о новых главах</p>
+                  <p className="text-xs text-gray-400">Получать уведомления о выходе новых глав</p>
+                </div>
+                <Button variant="outline" size="sm" className="border-gray-600">Включено</Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Кнопки действий */}
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-700">
+            <Button
+              variant="outline"
+              onClick={() => setSettingsOpen(false)}
+              className="border-gray-600 text-gray-300 hover:bg-gray-800/50"
+            >
+              Отмена
+            </Button>
+            <Button
+              className="bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/30"
+              onClick={() => {
+                // TODO: Сохранение настроек
+                setSettingsOpen(false);
+              }}
+            >
+              Сохранить изменения
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
