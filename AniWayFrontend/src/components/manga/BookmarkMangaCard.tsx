@@ -37,7 +37,7 @@ export function BookmarkMangaCard({ bookmark }: BookmarkMangaCardProps) {
   // Используем либо загруженные данные манги, либо данные из закладки
   const mangaData = manga || bookmark.manga || {
     id: bookmark.mangaId,
-    title: (bookmark as any).mangaTitle || `Манга ${bookmark.mangaId}`,
+    title: `Манга ${bookmark.mangaId}`,
     coverImageUrl: (bookmark as any).mangaCoverUrl,
     totalChapters: 0,
     genre: (bookmark as any).mangaGenre || '',

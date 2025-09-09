@@ -93,7 +93,7 @@ const DropdownMenuContent: React.FC<DropdownMenuContentProps> = ({
     <div
       ref={contentRef}
       className={cn(
-        "absolute z-50 min-w-[8rem] overflow-hidden rounded-md border bg-gray-800 p-1 text-white shadow-lg mt-1",
+        "absolute z-[50] min-w-[8rem] overflow-hidden rounded-md border bg-gray-800 p-1 text-white shadow-lg mt-1",
         alignClass
       )}
     >

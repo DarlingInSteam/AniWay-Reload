@@ -28,7 +28,8 @@ export interface CommentResponseDTO {
   username: string
   userAvatar?: string
   targetId: number
-  type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW'
+  type?: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' // Опциональное для обратной совместимости
+  commentType?: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' // Реальное поле с бэкенда
   parentCommentId?: number
   createdAt: string
   updatedAt: string
@@ -36,8 +37,22 @@ export interface CommentResponseDTO {
   isDeleted: boolean
   likesCount: number
   dislikesCount: number
+  userReaction?: 'LIKE' | 'DISLIKE'
   replies?: CommentResponseDTO[]
   repliesCount?: number
+}
+
+// Расширенная версия комментария с дополнительной информацией
+export interface EnhancedCommentResponseDTO extends CommentResponseDTO {
+  targetInfo?: {
+    text: string
+    icon: string
+    color: string
+  }
+  parentCommentInfo?: {
+    username: string
+    content: string
+  }
 }
 
 export interface CommentReactionDTO {

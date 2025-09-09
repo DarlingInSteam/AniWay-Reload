@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 
 export const UserMenu: React.FC = () => {
@@ -30,18 +31,18 @@ export const UserMenu: React.FC = () => {
   if (!user) {
     return (
       <div className="flex items-center space-x-4">
-        <a
-          href="/login"
+        <Link
+          to="/login"
           className="text-muted-foreground hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors"
         >
           Вход
-        </a>
-        <a
-          href="/register"
+        </Link>
+        <Link
+          to="/register"
           className="bg-primary hover:bg-primary/80 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
         >
           Регистрация
-        </a>
+        </Link>
       </div>
     )
   }
@@ -77,68 +78,68 @@ export const UserMenu: React.FC = () => {
 
       {isOpen && (
         <div className="absolute right-0 mt-2 w-48 bg-card rounded-md shadow-lg py-1 z-50 border border-border/30">
-          <a
-            href="/profile"
+          <Link
+            to="/profile"
             className="block px-4 py-2 text-sm text-white hover:bg-secondary transition-colors"
             onClick={() => setIsOpen(false)}
           >
             Мой профиль
-          </a>
-          
-          <a
-            href="/library"
+          </Link>
+
+          <Link
+            to="/library"
             className="block px-4 py-2 text-sm text-white hover:bg-secondary transition-colors"
             onClick={() => setIsOpen(false)}
           >
             Моя библиотека
-          </a>
+          </Link>
 
-          <a
-            href="/bookmarks"
+          <Link
+            to="/bookmarks"
             className="block px-4 py-2 text-sm text-white hover:bg-secondary transition-colors"
             onClick={() => setIsOpen(false)}
           >
             Закладки
-          </a>
+          </Link>
 
-          <a
-            href="/reading-history"
+          <Link
+            to="/reading-history"
             className="block px-4 py-2 text-sm text-white hover:bg-secondary transition-colors"
             onClick={() => setIsOpen(false)}
           >
             История чтения
-          </a>
+          </Link>
 
           {isTranslator && (
             <>
               <hr className="my-1 border-border/30" />
-              <a
-                href="/translator"
+              <Link
+                to="/translator"
                 className="block px-4 py-2 text-sm text-white hover:bg-secondary transition-colors"
                 onClick={() => setIsOpen(false)}
               >
                 Панель переводчика
-              </a>
+              </Link>
             </>
           )}
 
           {isAdmin && (
             <>
               <hr className="my-1 border-border/30" />
-              <a
-                href="/admin"
+              <Link
+                to="/admin"
                 className="block px-4 py-2 text-sm text-white hover:bg-secondary transition-colors"
                 onClick={() => setIsOpen(false)}
               >
                 Админ панель
-              </a>
-              <a
-                href="/admin/users"
+              </Link>
+              <Link
+                to="/admin/users"
                 className="block px-4 py-2 text-sm text-white hover:bg-secondary transition-colors"
                 onClick={() => setIsOpen(false)}
               >
                 Управление пользователями
-              </a>
+              </Link>
             </>
           )}
 
