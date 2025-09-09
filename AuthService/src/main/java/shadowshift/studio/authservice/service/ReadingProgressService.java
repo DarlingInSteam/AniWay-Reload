@@ -160,7 +160,7 @@ public class ReadingProgressService {
      * @param username имя пользователя
      * @param chapterId идентификатор главы
      * @return объект DTO прогресса чтения или null, если не найден
-     * @throws IllegalArgumentException если пользователь не найден
+     * @throws IllegalArgumentException если пользователь не на��ден
      */
     public ReadingProgressDTO getChapterProgress(String username, Long chapterId) {
         var user = userRepository.findByUsername(username)
@@ -273,6 +273,45 @@ public class ReadingProgressService {
         return stats;
     }
     
+    /**
+     * Публичный метод: получает весь прогресс чтения пользователя по его userId.
+     * Используется публичным контроллером, не требует аутентификации по username.
+     *
+     * @param userId идентификатор пользователя
+     * @return список DTO прогресса чтения
+     * @throws IllegalArgumentException если пользователь не найден
+     */
+    public List<ReadingProgressDTO> getUserProgressById(Long userId) {
+        if (!userRepository.existsById(userId)) {
+            throw new IllegalArgumentException("User not found");
+        }
+
+        List<ReadingProgress> progressList = readingProgressRepository.findByUserId(userId);
+        return progressList.stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Публичный метод: получает прогресс чтения конкретной манги у пользователя по userId.
+     * Используется публичным контроллером.
+     *
+     * @param userId идентификатор пользователя
+     * @param mangaId идентификатор манги
+     * @return список DTO прогресса чтения для манги
+     * @throws IllegalArgumentException если пользователь не найден
+     */
+    public List<ReadingProgressDTO> getMangaProgressByUserId(Long userId, Long mangaId) {
+        if (!userRepository.existsById(userId)) {
+            throw new IllegalArgumentException("User not found");
+        }
+
+        List<ReadingProgress> progressList = readingProgressRepository.findByUserIdAndMangaId(userId, mangaId);
+        return progressList.stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
     private ReadingProgressDTO convertToDTO(ReadingProgress progress) {
         return ReadingProgressDTO.builder()
                 .id(progress.getId())
