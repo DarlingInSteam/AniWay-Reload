@@ -261,6 +261,18 @@ public class ReviewService {
                 .collect(Collectors.toList());
     }
     
+    /**
+     * Получает отзыв по его идентификатору.
+     *
+     * @param reviewId идентификатор отзыва
+     * @param currentUsername имя текущего пользователя (может быть null)
+     * @return Optional с DTO отзыва, если найден
+     */
+    public Optional<ReviewDTO> getReviewById(Long reviewId, String currentUsername) {
+        return reviewRepository.findById(reviewId)
+                .map(review -> convertToDTO(review, currentUsername));
+    }
+
     private void updateReviewCounts(Review review) {
         Long likes = reviewLikeRepository.countLikesByReviewId(review.getId());
         Long dislikes = reviewLikeRepository.countDislikesByReviewId(review.getId());
