@@ -255,6 +255,48 @@ class ReviewsService {
   }
 
   /**
+   * Получить отзыв по ID
+   */
+  async getReviewById(reviewId: string | number): Promise<UserReview | null> {
+    try {
+      // Используем метод GET /{reviewId} из auth-service API
+      const response = await apiClient.getReviewById(reviewId);
+      
+      // Получаем информацию о манге для отзыва
+      let mangaTitle = `Манга ${response.mangaId}`;
+      try {
+        const manga = await apiClient.getMangaById(response.mangaId);
+        mangaTitle = manga.title || mangaTitle;
+      } catch (error) {
+        console.warn(`Не удалось загрузить данные манги ${response.mangaId}:`, error);
+      }
+
+      return {
+        id: response.id.toString(),
+        mangaId: response.mangaId,
+        mangaTitle,
+        rating: response.rating,
+        text: response.comment || '',
+        createdAt: new Date(response.createdAt),
+        likes: response.likesCount || 0
+      };
+    } catch (error) {
+      console.error('Ошибка при получении отзыва по ID:', error);
+      
+      // В случае ошибки возвращаем заглушку с базовой информацией
+      return {
+        id: reviewId.toString(),
+        mangaId: 0,
+        mangaTitle: `Отзыв #${reviewId}`,
+        rating: 0,
+        text: '',
+        createdAt: new Date(),
+        likes: 0
+      };
+    }
+  }
+
+  /**
    * Валидировать данные отзыва
    */
   validateReviewData(data: CreateReviewData | UpdateReviewData): { isValid: boolean; errors: string[] } {

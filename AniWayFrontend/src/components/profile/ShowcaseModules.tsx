@@ -12,7 +12,7 @@ import {
 import { CommentResponseDTO, EnhancedCommentResponseDTO } from '@/types/comments';
 import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api';
-import { useUserComments, EnhancedCommentResponseDTO as HookEnhancedCommentResponseDTO } from '@/hooks/useUserComments';
+import { useEnhancedUserComments, EnhancedCommentResponseDTO as HookEnhancedCommentResponseDTO } from '@/hooks/useEnhancedUserComments';
 import { useUserReviews } from '@/hooks/useUserReviews';
 import {
   Heart,
@@ -354,7 +354,7 @@ interface UserCommentsProps {
 
 export function UserComments({ userId, isOwnProfile }: UserCommentsProps) {
   const [showAll, setShowAll] = useState(false);
-  const { comments, loading, error } = useUserComments(userId, showAll ? 50 : 5);
+  const { comments, loading, error } = useEnhancedUserComments(userId, showAll ? 50 : 5);
 
   const getCommentTypeText = (type: string): string => {
     switch (type) {
@@ -448,12 +448,22 @@ export function UserComments({ userId, isOwnProfile }: UserCommentsProps) {
                       <Badge variant="outline" className="text-xs border-gray-600 text-gray-300">
                         {getCommentTypeText(commentType || 'UNKNOWN')}
                       </Badge>
-                      <span className={`text-xs flex items-center gap-1 ${getCommentTypeColor(commentType || 'UNKNOWN')}`}>
-                        <span>{getCommentTypeIcon(commentType || 'UNKNOWN')}</span>
-                        <span className="truncate max-w-48">
-                          {commentType} #{comment.targetId}
-                        </span>
-                      </span>
+                      
+                      {comment.targetInfo && (
+                        <div className={`text-xs flex items-center gap-1 ${getCommentTypeColor(commentType || 'UNKNOWN')}`}>
+                          <span>{getCommentTypeIcon(commentType || 'UNKNOWN')}</span>
+                          <div className="flex flex-col">
+                            <span className="truncate max-w-48 font-medium">
+                              {comment.targetInfo.title}
+                            </span>
+                            {comment.targetInfo.subtitle && (
+                              <span className="text-xs opacity-75">
+                                {comment.targetInfo.subtitle}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Информация об авторе */}

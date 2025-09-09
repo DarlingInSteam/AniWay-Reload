@@ -26,14 +26,29 @@ class ProfileService {
       // Получаем данные пользователя
       const user = await this.getUserById(userId);
 
-      // Получаем закладки пользователя
-      const bookmarks = await this.getUserBookmarks(userId);
+      // Проверяем, это собственный профиль или чужой
+      const currentUser = await authService.getCurrentUser().catch(() => null);
+      const isOwnProfile = currentUser && currentUser.id.toString() === userId;
 
-      // Получаем прогресс чтения
-      const readingProgress = await this.getUserReadingProgress(userId);
+      let bookmarks: Bookmark[] = [];
+      let readingProgress: ReadingProgress[] = [];
+      let readingStats: any;
 
-      // Формируем статистику чтения
-      const readingStats = this.calculateReadingStats(bookmarks, readingProgress);
+      if (isOwnProfile) {
+        // Для собственного профиля получаем полные данные
+        bookmarks = await this.getUserBookmarks(userId);
+        readingProgress = await this.getUserReadingProgress(userId);
+        readingStats = this.calculateReadingStats(bookmarks, readingProgress);
+      } else {
+        // Для чужого профиля создаем статистику на основе публичных данных пользователя в дальнейшем получать из API public методами
+        readingStats = {
+          totalMangaRead: 0, // TODO: Добавить поле mangaReadCount в User
+          totalChaptersRead: user.chaptersReadCount || 0,
+          totalPagesRead: 0,
+          favoriteGenres: [],
+          readingStreak: 0
+        };
+      }
 
       return {
         user,
@@ -81,8 +96,10 @@ class ProfileService {
         return await bookmarkService.getUserBookmarks();
       }
 
-      // Для чужого профиля пытаемся получить публичные закладки
-      // TODO: Реализовать API для публичных закладок
+      // TODO: BACKEND - Для чужого профиля использовать публичные закладки
+      // После реализации эндпоинта раскомментировать:
+      // return await apiClient.getUserPublicBookmarksByUserId(parseInt(userId));
+      
       console.log('Получение публичных закладок пока не реализовано');
       return [];
     } catch (error) {
@@ -100,7 +117,11 @@ class ProfileService {
         return await getUserProgress();
       }
 
-      // Для чужого профиля прогресс чтения не показываем (приватная информация)
+      // TODO: BACKEND - Для чужого профиля прогресс чтения можно сделать публичным (опционально)
+      // После реализации эндпоинта раскомментировать:
+      // return await apiClient.getUserPublicProgressByUserId(parseInt(userId));
+      
+      // Пока для чужого профиля прогресс чтения не показываем (приватная информация)
       return [];
     } catch (error) {
       console.error('Ошибка при загрузке прогресса чтения:', error);

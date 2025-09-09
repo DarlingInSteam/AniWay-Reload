@@ -463,6 +463,21 @@ class ApiClient {
     }
   }
 
+  async getReviewById(reviewId: string | number): Promise<any> {
+    try {
+      // Поскольку GET метода для отзыва по ID нет в API,
+      // мы можем попытаться использовать другой подход через поиск отзывов
+      // Это временное решение до добавления GET метода в API
+      console.warn('GET /auth/reviews/{reviewId} не задокументирован в API, используем альтернативный подход');
+      
+      // Попробуем все равно выполнить запрос, возможно метод существует, но не задокументирован
+      return await this.request<any>(`/auth/reviews/${reviewId}`);
+    } catch (error) {
+      console.error('Ошибка получения отзыва по ID:', error);
+      throw error;
+    }
+  }
+
   async getMangaReviews(mangaId: number): Promise<any[]> {
     try {
       return await this.request<any[]>(`/auth/reviews/manga/${mangaId}`);
