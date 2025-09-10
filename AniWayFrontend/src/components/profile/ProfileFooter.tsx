@@ -19,41 +19,6 @@ export function ProfileFooter({
 
   return (
     <div className="space-y-6">
-      {/* Действия с профилем */}
-      <Card className="bg-white/3 backdrop-blur-md border border-white/8 shadow-lg">
-        <CardContent className="pt-6">
-          <div className="flex flex-wrap gap-3">
-            <Button
-              onClick={onShare}
-              variant="outline"
-              className="border-white/15 bg-white/3 text-gray-300 hover:bg-white/8"
-            >
-              <Share className="w-4 h-4 mr-2" />
-              Поделиться профилем
-            </Button>
-
-            {isOwnProfile && (
-              <Button
-                onClick={onExportData}
-                variant="outline"
-                className="border-white/15 bg-white/3 text-gray-300 hover:bg-white/8"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Экспорт данных
-              </Button>
-            )}
-
-            <Button
-              variant="outline"
-              className="border-white/15 bg-white/3 text-gray-300 hover:bg-white/8"
-            >
-              <MoreVertical className="w-4 h-4 mr-2" />
-              Ещё
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Комментарии к профилю */}
       <CommentSection
         targetId={userId}
