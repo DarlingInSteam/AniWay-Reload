@@ -172,9 +172,6 @@ export const LibraryPage: React.FC = () => {
             <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-2 bg-gradient-to-r from-white to-muted-foreground bg-clip-text text-transparent">
               Моя библиотека
             </h1>
-            <p className="text-muted-foreground text-sm md:text-base">
-              Управляйте своими закладками и отслеживайте прогресс чтения
-            </p>
           </div>
         </div>
 
