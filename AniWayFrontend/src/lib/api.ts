@@ -130,44 +130,21 @@ class ApiClient {
 
   // Bookmarks API
   async getUserPublicBookmarks(username: string): Promise<any[]> {
-    return this.request<any[]>(`/bookmarks/user/${username}`);
-  }
-
-  // Публичные данные пользователя по userId
-  async getUserPublicBookmarksByUserId(userId: number): Promise<any[]> {
-    // TODO: BACKEND - Добавить публичный эндпоинт для получения пользовательских закладок
-    // Предлагаемый эндпоинт: GET /auth/users/{userId}/public/bookmarks
-    console.warn(`TODO: Публичные закладки не реализованы на бэкенде для пользователя ${userId}`);
-    
-    // Временная заглушка - возвращаем пустой массив
-    // После реализации на бэкенде раскомментировать код ниже:
-    /*
     try {
-      return this.request<any[]>(`/auth/users/${userId}/public/bookmarks`);
+      return this.request<any[]>(`/bookmarks/user/${username}`);
     } catch (error) {
-      console.log(`Публичные закладки недоступны для пользователя ${userId}`);
+      console.error(`Ошибка при загрузке публичных закладок для пользователя ${username}:`, error);
       return [];
     }
-    */
-    return [];
   }
 
   async getUserPublicProgressByUserId(userId: number): Promise<any[]> {
-    // TODO: BACKEND - Добавить публичный эндпоинт для получения прогресса чтения пользователя
-    // Предлагаемый эндпоинт: GET /auth/users/{userId}/public/progress
-    console.warn(`TODO: Публичный прогресс не реализован на бэкенде для пользователя ${userId}`);
-    
-    // Временная заглушка - возвращаем пустой массив
-    // После реализации на бэкенде раскомментировать код ниже:
-    /*
     try {
       return this.request<any[]>(`/auth/users/${userId}/public/progress`);
     } catch (error) {
       console.log(`Публичный прогресс недоступен для пользователя ${userId}`);
       return [];
     }
-    */
-    return [];
   }
 
   async getUserBookmarksByStatus(status: string): Promise<any[]> {
@@ -313,6 +290,10 @@ class ApiClient {
 
   async getUserBookmarks(): Promise<any[]> {
     return this.request<any[]>('/bookmarks');
+  }
+
+  async getPublicUserBookmarks(username: string): Promise<any[]> {
+    return this.request<any[]>(`/bookmarks/user/${username}`);
   }
 
   // 3. Управление прогрессом чтения (используем существующий API)
