@@ -2,6 +2,8 @@ package shadowshift.studio.chapterservice.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import shadowshift.studio.chapterservice.dto.ChapterCreateDTO;
@@ -37,6 +39,7 @@ public class ChapterService {
      * @param mangaId идентификатор манги
      * @return список DTO глав манги
      */
+    @Cacheable(value = "chaptersByManga", key = "#mangaId")
     public List<ChapterResponseDTO> getChaptersByMangaId(Long mangaId) {
         return chapterRepository.findByMangaIdOrderByChapterNumberAsc(mangaId)
                 .stream()
@@ -67,6 +70,7 @@ public class ChapterService {
      * @param id идентификатор главы
      * @return Optional с DTO главы или пустой Optional если глава не найдена
      */
+    @Cacheable(value = "chapterDetails", key = "#id")
     public Optional<ChapterResponseDTO> getChapterById(Long id) {
         return chapterRepository.findById(id)
                 .map(chapter -> {
@@ -91,6 +95,7 @@ public class ChapterService {
      * @param mangaId идентификатор манги
      * @return количество глав
      */
+    @Cacheable(value = "chapterCount", key = "#mangaId")
     public Integer getChapterCountByMangaId(Long mangaId) {
         return chapterRepository.countByMangaId(mangaId);
     }
@@ -102,6 +107,7 @@ public class ChapterService {
      * @return DTO созданной главы
      * @throws RuntimeException если глава с таким номером уже существует
      */
+    @CacheEvict(value = {"chaptersByManga", "chapterCount", "nextChapter", "previousChapter"}, key = "#createDTO.mangaId")
     public ChapterResponseDTO createChapter(ChapterCreateDTO createDTO) {
         // Проверяем, что глава с таким номером еще не существует
         Optional<Chapter> existingChapter = chapterRepository
@@ -134,6 +140,7 @@ public class ChapterService {
      * @return Optional с DTO обновленной главы или пустой Optional если глава не найдена
      * @throws RuntimeException если новая нумерация главы конфликтует с существующими
      */
+    @CacheEvict(value = {"chaptersByManga", "chapterDetails", "chapterCount", "nextChapter", "previousChapter"}, allEntries = true)
     public Optional<ChapterResponseDTO> updateChapter(Long id, ChapterCreateDTO updateDTO) {
         return chapterRepository.findById(id)
                 .map(chapter -> {
@@ -164,6 +171,7 @@ public class ChapterService {
      *
      * @param id идентификатор главы для удаления
      */
+    @CacheEvict(value = {"chaptersByManga", "chapterDetails", "chapterCount", "nextChapter", "previousChapter"}, allEntries = true)
     public void deleteChapter(Long id) {
         // Удаляем связанные изображения перед удалением главы
         try {
@@ -188,6 +196,7 @@ public class ChapterService {
      * @param currentChapterNumber номер текущей главы
      * @return Optional со следующей главой или пустой Optional
      */
+    @Cacheable(value = "nextChapter", key = "#mangaId + '_' + #currentChapterNumber")
     public Optional<ChapterResponseDTO> getNextChapter(Long mangaId, Double currentChapterNumber) {
         return chapterRepository.findNextChapter(mangaId, currentChapterNumber)
                 .map(ChapterResponseDTO::new);
@@ -200,6 +209,7 @@ public class ChapterService {
      * @param currentChapterNumber номер текущей главы
      * @return Optional с предыдущей главой или пустой Optional
      */
+    @Cacheable(value = "previousChapter", key = "#mangaId + '_' + #currentChapterNumber")
     public Optional<ChapterResponseDTO> getPreviousChapter(Long mangaId, Double currentChapterNumber) {
         return chapterRepository.findPreviousChapter(mangaId, currentChapterNumber)
                 .map(ChapterResponseDTO::new);
@@ -228,6 +238,7 @@ public class ChapterService {
      * @return DTO обновленной главы
      * @throws RuntimeException если глава не найдена
      */
+    @CacheEvict(value = {"chapterDetails"}, key = "#chapterId")
     public ChapterResponseDTO updatePageCount(Long chapterId, Integer pageCount) {
         Chapter chapter = chapterRepository.findById(chapterId)
                 .orElseThrow(() -> new RuntimeException("Chapter not found with id: " + chapterId));
