@@ -29,6 +29,8 @@ export function CatalogPage() {
       }
       return apiClient.getAllManga()
     },
+    staleTime: 30000, // Данные считаются свежими 30 секунд
+    refetchOnWindowFocus: true, // Перезапрос при фокусе окна
   })
 
   const pageTitle = genre ? `Жанр: ${genre}` : 'Каталог'
