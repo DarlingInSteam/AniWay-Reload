@@ -68,10 +68,11 @@ public interface MangaRepository extends JpaRepository<Manga, Long> {
 
     /**
      * Инкрементирует счетчик просмотров манги.
+     * Использует COALESCE для корректной работы с NULL значениями.
      *
      * @param mangaId ID манги
      */
     @Modifying
-    @Query("UPDATE Manga m SET m.views = m.views + 1 WHERE m.id = :mangaId")
+    @Query("UPDATE Manga m SET m.views = COALESCE(m.views, 0) + 1 WHERE m.id = :mangaId")
     void incrementViews(@Param("mangaId") Long mangaId);
 }

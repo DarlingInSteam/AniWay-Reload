@@ -179,7 +179,13 @@ public class MangaService {
         return mangaRepository.findById(id)
                 .map(manga -> {
                     logger.debug("Манга найдена: {}", manga.getTitle());
-                    
+
+                    // Исправляем NULL значение в поле views, если оно есть
+                    if (manga.getViews() == null) {
+                        logger.warn("Найдено NULL значение в поле views для манги {}. Исправляем на 0", manga.getId());
+                        manga.setViews(0L);
+                    }
+
                     // Инкрементируем просмотры, если пользователь авторизован и прошло больше часа с последнего просмотра
                     if (userId != null) {
                         logger.info("Текущее количество просмотров манги {}: {}", manga.getId(), manga.getViews());
@@ -188,11 +194,11 @@ public class MangaService {
                     } else {
                         logger.info("Пользователь не авторизован, просмотры не инкрементируем для манги {}", manga.getId());
                     }
-                    
+
                     MangaResponseDTO responseDTO = mangaMapper.toResponseDTO(manga);
                     logger.info("Возвращаем мангу {} с просмотрами: {}", manga.getId(), responseDTO.getViews());
                     enrichWithChapterCount(responseDTO, manga);
-                    
+
                     return responseDTO;
                 });
     }
