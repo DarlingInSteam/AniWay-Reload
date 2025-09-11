@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams, Link } from 'react-router-dom'
 import {
   BookOpen, Play, Eye, Heart, Star, ChevronDown, ChevronUp, Send,
@@ -29,6 +29,7 @@ export function MangaPage() {
   const [isDesktop, setIsDesktop] = useState(false)
 
   const { user } = useAuth()
+  const queryClient = useQueryClient()
 
   // Track screen size
   useEffect(() => {
@@ -44,7 +45,18 @@ export function MangaPage() {
   const { data: manga, isLoading: mangaLoading } = useQuery({
     queryKey: ['manga', mangaId, user?.id],
     queryFn: () => apiClient.getMangaById(mangaId, user?.id),
+    staleTime: 0, // Данные всегда считаются устаревшими
+    refetchOnWindowFocus: true, // Перезапрос при фокусе окна
+    refetchOnMount: true, // Перезапрос при монтировании компонента
   })
+
+  // Инвалидируем кэш списка манг после загрузки данных о конкретной манге
+  useEffect(() => {
+    if (manga && !mangaLoading) {
+      // Инвалидируем кэш для всех запросов списка манг
+      queryClient.invalidateQueries({ queryKey: ['manga'] })
+    }
+  }, [manga, mangaLoading, queryClient])
 
   const { data: chapters, isLoading: chaptersLoading } = useQuery({
     queryKey: ['chapters', mangaId],

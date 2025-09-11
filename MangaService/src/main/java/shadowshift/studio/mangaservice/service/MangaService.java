@@ -191,6 +191,10 @@ public class MangaService {
                         logger.info("Текущее количество просмотров манги {}: {}", manga.getId(), manga.getViews());
                         logger.info("Инкрементируем просмотры для манги {} пользователем {}", manga.getId(), userId);
                         incrementViewsIfAllowed(manga.getId(), userId);
+
+                        // После инкремента получаем актуальные данные из базы данных
+                        manga = mangaRepository.findById(id).orElse(manga);
+                        logger.info("После инкремента: просмотры манги {} = {}", manga.getId(), manga.getViews());
                     } else {
                         logger.info("Пользователь не авторизован, просмотры не инкрементируем для манги {}", manga.getId());
                     }
@@ -226,6 +230,8 @@ public class MangaService {
             logger.info("Выполняем incrementViews для манги {}", mangaId);
             try {
                 mangaRepository.incrementViews(mangaId);
+                // Принудительно сохраняем изменения в базу данных
+                mangaRepository.flush();
                 logger.info("Успешно инкрементированы просмотры для манги {} пользователем {}", mangaId, userId);
             } catch (Exception e) {
                 logger.error("Ошибка при инкременте просмотров для манги {} пользователем {}: {}", mangaId, userId, e.getMessage(), e);
