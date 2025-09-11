@@ -22,15 +22,16 @@ export function CatalogPage() {
   const sort = searchParams.get('sort')
 
   const { data: manga, isLoading } = useQuery({
-    queryKey: ['manga', { genre, sort }],
+    queryKey: ['manga-catalog', { genre, sort }],
     queryFn: () => {
       if (genre) {
         return apiClient.searchManga({ genre })
       }
       return apiClient.getAllManga()
     },
-    staleTime: 30000, // Данные считаются свежими 30 секунд
-    refetchOnWindowFocus: true, // Перезапрос при фокусе окна
+    staleTime: 0, // Данные всегда считаются устаревшими
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
   })
 
   const pageTitle = genre ? `Жанр: ${genre}` : 'Каталог'
