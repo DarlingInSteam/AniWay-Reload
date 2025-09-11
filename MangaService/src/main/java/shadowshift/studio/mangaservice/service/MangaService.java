@@ -4,6 +4,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -89,6 +91,7 @@ public class MangaService {
      * @return список DTO с информацией о всех мангах
      */
     @Transactional(readOnly = true)
+    @Cacheable(value = "mangaCatalog", key = "'all'")
     public List<MangaResponseDTO> getAllManga() {
         logger.debug("Запрос списка всех манг");
         
@@ -121,6 +124,7 @@ public class MangaService {
      * @return список DTO с найденными мангами
      */
     @Transactional(readOnly = true)
+    @Cacheable(value = "mangaSearch", key = "#title + '_' + #author + '_' + #genre + '_' + #status")
     public List<MangaResponseDTO> searchManga(String title, String author, String genre, String status) {
         logger.debug("Поиск манги с параметрами - title: '{}', author: '{}', genre: '{}', status: '{}'",
                     title, author, genre, status);
@@ -163,6 +167,7 @@ public class MangaService {
      * @throws IllegalArgumentException если id равен null или отрицательному значению
      */
     @Transactional(readOnly = true)
+    @Cacheable(value = "mangaDetails", key = "#id")
     public Optional<MangaResponseDTO> getMangaById(Long id) {
         validateMangaId(id);
         
@@ -190,6 +195,7 @@ public class MangaService {
      * @throws IllegalArgumentException если createDTO равен null
      * @throws MangaValidationException если данные не прошли валидацию
      */
+    @CacheEvict(value = {"mangaCatalog", "mangaSearch"}, allEntries = true)
     public MangaResponseDTO createManga(MangaCreateDTO createDTO) {
         if (createDTO == null) {
             throw new IllegalArgumentException("DTO создания манги не может быть null");
@@ -223,6 +229,7 @@ public class MangaService {
      * @throws IllegalArgumentException если id равен null или updateDTO равен null
      * @throws MangaValidationException если данные не прошли валидацию
      */
+    @CacheEvict(value = {"mangaCatalog", "mangaSearch", "mangaDetails"}, key = "#id")
     public Optional<MangaResponseDTO> updateManga(Long id, MangaCreateDTO updateDTO) {
         validateMangaId(id);
         
@@ -259,6 +266,7 @@ public class MangaService {
      * @param id идентификатор удаляемой манги
      * @throws IllegalArgumentException если id равен null или отрицательному значению
      */
+    @CacheEvict(value = {"mangaCatalog", "mangaSearch", "mangaDetails"}, key = "#id")
     public void deleteManga(Long id) {
         validateMangaId(id);
         
