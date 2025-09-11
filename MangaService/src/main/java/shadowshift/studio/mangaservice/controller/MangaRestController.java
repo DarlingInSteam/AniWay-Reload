@@ -125,12 +125,8 @@ public class MangaRestController {
                 .map(manga -> {
                     logger.debug("API ответ: манга '{}' найдена", manga.getTitle());
 
-                    // Увеличиваем счетчик просмотров
-                    try {
-                        mangaService.incrementView(id, userId);
-                    } catch (Exception e) {
-                        logger.warn("Ошибка при увеличении счетчика просмотров для манги {}: {}", id, e.getMessage());
-                    }
+                    // НЕ увеличиваем счетчик просмотров здесь, поскольку это делается в frontend
+                    // incrementMangaView вызывается отдельно из React компонента
 
                     return ResponseEntity.ok(manga);
                 })

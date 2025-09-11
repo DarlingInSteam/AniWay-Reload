@@ -119,6 +119,7 @@ export interface User {
 
 export interface AuthResponse {
   token: string
+  type: string
   user: User
 }
 

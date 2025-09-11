@@ -8,6 +8,18 @@ class ApiClient {
     return token ? { 'Authorization': `Bearer ${token}` } : {};
   }
 
+  private getUserIdFromToken(): string | null {
+    const token = localStorage.getItem('authToken');
+    if (!token) return null;
+
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.sub || payload.userId || payload.id;
+    } catch {
+      return null;
+    }
+  }
+
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
     const token = localStorage.getItem('authToken');
@@ -29,6 +41,14 @@ class ApiClient {
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`API Error Details: ${errorText}`);
+
+      // Специальная обработка 401 ошибки - не показывать браузерное окно аутентификации
+      if (response.status === 401) {
+        // Очищаем токен при 401 ошибке
+        localStorage.removeItem('authToken');
+        throw new Error('Требуется авторизация. Пожалуйста, войдите в систему.');
+      }
+
       throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
@@ -71,7 +91,10 @@ class ApiClient {
   }
 
   async incrementMangaView(mangaId: number): Promise<void> {
-    await this.request<void>(`/manga/${mangaId}/view`, {
+    const userId = this.getUserIdFromToken();
+    const url = userId ? `/manga/${mangaId}/view?userId=${userId}` : `/manga/${mangaId}/view`;
+
+    await this.request<void>(url, {
       method: 'POST',
     });
   }

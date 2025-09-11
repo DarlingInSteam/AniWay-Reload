@@ -3,8 +3,6 @@ package shadowshift.studio.mangaservice.controller;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -145,17 +143,20 @@ public class MangaWebController {
      * @return имя шаблона детальной страницы или перенаправление при ошибке
      */
     @GetMapping("/{id}")
-    public String mangaDetailPage(@PathVariable Long id, Model model) {
+    public String mangaDetailPage(@PathVariable Long id,
+                                 @RequestParam(required = false) String userId,
+                                 @RequestHeader(value = "X-User-Id", required = false) String userIdHeader,
+                                 Model model) {
         return mangaService.getMangaById(id)
                 .map(manga -> {
                     model.addAttribute("manga", manga);
 
-                    // Получаем userId из аутентификации
-                    String userId = getCurrentUserId();
+                    // Получаем userId из параметров или заголовка
+                    String currentUserId = getCurrentUserId(userId, userIdHeader);
 
                     // Увеличиваем счетчик просмотров
                     try {
-                        mangaService.incrementView(id, userId);
+                        mangaService.incrementView(id, currentUserId);
                     } catch (Exception e) {
                         // Игнорируем ошибки счетчика, чтобы не ломать отображение страницы
                     }
@@ -329,18 +330,21 @@ public class MangaWebController {
 
     /**
      * Получает идентификатор текущего аутентифицированного пользователя.
+     * Для веб-интерфейса userId передается как параметр запроса или заголовок.
      *
+     * @param userIdParam userId из параметра запроса
+     * @param userIdHeader userId из заголовка
      * @return userId или null, если пользователь не аутентифицирован
      */
-    private String getCurrentUserId() {
-        try {
-            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-            if (authentication != null && authentication.isAuthenticated() &&
-                !"anonymousUser".equals(authentication.getPrincipal())) {
-                return authentication.getName();
-            }
-        } catch (Exception e) {
-            // Игнорируем ошибки получения аутентификации
+    private String getCurrentUserId(@RequestParam(required = false) String userId,
+                                   @RequestHeader(value = "X-User-Id", required = false) String userIdHeader) {
+        // Сначала проверяем заголовок
+        if (userIdHeader != null && !userIdHeader.trim().isEmpty()) {
+            return userIdHeader.trim();
+        }
+        // Затем параметр запроса
+        if (userId != null && !userId.trim().isEmpty()) {
+            return userId.trim();
         }
         return null;
     }
