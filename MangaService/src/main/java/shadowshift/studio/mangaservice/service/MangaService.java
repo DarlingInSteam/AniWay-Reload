@@ -23,6 +23,7 @@ import shadowshift.studio.mangaservice.service.external.ChapterServiceClient;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Основной сервис для управления мангой в системе AniWay.
@@ -52,6 +53,9 @@ public class MangaService {
     private final MangaMapper mangaMapper;
     private final RestTemplate restTemplate;
     private final ServiceUrlProperties serviceUrlProperties;
+
+    // Кэш для rate limiting просмотров: ключ - "userId_mangaId", значение - timestamp последнего просмотра
+    private final ConcurrentHashMap<String, Long> viewRateLimitCache = new ConcurrentHashMap<>();
 
     @Value("${image.storage.service.url}")
     private String imageStorageServiceUrl;
@@ -166,25 +170,77 @@ public class MangaService {
      * @return Optional с DTO манги, если найдена, иначе пустой Optional
      * @throws IllegalArgumentException если id равен null или отрицательному значению
      */
-    @Transactional(readOnly = true)
-    @Cacheable(value = "mangaDetails", key = "#id")
-    public Optional<MangaResponseDTO> getMangaById(Long id) {
+    @Transactional
+    public Optional<MangaResponseDTO> getMangaById(Long id, Long userId) {
         validateMangaId(id);
         
-        logger.debug("Поиск ��анги с ID: {}", id);
+        logger.info("Поиск манги с ID: {}, userId: {}", id, userId);
         
         return mangaRepository.findById(id)
                 .map(manga -> {
                     logger.debug("Манга найдена: {}", manga.getTitle());
-                    
+
+                    // Исправляем NULL значение в поле views, если оно есть
+                    if (manga.getViews() == null) {
+                        logger.warn("Найдено NULL значение в поле views для манги {}. Исправляем на 0", manga.getId());
+                        manga.setViews(0L);
+                    }
+
+                    // Инкрементируем просмотры, если пользователь авторизован и прошло больше часа с последнего просмотра
+                    if (userId != null) {
+                        logger.info("Текущее количество просмотров манги {}: {}", manga.getId(), manga.getViews());
+                        logger.info("Инкрементируем просмотры для манги {} пользователем {}", manga.getId(), userId);
+                        incrementViewsIfAllowed(manga.getId(), userId);
+
+                        // После инкремента получаем актуальные данные из базы данных
+                        manga = mangaRepository.findById(id).orElse(manga);
+                        logger.info("После инкремента: просмотры манги {} = {}", manga.getId(), manga.getViews());
+                    } else {
+                        logger.info("Пользователь не авторизован, просмотры не инкрементируем для манги {}", manga.getId());
+                    }
+
                     MangaResponseDTO responseDTO = mangaMapper.toResponseDTO(manga);
+                    logger.info("Возвращаем мангу {} с просмотрами: {}", manga.getId(), responseDTO.getViews());
                     enrichWithChapterCount(responseDTO, manga);
-                    
+
                     return responseDTO;
                 });
     }
 
     /**
+     * Инкрементирует просмотры манги, если прошло больше часа с последнего просмотра пользователя.
+     *
+     * @param mangaId ID манги
+     * @param userId ID пользователя
+     */
+    @Transactional
+    private void incrementViewsIfAllowed(Long mangaId, Long userId) {
+        String cacheKey = userId + "_" + mangaId;
+        long currentTime = System.currentTimeMillis();
+        long oneHourMillis = 60 * 60 * 1000; // 1 час в миллисекундах
+
+        Long lastViewTime = viewRateLimitCache.get(cacheKey);
+
+        logger.info("Проверка rate limit для пользователя {} манги {}: lastViewTime={}, currentTime={}, diff={}",
+            userId, mangaId, lastViewTime, currentTime, lastViewTime != null ? (currentTime - lastViewTime) : "N/A");
+
+        if (lastViewTime == null || (currentTime - lastViewTime) >= oneHourMillis) {
+            // Обновляем кэш и инкрементируем просмотры
+            viewRateLimitCache.put(cacheKey, currentTime);
+            logger.info("Выполняем incrementViews для манги {}", mangaId);
+            try {
+                mangaRepository.incrementViews(mangaId);
+                // Принудительно сохраняем изменения в базу данных
+                mangaRepository.flush();
+                logger.info("Успешно инкрементированы просмотры для манги {} пользователем {}", mangaId, userId);
+            } catch (Exception e) {
+                logger.error("Ошибка при инкременте просмотров для манги {} пользователем {}: {}", mangaId, userId, e.getMessage(), e);
+                throw e;
+            }
+        } else {
+            logger.info("Просмотр манги {} пользователем {} заблокирован rate limit", mangaId, userId);
+        }
+    }    /**
      * Создает новую мангу в системе.
      * 
      * Принимает DTO с данны��и для создания, валидирует их,

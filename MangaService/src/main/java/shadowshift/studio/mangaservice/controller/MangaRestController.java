@@ -112,19 +112,20 @@ public class MangaRestController {
      * Получает информацию о конкретной манге по её идентификатору.
      *
      * @param id идентификатор манги
+     * @param userId идентификатор пользователя (опционально, для инкремента просмотров)
      * @return ResponseEntity с данными манги (200) или 404 если не найдена
      */
     @GetMapping("/{id}")
-    public ResponseEntity<MangaResponseDTO> getMangaById(@PathVariable Long id) {
-        logger.debug("API запрос: получение манги с ID {}", id);
+    public ResponseEntity<MangaResponseDTO> getMangaById(@PathVariable Long id, @RequestParam(required = false) Long userId) {
+        logger.info("REST Controller: Получен запрос на мангу ID={}, userId={}", id, userId);
 
-        return mangaService.getMangaById(id)
+        return mangaService.getMangaById(id, userId)
                 .map(manga -> {
-                    logger.debug("API ответ: манга '{}' найдена", manga.getTitle());
+                    logger.info("REST Controller: Возвращаем мангу '{}' с просмотрами: {}", manga.getTitle(), manga.getViews());
                     return ResponseEntity.ok(manga);
                 })
                 .orElseGet(() -> {
-                    logger.debug("API ответ: манга с ID {} не найдена", id);
+                    logger.info("REST Controller: Манга с ID {} не найдена", id);
                     return ResponseEntity.notFound().build();
                 });
     }

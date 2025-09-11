@@ -144,7 +144,7 @@ public class MangaWebController {
      */
     @GetMapping("/{id}")
     public String mangaDetailPage(@PathVariable Long id, Model model) {
-        return mangaService.getMangaById(id)
+        return mangaService.getMangaById(id, null)
                 .map(manga -> {
                     model.addAttribute("manga", manga);
                     try {
@@ -214,7 +214,7 @@ public class MangaWebController {
      */
     @GetMapping("/{id}/edit")
     public String editMangaForm(@PathVariable Long id, Model model) {
-        return mangaService.getMangaById(id)
+        return mangaService.getMangaById(id, null)
                 .map(manga -> {
                     MangaCreateDTO editDTO = new MangaCreateDTO();
                     editDTO.setTitle(manga.getTitle());

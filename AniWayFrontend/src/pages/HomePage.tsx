@@ -9,13 +9,15 @@ export function HomePage() {
   const { data: popularManga, isLoading: popularLoading } = useQuery({
     queryKey: ['popular-manga'],
     queryFn: () => apiClient.getAllManga(),
-    staleTime: 5 * 60 * 1000, // 5 минут
+    staleTime: 0, // Данные всегда считаются устаревшими
+    refetchOnWindowFocus: true,
   })
 
   const { data: recentManga, isLoading: recentLoading } = useQuery({
     queryKey: ['recent-manga'],
     queryFn: () => apiClient.getAllManga(),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   })
 
   if (popularLoading) {

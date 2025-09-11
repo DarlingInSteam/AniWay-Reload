@@ -3,6 +3,14 @@ spring:
     url: jdbc:postgresql://manga-postgres:5432/mangadb?useUnicode=true&characterEncoding=UTF-8
     username: mangauser
     password: mangapass123
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        "[format_sql]": true
 
 # Other services URLs (using Docker service names)
 chapter:
@@ -20,7 +28,10 @@ services:
 # Logging for debugging service communication
 logging:
   level:
-    "[com.aniway.mangaservice]": DEBUG
-    "[com.aniway.mangaservice.client]": DEBUG
-    "[org.springframework.web.client]": DEBUG
-    "[org.apache.http]": DEBUG
+    "[com.aniway.mangaservice]": INFO
+    "[com.aniway.mangaservice.client]": INFO
+    "[org.springframework.web.client]": INFO
+    "[org.apache.http]": INFO
+    "[shadowshift.studio.mangaservice]": INFO
+    "[org.hibernate.SQL]": DEBUG
+    "[org.hibernate.type.descriptor.sql.BasicBinder]": TRACE

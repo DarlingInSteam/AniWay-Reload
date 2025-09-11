@@ -41,12 +41,14 @@ public interface IMangaService {
 
     /**
      * Получает информацию о конкретной манге по её идентификатору.
+     * Если userId передан, инкрементирует счетчик просмотров с учетом rate limiting.
      *
      * @param id идентификатор манги
+     * @param userId идентификатор пользователя (может быть null для неавторизованных)
      * @return Optional с DTO манги, если найдена
      * @throws IllegalArgumentException если id некорректен
      */
-    Optional<MangaResponseDTO> getMangaById(Long id);
+    Optional<MangaResponseDTO> getMangaById(Long id, Long userId);
 
     /**
      * Создает новую мангу в системе.

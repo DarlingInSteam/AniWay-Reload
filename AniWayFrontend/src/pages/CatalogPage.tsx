@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { Grid, Filter, ArrowUpDown, ArrowUp, ArrowDown, X } from 'lucide-react'
 import { apiClient } from '@/lib/api'
@@ -18,17 +18,36 @@ export function CatalogPage() {
   // Refs для обработки кликов вне области
   const sortDropdownRef = useRef<HTMLDivElement>(null)
 
+  const queryClient = useQueryClient()
   const genre = searchParams.get('genre')
   const sort = searchParams.get('sort')
 
+  // Инвалидируем кэш при входе на страницу каталога
+  useEffect(() => {
+    console.log('CatalogPage: Invalidating manga cache on mount')
+    queryClient.invalidateQueries({ queryKey: ['manga'] })
+    queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
+    queryClient.invalidateQueries({ queryKey: ['popular-manga'] })
+    queryClient.invalidateQueries({ queryKey: ['recent-manga'] })
+
+    // Принудительно обновляем все запросы
+    queryClient.refetchQueries({ queryKey: ['manga'] })
+    queryClient.refetchQueries({ queryKey: ['manga-catalog'] })
+    queryClient.refetchQueries({ queryKey: ['popular-manga'] })
+    queryClient.refetchQueries({ queryKey: ['recent-manga'] })
+  }, [queryClient])
+
   const { data: manga, isLoading } = useQuery({
-    queryKey: ['manga', { genre, sort }],
+    queryKey: ['manga-catalog', { genre, sort }],
     queryFn: () => {
       if (genre) {
         return apiClient.searchManga({ genre })
       }
       return apiClient.getAllManga()
     },
+    staleTime: 0, // Данные всегда считаются устаревшими
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
   })
 
   const pageTitle = genre ? `Жанр: ${genre}` : 'Каталог'

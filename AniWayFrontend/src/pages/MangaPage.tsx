@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams, Link } from 'react-router-dom'
 import {
   BookOpen, Play, Eye, Heart, Star, ChevronDown, ChevronUp, Send,
@@ -15,6 +15,7 @@ import { ReadingButton } from '../components/reading/ReadingButton'
 import { useReadingProgress } from '@/hooks/useProgress'
 import { CommentSection } from '../components/comments/CommentSection'
 import MangaReviews from '../components/MangaReviews'
+import { useAuth } from '@/contexts/AuthContext'
 
 export function MangaPage() {
   const { id } = useParams<{ id: string }>()
@@ -26,6 +27,24 @@ export function MangaPage() {
   const [commentText, setCommentText] = useState('')
   const [commentFilter, setCommentFilter] = useState<'new' | 'popular'>('new')
   const [isDesktop, setIsDesktop] = useState(false)
+
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+
+  // Инвалидируем кэш списка манг при входе на страницу манги
+  useEffect(() => {
+    console.log('MangaPage: Invalidating manga list cache on mount')
+    queryClient.invalidateQueries({ queryKey: ['manga'] })
+    queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
+    queryClient.invalidateQueries({ queryKey: ['popular-manga'] })
+    queryClient.invalidateQueries({ queryKey: ['recent-manga'] })
+
+    // Принудительно обновляем все запросы
+    queryClient.refetchQueries({ queryKey: ['manga'] })
+    queryClient.refetchQueries({ queryKey: ['manga-catalog'] })
+    queryClient.refetchQueries({ queryKey: ['popular-manga'] })
+    queryClient.refetchQueries({ queryKey: ['recent-manga'] })
+  }, [queryClient])
 
   // Track screen size
   useEffect(() => {
@@ -39,9 +58,23 @@ export function MangaPage() {
   }, [])
 
   const { data: manga, isLoading: mangaLoading } = useQuery({
-    queryKey: ['manga', mangaId],
-    queryFn: () => apiClient.getMangaById(mangaId),
+    queryKey: ['manga', mangaId, user?.id],
+    queryFn: () => apiClient.getMangaById(mangaId, user?.id),
+    staleTime: 0, // Данные всегда считаются устаревшими
+    refetchOnWindowFocus: true, // Перезапрос при фокусе окна
+    refetchOnMount: true, // Перезапрос при монтировании компонента
   })
+
+  // Инвалидируем кэш списка манг после загрузки данных о конкретной манге
+  useEffect(() => {
+    if (manga && !mangaLoading) {
+      // Инвалидируем кэш для всех запросов списка манг
+      queryClient.invalidateQueries({ queryKey: ['manga'] })
+      queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
+      queryClient.invalidateQueries({ queryKey: ['popular-manga'] })
+      queryClient.invalidateQueries({ queryKey: ['recent-manga'] })
+    }
+  }, [manga, mangaLoading, queryClient])
 
   const { data: chapters, isLoading: chaptersLoading } = useQuery({
     queryKey: ['chapters', mangaId],
@@ -74,7 +107,7 @@ export function MangaPage() {
 
   // Фейковые данные
   const rating = (4 + Math.random()).toFixed(1)
-  const views = Math.floor(Math.random() * 100000) + 10000
+  const views = manga?.views || 0
   const likes = Math.floor(Math.random() * 5000) + 500
 
   // Получаем жанры из API или используем фейковые

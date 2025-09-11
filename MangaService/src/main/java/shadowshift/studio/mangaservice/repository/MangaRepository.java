@@ -1,6 +1,7 @@
 package shadowshift.studio.mangaservice.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -51,7 +52,7 @@ public interface MangaRepository extends JpaRepository<Manga, Long> {
      * @return список найденных манг, отсортированный по дате создания (новые первыми)
      */
     @Query(value = """
-        SELECT * FROM manga m 
+        SELECT * FROM manga m
         WHERE (:title IS NULL OR UPPER(CAST(m.title AS TEXT)) LIKE UPPER(CONCAT('%', CAST(:title AS TEXT), '%')))
         AND (:author IS NULL OR UPPER(CAST(m.author AS TEXT)) LIKE UPPER(CONCAT('%', CAST(:author AS TEXT), '%')))
         AND (:genre IS NULL OR UPPER(CAST(m.genre AS TEXT)) LIKE UPPER(CONCAT('%', CAST(:genre AS TEXT), '%')))
@@ -64,4 +65,14 @@ public interface MangaRepository extends JpaRepository<Manga, Long> {
         @Param("genre") String genre,
         @Param("status") String status
     );
+
+    /**
+     * Инкрементирует счетчик просмотров манги.
+     * Использует COALESCE для корректной работы с NULL значениями.
+     *
+     * @param mangaId ID манги
+     */
+    @Modifying
+    @Query("UPDATE Manga m SET m.views = COALESCE(m.views, 0) + 1 WHERE m.id = :mangaId")
+    void incrementViews(@Param("mangaId") Long mangaId);
 }
