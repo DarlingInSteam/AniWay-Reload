@@ -17,6 +17,7 @@ export interface MangaResponseDTO {
   coverImageUrl: string
   chapterCount: number
   totalChapters: number
+  views: number
   createdAt: string
   updatedAt: string
 }

@@ -118,6 +118,12 @@ public class Manga {
     private Integer totalChapters = 0;
 
     /**
+     * Количество просмотров манги.
+     */
+    @Column(name = "views", nullable = false)
+    private Long views = 0L;
+
+    /**
      * Дата создания записи о манге.
      */
     @Column(name = "created_at", updatable = false)
@@ -305,6 +311,20 @@ public class Manga {
      * @param totalChapters общее количество глав
      */
     public void setTotalChapters(Integer totalChapters) { this.totalChapters = totalChapters; }
+
+    /**
+     * Возвращает количество просмотров манги.
+     *
+     * @return количество просмотров
+     */
+    public Long getViews() { return views; }
+
+    /**
+     * Устанавливает количество просмотров манги.
+     *
+     * @param views количество просмотров
+     */
+    public void setViews(Long views) { this.views = views; }
 
     /**
      * Возвращает дату создания записи о манге.

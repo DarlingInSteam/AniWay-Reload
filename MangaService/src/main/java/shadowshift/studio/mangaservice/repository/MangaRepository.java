@@ -1,6 +1,7 @@
 package shadowshift.studio.mangaservice.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -64,4 +65,13 @@ public interface MangaRepository extends JpaRepository<Manga, Long> {
         @Param("genre") String genre,
         @Param("status") String status
     );
+
+    /**
+     * Инкрементирует счетчик просмотров манги.
+     *
+     * @param mangaId ID манги
+     */
+    @Modifying
+    @Query("UPDATE Manga m SET m.views = m.views + 1 WHERE m.id = :mangaId")
+    void incrementViews(@Param("mangaId") Long mangaId);
 }

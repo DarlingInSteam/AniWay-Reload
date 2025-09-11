@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS manga (
     genre VARCHAR(500), -- JSON array as string for simplicity
     cover_image_url VARCHAR(500),
     total_chapters INTEGER DEFAULT 0,
+    views BIGINT DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

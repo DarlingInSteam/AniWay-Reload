@@ -23,6 +23,7 @@ import shadowshift.studio.mangaservice.service.external.ChapterServiceClient;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Основной сервис для управления мангой в системе AniWay.
@@ -52,6 +53,9 @@ public class MangaService {
     private final MangaMapper mangaMapper;
     private final RestTemplate restTemplate;
     private final ServiceUrlProperties serviceUrlProperties;
+
+    // Кэш для rate limiting просмотров: ключ - "userId_mangaId", значение - timestamp последнего просмотра
+    private final ConcurrentHashMap<String, Long> viewRateLimitCache = new ConcurrentHashMap<>();
 
     @Value("${image.storage.service.url}")
     private String imageStorageServiceUrl;
@@ -168,7 +172,7 @@ public class MangaService {
      */
     @Transactional(readOnly = true)
     @Cacheable(value = "mangaDetails", key = "#id")
-    public Optional<MangaResponseDTO> getMangaById(Long id) {
+    public Optional<MangaResponseDTO> getMangaById(Long id, Long userId) {
         validateMangaId(id);
         
         logger.debug("Поиск ��анги с ID: {}", id);
@@ -177,11 +181,39 @@ public class MangaService {
                 .map(manga -> {
                     logger.debug("Манга найдена: {}", manga.getTitle());
                     
+                    // Инкрементируем просмотры, если пользователь авторизован и прошло больше часа с последнего просмотра
+                    if (userId != null) {
+                        incrementViewsIfAllowed(manga.getId(), userId);
+                    }
+                    
                     MangaResponseDTO responseDTO = mangaMapper.toResponseDTO(manga);
                     enrichWithChapterCount(responseDTO, manga);
                     
                     return responseDTO;
                 });
+    }
+
+/**
+     * Инкрементирует просмотры манги, если прошло больше часа с последнего просмотра пользователя.
+     *
+     * @param mangaId ID манги
+     * @param userId ID пользователя
+     */
+    private void incrementViewsIfAllowed(Long mangaId, Long userId) {
+        String cacheKey = userId + "_" + mangaId;
+        long currentTime = System.currentTimeMillis();
+        long oneHourMillis = 60 * 60 * 1000; // 1 час в миллисекундах
+
+        Long lastViewTime = viewRateLimitCache.get(cacheKey);
+        
+        if (lastViewTime == null || (currentTime - lastViewTime) >= oneHourMillis) {
+            // Обновляем кэш и инкрементируем просмотры
+            viewRateLimitCache.put(cacheKey, currentTime);
+            mangaRepository.incrementViews(mangaId);
+            logger.debug("Инкрементированы просмотры для манги {} пользователем {}", mangaId, userId);
+        } else {
+            logger.debug("Просмотр манги {} пользователем {} заблокирован rate limit", mangaId, userId);
+        }
     }
 
     /**

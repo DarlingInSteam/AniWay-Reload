@@ -17,7 +17,7 @@ import {
 import { apiClient } from '@/lib/api'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { cn } from '@/lib/utils'
-import { formatChapterTitle, getDisplayChapterNumber } from '@/lib/chapterUtils'
+import { formatChapterTitle } from '@/lib/chapterUtils'
 import { useReadingProgress } from '@/hooks/useProgress'
 import { CommentSection } from '@/components/comments/CommentSection'
 
@@ -570,7 +570,7 @@ export function ReaderPage() {
               <CommentSection
                 targetId={chapter.id}
                 type="CHAPTER"
-                title={`Комментарии к главе ${getDisplayChapterNumber(chapter.chapterNumber)}`}
+                title={`Комментарии к главе ${chapter.chapterNumber}`}
                 maxLevel={3}
               />
             </div>

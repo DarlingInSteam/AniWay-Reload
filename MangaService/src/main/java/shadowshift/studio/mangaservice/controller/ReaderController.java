@@ -60,7 +60,7 @@ public class ReaderController {
                 return "redirect:/manga";
             }
 
-            MangaResponseDTO manga = mangaService.getMangaById(chapter.getMangaId()).orElse(null);
+            MangaResponseDTO manga = mangaService.getMangaById(chapter.getMangaId(), null).orElse(null);
             if (manga == null) {
                 return "redirect:/manga";
             }
