@@ -55,6 +55,15 @@ export function MangaPage() {
     if (manga && !mangaLoading) {
       // Инвалидируем кэш для всех запросов списка манг
       queryClient.invalidateQueries({ queryKey: ['manga'] })
+      queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
+      queryClient.invalidateQueries({ queryKey: ['popular-manga'] })
+      queryClient.invalidateQueries({ queryKey: ['recent-manga'] })
+
+      // Принудительно обновляем все запросы
+      queryClient.refetchQueries({ queryKey: ['manga'] })
+      queryClient.refetchQueries({ queryKey: ['manga-catalog'] })
+      queryClient.refetchQueries({ queryKey: ['popular-manga'] })
+      queryClient.refetchQueries({ queryKey: ['recent-manga'] })
     }
   }, [manga, mangaLoading, queryClient])
 
