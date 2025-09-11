@@ -170,7 +170,7 @@ public class MangaService {
      * @return Optional с DTO манги, если найдена, иначе пустой Optional
      * @throws IllegalArgumentException если id равен null или отрицательному значению
      */
-    @Transactional(readOnly = true)
+    @Transactional
     @Cacheable(value = "mangaDetails", key = "#id")
     public Optional<MangaResponseDTO> getMangaById(Long id, Long userId) {
         validateMangaId(id);
