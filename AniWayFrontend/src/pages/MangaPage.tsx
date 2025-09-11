@@ -31,6 +31,21 @@ export function MangaPage() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
 
+  // Инвалидируем кэш списка манг при входе на страницу манги
+  useEffect(() => {
+    console.log('MangaPage: Invalidating manga list cache on mount')
+    queryClient.invalidateQueries({ queryKey: ['manga'] })
+    queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
+    queryClient.invalidateQueries({ queryKey: ['popular-manga'] })
+    queryClient.invalidateQueries({ queryKey: ['recent-manga'] })
+
+    // Принудительно обновляем все запросы
+    queryClient.refetchQueries({ queryKey: ['manga'] })
+    queryClient.refetchQueries({ queryKey: ['manga-catalog'] })
+    queryClient.refetchQueries({ queryKey: ['popular-manga'] })
+    queryClient.refetchQueries({ queryKey: ['recent-manga'] })
+  }, [queryClient])
+
   // Track screen size
   useEffect(() => {
     const checkScreenSize = () => {
@@ -58,12 +73,6 @@ export function MangaPage() {
       queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
       queryClient.invalidateQueries({ queryKey: ['popular-manga'] })
       queryClient.invalidateQueries({ queryKey: ['recent-manga'] })
-
-      // Принудительно обновляем все запросы
-      queryClient.refetchQueries({ queryKey: ['manga'] })
-      queryClient.refetchQueries({ queryKey: ['manga-catalog'] })
-      queryClient.refetchQueries({ queryKey: ['popular-manga'] })
-      queryClient.refetchQueries({ queryKey: ['recent-manga'] })
     }
   }, [manga, mangaLoading, queryClient])
 
