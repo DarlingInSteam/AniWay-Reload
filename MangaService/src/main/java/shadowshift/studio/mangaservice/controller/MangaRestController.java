@@ -112,15 +112,26 @@ public class MangaRestController {
      * Получает информацию о конкретной манге по её идентификатору.
      *
      * @param id идентификатор манги
+     * @param userId идентификатор пользователя (опционально, для учета просмотров)
      * @return ResponseEntity с данными манги (200) или 404 если не найдена
      */
     @GetMapping("/{id}")
-    public ResponseEntity<MangaResponseDTO> getMangaById(@PathVariable Long id) {
+    public ResponseEntity<MangaResponseDTO> getMangaById(
+            @PathVariable Long id,
+            @RequestParam(required = false) String userId) {
         logger.debug("API запрос: получение манги с ID {}", id);
 
         return mangaService.getMangaById(id)
                 .map(manga -> {
                     logger.debug("API ответ: манга '{}' найдена", manga.getTitle());
+
+                    // Увеличиваем счетчик просмотров
+                    try {
+                        mangaService.incrementView(id, userId);
+                    } catch (Exception e) {
+                        logger.warn("Ошибка при увеличении счетчика просмотров для манги {}: {}", id, e.getMessage());
+                    }
+
                     return ResponseEntity.ok(manga);
                 })
                 .orElseGet(() -> {
@@ -185,6 +196,30 @@ public class MangaRestController {
 
         logger.info("API ответ: манга с ID {} удалена", id);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Увеличивает счетчик просмотров для манги.
+     * Используется для отслеживания популярности контента.
+     *
+     * @param id идентификатор манги
+     * @param userId идентификатор пользователя (опционально, для rate limiting)
+     * @return ResponseEntity с HTTP статусом 200
+     */
+    @PostMapping("/{id}/view")
+    public ResponseEntity<Void> incrementMangaView(
+            @PathVariable Long id,
+            @RequestParam(required = false) String userId) {
+        logger.debug("API запрос: увеличение просмотров для манги с ID {}", id);
+
+        try {
+            mangaService.incrementView(id, userId);
+            logger.debug("API ответ: просмотры для манги {} увеличены", id);
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            logger.warn("Ошибка при увеличении счетчика просмотров для манги {}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     /**

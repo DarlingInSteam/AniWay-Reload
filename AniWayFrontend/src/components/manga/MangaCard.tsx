@@ -27,7 +27,8 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
   }
 
   // Генерируем фейковые просмотры для демонстрации (в реальном проекте это будет из API)
-  const views = Math.floor(Math.random() * 10000) + 1000
+  const views = manga.views || 0
+  const uniqueViews = manga.uniqueViews || 0
 
   // Получаем статус закладки
   const bookmarkInfo = isAuthenticated ? getMangaBookmark(manga.id) : null
@@ -176,6 +177,11 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
                 <Eye className="h-2.5 w-2.5 md:h-3 md:w-3" />
                 <span className="hidden sm:inline">{views.toLocaleString()}</span>
                 <span className="sm:hidden">{(views / 1000).toFixed(0)}k</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <Heart className="h-2.5 w-2.5 md:h-3 md:w-3" />
+                <span className="hidden sm:inline">{uniqueViews.toLocaleString()}</span>
+                <span className="sm:hidden">{(uniqueViews / 1000).toFixed(0)}k</span>
               </div>
             </div>
           </div>

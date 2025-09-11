@@ -3,6 +3,8 @@ package shadowshift.studio.mangaservice.controller;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -147,6 +149,17 @@ public class MangaWebController {
         return mangaService.getMangaById(id)
                 .map(manga -> {
                     model.addAttribute("manga", manga);
+
+                    // Получаем userId из аутентификации
+                    String userId = getCurrentUserId();
+
+                    // Увеличиваем счетчик просмотров
+                    try {
+                        mangaService.incrementView(id, userId);
+                    } catch (Exception e) {
+                        // Игнорируем ошибки счетчика, чтобы не ломать отображение страницы
+                    }
+
                     try {
                         List<ChapterResponseDTO> chapters = getChaptersFromService(id);
                         model.addAttribute("chapters", chapters);
@@ -312,5 +325,23 @@ public class MangaWebController {
         } catch (Exception e) {
             return new ArrayList<>();
         }
+    }
+
+    /**
+     * Получает идентификатор текущего аутентифицированного пользователя.
+     *
+     * @return userId или null, если пользователь не аутентифицирован
+     */
+    private String getCurrentUserId() {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication != null && authentication.isAuthenticated() &&
+                !"anonymousUser".equals(authentication.getPrincipal())) {
+                return authentication.getName();
+            }
+        } catch (Exception e) {
+            // Игнорируем ошибки получения аутентификации
+        }
+        return null;
     }
 }

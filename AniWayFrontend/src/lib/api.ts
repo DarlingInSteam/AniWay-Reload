@@ -70,6 +70,12 @@ class ApiClient {
     return this.request<ChapterDTO[]>(`/manga/${mangaId}/chapters`);
   }
 
+  async incrementMangaView(mangaId: number): Promise<void> {
+    await this.request<void>(`/manga/${mangaId}/view`, {
+      method: 'POST',
+    });
+  }
+
   // Chapter API
   async getChapterById(id: number): Promise<ChapterDTO> {
     return this.request<ChapterDTO>(`/chapters/${id}`);

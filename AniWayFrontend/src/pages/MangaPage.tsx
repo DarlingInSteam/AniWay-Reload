@@ -49,6 +49,17 @@ export function MangaPage() {
     enabled: !!mangaId,
   })
 
+  // Increment view count when manga data is loaded
+  useEffect(() => {
+    if (manga && !mangaLoading) {
+      // Increment view count (this will be rate-limited on the backend)
+      apiClient.incrementMangaView(mangaId).catch((error) => {
+        // Silently handle errors to avoid disrupting the user experience
+        console.warn('Failed to increment view count:', error)
+      })
+    }
+  }, [manga, mangaLoading, mangaId])
+
   const { isChapterCompleted } = useReadingProgress()
 
   if (mangaLoading) {
@@ -197,6 +208,19 @@ export function MangaPage() {
                 {/* Title */}
                 <div className="text-center lg:text-left">
                   <h1 className="text-xl md:text-2xl font-bold text-white mb-2">{manga.title}</h1>
+                  
+                  {/* View Counters */}
+                  <div className="flex items-center justify-center lg:justify-start gap-4 mb-3">
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                      <Eye className="h-4 w-4" />
+                      <span>{(manga.views || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                      <Heart className="h-4 w-4" />
+                      <span>{(manga.uniqueViews || 0).toLocaleString()}</span>
+                    </div>
+                  </div>
+                  
                   {/* Mobile - Type and Year after title */}
                   <div className="lg:hidden flex items-center justify-center gap-3 text-sm text-muted-foreground">
                     <span>{getTypeDisplay(manga.type)}</span>

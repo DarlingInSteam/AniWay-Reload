@@ -130,6 +130,18 @@ public class Manga {
     private LocalDateTime updatedAt;
 
     /**
+     * Общее количество просмотров манги.
+     */
+    @Column(name = "views")
+    private Long views = 0L;
+
+    /**
+     * Количество уникальных просмотров манги (с rate limiting).
+     */
+    @Column(name = "unique_views")
+    private Long uniqueViews = 0L;
+
+    /**
      * Метод, вызываемый перед сохранением сущности.
      * Устанавливает даты создания и обновления.
      */
@@ -417,6 +429,34 @@ public class Manga {
      * @param isLicensed флаг лицензированности
      */
     public void setIsLicensed(Boolean isLicensed) { this.isLicensed = isLicensed; }
+
+    /**
+     * Возвращает общее количество просмотров манги.
+     *
+     * @return количество просмотров
+     */
+    public Long getViews() { return views; }
+
+    /**
+     * Устанавливает общее количество просмотров манги.
+     *
+     * @param views количество просмотров
+     */
+    public void setViews(Long views) { this.views = views; }
+
+    /**
+     * Возвращает количество уникальных просмотров манги.
+     *
+     * @return количество уникальных просмотров
+     */
+    public Long getUniqueViews() { return uniqueViews; }
+
+    /**
+     * Устанавливает количество уникальных просмотров манги.
+     *
+     * @param uniqueViews количество уникальных просмотров
+     */
+    public void setUniqueViews(Long uniqueViews) { this.uniqueViews = uniqueViews; }
 
     /**
      * Перечисление статусов манги.

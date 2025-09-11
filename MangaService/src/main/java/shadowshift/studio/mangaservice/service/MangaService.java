@@ -52,6 +52,7 @@ public class MangaService {
     private final MangaMapper mangaMapper;
     private final RestTemplate restTemplate;
     private final ServiceUrlProperties serviceUrlProperties;
+    private final ViewTrackingService viewTrackingService;
 
     @Value("${image.storage.service.url}")
     private String imageStorageServiceUrl;
@@ -67,17 +68,20 @@ public class MangaService {
      * @param mangaMapper маппер для преобразования между DTO и сущностями
      * @param restTemplate шаблон для выполнения REST-запросов
      * @param serviceUrlProperties конфигурация URL сервисов
+     * @param viewTrackingService сервис для отслеживания просмотров
      */
     public MangaService(MangaRepository mangaRepository, 
                        ChapterServiceClient chapterServiceClient,
                        MangaMapper mangaMapper,
                        RestTemplate restTemplate,
-                       ServiceUrlProperties serviceUrlProperties) {
+                       ServiceUrlProperties serviceUrlProperties,
+                       ViewTrackingService viewTrackingService) {
         this.mangaRepository = mangaRepository;
         this.chapterServiceClient = chapterServiceClient;
         this.mangaMapper = mangaMapper;
         this.restTemplate = restTemplate;
         this.serviceUrlProperties = serviceUrlProperties;
+        this.viewTrackingService = viewTrackingService;
         logger.info("Инициализирован MangaService");
     }
 
@@ -427,6 +431,54 @@ public class MangaService {
         if (id == null || id <= 0) {
             throw new IllegalArgumentException("ID манги должен быть положительным числом");
         }
+    }
+
+    /**
+     * Увеличивает счетчики просмотров для манги.
+     * Всегда увеличивает общий счетчик, уникальный - только если rate limit позволяет.
+     *
+     * @param mangaId идентификатор манги
+     * @param userId идентификатор пользователя (может быть null для неавторизованных)
+     */
+    @CacheEvict(value = {"mangaCatalog", "mangaDetails"}, key = "#mangaId")
+    public void incrementView(Long mangaId, String userId) {
+        validateMangaId(mangaId);
+
+        logger.debug("Увеличение счетчика просмотров для манги {} пользователем {}", mangaId, userId);
+
+        Optional<Manga> mangaOpt = mangaRepository.findById(mangaId);
+        if (mangaOpt.isEmpty()) {
+            logger.warn("Попытка увеличить просмотры для несуществующей манги {}", mangaId);
+            return;
+        }
+
+        Manga manga = mangaOpt.get();
+
+        // Всегда увеличиваем общий счетчик просмотров
+        manga.setViews((manga.getViews() != null ? manga.getViews() : 0L) + 1);
+
+        // Проверяем, можно ли увеличить уникальный счетчик
+        boolean canIncrementUnique = false;
+        if (userId != null && !userId.trim().isEmpty()) {
+            try {
+                canIncrementUnique = viewTrackingService.canIncrementUniqueView(userId, mangaId);
+            } catch (Exception e) {
+                logger.warn("Ошибка при проверке rate limit для пользователя {} и манги {}: {}",
+                           userId, mangaId, e.getMessage());
+                canIncrementUnique = false;
+            }
+        }
+
+        if (canIncrementUnique) {
+            manga.setUniqueViews((manga.getUniqueViews() != null ? manga.getUniqueViews() : 0L) + 1);
+            logger.debug("Увеличен уникальный счетчик просмотров для манги {}", mangaId);
+        } else {
+            logger.debug("Rate limit активен, уникальный счетчик не увеличен для манги {}", mangaId);
+        }
+
+        mangaRepository.save(manga);
+        logger.debug("Счетчики просмотров обновлены для манги {}: views={}, uniqueViews={}",
+                    mangaId, manga.getViews(), manga.getUniqueViews());
     }
 
     // Внутренние классы исключений для лучшей читаемости

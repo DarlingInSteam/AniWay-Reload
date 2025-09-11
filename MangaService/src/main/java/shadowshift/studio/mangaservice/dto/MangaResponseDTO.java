@@ -93,6 +93,16 @@ public class MangaResponseDTO {
     private Integer totalChapters;
 
     /**
+     * Общее количество просмотров манги.
+     */
+    private Long views;
+
+    /**
+     * Количество уникальных просмотров манги.
+     */
+    private Long uniqueViews;
+
+    /**
      * Дата создания записи о манге.
      */
     private LocalDateTime createdAt;
@@ -129,6 +139,8 @@ public class MangaResponseDTO {
         this.isLicensed = manga.getIsLicensed();
         this.coverImageUrl = manga.getCoverImageUrl();
         this.totalChapters = manga.getTotalChapters();
+        this.views = manga.getViews();
+        this.uniqueViews = manga.getUniqueViews();
         this.createdAt = manga.getCreatedAt();
         this.updatedAt = manga.getUpdatedAt();
     }
@@ -356,6 +368,34 @@ public class MangaResponseDTO {
      * @param totalChapters общее количество глав
      */
     public void setTotalChapters(Integer totalChapters) { this.totalChapters = totalChapters; }
+
+    /**
+     * Возвращает общее количество просмотров манги.
+     *
+     * @return количество просмотров
+     */
+    public Long getViews() { return views; }
+
+    /**
+     * Устанавливает общее количество просмотров манги.
+     *
+     * @param views количество просмотров
+     */
+    public void setViews(Long views) { this.views = views; }
+
+    /**
+     * Возвращает количество уникальных просмотров манги.
+     *
+     * @return количество уникальных просмотров
+     */
+    public Long getUniqueViews() { return uniqueViews; }
+
+    /**
+     * Устанавливает количество уникальных просмотров манги.
+     *
+     * @param uniqueViews количество уникальных просмотров
+     */
+    public void setUniqueViews(Long uniqueViews) { this.uniqueViews = uniqueViews; }
 
     /**
      * Возвращает дату создания записи о манге.
