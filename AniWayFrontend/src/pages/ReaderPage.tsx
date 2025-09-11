@@ -18,6 +18,7 @@ import { apiClient } from '@/lib/api'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { cn } from '@/lib/utils'
 import { formatChapterTitle } from '@/lib/chapterUtils'
+import { useAuth } from '@/contexts/AuthContext'
 import { useReadingProgress } from '@/hooks/useProgress'
 import { CommentSection } from '@/components/comments/CommentSection'
 
@@ -30,6 +31,8 @@ export function ReaderPage() {
   const [readingMode, setReadingMode] = useState<'vertical' | 'horizontal'>('vertical')
   const [isAutoCompleted, setIsAutoCompleted] = useState(false)
   const [showComments, setShowComments] = useState(false)
+
+  const { user } = useAuth()
 
   // Reading progress tracking
   const { trackChapterViewed, markChapterCompleted, isChapterCompleted, clearTrackedChapters } = useReadingProgress()
@@ -47,8 +50,8 @@ export function ReaderPage() {
   })
 
   const { data: manga } = useQuery({
-    queryKey: ['manga', chapter?.mangaId],
-    queryFn: () => apiClient.getMangaById(chapter!.mangaId),
+    queryKey: ['manga', chapter?.mangaId, user?.id],
+    queryFn: () => apiClient.getMangaById(chapter!.mangaId, user?.id),
     enabled: !!chapter?.mangaId,
   })
 

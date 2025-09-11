@@ -15,6 +15,7 @@ import { ReadingButton } from '../components/reading/ReadingButton'
 import { useReadingProgress } from '@/hooks/useProgress'
 import { CommentSection } from '../components/comments/CommentSection'
 import MangaReviews from '../components/MangaReviews'
+import { useAuth } from '@/contexts/AuthContext'
 
 export function MangaPage() {
   const { id } = useParams<{ id: string }>()
@@ -26,6 +27,8 @@ export function MangaPage() {
   const [commentText, setCommentText] = useState('')
   const [commentFilter, setCommentFilter] = useState<'new' | 'popular'>('new')
   const [isDesktop, setIsDesktop] = useState(false)
+
+  const { user } = useAuth()
 
   // Track screen size
   useEffect(() => {
@@ -39,8 +42,8 @@ export function MangaPage() {
   }, [])
 
   const { data: manga, isLoading: mangaLoading } = useQuery({
-    queryKey: ['manga', mangaId],
-    queryFn: () => apiClient.getMangaById(mangaId),
+    queryKey: ['manga', mangaId, user?.id],
+    queryFn: () => apiClient.getMangaById(mangaId, user?.id),
   })
 
   const { data: chapters, isLoading: chaptersLoading } = useQuery({
@@ -74,7 +77,7 @@ export function MangaPage() {
 
   // Фейковые данные
   const rating = (4 + Math.random()).toFixed(1)
-  const views = Math.floor(Math.random() * 100000) + 10000
+  const views = manga?.views || 0
   const likes = Math.floor(Math.random() * 5000) + 500
 
   // Получаем жанры из API или используем фейковые

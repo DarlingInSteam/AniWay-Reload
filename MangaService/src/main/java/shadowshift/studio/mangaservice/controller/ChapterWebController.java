@@ -48,7 +48,7 @@ public class ChapterWebController {
      */
     @GetMapping("/create")
     public String createChapterForm(@RequestParam Long mangaId, Model model) {
-        return mangaService.getMangaById(mangaId)
+        return mangaService.getMangaById(mangaId, null)
                 .map(manga -> {
                     model.addAttribute("manga", manga);
                     ChapterCreateFormDTO dto = new ChapterCreateFormDTO();
@@ -80,7 +80,7 @@ public class ChapterWebController {
             RedirectAttributes redirectAttributes) {
 
         if (bindingResult.hasErrors()) {
-            return mangaService.getMangaById(chapterDTO.getMangaId())
+            return mangaService.getMangaById(chapterDTO.getMangaId(), null)
                     .map(manga -> {
                         model.addAttribute("manga", manga);
                         return "chapter/create";
@@ -124,7 +124,7 @@ public class ChapterWebController {
 
         } catch (Exception e) {
             model.addAttribute("errorMessage", "Ошибка создания главы: " + e.getMessage());
-            return mangaService.getMangaById(chapterDTO.getMangaId())
+            return mangaService.getMangaById(chapterDTO.getMangaId(), null)
                     .map(manga -> {
                         model.addAttribute("manga", manga);
                         return "chapter/create";

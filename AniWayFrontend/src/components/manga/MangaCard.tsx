@@ -27,7 +27,7 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
   }
 
   // Генерируем фейковые просмотры для демонстрации (в реальном проекте это будет из API)
-  const views = Math.floor(Math.random() * 10000) + 1000
+  const views = manga.views || 0
 
   // Получаем статус закладки
   const bookmarkInfo = isAuthenticated ? getMangaBookmark(manga.id) : null
