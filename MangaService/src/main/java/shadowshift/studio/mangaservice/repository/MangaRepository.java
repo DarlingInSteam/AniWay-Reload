@@ -52,7 +52,7 @@ public interface MangaRepository extends JpaRepository<Manga, Long> {
      * @return список найденных манг, отсортированный по дате создания (новые первыми)
      */
     @Query(value = """
-        SELECT * FROM manga m 
+        SELECT * FROM manga m
         WHERE (:title IS NULL OR UPPER(CAST(m.title AS TEXT)) LIKE UPPER(CONCAT('%', CAST(:title AS TEXT), '%')))
         AND (:author IS NULL OR UPPER(CAST(m.author AS TEXT)) LIKE UPPER(CONCAT('%', CAST(:author AS TEXT), '%')))
         AND (:genre IS NULL OR UPPER(CAST(m.genre AS TEXT)) LIKE UPPER(CONCAT('%', CAST(:genre AS TEXT), '%')))
