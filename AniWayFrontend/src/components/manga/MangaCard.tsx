@@ -6,6 +6,8 @@ import { useBookmarks } from '@/hooks/useBookmarks'
 import { useAuth } from '@/contexts/AuthContext'
 import { useReadingProgress } from '@/hooks/useProgress'
 import { useRating } from '@/hooks/useRating'
+import { useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
 
 interface MangaCardProps {
   manga: MangaResponseDTO
@@ -18,6 +20,14 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
   const { getMangaBookmark } = useBookmarks()
   const { getMangaReadingPercentage, getMangaProgress } = useReadingProgress()
   const { rating } = useRating(manga.id)
+  const queryClient = useQueryClient()
+  
+  // Инвалидируем кэш для этого манга при монтировании компонента
+  useEffect(() => {
+    console.log(`MangaCard ${manga.id}: Invalidating cache for manga ${manga.id}`)
+    queryClient.invalidateQueries({ queryKey: ['manga', manga.id] })
+    queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
+  }, [queryClient, manga.id])
   
   // Адаптивные размеры для разных экранов
   const cardSizes = {
