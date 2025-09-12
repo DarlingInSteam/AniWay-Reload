@@ -9,9 +9,9 @@ import {
   UserReview,
   Achievement
 } from '@/types/profile';
-import { CommentResponseDTO } from '@/types/comments';
-import { useState } from 'react';
-import { useEnhancedUserComments } from '@/hooks/useEnhancedUserComments';
+import { CommentResponseDTO, EnhancedCommentResponseDTO } from '@/types/comments';
+import { useState, useEffect } from 'react';
+import { useEnhancedUserComments, EnhancedCommentResponseDTO as HookEnhancedCommentResponseDTO } from '@/hooks/useEnhancedUserComments';
 import { useUserReviews } from '@/hooks/useUserReviews';
 import {
   Heart,

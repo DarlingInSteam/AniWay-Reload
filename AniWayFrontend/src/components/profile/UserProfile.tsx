@@ -209,6 +209,10 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   const userActivities = profileData ? profileService.generateUserActivity(profileData.readingProgress, profileData.bookmarks) : [];
   const achievements = profileData?.readingStats ? profileService.generateAchievements(profileData.readingStats) : [];
 
+  // Заглушки для данных, которые пока не реализованы
+  const mockFriends: any[] = []; // TODO: Добавить систему друзей
+  const mockCommunities: any[] = []; // TODO: Добавить систему сообществ
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">

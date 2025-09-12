@@ -28,9 +28,10 @@ class ProfileService {
 
       // Проверяем, это собственный профиль или чужой
       const currentUser = await authService.getCurrentUser().catch(() => null);
+      const isOwnProfile = currentUser && currentUser.id.toString() === userId;
 
-      let bookmarks: Bookmark[];
-      let readingProgress: ReadingProgress[];
+      let bookmarks: Bookmark[] = [];
+      let readingProgress: ReadingProgress[] = [];
       let readingStats: any;
 
       // Получаем данные для профиля (и своего, и чужого)
@@ -79,7 +80,7 @@ class ProfileService {
   private async getUserBookmarks(userId: string): Promise<Bookmark[]> {
     try {
       // Проверяем, это собственный профиль или чужой
-      let isOwnProfile;
+      let isOwnProfile = false;
       try {
         const currentUser = await authService.getCurrentUser();
         isOwnProfile = currentUser.id.toString() === userId;
@@ -108,7 +109,7 @@ class ProfileService {
   private async getUserReadingProgress(userId: string): Promise<ReadingProgress[]> {
     try {
       // Проверяем, это собственный профиль или чужой
-      let isOwnProfile;
+      let isOwnProfile = false;
       try {
         const currentUser = await authService.getCurrentUser();
         isOwnProfile = currentUser.id.toString() === userId;
