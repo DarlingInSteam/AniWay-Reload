@@ -34,21 +34,10 @@ class ProfileService {
       let readingProgress: ReadingProgress[] = [];
       let readingStats: any;
 
-      if (isOwnProfile) {
-        // Для собственного профиля получаем полные данные
-        bookmarks = await this.getUserBookmarks(userId);
-        readingProgress = await this.getUserReadingProgress(userId);
-        readingStats = this.calculateReadingStats(bookmarks, readingProgress);
-      } else {
-        // Для чужого профиля создаем статистику на основе публичных данных пользователя в дальнейшем получать из API public методами
-        readingStats = {
-          totalMangaRead: 0, // TODO: Добавить поле mangaReadCount в User
-          totalChaptersRead: user.chaptersReadCount || 0,
-          totalPagesRead: 0,
-          favoriteGenres: [],
-          readingStreak: 0
-        };
-      }
+      // Получаем данные для профиля (и своего, и чужого)
+      bookmarks = await this.getUserBookmarks(userId);
+      readingProgress = await this.getUserReadingProgress(userId);
+      readingStats = this.calculateReadingStats(bookmarks, readingProgress);
 
       return {
         user,
@@ -90,18 +79,26 @@ class ProfileService {
   // Получить закладки пользователя
   private async getUserBookmarks(userId: string): Promise<Bookmark[]> {
     try {
-      // Для собственного профиля используем приватный API
-      const currentUser = await authService.getCurrentUser();
-      if (currentUser.id.toString() === userId) {
-        return await bookmarkService.getUserBookmarks();
+      // Проверяем, это собственный профиль или чужой
+      let isOwnProfile = false;
+      try {
+        const currentUser = await authService.getCurrentUser();
+        isOwnProfile = currentUser.id.toString() === userId;
+      } catch (error) {
+        // Пользователь не авторизован, используем публичные методы
+        isOwnProfile = false;
       }
 
-      // TODO: BACKEND - Для чужого профиля использовать публичные закладки
-      // После реализации эндпоинта раскомментировать:
-      // return await apiClient.getUserPublicBookmarksByUserId(parseInt(userId));
-      
-      console.log('Получение публичных закладок пока не реализовано');
-      return [];
+      if (isOwnProfile) {
+        // Для собственного профиля используем приватный API
+        return await bookmarkService.getUserBookmarks();
+      } else {
+        // Для чужого профиля используем публичные закладки
+        const userIdNumber = parseInt(userId);
+        const user = await apiClient.getUserPublicProfile(userIdNumber);
+        return await apiClient.getUserPublicBookmarks(user.username);
+      }
+
     } catch (error) {
       console.error('Ошибка при загрузке закладок:', error);
       return [];
@@ -111,18 +108,25 @@ class ProfileService {
   // Получить прогресс чтения пользователя
   private async getUserReadingProgress(userId: string): Promise<ReadingProgress[]> {
     try {
-      // Для собственного профиля используем приватный API
-      const currentUser = await authService.getCurrentUser();
-      if (currentUser.id.toString() === userId) {
-        return await getUserProgress();
+      // Проверяем, это собственный профиль или чужой
+      let isOwnProfile = false;
+      try {
+        const currentUser = await authService.getCurrentUser();
+        isOwnProfile = currentUser.id.toString() === userId;
+      } catch (error) {
+        // Пользователь не авторизован, используем публичные методы
+        isOwnProfile = false;
       }
 
-      // TODO: BACKEND - Для чужого профиля прогресс чтения можно сделать публичным (опционально)
-      // После реализации эндпоинта раскомментировать:
-      // return await apiClient.getUserPublicProgressByUserId(parseInt(userId));
+      if (isOwnProfile) {
+        // Для собственного профиля используем приватный API
+        return await getUserProgress();
+      } else {
+        // Для чужого профиля используем публичный прогресс
+        const userIdNumber = parseInt(userId);
+        return await apiClient.getUserPublicProgress(userIdNumber);
+      }
       
-      // Пока для чужого профиля прогресс чтения не показываем (приватная информация)
-      return [];
     } catch (error) {
       console.error('Ошибка при загрузке прогресса чтения:', error);
       return [];
@@ -251,7 +255,7 @@ class ProfileService {
           activities.push({
             id: `activity-read-${progress.id}`,
             type: 'read',
-            description: `Прочитал главу ${progress.chapterNumber || 1} "${progress.manga.title}"`,
+            description: `Прочитал главу ${progress.chapterNumber || 1} "${progress.mangaTitle}"`,
             timestamp: new Date(progress.updatedAt),
             relatedMangaId: progress.mangaId
           });
@@ -275,7 +279,7 @@ class ProfileService {
           activities.push({
             id: `activity-bookmark-${bookmark.id}`,
             type: 'bookmark',
-            description: `${statusText} "${bookmark.manga.title}"`,
+            description: `${statusText} "${bookmark.mangaTitle}"`,
             timestamp: new Date(bookmark.updatedAt),
             relatedMangaId: bookmark.mangaId
           });

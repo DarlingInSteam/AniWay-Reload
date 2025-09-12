@@ -153,7 +153,8 @@ class ExtendedProfileService {
         type: 'review',
         description: activity.message,
         timestamp: new Date(activity.timestamp),
-        relatedMangaId: activity.mangaId
+        relatedMangaId: activity.mangaId,
+        relatedMangaName: activity.mangaTitle,
       }));
     } catch (error) {
       console.error('Ошибка при получении активности отзывов:', error);

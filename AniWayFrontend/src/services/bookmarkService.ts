@@ -26,6 +26,18 @@ class BookmarkService {
     return response.json()
   }
 
+  async getUserPublicBookmarks(username: string): Promise<Bookmark[]> {
+      const response = await fetch(`${this.baseUrl}/bookmarks/user/${username}`, {
+        headers: this.getAuthHeaders()
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch public bookmarks');
+      }
+
+      return response.json()
+  }
+
   // Получить закладки по статусу
   async getBookmarksByStatus(status: BookmarkStatus): Promise<Bookmark[]> {
     const response = await fetch(`${this.baseUrl}/bookmarks/status/${status}`, {

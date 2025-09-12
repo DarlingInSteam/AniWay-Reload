@@ -18,6 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { CommentSection } from '@/components/comments/CommentSection';
 import { profileService } from '@/services/profileService';
+import { apiClient } from '@/lib/api';
 import { commentService } from '@/services/commentService';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -137,23 +138,38 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
     if (!profile || !isOwnProfile) return;
 
     try {
-      // Обновляем профиль через AuthContext для собственного профиля
-      if (currentUser) {
-        // Преобразуем обновления в формат User
-        const userUpdates = {
-          displayName: updates.displayName,
-          bio: updates.bio,
-          avatar: updates.avatar
+      
+      // Преобразуем обновления в формат UpdateProfileRequest
+      const profileUpdates = {
+        displayName: updates.displayName,
+        bio: updates.bio,
+        avatar: updates.avatar
+      };
+
+      // Отправляем обновления через API
+      const updatedUser = await apiClient.updateUserProfile(profileUpdates);
+
+      // Обновляем локальное состояние профиля
+      setProfile(prevProfile => {
+        if (!prevProfile) return prevProfile;
+        
+        return {
+          ...prevProfile,
+          ...updates,
+          // Обновляем поля из ответа сервера
+          displayName: updatedUser.displayName || prevProfile.displayName,
+          bio: updatedUser.bio || prevProfile.bio,
+          avatar: updatedUser.avatar || prevProfile.avatar
         };
+      });
 
-        // TODO: Реализовать обновление профиля через API
-        // await updateProfile(userUpdates);
-
-        // Обновляем локальное состояние
-        setProfile({ ...profile, ...updates });
-      }
+      // Показываем уведомление об успехе (можно добавить toast)
+      console.log('Профиль успешно сохранен');
+      
     } catch (error) {
       console.error('Ошибка обновления профиля:', error);
+      // Показываем уведомление об ошибке (можно добавить toast)
+      alert('Не удалось сохранить изменения профиля. Попробуйте еще раз.');
     }
   };
 
@@ -245,87 +261,76 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
           />
         </div>
 
-        {/* Desktop Layout: Трёхколоночный с новым расположением */}
-        <div className="hidden lg:grid lg:grid-cols-12 lg:gap-6">
-          {/* Левая колонка - Табы и основной контент */}
-          <div className="lg:col-span-8">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-              <TabsList className="grid grid-cols-5 bg-white/3 backdrop-blur-md border border-white/8 rounded-xl shadow-lg">
-                <TabsTrigger value="overview" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Обзор</TabsTrigger>
-                <TabsTrigger value="library" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Библиотека</TabsTrigger>
-                <TabsTrigger value="reviews" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Отзывы</TabsTrigger>
-                <TabsTrigger value="comments" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Комментарии</TabsTrigger>
-                <TabsTrigger value="achievements" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Достижения</TabsTrigger>
-              </TabsList>
+        {/* Desktop Layout: Табы занимают всю ширину */}
+        <div className="hidden lg:block">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+            <TabsList className="grid grid-cols-5 bg-white/3 backdrop-blur-md border border-white/8 rounded-xl shadow-lg">
+              <TabsTrigger value="overview" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Обзор</TabsTrigger>
+              <TabsTrigger value="library" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Библиотека</TabsTrigger>
+              <TabsTrigger value="reviews" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Отзывы</TabsTrigger>
+              <TabsTrigger value="comments" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Комментарии</TabsTrigger>
+              <TabsTrigger value="achievements" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Достижения</TabsTrigger>
+            </TabsList>
 
-              <TabsContent value="overview" className="space-y-6">
-                <FavoriteComics favorites={favoriteMangas} isOwnProfile={isOwnProfile} />
-                <ReadingProgressModule progress={readingProgress} isOwnProfile={isOwnProfile} />
-                <Collections collections={collections} isOwnProfile={isOwnProfile} />
-              </TabsContent>
+            <TabsContent value="overview" className="space-y-6">
+              {/* О пользователе */}
+              <ProfileSummary
+                profile={profile}
+                isOwnProfile={isOwnProfile}
+                onProfileUpdate={handleProfileUpdate}
+              />
 
-              <TabsContent value="library" className="space-y-6">
-                <Collections collections={collections} isOwnProfile={isOwnProfile} />
-                <FavoriteComics favorites={favoriteMangas} isOwnProfile={isOwnProfile} />
-              </TabsContent>
+              {/* Содержимое сайдбара */}
+              <ProfileSidebar
+                friends={mockFriends}
+                communities={mockCommunities}
+                activities={userActivities}
+                isOwnProfile={isOwnProfile}
+                userId={parseInt(profile.id)}
+                profileData={profileData}
+              />
 
-              <TabsContent value="reviews" className="space-y-6">
-                {reviewsLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <LoadingSpinner />
-                  </div>
-                ) : (
-                  <>
-                    <Reviews reviews={userReviews} isOwnProfile={isOwnProfile} />
-                    {userReviews.length === 0 && (
-                      <div className="text-center py-12 text-gray-400">
-                        <p className="text-lg mb-2">📝 {isOwnProfile ? 'Ваши отзывы' : 'Отзывы пользователя'}</p>
-                        <p>{isOwnProfile ? 'Напишите первый отзыв на мангу' : 'Пользователь пока не оставлял отзывов'}</p>
-                      </div>
-                    )}
-                  </>
-                )}
-              </TabsContent>
+              {/* Основные компоненты профиля */}
+              <FavoriteComics favorites={favoriteMangas} isOwnProfile={isOwnProfile} />
+              <ReadingProgressModule progress={readingProgress} isOwnProfile={isOwnProfile} />
+              <Collections collections={collections} isOwnProfile={isOwnProfile} />
+            </TabsContent>
 
-              <TabsContent value="comments" className="space-y-6">
-                <UserComments userId={parseInt(userId)} isOwnProfile={isOwnProfile} />
-              </TabsContent>
+            <TabsContent value="library" className="space-y-6">
+              <Collections collections={collections} isOwnProfile={isOwnProfile} />
+              <FavoriteComics favorites={favoriteMangas} isOwnProfile={isOwnProfile} />
+            </TabsContent>
 
-              <TabsContent value="achievements" className="space-y-6">
-                <Achievements achievements={achievements} isOwnProfile={isOwnProfile} />
-              </TabsContent>
-            </Tabs>
-          </div>
+            <TabsContent value="reviews" className="space-y-6">
+              {reviewsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <LoadingSpinner />
+                </div>
+              ) : (
+                <>
+                  <Reviews reviews={userReviews} isOwnProfile={isOwnProfile} />
+                  {userReviews.length === 0 && (
+                    <div className="text-center py-12 text-gray-400">
+                      <p className="text-lg mb-2">📝 {isOwnProfile ? 'Ваши отзывы' : 'Отзывы пользователя'}</p>
+                      <p>{isOwnProfile ? 'Напишите первый отзыв на мангу' : 'Пользователь пока не оставлял отзывов'}</p>
+                    </div>
+                  )}
+                </>
+              )}
+            </TabsContent>
 
-          {/* Правая колонка - О пользователе + Сайдбар */}
-          <div className="lg:col-span-4 space-y-6">
-            {/* О пользователе */}
-            <ProfileSummary
-              profile={profile}
-              isOwnProfile={isOwnProfile}
-              onProfileUpdate={handleProfileUpdate}
-            />
+            <TabsContent value="comments" className="space-y-6">
+              <UserComments userId={parseInt(userId)} isOwnProfile={isOwnProfile} />
+            </TabsContent>
 
-            {/* Сайдбар */}
-            <ProfileSidebar
-              friends={mockFriends}
-              communities={mockCommunities}
-              activities={userActivities}
-              isOwnProfile={isOwnProfile}
-              userId={parseInt(profile.id)}
-              profileData={profileData}
-            />
-          </div>
+            <TabsContent value="achievements" className="space-y-6">
+              <Achievements achievements={achievements} isOwnProfile={isOwnProfile} />
+            </TabsContent>
+          </Tabs>
         </div>
 
         {/* Mobile/Tablet Layout: Одноколоночный стек */}
         <div className="lg:hidden space-y-6">
-          <ProfileSummary
-            profile={profile}
-            isOwnProfile={isOwnProfile}
-            onProfileUpdate={handleProfileUpdate}
-          />
-
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
             <TabsList className="grid grid-cols-2 md:grid-cols-5 bg-white/3 backdrop-blur-md border border-white/8 rounded-xl shadow-lg">
               <TabsTrigger value="overview" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Обзор</TabsTrigger>
@@ -336,6 +341,24 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">
+              {/* О пользователе */}
+              <ProfileSummary
+                profile={profile}
+                isOwnProfile={isOwnProfile}
+                onProfileUpdate={handleProfileUpdate}
+              />
+
+              {/* Содержимое сайдбара */}
+              <ProfileSidebar
+                friends={mockFriends}
+                communities={mockCommunities}
+                activities={userActivities}
+                isOwnProfile={isOwnProfile}
+                userId={parseInt(profile.id)}
+                profileData={profileData}
+              />
+
+              {/* Основные компоненты профиля */}
               <FavoriteComics favorites={favoriteMangas} isOwnProfile={isOwnProfile} />
               <ReadingProgressModule progress={readingProgress} isOwnProfile={isOwnProfile} />
             </TabsContent>
@@ -363,15 +386,6 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               <Achievements achievements={achievements} isOwnProfile={isOwnProfile} />
             </TabsContent>
           </Tabs>
-
-          <ProfileSidebar
-            friends={mockFriends}
-            communities={mockCommunities}
-            activities={userActivities}
-            isOwnProfile={isOwnProfile}
-            userId={parseInt(profile.id)}
-            profileData={profileData}
-          />
         </div>
 
         {/* Футер профиля */}

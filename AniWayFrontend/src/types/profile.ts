@@ -1,6 +1,40 @@
 // Типы для профиля пользователя - обновлены под существующую систему
 import { User, Bookmark, ReadingProgress, MangaResponseDTO } from './index';
 
+// Типы активности для интеграции с ActivityDTO
+export type ActivityType = 'CHAPTER_COMPLETED' | 'REVIEW_CREATED' | 'COMMENT_CREATED';
+
+export interface ProcessedActivityDTO {
+  id: number;
+  userId: number;
+  activityType: ActivityType;
+  message: string;
+  timestamp: string;
+  mangaId?: number;
+  mangaTitle?: string;
+  chapterId?: number;
+  chapterNumber?: number;
+  chapterTitle?: string;
+  reviewId?: number;
+  commentId?: number;
+  actionUrl?: string;
+  isValid?: boolean;
+  displayMessage?: string;
+  displayTime?: string;
+}
+
+export interface ProfileStatistics {
+  totalMangaRead?: number;
+  totalChaptersRead?: number;
+  totalPagesRead?: number;
+  totalReadingTimeMinutes?: number;
+  favoriteGenres?: string[];
+  readingStreak?: number;
+  averageRating?: number;
+  hasActivity?: boolean;
+  lastActivityDate?: string;
+}
+
 export interface UserProfile {
   id: string;
   username: string;
