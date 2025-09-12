@@ -11,7 +11,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { activityStatsApi, ProcessedActivityDTO, ActivityType } from '@/services/activityStatsApi';
+import { activityStatsApi, ActivityType } from '@/services/activityStatsApi';
 
 interface ActivityItem {
   id: number;

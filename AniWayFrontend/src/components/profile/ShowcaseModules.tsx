@@ -9,9 +9,9 @@ import {
   UserReview,
   Achievement
 } from '@/types/profile';
-import { CommentResponseDTO, EnhancedCommentResponseDTO } from '@/types/comments';
-import { useState, useEffect } from 'react';
-import { useEnhancedUserComments, EnhancedCommentResponseDTO as HookEnhancedCommentResponseDTO } from '@/hooks/useEnhancedUserComments';
+import { CommentResponseDTO } from '@/types/comments';
+import { useState } from 'react';
+import { useEnhancedUserComments } from '@/hooks/useEnhancedUserComments';
 import { useUserReviews } from '@/hooks/useUserReviews';
 import {
   Heart,
@@ -332,22 +332,6 @@ export function Achievements({ achievements, isOwnProfile }: AchievementsProps) 
       )}
     </ShowcaseModule>
   );
-}
-
-// Вспомогательная функция для получения типа комментария на русском
-function getCommentTypeText(type: string): string {
-  switch (type) {
-    case 'MANGA':
-      return 'Манга';
-    case 'CHAPTER':
-      return 'Глава';
-    case 'PROFILE':
-      return 'Профиль';
-    case 'REVIEW':
-      return 'Отзыв';
-    default:
-      return type;
-  }
 }
 
 interface UserCommentsProps {

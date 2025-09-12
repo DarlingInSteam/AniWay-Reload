@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api';
-import { UserActivity, Achievement } from '@/types/profile';
+import { UserActivity } from '@/types/profile';
 
 export interface ProfileSettingsData {
   displayName?: string;

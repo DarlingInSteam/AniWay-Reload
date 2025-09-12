@@ -13,13 +13,10 @@ import {
   UserComments
 } from './ShowcaseModules';
 import { UserProfile as UserProfileType, UserProfileProps, UserReview } from '@/types/profile';
-import { CommentResponseDTO, CommentCreateDTO } from '@/types/comments';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { CommentSection } from '@/components/comments/CommentSection';
 import { profileService } from '@/services/profileService';
 import { apiClient } from '@/lib/api';
-import { commentService } from '@/services/commentService';
 import { useAuth } from '@/contexts/AuthContext';
 
 export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
@@ -211,10 +208,6 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   const collections = profileData ? profileService.getCollectionsFromBookmarks(profileData.bookmarks) : [];
   const userActivities = profileData ? profileService.generateUserActivity(profileData.readingProgress, profileData.bookmarks) : [];
   const achievements = profileData?.readingStats ? profileService.generateAchievements(profileData.readingStats) : [];
-  
-  // Заглушки для данных, которые пока не реализованы
-  const mockFriends: any[] = []; // TODO: Добавить систему друзей
-  const mockCommunities: any[] = []; // TODO: Добавить систему сообществ
 
   if (loading) {
     return (
