@@ -11,7 +11,9 @@ export interface ActivityDTO {
   mangaTitle?: string
   chapterId?: number
   chapterNumber?: number
+  chapterTitle?: string
   reviewId?: number
+  commentId?: number
   actionUrl?: string
 }
 

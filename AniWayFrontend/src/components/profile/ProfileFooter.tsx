@@ -1,6 +1,3 @@
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Share, Download, MoreVertical } from 'lucide-react';
 import { CommentSection } from '@/components/comments/CommentSection';
 
 interface ProfileFooterProps {
@@ -12,9 +9,6 @@ interface ProfileFooterProps {
 
 export function ProfileFooter({
   userId,
-  isOwnProfile,
-  onShare,
-  onExportData
 }: ProfileFooterProps) {
 
   return (

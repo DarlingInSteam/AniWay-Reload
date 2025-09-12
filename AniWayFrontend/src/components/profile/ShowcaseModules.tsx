@@ -11,7 +11,6 @@ import {
 } from '@/types/profile';
 import { CommentResponseDTO, EnhancedCommentResponseDTO } from '@/types/comments';
 import { useState, useEffect } from 'react';
-import { apiClient } from '@/lib/api';
 import { useEnhancedUserComments, EnhancedCommentResponseDTO as HookEnhancedCommentResponseDTO } from '@/hooks/useEnhancedUserComments';
 import { useUserReviews } from '@/hooks/useUserReviews';
 import {
@@ -64,7 +63,7 @@ interface FavoriteComicsProps {
 }
 
 export function FavoriteComics({ favorites, isOwnProfile }: FavoriteComicsProps) {
-  const displayedFavorites = favorites.slice(0, 6);
+  const displayedFavorites = favorites.slice(0, 8); // Показываем больше избранных
 
   return (
     <ShowcaseModule
@@ -73,25 +72,27 @@ export function FavoriteComics({ favorites, isOwnProfile }: FavoriteComicsProps)
       isEditable={isOwnProfile}
     >
       {displayedFavorites.length > 0 ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {displayedFavorites.map((manga) => (
-            <div key={manga.id} className="group cursor-pointer">
-              <div className="relative aspect-[3/4] rounded-lg overflow-hidden mb-2">
-                <img
-                  src={manga.coverImage || '/placeholder-manga.png'}
-                  alt={manga.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                />
-                <div className="absolute top-2 right-2">
-                  <Badge className="bg-yellow-600 text-white text-xs">
-                    <Star className="w-3 h-3 mr-1" />
-                    {manga.rating}
-                  </Badge>
+        <div className="overflow-x-auto pb-2">
+          <div className="flex gap-4 min-w-max">
+            {displayedFavorites.map((manga) => (
+              <div key={manga.id} className="group cursor-pointer flex-shrink-0 w-24">
+                <div className="relative aspect-[3/4] rounded-lg overflow-hidden mb-2 w-24 h-32">
+                  <img
+                    src={manga.coverImage || '/placeholder-manga.png'}
+                    alt={manga.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                  />
+                  <div className="absolute top-1 right-1">
+                    <Badge className="bg-yellow-600 text-white text-xs px-1 py-0">
+                      <Star className="w-2 h-2 mr-1" />
+                      {manga.rating}
+                    </Badge>
+                  </div>
                 </div>
+                <h4 className="text-xs font-medium text-white truncate">{manga.title}</h4>
               </div>
-              <h4 className="text-sm font-medium text-white truncate">{manga.title}</h4>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       ) : (
         <div className="text-center py-8 text-gray-400">
@@ -165,8 +166,8 @@ export function ReadingProgressModule({ progress, isOwnProfile }: ReadingProgres
             </div>
           ) : (
             <div>
-              <p className="mb-2">📖 Прогресс чтения скрыт</p>
-              <p className="text-xs">Пользователь не открыл свой прогресс для публичного просмотра</p>
+              <p className="mb-2">📖 Нет активного чтения</p>
+              <p className="text-xs">Пользователь не читает мангу в данный момент</p>
             </div>
           )}
         </div>
@@ -181,7 +182,7 @@ interface CollectionsProps {
 }
 
 export function Collections({ collections, isOwnProfile }: CollectionsProps) {
-  const displayedCollections = collections.slice(0, 4);
+  const displayedCollections = collections.slice(0, 8); // Показываем больше коллекций
 
   return (
     <ShowcaseModule
@@ -190,30 +191,32 @@ export function Collections({ collections, isOwnProfile }: CollectionsProps) {
       isEditable={isOwnProfile}
     >
       {displayedCollections.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {displayedCollections.map((collection) => (
-            <div key={collection.id} className="group cursor-pointer">
-              <div className="relative aspect-[3/4] rounded-lg overflow-hidden mb-2 bg-gray-800">
-                {collection.coverImages.length > 0 ? (
-                  <img
-                    src={collection.coverImages[0]}
-                    alt={collection.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <Folder className="w-8 h-8 text-gray-600" />
-                  </div>
-                )}
+        <div className="overflow-x-auto pb-2">
+          <div className="flex gap-4 min-w-max">
+            {displayedCollections.map((collection) => (
+              <div key={collection.id} className="group cursor-pointer flex-shrink-0 w-40">
+                <div className="relative aspect-[3/4] rounded-lg overflow-hidden mb-2 bg-gray-800 w-40 h-48">
+                  {collection.coverImages.length > 0 ? (
+                    <img
+                      src={collection.coverImages[0]}
+                      alt={collection.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <Folder className="w-6 h-6 text-gray-600" />
+                    </div>
+                  )}
+                </div>
+                <h4 className="text-xs font-medium text-white truncate mb-1">
+                  {collection.name}
+                </h4>
+                <div className="text-xs text-gray-400">
+                  {collection.mangaCount} • {collection.isPublic ? 'Публ.' : 'Прив.'}
+                </div>
               </div>
-              <h4 className="text-sm font-medium text-white truncate mb-1">
-                {collection.name}
-              </h4>
-              <div className="text-xs text-gray-400">
-                {collection.mangaCount} манги • {collection.isPublic ? 'Публичная' : 'Приватная'}
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       ) : (
         <div className="text-center py-8 text-gray-400">
@@ -223,8 +226,8 @@ export function Collections({ collections, isOwnProfile }: CollectionsProps) {
             </div>
           ) : (
             <div>
-              <p className="mb-2">📚 Коллекции пока недоступны</p>
-              <p className="text-xs">Публичные коллекции будут добавлены в следующем обновлении</p>
+              <p className="mb-2">📚 Нет публичных коллекций</p>
+              <p className="text-xs">Пользователь не создал публичных коллекций</p>
             </div>
           )}
         </div>

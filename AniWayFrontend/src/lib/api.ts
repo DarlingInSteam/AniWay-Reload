@@ -1,4 +1,4 @@
-import { MangaResponseDTO, ChapterDTO, ChapterImageDTO, SearchParams, UserSearchParams, UserSearchResult, User } from '@/types';
+import { MangaResponseDTO, ChapterDTO, ChapterImageDTO, SearchParams, UserSearchParams, UserSearchResult, User, UpdateProfileRequest } from '@/types';
 
 const API_BASE_URL = '/api';
 
@@ -30,6 +30,32 @@ class ApiClient {
       const errorText = await response.text();
       console.error(`API Error Details: ${errorText}`);
       throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return response.json();
+  }
+
+  
+  // Публичный запрос без авторизационных заголовков
+  private async publicRequest<T>(endpoint: string, options?: RequestInit): Promise<T> {
+    const url = `${API_BASE_URL}${endpoint}`;
+
+    console.log(`Public API Request: ${options?.method || 'GET'} ${url}`);
+
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+      ...options,
+    });
+
+    console.log(`Public API Response: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Public API Error Details: ${errorText}`);
+      throw new Error(`Public API Error: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
     return response.json();
@@ -120,9 +146,17 @@ class ApiClient {
     return this.request<User>(`/auth/users/${userId}/public`);
   }
 
-  // Обновить профиль текущего пользователя
+  // Обновить профиль текущего пользователя (deprecated - используйте updateUserProfile)
   async updateCurrentUserProfile(data: any): Promise<User> {
     return this.request<User>(`/auth/me`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Обновить профиль пользователя через /api/users/profile эндпоинт
+  async updateUserProfile(data: UpdateProfileRequest): Promise<User> {
+    return this.request<User>(`/users/profile`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
@@ -138,9 +172,9 @@ class ApiClient {
     }
   }
 
-  async getUserPublicProgressByUserId(userId: number): Promise<any[]> {
+  async getUserPublicProgress(userId: number): Promise<any[]> {
     try {
-      return this.request<any[]>(`/auth/users/${userId}/public/progress`);
+      return this.publicRequest<any[]>(`/auth/users/${userId}/public/progress`);
     } catch (error) {
       console.log(`Публичный прогресс недоступен для пользователя ${userId}`);
       return [];
