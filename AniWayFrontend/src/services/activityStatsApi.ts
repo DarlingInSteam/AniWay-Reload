@@ -1,4 +1,4 @@
-import { authService as extendedAuthService, ActivityDTO as BaseActivityDTO } from './authServiceExtended';
+import { authService as extendedAuthService, ActivityDTO as BaseActivityDTO, ReadingStatistics } from './authServiceExtended';
 import { ActivityType, ProcessedActivityDTO, ProfileStatistics } from '../types/profile';
 import { apiClient } from '@/lib/api';
 

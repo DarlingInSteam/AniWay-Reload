@@ -13,10 +13,13 @@ import {
   UserComments
 } from './ShowcaseModules';
 import { UserProfile as UserProfileType, UserProfileProps, UserReview } from '@/types/profile';
+import { CommentResponseDTO, CommentCreateDTO } from '@/types/comments';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { CommentSection } from '@/components/comments/CommentSection';
 import { profileService } from '@/services/profileService';
 import { apiClient } from '@/lib/api';
+import { commentService } from '@/services/commentService';
 import { useAuth } from '@/contexts/AuthContext';
 
 export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
@@ -208,7 +211,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   const collections = profileData ? profileService.getCollectionsFromBookmarks(profileData.bookmarks) : [];
   const userActivities = profileData ? profileService.generateUserActivity(profileData.readingProgress, profileData.bookmarks) : [];
   const achievements = profileData?.readingStats ? profileService.generateAchievements(profileData.readingStats) : [];
-
+  
   // Заглушки для данных, которые пока не реализованы
   const mockFriends: any[] = []; // TODO: Добавить систему друзей
   const mockCommunities: any[] = []; // TODO: Добавить систему сообществ
@@ -288,14 +291,17 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               />
 
               {/* Основные компоненты профиля */}
+              <FavoriteComics favorites={favoriteMangas} isOwnProfile={isOwnProfile} />
+              <ReadingProgressModule progress={readingProgress} isOwnProfile={isOwnProfile} />
               <Collections collections={collections} isOwnProfile={isOwnProfile} />
             </TabsContent>
 
             <TabsContent value="library" className="space-y-6">
               <Collections collections={collections} isOwnProfile={isOwnProfile} />
+              <FavoriteComics favorites={favoriteMangas} isOwnProfile={isOwnProfile} />
             </TabsContent>
 
-            <TabsContent value="reviews" className="space-y-6 max-h-96 overflow-y-auto">
+            <TabsContent value="reviews" className="space-y-6">
               {reviewsLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <LoadingSpinner />
@@ -313,7 +319,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               )}
             </TabsContent>
 
-            <TabsContent value="comments" className="space-y-6 max-h-96 overflow-y-auto">
+            <TabsContent value="comments" className="space-y-6">
               <UserComments userId={parseInt(userId)} isOwnProfile={isOwnProfile} />
             </TabsContent>
 
@@ -353,16 +359,16 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               />
 
               {/* Основные компоненты профиля */}
-              <Collections collections={collections} isOwnProfile={isOwnProfile} />
+              <FavoriteComics favorites={favoriteMangas} isOwnProfile={isOwnProfile} />
+              <ReadingProgressModule progress={readingProgress} isOwnProfile={isOwnProfile} />
             </TabsContent>
 
             <TabsContent value="library" className="space-y-6">
               <Collections collections={collections} isOwnProfile={isOwnProfile} />
               <FavoriteComics favorites={favoriteMangas} isOwnProfile={isOwnProfile} />
-              <ReadingProgressModule progress={readingProgress} isOwnProfile={isOwnProfile} />
             </TabsContent>
 
-            <TabsContent value="reviews" className="space-y-6 max-h-96 overflow-y-auto">
+            <TabsContent value="reviews" className="space-y-6">
               {reviewsLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <LoadingSpinner />
@@ -372,7 +378,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               )}
             </TabsContent>
 
-            <TabsContent value="comments" className="space-y-6 max-h-96 overflow-y-auto">
+            <TabsContent value="comments" className="space-y-6">
               <UserComments userId={parseInt(userId)} isOwnProfile={isOwnProfile} />
             </TabsContent>
 
