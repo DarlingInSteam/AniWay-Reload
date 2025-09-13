@@ -227,7 +227,7 @@ export function useEnhancedComments(
 }
 
 // Вспомогательные функции
-function getCommentTypeText(type: string): string {
+function getCommentTypeText(type: "MANGA" | "CHAPTER" | "PROFILE" | "REVIEW" | undefined): string | undefined {
   switch (type) {
     case 'MANGA': return 'Манга';
     case 'CHAPTER': return 'Глава';
@@ -237,7 +237,7 @@ function getCommentTypeText(type: string): string {
   }
 }
 
-function getCommentTypeIcon(type: string): string {
+function getCommentTypeIcon(type: "MANGA" | "CHAPTER" | "PROFILE" | "REVIEW" | undefined): string {
   switch (type) {
     case 'MANGA': return '📖';
     case 'CHAPTER': return '📄';
@@ -247,7 +247,7 @@ function getCommentTypeIcon(type: string): string {
   }
 }
 
-function getCommentTypeColor(type: string): string {
+function getCommentTypeColor(type: "MANGA" | "CHAPTER" | "PROFILE" | "REVIEW" | undefined): string {
   switch (type) {
     case 'MANGA': return 'text-purple-400';
     case 'CHAPTER': return 'text-blue-400';
@@ -255,9 +255,4 @@ function getCommentTypeColor(type: string): string {
     case 'REVIEW': return 'text-yellow-400';
     default: return 'text-gray-400';
   }
-}
-
-// Функция для очистки кэша (можно использовать при необходимости)
-export function clearTargetInfoCache() {
-  targetInfoCache.clear();
 }
