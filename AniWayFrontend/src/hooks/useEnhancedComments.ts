@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { CommentResponseDTO, EnhancedCommentResponseDTO } from '@/types/comments';
 import { apiClient } from '@/lib/api';
 
