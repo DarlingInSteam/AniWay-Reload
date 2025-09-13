@@ -288,17 +288,14 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               />
 
               {/* Основные компоненты профиля */}
-              <FavoriteComics favorites={favoriteMangas} isOwnProfile={isOwnProfile} />
-              <ReadingProgressModule progress={readingProgress} isOwnProfile={isOwnProfile} />
               <Collections collections={collections} isOwnProfile={isOwnProfile} />
             </TabsContent>
 
             <TabsContent value="library" className="space-y-6">
               <Collections collections={collections} isOwnProfile={isOwnProfile} />
-              <FavoriteComics favorites={favoriteMangas} isOwnProfile={isOwnProfile} />
             </TabsContent>
 
-            <TabsContent value="reviews" className="space-y-6">
+            <TabsContent value="reviews" className="space-y-6 max-h-96 overflow-y-auto">
               {reviewsLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <LoadingSpinner />
@@ -316,7 +313,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               )}
             </TabsContent>
 
-            <TabsContent value="comments" className="space-y-6">
+            <TabsContent value="comments" className="space-y-6 max-h-96 overflow-y-auto">
               <UserComments userId={parseInt(userId)} isOwnProfile={isOwnProfile} />
             </TabsContent>
 
@@ -356,16 +353,16 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               />
 
               {/* Основные компоненты профиля */}
-              <FavoriteComics favorites={favoriteMangas} isOwnProfile={isOwnProfile} />
-              <ReadingProgressModule progress={readingProgress} isOwnProfile={isOwnProfile} />
+              <Collections collections={collections} isOwnProfile={isOwnProfile} />
             </TabsContent>
 
             <TabsContent value="library" className="space-y-6">
               <Collections collections={collections} isOwnProfile={isOwnProfile} />
               <FavoriteComics favorites={favoriteMangas} isOwnProfile={isOwnProfile} />
+              <ReadingProgressModule progress={readingProgress} isOwnProfile={isOwnProfile} />
             </TabsContent>
 
-            <TabsContent value="reviews" className="space-y-6">
+            <TabsContent value="reviews" className="space-y-6 max-h-96 overflow-y-auto">
               {reviewsLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <LoadingSpinner />
@@ -375,7 +372,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               )}
             </TabsContent>
 
-            <TabsContent value="comments" className="space-y-6">
+            <TabsContent value="comments" className="space-y-6 max-h-96 overflow-y-auto">
               <UserComments userId={parseInt(userId)} isOwnProfile={isOwnProfile} />
             </TabsContent>
 
