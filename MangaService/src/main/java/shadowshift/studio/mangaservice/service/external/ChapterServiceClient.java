@@ -2,6 +2,7 @@ package shadowshift.studio.mangaservice.service.external;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.slf4j.Logger;
@@ -62,6 +63,7 @@ public class ChapterServiceClient {
      * Получает список глав для манги (упрощенная версия).
      * Главы возвращаются в порядке возрастания номера главы.
      */
+    @Cacheable(value = "mangaChapters", key = "#mangaId")
     public List<ChapterDTO> getChaptersByMangaId(Long mangaId) {
         try {
             WebClient webClient = webClientBuilder.build();

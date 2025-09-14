@@ -293,6 +293,29 @@ class ApiClient {
     }
   }
 
+  async getCollectionById(id: string): Promise<any> {
+    console.warn('getCollectionById пока не реализован на бэкенде');
+    // Возвращаем заглушку на основе статуса закладок
+    const collections = await this.getUserCollections();
+    const collection = collections.find(c => c.id === id);
+    if (collection) {
+      return collection;
+    }
+    throw new Error('Коллекция не найдена');
+  }
+
+  async addMangaToCollection(collectionId: string, mangaId: number): Promise<{ success: boolean; message: string }> {
+    console.warn('addMangaToCollection пока не реализован на бэкенде');
+    // Заглушка - в будущем будет реальный API
+    return { success: true, message: 'Манга добавлена в коллекцию (заглушка)' };
+  }
+
+  async removeMangaFromCollection(collectionId: string, mangaId: number): Promise<{ success: boolean; message: string }> {
+    console.warn('removeMangaFromCollection пока не реализован на бэкенде');
+    // Заглушка - в будущем будет реальный API
+    return { success: true, message: 'Манга удалена из коллекции (заглушка)' };
+  }
+
   async getUserBookmarks(): Promise<any[]> {
     return this.request<any[]>('/bookmarks');
   }
