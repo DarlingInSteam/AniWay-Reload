@@ -9,7 +9,6 @@ export { extendedProfileService } from './extendedProfileService';
 // НОВЫЕ API для активности и статистики
 export { authService } from './authServiceExtended';
 export { activityStatsApi } from './activityStatsApi';
-export { ApiTester } from './apiTester';
 
 // Экспорт новых типов
 export type {

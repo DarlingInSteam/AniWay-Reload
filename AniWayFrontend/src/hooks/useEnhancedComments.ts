@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { CommentResponseDTO, EnhancedCommentResponseDTO } from '@/types/comments';
 import { apiClient } from '@/lib/api';
 
@@ -133,11 +133,11 @@ export function useEnhancedComments(
 
         // Обрабатываем комментарии с полученными данными
         const enhanced = commentsToProcess.map((comment): EnhancedCommentResponseDTO => {
-          let targetInfo = {
-            text: `${getCommentTypeText(comment.type || 'UNKNOWN')} #${comment.targetId}`,
-            icon: getCommentTypeIcon(comment.type || 'UNKNOWN'),
-            color: getCommentTypeColor(comment.type || 'UNKNOWN')
-          };
+            let targetInfo = {
+                text: `${getCommentTypeText(comment.type)} #${comment.targetId}`,
+                icon: getCommentTypeIcon(comment.type),
+                color: getCommentTypeColor(comment.type)
+            };
 
           // Устанавливаем конкретную информацию на основе типа
           switch (comment.type) {
@@ -208,11 +208,11 @@ export function useEnhancedComments(
         // Fallback: используем базовую информацию
         const fallbackComments: EnhancedCommentResponseDTO[] = comments.slice(0, maxComments).map((comment: CommentResponseDTO) => ({
           ...comment,
-          targetInfo: {
-            text: `${getCommentTypeText(comment.type || 'UNKNOWN')} #${comment.targetId}`,
-            icon: getCommentTypeIcon(comment.type || 'UNKNOWN'),
-            color: getCommentTypeColor(comment.type || 'UNKNOWN')
-          }
+            targetInfo: {
+                text: `${getCommentTypeText(comment.type)} #${comment.targetId}`,
+                icon: getCommentTypeIcon(comment.type),
+                color: getCommentTypeColor(comment.type)
+            }
         }));
         setEnhancedComments(fallbackComments);
       } finally {
@@ -227,7 +227,7 @@ export function useEnhancedComments(
 }
 
 // Вспомогательные функции
-function getCommentTypeText(type: string): string {
+function getCommentTypeText(type: "MANGA" | "CHAPTER" | "PROFILE" | "REVIEW" | undefined): string | undefined {
   switch (type) {
     case 'MANGA': return 'Манга';
     case 'CHAPTER': return 'Глава';
@@ -237,7 +237,7 @@ function getCommentTypeText(type: string): string {
   }
 }
 
-function getCommentTypeIcon(type: string): string {
+function getCommentTypeIcon(type: "MANGA" | "CHAPTER" | "PROFILE" | "REVIEW" | undefined): string {
   switch (type) {
     case 'MANGA': return '📖';
     case 'CHAPTER': return '📄';
@@ -247,7 +247,7 @@ function getCommentTypeIcon(type: string): string {
   }
 }
 
-function getCommentTypeColor(type: string): string {
+function getCommentTypeColor(type: "MANGA" | "CHAPTER" | "PROFILE" | "REVIEW" | undefined): string {
   switch (type) {
     case 'MANGA': return 'text-purple-400';
     case 'CHAPTER': return 'text-blue-400';
@@ -255,9 +255,4 @@ function getCommentTypeColor(type: string): string {
     case 'REVIEW': return 'text-yellow-400';
     default: return 'text-gray-400';
   }
-}
-
-// Функция для очистки кэша (можно использовать при необходимости)
-export function clearTargetInfoCache() {
-  targetInfoCache.clear();
 }

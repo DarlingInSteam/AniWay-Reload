@@ -130,6 +130,13 @@ export interface RegisterRequest {
   username: string
   email: string
   password: string
+  displayName?: string
+}
+
+export interface UpdateProfileRequest {
+  displayName?: string
+  bio?: string
+  // Можно добавить другие поля для будущих обновлений
 }
 
 // Типы для системы закладок

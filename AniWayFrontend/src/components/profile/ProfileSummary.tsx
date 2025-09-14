@@ -73,6 +73,7 @@ export function ProfileSummary({ profile, isOwnProfile, onProfileUpdate }: Profi
                   {newBio.length}/1000 символов
                 </span>
                 <div className="flex gap-2">
+                  {/* TODO реализовать сохраниение биографии при нажатии кнопки*/}
                   <Button onClick={handleBioSubmit} size="sm" className="bg-blue-500/15 hover:bg-blue-500/25 border-blue-400/25">
                     <Save className="w-4 h-4 mr-1" />
                     Сохранить

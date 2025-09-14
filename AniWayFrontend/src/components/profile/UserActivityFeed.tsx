@@ -11,14 +11,30 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { extendedProfileService } from '@/services/extendedProfileService';
+import { activityStatsApi, ProcessedActivityDTO, ActivityType } from '@/services/activityStatsApi';
 
 interface ActivityItem {
-  id: string;
-  type: 'read' | 'review' | 'bookmark' | 'achievement';
+  id: number;
+  userId: number;
+  activityType: ActivityType;
+  message: string;
+  timestamp: string;
+  mangaId?: number;
+  mangaTitle?: string;
+  chapterId?: number;
+  chapterNumber?: number;
+  chapterTitle?: string;
+  reviewId?: number;
+  commentId?: number;
+  actionUrl?: string;
+  displayMessage?: string;
+  displayTime?: string;
+  isValid?: boolean;
+  uniqueKey?: string; // Добавляем уникальный ключ
+  relatedMangaId?: number; // Добавляем relatedMangaId для совместимости
+  // Дополнительные поля для совместимости с существующим UI
+  type: 'read' | 'review' | 'bookmark' | 'achievement' | 'comment';
   description: string;
-  timestamp: Date;
-  relatedMangaId?: number;
 }
 
 interface UserActivityFeedProps {
@@ -44,15 +60,21 @@ export function UserActivityFeed({
       setLoading(true);
       setError(null);
       
-      const activityData = await extendedProfileService.getProfileActivity(userId, limit * 2);
+      // Используем новый API активности
+      const activityData = await activityStatsApi.getUserActivity(userId, limit * 2);
       
-      // Обеспечиваем уникальные ID для каждого элемента активности
-      const uniqueActivities = activityData.map((activity, index) => ({
+      // Преобразуем данные для совместимости с существующим UI
+      const transformedActivities: ActivityItem[] = activityData.map((activity, index) => ({
         ...activity,
-        id: `${activity.id}-${index}-${Date.now()}` // Делаем ID уникальными
+        id: activity.id,
+        uniqueKey: `${activity.activityType}-${activity.id}-${index}`, // Добавляем уникальный ключ
+        type: mapActivityTypeToUI(activity.activityType),
+        description: activity.displayMessage || activity.message,
+        timestamp: activity.timestamp,
+        relatedMangaId: activity.mangaId
       }));
       
-      setActivities(uniqueActivities);
+      setActivities(transformedActivities);
     } catch (err) {
       console.error('Ошибка загрузки активности:', err);
       const errorMessage = err instanceof Error ? err.message : 'Не удалось загрузить активность';
@@ -65,20 +87,39 @@ export function UserActivityFeed({
     }
   };
 
+  // Функция для маппинга типов активности из API в типы UI
+  const mapActivityTypeToUI = (activityType: ActivityType): ActivityItem['type'] => {
+    switch (activityType) {
+      case 'CHAPTER_COMPLETED':
+        return 'read';
+      case 'REVIEW_CREATED':
+        return 'review';
+      case 'COMMENT_CREATED':
+        return 'comment';
+      default:
+        return 'read';
+    }
+  };
+
   useEffect(() => {
     if (userId) {
       loadActivity();
     }
   }, [userId, limit]);
 
-  const formatActivityTime = (timestamp: Date): string => {
-    return new Date(timestamp).toLocaleString('ru-RU', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  const formatActivityTime = (timestamp: string): string => {
+    try {
+      return new Date(timestamp).toLocaleString('ru-RU', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      console.error('Ошибка форматирования времени:', error);
+      return 'Недавно';
+    }
   };
 
   const getActivityIcon = (type: ActivityItem['type']) => {
@@ -86,7 +127,8 @@ export function UserActivityFeed({
       read: <BookOpen className="w-4 h-4 text-blue-400" />,
       review: <Star className="w-4 h-4 text-yellow-400" />,
       bookmark: <Bookmark className="w-4 h-4 text-green-400" />,
-      achievement: <Trophy className="w-4 h-4 text-purple-400" />
+      achievement: <Trophy className="w-4 h-4 text-purple-400" />,
+      comment: <MessageSquare className="w-4 h-4 text-orange-400" />
     };
     return iconMap[type] || <Activity className="w-4 h-4 text-gray-400" />;
   };
@@ -142,7 +184,7 @@ export function UserActivityFeed({
           <div className="space-y-3">
             {displayedActivities.map((activity) => (
               <div 
-                key={activity.id} 
+                key={activity.uniqueKey || activity.id} 
                 className="flex items-start gap-3 text-sm p-2 rounded-lg hover:bg-white/3 transition-all duration-200 cursor-pointer group"
               >
                 <div className="mt-0.5 flex-shrink-0">
@@ -154,7 +196,7 @@ export function UserActivityFeed({
                   </div>
                   <div className="flex items-center justify-between mt-1">
                     <div className="text-xs text-gray-400">
-                      {formatActivityTime(activity.timestamp)}
+                      {activity.displayTime || formatActivityTime(activity.timestamp)}
                     </div>
                     {activity.relatedMangaId && (
                       <ChevronRight className="w-3 h-3 text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity" />
