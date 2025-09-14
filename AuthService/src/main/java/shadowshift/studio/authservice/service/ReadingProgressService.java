@@ -2,6 +2,8 @@ package shadowshift.studio.authservice.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import shadowshift.studio.authservice.dto.ReadingProgressDTO;
 import shadowshift.studio.authservice.entity.ReadingProgress;
@@ -43,6 +45,7 @@ public class ReadingProgressService {
      * @return объект DTO прогресса чтения
      * @throws IllegalArgumentException если пользователь не найден
      */
+    @CacheEvict(value = {"userProgress", "mangaProgress", "chapterProgress", "readingStats"}, key = "#username")
     public ReadingProgressDTO updateProgress(String username, Long mangaId, Long chapterId, 
                                            Double chapterNumber, Integer pageNumber, Boolean isCompleted) {
         var user = userRepository.findByUsername(username)
@@ -108,6 +111,7 @@ public class ReadingProgressService {
      * @return список DTO прогресса чтения
      * @throws IllegalArgumentException если пользователь не найден
      */
+    @Cacheable(value = "userProgress", key = "#username")
     public List<ReadingProgressDTO> getUserProgress(String username) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -143,6 +147,7 @@ public class ReadingProgressService {
      * @return список DTO прогресса чтения для манги
      * @throws IllegalArgumentException если пользователь не найден
      */
+    @Cacheable(value = "mangaProgress", key = "#username + '_' + #mangaId")
     public List<ReadingProgressDTO> getMangaProgress(String username, Long mangaId) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -162,6 +167,7 @@ public class ReadingProgressService {
      * @return объект DTO прогресса чтения или null, если не найден
      * @throws IllegalArgumentException если пользователь не на��ден
      */
+    @Cacheable(value = "chapterProgress", key = "#username + '_' + #chapterId")
     public ReadingProgressDTO getChapterProgress(String username, Long chapterId) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -179,6 +185,7 @@ public class ReadingProgressService {
      * @param progressData данные прогресса чтения
      * @return объект DTO сохраненного прогресса
      */
+    @CacheEvict(value = {"userProgress", "mangaProgress", "chapterProgress", "readingStats"}, key = "#username")
     public ReadingProgressDTO saveProgress(String username, ReadingProgressDTO progressData) {
         return updateProgress(username, progressData.getMangaId(), progressData.getChapterId(),
                 progressData.getChapterNumber(), progressData.getPageNumber(), progressData.getIsCompleted());
@@ -193,6 +200,7 @@ public class ReadingProgressService {
      * @return объект DTO обновленного прогресса
      * @throws IllegalArgumentException если пользователь или прогресс не найден, или доступ запрещен
      */
+    @CacheEvict(value = {"userProgress", "mangaProgress", "chapterProgress", "readingStats"}, key = "#username")
     public ReadingProgressDTO updateProgress(String username, Long id, ReadingProgressDTO progressData) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -225,6 +233,7 @@ public class ReadingProgressService {
      * @param id идентификатор прогресса
      * @throws IllegalArgumentException если пользователь или прогресс не найден, или доступ запрещен
      */
+    @CacheEvict(value = {"userProgress", "mangaProgress", "chapterProgress", "readingStats"}, key = "#username")
     public void deleteProgress(String username, Long id) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -248,6 +257,7 @@ public class ReadingProgressService {
      * @return карта со статистикой чтения
      * @throws IllegalArgumentException если пользователь не найден
      */
+    @Cacheable(value = "readingStats", key = "#username")
     public Map<String, Object> getReadingStats(String username) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));

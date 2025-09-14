@@ -4,6 +4,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -21,6 +23,7 @@ import shadowshift.studio.mangaservice.service.external.ChapterServiceClient;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Основной сервис для управления мангой в системе AniWay.
@@ -50,6 +53,9 @@ public class MangaService {
     private final MangaMapper mangaMapper;
     private final RestTemplate restTemplate;
     private final ServiceUrlProperties serviceUrlProperties;
+
+    // Кэш для rate limiting просмотров: ключ - "userId_mangaId", значение - timestamp последнего просмотра
+    private final ConcurrentHashMap<String, Long> viewRateLimitCache = new ConcurrentHashMap<>();
 
     @Value("${image.storage.service.url}")
     private String imageStorageServiceUrl;
@@ -89,6 +95,7 @@ public class MangaService {
      * @return список DTO с информацией о всех мангах
      */
     @Transactional(readOnly = true)
+    @Cacheable(value = "mangaCatalog", key = "'all'")
     public List<MangaResponseDTO> getAllManga() {
         logger.debug("Запрос списка всех манг");
         
@@ -121,6 +128,7 @@ public class MangaService {
      * @return список DTO с найденными мангами
      */
     @Transactional(readOnly = true)
+    @Cacheable(value = "mangaSearch", key = "#title + '_' + #author + '_' + #genre + '_' + #status")
     public List<MangaResponseDTO> searchManga(String title, String author, String genre, String status) {
         logger.debug("Поиск манги с параметрами - title: '{}', author: '{}', genre: '{}', status: '{}'",
                     title, author, genre, status);
@@ -162,24 +170,77 @@ public class MangaService {
      * @return Optional с DTO манги, если найдена, иначе пустой Optional
      * @throws IllegalArgumentException если id равен null или отрицательному значению
      */
-    @Transactional(readOnly = true)
-    public Optional<MangaResponseDTO> getMangaById(Long id) {
+    @Transactional
+    public Optional<MangaResponseDTO> getMangaById(Long id, Long userId) {
         validateMangaId(id);
         
-        logger.debug("Поиск ��анги с ID: {}", id);
+        logger.info("Поиск манги с ID: {}, userId: {}", id, userId);
         
         return mangaRepository.findById(id)
                 .map(manga -> {
                     logger.debug("Манга найдена: {}", manga.getTitle());
-                    
+
+                    // Исправляем NULL значение в поле views, если оно есть
+                    if (manga.getViews() == null) {
+                        logger.warn("Найдено NULL значение в поле views для манги {}. Исправляем на 0", manga.getId());
+                        manga.setViews(0L);
+                    }
+
+                    // Инкрементируем просмотры, если пользователь авторизован и прошло больше часа с последнего просмотра
+                    if (userId != null) {
+                        logger.info("Текущее количество просмотров манги {}: {}", manga.getId(), manga.getViews());
+                        logger.info("Инкрементируем просмотры для манги {} пользователем {}", manga.getId(), userId);
+                        incrementViewsIfAllowed(manga.getId(), userId);
+
+                        // После инкремента получаем актуальные данные из базы данных
+                        manga = mangaRepository.findById(id).orElse(manga);
+                        logger.info("После инкремента: просмотры манги {} = {}", manga.getId(), manga.getViews());
+                    } else {
+                        logger.info("Пользователь не авторизован, просмотры не инкрементируем для манги {}", manga.getId());
+                    }
+
                     MangaResponseDTO responseDTO = mangaMapper.toResponseDTO(manga);
+                    logger.info("Возвращаем мангу {} с просмотрами: {}", manga.getId(), responseDTO.getViews());
                     enrichWithChapterCount(responseDTO, manga);
-                    
+
                     return responseDTO;
                 });
     }
 
     /**
+     * Инкрементирует просмотры манги, если прошло больше часа с последнего просмотра пользователя.
+     *
+     * @param mangaId ID манги
+     * @param userId ID пользователя
+     */
+    @Transactional
+    private void incrementViewsIfAllowed(Long mangaId, Long userId) {
+        String cacheKey = userId + "_" + mangaId;
+        long currentTime = System.currentTimeMillis();
+        long oneHourMillis = 60 * 60 * 1000; // 1 час в миллисекундах
+
+        Long lastViewTime = viewRateLimitCache.get(cacheKey);
+
+        logger.info("Проверка rate limit для пользователя {} манги {}: lastViewTime={}, currentTime={}, diff={}",
+            userId, mangaId, lastViewTime, currentTime, lastViewTime != null ? (currentTime - lastViewTime) : "N/A");
+
+        if (lastViewTime == null || (currentTime - lastViewTime) >= oneHourMillis) {
+            // Обновляем кэш и инкрементируем просмотры
+            viewRateLimitCache.put(cacheKey, currentTime);
+            logger.info("Выполняем incrementViews для манги {}", mangaId);
+            try {
+                mangaRepository.incrementViews(mangaId);
+                // Принудительно сохраняем изменения в базу данных
+                mangaRepository.flush();
+                logger.info("Успешно инкрементированы просмотры для манги {} пользователем {}", mangaId, userId);
+            } catch (Exception e) {
+                logger.error("Ошибка при инкременте просмотров для манги {} пользователем {}: {}", mangaId, userId, e.getMessage(), e);
+                throw e;
+            }
+        } else {
+            logger.info("Просмотр манги {} пользователем {} заблокирован rate limit", mangaId, userId);
+        }
+    }    /**
      * Создает новую мангу в системе.
      * 
      * Принимает DTO с данны��и для создания, валидирует их,
@@ -190,6 +251,7 @@ public class MangaService {
      * @throws IllegalArgumentException если createDTO равен null
      * @throws MangaValidationException если данные не прошли валидацию
      */
+    @CacheEvict(value = {"mangaCatalog", "mangaSearch"}, allEntries = true)
     public MangaResponseDTO createManga(MangaCreateDTO createDTO) {
         if (createDTO == null) {
             throw new IllegalArgumentException("DTO создания манги не может быть null");
@@ -223,6 +285,7 @@ public class MangaService {
      * @throws IllegalArgumentException если id равен null или updateDTO равен null
      * @throws MangaValidationException если данные не прошли валидацию
      */
+    @CacheEvict(value = {"mangaCatalog", "mangaSearch", "mangaDetails"}, key = "#id")
     public Optional<MangaResponseDTO> updateManga(Long id, MangaCreateDTO updateDTO) {
         validateMangaId(id);
         
@@ -259,6 +322,7 @@ public class MangaService {
      * @param id идентификатор удаляемой манги
      * @throws IllegalArgumentException если id равен null или отрицательному значению
      */
+    @CacheEvict(value = {"mangaCatalog", "mangaSearch", "mangaDetails"}, key = "#id")
     public void deleteManga(Long id) {
         validateMangaId(id);
         

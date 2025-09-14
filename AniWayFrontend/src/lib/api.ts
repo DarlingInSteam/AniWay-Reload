@@ -40,8 +40,14 @@ class ApiClient {
     return this.request<MangaResponseDTO[]>('/manga');
   }
 
-  async getMangaById(id: number): Promise<MangaResponseDTO> {
-    return this.request<MangaResponseDTO>(`/manga/${id}`);
+  async getMangaById(id: number, userId?: number): Promise<MangaResponseDTO> {
+    const params = new URLSearchParams();
+    if (userId) {
+      params.append('userId', userId.toString());
+    }
+    const queryString = params.toString();
+    const endpoint = queryString ? `/manga/${id}?${queryString}` : `/manga/${id}`;
+    return this.request<MangaResponseDTO>(endpoint);
   }
 
   async searchManga(params: SearchParams): Promise<MangaResponseDTO[]> {
