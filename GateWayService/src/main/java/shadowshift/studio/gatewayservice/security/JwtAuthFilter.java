@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -71,8 +72,12 @@ public class JwtAuthFilter implements WebFilter {
         CachedIntrospect cached = cache.get(token);
         if (cached != null && cached.getExpiry().isAfter(Instant.now())) {
             // token cached and valid
-            exchange.getRequest().mutate().header("X-User-Id", String.valueOf(cached.getUserId())).header("X-User-Role", String.valueOf(cached.getRole())).build();
-            return chain.filter(exchange);
+            ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
+                .header("X-User-Id", String.valueOf(cached.getUserId()))
+                .header("X-User-Role", String.valueOf(cached.getRole()))
+                .build();
+            ServerWebExchange mutatedExchange = exchange.mutate().request(mutatedRequest).build();
+            return chain.filter(mutatedExchange);
         }
 
         // Call introspection endpoint
@@ -91,8 +96,12 @@ public class JwtAuthFilter implements WebFilter {
                         long ttl = authProperties.getCacheTtlSeconds();
                         CachedIntrospect ci = new CachedIntrospect(true, uid, map.get("username"), role, Instant.now().plusSeconds(ttl));
                         cache.put(token, ci);
-                        exchange.getRequest().mutate().header("X-User-Id", String.valueOf(uid)).header("X-User-Role", String.valueOf(role)).build();
-                        return chain.filter(exchange);
+                        ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
+                            .header("X-User-Id", String.valueOf(uid))
+                            .header("X-User-Role", String.valueOf(role))
+                            .build();
+                        ServerWebExchange mutatedExchange = exchange.mutate().request(mutatedRequest).build();
+                        return chain.filter(mutatedExchange);
                     } else {
                         exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
                         return exchange.getResponse().setComplete();
