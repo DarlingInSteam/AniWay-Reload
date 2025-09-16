@@ -31,6 +31,7 @@ export interface ChapterDTO {
   originalChapterNumber?: number
   title: string
   pageCount: number
+  likeCount: number
   publishedDate: string
   createdAt: string
   updatedAt: string

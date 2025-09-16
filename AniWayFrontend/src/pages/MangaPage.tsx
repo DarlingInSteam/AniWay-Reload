@@ -27,6 +27,8 @@ export function MangaPage() {
   const [commentText, setCommentText] = useState('')
   const [commentFilter, setCommentFilter] = useState<'new' | 'popular'>('new')
   const [isDesktop, setIsDesktop] = useState(false)
+  const [likedChapters, setLikedChapters] = useState<Set<number>>(new Set())
+  const [likingChapters, setLikingChapters] = useState<Set<number>>(new Set())
 
   const { user } = useAuth()
   const queryClient = useQueryClient()
@@ -83,6 +85,42 @@ export function MangaPage() {
   })
 
   const { isChapterCompleted } = useReadingProgress()
+
+  // Handle chapter like/unlike
+  const handleChapterLike = async (chapterId: number, e: React.MouseEvent) => {
+    e.preventDefault() // Prevent navigation to reader
+    e.stopPropagation()
+
+    if (likingChapters.has(chapterId)) return // Prevent double-clicks
+
+    setLikingChapters(prev => new Set(prev).add(chapterId))
+
+    try {
+      const isLiked = likedChapters.has(chapterId)
+      if (isLiked) {
+        await apiClient.unlikeChapter(chapterId)
+        setLikedChapters(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(chapterId)
+          return newSet
+        })
+      } else {
+        await apiClient.likeChapter(chapterId)
+        setLikedChapters(prev => new Set(prev).add(chapterId))
+      }
+
+      // Invalidate chapters query to refresh like counts
+      queryClient.invalidateQueries({ queryKey: ['chapters', mangaId] })
+    } catch (error) {
+      console.error('Failed to toggle chapter like:', error)
+    } finally {
+      setLikingChapters(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(chapterId)
+        return newSet
+      })
+    }
+  }
 
   if (mangaLoading) {
     return (
@@ -615,11 +653,27 @@ export function MangaPage() {
                               </div>
                             </div>
 
-                            {/* Likes */}
-                            <div className="flex items-center space-x-2 text-muted-foreground flex-shrink-0">
-                              <Heart className="h-3 w-3 md:h-4 md:w-4" />
-                              <span className="text-xs md:text-sm">{Math.floor(Math.random() * 100) + 10}</span>
-                              <ChevronRight className="h-4 w-4 md:h-5 md:w-5 group-hover:translate-x-1 transition-transform" />
+                            {/* Like Button & Count */}
+                            <div className="flex items-center space-x-2 flex-shrink-0">
+                              <button
+                                onClick={(e) => handleChapterLike(chapter.id, e)}
+                                disabled={likingChapters.has(chapter.id)}
+                                className={cn(
+                                  "flex items-center space-x-1 px-2 py-1 rounded-lg transition-all duration-200 border",
+                                  likedChapters.has(chapter.id)
+                                    ? "text-red-400 bg-red-500/20 border-red-500/30 hover:bg-red-500/30"
+                                    : "text-muted-foreground bg-white/5 border-white/10 hover:bg-white/10 hover:text-red-400"
+                                )}
+                              >
+                                <Heart
+                                  className={cn(
+                                    "h-3 w-3 md:h-4 md:w-4 transition-all",
+                                    likedChapters.has(chapter.id) && "fill-current"
+                                  )}
+                                />
+                                <span className="text-xs md:text-sm">{chapter.likeCount || 0}</span>
+                              </button>
+                              <ChevronRight className="h-4 w-4 md:h-5 md:w-5 group-hover:translate-x-1 transition-transform text-muted-foreground" />
                             </div>
                           </Link>
                         )

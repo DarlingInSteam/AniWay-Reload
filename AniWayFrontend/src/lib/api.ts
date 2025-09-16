@@ -111,6 +111,33 @@ class ApiClient {
     return this.request<ChapterDTO[]>(`/chapters/manga/${mangaId}`);
   }
 
+  // Chapter Likes API
+  async likeChapter(chapterId: number): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/chapters/${chapterId}/like`, {
+      method: 'POST',
+      headers: {
+        'X-User-Id': localStorage.getItem('userId') || '1', // Fallback for demo
+      },
+    });
+  }
+
+  async unlikeChapter(chapterId: number): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/chapters/${chapterId}/like`, {
+      method: 'DELETE',
+      headers: {
+        'X-User-Id': localStorage.getItem('userId') || '1', // Fallback for demo
+      },
+    });
+  }
+
+  async isChapterLiked(chapterId: number): Promise<{ liked: boolean }> {
+    return this.request<{ liked: boolean }>(`/chapters/${chapterId}/like`, {
+      headers: {
+        'X-User-Id': localStorage.getItem('userId') || '1', // Fallback for demo
+      },
+    });
+  }
+
   // Image API
   async getChapterImages(chapterId: number): Promise<ChapterImageDTO[]> {
     return this.request<ChapterImageDTO[]>(`/images/chapter/${chapterId}`);

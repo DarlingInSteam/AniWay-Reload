@@ -12,7 +12,8 @@ import {
   Eye,
   ZoomIn,
   ZoomOut,
-  MessageCircle
+  MessageCircle,
+  Heart
 } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
@@ -31,6 +32,9 @@ export function ReaderPage() {
   const [readingMode, setReadingMode] = useState<'vertical' | 'horizontal'>('vertical')
   const [isAutoCompleted, setIsAutoCompleted] = useState(false)
   const [showComments, setShowComments] = useState(false)
+  const [isLiked, setIsLiked] = useState(false)
+  const [liking, setLiking] = useState(false)
+  const [lastTap, setLastTap] = useState(0)
 
   const { user } = useAuth()
 
@@ -60,6 +64,54 @@ export function ReaderPage() {
     queryFn: () => apiClient.getChaptersByManga(chapter!.mangaId),
     enabled: !!chapter?.mangaId,
   })
+
+  // Handle chapter like/unlike
+  const handleChapterLike = async () => {
+    if (!chapter || liking) return
+
+    setLiking(true)
+    try {
+      if (isLiked) {
+        await apiClient.unlikeChapter(chapter.id)
+        setIsLiked(false)
+      } else {
+        await apiClient.likeChapter(chapter.id)
+        setIsLiked(true)
+      }
+    } catch (error) {
+      console.error('Failed to toggle chapter like:', error)
+    } finally {
+      setLiking(false)
+    }
+  }
+
+  // Handle double tap for like
+  const handleImageDoubleClick = () => {
+    const currentTime = Date.now()
+    const timeDiff = currentTime - lastTap
+
+    if (timeDiff < 300 && timeDiff > 0) { // Double tap within 300ms
+      handleChapterLike()
+    }
+
+    setLastTap(currentTime)
+  }
+
+  // Load chapter like status
+  useEffect(() => {
+    const loadLikeStatus = async () => {
+      if (!chapter) return
+
+      try {
+        const response = await apiClient.isChapterLiked(chapter.id)
+        setIsLiked(response.liked)
+      } catch (error) {
+        console.error('Failed to load chapter like status:', error)
+      }
+    }
+
+    loadLikeStatus()
+  }, [chapter])
 
   // Scroll to top when chapter changes
   useEffect(() => {
@@ -364,6 +416,17 @@ export function ReaderPage() {
             {/* Right side - фиксированная ширина */}
             <div className="flex items-center space-x-2 justify-end">
               <button
+                onClick={handleChapterLike}
+                disabled={liking}
+                className={cn(
+                  "p-2 rounded-full hover:bg-white/10 text-white transition-colors flex items-center space-x-1",
+                  isLiked && "text-red-400"
+                )}
+              >
+                <Heart className={cn("h-5 w-5", isLiked && "fill-current")} />
+                <span className="text-sm">{chapter?.likeCount || 0}</span>
+              </button>
+              <button
                 onClick={() => setIsSettingsOpen(!isSettingsOpen)}
                 className="p-2 rounded-full hover:bg-white/10 text-white transition-colors"
               >
@@ -463,6 +526,7 @@ export function ReaderPage() {
                   target.src = '/placeholder-page.jpg'
                 }}
                 onClick={() => setShowUI(!showUI)}
+                onDoubleClick={handleImageDoubleClick}
               />
 
               {/* Page Number Indicator */}
@@ -581,7 +645,7 @@ export function ReaderPage() {
         )}
       </div>
 
-      {/* Improved Keyboard Shortcuts Help */}
+      {/* Keyboard Shortcuts Help */}
       <div className={cn(
         'fixed bottom-4 left-4 bg-black/80 backdrop-blur-sm text-white text-xs p-3 rounded-lg transition-all duration-300 border border-white/20',
         showUI ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
@@ -590,6 +654,7 @@ export function ReaderPage() {
           <div>ESC - Назад</div>
           <div>H - Показать/скрыть UI</div>
           <div>← → - Смена глав</div>
+          <div>Двойной тап - Лайк</div>
         </div>
       </div>
 
@@ -598,7 +663,8 @@ export function ReaderPage() {
         'fixed bottom-4 right-4 sm:hidden bg-black/80 backdrop-blur-sm text-white text-xs p-3 rounded-lg transition-all duration-300 border border-white/20',
         showUI ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
       )}>
-        Тапните по изображению чтобы скрыть UI
+        Тапните по изображению чтобы скрыть UI<br/>
+        Двойной тап для лайка
       </div>
     </div>
   )
