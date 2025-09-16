@@ -133,6 +133,7 @@ export function MangaPage() {
 
     try {
       const response = await apiClient.toggleChapterLike(chapterId)
+      console.log('Toggle like response:', response)
 
       // Update local state based on server response
       if (response.liked) {
@@ -145,24 +146,28 @@ export function MangaPage() {
         })
       }
 
-      // Optimistically update the local chapters data to show immediate count changes
-      if (chapters) {
-        queryClient.setQueryData(['chapters', mangaId], (oldData: any) => {
-          if (!oldData) return oldData
-          return oldData.map((chapter: any) => {
-            if (chapter.id === chapterId) {
-              return {
-                ...chapter,
-                likeCount: response.likeCount
-              }
-            }
-            return chapter
-          })
-        })
-      }
-
       // Invalidate chapters query to refresh like counts from server
       queryClient.invalidateQueries({ queryKey: ['chapters', mangaId] })
+
+      // Small delay to allow server cache invalidation
+      setTimeout(() => {
+        // Optimistically update the local chapters data to show immediate count changes
+        if (chapters) {
+          queryClient.setQueryData(['chapters', mangaId], (oldData: any) => {
+            if (!oldData) return oldData
+            return oldData.map((chapter: any) => {
+              if (chapter.id === chapterId) {
+                console.log(`Updating chapter ${chapterId} likeCount from ${chapter.likeCount} to ${response.likeCount}`)
+                return {
+                  ...chapter,
+                  likeCount: response.likeCount
+                }
+              }
+              return chapter
+            })
+          })
+        }
+      }, 100)
     } catch (error) {
       console.error('Failed to toggle chapter like:', error)
     } finally {

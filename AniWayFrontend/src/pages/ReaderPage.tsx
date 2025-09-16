@@ -75,6 +75,9 @@ export function ReaderPage() {
       const response = await apiClient.toggleChapterLike(chapter.id)
       setIsLiked(response.liked)
 
+      // Invalidate chapter query to refresh like count from server
+      queryClient.invalidateQueries({ queryKey: ['chapter', chapterId] })
+
       // Optimistically update the local chapter data to show immediate count changes
       queryClient.setQueryData(['chapter', chapterId], (oldData: any) => {
         if (!oldData) return oldData
@@ -83,9 +86,6 @@ export function ReaderPage() {
           likeCount: response.likeCount
         }
       })
-
-      // Invalidate chapter query to refresh like count from server
-      queryClient.invalidateQueries({ queryKey: ['chapter', chapterId] })
     } catch (error) {
       console.error('Failed to toggle chapter like:', error)
     } finally {

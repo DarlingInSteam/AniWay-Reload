@@ -326,7 +326,7 @@ public class ChapterService {
      * @return Map с полями "liked" (boolean) и "likeCount" (Integer)
      * @throws RuntimeException если глава не найдена
      */
-    @CacheEvict(value = {"chapterDetails"}, key = "#chapterId")
+    @CacheEvict(value = {"chapterDetails", "chaptersByManga"}, key = "#chapterId", allEntries = true)
     public Map<String, Object> toggleLike(Long userId, Long chapterId) {
         // Проверяем, существует ли глава
         Chapter chapter = chapterRepository.findById(chapterId)
