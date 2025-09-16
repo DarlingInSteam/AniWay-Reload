@@ -11,6 +11,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import shadowshift.studio.authservice.dto.*;
 import shadowshift.studio.authservice.entity.User;
+import shadowshift.studio.authservice.mapper.UserMapper;
 import shadowshift.studio.authservice.service.AuthService;
 import shadowshift.studio.authservice.service.UserService;
 
@@ -99,7 +100,6 @@ public class AuthController {
      */
     @PostMapping("/logout")
     public ResponseEntity<Void> logout() {
-        // In JWT, logout is handled on the client side by removing the token
         return ResponseEntity.ok().build();
     }
     
@@ -130,7 +130,7 @@ public class AuthController {
             Page<User> userPage = userService.searchUsers(query, role, pageRequest);
             
             List<UserDTO> users = userPage.getContent().stream()
-                    .map(this::convertToUserDTO)
+                    .map(UserMapper::toUserDTO)
                     .toList();
             
             Map<String, Object> response = new HashMap<>();
@@ -161,8 +161,7 @@ public class AuthController {
                 return ResponseEntity.notFound().build();
             }
             
-            UserDTO userDTO = convertToUserDTO(user);
-            // Скрываем приватную информацию для публичного профиля
+            UserDTO userDTO = UserMapper.toUserDTO(user);
             userDTO.setEmail(null);
             
             return ResponseEntity.ok(userDTO);
@@ -190,12 +189,11 @@ public class AuthController {
                 return ResponseEntity.notFound().build();
             }
             
-            // Проверяем права доступа
             if (!currentUser.getId().equals(userId) && !currentUser.getRole().name().equals("ADMIN")) {
                 return ResponseEntity.status(403).build();
             }
             
-            UserDTO userDTO = convertToUserDTO(targetUser);
+            UserDTO userDTO = UserMapper.toUserDTO(targetUser);
             return ResponseEntity.ok(userDTO);
         } catch (Exception e) {
             log.error("Get user profile failed: {}", e.getMessage());
@@ -234,27 +232,5 @@ public class AuthController {
             log.error("Token validation failed: {}", e.getMessage());
             return ResponseEntity.status(401).body(Map.of("valid", false, "error", e.getMessage()));
         }
-    }
-    
-    /**
-     * Преобразует объект User в UserDTO.
-     *
-     * @param user объект User
-     * @return UserDTO с данными пользователя
-     */
-    private UserDTO convertToUserDTO(User user) {
-        return UserDTO.builder()
-                .id(user.getId())
-                .username(user.getDisplayName() != null ? user.getDisplayName() : user.getUsername())
-                .email(user.getEmail())
-                .displayName(user.getDisplayName())
-                .avatar(user.getAvatar())
-                .bio(user.getBio())
-                .role(user.getRole())
-                .registrationDate(user.getCreatedAt())
-                .lastLoginDate(user.getLastLogin())
-                .createdAt(user.getCreatedAt())
-                .lastLogin(user.getLastLogin())
-                .build();
     }
 }
