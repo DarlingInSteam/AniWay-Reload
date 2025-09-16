@@ -89,8 +89,12 @@ export function MangaPage() {
   // Load chapter like statuses
   useEffect(() => {
     const loadChapterLikeStatuses = async () => {
-      if (!chapters || !user) return
+      if (!chapters || !user || chapters.length === 0) {
+        console.log('Skipping like status load:', { chapters: !!chapters, user: !!user, length: chapters?.length })
+        return
+      }
 
+      console.log('Loading like statuses for', chapters.length, 'chapters')
       try {
         const likeStatuses = await Promise.all(
           chapters.map(async (chapter) => {
@@ -108,6 +112,7 @@ export function MangaPage() {
           .filter(status => status.liked)
           .map(status => status.chapterId)
 
+        console.log('Loaded like statuses:', likedChapterIds.length, 'liked chapters')
         setLikedChapters(new Set(likedChapterIds))
       } catch (error) {
         console.error('Failed to load chapter like statuses:', error)
@@ -141,19 +146,21 @@ export function MangaPage() {
       }
 
       // Optimistically update the local chapters data to show immediate count changes
-      queryClient.setQueryData(['chapters', mangaId], (oldData: any) => {
-        if (!oldData) return oldData
-        return oldData.map((chapter: any) => {
-          if (chapter.id === chapterId) {
-            const currentCount = chapter.likeCount || 0
-            return {
-              ...chapter,
-              likeCount: response.liked ? currentCount + 1 : Math.max(0, currentCount - 1)
+      if (chapters) {
+        queryClient.setQueryData(['chapters', mangaId], (oldData: any) => {
+          if (!oldData) return oldData
+          return oldData.map((chapter: any) => {
+            if (chapter.id === chapterId) {
+              const currentCount = chapter.likeCount || 0
+              return {
+                ...chapter,
+                likeCount: response.liked ? currentCount + 1 : Math.max(0, currentCount - 1)
+              }
             }
-          }
-          return chapter
+            return chapter
+          })
         })
-      })
+      }
 
       // Invalidate chapters query to refresh like counts from server
       queryClient.invalidateQueries({ queryKey: ['chapters', mangaId] })

@@ -99,7 +99,16 @@ class ApiClient {
   }
 
   async getMangaChapters(mangaId: number): Promise<ChapterDTO[]> {
-    return this.request<ChapterDTO[]>(`/manga/${mangaId}/chapters`);
+    // Try direct ChapterService endpoint first
+    try {
+      const result = await this.request<ChapterDTO[]>(`/chapters/manga/${mangaId}`);
+      return result;
+    } catch (directError) {
+      console.warn('Direct ChapterService endpoint failed, trying MangaService proxy:', directError)
+      // Fallback to MangaService proxy
+      const result = await this.request<ChapterDTO[]>(`/manga/${mangaId}/chapters`);
+      return result;
+    }
   }
 
   // Chapter API
