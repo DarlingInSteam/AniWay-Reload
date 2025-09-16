@@ -223,6 +223,31 @@ public class ChapterRestController {
     }
 
     /**
+     * Переключить лайк к главе от имени пользователя (автоматически определить поставить или убрать).
+     *
+     * @param id идентификатор главы
+     * @param userId идентификатор пользователя (из заголовка)
+     * @return статус успешного переключения лайка с информацией о действии
+     */
+    @PostMapping("/{id}/toggle-like")
+    public ResponseEntity<?> toggleLike(
+            @PathVariable Long id,
+            @RequestHeader("X-User-Id") Long userId) {
+        try {
+            boolean liked = chapterService.toggleLike(userId, id);
+            return ResponseEntity.ok(Map.of(
+                "message", liked ? "Chapter liked successfully" : "Chapter unliked successfully",
+                "liked", liked
+            ));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "Failed to toggle chapter like",
+                "message", e.getMessage()
+            ));
+        }
+    }
+
+    /**
      * Проверить, лайкнул ли пользователь главу.
      *
      * @param id идентификатор главы

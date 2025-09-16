@@ -277,8 +277,12 @@ public class ChapterService {
         ChapterLike like = new ChapterLike(userId, chapterId);
         chapterLikeRepository.save(like);
 
-        // Обновляем счетчик лайков
-        chapter.setLikeCount(chapter.getLikeCount() + 1);
+        // Обновляем счетчик лайков (обрабатываем null значения)
+        Integer currentLikes = chapter.getLikeCount();
+        if (currentLikes == null) {
+            currentLikes = 0;
+        }
+        chapter.setLikeCount(currentLikes + 1);
         chapterRepository.save(chapter);
     }
 
@@ -302,9 +306,60 @@ public class ChapterService {
         // Удаляем лайк
         chapterLikeRepository.delete(like);
 
-        // Обновляем счетчик лайков
-        chapter.setLikeCount(Math.max(0, chapter.getLikeCount() - 1));
+        // Обновляем счетчик лайков (обрабатываем null значения)
+        Integer currentLikes = chapter.getLikeCount();
+        if (currentLikes == null) {
+            currentLikes = 0;
+        }
+        chapter.setLikeCount(Math.max(0, currentLikes - 1));
         chapterRepository.save(chapter);
+    }
+
+    /**
+     * Переключить лайк к главе от имени пользователя (поставить или убрать).
+     *
+     * @param userId идентификатор пользователя
+     * @param chapterId идентификатор главы
+     * @return true если лайк поставлен, false если лайк убран
+     * @throws RuntimeException если глава не найдена
+     */
+    @CacheEvict(value = {"chapterDetails"}, key = "#chapterId")
+    public boolean toggleLike(Long userId, Long chapterId) {
+        // Проверяем, существует ли глава
+        Chapter chapter = chapterRepository.findById(chapterId)
+                .orElseThrow(() -> new RuntimeException("Chapter not found with id: " + chapterId));
+
+        // Проверяем, лайкнул ли уже пользователь
+        boolean alreadyLiked = chapterLikeRepository.existsByUserIdAndChapterId(userId, chapterId);
+
+        if (alreadyLiked) {
+            // Убираем лайк
+            ChapterLike like = chapterLikeRepository.findByUserIdAndChapterId(userId, chapterId)
+                    .orElseThrow(() -> new RuntimeException("Like not found"));
+            chapterLikeRepository.delete(like);
+
+            // Обновляем счетчик лайков
+            Integer currentLikes = chapter.getLikeCount();
+            if (currentLikes == null) {
+                currentLikes = 0;
+            }
+            chapter.setLikeCount(Math.max(0, currentLikes - 1));
+            chapterRepository.save(chapter);
+            return false; // лайк убран
+        } else {
+            // Ставим лайк
+            ChapterLike like = new ChapterLike(userId, chapterId);
+            chapterLikeRepository.save(like);
+
+            // Обновляем счетчик лайков
+            Integer currentLikes = chapter.getLikeCount();
+            if (currentLikes == null) {
+                currentLikes = 0;
+            }
+            chapter.setLikeCount(currentLikes + 1);
+            chapterRepository.save(chapter);
+            return true; // лайк поставлен
+        }
     }
 
     /**
