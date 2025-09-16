@@ -33,6 +33,26 @@ public class UserMapper {
                 .build();
     }
 
+    public static UserDTO toFullUserDTO(User user) {
+        if (user == null) return null;
+
+        return UserDTO.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .displayName(user.getDisplayName())
+                .avatar(user.getAvatar())
+                .bio(user.getBio())
+                .role(user.getRole())
+                .isEnabled(user.getIsEnabled())
+                .createdAt(user.getCreatedAt())
+                .lastLogin(user.getLastLogin())
+                .chaptersReadCount(user.getChaptersReadCount())
+                .likesGivenCount(user.getLikesGivenCount())
+                .commentsCount(user.getCommentsCount())
+                .build();
+    }
+
     /**
      * Преобразует список сущностей User в список DTO UserDTO.
      * @param users
