@@ -3,7 +3,9 @@ package shadowshift.studio.authservice.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -12,6 +14,7 @@ import org.springframework.stereotype.Service;
 import shadowshift.studio.authservice.dto.UserDTO;
 import shadowshift.studio.authservice.entity.Role;
 import shadowshift.studio.authservice.entity.User;
+import shadowshift.studio.authservice.mapper.UserMapper;
 import shadowshift.studio.authservice.repository.ReadingProgressRepository;
 import shadowshift.studio.authservice.repository.UserRepository;
 
@@ -59,7 +62,7 @@ public class UserService implements UserDetailsService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
         
-        return convertToDTO(user);
+        return UserMapper.toFullUserDTO(user);
     }
     
     /**
@@ -73,7 +76,7 @@ public class UserService implements UserDetailsService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
         
-        return convertToDTO(user);
+        return UserMapper.toFullUserDTO(user);
     }
     
     /**
@@ -85,7 +88,7 @@ public class UserService implements UserDetailsService {
     public List<UserDTO> searchUsers(String query) {
         List<User> users = userRepository.searchUsers(query);
         return users.stream()
-                .map(this::convertToDTO)
+                .map(UserMapper::toFullUserDTO)
                 .collect(Collectors.toList());
     }
     
@@ -140,6 +143,7 @@ public class UserService implements UserDetailsService {
                     Role roleEnum = Role.valueOf(role.toUpperCase());
                     predicates.add(criteriaBuilder.equal(root.get("role"), roleEnum));
                 } catch (IllegalArgumentException e) {
+                    log.warn("Unknown role filter provided: {}", role);
                 }
             }
             
@@ -156,7 +160,7 @@ public class UserService implements UserDetailsService {
         List<User> topReaders = userRepository.findTopReaders();
         return topReaders.stream()
                 .limit(10)
-                .map(this::convertToDTO)
+                .map(UserMapper::toFullUserDTO)
                 .collect(Collectors.toList());
     }
     
@@ -187,7 +191,7 @@ public class UserService implements UserDetailsService {
         userRepository.save(user);
         log.info("User profile updated: {}", username);
         
-        return convertToDTO(user);
+        return UserMapper.toFullUserDTO(user);
     }
     
     /**
@@ -222,28 +226,47 @@ public class UserService implements UserDetailsService {
         user.setChaptersReadCount(user.getChaptersReadCount() + 1);
         userRepository.save(user);
     }
-    
-    /**
-     * Конвертирует объект User в UserDTO.
-     *
-     * @param user объект пользователя
-     * @return объект DTO пользователя
-     */
-    public UserDTO convertToDTO(User user) {
-        return UserDTO.builder()
-                .id(user.getId())
-                .username(user.getUsername())
-                .email(user.getEmail())
-                .displayName(user.getDisplayName())
-                .avatar(user.getAvatar())
-                .bio(user.getBio())
-                .role(user.getRole())
-                .isEnabled(user.getIsEnabled())
-                .createdAt(user.getCreatedAt())
-                .lastLogin(user.getLastLogin())
-                .chaptersReadCount(user.getChaptersReadCount())
-                .likesGivenCount(user.getLikesGivenCount())
-                .commentsCount(user.getCommentsCount())
-                .build();
+
+    public void banOrUnBanUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        user.setIsEnabled(!user.getIsEnabled());
+
+        userRepository.save(user);
+        log.info("Changed ban status for user: {} and now his {}", user.getUsername(), user.getIsEnabled() ? "unbanned" : "banned");
     }
+
+    public long getTotalUsersCount() {
+        return userRepository.count();
+    }
+
+    public List<UserDTO> getUsersPage(int page, int size) {
+        Pageable pageable = Pageable.ofSize(size).withPage(page);
+        Page<User> userPage = userRepository.findAll(pageable);
+        return userPage.stream()
+                .map(UserMapper::toFullUserDTO)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Пример использования ниже:
+     * Получение страницы пользователей с сортировкой.
+     * Пример запроса к контроллеру: GET /api/auth/users?page=0&size=20&sortBy=username&sortOrder=asc
+     */
+    public List<UserDTO> getUsersSortablePage(int page, int size, String sortBy, String sortOrder) {
+         if (sortBy == null || sortBy.isBlank()) {
+             sortBy = "username";
+         }
+         if (sortOrder == null || sortOrder.isBlank()) {
+             sortOrder = "asc";
+         }
+
+         Sort.Direction direction = Sort.Direction.fromString(sortOrder);
+         PageRequest pageRequest = PageRequest.of(page, size, Sort.by(direction, sortBy));
+         Page<User> userPage = userRepository.findAll(pageRequest);
+         return userPage.stream()
+                 .map(UserMapper::toFullUserDTO)
+                 .collect(Collectors.toList());
+     }
 }
