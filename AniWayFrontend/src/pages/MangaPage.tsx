@@ -140,7 +140,22 @@ export function MangaPage() {
         })
       }
 
-      // Invalidate chapters query to refresh like counts
+      // Optimistically update the local chapters data to show immediate count changes
+      queryClient.setQueryData(['chapters', mangaId], (oldData: any) => {
+        if (!oldData) return oldData
+        return oldData.map((chapter: any) => {
+          if (chapter.id === chapterId) {
+            const currentCount = chapter.likeCount || 0
+            return {
+              ...chapter,
+              likeCount: response.liked ? currentCount + 1 : Math.max(0, currentCount - 1)
+            }
+          }
+          return chapter
+        })
+      })
+
+      // Invalidate chapters query to refresh like counts from server
       queryClient.invalidateQueries({ queryKey: ['chapters', mangaId] })
     } catch (error) {
       console.error('Failed to toggle chapter like:', error)

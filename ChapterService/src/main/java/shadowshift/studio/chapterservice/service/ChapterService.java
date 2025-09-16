@@ -129,6 +129,8 @@ public class ChapterService {
         chapter.setVolumeNumber(createDTO.getVolumeNumber());
         chapter.setOriginalChapterNumber(createDTO.getOriginalChapterNumber());
         chapter.setTitle(createDTO.getTitle());
+        // Ensure likeCount is initialized to 0
+        chapter.setLikeCount(0);
         if (createDTO.getPublishedDate() != null) {
             chapter.setPublishedDate(createDTO.getPublishedDate());
         }

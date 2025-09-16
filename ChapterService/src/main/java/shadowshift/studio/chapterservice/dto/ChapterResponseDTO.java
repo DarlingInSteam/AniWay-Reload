@@ -63,7 +63,8 @@ public class ChapterResponseDTO {
         this.originalChapterNumber = chapter.getOriginalChapterNumber();
         this.title = chapter.getTitle();
         this.pageCount = chapter.getPageCount();
-        this.likeCount = chapter.getLikeCount();
+        // Ensure likeCount is never null
+        this.likeCount = chapter.getLikeCount() != null ? chapter.getLikeCount() : 0;
         this.publishedDate = chapter.getPublishedDate();
         this.createdAt = chapter.getCreatedAt();
         this.updatedAt = chapter.getUpdatedAt();
