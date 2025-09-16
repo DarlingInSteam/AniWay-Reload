@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import shadowshift.studio.authservice.dto.ActivityDTO;
 import shadowshift.studio.authservice.entity.ReadingProgress;
 import shadowshift.studio.authservice.entity.Review;
+import shadowshift.studio.authservice.mapper.ActivityMapper;
 import shadowshift.studio.authservice.repository.ReadingProgressRepository;
 import shadowshift.studio.authservice.repository.ReviewRepository;
 
@@ -49,7 +50,7 @@ public class ActivityService {
                 .collect(Collectors.toList());
         
         for (ReadingProgress progress : completedChapters) {
-            activities.add(createChapterActivity(progress));
+            activities.add(ActivityMapper.fromReadingProgress(progress));
         }
         
         List<Review> userReviews = reviewRepository.findByUserIdOrderByCreatedAtDesc(userId)
@@ -58,7 +59,7 @@ public class ActivityService {
                 .collect(Collectors.toList());
         
         for (Review review : userReviews) {
-            activities.add(createReviewActivity(review));
+            activities.add(ActivityMapper.fromReview(review));
         }
         
         return activities.stream()
@@ -85,7 +86,7 @@ public class ActivityService {
                 .collect(Collectors.toList());
         
         return completedChapters.stream()
-                .map(this::createChapterActivity)
+                .map(ActivityMapper::fromReadingProgress)
                 .collect(Collectors.toList());
     }
     
@@ -106,66 +107,9 @@ public class ActivityService {
                 .collect(Collectors.toList());
         
         return userReviews.stream()
-                .map(this::createReviewActivity)
+                .map(ActivityMapper::fromReview)
                 .collect(Collectors.toList());
     }
     
-    /**
-     * Создает объект активности для завершенной главы.
-     * Формирует сообщение и ссылку на основе данных прогресса чтения.
-     *
-     * @param progress объект прогресса чтения
-     * @return объект активности для главы
-     */
-    private ActivityDTO createChapterActivity(ReadingProgress progress) {
-        String message = String.format("Прочитана глава %.1f", progress.getChapterNumber());
-        
-        String mangaTitle = "манги";
-        if (mangaTitle != null && !mangaTitle.equals("манги")) {
-            message = String.format("Прочитана глава %.1f манги '%s'", 
-                    progress.getChapterNumber(), mangaTitle);
-        }
-        
-        return ActivityDTO.builder()
-                .id(progress.getId())
-                .userId(progress.getUserId())
-                .activityType("CHAPTER_COMPLETED")
-                .message(message)
-                .timestamp(progress.getUpdatedAt())
-                .mangaId(progress.getMangaId())
-                .mangaTitle(mangaTitle)
-                .chapterId(progress.getChapterId())
-                .chapterNumber(progress.getChapterNumber())
-                .actionUrl(String.format("/manga/%d/chapter/%d", progress.getMangaId(), progress.getChapterId()))
-                .build();
-    }
-    
-    /**
-     * Создает объект активности для созданного отзыва.
-     * Формирует сообщение и ссылку на основе данных отзыва.
-     *
-     * @param review объект отзыва
-     * @return объект активности для отзыва
-     */
-    private ActivityDTO createReviewActivity(Review review) {
-        String message = String.format("Оставлен отзыв с оценкой %d/10", review.getRating());
-        
-        String mangaTitle = "манги";
-        if (mangaTitle != null && !mangaTitle.equals("манги")) {
-            message = String.format("Оставлен отзыв с оценкой %d/10 для манги '%s'", 
-                    review.getRating(), mangaTitle);
-        }
-        
-        return ActivityDTO.builder()
-                .id(review.getId())
-                .userId(review.getUserId())
-                .activityType("REVIEW_CREATED")
-                .message(message)
-                .timestamp(review.getCreatedAt())
-                .mangaId(review.getMangaId())
-                .mangaTitle(mangaTitle)
-                .reviewId(review.getId())
-                .actionUrl(String.format("/manga/%d#review-%d", review.getMangaId(), review.getId()))
-                .build();
-    }
+    // Методы маппинга вынесены в ActivityMapper
 }

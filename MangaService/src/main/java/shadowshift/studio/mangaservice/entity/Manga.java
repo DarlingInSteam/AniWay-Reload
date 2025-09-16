@@ -124,6 +124,36 @@ public class Manga {
     private Long views = 0L;
 
     /**
+     * Средний рейтинг манги (от 0.0 до 10.0).
+     */
+    @Column(name = "rating", columnDefinition = "DECIMAL(3,2) DEFAULT 0.0")
+    private Double rating = 0.0;
+
+    /**
+     * Количество оценок манги.
+     */
+    @Column(name = "rating_count")
+    private Integer ratingCount = 0;
+
+    /**
+     * Общее количество лайков к главам манги.
+     */
+    @Column(name = "likes", nullable = false)
+    private Long likes = 0L;
+
+    /**
+     * Количество отзывов о манге.
+     */
+    @Column(name = "reviews")
+    private Integer reviews = 0;
+
+    /**
+     * Количество комментариев к манге.
+     */
+    @Column(name = "comments")
+    private Integer comments = 0;
+
+    /**
      * Дата создания записи о манге.
      */
     @Column(name = "created_at", updatable = false)
@@ -325,6 +355,76 @@ public class Manga {
      * @param views количество просмотров
      */
     public void setViews(Long views) { this.views = views; }
+
+    /**
+     * Возвращает средний рейтинг манги.
+     *
+     * @return средний рейтинг
+     */
+    public Double getRating() { return rating; }
+
+    /**
+     * Устанавливает средний рейтинг манги.
+     *
+     * @param rating средний рейтинг
+     */
+    public void setRating(Double rating) { this.rating = rating; }
+
+    /**
+     * Возвращает количество оценок манги.
+     *
+     * @return количество оценок
+     */
+    public Integer getRatingCount() { return ratingCount; }
+
+    /**
+     * Устанавливает количество оценок манги.
+     *
+     * @param ratingCount количество оценок
+     */
+    public void setRatingCount(Integer ratingCount) { this.ratingCount = ratingCount; }
+
+    /**
+     * Возвращает общее количество лайков к главам манги.
+     *
+     * @return количество лайков
+     */
+    public Long getLikes() { return likes; }
+
+    /**
+     * Устанавливает общее количество лайков к главам манги.
+     *
+     * @param likes количество лайков
+     */
+    public void setLikes(Long likes) { this.likes = likes; }
+
+    /**
+     * Возвращает количество отзывов о манге.
+     *
+     * @return количество отзывов
+     */
+    public Integer getReviews() { return reviews; }
+
+    /**
+     * Устанавливает количество отзывов о манге.
+     *
+     * @param reviews количество отзывов
+     */
+    public void setReviews(Integer reviews) { this.reviews = reviews; }
+
+    /**
+     * Возвращает количество комментариев к манге.
+     *
+     * @return количество комментариев
+     */
+    public Integer getComments() { return comments; }
+
+    /**
+     * Устанавливает количество комментариев к манге.
+     *
+     * @param comments количество комментариев
+     */
+    public void setComments(Integer comments) { this.comments = comments; }
 
     /**
      * Возвращает дату создания записи о манге.

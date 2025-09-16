@@ -9,8 +9,11 @@ import org.springframework.web.reactive.function.client.WebClient;
 import shadowshift.studio.chapterservice.dto.ChapterCreateDTO;
 import shadowshift.studio.chapterservice.dto.ChapterResponseDTO;
 import shadowshift.studio.chapterservice.entity.Chapter;
+import shadowshift.studio.chapterservice.entity.ChapterLike;
 import shadowshift.studio.chapterservice.repository.ChapterRepository;
+import shadowshift.studio.chapterservice.repository.ChapterLikeRepository;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -25,6 +28,9 @@ public class ChapterService {
 
     @Autowired
     private ChapterRepository chapterRepository;
+
+    @Autowired
+    private ChapterLikeRepository chapterLikeRepository;
 
     @Autowired
     private WebClient.Builder webClientBuilder;
@@ -124,6 +130,8 @@ public class ChapterService {
         chapter.setVolumeNumber(createDTO.getVolumeNumber());
         chapter.setOriginalChapterNumber(createDTO.getOriginalChapterNumber());
         chapter.setTitle(createDTO.getTitle());
+        // Ensure likeCount is initialized to 0
+        chapter.setLikeCount(0);
         if (createDTO.getPublishedDate() != null) {
             chapter.setPublishedDate(createDTO.getPublishedDate());
         }
@@ -248,5 +256,123 @@ public class ChapterService {
 
         System.out.println("Updated chapter " + chapterId + " pageCount to: " + pageCount);
         return new ChapterResponseDTO(savedChapter);
+    }
+
+    /**
+     * Поставить лайк к главе от имени пользователя.
+     *
+     * @param userId идентификатор пользователя
+     * @param chapterId идентификатор главы
+     * @throws RuntimeException если глава не найдена или пользователь уже лайкнул
+     */
+    @CacheEvict(value = {"chapterDetails"}, key = "#chapterId")
+    public void likeChapter(Long userId, Long chapterId) {
+        // Проверяем, существует ли глава
+        Chapter chapter = chapterRepository.findById(chapterId)
+                .orElseThrow(() -> new RuntimeException("Chapter not found with id: " + chapterId));
+
+        // Проверяем, не лайкнул ли уже пользователь
+        if (chapterLikeRepository.existsByUserIdAndChapterId(userId, chapterId)) {
+            throw new RuntimeException("User " + userId + " has already liked chapter " + chapterId);
+        }
+
+        // Создаем лайк
+        ChapterLike like = new ChapterLike(userId, chapterId);
+        chapterLikeRepository.save(like);
+
+        // Обновляем счетчик лайков (обрабатываем null значения)
+        Integer currentLikes = chapter.getLikeCount();
+        if (currentLikes == null) {
+            currentLikes = 0;
+        }
+        chapter.setLikeCount(currentLikes + 1);
+        chapterRepository.save(chapter);
+    }
+
+    /**
+     * Убрать лайк с главы от имени пользователя.
+     *
+     * @param userId идентификатор пользователя
+     * @param chapterId идентификатор главы
+     * @throws RuntimeException если глава не найдена или лайк не существует
+     */
+    @CacheEvict(value = {"chapterDetails"}, key = "#chapterId")
+    public void unlikeChapter(Long userId, Long chapterId) {
+        // Проверяем, существует ли глава
+        Chapter chapter = chapterRepository.findById(chapterId)
+                .orElseThrow(() -> new RuntimeException("Chapter not found with id: " + chapterId));
+
+        // Находим лайк
+        ChapterLike like = chapterLikeRepository.findByUserIdAndChapterId(userId, chapterId)
+                .orElseThrow(() -> new RuntimeException("User " + userId + " has not liked chapter " + chapterId));
+
+        // Удаляем лайк
+        chapterLikeRepository.delete(like);
+
+        // Обновляем счетчик лайков (обрабатываем null значения)
+        Integer currentLikes = chapter.getLikeCount();
+        if (currentLikes == null) {
+            currentLikes = 0;
+        }
+        chapter.setLikeCount(Math.max(0, currentLikes - 1));
+        chapterRepository.save(chapter);
+    }
+
+    /**
+     * Переключить лайк к главе от имени пользователя (поставить или убрать).
+     *
+     * @param userId идентификатор пользователя
+     * @param chapterId идентификатор главы
+     * @return Map с полями "liked" (boolean) и "likeCount" (Integer)
+     * @throws RuntimeException если глава не найдена
+     */
+    @CacheEvict(value = {"chapterDetails", "chaptersByManga"}, key = "#chapterId", allEntries = true)
+    public Map<String, Object> toggleLike(Long userId, Long chapterId) {
+        // Проверяем, существует ли глава
+        Chapter chapter = chapterRepository.findById(chapterId)
+                .orElseThrow(() -> new RuntimeException("Chapter not found with id: " + chapterId));
+
+        // Проверяем, лайкнул ли уже пользователь
+        boolean alreadyLiked = chapterLikeRepository.existsByUserIdAndChapterId(userId, chapterId);
+
+        if (alreadyLiked) {
+            // Убираем лайк
+            ChapterLike like = chapterLikeRepository.findByUserIdAndChapterId(userId, chapterId)
+                    .orElseThrow(() -> new RuntimeException("Like not found"));
+            chapterLikeRepository.delete(like);
+
+            // Обновляем счетчик лайков
+            Integer currentLikes = chapter.getLikeCount();
+            if (currentLikes == null) {
+                currentLikes = 0;
+            }
+            chapter.setLikeCount(Math.max(0, currentLikes - 1));
+            chapterRepository.save(chapter);
+            return Map.of("liked", false, "likeCount", chapter.getLikeCount()); // лайк убран
+        } else {
+            // Ставим лайк
+            ChapterLike like = new ChapterLike(userId, chapterId);
+            chapterLikeRepository.save(like);
+
+            // Обновляем счетчик лайков
+            Integer currentLikes = chapter.getLikeCount();
+            if (currentLikes == null) {
+                currentLikes = 0;
+            }
+            chapter.setLikeCount(currentLikes + 1);
+            chapterRepository.save(chapter);
+            return Map.of("liked", true, "likeCount", chapter.getLikeCount()); // лайк поставлен
+        }
+    }
+
+    /**
+     * Проверить, лайкнул ли пользователь главу.
+     *
+     * @param userId идентификатор пользователя
+     * @param chapterId идентификатор главы
+     * @return true, если пользователь лайкнул главу, иначе false
+     */
+    public boolean isLikedByUser(Long userId, Long chapterId) {
+        return chapterLikeRepository.existsByUserIdAndChapterId(userId, chapterId);
     }
 }

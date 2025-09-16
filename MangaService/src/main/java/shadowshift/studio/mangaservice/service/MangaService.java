@@ -2,18 +2,20 @@ package shadowshift.studio.mangaservice.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 import shadowshift.studio.mangaservice.config.ServiceUrlProperties;
 import shadowshift.studio.mangaservice.dto.MangaCreateDTO;
 import shadowshift.studio.mangaservice.dto.MangaResponseDTO;
+import shadowshift.studio.mangaservice.dto.PageResponseDTO;
 import shadowshift.studio.mangaservice.entity.Manga;
 import shadowshift.studio.mangaservice.exception.MangaServiceException;
 import shadowshift.studio.mangaservice.mapper.MangaMapper;
@@ -159,6 +161,130 @@ public class MangaService {
         logger.debug("Возвращается список из {} найденных манг с обогащенными данными", responseDTOs.size());
         return responseDTOs;
     }
+
+    /**
+     * Получает пагинированный список всех манг в системе.
+     *
+     * @param page номер страницы (начиная с 0)
+     * @param size размер страницы
+     * @param sortBy поле для сортировки
+     * @param sortOrder направление сортировки
+     * @return PageResponseDTO с пагинированными данными манг
+     */
+    @Transactional(readOnly = true)
+    public PageResponseDTO<MangaResponseDTO> getAllMangaPaged(int page, int size, String sortBy, String sortOrder) {
+        logger.debug("Запрос пагинированного списка всех манг - page: {}, size: {}, sortBy: {}, sortOrder: {}", page, size, sortBy, sortOrder);
+
+        // Создаем правильную сортировку на основе параметров
+        Sort sort = createSort(sortBy, sortOrder);
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        Page<Manga> mangaPage = mangaRepository.findAll(pageable);
+        logger.debug("Найдено {} манг на странице {} из {}", mangaPage.getNumberOfElements(), page, mangaPage.getTotalPages());
+
+        List<MangaResponseDTO> responseDTOs = mangaMapper.toResponseDTOList(mangaPage.getContent());
+
+        // Обогащаем каждую мангу актуальным количеством глав и правильными URL обложек
+        responseDTOs.forEach(dto -> {
+            this.enrichWithChapterCount(dto);
+            this.enrichWithCoverUrl(dto);
+        });
+
+        PageResponseDTO<MangaResponseDTO> result = new PageResponseDTO<>(
+            responseDTOs,
+            mangaPage.getNumber(),
+            mangaPage.getSize(),
+            mangaPage.getTotalElements()
+        );
+
+        logger.debug("Возвращается пагинированный список из {} манг", responseDTOs.size());
+        return result;
+    }
+
+    /**
+     * Создает объект Sort на основе параметров сортировки.
+     *
+     * @param sortBy поле для сортировки
+     * @param sortOrder направление сортировки (asc/desc)
+     * @return объект Sort
+     */
+    private Sort createSort(String sortBy, String sortOrder) {
+        Sort.Direction direction = "desc".equalsIgnoreCase(sortOrder) ? Sort.Direction.DESC : Sort.Direction.ASC;
+
+        return switch (sortBy != null ? sortBy.toLowerCase() : "createdat") {
+            case "title" -> Sort.by(direction, "title");
+            case "author" -> Sort.by(direction, "author");
+            case "createdat" -> Sort.by(direction, "createdAt");
+            case "updatedat" -> Sort.by(direction, "updatedAt");
+            case "views" -> Sort.by(direction, "views");
+            case "rating" -> Sort.by(direction, "rating");
+            case "ratingcount" -> Sort.by(direction, "ratingCount");
+            case "likes" -> Sort.by(direction, "likes");
+            case "reviews" -> Sort.by(direction, "reviews");
+            case "comments" -> Sort.by(direction, "comments");
+            case "chaptercount" -> Sort.by(direction, "totalChapters");
+            case "popularity" -> Sort.by(direction, "views", "comments", "likes", "reviews");
+            default -> Sort.by(Sort.Direction.DESC, "createdAt");
+        };
+    }
+
+    /**
+     * Поиск манги по различным критериям с пагинацией.
+     *
+     * @param title название манги (частичное совпадение, может быть null)
+     * @param author автор манги (частичное совпадение, может быть null)
+     * @param genre жанр манги (частичное совпадение, может быть null)
+     * @param status статус манги (точное совпадение, может быть null)
+     * @param page номер страницы (начиная с 0)
+     * @param size размер страницы
+     * @param sortBy поле для сортировки
+     * @param sortOrder направление сортировки
+     * @return PageResponseDTO с найденными мангами
+     */
+    @Transactional(readOnly = true)
+    public PageResponseDTO<MangaResponseDTO> searchMangaPaged(String title, String author, String genre, String status,
+                                                              int page, int size, String sortBy, String sortOrder) {
+        logger.debug("Пагинированный поиск манги - title: '{}', author: '{}', genre: '{}', status: '{}', page: {}, size: {}, sortBy: {}, sortOrder: {}",
+                    title, author, genre, status, page, size, sortBy, sortOrder);
+
+        // Валидируем и нормализуем статус
+        String validatedStatus = null;
+        if (status != null && !status.trim().isEmpty()) {
+            try {
+                Manga.MangaStatus.valueOf(status.toUpperCase());
+                validatedStatus = status.toUpperCase();
+            } catch (IllegalArgumentException e) {
+                logger.warn("Неизвестный статус манги: '{}'. Игнорируем этот параметр поиска.", status);
+            }
+        }
+
+        // Создаем правильную сортировку на основе параметров
+        Sort sort = createSort(sortBy, sortOrder);
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        Page<Manga> searchResults = mangaRepository.searchMangaPaged(title, author, genre, validatedStatus, sortBy, sortOrder, pageable);
+        logger.debug("Найдено {} манг по поисковому запросу на странице {}", searchResults.getNumberOfElements(), page);
+
+        List<MangaResponseDTO> responseDTOs = mangaMapper.toResponseDTOList(searchResults.getContent());
+
+        // Обогащаем каждую найденную мангу актуальным количеством глав и правильными URL обложек
+        responseDTOs.forEach(dto -> {
+            this.enrichWithChapterCount(dto);
+            this.enrichWithCoverUrl(dto);
+        });
+
+        PageResponseDTO<MangaResponseDTO> result = new PageResponseDTO<>(
+            responseDTOs,
+            searchResults.getNumber(),
+            searchResults.getSize(),
+            searchResults.getTotalElements()
+        );
+
+        logger.debug("Возвращается пагинированный список из {} найденных манг", responseDTOs.size());
+        return result;
+    }
+
+
 
     /**
      * Получает информацию о конкретной манге по её идентификатору.
@@ -456,6 +582,7 @@ public class MangaService {
             // Получаем обложку из ImageStorageService по manga_id
             String coverUrl = imageStorageServiceUrl + "/api/images/cover/" + responseDTO.getId();
 
+            @SuppressWarnings("unchecked")
             Map<String, Object> coverResponse = restTemplate.getForObject(coverUrl, Map.class);
 
             if (coverResponse != null && coverResponse.containsKey("imageUrl")) {

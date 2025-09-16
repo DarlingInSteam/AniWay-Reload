@@ -51,6 +51,10 @@ public class Chapter {
     @Column(name = "page_count")
     private Integer pageCount = 0;
 
+    /** Количество лайков к главе */
+    @Column(name = "like_count")
+    private Integer likeCount = 0;
+
     /** Дата публикации главы */
     @Column(name = "published_date")
     private LocalDateTime publishedDate;
@@ -242,4 +246,18 @@ public class Chapter {
      * @param updatedAt дата обновления
      */
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    /**
+     * Получить количество лайков к главе.
+     *
+     * @return количество лайков
+     */
+    public Integer getLikeCount() { return likeCount; }
+
+    /**
+     * Установить количество лайков к главе.
+     *
+     * @param likeCount количество лайков
+     */
+    public void setLikeCount(Integer likeCount) { this.likeCount = likeCount; }
 }

@@ -39,10 +39,12 @@ public class RateLimitFilter implements WebFilter {
     }
 
     private Bucket createBucketForKey(String key) {
-    // Unified limits for both authenticated users and anonymous IPs
-    // burst 300, refill 120 per minute
-    Bandwidth limit = Bandwidth.classic(300, Refill.greedy(120, Duration.ofMinutes(1)));
-    return Bucket4j.builder().addLimit(limit).build();
+        // TEMPORARY HIGH LIMITS FOR TESTING - DO NOT USE IN PRODUCTION
+        // Original limits: burst 300, refill 120 per minute
+        // Testing limits: burst 10000, refill 1000 per minute
+        // TODO: Revert to original limits after testing is complete
+        Bandwidth limit = Bandwidth.classic(10000, Refill.greedy(1000, Duration.ofMinutes(1)));
+        return Bucket4j.builder().addLimit(limit).build();
     }
 
     private boolean isPublicPath(String path) {
@@ -84,13 +86,13 @@ public class RateLimitFilter implements WebFilter {
             long waitForRefillSeconds = probe.getNanosToWaitForRefill() / 1_000_000_000L;
             logger.warn("Rate limit exceeded for key={}; remaining={}", key, probe.getRemainingTokens());
             exchange.getResponse().getHeaders().add("Retry-After", String.valueOf(waitForRefillSeconds));
-            int limitValue = 300;
+            int limitValue = 10000; // Updated to match new burst limit
             exchange.getResponse().getHeaders().add("X-RateLimit-Limit", String.valueOf(limitValue));
             exchange.getResponse().getHeaders().add("X-RateLimit-Remaining", String.valueOf(probe.getRemainingTokens()));
             exchange.getResponse().setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
             return exchange.getResponse().setComplete();
         } else {
-            int limitValue = 300;
+            int limitValue = 10000; // Updated to match new burst limit
             exchange.getResponse().getHeaders().add("X-RateLimit-Limit", String.valueOf(limitValue));
             exchange.getResponse().getHeaders().add("X-RateLimit-Remaining", String.valueOf(probe.getRemainingTokens()));
         }

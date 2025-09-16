@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api';
-import { UserActivity, Achievement } from '@/types/profile';
+import { UserActivity } from '@/types/profile';
 
 export interface ProfileSettingsData {
   displayName?: string;
@@ -153,7 +153,8 @@ class ExtendedProfileService {
         type: 'review',
         description: activity.message,
         timestamp: new Date(activity.timestamp),
-        relatedMangaId: activity.mangaId
+        relatedMangaId: activity.mangaId,
+        relatedMangaName: activity.mangaTitle,
       }));
     } catch (error) {
       console.error('Ошибка при получении активности отзывов:', error);

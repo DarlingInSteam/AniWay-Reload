@@ -177,4 +177,89 @@ public class ChapterRestController {
             ));
         }
     }
+
+    /**
+     * Поставить лайк к главе от имени пользователя.
+     *
+     * @param id идентификатор главы
+     * @param userId идентификатор пользователя (из заголовка)
+     * @return статус успешного лайка
+     */
+    @PostMapping("/{id}/like")
+    public ResponseEntity<?> likeChapter(
+            @PathVariable Long id,
+            @RequestHeader("X-User-Id") Long userId) {
+        try {
+            chapterService.likeChapter(userId, id);
+            return ResponseEntity.ok(Map.of("message", "Chapter liked successfully"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "Failed to like chapter",
+                "message", e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Убрать лайк с главы от имени пользователя.
+     *
+     * @param id идентификатор главы
+     * @param userId идентификатор пользователя (из заголовка)
+     * @return статус успешного снятия лайка
+     */
+    @DeleteMapping("/{id}/like")
+    public ResponseEntity<?> unlikeChapter(
+            @PathVariable Long id,
+            @RequestHeader("X-User-Id") Long userId) {
+        try {
+            chapterService.unlikeChapter(userId, id);
+            return ResponseEntity.ok(Map.of("message", "Chapter unliked successfully"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "Failed to unlike chapter",
+                "message", e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Переключить лайк к главе от имени пользователя (автоматически определить поставить или убрать).
+     *
+     * @param id идентификатор главы
+     * @param userId идентификатор пользователя (из заголовка)
+     * @return статус успешного переключения лайка с информацией о действии
+     */
+    @PostMapping("/{id}/toggle-like")
+    public ResponseEntity<?> toggleLike(
+            @PathVariable Long id,
+            @RequestHeader("X-User-Id") Long userId) {
+        try {
+            Map<String, Object> result = chapterService.toggleLike(userId, id);
+            return ResponseEntity.ok(Map.of(
+                "message", (Boolean) result.get("liked") ? "Chapter liked successfully" : "Chapter unliked successfully",
+                "liked", result.get("liked"),
+                "likeCount", result.get("likeCount")
+            ));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "Failed to toggle chapter like",
+                "message", e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Проверить, лайкнул ли пользователь главу.
+     *
+     * @param id идентификатор главы
+     * @param userId идентификатор пользователя (из заголовка)
+     * @return true, если пользователь лайкнул главу, иначе false
+     */
+    @GetMapping("/{id}/like")
+    public ResponseEntity<Map<String, Boolean>> isLikedByUser(
+            @PathVariable Long id,
+            @RequestHeader("X-User-Id") Long userId) {
+        boolean isLiked = chapterService.isLikedByUser(userId, id);
+        return ResponseEntity.ok(Map.of("liked", isLiked));
+    }
 }

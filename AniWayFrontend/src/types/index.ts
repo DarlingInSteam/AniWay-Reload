@@ -31,6 +31,7 @@ export interface ChapterDTO {
   originalChapterNumber?: number
   title: string
   pageCount: number
+  likeCount: number
   publishedDate: string
   createdAt: string
   updatedAt: string
@@ -62,6 +63,18 @@ export interface SearchParams {
   sortOrder?: 'asc' | 'desc'
   page?: number
   limit?: number
+}
+
+// Пагинированный ответ
+export interface PageResponse<T> {
+  content: T[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+  first: boolean
+  last: boolean
+  numberOfElements: number
 }
 
 // Типы для прогресса парсинга
@@ -130,6 +143,13 @@ export interface RegisterRequest {
   username: string
   email: string
   password: string
+  displayName?: string
+}
+
+export interface UpdateProfileRequest {
+  displayName?: string
+  bio?: string
+  // Можно добавить другие поля для будущих обновлений
 }
 
 // Типы для системы закладок
