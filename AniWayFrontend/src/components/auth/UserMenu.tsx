@@ -123,25 +123,22 @@ export const UserMenu: React.FC = () => {
             </>
           )}
 
-          {isAdmin && (
-            <>
-              <hr className="my-1 border-border/30" />
-              <Link
-                to="/admin"
-                className="block px-4 py-2 text-sm text-white hover:bg-secondary transition-colors"
-                onClick={() => setIsOpen(false)}
-              >
-                Админ панель
-              </Link>
-              <Link
-                to="/admin/users"
-                className="block px-4 py-2 text-sm text-white hover:bg-secondary transition-colors"
-                onClick={() => setIsOpen(false)}
-              >
-                Управление пользователями
-              </Link>
-            </>
-          )}
+          {/* Раздел управления доступен для всех авторизованных пользователей */}
+          <hr className="my-1 border-border/30" />
+          <Link
+            to="/admin"
+            className="block px-4 py-2 text-sm text-white hover:bg-secondary transition-colors"
+            onClick={() => setIsOpen(false)}
+          >
+            Управление
+          </Link>
+          <Link
+            to="/admin/users"
+            className="block px-4 py-2 text-sm text-white hover:bg-secondary transition-colors"
+            onClick={() => setIsOpen(false)}
+          >
+            Управление пользователями
+          </Link>
 
           <hr className="my-1 border-border/30" />
           <button

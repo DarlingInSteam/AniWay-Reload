@@ -46,24 +46,14 @@ function App() {
           {/* API Документация */}
           <Route path="/api-docs" element={<ApiDocsPage />} />
           
-          {/* Админские маршруты */}
-          <Route path="/admin/manga" element={
-            <ProtectedRoute requireAdmin>
-              <AdminMangaPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin" element={
-            <ProtectedRoute requireAdmin>
-              <AdminMangaPage />
-            </ProtectedRoute>
-          } />
+          {/* Раздел управления - теперь доступен для всех пользователей */}
+          <Route path="/admin/manga" element={<AdminMangaPage />} />
+          <Route path="/admin" element={<AdminMangaPage />} />
           <Route path="/admin/users" element={
-            <ProtectedRoute requireAdmin>
-              <div className="p-8 text-center">
-                <h1 className="text-2xl font-bold mb-4">Управление пользователями</h1>
-                <p className="text-gray-600">Функция в разработке</p>
-              </div>
-            </ProtectedRoute>
+            <div className="p-8 text-center">
+              <h1 className="text-2xl font-bold mb-4">Управление пользователями</h1>
+              <p className="text-gray-600">Функция в разработке</p>
+            </div>
           } />
           
           {/* Маршруты переводчика */}

@@ -282,15 +282,14 @@ export function Header() {
                   <Bell className="h-5 w-5" />
                 </button>
 
-                {(isAdmin || isTranslator) && (
-                  <Link
-                    to="/admin"
-                    className="p-2 lg:p-3 rounded-xl hover:bg-secondary/50 text-muted-foreground hover:text-white transition-colors duration-200"
-                    title="Админ панель"
-                  >
-                    <Settings className="h-5 w-5" />
-                  </Link>
-                )}
+                {/* Ссылка на управление доступна для всех пользователей */}
+                <Link
+                  to="/admin"
+                  className="p-2 lg:p-3 rounded-xl hover:bg-secondary/50 text-muted-foreground hover:text-white transition-colors duration-200"
+                  title="Управление"
+                >
+                  <Settings className="h-5 w-5" />
+                </Link>
               </div>
 
               {/* Пользовательское меню */}
@@ -373,16 +372,14 @@ export function Header() {
                       Уведомления
                     </button>
                     
-                    {(isAdmin || isTranslator) && (
-                      <Link
-                        to="/admin"
-                        className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
-                        onClick={() => setMobileMenuOpen(false)}
-                      >
-                        <Settings className="h-4 w-4 mr-3" />
-                        Админ панель
-                      </Link>
-                    )}
+                    <Link
+                      to="/admin"
+                      className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <Settings className="h-4 w-4 mr-3" />
+                      Админ панель
+                    </Link>
                   </>
                 )}
               </div>
