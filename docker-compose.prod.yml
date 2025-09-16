@@ -211,31 +211,31 @@ volumes:
     driver_opts:
       type: none
       o: bind
-      device: /var/lib/aniway/auth_data
+      device: C:\var\lib\aniway\auth_data
   manga_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: /var/lib/aniway/manga_data
+      device: C:\var\lib\aniway\manga_data
   comment_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: /var/lib/aniway/comment_data
+      device: C:\var\lib\aniway\comment_data
   chapter_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: /var/lib/aniway/chapter_data
+      device: C:\var\lib\aniway\chapter_data
   image_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: /var/lib/aniway/image_data
+      device: C:\var\lib\aniway\image_data
   melon_data:
   melon_logs:
   melon_temp:
