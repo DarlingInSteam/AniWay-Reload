@@ -1,6 +1,9 @@
 -- MangaService Database Schema
 
-CREATE TABLE IF NOT EXISTS manga (
+-- Drop table if exists to ensure clean slate
+DROP TABLE IF EXISTS manga;
+
+CREATE TABLE manga (
     id BIGSERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     description TEXT,

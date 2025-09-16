@@ -13,7 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.web.client.RestTemplate;
 import shadowshift.studio.mangaservice.config.ServiceUrlProperties;
 import shadowshift.studio.mangaservice.dto.MangaCreateDTO;
@@ -178,9 +177,8 @@ public class MangaService {
     public PageResponseDTO<MangaResponseDTO> getAllMangaPaged(int page, int size, String sortBy, String sortOrder) {
         logger.debug("Запрос пагинированного списка всех манг - page: {}, size: {}, sortBy: {}, sortOrder: {}", page, size, sortBy, sortOrder);
 
-        // Создаем Pageable с сортировкой
-        Sort sort = createSort(sortBy, sortOrder);
-        Pageable pageable = PageRequest.of(page, size, sort);
+        // Создаем Pageable БЕЗ сортировки, поскольку сортировка обрабатывается в SQL запросе
+        Pageable pageable = PageRequest.of(page, size);
 
         Page<Manga> mangaPage = mangaRepository.findAllWithSorting(sortBy, sortOrder, pageable);
         logger.debug("Найдено {} манг на странице {} из {}", mangaPage.getNumberOfElements(), page, mangaPage.getTotalPages());
@@ -259,36 +257,7 @@ public class MangaService {
         return result;
     }
 
-    /**
-     * Создает объект Sort на основе параметров сортировки.
-     * Поддерживает все поля сортировки включая комплексную сортировку по популярности.
-     *
-     * @param sortBy поле для сортировки
-     * @param sortOrder направление сортировки
-     * @return объект Sort
-     */
-    private Sort createSort(String sortBy, String sortOrder) {
-        Sort.Direction direction = "desc".equalsIgnoreCase(sortOrder) ? Sort.Direction.DESC : Sort.Direction.ASC;
 
-        // Маппинг полей сортировки на соответствующие поля в базе данных
-        String sortField = switch (sortBy) {
-            case "title" -> "title";
-            case "author" -> "author";
-            case "createdAt" -> "createdAt";
-            case "updatedAt" -> "updatedAt";
-            case "views" -> "views";
-            case "rating" -> "rating";
-            case "ratingCount" -> "ratingCount";
-            case "likes" -> "likes";
-            case "reviews" -> "reviews";
-            case "comments" -> "comments";
-            case "chapterCount" -> "chapterCount";
-            case "popularity" -> "popularity"; // Для комплексной сортировки используем нативный SQL
-            default -> "createdAt";
-        };
-
-        return Sort.by(direction, sortField);
-    }
 
     /**
      * Получает информацию о конкретной манге по её идентификатору.
