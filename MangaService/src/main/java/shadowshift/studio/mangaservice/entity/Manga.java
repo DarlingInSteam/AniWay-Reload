@@ -126,7 +126,7 @@ public class Manga {
     /**
      * Средний рейтинг манги (от 0.0 до 10.0).
      */
-    @Column(name = "rating", precision = 3, scale = 2)
+    @Column(name = "rating", columnDefinition = "DECIMAL(3,2) DEFAULT 0.0")
     private Double rating = 0.0;
 
     /**
