@@ -70,7 +70,7 @@ export function CatalogPage() {
   // Функция для преобразования названия сортировки в поле базы данных
   const getSortByField = (sortOrder: string): string => {
     switch (sortOrder) {
-      case 'По популярности': return 'views'
+      case 'По популярности': return 'popularity' // Комплексная сортировка: views + comments + likes + reviews
       case 'По новизне': return 'createdAt'
       case 'По кол-ву глав': return 'chapterCount'
       case 'По дате обновления': return 'updatedAt'
@@ -79,6 +79,7 @@ export function CatalogPage() {
       case 'По лайкам': return 'likes'
       case 'По просмотрам': return 'views'
       case 'По отзывам': return 'reviews'
+      case 'По комментариям': return 'comments'
       default: return 'createdAt'
     }
   }
@@ -173,7 +174,7 @@ export function CatalogPage() {
                     <div className="p-4">
                       <div className="text-xs text-muted-foreground mb-3 font-medium">Сортировать по:</div>
                       <div className="space-y-1 mb-4">
-                        {['По популярности','По новизне','По кол-ву глав','По дате обновления','По оценке','По кол-ву оценок','По лайкам','По просмотрам','По отзывам'].map(option => (
+                        {['По популярности','По новизне','По кол-ву глав','По дате обновления','По оценке','По кол-ву оценок','По лайкам','По просмотрам','По отзывам','По комментариям'].map(option => (
                           <button
                             key={option}
                             onClick={() => { setSortOrder(option); setShowSortDropdown(false); }}
@@ -271,7 +272,7 @@ export function CatalogPage() {
                   <div className="p-4">
                     <div className="text-xs text-muted-foreground mb-3 font-medium">Сортировать по:</div>
                     <div className="space-y-1 mb-4">
-                      {['По популярности','По новизне','По кол-ву глав','По дате обновления','По оценке','По кол-ву оценок','По лайкам','По просмотрам','По отзывам'].map(option => (
+                      {['По популярности','По новизне','По кол-ву глав','По дате обновления','По оценке','По кол-ву оценок','По лайкам','По просмотрам','По отзывам','По комментариям'].map(option => (
                         <button
                           key={option}
                           onClick={() => { setSortOrder(option); setShowSortDropdown(false); }}

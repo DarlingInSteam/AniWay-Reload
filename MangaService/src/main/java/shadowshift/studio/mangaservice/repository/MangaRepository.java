@@ -28,7 +28,52 @@ public interface MangaRepository extends JpaRepository<Manga, Long> {
     List<Manga> findByTitleContainingIgnoreCase(String title);
 
     /**
+     * Возвращает все манги с пагинацией и сортировкой.
+     * Поддерживает все поля сортировки включая комплексную сортировку по популярности.
+     *
+     * @param sortBy поле для сортировки
+     * @param sortOrder направление сортировки
+     * @param pageable параметры пагинации
+     * @return страница манг
+     */
+    @Query(value = """
+        SELECT * FROM manga m
+        ORDER BY
+            CASE WHEN :sortBy = 'title' AND :sortOrder = 'asc' THEN m.title END ASC,
+            CASE WHEN :sortBy = 'title' AND :sortOrder = 'desc' THEN m.title END DESC,
+            CASE WHEN :sortBy = 'author' AND :sortOrder = 'asc' THEN m.author END ASC,
+            CASE WHEN :sortBy = 'author' AND :sortOrder = 'desc' THEN m.author END DESC,
+            CASE WHEN :sortBy = 'createdAt' AND :sortOrder = 'asc' THEN m.created_at END ASC,
+            CASE WHEN :sortBy = 'createdAt' AND :sortOrder = 'desc' THEN m.created_at END DESC,
+            CASE WHEN :sortBy = 'updatedAt' AND :sortOrder = 'asc' THEN m.updated_at END ASC,
+            CASE WHEN :sortBy = 'updatedAt' AND :sortOrder = 'desc' THEN m.updated_at END DESC,
+            CASE WHEN :sortBy = 'views' AND :sortOrder = 'asc' THEN m.views END ASC,
+            CASE WHEN :sortBy = 'views' AND :sortOrder = 'desc' THEN m.views END DESC,
+            CASE WHEN :sortBy = 'rating' AND :sortOrder = 'asc' THEN m.rating END ASC,
+            CASE WHEN :sortBy = 'rating' AND :sortOrder = 'desc' THEN m.rating END DESC,
+            CASE WHEN :sortBy = 'ratingCount' AND :sortOrder = 'asc' THEN m.rating_count END ASC,
+            CASE WHEN :sortBy = 'ratingCount' AND :sortOrder = 'desc' THEN m.rating_count END DESC,
+            CASE WHEN :sortBy = 'likes' AND :sortOrder = 'asc' THEN m.likes END ASC,
+            CASE WHEN :sortBy = 'likes' AND :sortOrder = 'desc' THEN m.likes END DESC,
+            CASE WHEN :sortBy = 'reviews' AND :sortOrder = 'asc' THEN m.reviews END ASC,
+            CASE WHEN :sortBy = 'reviews' AND :sortOrder = 'desc' THEN m.reviews END DESC,
+            CASE WHEN :sortBy = 'comments' AND :sortOrder = 'asc' THEN m.comments END ASC,
+            CASE WHEN :sortBy = 'comments' AND :sortOrder = 'desc' THEN m.comments END DESC,
+            CASE WHEN :sortBy = 'chapterCount' AND :sortOrder = 'asc' THEN m.total_chapters END ASC,
+            CASE WHEN :sortBy = 'chapterCount' AND :sortOrder = 'desc' THEN m.total_chapters END DESC,
+            CASE WHEN :sortBy = 'popularity' AND :sortOrder = 'asc' THEN (COALESCE(m.views, 0) + COALESCE(m.comments, 0) + COALESCE(m.likes, 0) + COALESCE(m.reviews, 0)) END ASC,
+            CASE WHEN :sortBy = 'popularity' AND :sortOrder = 'desc' THEN (COALESCE(m.views, 0) + COALESCE(m.comments, 0) + COALESCE(m.likes, 0) + COALESCE(m.reviews, 0)) END DESC,
+            m.created_at DESC
+    """, nativeQuery = true)
+    Page<Manga> findAllWithSorting(
+        @Param("sortBy") String sortBy,
+        @Param("sortOrder") String sortOrder,
+        Pageable pageable
+    );
+
+    /**
      * Возвращает все манги, отсортированные по дате создания в убывающем порядке.
+     * Сохранено для обратной совместимости.
      *
      * @return список манг
      */
@@ -37,6 +82,7 @@ public interface MangaRepository extends JpaRepository<Manga, Long> {
 
     /**
      * Возвращает все манги с пагинацией, отсортированные по дате создания в убывающем порядке.
+     * Сохранено для обратной совместимости.
      *
      * @param pageable параметры пагинации
      * @return страница манг
@@ -101,10 +147,24 @@ public interface MangaRepository extends JpaRepository<Manga, Long> {
             CASE WHEN :sortBy = 'author' AND :sortOrder = 'desc' THEN m.author END DESC,
             CASE WHEN :sortBy = 'createdAt' AND :sortOrder = 'asc' THEN m.created_at END ASC,
             CASE WHEN :sortBy = 'createdAt' AND :sortOrder = 'desc' THEN m.created_at END DESC,
+            CASE WHEN :sortBy = 'updatedAt' AND :sortOrder = 'asc' THEN m.updated_at END ASC,
+            CASE WHEN :sortBy = 'updatedAt' AND :sortOrder = 'desc' THEN m.updated_at END DESC,
             CASE WHEN :sortBy = 'views' AND :sortOrder = 'asc' THEN m.views END ASC,
             CASE WHEN :sortBy = 'views' AND :sortOrder = 'desc' THEN m.views END DESC,
-            CASE WHEN :sortBy = 'chapterCount' AND :sortOrder = 'asc' THEN m.chapter_count END ASC,
-            CASE WHEN :sortBy = 'chapterCount' AND :sortOrder = 'desc' THEN m.chapter_count END DESC,
+            CASE WHEN :sortBy = 'rating' AND :sortOrder = 'asc' THEN m.rating END ASC,
+            CASE WHEN :sortBy = 'rating' AND :sortOrder = 'desc' THEN m.rating END DESC,
+            CASE WHEN :sortBy = 'ratingCount' AND :sortOrder = 'asc' THEN m.rating_count END ASC,
+            CASE WHEN :sortBy = 'ratingCount' AND :sortOrder = 'desc' THEN m.rating_count END DESC,
+            CASE WHEN :sortBy = 'likes' AND :sortOrder = 'asc' THEN m.likes END ASC,
+            CASE WHEN :sortBy = 'likes' AND :sortOrder = 'desc' THEN m.likes END DESC,
+            CASE WHEN :sortBy = 'reviews' AND :sortOrder = 'asc' THEN m.reviews END ASC,
+            CASE WHEN :sortBy = 'reviews' AND :sortOrder = 'desc' THEN m.reviews END DESC,
+            CASE WHEN :sortBy = 'comments' AND :sortOrder = 'asc' THEN m.comments END ASC,
+            CASE WHEN :sortBy = 'comments' AND :sortOrder = 'desc' THEN m.comments END DESC,
+            CASE WHEN :sortBy = 'chapterCount' AND :sortOrder = 'asc' THEN m.total_chapters END ASC,
+            CASE WHEN :sortBy = 'chapterCount' AND :sortOrder = 'desc' THEN m.total_chapters END DESC,
+            CASE WHEN :sortBy = 'popularity' AND :sortOrder = 'asc' THEN (COALESCE(m.views, 0) + COALESCE(m.comments, 0) + COALESCE(m.likes, 0) + COALESCE(m.reviews, 0)) END ASC,
+            CASE WHEN :sortBy = 'popularity' AND :sortOrder = 'desc' THEN (COALESCE(m.views, 0) + COALESCE(m.comments, 0) + COALESCE(m.likes, 0) + COALESCE(m.reviews, 0)) END DESC,
             m.created_at DESC
     """, nativeQuery = true)
     Page<Manga> searchMangaPaged(

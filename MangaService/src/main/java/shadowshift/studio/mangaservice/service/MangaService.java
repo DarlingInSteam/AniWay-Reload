@@ -182,7 +182,7 @@ public class MangaService {
         Sort sort = createSort(sortBy, sortOrder);
         Pageable pageable = PageRequest.of(page, size, sort);
 
-        Page<Manga> mangaPage = mangaRepository.findAllOrderByCreatedAtDesc(pageable);
+        Page<Manga> mangaPage = mangaRepository.findAllWithSorting(sortBy, sortOrder, pageable);
         logger.debug("Найдено {} манг на странице {} из {}", mangaPage.getNumberOfElements(), page, mangaPage.getTotalPages());
 
         List<MangaResponseDTO> responseDTOs = mangaMapper.toResponseDTOList(mangaPage.getContent());
@@ -261,6 +261,7 @@ public class MangaService {
 
     /**
      * Создает объект Sort на основе параметров сортировки.
+     * Поддерживает все поля сортировки включая комплексную сортировку по популярности.
      *
      * @param sortBy поле для сортировки
      * @param sortOrder направление сортировки
@@ -274,8 +275,15 @@ public class MangaService {
             case "title" -> "title";
             case "author" -> "author";
             case "createdAt" -> "createdAt";
+            case "updatedAt" -> "updatedAt";
             case "views" -> "views";
+            case "rating" -> "rating";
+            case "ratingCount" -> "ratingCount";
+            case "likes" -> "likes";
+            case "reviews" -> "reviews";
+            case "comments" -> "comments";
             case "chapterCount" -> "chapterCount";
+            case "popularity" -> "popularity"; // Для комплексной сортировки используем нативный SQL
             default -> "createdAt";
         };
 
