@@ -2,17 +2,14 @@ package shadowshift.studio.mangaservice.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 import shadowshift.studio.mangaservice.config.ServiceUrlProperties;
 import shadowshift.studio.mangaservice.dto.MangaCreateDTO;
@@ -177,10 +174,10 @@ public class MangaService {
     public PageResponseDTO<MangaResponseDTO> getAllMangaPaged(int page, int size, String sortBy, String sortOrder) {
         logger.debug("Запрос пагинированного списка всех манг - page: {}, size: {}, sortBy: {}, sortOrder: {}", page, size, sortBy, sortOrder);
 
-        // Создаем Pageable БЕЗ сортировки, поскольку сортировка обрабатывается в SQL запросе
+        // Создаем Pageable с базовой сортировкой
         Pageable pageable = PageRequest.of(page, size);
 
-        Page<Manga> mangaPage = mangaRepository.findAllWithSorting(sortBy, sortOrder, pageable);
+        Page<Manga> mangaPage = mangaRepository.findAllOrderByCreatedAtDesc(pageable);
         logger.debug("Найдено {} манг на странице {} из {}", mangaPage.getNumberOfElements(), page, mangaPage.getTotalPages());
 
         List<MangaResponseDTO> responseDTOs = mangaMapper.toResponseDTOList(mangaPage.getContent());
@@ -232,7 +229,7 @@ public class MangaService {
             }
         }
 
-        // Создаем Pageable
+        // Создаем Pageable с базовой сортировкой
         Pageable pageable = PageRequest.of(page, size);
 
         Page<Manga> searchResults = mangaRepository.searchMangaPaged(title, author, genre, validatedStatus, sortBy, sortOrder, pageable);
@@ -555,6 +552,7 @@ public class MangaService {
             // Получаем обложку из ImageStorageService по manga_id
             String coverUrl = imageStorageServiceUrl + "/api/images/cover/" + responseDTO.getId();
 
+            @SuppressWarnings("unchecked")
             Map<String, Object> coverResponse = restTemplate.getForObject(coverUrl, Map.class);
 
             if (coverResponse != null && coverResponse.containsKey("imageUrl")) {
