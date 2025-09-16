@@ -234,10 +234,11 @@ public class ChapterRestController {
             @PathVariable Long id,
             @RequestHeader("X-User-Id") Long userId) {
         try {
-            boolean liked = chapterService.toggleLike(userId, id);
+            Map<String, Object> result = chapterService.toggleLike(userId, id);
             return ResponseEntity.ok(Map.of(
-                "message", liked ? "Chapter liked successfully" : "Chapter unliked successfully",
-                "liked", liked
+                "message", (Boolean) result.get("liked") ? "Chapter liked successfully" : "Chapter unliked successfully",
+                "liked", result.get("liked"),
+                "likeCount", result.get("likeCount")
             ));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of(

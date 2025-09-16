@@ -151,10 +151,9 @@ export function MangaPage() {
           if (!oldData) return oldData
           return oldData.map((chapter: any) => {
             if (chapter.id === chapterId) {
-              const currentCount = chapter.likeCount || 0
               return {
                 ...chapter,
-                likeCount: response.liked ? currentCount + 1 : Math.max(0, currentCount - 1)
+                likeCount: response.likeCount
               }
             }
             return chapter

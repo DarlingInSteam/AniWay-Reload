@@ -13,6 +13,7 @@ import shadowshift.studio.chapterservice.entity.ChapterLike;
 import shadowshift.studio.chapterservice.repository.ChapterRepository;
 import shadowshift.studio.chapterservice.repository.ChapterLikeRepository;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -322,11 +323,11 @@ public class ChapterService {
      *
      * @param userId идентификатор пользователя
      * @param chapterId идентификатор главы
-     * @return true если лайк поставлен, false если лайк убран
+     * @return Map с полями "liked" (boolean) и "likeCount" (Integer)
      * @throws RuntimeException если глава не найдена
      */
     @CacheEvict(value = {"chapterDetails"}, key = "#chapterId")
-    public boolean toggleLike(Long userId, Long chapterId) {
+    public Map<String, Object> toggleLike(Long userId, Long chapterId) {
         // Проверяем, существует ли глава
         Chapter chapter = chapterRepository.findById(chapterId)
                 .orElseThrow(() -> new RuntimeException("Chapter not found with id: " + chapterId));
@@ -347,7 +348,7 @@ public class ChapterService {
             }
             chapter.setLikeCount(Math.max(0, currentLikes - 1));
             chapterRepository.save(chapter);
-            return false; // лайк убран
+            return Map.of("liked", false, "likeCount", chapter.getLikeCount()); // лайк убран
         } else {
             // Ставим лайк
             ChapterLike like = new ChapterLike(userId, chapterId);
@@ -360,7 +361,7 @@ public class ChapterService {
             }
             chapter.setLikeCount(currentLikes + 1);
             chapterRepository.save(chapter);
-            return true; // лайк поставлен
+            return Map.of("liked", true, "likeCount", chapter.getLikeCount()); // лайк поставлен
         }
     }
 

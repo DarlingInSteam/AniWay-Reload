@@ -137,8 +137,8 @@ class ApiClient {
     return this.request<{ liked: boolean }>(`/chapters/${chapterId}/like`);
   }
 
-  async toggleChapterLike(chapterId: number): Promise<{ message: string; liked: boolean }> {
-    return this.request<{ message: string; liked: boolean }>(`/chapters/${chapterId}/toggle-like`, {
+  async toggleChapterLike(chapterId: number): Promise<{ message: string; liked: boolean; likeCount: number }> {
+    return this.request<{ message: string; liked: boolean; likeCount: number }>(`/chapters/${chapterId}/toggle-like`, {
       method: 'POST',
     });
   }

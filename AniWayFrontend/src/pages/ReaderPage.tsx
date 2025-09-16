@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -37,6 +37,7 @@ export function ReaderPage() {
   const [lastTap, setLastTap] = useState(0)
 
   const { user } = useAuth()
+  const queryClient = useQueryClient()
 
   // Reading progress tracking
   const { trackChapterViewed, markChapterCompleted, isChapterCompleted, clearTrackedChapters } = useReadingProgress()
@@ -73,6 +74,18 @@ export function ReaderPage() {
     try {
       const response = await apiClient.toggleChapterLike(chapter.id)
       setIsLiked(response.liked)
+
+      // Optimistically update the local chapter data to show immediate count changes
+      queryClient.setQueryData(['chapter', chapterId], (oldData: any) => {
+        if (!oldData) return oldData
+        return {
+          ...oldData,
+          likeCount: response.likeCount
+        }
+      })
+
+      // Invalidate chapter query to refresh like count from server
+      queryClient.invalidateQueries({ queryKey: ['chapter', chapterId] })
     } catch (error) {
       console.error('Failed to toggle chapter like:', error)
     } finally {
