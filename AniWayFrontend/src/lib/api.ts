@@ -1,4 +1,4 @@
-import { MangaResponseDTO, ChapterDTO, ChapterImageDTO, SearchParams, UserSearchParams, UserSearchResult, User, UpdateProfileRequest } from '@/types';
+import { MangaResponseDTO, ChapterDTO, ChapterImageDTO, SearchParams, PageResponse, UserSearchParams, UserSearchResult, User, UpdateProfileRequest } from '@/types';
 
 const API_BASE_URL = '/api';
 
@@ -83,6 +83,26 @@ class ApiClient {
     });
 
     return this.request<MangaResponseDTO[]>(`/manga/search?${searchParams}`);
+  }
+
+  async getAllMangaPaged(page: number = 0, size: number = 10, sortBy: string = 'createdAt', sortOrder: 'asc' | 'desc' = 'desc'): Promise<PageResponse<MangaResponseDTO>> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      size: size.toString(),
+      sortBy,
+      sortOrder
+    });
+
+    return this.request<PageResponse<MangaResponseDTO>>(`/manga/paged?${params}`);
+  }
+
+  async searchMangaPaged(params: SearchParams): Promise<PageResponse<MangaResponseDTO>> {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value) searchParams.append(key, value);
+    });
+
+    return this.request<PageResponse<MangaResponseDTO>>(`/manga/search/paged?${searchParams}`);
   }
 
   async updateManga(id: number, data: any): Promise<MangaResponseDTO> {

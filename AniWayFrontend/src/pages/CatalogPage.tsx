@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { Grid, Filter, ArrowUpDown, ArrowUp, ArrowDown, X } from 'lucide-react'
+import { Grid, Filter, ArrowUpDown, ArrowUp, ArrowDown, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { MangaCardWithTooltip } from '@/components/manga'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { cn } from '@/lib/utils'
+import { PageResponse } from '@/types'
 
 export function CatalogPage() {
   const [searchParams] = useSearchParams()
@@ -14,6 +15,8 @@ export function CatalogPage() {
   const [sortOrder, setSortOrder] = useState('По популярности')
   const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>('desc')
   const [showSortDropdown, setShowSortDropdown] = useState(false)
+  const [currentPage, setCurrentPage] = useState(0)
+  const [pageSize] = useState(10) // Фиксированный размер страницы
 
   // Refs для обработки кликов вне области
   const sortDropdownRef = useRef<HTMLDivElement>(null)
@@ -37,18 +40,74 @@ export function CatalogPage() {
     queryClient.refetchQueries({ queryKey: ['recent-manga'] })
   }, [queryClient])
 
-  const { data: manga, isLoading } = useQuery({
-    queryKey: ['manga-catalog', { genre, sort }],
+  const { data: mangaPage, isLoading } = useQuery({
+    queryKey: ['manga-catalog', { genre, sort, currentPage, sortOrder, sortDirection }],
     queryFn: () => {
+      const sortBy = getSortByField(sortOrder)
       if (genre) {
-        return apiClient.searchManga({ genre })
+        return apiClient.searchMangaPaged({
+          genre,
+          page: currentPage,
+          limit: pageSize,
+          sortBy,
+          sortOrder: sortDirection
+        })
       }
-      return apiClient.getAllManga()
+      return apiClient.getAllMangaPaged(currentPage, pageSize, sortBy, sortDirection)
     },
-    staleTime: 0, // Данные всегда считаются устаревшими
+    staleTime: 0,
     refetchOnWindowFocus: true,
     refetchOnMount: true,
   })
+
+  // Извлекаем данные из ответа API
+  const manga = mangaPage?.content || []
+  const totalElements = mangaPage?.totalElements || 0
+  const totalPages = mangaPage?.totalPages || 1
+  const isFirst = mangaPage?.first || true
+  const isLast = mangaPage?.last || true
+
+  // Функция для преобразования названия сортировки в поле базы данных
+  const getSortByField = (sortOrder: string): string => {
+    switch (sortOrder) {
+      case 'По популярности': return 'views'
+      case 'По новизне': return 'createdAt'
+      case 'По кол-ву глав': return 'chapterCount'
+      case 'По дате обновления': return 'updatedAt'
+      case 'По оценке': return 'rating'
+      case 'По кол-ву оценок': return 'ratingCount'
+      case 'По лайкам': return 'likes'
+      case 'По просмотрам': return 'views'
+      case 'По отзывам': return 'reviews'
+      default: return 'createdAt'
+    }
+  }
+
+  // Функции навигации по страницам
+  const goToPage = (page: number) => {
+    setCurrentPage(page)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const goToNextPage = () => {
+    if (!isLast) {
+      goToPage(currentPage + 1)
+    }
+  }
+
+  const goToPreviousPage = () => {
+    if (!isFirst) {
+      goToPage(currentPage - 1)
+    }
+  }
+
+  const goToFirstPage = () => {
+    goToPage(0)
+  }
+
+  const goToLastPage = () => {
+    goToPage(totalPages - 1)
+  }
 
   const pageTitle = genre ? `Жанр: ${genre}` : 'Каталог'
 
@@ -326,6 +385,107 @@ export function CatalogPage() {
             />
           ))}
         </div>
+
+        {/* Pagination Component */}
+        {totalPages > 1 && (
+          <div className="flex flex-col items-center gap-4 mt-8 mb-8">
+            {/* Info */}
+            <div className="text-sm text-muted-foreground">
+              Показано {manga?.length || 0} из {totalElements} произведений
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="flex items-center gap-2">
+              {/* First Page */}
+              <button
+                onClick={goToFirstPage}
+                disabled={currentPage === 0}
+                className={cn(
+                  'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border',
+                  currentPage === 0
+                    ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
+                    : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
+                )}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-4 w-4 -ml-2" />
+              </button>
+
+              {/* Previous Page */}
+              <button
+                onClick={goToPreviousPage}
+                disabled={currentPage === 0}
+                className={cn(
+                  'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border',
+                  currentPage === 0
+                    ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
+                    : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
+                )}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Предыдущая
+              </button>
+
+              {/* Page Numbers */}
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  const pageNum = Math.max(0, Math.min(totalPages - 5, currentPage - 2)) + i
+                  if (pageNum >= totalPages) return null
+
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => goToPage(pageNum)}
+                      className={cn(
+                        'px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border min-w-[40px]',
+                        currentPage === pageNum
+                          ? 'bg-primary/20 text-primary border-primary/30 shadow-lg shadow-primary/20'
+                          : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
+                      )}
+                    >
+                      {pageNum + 1}
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Next Page */}
+              <button
+                onClick={goToNextPage}
+                disabled={currentPage >= totalPages - 1}
+                className={cn(
+                  'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border',
+                  currentPage >= totalPages - 1
+                    ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
+                    : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
+                )}
+              >
+                Следующая
+                <ChevronRight className="h-4 w-4" />
+              </button>
+
+              {/* Last Page */}
+              <button
+                onClick={goToLastPage}
+                disabled={currentPage >= totalPages - 1}
+                className={cn(
+                  'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border',
+                  currentPage >= totalPages - 1
+                    ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
+                    : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
+                )}
+              >
+                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-4 w-4 -ml-2" />
+              </button>
+            </div>
+
+            {/* Current Page Info */}
+            <div className="text-sm text-muted-foreground">
+              Страница {currentPage + 1} из {totalPages}
+            </div>
+          </div>
+        )}
 
         {/* Улучшенный Empty State */}
         {manga?.length === 0 && (

@@ -1,5 +1,7 @@
 package shadowshift.studio.mangaservice.repository;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -34,6 +36,15 @@ public interface MangaRepository extends JpaRepository<Manga, Long> {
     List<Manga> findAllOrderByCreatedAtDesc();
 
     /**
+     * Возвращает все манги с пагинацией, отсортированные по дате создания в убывающем порядке.
+     *
+     * @param pageable параметры пагинации
+     * @return страница манг
+     */
+    @Query("SELECT m FROM Manga m ORDER BY m.createdAt DESC")
+    Page<Manga> findAllOrderByCreatedAtDesc(Pageable pageable);
+
+    /**
      * Ищет манги по статусу.
      *
      * @param status статус манги
@@ -64,6 +75,46 @@ public interface MangaRepository extends JpaRepository<Manga, Long> {
         @Param("author") String author,
         @Param("genre") String genre,
         @Param("status") String status
+    );
+
+    /**
+     * Поиск манги по различным критериям с пагинацией.
+     * Использует нативный SQL с явным приведением типов для решения проблем с кодировкой PostgreSQL.
+     *
+     * @param title название манги (частичное совпадение, игнорируя регистр)
+     * @param author автор манги (частичное совпадение, игнорируя регистр)
+     * @param genre жанр манги (частичное совпадение, игнорируя регистр)
+     * @param status статус манги (точное совпадение)
+     * @param pageable параметры пагинации
+     * @return страница найденных манг
+     */
+    @Query(value = """
+        SELECT * FROM manga m
+        WHERE (:title IS NULL OR UPPER(CAST(m.title AS TEXT)) LIKE UPPER(CONCAT('%', CAST(:title AS TEXT), '%')))
+        AND (:author IS NULL OR UPPER(CAST(m.author AS TEXT)) LIKE UPPER(CONCAT('%', CAST(:author AS TEXT), '%')))
+        AND (:genre IS NULL OR UPPER(CAST(m.genre AS TEXT)) LIKE UPPER(CONCAT('%', CAST(:genre AS TEXT), '%')))
+        AND (:status IS NULL OR m.status = :status)
+        ORDER BY
+            CASE WHEN :sortBy = 'title' AND :sortOrder = 'asc' THEN m.title END ASC,
+            CASE WHEN :sortBy = 'title' AND :sortOrder = 'desc' THEN m.title END DESC,
+            CASE WHEN :sortBy = 'author' AND :sortOrder = 'asc' THEN m.author END ASC,
+            CASE WHEN :sortBy = 'author' AND :sortOrder = 'desc' THEN m.author END DESC,
+            CASE WHEN :sortBy = 'createdAt' AND :sortOrder = 'asc' THEN m.created_at END ASC,
+            CASE WHEN :sortBy = 'createdAt' AND :sortOrder = 'desc' THEN m.created_at END DESC,
+            CASE WHEN :sortBy = 'views' AND :sortOrder = 'asc' THEN m.views END ASC,
+            CASE WHEN :sortBy = 'views' AND :sortOrder = 'desc' THEN m.views END DESC,
+            CASE WHEN :sortBy = 'chapterCount' AND :sortOrder = 'asc' THEN m.chapter_count END ASC,
+            CASE WHEN :sortBy = 'chapterCount' AND :sortOrder = 'desc' THEN m.chapter_count END DESC,
+            m.created_at DESC
+    """, nativeQuery = true)
+    Page<Manga> searchMangaPaged(
+        @Param("title") String title,
+        @Param("author") String author,
+        @Param("genre") String genre,
+        @Param("status") String status,
+        @Param("sortBy") String sortBy,
+        @Param("sortOrder") String sortOrder,
+        Pageable pageable
     );
 
     /**
