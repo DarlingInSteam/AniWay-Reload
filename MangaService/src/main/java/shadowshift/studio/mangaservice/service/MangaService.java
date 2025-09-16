@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 import shadowshift.studio.mangaservice.config.ServiceUrlProperties;
@@ -174,10 +175,11 @@ public class MangaService {
     public PageResponseDTO<MangaResponseDTO> getAllMangaPaged(int page, int size, String sortBy, String sortOrder) {
         logger.debug("Запрос пагинированного списка всех манг - page: {}, size: {}, sortBy: {}, sortOrder: {}", page, size, sortBy, sortOrder);
 
-        // Создаем Pageable с базовой сортировкой
-        Pageable pageable = PageRequest.of(page, size);
+        // Создаем правильную сортировку на основе параметров
+        Sort sort = createSort(sortBy, sortOrder);
+        Pageable pageable = PageRequest.of(page, size, sort);
 
-        Page<Manga> mangaPage = mangaRepository.findAllOrderByCreatedAtDesc(pageable);
+        Page<Manga> mangaPage = mangaRepository.findAll(pageable);
         logger.debug("Найдено {} манг на странице {} из {}", mangaPage.getNumberOfElements(), page, mangaPage.getTotalPages());
 
         List<MangaResponseDTO> responseDTOs = mangaMapper.toResponseDTOList(mangaPage.getContent());
@@ -197,6 +199,33 @@ public class MangaService {
 
         logger.debug("Возвращается пагинированный список из {} манг", responseDTOs.size());
         return result;
+    }
+
+    /**
+     * Создает объект Sort на основе параметров сортировки.
+     *
+     * @param sortBy поле для сортировки
+     * @param sortOrder направление сортировки (asc/desc)
+     * @return объект Sort
+     */
+    private Sort createSort(String sortBy, String sortOrder) {
+        Sort.Direction direction = "desc".equalsIgnoreCase(sortOrder) ? Sort.Direction.DESC : Sort.Direction.ASC;
+
+        return switch (sortBy != null ? sortBy.toLowerCase() : "createdat") {
+            case "title" -> Sort.by(direction, "title");
+            case "author" -> Sort.by(direction, "author");
+            case "createdat" -> Sort.by(direction, "createdAt");
+            case "updatedat" -> Sort.by(direction, "updatedAt");
+            case "views" -> Sort.by(direction, "views");
+            case "rating" -> Sort.by(direction, "rating");
+            case "ratingcount" -> Sort.by(direction, "ratingCount");
+            case "likes" -> Sort.by(direction, "likes");
+            case "reviews" -> Sort.by(direction, "reviews");
+            case "comments" -> Sort.by(direction, "comments");
+            case "chaptercount" -> Sort.by(direction, "totalChapters");
+            case "popularity" -> Sort.by(direction, "views", "comments", "likes", "reviews");
+            default -> Sort.by(Sort.Direction.DESC, "createdAt");
+        };
     }
 
     /**
@@ -229,8 +258,9 @@ public class MangaService {
             }
         }
 
-        // Создаем Pageable с базовой сортировкой
-        Pageable pageable = PageRequest.of(page, size);
+        // Создаем правильную сортировку на основе параметров
+        Sort sort = createSort(sortBy, sortOrder);
+        Pageable pageable = PageRequest.of(page, size, sort);
 
         Page<Manga> searchResults = mangaRepository.searchMangaPaged(title, author, genre, validatedStatus, sortBy, sortOrder, pageable);
         logger.debug("Найдено {} манг по поисковому запросу на странице {}", searchResults.getNumberOfElements(), page);
