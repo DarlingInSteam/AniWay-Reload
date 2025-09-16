@@ -71,13 +71,8 @@ export function ReaderPage() {
 
     setLiking(true)
     try {
-      if (isLiked) {
-        await apiClient.unlikeChapter(chapter.id)
-        setIsLiked(false)
-      } else {
-        await apiClient.likeChapter(chapter.id)
-        setIsLiked(true)
-      }
+      const response = await apiClient.toggleChapterLike(chapter.id)
+      setIsLiked(response.liked)
     } catch (error) {
       console.error('Failed to toggle chapter like:', error)
     } finally {

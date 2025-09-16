@@ -86,6 +86,37 @@ export function MangaPage() {
 
   const { isChapterCompleted } = useReadingProgress()
 
+  // Load chapter like statuses
+  useEffect(() => {
+    const loadChapterLikeStatuses = async () => {
+      if (!chapters || !user) return
+
+      try {
+        const likeStatuses = await Promise.all(
+          chapters.map(async (chapter) => {
+            try {
+              const response = await apiClient.isChapterLiked(chapter.id)
+              return { chapterId: chapter.id, liked: response.liked }
+            } catch (error) {
+              console.error(`Failed to load like status for chapter ${chapter.id}:`, error)
+              return { chapterId: chapter.id, liked: false }
+            }
+          })
+        )
+
+        const likedChapterIds = likeStatuses
+          .filter(status => status.liked)
+          .map(status => status.chapterId)
+
+        setLikedChapters(new Set(likedChapterIds))
+      } catch (error) {
+        console.error('Failed to load chapter like statuses:', error)
+      }
+    }
+
+    loadChapterLikeStatuses()
+  }, [chapters, user])
+
   // Handle chapter like/unlike
   const handleChapterLike = async (chapterId: number, e: React.MouseEvent) => {
     e.preventDefault() // Prevent navigation to reader
@@ -96,17 +127,17 @@ export function MangaPage() {
     setLikingChapters(prev => new Set(prev).add(chapterId))
 
     try {
-      const isLiked = likedChapters.has(chapterId)
-      if (isLiked) {
-        await apiClient.unlikeChapter(chapterId)
+      const response = await apiClient.toggleChapterLike(chapterId)
+
+      // Update local state based on server response
+      if (response.liked) {
+        setLikedChapters(prev => new Set(prev).add(chapterId))
+      } else {
         setLikedChapters(prev => {
           const newSet = new Set(prev)
           newSet.delete(chapterId)
           return newSet
         })
-      } else {
-        await apiClient.likeChapter(chapterId)
-        setLikedChapters(prev => new Set(prev).add(chapterId))
       }
 
       // Invalidate chapters query to refresh like counts

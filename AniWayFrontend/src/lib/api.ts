@@ -128,6 +128,12 @@ class ApiClient {
     return this.request<{ liked: boolean }>(`/chapters/${chapterId}/like`);
   }
 
+  async toggleChapterLike(chapterId: number): Promise<{ message: string; liked: boolean }> {
+    return this.request<{ message: string; liked: boolean }>(`/chapters/${chapterId}/toggle-like`, {
+      method: 'POST',
+    });
+  }
+
   // Image API
   async getChapterImages(chapterId: number): Promise<ChapterImageDTO[]> {
     return this.request<ChapterImageDTO[]>(`/images/chapter/${chapterId}`);
