@@ -165,6 +165,7 @@ export const useReadingProgress = () => {
   }
 
   const getMangaProgress = (mangaId: number): ReadingProgress[] => {
+    if (!Array.isArray(progress)) return []
     return progress.filter(p => p.mangaId === mangaId)
   }
 
@@ -174,7 +175,7 @@ export const useReadingProgress = () => {
 
   const getLastReadChapter = (mangaId: number): ReadingProgress | undefined => {
     const mangaProgress = getMangaProgress(mangaId)
-    if (mangaProgress.length === 0) return undefined
+    if (!mangaProgress || !Array.isArray(mangaProgress) || mangaProgress.length === 0) return undefined
 
     // Сортируем по дате обновления (updatedAt) и возвращаем последний
     return mangaProgress.sort((a, b) => 
@@ -184,6 +185,8 @@ export const useReadingProgress = () => {
 
   const getMangaReadingPercentage = (mangaId: number, totalChapters: number): number => {
     const mangaProgress = getMangaProgress(mangaId)
+    if (!mangaProgress || !Array.isArray(mangaProgress)) return 0
+    
     const readChapters = mangaProgress.filter(p => p.isCompleted).length
     
     if (totalChapters === 0) return 0

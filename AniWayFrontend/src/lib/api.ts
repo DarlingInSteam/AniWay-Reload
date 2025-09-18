@@ -85,7 +85,7 @@ class ApiClient {
     return this.request<MangaResponseDTO[]>(`/manga/search?${searchParams}`);
   }
 
-  async getAllMangaPaged(page: number = 0, size: number = 10, sortBy: string = 'createdAt', sortOrder: 'asc' | 'desc' = 'desc'): Promise<PageResponse<MangaResponseDTO>> {
+  async getAllMangaPaged(page: number = 0, size: number = 10, sortBy: string = 'createdAt', sortOrder: 'asc' | 'desc' = 'desc', filters?: any): Promise<PageResponse<MangaResponseDTO>> {
     const params = new URLSearchParams({
       page: page.toString(),
       size: size.toString(),
@@ -93,13 +93,48 @@ class ApiClient {
       sortOrder
     });
 
+    // Добавляем фильтры если есть
+    if (filters) {
+      console.log('ApiClient: Processing filters:', filters)
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) {
+          console.log(`ApiClient: Processing filter ${key}:`, value)
+          if (Array.isArray(value) && !['ageRating', 'rating', 'releaseYear', 'chapterRange'].includes(key)) {
+            // Для массивов добавляем каждый элемент отдельно
+            console.log(`ApiClient: Adding array values for ${key}:`, value)
+            value.forEach(item => params.append(key, item.toString()));
+          } else if (Array.isArray(value) && ['ageRating', 'rating', 'releaseYear', 'chapterRange'].includes(key)) {
+            // Для диапазонов [min, max]
+            console.log(`ApiClient: Adding range for ${key}:`, value)
+            params.append(`${key}Min`, value[0].toString());
+            params.append(`${key}Max`, value[1].toString());
+          } else {
+            console.log(`ApiClient: Adding single value for ${key}:`, value)
+            params.append(key, value.toString());
+          }
+        }
+      });
+    }
+
+    console.log('ApiClient: Final URL parameters:', params.toString())
     return this.request<PageResponse<MangaResponseDTO>>(`/manga/paged?${params}`);
   }
 
   async searchMangaPaged(params: SearchParams): Promise<PageResponse<MangaResponseDTO>> {
     const searchParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
-      if (value) searchParams.append(key, value);
+      if (value) {
+        if (Array.isArray(value) && !['ageRating', 'rating', 'releaseYear', 'chapterRange'].includes(key)) {
+          // Для массивов добавляем каждый элемент отдельно
+          value.forEach(item => searchParams.append(key, item.toString()));
+        } else if (Array.isArray(value) && ['ageRating', 'rating', 'releaseYear', 'chapterRange'].includes(key)) {
+          // Для диапазонов [min, max]
+          searchParams.append(`${key}Min`, value[0].toString());
+          searchParams.append(`${key}Max`, value[1].toString());
+        } else {
+          searchParams.append(key, value.toString());
+        }
+      }
     });
 
     return this.request<PageResponse<MangaResponseDTO>>(`/manga/search/paged?${searchParams}`);

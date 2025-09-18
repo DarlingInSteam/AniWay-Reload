@@ -186,4 +186,77 @@ public interface MangaRepository extends JpaRepository<Manga, Long> {
     @Modifying
     @Query("UPDATE Manga m SET m.views = COALESCE(m.views, 0) + 1 WHERE m.id = :mangaId")
     void incrementViews(@Param("mangaId") Long mangaId);
+
+    /**
+     * Поиск манги по различным фильтрам включая жанры, теги, рейтинги и диапазоны.
+     * 
+     * @param genres список жанров (может быть null или пустой)
+     * @param tags список тегов (может быть null или пустой)
+     * @param mangaType тип манги (может быть null)
+     * @param status статус манги (может быть null)
+     * @param ageRatingMin минимальный возрастной рейтинг (может быть null)
+     * @param ageRatingMax максимальный возрастной рейтинг (может быть null)
+     * @param ratingMin минимальный рейтинг (может быть null)
+     * @param ratingMax максимальный рейтинг (может быть null)
+     * @param releaseYearMin минимальный год выпуска (может быть null)
+     * @param releaseYearMax максимальный год выпуска (может быть null)
+     * @param chapterRangeMin минимальное количество глав (может быть null)
+     * @param chapterRangeMax максимальное количество глав (может быть null)
+     * @param pageable параметры пагинации
+     * @return страница найденных манг
+     */
+    @Query(value = """
+        SELECT DISTINCT m.* FROM manga m
+        LEFT JOIN manga_genres mg ON m.id = mg.manga_id
+        LEFT JOIN genres g ON mg.genre_id = g.id
+        LEFT JOIN manga_tags mt ON m.id = mt.manga_id
+        LEFT JOIN tags t ON mt.tag_id = t.id
+        WHERE (:#{#genres == null ? 0 : #genres.size()} = 0 OR g.name IN :genres)
+        AND (:#{#tags == null ? 0 : #tags.size()} = 0 OR t.name IN :tags)
+        AND (:mangaType IS NULL OR m.manga_type = :mangaType)
+        AND (:status IS NULL OR m.status = :status)
+        AND (:ageRatingMin IS NULL OR m.age_limit >= :ageRatingMin)
+        AND (:ageRatingMax IS NULL OR m.age_limit <= :ageRatingMax)
+        AND (:ratingMin IS NULL OR m.rating >= :ratingMin)
+        AND (:ratingMax IS NULL OR m.rating <= :ratingMax)
+        AND (:releaseYearMin IS NULL OR EXTRACT(YEAR FROM m.release_date) >= :releaseYearMin)
+        AND (:releaseYearMax IS NULL OR EXTRACT(YEAR FROM m.release_date) <= :releaseYearMax)
+        AND (:chapterRangeMin IS NULL OR m.total_chapters >= :chapterRangeMin)
+        AND (:chapterRangeMax IS NULL OR m.total_chapters <= :chapterRangeMax)
+        """, 
+        countQuery = """
+        SELECT COUNT(DISTINCT m.id) FROM manga m
+        LEFT JOIN manga_genres mg ON m.id = mg.manga_id
+        LEFT JOIN genres g ON mg.genre_id = g.id
+        LEFT JOIN manga_tags mt ON m.id = mt.manga_id
+        LEFT JOIN tags t ON mt.tag_id = t.id
+        WHERE (:#{#genres == null ? 0 : #genres.size()} = 0 OR g.name IN :genres)
+        AND (:#{#tags == null ? 0 : #tags.size()} = 0 OR t.name IN :tags)
+        AND (:mangaType IS NULL OR m.manga_type = :mangaType)
+        AND (:status IS NULL OR m.status = :status)
+        AND (:ageRatingMin IS NULL OR m.age_limit >= :ageRatingMin)
+        AND (:ageRatingMax IS NULL OR m.age_limit <= :ageRatingMax)
+        AND (:ratingMin IS NULL OR m.rating >= :ratingMin)
+        AND (:ratingMax IS NULL OR m.rating <= :ratingMax)
+        AND (:releaseYearMin IS NULL OR EXTRACT(YEAR FROM m.release_date) >= :releaseYearMin)
+        AND (:releaseYearMax IS NULL OR EXTRACT(YEAR FROM m.release_date) <= :releaseYearMax)
+        AND (:chapterRangeMin IS NULL OR m.total_chapters >= :chapterRangeMin)
+        AND (:chapterRangeMax IS NULL OR m.total_chapters <= :chapterRangeMax)
+        """,
+        nativeQuery = true)
+    Page<Manga> findAllWithFilters(
+            @Param("genres") List<String> genres,
+            @Param("tags") List<String> tags,
+            @Param("mangaType") String mangaType,
+            @Param("status") String status,
+            @Param("ageRatingMin") Integer ageRatingMin,
+            @Param("ageRatingMax") Integer ageRatingMax,
+            @Param("ratingMin") Double ratingMin,
+            @Param("ratingMax") Double ratingMax,
+            @Param("releaseYearMin") Integer releaseYearMin,
+            @Param("releaseYearMax") Integer releaseYearMax,
+            @Param("chapterRangeMin") Integer chapterRangeMin,
+            @Param("chapterRangeMax") Integer chapterRangeMax,
+            Pageable pageable
+    );
 }

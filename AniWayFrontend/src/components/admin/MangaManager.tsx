@@ -116,7 +116,7 @@ export function MangaManager() {
       genre: manga.genre,
       status: manga.status,
       description: manga.description,
-      releaseDate: manga.releaseDate.split('T')[0] // Форматируем дату для input[type=date]
+      releaseDate: manga.releaseDate ? manga.releaseDate.split('T')[0] : '' // Форматируем дату для input[type=date]
     })
     setIsEditDialogOpen(true)
   }
@@ -254,7 +254,7 @@ export function MangaManager() {
                       </div>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Tag className="h-3 w-3" />
-                        <span className="line-clamp-1">{manga.genre.split(',')[0]}</span>
+                        <span className="line-clamp-1">{manga.genre ? manga.genre.split(',')[0] : 'Без жанра'}</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Calendar className="h-3 w-3" />

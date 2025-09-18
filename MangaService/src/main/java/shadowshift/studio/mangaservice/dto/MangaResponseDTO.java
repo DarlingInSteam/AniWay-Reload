@@ -1,8 +1,12 @@
 package shadowshift.studio.mangaservice.dto;
 
 import shadowshift.studio.mangaservice.entity.Manga;
+import shadowshift.studio.mangaservice.entity.Genre;
+import shadowshift.studio.mangaservice.entity.Tag;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * DTO для представления данных о манге в ответе системы MangaService.
@@ -56,6 +60,16 @@ public class MangaResponseDTO {
      * Теги манги.
      */
     private String tags;
+
+    /**
+     * Жанры манги как набор объектов.
+     */
+    private Set<Genre> genres;
+
+    /**
+     * Теги манги как набор объектов.
+     */
+    private Set<Tag> tagSet;
 
     /**
      * Английское название манги.
@@ -125,8 +139,21 @@ public class MangaResponseDTO {
         this.artist = manga.getArtist();
         this.releaseDate = manga.getReleaseDate();
         this.status = manga.getStatus();
-        this.genre = manga.getGenre();
-        this.tags = manga.getTags();
+        
+        // Конвертируем Set<Genre> в строку для совместимости
+        this.genres = manga.getGenres();
+        this.genre = manga.getGenres() != null ? 
+            manga.getGenres().stream()
+                .map(Genre::getName)
+                .collect(Collectors.joining(", ")) : null;
+        
+        // Конвертируем Set<Tag> в строку для совместимости        
+        this.tagSet = manga.getTags();
+        this.tags = manga.getTags() != null ? 
+            manga.getTags().stream()
+                .map(Tag::getName)
+                .collect(Collectors.joining(", ")) : null;
+                
         this.engName = manga.getEngName();
         this.alternativeNames = manga.getAlternativeNames();
         this.type = manga.getType();
@@ -264,6 +291,34 @@ public class MangaResponseDTO {
      * @param tags теги манги
      */
     public void setTags(String tags) { this.tags = tags; }
+
+    /**
+     * Возвращает жанры манги как набор объектов.
+     *
+     * @return набор жанров
+     */
+    public Set<Genre> getGenres() { return genres; }
+
+    /**
+     * Устанавливает жанры манги.
+     *
+     * @param genres набор жанров
+     */
+    public void setGenres(Set<Genre> genres) { this.genres = genres; }
+
+    /**
+     * Возвращает теги манги как набор объектов.
+     *
+     * @return набор тегов
+     */
+    public Set<Tag> getTagSet() { return tagSet; }
+
+    /**
+     * Устанавливает теги манги.
+     *
+     * @param tagSet набор тегов
+     */
+    public void setTagSet(Set<Tag> tagSet) { this.tagSet = tagSet; }
 
     /**
      * Возвращает английское название манги.

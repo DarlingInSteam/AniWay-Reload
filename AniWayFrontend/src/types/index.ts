@@ -57,12 +57,18 @@ export interface ChapterImageDTO {
 export interface SearchParams {
   query?: string
   genre?: string
+  genres?: string[] // Массив ID или имен жанров
+  tags?: string[] // Массив ID или имен тегов
   status?: string
   type?: string
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
   page?: number
   limit?: number
+  ageRating?: [number, number] // Диапазон возрастного рейтинга
+  rating?: [number, number] // Диапазон рейтинга
+  releaseYear?: [number, number] // Диапазон года выпуска
+  chapterRange?: [number, number] // Диапазон количества глав
 }
 
 // Пагинированный ответ

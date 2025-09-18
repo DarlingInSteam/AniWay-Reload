@@ -3,7 +3,7 @@ server:
 
 auth:
   introspect-url: "http://auth-service:8085/api/auth/validate"
-  public-paths: "/api/auth/**,/api/health/**,/api/public/**,/parser/**,/manga/**"
+  public-paths: "/api/auth/**,/api/health/**,/api/public/**,/parser/**,/manga/**,/api/genres/**,/api/tags/**"
   cache-ttl-seconds: 300
 
 spring:
@@ -133,6 +133,24 @@ spring:
             - Path=/api/manga/**
           filters:
             - StripPrefix=0
+
+        # MangaService - Genres API
+        - id: genres-api
+          uri: http://manga-service:8081
+          predicates:
+            - Path=/api/genres/**
+          filters:
+            - StripPrefix=0
+          order: 8
+
+        # MangaService - Tags API  
+        - id: tags-api
+          uri: http://manga-service:8081
+          predicates:
+            - Path=/api/tags/**
+          filters:
+            - StripPrefix=0
+          order: 9
 
         # MangaService - Web UI (Thymeleaf страницы)
         - id: manga-web

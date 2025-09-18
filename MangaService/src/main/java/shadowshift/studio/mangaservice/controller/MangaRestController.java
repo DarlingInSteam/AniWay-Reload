@@ -110,12 +110,24 @@ public class MangaRestController {
     }
 
     /**
-     * Получает пагинированный список всех манг в системе.
+     * Получает пагинированный список всех манг в системе с возможностью фильтрации.
      *
      * @param page номер страницы (начиная с 0, по умолчанию 0)
      * @param size размер страницы (по умолчанию 10)
      * @param sortBy поле для сортировки (по умолчанию 'createdAt')
      * @param sortOrder направление сортировки ('asc' или 'desc', по умолчанию 'desc')
+     * @param genres список жанров (может быть пустой)
+     * @param tags список тегов (может быть пустой)
+     * @param mangaType тип манги (может быть null)
+     * @param status статус манги (может быть null)
+     * @param ageRatingMin минимальный возрастной рейтинг (может быть null)
+     * @param ageRatingMax максимальный возрастной рейтинг (может быть null)
+     * @param ratingMin минимальный рейтинг (может быть null)
+     * @param ratingMax максимальный рейтинг (может быть null)
+     * @param releaseYearMin минимальный год выпуска (может быть null)
+     * @param releaseYearMax максимальный год выпуска (может быть null)
+     * @param chapterRangeMin минимальное количество глав (может быть null)
+     * @param chapterRangeMax максимальное количество глав (может быть null)
      * @return ResponseEntity с пагинированными данными манг и HTTP статусом 200
      */
     @GetMapping("/paged")
@@ -123,12 +135,31 @@ public class MangaRestController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
-            @RequestParam(defaultValue = "desc") String sortOrder) {
+            @RequestParam(defaultValue = "desc") String sortOrder,
+            @RequestParam(required = false) List<String> genres,
+            @RequestParam(required = false) List<String> tags,
+            @RequestParam(required = false) String mangaType,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Integer ageRatingMin,
+            @RequestParam(required = false) Integer ageRatingMax,
+            @RequestParam(required = false) Double ratingMin,
+            @RequestParam(required = false) Double ratingMax,
+            @RequestParam(required = false) Integer releaseYearMin,
+            @RequestParam(required = false) Integer releaseYearMax,
+            @RequestParam(required = false) Integer chapterRangeMin,
+            @RequestParam(required = false) Integer chapterRangeMax) {
 
-        logger.debug("API запрос: пагинированный список всех манг - page: {}, size: {}, sortBy: {}, sortOrder: {}",
-                page, size, sortBy, sortOrder);
+        logger.debug("API запрос: пагинированный список всех манг - page: {}, size: {}, sortBy: {}, sortOrder: {}, " +
+                "genres: {}, tags: {}, mangaType: {}, status: {}, ageRatingMin: {}, ageRatingMax: {}, " +
+                "ratingMin: {}, ratingMax: {}, releaseYearMin: {}, releaseYearMax: {}, chapterRangeMin: {}, chapterRangeMax: {}",
+                page, size, sortBy, sortOrder, genres, tags, mangaType, status, 
+                ageRatingMin, ageRatingMax, ratingMin, ratingMax, 
+                releaseYearMin, releaseYearMax, chapterRangeMin, chapterRangeMax);
 
-        PageResponseDTO<MangaResponseDTO> result = mangaService.getAllMangaPaged(page, size, sortBy, sortOrder);
+        PageResponseDTO<MangaResponseDTO> result = mangaService.getAllMangaPagedWithFilters(
+                page, size, sortBy, sortOrder, genres, tags, mangaType, status,
+                ageRatingMin, ageRatingMax, ratingMin, ratingMax,
+                releaseYearMin, releaseYearMax, chapterRangeMin, chapterRangeMax);
 
         logger.debug("API ответ: возвращается пагинированный список из {} манг на странице {} из {}",
                 result.getContent().size(), result.getPage(), result.getTotalPages());

@@ -1,13 +1,12 @@
+import React, { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { Calendar, User, Star, Eye, Heart, Bookmark } from 'lucide-react'
+import { Calendar, User, Star, Eye, Heart, Bookmark, Flame, ShieldCheck } from 'lucide-react'
 import { MangaResponseDTO } from '@/types'
 import { formatDate, getStatusColor, getStatusText, cn } from '@/lib/utils'
 import { useBookmarks } from '@/hooks/useBookmarks'
 import { useAuth } from '@/contexts/AuthContext'
 import { useReadingProgress } from '@/hooks/useProgress'
 import { useRating } from '@/hooks/useRating'
-import { useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
 
 interface MangaCardProps {
   manga: MangaResponseDTO
@@ -16,18 +15,26 @@ interface MangaCardProps {
 }
 
 export function MangaCard({ manga, size = 'default', showMetadata = true }: MangaCardProps) {
+  // Временное логирование для диагностики
+  try {
+    console.log('MangaCard render - manga ID:', manga?.id, 'genre:', manga?.genre, 'full manga:', manga)
+  } catch (e) {
+    console.error('MangaCard console.log error:', e)
+  }
+
   const { isAuthenticated } = useAuth()
   const { getMangaBookmark } = useBookmarks()
   const { getMangaReadingPercentage, getMangaProgress } = useReadingProgress()
   const { rating } = useRating(manga.id)
-  const queryClient = useQueryClient()
   
-  // Инвалидируем кэш для этого манга при монтировании компонента
-  useEffect(() => {
-    console.log(`MangaCard ${manga.id}: Invalidating cache for manga ${manga.id}`)
-    queryClient.invalidateQueries({ queryKey: ['manga', manga.id] })
-    queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
-  }, [queryClient, manga.id])
+  // Проверяем корректность данных манги
+  if (!manga || !manga.id) {
+    console.warn('MangaCard: Invalid manga data:', manga)
+    return null
+  }
+  
+  // Удаляем ненужную инвалидацию кэша - она вызывает проблемы с фильтрами
+  // Кэш должен инвалидироваться только при реальных изменениях данных
   
   // Адаптивные размеры для разных экранов
   const cardSizes = {
@@ -51,6 +58,7 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
   const getReadChaptersCount = () => {
     if (!isAuthenticated || manga.totalChapters === 0) return 0
     const mangaProgressData = getMangaProgress(manga.id)
+    if (!mangaProgressData || !Array.isArray(mangaProgressData)) return 0
     return mangaProgressData.filter((p: any) => p.isCompleted).length
   }
   
@@ -78,36 +86,84 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
     }
   }
 
+  const [imageLoaded, setImageLoaded] = useState(false)
+  const imgRef = useRef<HTMLImageElement | null>(null)
+
+  // Если изображение уже в кеше браузера и полностью загружено, снимаем блюр сразу
+  useEffect(() => {
+    const img = imgRef.current
+    if (img && img.complete && img.naturalWidth > 0) {
+      setImageLoaded(true)
+    }
+  }, [manga.coverImageUrl])
+
+  // Derived flags
+  const createdAt = manga.createdAt ? new Date(manga.createdAt) : null
+  const isNew = createdAt ? (Date.now() - createdAt.getTime()) < 1000*60*60*24*7 : false
+  // Простая эвристика тренда: views > 100 и rating >= 7
+  const isTrending = (manga.views ?? 0) > 100 && (rating?.averageRating ?? 0) >= 7
+  const isLicensed = manga.isLicensed
+
+  // Condense genres (до 2 + +N)
+  const rawGenres = manga.genre ? manga.genre.split(',').map(g=>g.trim()).filter(Boolean) : []
+  const primaryGenres = rawGenres.slice(0,2)
+  const hiddenGenresCount = rawGenres.length - primaryGenres.length
+
   return (
-    <div className="group flex flex-col space-y-2 md:space-y-3 animate-fade-in w-full">
+    <div className="group flex flex-col space-y-2 md:space-y-3 w-full transition-transform duration-300 will-change-transform hover:-translate-y-1">
       {/* Cover Image Card */}
       <Link
         to={`/manga/${manga.id}`}
-        className="manga-card block relative overflow-hidden rounded-lg md:rounded-xl"
+        className="manga-card block relative overflow-hidden rounded-lg md:rounded-xl border border-white/10 bg-gradient-to-b from-white/5 to-white/[0.02] shadow-sm shadow-black/0 group-hover:shadow-black/40 group-hover:border-primary/40 transition-all duration-300"
       >
         <div className={cn('relative overflow-hidden', cardSizes[size])}>
           <img
+            ref={imgRef}
             src={manga.coverImageUrl}
             alt={manga.title}
-            className="manga-cover h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            className={cn(
+              'manga-cover h-full w-full object-cover transition-[opacity,transform,filter] duration-500 ease-out',
+              imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 blur-md scale-[1.03]',
+              'group-hover:scale-105'
+            )}
             loading="lazy"
+            decoding="async"
+            onLoad={() => setImageLoaded(true)}
             onError={(e) => {
               const target = e.target as HTMLImageElement
               target.src = '/placeholder-manga.jpg'
+              setImageLoaded(true)
             }}
           />
+          {!imageLoaded && (
+            <div className="absolute inset-0 bg-white/5 animate-pulse" aria-hidden />
+          )}
 
           {/* Gradient Overlay for bottom text */}
-          <div className="manga-gradient-overlay absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          <div className="manga-gradient-overlay pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
           {/* Status Badge */}
-          <div className="absolute top-2 md:top-3 left-2 md:left-3">
+          <div className="absolute top-2 md:top-3 left-2 md:left-3 flex flex-col gap-1">
             <span className={cn(
-              'px-1.5 md:px-2 py-0.5 md:py-1 text-xs font-medium rounded-full backdrop-blur-sm',
+              'px-1.5 md:px-2 py-0.5 md:py-1 text-[10px] font-semibold rounded-full backdrop-blur-sm tracking-tight shadow',
               getStatusColor(manga.status)
             )}>
               {getStatusText(manga.status)}
             </span>
+            {isLicensed && (
+              <span className="px-1.5 md:px-2 py-0.5 md:py-1 text-[10px] font-semibold rounded-full bg-emerald-500/80 text-white backdrop-blur-sm flex items-center gap-1 shadow">
+                <ShieldCheck className="h-3 w-3" />
+                LIC
+              </span>
+            )}
+            {isNew && (
+              <span className="px-1.5 md:px-2 py-0.5 md:py-1 text-[10px] font-semibold rounded-full bg-indigo-500/80 text-white backdrop-blur-sm shadow animate-pulse">NEW</span>
+            )}
+            {isTrending && (
+              <span className="px-1.5 md:px-2 py-0.5 md:py-1 text-[10px] font-semibold rounded-full bg-orange-500/80 text-white backdrop-blur-sm flex items-center gap-0.5 shadow">
+                <Flame className="h-3 w-3" />TOP
+              </span>
+            )}
           </div>
 
           {/* Bookmark Status Badge */}
@@ -140,37 +196,47 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
             )}
           </div>
 
-          {/* Hover overlay with quick actions */}
-          <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-            <div className="hidden md:flex items-center space-x-2">
-              <div className="bg-white/90 backdrop-blur-sm text-black px-3 py-1.5 rounded-full text-sm font-medium">
-                Читать
-              </div>
+          {/* Hover overlay with quick actions & description */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3 gap-2">
+            <p className="hidden md:-mb-1 md:block text-[11px] leading-snug text-white/80 line-clamp-2">
+              {manga.description || 'Без описания'}
+            </p>
+            <div className="flex items-center gap-2">
+              <Link to={`/manga/${manga.id}`} className="flex-1 text-center bg-primary/90 hover:bg-primary text-white rounded-md text-xs font-semibold py-1.5 shadow transition-colors">Читать</Link>
+              <button type="button" className="px-2.5 py-1.5 rounded-md bg-white/15 hover:bg-white/25 text-white transition-colors text-xs font-semibold flex items-center gap-1">
+                <Heart className="h-3.5 w-3.5" />
+              </button>
             </div>
           </div>
         </div>
       </Link>
 
       {/* Metadata */}
-      {showMetadata && (
-        <div className="flex flex-col px-1 h-[4.5rem] md:h-[5rem]">
+    {showMetadata && (
+  <div className="flex flex-col px-1 h-[4.9rem] md:h-[5.2rem] select-none">
           {/* Title - строго фиксированная высота для 2 строк */}
           <Link
             to={`/manga/${manga.id}`}
             className="block mb-1 md:mb-1.5"
           >
-            <h3 className="text-xs md:text-sm font-semibold text-white line-clamp-2 hover:text-primary transition-colors duration-200 leading-tight h-[2rem] md:h-[2.25rem] overflow-hidden">
+            <h3 className="text-xs md:text-sm font-semibold text-white line-clamp-2 hover:text-primary transition-colors duration-200 leading-tight h-[2rem] md:h-[2.25rem] overflow-hidden tracking-tight">
               {manga.title}
             </h3>
           </Link>
 
           {/* Genre and Year - строго фиксированная высота */}
-          <div className="flex items-center justify-between text-xs text-muted-foreground h-4 mb-1">
-            <span className="line-clamp-1 flex-1 mr-2">
-              {manga.genre.split(',')[0]}
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground h-4 mb-1 gap-2">
+            <span className="line-clamp-1 flex-1 mr-2 flex items-center gap-1">
+              {primaryGenres.map(g => (
+                <span key={g} className="bg-white/5 px-1.5 py-0.5 rounded-md text-[10px] leading-none text-white/80">{g}</span>
+              ))}
+              {hiddenGenresCount > 0 && (
+                <span className="bg-white/5 px-1.5 py-0.5 rounded-md text-[10px] leading-none text-white/50">+{hiddenGenresCount}</span>
+              )}
+              {primaryGenres.length===0 && <span className="italic opacity-60">Нет жанров</span>}
             </span>
             <span className="flex-shrink-0">
-              {new Date(manga.releaseDate).getFullYear()}
+              {manga.releaseDate ? new Date(manga.releaseDate).getFullYear() : '—'}
             </span>
           </div>
 
