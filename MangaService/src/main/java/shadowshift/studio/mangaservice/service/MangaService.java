@@ -496,6 +496,8 @@ public class MangaService {
                 List<Genre> genres = genreService.createOrGetGenres(createDTO.getGenreNames());
                 for (Genre genre : genres) {
                     manga.addGenre(genre);
+                    // Явно сохраняем жанр с обновленным счетчиком
+                    genreService.saveGenre(genre);
                 }
                 logger.info("Добавлено {} жанров к манге: {}", genres.size(), createDTO.getTitle());
             }
@@ -505,6 +507,8 @@ public class MangaService {
                 List<Tag> tags = tagService.createOrGetTags(createDTO.getTagNames());
                 for (Tag tag : tags) {
                     manga.addTag(tag);
+                    // Явно сохраняем тег с обновленным счетчиком
+                    tagService.saveTag(tag);
                 }
                 logger.info("Добавлено {} тегов к манге: {}", tags.size(), createDTO.getTitle());
             }
@@ -547,6 +551,8 @@ public class MangaService {
                     List<Genre> genres = genreService.createOrGetGenres(genreNames);
                     for (Genre genre : genres) {
                         manga.addGenre(genre);
+                        // Явно сохраняем жанр с обновленным счетчиком
+                        genreService.saveGenre(genre);
                     }
                     logger.info("Добавлено {} жанров к манге из Melon: {}", genres.size(), createDTO.getTitle());
                 }
@@ -559,6 +565,8 @@ public class MangaService {
                     List<Tag> tags = tagService.createOrGetTags(tagNames);
                     for (Tag tag : tags) {
                         manga.addTag(tag);
+                        // Явно сохраняем тег с обновленным счетчиком
+                        tagService.saveTag(tag);
                     }
                     logger.info("Добавлено {} тегов к манге из Melon: {}", tags.size(), createDTO.getTitle());
                 }
