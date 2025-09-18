@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { Grid, Filter, ArrowUpDown, ArrowUp, ArrowDown, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Grid, Filter, ArrowUpDown, ArrowUp, ArrowDown, X, ChevronLeft, ChevronRight, Check } from 'lucide-react'
 import { SortPopover } from '@/components/catalog/SortPopover'
 import { apiClient } from '@/lib/api'
 import { MangaCardWithTooltip } from '@/components/manga'
@@ -105,6 +105,7 @@ export function CatalogPage() {
 
   // Refs для обработки кликов вне области
   const sortDropdownRef = useRef<HTMLDivElement>(null)
+  const desktopSortRef = useRef<HTMLDivElement>(null)
 
   const queryClient = useQueryClient()
   const genre = searchParams.get('genre')
@@ -482,19 +483,16 @@ export function CatalogPage() {
 
   // Закрываем dropdown сортировки при клике вне его области
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (sortDropdownRef.current && !sortDropdownRef.current.contains(event.target as Node)) {
+    if (!showSortDropdown) return
+    const handler = (e: MouseEvent) => {
+      if (!desktopSortRef.current) return
+      if (!desktopSortRef.current.contains(e.target as Node)) {
+        console.log('[CatalogPage] outside desktop sort -> close')
         setShowSortDropdown(false)
       }
     }
-
-    if (showSortDropdown) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
   }, [showSortDropdown])
 
   // Функции работы с чипсами выбранных фильтров
@@ -678,15 +676,58 @@ export function CatalogPage() {
             {/* Левая группа: Сортировка + Быстрые фильтры */}
             <div className="flex items-center gap-3">
               {/* Сортировка */}
-              <SortPopover
-                open={showSortDropdown}
-                onClose={() => setShowSortDropdown(false)}
-                onToggle={() => setShowSortDropdown(v => !v)}
-                sortOrder={sortOrder}
-                sortDirection={sortDirection}
-                onChangeOrder={(o) => { handleSortChange(o) }}
-                onChangeDirection={(d) => { handleSortDirectionChange(d) }}
-              />
+              <div ref={desktopSortRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => { console.log('[CatalogPage] desktop sort anchor click, wasOpen=', showSortDropdown); setShowSortDropdown(v=>!v) }}
+                  className="flex items-center gap-2 rounded-xl px-4 h-11 text-sm font-medium bg-white/5 backdrop-blur-sm hover:bg-white/10 border border-white/10 shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-primary/50"
+                >
+                  <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                  <span className="truncate max-w-[140px]">{sortOrder}</span>
+                  {sortDirection==='desc'? <ArrowDown className="h-3 w-3 opacity-70" /> : <ArrowUp className="h-3 w-3 opacity-70" />}
+                </button>
+                {showSortDropdown && (
+                  <div className="absolute z-50 mt-2 w-80 md:w-96 left-0 origin-top-left rounded-xl border border-white/15 bg-background/95 backdrop-blur-xl shadow-2xl p-4 animate-fade-in">
+                    <div className="flex items-start gap-6">
+                      <div className="flex-1 space-y-1 max-h-[300px] overflow-y-auto pr-1 scrollbar-custom" role="listbox" aria-label="Поля сортировки">
+                        {Object.values(SORT_LABEL_BY_FIELD).map(option => {
+                          const selected = option === sortOrder
+                          return (
+                            <button
+                              key={option}
+                              onClick={() => { console.log('[CatalogPage] select sort field label=', option); handleSortChange(option); setShowSortDropdown(false) }}
+                              className={cn('w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40',
+                                selected ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/10 hover:text-white')}
+                            >
+                              {selected && <Check className="h-4 w-4" />}
+                              <span className="truncate">{option}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                      <div className="flex flex-col gap-2 flex-shrink-0 w-32" aria-label="Направление">
+                        <button
+                          onClick={() => { console.log('[CatalogPage] select dir desc'); handleSortDirectionChange('desc'); setShowSortDropdown(false) }}
+                          className={cn('flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40',
+                            sortDirection==='desc' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/10 hover:text-white')}
+                        >
+                          <ArrowDown className="h-4 w-4" />
+                          Убыв.
+                        </button>
+                        <button
+                          onClick={() => { console.log('[CatalogPage] select dir asc'); handleSortDirectionChange('asc'); setShowSortDropdown(false) }}
+                          className={cn('flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40',
+                            sortDirection==='asc' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/10 hover:text-white')}
+                        >
+                          <ArrowUp className="h-4 w-4" />
+                          Возраст.
+                        </button>
+                        <button onClick={()=>setShowSortDropdown(false)} className="mt-2 text-xs text-muted-foreground hover:text-white px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-primary/40">Закрыть</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Быстрые фильтры рядом с сортировкой */}
               <div className="flex gap-2">

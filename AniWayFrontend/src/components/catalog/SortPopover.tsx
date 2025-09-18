@@ -52,18 +52,7 @@ export const SortPopover: React.FC<SortPopoverProps> = ({
     }
   }, [open])
 
-  useEffect(() => {
-    if (!open) return
-    const handleOutside = (e: MouseEvent) => {
-      const target = e.target as Node
-      // Если клик внутри общего корневого контейнера (кнопка или панель) — игнорируем
-      if (rootRef.current?.contains(target)) return
-      console.log('[SortPopover] outside click -> closing (target outside root)')
-      onClose()
-    }
-    document.addEventListener('click', handleOutside)
-    return () => document.removeEventListener('click', handleOutside)
-  }, [open, onClose])
+  // Outside click обрабатывается родителем (CatalogPage)
 
   return (
     <div ref={rootRef} className="relative inline-block text-left">
