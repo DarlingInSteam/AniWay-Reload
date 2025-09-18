@@ -390,6 +390,7 @@ export function CatalogPage() {
     setSortOrder(newSortOrder)
     setShowSortDropdown(false)
     setCurrentPage(0) // Сбрасываем на первую страницу при изменении сортировки
+    queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
   }
 
   // Обработчик направления сортировки
@@ -398,6 +399,7 @@ export function CatalogPage() {
     setSortDirection(direction)
     setShowSortDropdown(false)
     setCurrentPage(0) // Сбрасываем на первую страницу при изменении направления
+    queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
   }
 
   // Функции навигации по страницам
@@ -638,8 +640,8 @@ export function CatalogPage() {
                 onToggle={() => setShowSortDropdown(v => !v)}
                 sortOrder={sortOrder}
                 sortDirection={sortDirection}
-                onChangeOrder={(o) => { handleSortChange(o); setShowSortDropdown(false) }}
-                onChangeDirection={(d) => { handleSortDirectionChange(d); setShowSortDropdown(false) }}
+                onChangeOrder={(o) => { handleSortChange(o) }}
+                onChangeDirection={(d) => { handleSortDirectionChange(d) }}
               />
 
               {/* Быстрые фильтры рядом с сортировкой */}
