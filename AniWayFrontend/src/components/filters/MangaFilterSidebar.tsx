@@ -145,7 +145,7 @@ const GenreMultiSelectFilter: React.FC<{
         </div>
       )}
       
-      <div className="max-h-40 overflow-y-auto space-y-1 scrollbar-hide">
+      <div className="max-h-40 overflow-y-auto space-y-1 scrollbar-custom">
         {filteredGenres.map(genre => (
           <Button
             key={genre.id}
@@ -228,7 +228,7 @@ const TagMultiSelectFilter: React.FC<{
         </div>
       )}
       
-      <div className="max-h-40 overflow-y-auto space-y-1 scrollbar-hide">
+      <div className="max-h-40 overflow-y-auto space-y-1 scrollbar-custom">
         {filteredTags.map(tag => (
           <Button
             key={tag.id}

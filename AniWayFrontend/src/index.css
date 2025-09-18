@@ -199,7 +199,32 @@
   filter: drop-shadow(0 0 2px rgba(255, 215, 0, 0.5));
 }
 
-/* Кастомные стили для скроллбара */
+/* Кастомные стили для скроллбара в стиле сайта */
+.scrollbar-custom {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.scrollbar-custom::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-custom::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+
+.scrollbar-custom::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  transition: background 0.2s ease;
+}
+
+.scrollbar-custom::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Старые стили - оставляем для совместимости */
 .scrollbar-thin {
   scrollbar-width: thin;
 }
