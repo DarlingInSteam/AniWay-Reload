@@ -43,20 +43,41 @@ export function CatalogPage() {
   }, [queryClient])
 
   const { data: mangaPage, isLoading } = useQuery({
-    queryKey: ['manga-catalog', { genre, sort, currentPage, sortOrder, sortDirection, activeFilters }],
+    queryKey: ['manga-catalog', { genre, sort, currentPage, sortOrder, sortDirection, activeType, activeFilters }],
     queryFn: () => {
       const sortBy = getSortByField(sortOrder)
+      
+      // Создаем полный объект параметров, включая activeType
+      const queryParams = {
+        ...activeFilters,
+        page: currentPage,
+        limit: pageSize,
+        sortBy,
+        sortOrder: sortDirection
+      }
+      
+      // Добавляем тип манги, если он отличается от "все"
+      if (activeType !== 'все') {
+        const typeMapping: Record<string, string> = {
+          'манга': 'MANGA',
+          'манхва': 'MANHWA', 
+          'маньхуа': 'MANHUA',
+          'западный комикс': 'WESTERN_COMIC',
+          'рукомикс': 'RUSSIAN_COMIC',
+          'другое': 'OTHER'
+        }
+        queryParams.type = typeMapping[activeType] || 'MANGA'
+      }
+      
+      console.log('Query params:', queryParams)
+      
       if (genre) {
         return apiClient.searchMangaPaged({
           genre,
-          page: currentPage,
-          limit: pageSize,
-          sortBy,
-          sortOrder: sortDirection,
-          ...activeFilters // Распаковываем фильтры в параметры
+          ...queryParams
         })
       }
-      return apiClient.getAllMangaPaged(currentPage, pageSize, sortBy, sortDirection, activeFilters)
+      return apiClient.getAllMangaPaged(currentPage, pageSize, sortBy, sortDirection, queryParams)
     },
     staleTime: 0,
     refetchOnWindowFocus: true,
@@ -131,6 +152,26 @@ export function CatalogPage() {
   const handleFiltersReset = () => {
     setActiveFilters({})
     setCurrentPage(0)
+  }
+
+  // Обработчик быстрых фильтров
+  const handleActiveTypeChange = (type: string) => {
+    setActiveType(type)
+    setCurrentPage(0) // Сбрасываем на первую страницу при изменении типа
+  }
+
+  // Обработчик сортировки
+  const handleSortChange = (newSortOrder: string) => {
+    setSortOrder(newSortOrder)
+    setShowSortDropdown(false)
+    setCurrentPage(0) // Сбрасываем на первую страницу при изменении сортировки
+  }
+
+  // Обработчик направления сортировки
+  const handleSortDirectionChange = (direction: 'desc' | 'asc') => {
+    setSortDirection(direction)
+    setShowSortDropdown(false)
+    setCurrentPage(0) // Сбрасываем на первую страницу при изменении направления
   }
 
   // Функции навигации по страницам
@@ -226,7 +267,7 @@ export function CatalogPage() {
                         {['По популярности','По новизне','По кол-ву глав','По дате обновления','По оценке','По кол-ву оценок','По лайкам','По просмотрам','По отзывам','По комментариям'].map(option => (
                           <button
                             key={option}
-                            onClick={() => { setSortOrder(option); setShowSortDropdown(false); }}
+                            onClick={() => { handleSortChange(option); }}
                             className={cn(
                               'w-full text-left px-3 py-2 text-sm transition-all duration-200 border-b-2',
                               sortOrder === option
@@ -247,7 +288,7 @@ export function CatalogPage() {
                         ].map(dir => (
                           <button
                             key={dir.value}
-                            onClick={() => { setSortDirection(dir.value as 'desc' | 'asc'); setShowSortDropdown(false); }}
+                            onClick={() => { handleSortDirectionChange(dir.value as 'desc' | 'asc'); }}
                             className={cn(
                               'flex-1 flex items-center gap-2 px-3 py-2 text-sm transition-all duration-200 border-b-2',
                               sortDirection === dir.value
@@ -289,7 +330,7 @@ export function CatalogPage() {
                 {['все', 'манга', 'манхва', 'маньхуа', 'западный комикс', 'рукомикс', 'другое'].map(type => (
                   <button
                     key={type}
-                    onClick={() => setActiveType(type)}
+                    onClick={() => handleActiveTypeChange(type)}
                     className={cn(
                       'flex-shrink-0 px-3 py-2 rounded-xl text-xs font-medium transition-all duration-200 border whitespace-nowrap',
                       activeType === type
@@ -327,7 +368,7 @@ export function CatalogPage() {
                         {['По популярности','По новизне','По кол-ву глав','По дате обновления','По оценке','По кол-ву оценок','По лайкам','По просмотрам','По отзывам','По комментариям'].map(option => (
                           <button
                             key={option}
-                            onClick={() => { setSortOrder(option); setShowSortDropdown(false); }}
+                            onClick={() => { handleSortChange(option); }}
                             className={cn(
                               'w-full text-left px-3 py-2 text-sm transition-all duration-200 border-b-2',
                               sortOrder === option
@@ -348,7 +389,7 @@ export function CatalogPage() {
                         ].map(dir => (
                           <button
                             key={dir.value}
-                            onClick={() => { setSortDirection(dir.value as 'desc' | 'asc'); setShowSortDropdown(false); }}
+                            onClick={() => { handleSortDirectionChange(dir.value as 'desc' | 'asc'); }}
                             className={cn(
                               'flex-1 flex items-center gap-2 px-3 py-2 text-sm transition-all duration-200 border-b-2',
                               sortDirection === dir.value
@@ -371,7 +412,7 @@ export function CatalogPage() {
                 {['все', 'манга', 'манхва', 'маньхуа', 'западный комикс', 'рукомикс', 'другое'].map(type => (
                   <button
                     key={type}
-                    onClick={() => setActiveType(type)}
+                    onClick={() => handleActiveTypeChange(type)}
                     className={cn(
                       'px-3 py-2 rounded-xl text-xs font-medium transition-all duration-200 border whitespace-nowrap',
                       activeType === type
