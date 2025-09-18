@@ -18,7 +18,7 @@ export function CatalogPage() {
   const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>('desc')
   const [showSortDropdown, setShowSortDropdown] = useState(false)
   const [currentPage, setCurrentPage] = useState(0)
-  const [pageSize] = useState(10) // Фиксированный размер страницы
+  const [pageSize] = useState(20) // Фиксированный размер страницы - 20 тайтлов на страницу
   const [activeFilters, setActiveFilters] = useState<any>({}) // Применённые фильтры (для API)
   const [draftFilters, setDraftFilters] = useState<any>({}) // Предварительные фильтры (для UI)
 
