@@ -10,10 +10,13 @@ interface MangaTooltipProps {
   children: React.ReactNode
 }
 
+type TooltipSide = 'right' | 'left' | 'top' | 'bottom'
+
 interface TooltipPosition {
   top: number
   left: number
   transform: string
+  side: TooltipSide
 }
 
 export function MangaTooltip({ manga, children }: MangaTooltipProps) {
@@ -25,7 +28,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
   const [isRendered, setIsRendered] = useState(false) // Монтируем раньше для расчёта позиции
   const [showDropdown, setShowDropdown] = useState(false)
   const [showAllGenres, setShowAllGenres] = useState(false)
-  const [position, setPosition] = useState<TooltipPosition>({ top: 0, left: 0, transform: '' })
+  const [position, setPosition] = useState<TooltipPosition>({ top: 0, left: 0, transform: '', side: 'right' })
   const showTimeoutId = useRef<NodeJS.Timeout | null>(null)
   const hideTimeoutId = useRef<NodeJS.Timeout | null>(null)
 
@@ -72,21 +75,70 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
     const tooltipRect = tooltipRef.current.getBoundingClientRect()
     const vw = window.innerWidth
     const vh = window.innerHeight
-    const gap = 12
-    // Начально вровень по верхнему краю карточки
+    const margin = 8
+    const gap = 10
+
+    // Предпочитаем справа
+    let side: TooltipSide = 'right'
     let top = triggerRect.top
     let left = triggerRect.right + gap
-    // Если не помещается справа — слева
-    if (left + tooltipRect.width > vw - 8) {
-      left = triggerRect.left - tooltipRect.width - gap
+
+    const fitsRight = triggerRect.right + gap + tooltipRect.width <= vw - margin
+    const fitsLeft = triggerRect.left - gap - tooltipRect.width >= margin
+    const fitsBelow = triggerRect.bottom + gap + tooltipRect.height <= vh - margin
+    const fitsAbove = triggerRect.top - gap - tooltipRect.height >= margin
+
+    if (side === 'right' && !fitsRight) {
+      if (fitsLeft) {
+        side = 'left'
+      } else if (fitsBelow) {
+        side = 'bottom'
+      } else if (fitsAbove) {
+        side = 'top'
+      } else {
+        // Выберем сторону с наибольшим доступным пространством
+        const spaceRight = vw - triggerRect.right
+        const spaceLeft = triggerRect.left
+        const spaceBottom = vh - triggerRect.bottom
+        const spaceTop = triggerRect.top
+        const maxSpace = Math.max(spaceRight, spaceLeft, spaceBottom, spaceTop)
+        if (maxSpace === spaceLeft) side = 'left'
+        else if (maxSpace === spaceBottom) side = 'bottom'
+        else if (maxSpace === spaceTop) side = 'top'
+        else side = 'right'
+      }
     }
-    // Коррекция если ушли за левую границу
-    if (left < 8) left = Math.min(vw - tooltipRect.width - 8, triggerRect.right + gap)
-    // Вертикальная коррекция (чтобы не выходило за низ)
-    if (top + tooltipRect.height > vh - 8) top = Math.max(8, vh - tooltipRect.height - 8)
-    // Если ушло выше
-    if (top < 8) top = 8
-    setPosition({ top, left, transform: '' })
+
+    switch (side) {
+      case 'right':
+        left = triggerRect.right + gap
+        top = triggerRect.top + Math.min(0, vh - margin - (triggerRect.top + tooltipRect.height))
+        break
+      case 'left':
+        left = triggerRect.left - tooltipRect.width - gap
+        top = triggerRect.top + Math.min(0, vh - margin - (triggerRect.top + tooltipRect.height))
+        break
+      case 'bottom':
+        top = triggerRect.bottom + gap
+        left = triggerRect.left + (triggerRect.width / 2) - (tooltipRect.width / 2)
+        break
+      case 'top':
+        top = triggerRect.top - tooltipRect.height - gap
+        left = triggerRect.left + (triggerRect.width / 2) - (tooltipRect.width / 2)
+        break
+    }
+
+    // Горизонтальное ограничение для top/bottom
+    if (side === 'top' || side === 'bottom') {
+      if (left < margin) left = margin
+      if (left + tooltipRect.width > vw - margin) left = vw - margin - tooltipRect.width
+    }
+
+    // Вертикальные ограничения
+    if (top < margin) top = margin
+    if (top + tooltipRect.height > vh - margin) top = vh - margin - tooltipRect.height
+
+    setPosition({ top, left, transform: '', side })
   }
 
   // Обработчики событий мыши
@@ -101,7 +153,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
         calculatePosition()
         setIsVisible(true)
         showTimeoutId.current = null
-      }, 280)
+      }, 160)
     }
   }
 
@@ -223,16 +275,57 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
         {(isRendered) && (
           <div
             ref={tooltipRef}
-            style={{ position: 'fixed', top: position.top, left: position.left, zIndex: 9999, pointerEvents: isVisible ? 'auto' : 'none', opacity: isVisible ? 1 : 0, transform: `translateY(${isVisible ? '0' : '4px'}) scale(${isVisible ? 1 : 0.98})`, transition: 'opacity 140ms ease, transform 140ms ease' }}
+            style={{
+              position: 'fixed',
+              top: position.top,
+              left: position.left,
+              zIndex: 9999,
+              pointerEvents: isVisible ? 'auto' : 'none',
+              opacity: isVisible ? 1 : 0,
+              transform: (() => {
+                const hiddenScale = '0.96'
+                switch (position.side) {
+                  case 'right':
+                    return isVisible ? 'translateX(0) scale(1)' : 'translateX(6px) scale(' + hiddenScale + ')'
+                  case 'left':
+                    return isVisible ? 'translateX(0) scale(1)' : 'translateX(-6px) scale(' + hiddenScale + ')'
+                  case 'bottom':
+                    return isVisible ? 'translateY(0) scale(1)' : 'translateY(6px) scale(' + hiddenScale + ')'
+                  case 'top':
+                    return isVisible ? 'translateY(0) scale(1)' : 'translateY(-6px) scale(' + hiddenScale + ')'
+                }
+              })(),
+              transition: 'opacity 140ms ease, transform 140ms ease'
+            }}
             className="hidden lg:block w-80 p-4 rounded-xl shadow-xl shadow-black/60 bg-black/80 backdrop-blur-md border border-white/15"
             onMouseEnter={handleTooltipMouseEnter}
             onMouseLeave={handleTooltipMouseLeave}
           >
-          {/* Стрелочка */}
-          <div className="absolute top-1/2 -left-2 -translate-y-1/2">
-            <div className="w-0 h-0 border-t-[8px] border-t-transparent border-b-[8px] border-b-transparent border-r-[8px] border-r-black/60"></div>
-            <div className="absolute top-1/2 -left-[6px] -translate-y-1/2 w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-r-[6px] border-r-black/80"></div>
-          </div>
+          {/* Стрелочка динамическая */}
+          {position.side === 'right' && (
+            <div className="absolute top-4 -left-2">
+              <div className="w-0 h-0 border-t-[8px] border-t-transparent border-b-[8px] border-b-transparent border-r-[8px] border-r-black/60"></div>
+              <div className="absolute top-1/2 -translate-y-1/2 -left-[6px] w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-r-[6px] border-r-black/80"></div>
+            </div>
+          )}
+          {position.side === 'left' && (
+            <div className="absolute top-4 -right-2">
+              <div className="w-0 h-0 border-t-[8px] border-t-transparent border-b-[8px] border-b-transparent border-l-[8px] border-l-black/60"></div>
+              <div className="absolute top-1/2 -translate-y-1/2 -right-[6px] w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-l-[6px] border-l-black/80"></div>
+            </div>
+          )}
+          {position.side === 'top' && (
+            <div className="absolute -bottom-2 left-6">
+              <div className="w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-black/60"></div>
+              <div className="absolute left-1/2 -translate-x-1/2 -bottom-[6px] w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-black/80"></div>
+            </div>
+          )}
+          {position.side === 'bottom' && (
+            <div className="absolute -top-2 left-6">
+              <div className="w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-b-[8px] border-b-black/60"></div>
+              <div className="absolute left-1/2 -translate-x-1/2 -top-[6px] w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[6px] border-b-black/80"></div>
+            </div>
+          )}
 
           {/* Заголовочная секция */}
           <div className="mb-3">
