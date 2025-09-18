@@ -280,7 +280,7 @@ public class MangaService {
                 safeGenres, safeTags, validatedMangaType, validatedStatus,
                 ageRatingMin, ageRatingMax, ratingMin, ratingMax,
                 releaseYearMin, releaseYearMax, chapterRangeMin, chapterRangeMax,
-                sortBy, sortOrder, pageable);
+                pageable);
 
         logger.debug("Найдено {} манг с фильтрами на странице {}", searchResults.getNumberOfElements(), page);
 
@@ -313,20 +313,21 @@ public class MangaService {
     private Sort createSort(String sortBy, String sortOrder) {
         Sort.Direction direction = "desc".equalsIgnoreCase(sortOrder) ? Sort.Direction.DESC : Sort.Direction.ASC;
 
+        // Для нативных SQL запросов используем имена колонок базы данных
         return switch (sortBy != null ? sortBy.toLowerCase() : "createdat") {
             case "title" -> Sort.by(direction, "title");
             case "author" -> Sort.by(direction, "author");
-            case "createdat" -> Sort.by(direction, "createdAt");
-            case "updatedat" -> Sort.by(direction, "updatedAt");
+            case "createdat" -> Sort.by(direction, "created_at");
+            case "updatedat" -> Sort.by(direction, "updated_at");
             case "views" -> Sort.by(direction, "views");
             case "rating" -> Sort.by(direction, "rating");
-            case "ratingcount" -> Sort.by(direction, "ratingCount");
+            case "ratingcount" -> Sort.by(direction, "rating_count");
             case "likes" -> Sort.by(direction, "likes");
             case "reviews" -> Sort.by(direction, "reviews");
             case "comments" -> Sort.by(direction, "comments");
-            case "chaptercount" -> Sort.by(direction, "totalChapters");
-            case "popularity" -> Sort.by(direction, "views", "comments", "likes", "reviews");
-            default -> Sort.by(Sort.Direction.DESC, "createdAt");
+            case "chaptercount" -> Sort.by(direction, "total_chapters");
+            case "popularity" -> Sort.by(direction, "views"); // Простое поле для начала
+            default -> Sort.by(Sort.Direction.DESC, "created_at");
         };
     }
 
