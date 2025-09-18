@@ -73,16 +73,19 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
     const vw = window.innerWidth
     const vh = window.innerHeight
     const gap = 12
-    // Предпочтительно справа
+    // Начально вровень по верхнему краю карточки
+    let top = triggerRect.top
     let left = triggerRect.right + gap
+    // Если не помещается справа — слева
     if (left + tooltipRect.width > vw - 8) {
       left = triggerRect.left - tooltipRect.width - gap
     }
-    // Если все ещё не помещается, принудительно к правому краю
+    // Коррекция если ушли за левую границу
     if (left < 8) left = Math.min(vw - tooltipRect.width - 8, triggerRect.right + gap)
-    let top = triggerRect.top + triggerRect.height / 2 - tooltipRect.height / 2
+    // Вертикальная коррекция (чтобы не выходило за низ)
+    if (top + tooltipRect.height > vh - 8) top = Math.max(8, vh - tooltipRect.height - 8)
+    // Если ушло выше
     if (top < 8) top = 8
-    if (top + tooltipRect.height > vh - 8) top = vh - tooltipRect.height - 8
     setPosition({ top, left, transform: '' })
   }
 
@@ -177,12 +180,30 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
   useEffect(() => {
     if (!isVisible) return
     const handleResize = () => calculatePosition()
+    const handleHide = () => {
+      setIsVisible(false)
+      setShowDropdown(false)
+    }
     window.addEventListener('resize', handleResize)
-    window.addEventListener('scroll', handleResize, true)
+    window.addEventListener('scroll', handleHide, { passive: true, capture: true })
+    window.addEventListener('wheel', handleHide, { passive: true })
+    window.addEventListener('touchmove', handleHide, { passive: true })
     return () => {
       window.removeEventListener('resize', handleResize)
-      window.removeEventListener('scroll', handleResize, true)
+      window.removeEventListener('scroll', handleHide, true as any)
+      window.removeEventListener('wheel', handleHide)
+      window.removeEventListener('touchmove', handleHide)
     }
+  }, [isVisible])
+
+  // Пересчёт позиции после загрузки изображений в карточке (если видим)
+  useEffect(() => {
+    if (!triggerRef.current) return
+    const imgs = Array.from(triggerRef.current.querySelectorAll('img'))
+    if (!imgs.length) return
+    const onLoad = () => { if (isVisible) calculatePosition() }
+    imgs.forEach(img => img.addEventListener('load', onLoad))
+    return () => imgs.forEach(img => img.removeEventListener('load', onLoad))
   }, [isVisible])
 
   // Парсинг жанров

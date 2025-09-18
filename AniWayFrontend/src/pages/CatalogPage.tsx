@@ -6,7 +6,6 @@ import { apiClient } from '@/lib/api'
 import { MangaCardWithTooltip } from '@/components/manga'
 import { MangaCardSkeleton } from '@/components/manga/MangaCardSkeleton'
 import { EmptyState } from '@/components/catalog/EmptyState'
-import { SelectedFiltersBar } from '@/components/filters/SelectedFiltersBar'
 import { ErrorState } from '@/components/catalog/ErrorState'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 // import { MangaFilterSidebar } from '@/components/filters/MangaFilterSidebar'
@@ -475,59 +474,6 @@ export function CatalogPage() {
     setCurrentPage(0)
   }
 
-  // Удаление отдельных фильтров (для панели выбранных фильтров)
-  const removeFilterChip = (category: string, value?: string) => {
-    const newActive = { ...activeFilters }
-    const newDraft = { ...draftFilters }
-
-    switch (category) {
-      case 'activeType':
-        setActiveType('все')
-        break
-      case 'genre':
-        if (value) {
-          newActive.genres = (newActive.genres || []).filter((g: string) => g !== value)
-          newDraft.selectedGenres = (newDraft.selectedGenres || []).filter((g: string) => g !== value)
-          if (!newActive.genres.length) delete newActive.genres
-        }
-        break
-      case 'tag':
-        if (value) {
-          newActive.tags = (newActive.tags || []).filter((t: string) => t !== value)
-          newDraft.selectedTags = (newDraft.selectedTags || []).filter((t: string) => t !== value)
-          if (!newActive.tags.length) delete newActive.tags
-        }
-        break
-      case 'type':
-        delete newActive.type
-        newDraft.mangaType = ''
-        break
-      case 'status':
-        delete newActive.status
-        newDraft.status = ''
-        break
-      case 'ageRating':
-        delete newActive.ageRating
-        newDraft.ageRating = [0, 21]
-        break
-      case 'rating':
-        delete newActive.rating
-        newDraft.rating = [0, 10]
-        break
-      case 'releaseYear':
-        delete newActive.releaseYear
-        newDraft.releaseYear = [1990, new Date().getFullYear()]
-        break
-      case 'chapterRange':
-        delete newActive.chapterRange
-        newDraft.chapterRange = [0, 1000]
-        break
-    }
-
-    setActiveFilters(newActive)
-    setDraftFilters(newDraft)
-    setCurrentPage(0)
-  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -623,13 +569,6 @@ export function CatalogPage() {
                     </div>
                   </div>
                 </div>
-                <SelectedFiltersBar
-                  activeFilters={activeFilters}
-                  activeType={activeType}
-                  onRemove={removeFilterChip}
-                  onClearAll={clearAllFilters}
-                  className="-mt-2"
-                />
 
                 {/* Сетка карточек */}
                 <ErrorBoundary fallback={
