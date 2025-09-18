@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Bookmark, ChevronDown, X } from 'lucide-react'
 import { MangaResponseDTO, BookmarkStatus } from '@/types'
 import { getStatusColor, getStatusText, cn } from '@/lib/utils'
@@ -10,7 +11,7 @@ interface MangaTooltipProps {
   children: React.ReactNode
 }
 
-type TooltipSide = 'right' | 'left' | 'top' | 'bottom'
+type TooltipSide = 'right' | 'left'
 
 interface TooltipPosition {
   top: number
@@ -73,7 +74,9 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
   // Вычисление позиции tooltip
   const calculatePosition = () => {
     if (!triggerRef.current || !tooltipRef.current) return
-    const triggerRect = triggerRef.current.getBoundingClientRect()
+  // Используем внутреннюю карточку, а не обёртку w-full
+  const cardEl = triggerRef.current.querySelector('.manga-card') as HTMLElement | null
+  const triggerRect = (cardEl || triggerRef.current).getBoundingClientRect()
     const tooltipRect = tooltipRef.current.getBoundingClientRect()
     const vw = window.innerWidth
     const vh = window.innerHeight
@@ -88,56 +91,20 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
 
     const fitsRight = triggerRect.right + gap + tooltipRect.width <= vw - margin
     const fitsLeft = triggerRect.left - gap - tooltipRect.width >= margin
-    const fitsBelow = triggerRect.bottom + gap + tooltipRect.height <= vh - margin
-    const fitsAbove = triggerRect.top - gap - tooltipRect.height >= margin
-
-    if (side === 'right' && !fitsRight) {
-      if (fitsLeft) {
-        side = 'left'
-      } else if (fitsBelow) {
-        side = 'bottom'
-      } else if (fitsAbove) {
-        side = 'top'
-      } else {
-        // Выберем сторону с наибольшим доступным пространством
-        const spaceRight = vw - triggerRect.right
-        const spaceLeft = triggerRect.left
-        const spaceBottom = vh - triggerRect.bottom
-        const spaceTop = triggerRect.top
-        const maxSpace = Math.max(spaceRight, spaceLeft, spaceBottom, spaceTop)
-        if (maxSpace === spaceLeft) side = 'left'
-        else if (maxSpace === spaceBottom) side = 'bottom'
-        else if (maxSpace === spaceTop) side = 'top'
-        else side = 'right'
-      }
-    }
+    if (!fitsRight && fitsLeft) side = 'left'
 
     // Arrow size для дальнейшего учёта
     const arrowOffset = 10 // расстояние от края tooltip до карточки с учётом стрелки
-    switch (side) {
-      case 'right':
-        left = triggerRect.right + gap
-        top = triggerRect.top
-        break
-      case 'left':
-        left = triggerRect.left - tooltipRect.width - gap
-        top = triggerRect.top
-        break
-      case 'bottom':
-        top = triggerRect.bottom + gap
-        left = triggerRect.left + (triggerRect.width / 2) - (tooltipRect.width / 2)
-        break
-      case 'top':
-        top = triggerRect.top - tooltipRect.height - gap
-        left = triggerRect.left + (triggerRect.width / 2) - (tooltipRect.width / 2)
-        break
+    if (side === 'right') {
+      left = triggerRect.right + gap
+      top = triggerRect.top
+    } else {
+      left = triggerRect.left - tooltipRect.width - gap
+      top = triggerRect.top
     }
 
     // Горизонтальное ограничение для top/bottom
-    if (side === 'top' || side === 'bottom') {
-      if (left < margin) left = margin
-      if (left + tooltipRect.width > vw - margin) left = vw - margin - tooltipRect.width
-    }
+    // (top/bottom больше не используются)
 
     // Вертикальные ограничения
     if (top < margin) top = margin
@@ -147,8 +114,8 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
     let arrowY = 0
     let arrowX = 0
     if (side === 'right' || side === 'left') {
-      // Центр привязки к верхней точке карточки, но ограничиваем внутри tooltip
-      arrowY = triggerRect.top - top + Math.min(triggerRect.height / 2, tooltipRect.height - 20)
+      // Центр стрелки по середине высоты карточки
+      arrowY = (triggerRect.top + triggerRect.height / 2) - top
       if (arrowY < 16) arrowY = 16
       if (arrowY > tooltipRect.height - 16) arrowY = tooltipRect.height - 16
     } else {
@@ -259,11 +226,14 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
     window.addEventListener('scroll', handleHide, { passive: true, capture: true })
     window.addEventListener('wheel', handleHide, { passive: true })
     window.addEventListener('touchmove', handleHide, { passive: true })
+    // Повторно скорректируем позицию после первого кадра отображения (для точного tooltipRect)
+    const id = requestAnimationFrame(() => calculatePosition())
     return () => {
       window.removeEventListener('resize', handleResize)
       window.removeEventListener('scroll', handleHide, true as any)
       window.removeEventListener('wheel', handleHide)
       window.removeEventListener('touchmove', handleHide)
+      cancelAnimationFrame(id)
     }
   }, [isVisible])
 
@@ -291,28 +261,22 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
         <div ref={triggerRef} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} className="w-full">
           {children}
         </div>
-        {(isRendered) && (
+        {(isRendered) && createPortal(
           <div
             ref={tooltipRef}
             style={{
               position: 'fixed',
               top: position.top,
               left: position.left,
-              zIndex: 9999,
+              zIndex: 999999,
               pointerEvents: isVisible ? 'auto' : 'none',
               opacity: isVisible ? 1 : 0,
               transform: (() => {
                 const hiddenScale = '0.96'
-                switch (position.side) {
-                  case 'right':
-                    return isVisible ? 'translateX(0) scale(1)' : 'translateX(6px) scale(' + hiddenScale + ')'
-                  case 'left':
-                    return isVisible ? 'translateX(0) scale(1)' : 'translateX(-6px) scale(' + hiddenScale + ')'
-                  case 'bottom':
-                    return isVisible ? 'translateY(0) scale(1)' : 'translateY(6px) scale(' + hiddenScale + ')'
-                  case 'top':
-                    return isVisible ? 'translateY(0) scale(1)' : 'translateY(-6px) scale(' + hiddenScale + ')'
+                if (position.side === 'right') {
+                  return isVisible ? 'translateX(0) scale(1)' : 'translateX(6px) scale(' + hiddenScale + ')'
                 }
+                return isVisible ? 'translateX(0) scale(1)' : 'translateX(-6px) scale(' + hiddenScale + ')'
               })(),
               transition: 'opacity 140ms ease, transform 140ms ease'
             }}
@@ -331,18 +295,6 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
             <div className="absolute -right-2" style={{ top: position.arrowY }}>
               <div className="w-0 h-0 border-t-[8px] border-t-transparent border-b-[8px] border-b-transparent border-l-[8px] border-l-black/60"></div>
               <div className="absolute top-1/2 -translate-y-1/2 -right-[6px] w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-l-[6px] border-l-black/80"></div>
-            </div>
-          )}
-          {position.side === 'top' && (
-            <div className="absolute -bottom-2" style={{ left: position.arrowX }}>
-              <div className="w-0 h-0 -translate-x-1/2 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-black/60"></div>
-              <div className="absolute left-1/2 -translate-x-1/2 -bottom-[6px] w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-black/80"></div>
-            </div>
-          )}
-          {position.side === 'bottom' && (
-            <div className="absolute -top-2" style={{ left: position.arrowX }}>
-              <div className="w-0 h-0 -translate-x-1/2 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-b-[8px] border-b-black/60"></div>
-              <div className="absolute left-1/2 -translate-x-1/2 -top-[6px] w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[6px] border-b-black/80"></div>
             </div>
           )}
 
@@ -480,8 +432,8 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
               )}
             </div>
           )}
-          </div>
-        )}
+          </div>, document.body)
+        }
       </>
     )
   } catch (error) {
