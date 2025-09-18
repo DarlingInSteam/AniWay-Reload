@@ -212,6 +212,94 @@ public class MangaService {
     }
 
     /**
+     * Получает пагинированный список всех манг с фильтрацией по различным критериям.
+     *
+     * @param page номер страницы (начиная с 0)
+     * @param size размер страницы
+     * @param sortBy поле для сортировки
+     * @param sortOrder направление сортировки
+     * @param genres список жанров (может быть null или пустой)
+     * @param tags список тегов (может быть null или пустой)
+     * @param mangaType тип манги (может быть null)
+     * @param status статус манги (может быть null)
+     * @param ageRatingMin минимальный возрастной рейтинг (может быть null)
+     * @param ageRatingMax максимальный возрастной рейтинг (может быть null)
+     * @param ratingMin минимальный рейтинг (может быть null)
+     * @param ratingMax максимальный рейтинг (может быть null)
+     * @param releaseYearMin минимальный год выпуска (может быть null)
+     * @param releaseYearMax максимальный год выпуска (может быть null)
+     * @param chapterRangeMin минимальное количество глав (может быть null)
+     * @param chapterRangeMax максимальное количество глав (может быть null)
+     * @return PageResponseDTO с найденными мангами
+     */
+    @Transactional(readOnly = true)
+    public PageResponseDTO<MangaResponseDTO> getAllMangaPagedWithFilters(
+            int page, int size, String sortBy, String sortOrder,
+            List<String> genres, List<String> tags, String mangaType, String status,
+            Integer ageRatingMin, Integer ageRatingMax, Double ratingMin, Double ratingMax,
+            Integer releaseYearMin, Integer releaseYearMax, Integer chapterRangeMin, Integer chapterRangeMax) {
+
+        logger.debug("Запрос пагинированного списка манг с фильтрами - page: {}, size: {}, sortBy: {}, sortOrder: {}, " +
+                "genres: {}, tags: {}, mangaType: {}, status: {}, ageRatingMin: {}, ageRatingMax: {}, " +
+                "ratingMin: {}, ratingMax: {}, releaseYearMin: {}, releaseYearMax: {}, chapterRangeMin: {}, chapterRangeMax: {}",
+                page, size, sortBy, sortOrder, genres, tags, mangaType, status,
+                ageRatingMin, ageRatingMax, ratingMin, ratingMax,
+                releaseYearMin, releaseYearMax, chapterRangeMin, chapterRangeMax);
+
+        // Валидируем и нормализуем статус
+        String validatedStatus = null;
+        if (status != null && !status.trim().isEmpty()) {
+            try {
+                Manga.MangaStatus.valueOf(status.toUpperCase());
+                validatedStatus = status.toUpperCase();
+            } catch (IllegalArgumentException e) {
+                logger.warn("Неизвестный статус манги: '{}'. Игнорируем этот параметр поиска.", status);
+            }
+        }
+
+        // Валидируем и нормализуем тип манги
+        String validatedMangaType = null;
+        if (mangaType != null && !mangaType.trim().isEmpty()) {
+            try {
+                Manga.MangaType.valueOf(mangaType.toUpperCase());
+                validatedMangaType = mangaType.toUpperCase();
+            } catch (IllegalArgumentException e) {
+                logger.warn("Неизвестный тип манги: '{}'. Игнорируем этот параметр поиска.", mangaType);
+            }
+        }
+
+        // Создаем правильную сортировку на основе параметров
+        Sort sort = createSort(sortBy, sortOrder);
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        Page<Manga> searchResults = mangaRepository.findAllWithFilters(
+                genres, tags, validatedMangaType, validatedStatus,
+                ageRatingMin, ageRatingMax, ratingMin, ratingMax,
+                releaseYearMin, releaseYearMax, chapterRangeMin, chapterRangeMax,
+                pageable);
+
+        logger.debug("Найдено {} манг с фильтрами на странице {}", searchResults.getNumberOfElements(), page);
+
+        List<MangaResponseDTO> responseDTOs = mangaMapper.toResponseDTOList(searchResults.getContent());
+
+        // Обогащаем каждую найденную мангу актуальным количеством глав и правильными URL обложек
+        responseDTOs.forEach(dto -> {
+            this.enrichWithChapterCount(dto);
+            this.enrichWithCoverUrl(dto);
+        });
+
+        PageResponseDTO<MangaResponseDTO> result = new PageResponseDTO<>(
+                responseDTOs,
+                searchResults.getNumber(),
+                searchResults.getSize(),
+                searchResults.getTotalElements()
+        );
+
+        logger.debug("Возвращается пагинированный список из {} найденных манг с фильтрами", responseDTOs.size());
+        return result;
+    }
+
+    /**
      * Создает объект Sort на основе параметров сортировки.
      *
      * @param sortBy поле для сортировки
