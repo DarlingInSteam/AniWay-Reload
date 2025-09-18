@@ -19,18 +19,20 @@ ON CONFLICT (name) DO NOTHING;
 -- Заполнение таблицы тегов из существующих данных
 INSERT INTO tags (name, slug, color, manga_count, popularity_score, is_active, created_at, updated_at)
 SELECT DISTINCT 
-    TRIM(unnest(string_to_array(tags_string, ','))) as tag_name,
-    LOWER(REGEXP_REPLACE(TRIM(unnest(string_to_array(tags_string, ','))), '[^а-яёa-z0-9\s-]', '', 'g')) as slug,
-    (ARRAY['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1'])[1 + (abs(hashtext(TRIM(unnest(string_to_array(tags_string, ','))))) % 10)] as color,
+    TRIM(tag_name) as tag_name,
+    LOWER(REGEXP_REPLACE(TRIM(tag_name), '[^а-яёa-z0-9\s-]', '', 'g')) as slug,
+    (ARRAY['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1'])[1 + (abs(hashtext(TRIM(tag_name))) % 10)] as color,
     0 as manga_count,
     0 as popularity_score,
     TRUE as is_active,
     CURRENT_TIMESTAMP as created_at,
     CURRENT_TIMESTAMP as updated_at
-FROM manga 
-WHERE tags_string IS NOT NULL 
-  AND tags_string != '' 
-  AND TRIM(unnest(string_to_array(tags_string, ','))) != ''
+FROM (
+    SELECT unnest(string_to_array(tags_string, ',')) as tag_name
+    FROM manga 
+    WHERE tags_string IS NOT NULL AND tags_string != ''
+) AS tag_parts
+WHERE TRIM(tag_name) != '' AND LENGTH(TRIM(tag_name)) > 1
 ON CONFLICT (name) DO NOTHING;
 
 -- Создание связей между мангой и жанрами
