@@ -60,11 +60,9 @@ interface MangaFilterSidebarProps {
   onApply?: () => void // Добавляем функцию применения фильтров
 }
 
-// Красивый компонент разделителя с градиентом
+// Разделитель в стиле каталога
 const Separator: React.FC<{ className?: string }> = ({ className }) => (
-  <div className={cn("h-px bg-gradient-to-r from-transparent via-white/20 to-transparent relative", className)}>
-    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/30 to-transparent animate-pulse"></div>
-  </div>
+  <div className={cn("h-px bg-white/10", className)} />
 )
 
 // Простой компонент аккордеона
@@ -147,7 +145,7 @@ const GenreMultiSelectFilter: React.FC<{
         </div>
       )}
       
-      <div className="max-h-40 overflow-y-auto space-y-1 scrollbar-thin scrollbar-track-white/5 scrollbar-thumb-white/20 hover:scrollbar-thumb-white/40">
+      <div className="max-h-40 overflow-y-auto space-y-1 scrollbar-hide">
         {filteredGenres.map(genre => (
           <Button
             key={genre.id}
@@ -230,7 +228,7 @@ const TagMultiSelectFilter: React.FC<{
         </div>
       )}
       
-      <div className="max-h-40 overflow-y-auto space-y-1 scrollbar-thin scrollbar-track-white/5 scrollbar-thumb-white/20 hover:scrollbar-thumb-white/40">
+      <div className="max-h-40 overflow-y-auto space-y-1 scrollbar-hide">
         {filteredTags.map(tag => (
           <Button
             key={tag.id}
@@ -516,39 +514,33 @@ export const MangaFilterSidebar: React.FC<MangaFilterSidebarProps> = ({
   return (
     <div className={cn(
       "w-80 h-fit relative overflow-hidden", 
-      "bg-gradient-to-br from-white/10 via-white/5 to-transparent",
-      "backdrop-blur-md border border-white/20",
-      "rounded-2xl shadow-2xl shadow-black/20",
-      "before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/10 before:to-transparent before:pointer-events-none",
+      "bg-white/10 backdrop-blur-sm",
+      "border border-white/20",
+      "rounded-xl shadow-lg",
       className
     )}>
-      {/* Заголовок с улучшенным дизайном */}
-      <div className="relative p-4 border-b border-white/10 bg-gradient-to-r from-white/5 to-transparent">
+      {/* Заголовок в стиле каталога */}
+      <div className="relative p-4 border-b border-white/20">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white flex items-center gap-3">
-            <div className="relative">
-              <div className="w-3 h-3 bg-gradient-to-r from-primary to-primary/70 rounded-full animate-pulse"></div>
-              <div className="absolute inset-0 w-3 h-3 bg-primary rounded-full animate-ping opacity-25"></div>
-            </div>
-            <span className="bg-gradient-to-r from-white to-gray-200 bg-clip-text text-transparent">
-              Фильтры
-            </span>
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <div className="w-2 h-2 bg-primary rounded-full"></div>
+            Фильтры
           </h2>
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"
               size="sm"
               onClick={resetFilters}
-              className="h-8 px-2 text-muted-foreground hover:text-white hover:bg-white/10 transition-all duration-300 rounded-lg group"
+              className="h-8 px-2 text-muted-foreground hover:text-white hover:bg-white/10 transition-all duration-200 rounded-lg"
             >
-              <RotateCcw className="h-4 w-4 group-hover:rotate-180 transition-transform duration-300" />
+              <RotateCcw className="h-4 w-4" />
             </Button>
             {onApply && (
               <Button
                 variant="default"
                 size="sm"
                 onClick={onApply}
-                className="h-8 px-3 bg-gradient-to-r from-primary to-primary/80 text-white hover:from-primary/90 hover:to-primary/70 transition-all duration-300 rounded-lg text-xs font-medium shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-105"
+                className="h-8 px-3 bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 transition-all duration-200 rounded-lg text-xs font-medium shadow-lg shadow-primary/20"
               >
                 Применить
               </Button>
@@ -557,8 +549,8 @@ export const MangaFilterSidebar: React.FC<MangaFilterSidebarProps> = ({
         </div>
       </div>
       
-      {/* Основная область фильтров с улучшенным фоном */}
-      <div className="relative p-4 space-y-6 bg-gradient-to-b from-transparent to-white/5">
+      {/* Основная область фильтров */}
+      <div className="p-4 space-y-6">
         {/* Жанры */}
         <FilterSection
           title="Жанры"
@@ -726,27 +718,24 @@ export const MangaFilterSidebar: React.FC<MangaFilterSidebarProps> = ({
           />
         </FilterSection>
         
-        {/* Кнопки действий с улучшенным дизайном */}
-        <div className="pt-4 border-t border-gradient-to-r from-transparent via-white/20 to-transparent relative">
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent"></div>
-          <div className="flex gap-3 mt-4">
+        {/* Кнопки действий в стиле каталога */}
+        <div className="pt-4 border-t border-white/10 flex gap-3">
+          <Button
+            variant="outline"
+            onClick={resetFilters}
+            className="flex-1 h-10 border-white/20 bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-white hover:border-white/30 transition-all duration-200"
+          >
+            <RotateCcw className="h-4 w-4 mr-2" />
+            Сбросить
+          </Button>
+          {onApply && (
             <Button
-              variant="outline"
-              onClick={resetFilters}
-              className="flex-1 h-10 border-white/30 text-white hover:bg-white/10 hover:border-white/50 transition-all duration-300 group bg-white/5 backdrop-blur-sm"
+              onClick={onApply}
+              className="flex-1 h-10 bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 transition-all duration-200 shadow-lg shadow-primary/20"
             >
-              <RotateCcw className="h-4 w-4 mr-2 group-hover:rotate-180 transition-transform duration-300" />
-              Сбросить
+              Применить
             </Button>
-            {onApply && (
-              <Button
-                onClick={onApply}
-                className="flex-1 h-10 bg-gradient-to-r from-primary to-primary/80 text-white hover:from-primary/90 hover:to-primary/70 transition-all duration-300 shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-[1.02] font-medium"
-              >
-                Применить
-              </Button>
-            )}
-          </div>
+          )}
         </div>
       </div>
     </div>
