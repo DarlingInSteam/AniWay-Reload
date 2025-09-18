@@ -523,7 +523,7 @@ export function CatalogPage() {
         <div className="flex gap-8">
           {/* Левая колонка: каталог */}
             <div className="flex-1 min-w-0">
-              <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/5 to-white/[0.02] backdrop-blur-sm shadow-inner shadow-black/40 p-4 lg:p-5">
+              <div className="glass-panel p-4 lg:p-5">
                 {/* Заголовок + поиск + сортировка */}
                 <div className="flex flex-col gap-4 mb-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
