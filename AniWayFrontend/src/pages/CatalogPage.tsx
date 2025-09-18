@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { Grid, Filter, ArrowUpDown, ArrowUp, ArrowDown, X, ChevronLeft, ChevronRight } from 'lucide-react'
@@ -27,14 +27,26 @@ export function CatalogPage() {
   const genre = searchParams.get('genre')
   const sort = searchParams.get('sort')
 
-  // Инвалидируем кэш при входе на страницу каталога
-  useEffect(() => {
-    console.log('CatalogPage: Invalidating manga cache on mount')
-    queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
-  }, [queryClient])
+  // Убираем ненужную инвалидацию кэша при монтировании
+  // Кэш должен инвалидироваться только при реальных изменениях данных
+  // useEffect(() => {
+  //   console.log('CatalogPage: Invalidating manga cache on mount')
+  //   queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
+  // }, [queryClient])
+
+  // Создаем стабильный объект для queryKey
+  const queryKeyParams = useMemo(() => ({
+    genre: genre || null,
+    sort: sort || null,
+    currentPage,
+    sortOrder,
+    sortDirection,
+    activeType,
+    activeFilters: JSON.stringify(activeFilters) // Сериализуем для стабильности
+  }), [genre, sort, currentPage, sortOrder, sortDirection, activeType, activeFilters])
 
   const { data: mangaPage, isLoading } = useQuery({
-    queryKey: ['manga-catalog', { genre, sort, currentPage, sortOrder, sortDirection, activeType, activeFilters }],
+    queryKey: ['manga-catalog', queryKeyParams],
     queryFn: () => {
       const sortBy = getSortByField(sortOrder)
       
@@ -61,6 +73,8 @@ export function CatalogPage() {
       console.log('Filter params only:', filterParams)
       console.log('Sort params:', { sortBy, sortDirection })
       console.log('Page params:', { currentPage, pageSize })
+      console.log('ActiveFilters state:', activeFilters)
+      console.log('QueryKey params:', queryKeyParams)
       
       if (genre) {
         // Для поиска по жанру создаем полный объект параметров
@@ -78,6 +92,7 @@ export function CatalogPage() {
       // Для обычного просмотра передаем параметры раздельно
       return apiClient.getAllMangaPaged(currentPage, pageSize, sortBy, sortDirection, filterParams)
     },
+    enabled: true, // Всегда включен
     staleTime: 1000 * 60 * 5, // 5 минут
     refetchOnWindowFocus: false,
     refetchOnMount: false,
@@ -159,9 +174,15 @@ export function CatalogPage() {
 
   // Обработчик быстрых фильтров
   const handleActiveTypeChange = (type: string) => {
+    console.log('CatalogPage: ActiveType changed from', activeType, 'to', type)
     setActiveType(type)
     setCurrentPage(0) // Сбрасываем на первую страницу при изменении типа
   }
+
+  // Функция для отладки изменений activeFilters
+  useEffect(() => {
+    console.log('CatalogPage: activeFilters changed to:', activeFilters)
+  }, [activeFilters])
 
   // Обработчик сортировки
   const handleSortChange = (newSortOrder: string) => {
