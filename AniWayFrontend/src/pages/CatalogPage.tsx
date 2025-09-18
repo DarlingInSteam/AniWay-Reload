@@ -37,8 +37,12 @@ export function CatalogPage() {
   const SORT_FIELD_BY_LABEL: Record<string,string> = Object.fromEntries(Object.entries(SORT_LABEL_BY_FIELD).map(([field,label]) => [label, field]))
   const defaultSortField = 'popularity'
   const initialSortField = searchParams.get('sortField') || defaultSortField
-  const initialSortLabel = SORT_LABEL_BY_FIELD[initialSortField] || SORT_LABEL_BY_FIELD[defaultSortField]
-  const [sortOrder, setSortOrder] = useState(initialSortLabel)
+  const [sortField, setSortField] = useState(initialSortField)
+  const sortOrder = SORT_LABEL_BY_FIELD[sortField] || SORT_LABEL_BY_FIELD[defaultSortField]
+  const setSortOrder = (label: string) => {
+    const mapped = SORT_FIELD_BY_LABEL[label] || defaultSortField
+    setSortField(mapped)
+  }
   const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>(searchParams.get('dir') === 'asc' ? 'asc' : 'desc')
   const [showSortDropdown, setShowSortDropdown] = useState(false)
   const initialPage = parseInt(searchParams.get('page') || '1', 10)
@@ -114,17 +118,17 @@ export function CatalogPage() {
   // Создаем стабильный объект для queryKey
   const queryKeyParams = useMemo(() => ({
     genre: genre || null,
-    sortField: SORT_FIELD_BY_LABEL[sortOrder] || 'popularity',
+    sortField,
     sortDirection,
     currentPage,
     activeType,
     activeFilters: JSON.stringify(activeFilters)
-  }), [genre, sortOrder, sortDirection, currentPage, activeType, activeFilters])
+  }), [genre, sortField, sortDirection, currentPage, activeType, activeFilters])
 
   const { data: mangaPage, isLoading, isError, refetch } = useQuery<PageResponse<MangaResponseDTO>>({
     queryKey: ['manga-catalog', queryKeyParams],
     queryFn: () => {
-  const sortBy = getSortByField(sortOrder)
+      const sortBy = sortField
       
       // Создаем объект только с фильтрами (без пагинации и сортировки)
       const filterParams: any = { ...activeFilters }
@@ -191,7 +195,7 @@ export function CatalogPage() {
   useEffect(() => {
     if (!mangaPage) return
     if (mangaPage.totalPages <= 1) return
-    const sortBy = getSortByField(sortOrder)
+  const sortBy = sortField
     const filterParams: any = { ...activeFilters }
     if (activeType !== 'все') {
       const typeMapping: Record<string, string> = {
@@ -215,7 +219,7 @@ export function CatalogPage() {
         queryFn: () => apiClient.getAllMangaPaged(prev, pageSize, sortBy, sortDirection, filterParams)
       })
     }
-  }, [mangaPage, currentPage, sortOrder, sortDirection, activeType, activeFilters, pageSize, queryClient, queryKeyParams])
+  }, [mangaPage, currentPage, sortField, sortDirection, activeType, activeFilters, pageSize, queryClient, queryKeyParams])
 
   // Извлекаем данные из ответа API
   const manga = mangaPage?.content ?? []
@@ -224,14 +228,14 @@ export function CatalogPage() {
   const isFirst = mangaPage?.first ?? true
   const isLast = mangaPage?.last ?? true
 
-  const getSortByField = (label: string): string => SORT_FIELD_BY_LABEL[label] || 'createdAt'
+  // getSortByField не требуется — используем непосредственный sortField
 
   // Синхронизация состояния с URL (без циклических обновлений)
   useEffect(() => {
     const params: Record<string,string> = {}
     if (genre) params.genre = genre
     params.page = String(currentPage + 1)
-    params.sortField = SORT_FIELD_BY_LABEL[sortOrder] || 'popularity'
+  params.sortField = sortField
     if (sortDirection !== 'desc') params.dir = sortDirection
     if (activeType && activeType !== 'все') params.activeType = activeType
 
@@ -263,7 +267,7 @@ export function CatalogPage() {
       }
     })
     if (changed) setSearchParams(current, { replace: true })
-  }, [currentPage, sortOrder, sortDirection, activeType, activeFilters, genre, setSearchParams])
+  }, [currentPage, sortField, sortDirection, activeType, activeFilters, genre, setSearchParams])
 
   // Обработчики фильтров
   const memoizedFilterState = useMemo(() => {
@@ -385,9 +389,10 @@ export function CatalogPage() {
   }, [activeFilters])
 
   // Обработчик сортировки
-  const handleSortChange = (newSortOrder: string) => {
-    console.log('CatalogPage: Sort order changed from', sortOrder, 'to', newSortOrder)
-    setSortOrder(newSortOrder)
+  const handleSortChange = (newSortLabel: string) => {
+    const newField = SORT_FIELD_BY_LABEL[newSortLabel] || defaultSortField
+    console.log('CatalogPage: Sort field changed from', sortField, 'to', newField, 'label:', newSortLabel)
+    setSortField(newField)
     setShowSortDropdown(false)
     setCurrentPage(0) // Сбрасываем на первую страницу при изменении сортировки
     queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
@@ -431,6 +436,10 @@ export function CatalogPage() {
   }
 
   const pageTitle = genre ? `Жанр: ${genre}` : 'Каталог'
+
+  useEffect(() => {
+    console.log('[CatalogPage] Active sorting => field:', sortField, 'label:', sortOrder, 'direction:', sortDirection)
+  }, [sortField, sortOrder, sortDirection])
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
