@@ -136,6 +136,24 @@ export function CatalogPage() {
   }
 
   // Обработчики фильтров
+  const convertActiveFiltersToFilterState = (activeFilters: any) => {
+    const filterState = {
+      selectedGenres: activeFilters.genres || [],
+      selectedTags: activeFilters.tags || [],
+      mangaType: activeFilters.type || '',
+      status: activeFilters.status || '',
+      ageRating: activeFilters.ageRating || [0, 21],
+      rating: activeFilters.rating || [0, 10],
+      releaseYear: activeFilters.releaseYear || [1990, new Date().getFullYear()],
+      chapterRange: activeFilters.chapterRange || [0, 1000]
+    }
+    console.log('CatalogPage: Converting activeFilters to FilterState:', 
+      'activeFilters:', activeFilters, 
+      'filterState:', filterState
+    )
+    return filterState
+  }
+
   const handleFiltersChange = (filters: any) => {
     console.log('CatalogPage: Received filters from sidebar:', JSON.stringify(filters, null, 2))
     
@@ -490,7 +508,7 @@ export function CatalogPage() {
           </div>
           <div className="h-full overflow-y-auto">
             <MangaFilterSidebar
-              initialFilters={activeFilters}
+              initialFilters={convertActiveFiltersToFilterState(activeFilters)}
               onFiltersChange={handleFiltersChange}
               onReset={handleFiltersReset}
               className="border-0 bg-transparent"
@@ -653,7 +671,7 @@ export function CatalogPage() {
           {/* Боковые фильтры для десктопа */}
           <div className="hidden lg:block w-80 flex-shrink-0">
             <MangaFilterSidebar
-              initialFilters={activeFilters}
+              initialFilters={convertActiveFiltersToFilterState(activeFilters)}
               onFiltersChange={handleFiltersChange}
               onReset={handleFiltersReset}
               className="sticky top-4"
