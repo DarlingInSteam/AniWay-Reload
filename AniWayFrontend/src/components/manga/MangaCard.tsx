@@ -14,10 +14,23 @@ interface MangaCardProps {
 }
 
 export function MangaCard({ manga, size = 'default', showMetadata = true }: MangaCardProps) {
+  // Временное логирование для диагностики
+  try {
+    console.log('MangaCard render - manga ID:', manga?.id, 'genre:', manga?.genre, 'full manga:', manga)
+  } catch (e) {
+    console.error('MangaCard console.log error:', e)
+  }
+
   const { isAuthenticated } = useAuth()
   const { getMangaBookmark } = useBookmarks()
   const { getMangaReadingPercentage, getMangaProgress } = useReadingProgress()
   const { rating } = useRating(manga.id)
+  
+  // Проверяем корректность данных манги
+  if (!manga || !manga.id) {
+    console.warn('MangaCard: Invalid manga data:', manga)
+    return null
+  }
   
   // Удаляем ненужную инвалидацию кэша - она вызывает проблемы с фильтрами
   // Кэш должен инвалидироваться только при реальных изменениях данных
@@ -163,7 +176,7 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
               {manga.genre ? manga.genre.split(',')[0] : 'Без жанра'}
             </span>
             <span className="flex-shrink-0">
-              {new Date(manga.releaseDate).getFullYear()}
+              {manga.releaseDate ? new Date(manga.releaseDate).getFullYear() : '—'}
             </span>
           </div>
 
