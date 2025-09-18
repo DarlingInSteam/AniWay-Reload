@@ -701,33 +701,35 @@ export function CatalogPage() {
 
           </div>
 
-          {/* Десктопная версия: улучшенная горизонтальная компоновка */}
-          <div className="hidden lg:flex lg:items-center lg:justify-between w-full gap-6">
-            {/* Левая группа: Сортировка + Быстрые фильтры */}
-            <div className="flex items-center gap-3">
-              {/* Сортировка */}
+        </div>
+
+        {/* Unified Catalog Section (controls + chips + grid) */}
+        <section className="relative mb-10 rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.05] via-white/[0.035] to-white/[0.015] backdrop-blur-sm shadow-inner shadow-black/30 px-4 sm:px-6 lg:px-8 pt-5 pb-6">
+          {/* Top controls (desktop) */}
+          <div className="hidden lg:flex items-center justify-between gap-6 mb-4">
+            <div className="flex items-center gap-3 flex-wrap">
               <div ref={desktopSortRef} className="relative">
                 <button
                   type="button"
                   onClick={() => { setShowSortDropdown(v=>!v) }}
-                  className="catalog-sort-button group flex items-center gap-2 bg-white/5 backdrop-blur-sm hover:bg-white/10 border border-white/10 shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  className="catalog-sort-button group flex items-center gap-2 bg-white/5 backdrop-blur-sm hover:bg-white/10 border border-white/10 shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-primary/40 px-3 h-9 rounded-lg text-[13px] font-medium"
                 >
                   <ArrowUpDown className="h-4 w-4 text-muted-foreground group-hover:text-white" />
-                  <span className="truncate max-w-[140px]">{sortOrder}</span>
+                  <span className="truncate max-w-[120px]">{sortOrder}</span>
                   {sortDirection==='desc'
                     ? <ArrowDown className="h-3 w-3 text-primary" />
                     : <ArrowUp className="h-3 w-3 text-primary" />}
                 </button>
                 {showSortDropdown && (
-                  <div className="absolute z-50 mt-2 w-80 md:w-96 left-0 origin-top-left rounded-xl border border-white/15 bg-background/95 backdrop-blur-xl shadow-2xl p-4 animate-fade-in">
-                    <div className="flex items-start gap-6">
-                      <div className="flex-1 space-y-1 max-h-[300px] overflow-y-auto pr-1 scrollbar-custom" role="listbox" aria-label="Поля сортировки">
+                  <div className="absolute z-50 mt-2 w-72 left-0 origin-top-left rounded-xl border border-white/15 bg-background/95 backdrop-blur-xl shadow-2xl p-4 animate-fade-in">
+                    <div className="flex items-start gap-4">
+                      <div className="flex-1 space-y-1 max-h-[260px] overflow-y-auto pr-1 scrollbar-custom" role="listbox" aria-label="Поля сортировки">
                         {Object.values(SORT_LABEL_BY_FIELD).map(option => {
                           const selected = option === sortOrder
                           return (
                             <button
                               key={option}
-                              onClick={() => { console.log('[CatalogPage] select sort field label=', option); handleSortChange(option); setShowSortDropdown(false) }}
+                              onClick={() => { handleSortChange(option); setShowSortDropdown(false) }}
                               className={cn('w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40',
                                 selected ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/10 hover:text-white')}
                             >
@@ -737,9 +739,9 @@ export function CatalogPage() {
                           )
                         })}
                       </div>
-                      <div className="flex flex-col gap-2 flex-shrink-0 w-32" aria-label="Направление">
+                      <div className="flex flex-col gap-2 flex-shrink-0 w-28" aria-label="Направление">
                         <button
-                          onClick={() => { console.log('[CatalogPage] select dir desc'); handleSortDirectionChange('desc'); setShowSortDropdown(false) }}
+                          onClick={() => { handleSortDirectionChange('desc'); setShowSortDropdown(false) }}
                           className={cn('flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40',
                             sortDirection==='desc' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/10 hover:text-white')}
                         >
@@ -747,38 +749,34 @@ export function CatalogPage() {
                           Убыв.
                         </button>
                         <button
-                          onClick={() => { console.log('[CatalogPage] select dir asc'); handleSortDirectionChange('asc'); setShowSortDropdown(false) }}
+                          onClick={() => { handleSortDirectionChange('asc'); setShowSortDropdown(false) }}
                           className={cn('flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40',
                             sortDirection==='asc' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/10 hover:text-white')}
                         >
                           <ArrowUp className="h-4 w-4" />
                           Возраст.
                         </button>
-                        <div className="mt-3 flex flex-col gap-2">
-                          <button
-                            onClick={() => { resetSort(); setShowSortDropdown(false) }}
-                            className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-white/10 text-muted-foreground hover:text-white hover:bg-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40"
-                          >
-                            <RotateCcw className="h-3.5 w-3.5" /> Сброс
-                          </button>
-                          <button onClick={()=>setShowSortDropdown(false)} className="text-xs text-muted-foreground hover:text-white px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-primary/40">Закрыть</button>
-                        </div>
+                        <button
+                          onClick={() => { resetSort(); setShowSortDropdown(false) }}
+                          className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg border border-white/10 text-muted-foreground hover:text-white hover:bg-white/10 transition-colors"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" /> Сброс
+                        </button>
+                        <button onClick={()=>setShowSortDropdown(false)} className="text-[11px] text-muted-foreground hover:text-white px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-primary/40">Закрыть</button>
                       </div>
                     </div>
                   </div>
                 )}
               </div>
-
-              {/* Быстрые фильтры рядом с сортировкой */}
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 {['все', 'манга', 'манхва', 'маньхуа', 'западный комикс', 'рукомикс', 'другое'].map(type => (
                   <button
                     key={type}
                     onClick={() => handleActiveTypeChange(type)}
                     className={cn(
-                      'px-3 py-2 rounded-xl text-xs font-medium transition-all duration-200 border whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                      'px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-200 border whitespace-nowrap',
                       activeType === type
-                        ? 'bg-primary/20 text-primary border-primary/30 shadow-lg shadow-primary/20'
+                        ? 'bg-primary/20 text-primary border-primary/30 shadow shadow-primary/20'
                         : 'bg-white/5 backdrop-blur-sm text-muted-foreground hover:bg-white/10 hover:text-white border-white/10'
                     )}
                   >
@@ -788,13 +786,8 @@ export function CatalogPage() {
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Catalog Styled Wrapper */}
-        <section className="relative -mx-2 sm:mx-0 mb-10 rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.04] via-white/[0.025] to-transparent backdrop-blur-sm shadow-inner shadow-black/40 p-4 sm:p-6 lg:p-8">
-          {/* Desktop controls already rendered above, just adjust sort button size via global class override */}
-          <style>{`.catalog-sort-button{height:2.5rem;padding-top:0.25rem;padding-bottom:0.25rem;padding-left:0.9rem;padding-right:0.9rem;border-radius:0.75rem;font-size:0.8rem}`}</style>
-          {/* Reposition Selected Filters inside wrapper */}
+          {/* Selected Filters (chips) */}
           <SelectedFiltersBar
             activeFilters={activeFilters}
             activeType={activeType}
@@ -802,9 +795,8 @@ export function CatalogPage() {
             onClearAll={clearAllFilters}
             className="mb-4"
           />
-          {/* Separator line */}
-          <div className="h-px w-full bg-gradient-to-r from-transparent via-white/15 to-transparent mb-6" />
-          {/* Grid stays below (grid code remains unchanged further down) */}
+          <div className="h-px w-full bg-white/10 rounded-full mb-6" />
+          {/* Below this line the original main container (grid) will appear */}
         </section>
 
         {/* Улучшенный Offcanvas фильтров для мобильных */}
