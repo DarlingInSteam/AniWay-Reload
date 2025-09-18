@@ -99,7 +99,16 @@ export const SortPopover: React.FC<SortPopoverProps> = ({
                     ref={idx===0?firstItemRef:undefined}
                     role="option"
                     aria-selected={selected}
-                    onClick={(e) => { e.stopPropagation(); console.log('[SortPopover] click order option', option); onChangeOrder(option); if (closeOnSelect) onClose(); }}
+                    onMouseDown={(e) => { console.log('[SortPopover] mousedown option', option, 'selected?', selected, 'time=', Date.now()); }}
+                    onClick={(e) => { 
+                      e.stopPropagation();
+                      console.log('[SortPopover] click option', option, 'selected?', selected, 'time=', Date.now()); 
+                      onChangeOrder(option); 
+                      if (closeOnSelect) {
+                        // Даем тик на отработку состояния сортировки до закрытия
+                        requestAnimationFrame(() => { console.log('[SortPopover] closing after selection option=', option); onClose(); })
+                      }
+                    }}
                     className={cn('w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40',
                       selected ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/10 hover:text-white')}
                   >
@@ -112,7 +121,13 @@ export const SortPopover: React.FC<SortPopoverProps> = ({
             {/* Direction */}
             <div className="flex flex-col gap-2 flex-shrink-0 w-32" aria-label="Направление">
               <button
-                onClick={(e) => { e.stopPropagation(); console.log('[SortPopover] click direction desc'); onChangeDirection('desc'); if (closeOnSelect) onClose(); }}
+                onMouseDown={(e) => { console.log('[SortPopover] mousedown direction desc time=', Date.now()); }}
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  console.log('[SortPopover] click direction desc time=', Date.now()); 
+                  onChangeDirection('desc'); 
+                  if (closeOnSelect) requestAnimationFrame(() => { console.log('[SortPopover] closing after direction desc'); onClose(); }) 
+                }}
                 className={cn('flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40',
                   sortDirection==='desc' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/10 hover:text-white')}
               >
@@ -120,7 +135,13 @@ export const SortPopover: React.FC<SortPopoverProps> = ({
                 Убыв.
               </button>
               <button
-                onClick={(e) => { e.stopPropagation(); console.log('[SortPopover] click direction asc'); onChangeDirection('asc'); if (closeOnSelect) onClose(); }}
+                onMouseDown={(e) => { console.log('[SortPopover] mousedown direction asc time=', Date.now()); }}
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  console.log('[SortPopover] click direction asc time=', Date.now()); 
+                  onChangeDirection('asc'); 
+                  if (closeOnSelect) requestAnimationFrame(() => { console.log('[SortPopover] closing after direction asc'); onClose(); }) 
+                }}
                 className={cn('flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40',
                   sortDirection==='asc' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/10 hover:text-white')}
               >
