@@ -196,7 +196,7 @@ export function Header() {
                               {manga.title}
                             </h4>
                             <p className="text-xs md:text-sm text-muted-foreground truncate">
-                              {manga.genre ? manga.genre.split(',')[0] : 'Без жанра'} • {new Date(manga.releaseDate).getFullYear()}
+                              {manga.genre ? manga.genre.split(',')[0] : 'Без жанра'} • {manga.releaseDate ? new Date(manga.releaseDate).getFullYear() : '—'}
                             </p>
                           </div>
                         </button>

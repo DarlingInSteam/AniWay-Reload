@@ -116,7 +116,7 @@ export function MangaManager() {
       genre: manga.genre,
       status: manga.status,
       description: manga.description,
-      releaseDate: manga.releaseDate.split('T')[0] // Форматируем дату для input[type=date]
+      releaseDate: manga.releaseDate ? manga.releaseDate.split('T')[0] : '' // Форматируем дату для input[type=date]
     })
     setIsEditDialogOpen(true)
   }

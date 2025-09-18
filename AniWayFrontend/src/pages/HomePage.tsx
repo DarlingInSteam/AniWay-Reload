@@ -82,7 +82,7 @@ export function HomePage() {
                     <span className="text-muted-foreground">{featuredManga.totalChapters} глав</span>
                   </div>
                   <div className="px-2 py-1 bg-primary/20 text-primary text-xs font-medium rounded-full">
-                    {featuredManga.genre.split(',')[0]}
+                    {featuredManga.genre ? featuredManga.genre.split(',')[0] : 'Без жанра'}
                   </div>
                 </div>
 
