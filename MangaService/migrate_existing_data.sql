@@ -3,15 +3,17 @@
 -- Заполнение таблицы жанров из существующих данных
 INSERT INTO genres (name, slug, manga_count, created_at, updated_at)
 SELECT DISTINCT 
-    TRIM(unnest(string_to_array(genre, ','))) as genre_name,
-    LOWER(REGEXP_REPLACE(TRIM(unnest(string_to_array(genre, ','))), '[^а-яёa-z0-9\s-]', '', 'g')) as slug,
+    TRIM(genre_name) as genre_name,
+    LOWER(REGEXP_REPLACE(TRIM(genre_name), '[^а-яёa-z0-9\s-]', '', 'g')) as slug,
     0 as manga_count,
     CURRENT_TIMESTAMP as created_at,
     CURRENT_TIMESTAMP as updated_at
-FROM manga 
-WHERE genre IS NOT NULL 
-  AND genre != '' 
-  AND TRIM(unnest(string_to_array(genre, ','))) != ''
+FROM (
+    SELECT unnest(string_to_array(genre, ',')) as genre_name
+    FROM manga 
+    WHERE genre IS NOT NULL AND genre != ''
+) AS genre_parts
+WHERE TRIM(genre_name) != '' AND LENGTH(TRIM(genre_name)) > 1
 ON CONFLICT (name) DO NOTHING;
 
 -- Заполнение таблицы тегов из существующих данных
