@@ -280,7 +280,7 @@ public class MangaService {
                 safeGenres, safeTags, validatedMangaType, validatedStatus,
                 ageRatingMin, ageRatingMax, ratingMin, ratingMax,
                 releaseYearMin, releaseYearMax, chapterRangeMin, chapterRangeMax,
-                pageable);
+                sortBy, sortOrder, pageable);
 
         logger.debug("Найдено {} манг с фильтрами на странице {}", searchResults.getNumberOfElements(), page);
 

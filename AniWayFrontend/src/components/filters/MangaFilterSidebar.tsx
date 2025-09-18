@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -54,6 +54,7 @@ interface FilterState {
 
 interface MangaFilterSidebarProps {
   className?: string
+  initialFilters?: FilterState
   onFiltersChange: (filters: FilterState) => void
   onReset: () => void
 }
@@ -391,6 +392,7 @@ const RangeSlider: React.FC<{
 
 export const MangaFilterSidebar: React.FC<MangaFilterSidebarProps> = ({
   className,
+  initialFilters,
   onFiltersChange,
   onReset
 }) => {
@@ -404,17 +406,26 @@ export const MangaFilterSidebar: React.FC<MangaFilterSidebarProps> = ({
     tagsError 
   } = useFilterData()
 
-  // Инициализируем фильтры только один раз при монтировании
-  const [filters, setFilters] = useState<FilterState>(() => ({
-    selectedGenres: [],
-    selectedTags: [],
-    mangaType: '',
-    status: '',
-    ageRating: [0, 21],
-    rating: [0, 10],
-    releaseYear: [1990, new Date().getFullYear()],
-    chapterRange: [0, 1000]
-  }))
+  // Инициализируем фильтры с переданными значениями или дефолтными
+  const [filters, setFilters] = useState<FilterState>(() => 
+    initialFilters || {
+      selectedGenres: [],
+      selectedTags: [],
+      mangaType: '',
+      status: '',
+      ageRating: [0, 21],
+      rating: [0, 10],
+      releaseYear: [1990, new Date().getFullYear()],
+      chapterRange: [0, 1000]
+    }
+  )
+
+  // Обновляем локальные фильтры когда приходят новые initialFilters
+  useEffect(() => {
+    if (initialFilters) {
+      setFilters(initialFilters)
+    }
+  }, [initialFilters])
 
   const [openSections, setOpenSections] = useState({
     genres: true,

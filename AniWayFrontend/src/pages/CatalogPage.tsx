@@ -487,6 +487,7 @@ export function CatalogPage() {
           </div>
           <div className="h-full overflow-y-auto">
             <MangaFilterSidebar
+              initialFilters={activeFilters}
               onFiltersChange={handleFiltersChange}
               onReset={handleFiltersReset}
               className="border-0 bg-transparent"
@@ -636,6 +637,7 @@ export function CatalogPage() {
           {/* Боковые фильтры для десктопа */}
           <div className="hidden lg:block w-80 flex-shrink-0">
             <MangaFilterSidebar
+              initialFilters={activeFilters}
               onFiltersChange={handleFiltersChange}
               onReset={handleFiltersReset}
               className="sticky top-4"
