@@ -203,10 +203,10 @@ const TagMultiSelectFilter: React.FC<{
         className="h-9 text-sm bg-white/5 backdrop-blur-sm border-white/10 text-white placeholder:text-muted-foreground focus:border-primary/50 transition-colors duration-200"
       />
       
-      {selectedItems.length > 0 && (
+      {safeSelectedItems.length > 0 && (
         <div className="flex flex-wrap gap-1.5 animate-fade-in">
-          {selectedItems.map(item => {
-            const tag = tags.find(t => t.name === item)
+          {safeSelectedItems.map(item => {
+            const tag = safeTags.find(t => t.name === item)
             return (
               <Badge
                 key={item}
@@ -235,7 +235,7 @@ const TagMultiSelectFilter: React.FC<{
             size="sm"
             className={cn(
               "w-full justify-between h-8 text-xs px-2 transition-all duration-200 rounded-lg",
-              selectedItems.includes(tag.name)
+              safeSelectedItems.includes(tag.name)
                 ? "bg-white/20 text-white hover:bg-white/30"
                 : "text-gray-300 hover:text-white hover:bg-white/10"
             )}
@@ -267,15 +267,19 @@ const MultiSelectFilter: React.FC<{
 }> = ({ items, selectedItems, onSelectionChange, placeholder }) => {
   const [searchTerm, setSearchTerm] = useState('')
   
-  const filteredItems = items.filter(item =>
+  // Защита от невалидных массивов
+  const safeSelectedItems = Array.isArray(selectedItems) ? selectedItems : [];
+  const safeItems = Array.isArray(items) ? items : [];
+  
+  const filteredItems = safeItems.filter(item =>
     item.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   const toggleItem = (item: string) => {
-    if (selectedItems.includes(item)) {
-      onSelectionChange(selectedItems.filter(i => i !== item))
+    if (safeSelectedItems.includes(item)) {
+      onSelectionChange(safeSelectedItems.filter(i => i !== item))
     } else {
-      onSelectionChange([...selectedItems, item])
+      onSelectionChange([...safeSelectedItems, item])
     }
   }
 
@@ -288,9 +292,9 @@ const MultiSelectFilter: React.FC<{
         className="h-9 text-sm bg-white/5 backdrop-blur-sm border-white/10 text-white placeholder:text-muted-foreground focus:border-primary/50 transition-colors duration-200"
       />
       
-      {selectedItems.length > 0 && (
+      {safeSelectedItems.length > 0 && (
         <div className="flex flex-wrap gap-1.5 animate-fade-in">
-          {selectedItems.map(item => (
+          {safeSelectedItems.map(item => (
             <Badge
               key={item}
               variant="secondary"
@@ -312,7 +316,7 @@ const MultiSelectFilter: React.FC<{
             size="sm"
             className={cn(
               "w-full justify-start h-8 text-xs px-2 transition-all duration-200 rounded-lg",
-              selectedItems.includes(item)
+              safeSelectedItems.includes(item)
                 ? "bg-primary/20 text-primary border border-primary/30"
                 : "text-muted-foreground hover:text-white hover:bg-white/5 hover:translate-x-1"
             )}
