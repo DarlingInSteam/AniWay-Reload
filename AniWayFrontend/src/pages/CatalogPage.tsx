@@ -17,23 +17,92 @@ import { cn } from '@/lib/utils'
 import { PageResponse, MangaResponseDTO } from '@/types'
 
 export function CatalogPage() {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [showFilters, setShowFilters] = useState(false)
-  const [activeType, setActiveType] = useState('все')
-  const [sortOrder, setSortOrder] = useState('По популярности')
-  const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>('desc')
+  const [activeType, setActiveType] = useState(searchParams.get('activeType') || 'все')
+
+  // Mapping сортировок поле<->лейбл
+  const SORT_LABEL_BY_FIELD: Record<string,string> = {
+    popularity: 'По популярности',
+    createdAt: 'По новизне',
+    chapterCount: 'По кол-ву глав',
+    updatedAt: 'По дате обновления',
+    rating: 'По оценке',
+    ratingCount: 'По кол-ву оценок',
+    likes: 'По лайкам',
+    views: 'По просмотрам',
+    reviews: 'По отзывам',
+    comments: 'По комментариям'
+  }
+  const SORT_FIELD_BY_LABEL: Record<string,string> = Object.fromEntries(Object.entries(SORT_LABEL_BY_FIELD).map(([field,label]) => [label, field]))
+  const defaultSortField = 'popularity'
+  const initialSortField = searchParams.get('sortField') || defaultSortField
+  const initialSortLabel = SORT_LABEL_BY_FIELD[initialSortField] || SORT_LABEL_BY_FIELD[defaultSortField]
+  const [sortOrder, setSortOrder] = useState(initialSortLabel)
+  const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>(searchParams.get('dir') === 'asc' ? 'asc' : 'desc')
   const [showSortDropdown, setShowSortDropdown] = useState(false)
-  const [currentPage, setCurrentPage] = useState(0)
+  const initialPage = parseInt(searchParams.get('page') || '1', 10)
+  const [currentPage, setCurrentPage] = useState(isNaN(initialPage) || initialPage < 1 ? 0 : initialPage - 1)
   const [pageSize] = useState(20) // Фиксированный размер страницы - 20 тайтлов на страницу
-  const [activeFilters, setActiveFilters] = useState<any>({}) // Применённые фильтры (для API)
-  const [draftFilters, setDraftFilters] = useState<any>({}) // Предварительные фильтры (для UI)
+
+  // Разбор значений из URL
+  const parseArray = (value: string | null) => !value ? [] : value.split(',').filter(Boolean)
+  const parseRange = (value: string | null, fallback: [number, number]) => {
+    if (!value) return fallback
+    const parts = value.split('-').map(v => parseInt(v, 10)).filter(v => !isNaN(v))
+    if (parts.length === 2) return [parts[0], parts[1]] as [number, number]
+    return fallback
+  }
+  const initialActiveFilters: any = {
+    genres: parseArray(searchParams.get('genres')),
+    tags: parseArray(searchParams.get('tags')),
+    type: searchParams.get('type') || undefined,
+    status: searchParams.get('status') || undefined,
+    ageRating: parseRange(searchParams.get('ageRating'), [0, 21]),
+    rating: parseRange(searchParams.get('rating'), [0, 10]),
+    releaseYear: parseRange(searchParams.get('releaseYear'), [1990, new Date().getFullYear()]),
+    chapterRange: parseRange(searchParams.get('chapterRange'), [0, 1000])
+  }
+  Object.keys(initialActiveFilters).forEach(k => {
+    const v = (initialActiveFilters as any)[k]
+    if (Array.isArray(v) && v.length === 0) delete (initialActiveFilters as any)[k]
+    if (v === undefined) delete (initialActiveFilters as any)[k]
+  })
+  const [activeFilters, setActiveFilters] = useState<any>(initialActiveFilters) // Применённые фильтры (для API)
+  const [draftFilters, setDraftFilters] = useState<any>(() => ({
+    selectedGenres: initialActiveFilters.genres || [],
+    selectedTags: initialActiveFilters.tags || [],
+    mangaType: initialActiveFilters.type || '',
+    status: initialActiveFilters.status || '',
+    ageRating: initialActiveFilters.ageRating || [0, 21],
+    rating: initialActiveFilters.rating || [0, 10],
+    releaseYear: initialActiveFilters.releaseYear || [1990, new Date().getFullYear()],
+    chapterRange: initialActiveFilters.chapterRange || [0, 1000]
+  })) // Предварительные фильтры (для UI)
+
+  // Нормализация значений (однократно после монтирования)
+  useEffect(() => {
+    setDraftFilters((df: any) => {
+      const norm = { ...df }
+      const clampRange = (range: [number,number], min:number, max:number, def:[number,number]) => {
+        if(!Array.isArray(range) || range.length !==2) return def
+        const a = Math.max(min, Math.min(max, range[0]))
+        const b = Math.max(min, Math.min(max, range[1]))
+        return a<=b ? [a,b] as [number,number] : [b,a] as [number,number]
+      }
+      norm.ageRating = clampRange(norm.ageRating,0,21,[0,21])
+      norm.rating = clampRange(norm.rating,0,10,[0,10])
+      norm.releaseYear = clampRange(norm.releaseYear,1990,new Date().getFullYear(),[1990,new Date().getFullYear()])
+      norm.chapterRange = clampRange(norm.chapterRange,0,100000,[0,1000])
+      return norm
+    })
+  }, [])
 
   // Refs для обработки кликов вне области
   const sortDropdownRef = useRef<HTMLDivElement>(null)
 
   const queryClient = useQueryClient()
   const genre = searchParams.get('genre')
-  const sort = searchParams.get('sort')
 
   // Убираем ненужную инвалидацию кэша при монтировании
   // Кэш должен инвалидироваться только при реальных изменениях данных
@@ -45,18 +114,17 @@ export function CatalogPage() {
   // Создаем стабильный объект для queryKey
   const queryKeyParams = useMemo(() => ({
     genre: genre || null,
-    sort: sort || null,
-    currentPage,
-    sortOrder,
+    sortField: SORT_FIELD_BY_LABEL[sortOrder] || 'popularity',
     sortDirection,
+    currentPage,
     activeType,
-    activeFilters: JSON.stringify(activeFilters) // Сериализуем для стабильности
-  }), [genre, sort, currentPage, sortOrder, sortDirection, activeType, activeFilters])
+    activeFilters: JSON.stringify(activeFilters)
+  }), [genre, sortOrder, sortDirection, currentPage, activeType, activeFilters])
 
   const { data: mangaPage, isLoading, isError, refetch } = useQuery<PageResponse<MangaResponseDTO>>({
     queryKey: ['manga-catalog', queryKeyParams],
     queryFn: () => {
-      const sortBy = getSortByField(sortOrder)
+  const sortBy = getSortByField(sortOrder)
       
       // Создаем объект только с фильтрами (без пагинации и сортировки)
       const filterParams: any = { ...activeFilters }
@@ -156,21 +224,46 @@ export function CatalogPage() {
   const isFirst = mangaPage?.first ?? true
   const isLast = mangaPage?.last ?? true
 
-  const getSortByField = (sortOrder: string): string => {
-    switch (sortOrder) {
-      case 'По популярности': return 'popularity' // Комплексная сортировка: views + comments + likes + reviews
-      case 'По новизне': return 'createdAt'
-      case 'По кол-ву глав': return 'chapterCount'
-      case 'По дате обновления': return 'updatedAt'
-      case 'По оценке': return 'rating'
-      case 'По кол-ву оценок': return 'ratingCount'
-      case 'По лайкам': return 'likes'
-      case 'По просмотрам': return 'views'
-      case 'По отзывам': return 'reviews'
-      case 'По комментариям': return 'comments'
-      default: return 'createdAt'
-    }
-  }
+  const getSortByField = (label: string): string => SORT_FIELD_BY_LABEL[label] || 'createdAt'
+
+  // Синхронизация состояния с URL (без циклических обновлений)
+  useEffect(() => {
+    const params: Record<string,string> = {}
+    if (genre) params.genre = genre
+    params.page = String(currentPage + 1)
+    params.sortField = SORT_FIELD_BY_LABEL[sortOrder] || 'popularity'
+    if (sortDirection !== 'desc') params.dir = sortDirection
+    if (activeType && activeType !== 'все') params.activeType = activeType
+
+    // Сериализация фильтров
+    if (activeFilters.genres?.length) params.genres = activeFilters.genres.join(',')
+    if (activeFilters.tags?.length) params.tags = activeFilters.tags.join(',')
+    if (activeFilters.type) params.type = activeFilters.type
+    if (activeFilters.status) params.status = activeFilters.status
+    if (activeFilters.ageRating) params.ageRating = activeFilters.ageRating.join('-')
+    if (activeFilters.rating) params.rating = activeFilters.rating.join('-')
+    if (activeFilters.releaseYear) params.releaseYear = activeFilters.releaseYear.join('-')
+    if (activeFilters.chapterRange) params.chapterRange = activeFilters.chapterRange.join('-')
+
+    // Сравнение текущих и новых search params чтобы избежать лишних обновлений
+    const current = new URLSearchParams(searchParams)
+    let changed = false
+    // Удалим ключи, которых больше нет
+    current.forEach((_, key) => {
+      if (!(key in params)) {
+        current.delete(key)
+        changed = true
+      }
+    })
+    // Применим или обновим значения
+    Object.entries(params).forEach(([k,v]) => {
+      if (current.get(k) !== v) {
+        current.set(k,v)
+        changed = true
+      }
+    })
+    if (changed) setSearchParams(current, { replace: true })
+  }, [currentPage, sortOrder, sortDirection, activeType, activeFilters, genre, setSearchParams])
 
   // Обработчики фильтров
   const memoizedFilterState = useMemo(() => {
