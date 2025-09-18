@@ -43,7 +43,7 @@ export function CatalogPage() {
   }, [queryClient])
 
   const { data: mangaPage, isLoading } = useQuery({
-    queryKey: ['manga-catalog', { genre, sort, currentPage, sortOrder, sortDirection }],
+    queryKey: ['manga-catalog', { genre, sort, currentPage, sortOrder, sortDirection, activeFilters }],
     queryFn: () => {
       const sortBy = getSortByField(sortOrder)
       if (genre) {
@@ -52,10 +52,11 @@ export function CatalogPage() {
           page: currentPage,
           limit: pageSize,
           sortBy,
-          sortOrder: sortDirection
+          sortOrder: sortDirection,
+          ...activeFilters // Распаковываем фильтры в параметры
         })
       }
-      return apiClient.getAllMangaPaged(currentPage, pageSize, sortBy, sortDirection)
+      return apiClient.getAllMangaPaged(currentPage, pageSize, sortBy, sortDirection, activeFilters)
     },
     staleTime: 0,
     refetchOnWindowFocus: true,
@@ -87,7 +88,43 @@ export function CatalogPage() {
 
   // Обработчики фильтров
   const handleFiltersChange = (filters: any) => {
-    setActiveFilters(filters)
+    // Преобразуем FilterState в SearchParams формат
+    const searchParams: any = {}
+    
+    if (filters.selectedGenres?.length > 0) {
+      searchParams.genres = filters.selectedGenres
+    }
+    
+    if (filters.selectedTags?.length > 0) {
+      searchParams.tags = filters.selectedTags
+    }
+    
+    if (filters.mangaType && filters.mangaType !== '') {
+      searchParams.type = filters.mangaType
+    }
+    
+    if (filters.status && filters.status !== '') {
+      searchParams.status = filters.status
+    }
+    
+    if (filters.ageRating) {
+      searchParams.ageRating = filters.ageRating
+    }
+    
+    if (filters.rating) {
+      searchParams.rating = filters.rating
+    }
+    
+    if (filters.releaseYear) {
+      searchParams.releaseYear = filters.releaseYear
+    }
+    
+    if (filters.chapterRange) {
+      searchParams.chapterRange = filters.chapterRange
+    }
+    
+    console.log('Applied filters:', searchParams)
+    setActiveFilters(searchParams)
     setCurrentPage(0) // Сбрасываем на первую страницу при изменении фильтров
   }
 
@@ -246,18 +283,18 @@ export function CatalogPage() {
               </button>
             </div>
 
-            {/* Быстрые фильтры на мобильном - улучшенная прокрутка */}
-            <div className="overflow-x-auto scrollbar-hide">
+            {/* Быстрые фильтры для мобильной версии */}
+            <div className="mt-3 overflow-x-auto scrollbar-hide">
               <div className="flex gap-2 pb-2 px-1">
                 {['все', 'манга', 'манхва', 'маньхуа', 'западный комикс', 'рукомикс', 'другое'].map(type => (
                   <button
                     key={type}
                     onClick={() => setActiveType(type)}
                     className={cn(
-                      'flex-shrink-0 px-4 py-2 rounded-full text-xs font-medium transition-all duration-200 border',
+                      'flex-shrink-0 px-3 py-2 rounded-xl text-xs font-medium transition-all duration-200 border whitespace-nowrap',
                       activeType === type
                         ? 'bg-primary/20 text-primary border-primary/30 shadow-lg shadow-primary/20'
-                        : 'bg-white/8 backdrop-blur-sm text-muted-foreground hover:bg-white/12 hover:text-white border-white/15'
+                        : 'bg-white/5 backdrop-blur-sm text-muted-foreground hover:bg-white/10 hover:text-white border-white/10'
                     )}
                   >
                     {type.charAt(0).toUpperCase() + type.slice(1)}
@@ -265,83 +302,87 @@ export function CatalogPage() {
                 ))}
               </div>
             </div>
+
           </div>
 
           {/* Десктопная версия: улучшенная горизонтальная компоновка */}
           <div className="hidden lg:flex lg:items-center lg:justify-between w-full gap-6">
-            {/* Сортировка слева - улучшенный дизайн */}
-            <div className="relative w-56 flex-shrink-0">
-              <button
-                className="flex items-center justify-between w-full rounded-xl px-4 h-11 text-sm font-medium bg-white/5 backdrop-blur-sm hover:bg-white/10 transition-all duration-200 border border-white/10 shadow-lg"
-                type="button"
-                onClick={() => setShowSortDropdown(!showSortDropdown)}
-              >
-                <span className="flex-1 text-left text-white truncate pr-2">{sortOrder}</span>
-                <ArrowUpDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              </button>
-              {showSortDropdown && (
-                <div ref={sortDropdownRef} className="absolute left-0 top-full mt-2 w-72 bg-card rounded-xl shadow-xl z-50 border border-border animate-fade-in">
-                  <div className="p-4">
-                    <div className="text-xs text-muted-foreground mb-3 font-medium">Сортировать по:</div>
-                    <div className="space-y-1 mb-4">
-                      {['По популярности','По новизне','По кол-ву глав','По дате обновления','По оценке','По кол-ву оценок','По лайкам','По просмотрам','По отзывам','По комментариям'].map(option => (
-                        <button
-                          key={option}
-                          onClick={() => { setSortOrder(option); setShowSortDropdown(false); }}
-                          className={cn(
-                            'w-full text-left px-3 py-2 text-sm transition-all duration-200 border-b-2',
-                            sortOrder === option
-                              ? 'text-blue-500 border-blue-500'
-                              : 'text-muted-foreground hover:text-white border-transparent hover:border-muted'
-                          )}
-                        >
-                          {option}
-                        </button>
-                      ))}
-                    </div>
+            {/* Левая группа: Сортировка + Быстрые фильтры */}
+            <div className="flex items-center gap-3">
+              {/* Сортировка */}
+              <div className="relative w-56 flex-shrink-0">
+                <button
+                  className="flex items-center justify-between w-full rounded-xl px-4 h-11 text-sm font-medium bg-white/5 backdrop-blur-sm hover:bg-white/10 transition-all duration-200 border border-white/10 shadow-lg"
+                  type="button"
+                  onClick={() => setShowSortDropdown(!showSortDropdown)}
+                >
+                  <span className="flex-1 text-left text-white truncate pr-2">{sortOrder}</span>
+                  <ArrowUpDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                </button>
+                {showSortDropdown && (
+                  <div ref={sortDropdownRef} className="absolute left-0 top-full mt-2 w-72 bg-card rounded-xl shadow-xl z-50 border border-border animate-fade-in">
+                    <div className="p-4">
+                      <div className="text-xs text-muted-foreground mb-3 font-medium">Сортировать по:</div>
+                      <div className="space-y-1 mb-4">
+                        {['По популярности','По новизне','По кол-ву глав','По дате обновления','По оценке','По кол-ву оценок','По лайкам','По просмотрам','По отзывам','По комментариям'].map(option => (
+                          <button
+                            key={option}
+                            onClick={() => { setSortOrder(option); setShowSortDropdown(false); }}
+                            className={cn(
+                              'w-full text-left px-3 py-2 text-sm transition-all duration-200 border-b-2',
+                              sortOrder === option
+                                ? 'text-blue-500 border-blue-500'
+                                : 'text-muted-foreground hover:text-white border-transparent hover:border-muted'
+                            )}
+                          >
+                            {option}
+                          </button>
+                        ))}
+                      </div>
 
-                    <div className="text-xs text-muted-foreground mb-3 font-medium">Направление:</div>
-                    <div className="flex gap-2">
-                      {[
-                        { label: 'По убыванию', value: 'desc', icon: ArrowDown },
-                        { label: 'По возрастанию', value: 'asc', icon: ArrowUp }
-                      ].map(dir => (
-                        <button
-                          key={dir.value}
-                          onClick={() => { setSortDirection(dir.value as 'desc' | 'asc'); setShowSortDropdown(false); }}
-                          className={cn(
-                            'flex-1 flex items-center gap-2 px-3 py-2 text-sm transition-all duration-200 border-b-2',
-                            sortDirection === dir.value
-                              ? 'text-blue-500 border-blue-500'
-                              : 'text-muted-foreground hover:text-white border-transparent hover:border-muted'
-                          )}
-                        >
-                          <dir.icon className="h-4 w-4" />
-                          {dir.label}
-                        </button>
-                      ))}
+                      <div className="text-xs text-muted-foreground mb-3 font-medium">Направление:</div>
+                      <div className="flex gap-2">
+                        {[
+                          { label: 'По убыванию', value: 'desc', icon: ArrowDown },
+                          { label: 'По возрастанию', value: 'asc', icon: ArrowUp }
+                        ].map(dir => (
+                          <button
+                            key={dir.value}
+                            onClick={() => { setSortDirection(dir.value as 'desc' | 'asc'); setShowSortDropdown(false); }}
+                            className={cn(
+                              'flex-1 flex items-center gap-2 px-3 py-2 text-sm transition-all duration-200 border-b-2',
+                              sortDirection === dir.value
+                                ? 'text-blue-500 border-blue-500'
+                                : 'text-muted-foreground hover:text-white border-transparent hover:border-muted'
+                            )}
+                          >
+                            <dir.icon className="h-4 w-4" />
+                            {dir.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
 
-            {/* Быстрые фильтры по центру - улучшенный дизайн */}
-            <div className="flex-1 flex justify-center gap-3">
-              {['все', 'манга', 'манхва', 'маньхуа', 'западный комикс', 'рукомикс', 'другое'].map(type => (
-                <button
-                  key={type}
-                  onClick={() => setActiveType(type)}
-                  className={cn(
-                    'px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 border',
-                    activeType === type
-                      ? 'bg-primary/20 text-primary border-primary/30 shadow-lg shadow-primary/20'
-                      : 'bg-white/5 backdrop-blur-sm text-muted-foreground hover:bg-white/10 hover:text-white border-white/10'
-                  )}
-                >
-                  {type.charAt(0).toUpperCase() + type.slice(1)}
-                </button>
-              ))}
+              {/* Быстрые фильтры рядом с сортировкой */}
+              <div className="flex gap-2">
+                {['все', 'манга', 'манхва', 'маньхуа', 'западный комикс', 'рукомикс', 'другое'].map(type => (
+                  <button
+                    key={type}
+                    onClick={() => setActiveType(type)}
+                    className={cn(
+                      'px-3 py-2 rounded-xl text-xs font-medium transition-all duration-200 border whitespace-nowrap',
+                      activeType === type
+                        ? 'bg-primary/20 text-primary border-primary/30 shadow-lg shadow-primary/20'
+                        : 'bg-white/5 backdrop-blur-sm text-muted-foreground hover:bg-white/10 hover:text-white border-white/10'
+                    )}
+                  >
+                    {type.charAt(0).toUpperCase() + type.slice(1)}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>

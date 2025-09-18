@@ -120,7 +120,7 @@ const GenreMultiSelectFilter: React.FC<{
         placeholder={placeholder}
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
-        className="h-9 text-sm bg-black/40 border-white/20 text-white placeholder:text-muted-foreground focus:border-primary/50 transition-colors duration-200"
+        className="h-9 text-sm bg-white/5 backdrop-blur-sm border-white/10 text-white placeholder:text-muted-foreground focus:border-primary/50 transition-colors duration-200"
       />
       
       {selectedItems.length > 0 && (
@@ -191,7 +191,7 @@ const TagMultiSelectFilter: React.FC<{
         placeholder={placeholder}
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
-        className="h-9 text-sm bg-black/40 border-white/20 text-white placeholder:text-muted-foreground focus:border-primary/50 transition-colors duration-200"
+        className="h-9 text-sm bg-white/5 backdrop-blur-sm border-white/10 text-white placeholder:text-muted-foreground focus:border-primary/50 transition-colors duration-200"
       />
       
       {selectedItems.length > 0 && (
@@ -276,7 +276,7 @@ const MultiSelectFilter: React.FC<{
         placeholder={placeholder}
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
-        className="h-9 text-sm bg-black/40 border-white/20 text-white placeholder:text-muted-foreground focus:border-primary/50 transition-colors duration-200"
+        className="h-9 text-sm bg-white/5 backdrop-blur-sm border-white/10 text-white placeholder:text-muted-foreground focus:border-primary/50 transition-colors duration-200"
       />
       
       {selectedItems.length > 0 && (
@@ -363,7 +363,7 @@ const RangeSlider: React.FC<{
               onChange={(e) => handleMinChange(e.target.value)}
               min={min}
               max={value[1]}
-              className="h-9 text-xs bg-black/40 border-white/20 text-white focus:border-primary/50 transition-colors duration-200"
+              className="h-9 text-xs bg-white/5 backdrop-blur-sm border-white/10 text-white focus:border-primary/50 transition-colors duration-200"
               placeholder="Мин"
             />
           </div>
@@ -375,7 +375,7 @@ const RangeSlider: React.FC<{
               onChange={(e) => handleMaxChange(e.target.value)}
               min={value[0]}
               max={max}
-              className="h-9 text-xs bg-black/40 border-white/20 text-white focus:border-primary/50 transition-colors duration-200"
+              className="h-9 text-xs bg-white/5 backdrop-blur-sm border-white/10 text-white focus:border-primary/50 transition-colors duration-200"
               placeholder="Макс"
             />
           </div>
@@ -453,13 +453,13 @@ export const MangaFilterSidebar: React.FC<MangaFilterSidebarProps> = ({
   }
 
   return (
-    <Card className={cn("w-80 h-fit bg-black/60 backdrop-blur-xl border-white/20 shadow-2xl", className)}>
-      <CardHeader className="pb-4">
+    <div className={cn("w-80 h-fit bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl shadow-lg", className)}>
+      <div className="p-4 border-b border-white/10">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
-            <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <div className="w-2 h-2 bg-primary rounded-full"></div>
             Фильтры
-          </CardTitle>
+          </h2>
           <Button
             variant="ghost"
             size="sm"
@@ -469,9 +469,9 @@ export const MangaFilterSidebar: React.FC<MangaFilterSidebarProps> = ({
             <RotateCcw className="h-4 w-4" />
           </Button>
         </div>
-      </CardHeader>
+      </div>
       
-      <CardContent className="space-y-6 pb-6">
+      <div className="p-4 space-y-6">
         {/* Жанры */}
         <FilterSection
           title="Жанры"
@@ -506,7 +506,7 @@ export const MangaFilterSidebar: React.FC<MangaFilterSidebarProps> = ({
           onToggle={() => toggleSection('types')}
         >
           <Select value={filters.mangaType || "all"} onValueChange={(type) => updateFilters({ mangaType: type === "all" ? "" : type })}>
-            <SelectTrigger className="bg-black/40 border-white/20 text-white hover:border-primary/50 transition-colors duration-200">
+            <SelectTrigger className="bg-white/5 backdrop-blur-sm border-white/10 text-white hover:border-primary/50 transition-colors duration-200">
               <SelectValue placeholder="Выберите тип" />
             </SelectTrigger>
             <SelectContent className="bg-black/95 border-white/20 backdrop-blur-xl">
@@ -556,7 +556,7 @@ export const MangaFilterSidebar: React.FC<MangaFilterSidebarProps> = ({
           onToggle={() => toggleSection('status')}
         >
           <Select value={filters.status || "all"} onValueChange={(status) => updateFilters({ status: status === "all" ? "" : status })}>
-            <SelectTrigger className="bg-black/40 border-white/20 text-white hover:border-primary/50 transition-colors duration-200">
+            <SelectTrigger className="bg-white/5 backdrop-blur-sm border-white/10 text-white hover:border-primary/50 transition-colors duration-200">
               <SelectValue placeholder="Выберите статус" />
             </SelectTrigger>
             <SelectContent className="bg-black/95 border-white/20 backdrop-blur-xl">
@@ -638,7 +638,7 @@ export const MangaFilterSidebar: React.FC<MangaFilterSidebarProps> = ({
             onValueChange={(chapterRange) => updateFilters({ chapterRange })}
           />
         </FilterSection>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }
