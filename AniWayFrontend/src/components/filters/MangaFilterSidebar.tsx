@@ -404,7 +404,8 @@ export const MangaFilterSidebar: React.FC<MangaFilterSidebarProps> = ({
     tagsError 
   } = useFilterData()
 
-  const [filters, setFilters] = useState<FilterState>({
+  // Инициализируем фильтры только один раз при монтировании
+  const [filters, setFilters] = useState<FilterState>(() => ({
     selectedGenres: [],
     selectedTags: [],
     mangaType: '',
@@ -413,7 +414,7 @@ export const MangaFilterSidebar: React.FC<MangaFilterSidebarProps> = ({
     rating: [0, 10],
     releaseYear: [1990, new Date().getFullYear()],
     chapterRange: [0, 1000]
-  })
+  }))
 
   const [openSections, setOpenSections] = useState({
     genres: true,
@@ -431,7 +432,10 @@ export const MangaFilterSidebar: React.FC<MangaFilterSidebarProps> = ({
   }
 
   const updateFilters = (newFilters: Partial<FilterState>) => {
+    console.log('MangaFilterSidebar: Updating filters with:', newFilters)
+    console.log('MangaFilterSidebar: Current filters:', filters)
     const updatedFilters = { ...filters, ...newFilters }
+    console.log('MangaFilterSidebar: Final filters:', updatedFilters)
     setFilters(updatedFilters)
     onFiltersChange(updatedFilters)
   }

@@ -12,7 +12,7 @@ import { PageResponse } from '@/types'
 export function CatalogPage() {
   const [searchParams] = useSearchParams()
   const [showFilters, setShowFilters] = useState(false)
-  const [activeType, setActiveType] = useState('манга')
+  const [activeType, setActiveType] = useState('все')
   const [sortOrder, setSortOrder] = useState('По популярности')
   const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>('desc')
   const [showSortDropdown, setShowSortDropdown] = useState(false)
@@ -30,16 +30,7 @@ export function CatalogPage() {
   // Инвалидируем кэш при входе на страницу каталога
   useEffect(() => {
     console.log('CatalogPage: Invalidating manga cache on mount')
-    queryClient.invalidateQueries({ queryKey: ['manga'] })
     queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
-    queryClient.invalidateQueries({ queryKey: ['popular-manga'] })
-    queryClient.invalidateQueries({ queryKey: ['recent-manga'] })
-
-    // Принудительно обновляем все запросы
-    queryClient.refetchQueries({ queryKey: ['manga'] })
-    queryClient.refetchQueries({ queryKey: ['manga-catalog'] })
-    queryClient.refetchQueries({ queryKey: ['popular-manga'] })
-    queryClient.refetchQueries({ queryKey: ['recent-manga'] })
   }, [queryClient])
 
   const { data: mangaPage, isLoading } = useQuery({
@@ -47,16 +38,11 @@ export function CatalogPage() {
     queryFn: () => {
       const sortBy = getSortByField(sortOrder)
       
-      // Создаем полный объект параметров, включая activeType
-      const queryParams = {
-        ...activeFilters,
-        page: currentPage,
-        limit: pageSize,
-        sortBy,
-        sortOrder: sortDirection
-      }
+      // Создаем объект только с фильтрами (без пагинации и сортировки)
+      const filterParams: any = { ...activeFilters }
       
       // Добавляем тип манги, если он отличается от "все"
+      // activeType имеет приоритет над mangaType из боковых фильтров
       if (activeType !== 'все') {
         const typeMapping: Record<string, string> = {
           'манга': 'MANGA',
@@ -66,22 +52,35 @@ export function CatalogPage() {
           'рукомикс': 'RUSSIAN_COMIC',
           'другое': 'OTHER'
         }
-        queryParams.type = typeMapping[activeType] || 'MANGA'
+        filterParams.type = typeMapping[activeType] || 'MANGA'
+      } else {
+        // Если выбрано "все", удаляем тип из фильтров
+        delete filterParams.type
       }
       
-      console.log('Query params:', queryParams)
+      console.log('Filter params only:', filterParams)
+      console.log('Sort params:', { sortBy, sortDirection })
+      console.log('Page params:', { currentPage, pageSize })
       
       if (genre) {
-        return apiClient.searchMangaPaged({
+        // Для поиска по жанру создаем полный объект параметров
+        const searchParams = {
           genre,
-          ...queryParams
-        })
+          page: currentPage,
+          limit: pageSize,
+          sortBy,
+          sortOrder: sortDirection,
+          ...filterParams
+        }
+        return apiClient.searchMangaPaged(searchParams)
       }
-      return apiClient.getAllMangaPaged(currentPage, pageSize, sortBy, sortDirection, queryParams)
+      
+      // Для обычного просмотра передаем параметры раздельно
+      return apiClient.getAllMangaPaged(currentPage, pageSize, sortBy, sortDirection, filterParams)
     },
-    staleTime: 0,
-    refetchOnWindowFocus: true,
-    refetchOnMount: true,
+    staleTime: 1000 * 60 * 5, // 5 минут
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   })
 
   // Извлекаем данные из ответа API
@@ -109,6 +108,8 @@ export function CatalogPage() {
 
   // Обработчики фильтров
   const handleFiltersChange = (filters: any) => {
+    console.log('CatalogPage: Received filters from sidebar:', filters)
+    
     // Преобразуем FilterState в SearchParams формат
     const searchParams: any = {}
     
@@ -143,13 +144,15 @@ export function CatalogPage() {
     if (filters.chapterRange) {
       searchParams.chapterRange = filters.chapterRange
     }
-    
-    console.log('Applied filters:', searchParams)
+
+    console.log('CatalogPage: Applied filters to activeFilters:', searchParams)
+    console.log('CatalogPage: Previous activeFilters:', activeFilters)
     setActiveFilters(searchParams)
     setCurrentPage(0) // Сбрасываем на первую страницу при изменении фильтров
   }
 
   const handleFiltersReset = () => {
+    console.log('CatalogPage: Resetting filters')
     setActiveFilters({})
     setCurrentPage(0)
   }
@@ -162,6 +165,7 @@ export function CatalogPage() {
 
   // Обработчик сортировки
   const handleSortChange = (newSortOrder: string) => {
+    console.log('CatalogPage: Sort order changed from', sortOrder, 'to', newSortOrder)
     setSortOrder(newSortOrder)
     setShowSortDropdown(false)
     setCurrentPage(0) // Сбрасываем на первую страницу при изменении сортировки
@@ -169,6 +173,7 @@ export function CatalogPage() {
 
   // Обработчик направления сортировки
   const handleSortDirectionChange = (direction: 'desc' | 'asc') => {
+    console.log('CatalogPage: Sort direction changed from', sortDirection, 'to', direction)
     setSortDirection(direction)
     setShowSortDropdown(false)
     setCurrentPage(0) // Сбрасываем на первую страницу при изменении направления
