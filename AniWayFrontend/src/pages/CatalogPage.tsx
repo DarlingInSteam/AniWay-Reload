@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { Grid, Filter, ArrowUpDown, ArrowUp, ArrowDown, X, ChevronLeft, ChevronRight, Check } from 'lucide-react'
+import { Grid, Filter, ArrowUpDown, ArrowUp, ArrowDown, X, ChevronLeft, ChevronRight, Check, RotateCcw } from 'lucide-react'
 import { SortPopover } from '@/components/catalog/SortPopover'
 import { apiClient } from '@/lib/api'
 import { MangaCardWithTooltip } from '@/components/manga'
@@ -236,7 +236,60 @@ export function CatalogPage() {
   }, [mangaPage, currentPage, sortField, sortDirection, activeType, activeFilters, pageSize, queryClient, queryKeyParams])
 
   // Извлекаем данные из ответа API
-  const manga = mangaPage?.content ?? []
+  let manga = mangaPage?.content ?? []
+  const getComparable = (obj: any, field: string) => {
+    if (!obj) return 0
+    switch(field) {
+      case 'createdAt':
+      case 'updatedAt':
+        return obj[field] ? new Date(obj[field]).getTime() : 0
+      case 'chapterCount':
+        return obj.totalChapters ?? obj.chapterCount ?? 0
+      case 'rating':
+        return obj.rating?.averageRating ?? obj.averageRating ?? 0
+      case 'ratingCount':
+        return obj.rating?.ratingCount ?? obj.ratingCount ?? 0
+      case 'likes':
+        return obj.likes ?? 0
+      case 'views':
+        return obj.views ?? 0
+      case 'popularity':
+        return obj.popularity ?? obj.views ?? 0
+      case 'reviews':
+        return obj.reviews ?? 0
+      case 'comments':
+        return obj.comments ?? 0
+      default:
+        return (typeof obj[field] === 'number') ? obj[field] : 0
+    }
+  }
+  // Frontend tie-break fallback: если бэкенд вернул множество одинаковых primary значений,
+  // отсортируем стабильно по createdAt DESC затем id DESC локально (не мутируя исходный массив в кэше)
+  try {
+    if (manga.length > 1 && sortField) {
+      const primaryField = sortField
+      const direction = sortDirection === 'desc' ? -1 : 1
+      const needTieBreak = manga.some((m,i,arr) => i>0 && getComparable(arr[i-1], primaryField) === getComparable(m, primaryField))
+      if (needTieBreak) {
+        manga = [...manga].sort((a,b) => {
+          const av = getComparable(a, primaryField)
+          const bv = getComparable(b, primaryField)
+          if (av < bv) return -1 * direction
+          if (av > bv) return 1 * direction
+          // tie -> secondary createdAt desc
+            const ac = a.createdAt ? new Date(a.createdAt).getTime() : 0
+            const bc = b.createdAt ? new Date(b.createdAt).getTime() : 0
+            if (ac !== bc) return bc - ac
+            // final tie -> id desc
+            if (a.id < b.id) return 1
+            if (a.id > b.id) return -1
+            return 0
+        })
+      }
+    }
+  } catch (e) {
+    console.warn('Frontend tie-break sort failed:', e)
+  }
   const totalElements = mangaPage?.totalElements ?? 0
   const totalPages = mangaPage?.totalPages ?? 1
   const isFirst = mangaPage?.first ?? true
@@ -428,6 +481,15 @@ export function CatalogPage() {
     }
     setShowSortDropdown(false)
     setCurrentPage(0) // Сбрасываем на первую страницу при изменении направления
+    queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
+  }
+
+  // Сброс сортировки к дефолтной (поле + направление)
+  const resetSort = () => {
+    setSortField(defaultSortField)
+    setSortDirection('desc')
+    setSortNonce(n=>n+1)
+    setCurrentPage(0)
     queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
   }
 
@@ -680,11 +742,13 @@ export function CatalogPage() {
                 <button
                   type="button"
                   onClick={() => { console.log('[CatalogPage] desktop sort anchor click, wasOpen=', showSortDropdown); setShowSortDropdown(v=>!v) }}
-                  className="flex items-center gap-2 rounded-xl px-4 h-11 text-sm font-medium bg-white/5 backdrop-blur-sm hover:bg-white/10 border border-white/10 shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  className="group flex items-center gap-2 rounded-xl px-4 h-11 text-sm font-medium bg-white/5 backdrop-blur-sm hover:bg-white/10 border border-white/10 shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-primary/50"
                 >
-                  <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                  <ArrowUpDown className="h-4 w-4 text-muted-foreground group-hover:text-white" />
                   <span className="truncate max-w-[140px]">{sortOrder}</span>
-                  {sortDirection==='desc'? <ArrowDown className="h-3 w-3 opacity-70" /> : <ArrowUp className="h-3 w-3 opacity-70" />}
+                  {sortDirection==='desc'
+                    ? <ArrowDown className="h-3 w-3 text-primary" />
+                    : <ArrowUp className="h-3 w-3 text-primary" />}
                 </button>
                 {showSortDropdown && (
                   <div className="absolute z-50 mt-2 w-80 md:w-96 left-0 origin-top-left rounded-xl border border-white/15 bg-background/95 backdrop-blur-xl shadow-2xl p-4 animate-fade-in">
@@ -722,7 +786,15 @@ export function CatalogPage() {
                           <ArrowUp className="h-4 w-4" />
                           Возраст.
                         </button>
-                        <button onClick={()=>setShowSortDropdown(false)} className="mt-2 text-xs text-muted-foreground hover:text-white px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-primary/40">Закрыть</button>
+                        <div className="mt-3 flex flex-col gap-2">
+                          <button
+                            onClick={() => { resetSort(); setShowSortDropdown(false) }}
+                            className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-white/10 text-muted-foreground hover:text-white hover:bg-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" /> Сброс
+                          </button>
+                          <button onClick={()=>setShowSortDropdown(false)} className="text-xs text-muted-foreground hover:text-white px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-primary/40">Закрыть</button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -820,7 +892,7 @@ export function CatalogPage() {
               {isError ? (
                 <ErrorState onRetry={() => refetch()} />
               ) : (
-                <div className="relative grid grid-cols-2 gap-3 sm:gap-4 lg:gap-5 xl:gap-6 [grid-auto-rows:1fr] sm:[grid-template-columns:repeat(auto-fill,minmax(150px,1fr))] md:[grid-template-columns:repeat(auto-fill,minmax(170px,1fr))] lg:[grid-template-columns:repeat(auto-fill,minmax(180px,1fr))] animate-fade-in">
+                <div className="relative grid grid-cols-2 gap-3 sm:gap-4 lg:gap-5 xl:gap-6 auto-rows-auto sm:[grid-template-columns:repeat(auto-fill,minmax(160px,1fr))] md:[grid-template-columns:repeat(auto-fill,minmax(170px,1fr))] lg:[grid-template-columns:repeat(auto-fill,minmax(180px,1fr))] items-start animate-fade-in">
                   {isLoading && manga.length === 0 && Array.from({ length: pageSize }).map((_, i) => (
                     <MangaCardSkeleton key={i} />
                   ))}
