@@ -33,20 +33,8 @@ export function MangaPage() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
 
-  // Инвалидируем кэш списка манг при входе на страницу манги
-  useEffect(() => {
-    console.log('MangaPage: Invalidating manga list cache on mount')
-    queryClient.invalidateQueries({ queryKey: ['manga'] })
-    queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
-    queryClient.invalidateQueries({ queryKey: ['popular-manga'] })
-    queryClient.invalidateQueries({ queryKey: ['recent-manga'] })
-
-    // Принудительно обновляем все запросы
-    queryClient.refetchQueries({ queryKey: ['manga'] })
-    queryClient.refetchQueries({ queryKey: ['manga-catalog'] })
-    queryClient.refetchQueries({ queryKey: ['popular-manga'] })
-    queryClient.refetchQueries({ queryKey: ['recent-manga'] })
-  }, [queryClient])
+  // Удалили избыточную инвалидацию кэша при входе на страницу
+  // Это было причиной постоянных перезапросов
 
   // Track screen size
   useEffect(() => {
@@ -62,31 +50,24 @@ export function MangaPage() {
   const { data: manga, isLoading: mangaLoading } = useQuery({
     queryKey: ['manga', mangaId, user?.id],
     queryFn: () => apiClient.getMangaById(mangaId, user?.id),
-    staleTime: 0, // Данные всегда считаются устаревшими
-    refetchOnWindowFocus: true, // Перезапрос при фокусе окна
-    refetchOnMount: true, // Перезапрос при монтировании компонента
+    staleTime: 5 * 60 * 1000, // Кеш данных на 5 минут
+    refetchOnWindowFocus: false, // Не перезапрашивать при фокусе окна
+    refetchOnMount: false, // Не перезапрашивать при монтировании если есть кеш
   })
 
-  // Инвалидируем кэш списка манг после загрузки данных о конкретной манге
-  useEffect(() => {
-    if (manga && !mangaLoading) {
-      // Инвалидируем кэш для всех запросов списка манг
-      queryClient.invalidateQueries({ queryKey: ['manga'] })
-      queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
-      queryClient.invalidateQueries({ queryKey: ['popular-manga'] })
-      queryClient.invalidateQueries({ queryKey: ['recent-manga'] })
-    }
-  }, [manga, mangaLoading, queryClient])
+  // Удалили избыточную инвалидацию кэша после загрузки манги
+  // Это было причиной "танца" тегов и жанров
 
   const { data: chapters, isLoading: chaptersLoading } = useQuery({
     queryKey: ['chapters', mangaId],
     queryFn: () => apiClient.getMangaChapters(mangaId),
     enabled: !!mangaId,
+    staleTime: 10 * 60 * 1000, // Кеш глав на 10 минут
   })
 
   const { isChapterCompleted } = useReadingProgress()
 
-  // Load chapter like statuses
+  // Оптимизированная загрузка статусов лайков глав
   useEffect(() => {
     const loadChapterLikeStatuses = async () => {
       if (!chapters || !user || chapters.length === 0) {
@@ -96,9 +77,16 @@ export function MangaPage() {
 
       console.log('Loading like statuses for', chapters.length, 'chapters')
       try {
-        const likeStatuses = await Promise.all(
-          chapters.map(async (chapter) => {
+        // Ограничиваем количество одновременных запросов и добавляем кеширование
+        const batchSize = 10
+        const likeStatuses = []
+        
+        for (let i = 0; i < chapters.length; i += batchSize) {
+          const batch = chapters.slice(i, i + batchSize)
+          const batchPromises = batch.map(async (chapter) => {
             try {
+              // Добавляем задержку между запросами для снижения нагрузки
+              if (i > 0) await new Promise(resolve => setTimeout(resolve, 100))
               const response = await apiClient.isChapterLiked(chapter.id)
               return { chapterId: chapter.id, liked: response.liked }
             } catch (error) {
@@ -106,7 +94,10 @@ export function MangaPage() {
               return { chapterId: chapter.id, liked: false }
             }
           })
-        )
+          
+          const batchResults = await Promise.all(batchPromises)
+          likeStatuses.push(...batchResults)
+        }
 
         const likedChapterIds = likeStatuses
           .filter(status => status.liked)
@@ -119,7 +110,9 @@ export function MangaPage() {
       }
     }
 
-    loadChapterLikeStatuses()
+    // Добавляем debounce чтобы избежать множественных вызовов
+    const timeoutId = setTimeout(loadChapterLikeStatuses, 500)
+    return () => clearTimeout(timeoutId)
   }, [chapters, user])
 
   // Handle chapter like/unlike
@@ -146,28 +139,21 @@ export function MangaPage() {
         })
       }
 
-      // Invalidate chapters query to refresh like counts from server
-      queryClient.invalidateQueries({ queryKey: ['chapters', mangaId] })
+      // Оптимистично обновляем кеш без полной инвалидации
+      queryClient.setQueryData(['chapters', mangaId], (oldData: any) => {
+        if (!oldData) return oldData
+        return oldData.map((chapter: any) => {
+          if (chapter.id === chapterId) {
+            console.log(`Updating chapter ${chapterId} likeCount from ${chapter.likeCount} to ${response.likeCount}`)
+            return {
+              ...chapter,
+              likeCount: response.likeCount
+            }
+          }
+          return chapter
+        })
+      })
 
-      // Small delay to allow server cache invalidation
-      setTimeout(() => {
-        // Optimistically update the local chapters data to show immediate count changes
-        if (chapters) {
-          queryClient.setQueryData(['chapters', mangaId], (oldData: any) => {
-            if (!oldData) return oldData
-            return oldData.map((chapter: any) => {
-              if (chapter.id === chapterId) {
-                console.log(`Updating chapter ${chapterId} likeCount from ${chapter.likeCount} to ${response.likeCount}`)
-                return {
-                  ...chapter,
-                  likeCount: response.likeCount
-                }
-              }
-              return chapter
-            })
-          })
-        }
-      }, 100)
     } catch (error) {
       console.error('Failed to toggle chapter like:', error)
     } finally {
