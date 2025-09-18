@@ -17,6 +17,8 @@ interface TooltipPosition {
   left: number
   transform: string
   side: TooltipSide
+  arrowX?: number
+  arrowY?: number
 }
 
 export function MangaTooltip({ manga, children }: MangaTooltipProps) {
@@ -28,7 +30,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
   const [isRendered, setIsRendered] = useState(false) // Монтируем раньше для расчёта позиции
   const [showDropdown, setShowDropdown] = useState(false)
   const [showAllGenres, setShowAllGenres] = useState(false)
-  const [position, setPosition] = useState<TooltipPosition>({ top: 0, left: 0, transform: '', side: 'right' })
+  const [position, setPosition] = useState<TooltipPosition>({ top: 0, left: 0, transform: '', side: 'right', arrowX: 0, arrowY: 0 })
   const showTimeoutId = useRef<NodeJS.Timeout | null>(null)
   const hideTimeoutId = useRef<NodeJS.Timeout | null>(null)
 
@@ -75,8 +77,9 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
     const tooltipRect = tooltipRef.current.getBoundingClientRect()
     const vw = window.innerWidth
     const vh = window.innerHeight
-    const margin = 8
-    const gap = 10
+  const margin = 8
+  // Базовый визуальный gap сокращаем чтобы стрелка "врезалась" ближе
+  const gap = 6
 
     // Предпочитаем справа
     let side: TooltipSide = 'right'
@@ -109,14 +112,16 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
       }
     }
 
+    // Arrow size для дальнейшего учёта
+    const arrowOffset = 10 // расстояние от края tooltip до карточки с учётом стрелки
     switch (side) {
       case 'right':
         left = triggerRect.right + gap
-        top = triggerRect.top + Math.min(0, vh - margin - (triggerRect.top + tooltipRect.height))
+        top = triggerRect.top
         break
       case 'left':
         left = triggerRect.left - tooltipRect.width - gap
-        top = triggerRect.top + Math.min(0, vh - margin - (triggerRect.top + tooltipRect.height))
+        top = triggerRect.top
         break
       case 'bottom':
         top = triggerRect.bottom + gap
@@ -138,7 +143,21 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
     if (top < margin) top = margin
     if (top + tooltipRect.height > vh - margin) top = vh - margin - tooltipRect.height
 
-    setPosition({ top, left, transform: '', side })
+    // Вычисление координат стрелки внутри tooltip (для right/left — по вертикали, top/bottom — по горизонтали)
+    let arrowY = 0
+    let arrowX = 0
+    if (side === 'right' || side === 'left') {
+      // Центр привязки к верхней точке карточки, но ограничиваем внутри tooltip
+      arrowY = triggerRect.top - top + Math.min(triggerRect.height / 2, tooltipRect.height - 20)
+      if (arrowY < 16) arrowY = 16
+      if (arrowY > tooltipRect.height - 16) arrowY = tooltipRect.height - 16
+    } else {
+      arrowX = triggerRect.left - left + triggerRect.width / 2
+      if (arrowX < 16) arrowX = 16
+      if (arrowX > tooltipRect.width - 16) arrowX = tooltipRect.width - 16
+    }
+
+    setPosition({ top, left, transform: '', side, arrowX, arrowY })
   }
 
   // Обработчики событий мыши
@@ -303,26 +322,26 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
           >
           {/* Стрелочка динамическая */}
           {position.side === 'right' && (
-            <div className="absolute top-4 -left-2">
+            <div className="absolute -left-2" style={{ top: position.arrowY }}>
               <div className="w-0 h-0 border-t-[8px] border-t-transparent border-b-[8px] border-b-transparent border-r-[8px] border-r-black/60"></div>
               <div className="absolute top-1/2 -translate-y-1/2 -left-[6px] w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-r-[6px] border-r-black/80"></div>
             </div>
           )}
           {position.side === 'left' && (
-            <div className="absolute top-4 -right-2">
+            <div className="absolute -right-2" style={{ top: position.arrowY }}>
               <div className="w-0 h-0 border-t-[8px] border-t-transparent border-b-[8px] border-b-transparent border-l-[8px] border-l-black/60"></div>
               <div className="absolute top-1/2 -translate-y-1/2 -right-[6px] w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-l-[6px] border-l-black/80"></div>
             </div>
           )}
           {position.side === 'top' && (
-            <div className="absolute -bottom-2 left-6">
-              <div className="w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-black/60"></div>
+            <div className="absolute -bottom-2" style={{ left: position.arrowX }}>
+              <div className="w-0 h-0 -translate-x-1/2 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-black/60"></div>
               <div className="absolute left-1/2 -translate-x-1/2 -bottom-[6px] w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-black/80"></div>
             </div>
           )}
           {position.side === 'bottom' && (
-            <div className="absolute -top-2 left-6">
-              <div className="w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-b-[8px] border-b-black/60"></div>
+            <div className="absolute -top-2" style={{ left: position.arrowX }}>
+              <div className="w-0 h-0 -translate-x-1/2 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-b-[8px] border-b-black/60"></div>
               <div className="absolute left-1/2 -translate-x-1/2 -top-[6px] w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[6px] border-b-black/80"></div>
             </div>
           )}
