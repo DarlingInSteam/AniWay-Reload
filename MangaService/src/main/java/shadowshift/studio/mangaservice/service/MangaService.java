@@ -17,6 +17,8 @@ import shadowshift.studio.mangaservice.dto.MangaCreateDTO;
 import shadowshift.studio.mangaservice.dto.MangaResponseDTO;
 import shadowshift.studio.mangaservice.dto.PageResponseDTO;
 import shadowshift.studio.mangaservice.entity.Manga;
+import shadowshift.studio.mangaservice.entity.Genre;
+import shadowshift.studio.mangaservice.entity.Tag;
 import shadowshift.studio.mangaservice.exception.MangaServiceException;
 import shadowshift.studio.mangaservice.mapper.MangaMapper;
 import shadowshift.studio.mangaservice.repository.MangaRepository;
@@ -55,6 +57,8 @@ public class MangaService {
     private final MangaMapper mangaMapper;
     private final RestTemplate restTemplate;
     private final ServiceUrlProperties serviceUrlProperties;
+    private final GenreService genreService;
+    private final TagService tagService;
 
     // Кэш для rate limiting просмотров: ключ - "userId_mangaId", значение - timestamp последнего просмотра
     private final ConcurrentHashMap<String, Long> viewRateLimitCache = new ConcurrentHashMap<>();
@@ -73,17 +77,23 @@ public class MangaService {
      * @param mangaMapper маппер для преобразования между DTO и сущностями
      * @param restTemplate шаблон для выполнения REST-запросов
      * @param serviceUrlProperties конфигурация URL сервисов
+     * @param genreService сервис для работы с жанрами
+     * @param tagService сервис для работы с тегами
      */
     public MangaService(MangaRepository mangaRepository, 
                        ChapterServiceClient chapterServiceClient,
                        MangaMapper mangaMapper,
                        RestTemplate restTemplate,
-                       ServiceUrlProperties serviceUrlProperties) {
+                       ServiceUrlProperties serviceUrlProperties,
+                       GenreService genreService,
+                       TagService tagService) {
         this.mangaRepository = mangaRepository;
         this.chapterServiceClient = chapterServiceClient;
         this.mangaMapper = mangaMapper;
         this.restTemplate = restTemplate;
         this.serviceUrlProperties = serviceUrlProperties;
+        this.genreService = genreService;
+        this.tagService = tagService;
         logger.info("Инициализирован MangaService");
     }
 
@@ -387,6 +397,25 @@ public class MangaService {
         
         try {
             Manga manga = mangaMapper.toEntity(createDTO);
+            
+            // Обработка жанров
+            if (createDTO.getGenreNames() != null && !createDTO.getGenreNames().isEmpty()) {
+                List<Genre> genres = genreService.createOrGetGenres(createDTO.getGenreNames());
+                for (Genre genre : genres) {
+                    manga.addGenre(genre);
+                }
+                logger.info("Добавлено {} жанров к манге: {}", genres.size(), createDTO.getTitle());
+            }
+            
+            // Обработка тегов
+            if (createDTO.getTagNames() != null && !createDTO.getTagNames().isEmpty()) {
+                List<Tag> tags = tagService.createOrGetTags(createDTO.getTagNames());
+                for (Tag tag : tags) {
+                    manga.addTag(tag);
+                }
+                logger.info("Добавлено {} тегов к манге: {}", tags.size(), createDTO.getTitle());
+            }
+            
             Manga savedManga = mangaRepository.save(manga);
             
             logger.info("Манга успешно создана с ID: {}", savedManga.getId());
@@ -397,6 +426,84 @@ public class MangaService {
             logger.error("Ошибка при создании манги: {}", e.getMessage(), e);
             throw new MangaValidationException("Не удалось создать мангу: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Создает мангу с обработкой жанров и тегов из строковых значений (для импорта из Melon).
+     * 
+     * @param createDTO DTO с данными манги
+     * @param genresString строка с жанрами, разделенными запятыми
+     * @param tagsString строка с тегами, разделенными запятыми
+     * @return DTO созданной манги
+     */
+    @CacheEvict(value = {"mangaCatalog", "mangaSearch"}, allEntries = true)
+    public MangaResponseDTO createMangaFromMelon(MangaCreateDTO createDTO, String genresString, String tagsString) {
+        if (createDTO == null) {
+            throw new IllegalArgumentException("DTO создания манги не может быть null");
+        }
+        
+        logger.info("Создание новой манги из Melon: {}", createDTO.getTitle());
+        
+        try {
+            Manga manga = mangaMapper.toEntity(createDTO);
+            
+            // Обработка жанров из строки
+            if (genresString != null && !genresString.trim().isEmpty()) {
+                List<String> genreNames = parseCommaDelimitedString(genresString);
+                if (!genreNames.isEmpty()) {
+                    List<Genre> genres = genreService.createOrGetGenres(genreNames);
+                    for (Genre genre : genres) {
+                        manga.addGenre(genre);
+                    }
+                    logger.info("Добавлено {} жанров к манге из Melon: {}", genres.size(), createDTO.getTitle());
+                }
+            }
+            
+            // Обработка тегов из строки
+            if (tagsString != null && !tagsString.trim().isEmpty()) {
+                List<String> tagNames = parseCommaDelimitedString(tagsString);
+                if (!tagNames.isEmpty()) {
+                    List<Tag> tags = tagService.createOrGetTags(tagNames);
+                    for (Tag tag : tags) {
+                        manga.addTag(tag);
+                    }
+                    logger.info("Добавлено {} тегов к манге из Melon: {}", tags.size(), createDTO.getTitle());
+                }
+            }
+            
+            // Сохранение старых строковых представлений для обратной совместимости
+            manga.setGenre(genresString);
+            manga.setTagsString(tagsString);
+            
+            Manga savedManga = mangaRepository.save(manga);
+            
+            logger.info("Манга из Melon успешно создана с ID: {}", savedManga.getId());
+            
+            return mangaMapper.toResponseDTO(savedManga);
+            
+        } catch (Exception e) {
+            logger.error("Ошибка при создании манги из Melon: {}", e.getMessage(), e);
+            throw new MangaValidationException("Не удалось создать мангу из Melon: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Разбирает строку с элементами, разделенными запятыми.
+     * 
+     * @param input строка для разбора
+     * @return список очищенных элементов
+     */
+    private List<String> parseCommaDelimitedString(String input) {
+        if (input == null || input.trim().isEmpty()) {
+            return List.of();
+        }
+        
+        return List.of(input.split(","))
+                .stream()
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .distinct()
+                .toList();
     }
 
     /**

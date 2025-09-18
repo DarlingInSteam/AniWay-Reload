@@ -5,6 +5,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Сущность, представляющая мангу в системе MangaService.
@@ -69,10 +71,10 @@ public class Manga {
     private String genre;
 
     /**
-     * Теги манги.
+     * Теги манги (строковое представление для обратной совместимости).
      */
     @Size(max = 1000, message = "Tags must not exceed 1000 characters")
-    private String tags;
+    private String tagsString;
 
     /**
      * Английское название манги.
@@ -152,6 +154,28 @@ public class Manga {
      */
     @Column(name = "comments")
     private Integer comments = 0;
+
+    /**
+     * Связь Many-to-Many с жанрами.
+     */
+    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinTable(
+        name = "manga_genres",
+        joinColumns = @JoinColumn(name = "manga_id"),
+        inverseJoinColumns = @JoinColumn(name = "genre_id")
+    )
+    private Set<Genre> genres = new HashSet<>();
+
+    /**
+     * Связь Many-to-Many с тегами.
+     */
+    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinTable(
+        name = "manga_tags",
+        joinColumns = @JoinColumn(name = "manga_id"),
+        inverseJoinColumns = @JoinColumn(name = "tag_id")
+    )
+    private Set<Tag> tags = new HashSet<>();
 
     /**
      * Дата создания записи о манге.
@@ -455,18 +479,18 @@ public class Manga {
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 
     /**
-     * Возвращает теги манги.
+     * Возвращает теги манги (строковое представление).
      *
      * @return теги манги
      */
-    public String getTags() { return tags; }
+    public String getTagsString() { return tagsString; }
 
     /**
-     * Устанавливает теги манги.
+     * Устанавливает теги манги (строковое представление).
      *
-     * @param tags теги манги
+     * @param tagsString теги манги
      */
-    public void setTags(String tags) { this.tags = tags; }
+    public void setTagsString(String tagsString) { this.tagsString = tagsString; }
 
     /**
      * Возвращает английское название манги.
@@ -537,6 +561,79 @@ public class Manga {
      * @param isLicensed флаг лицензированности
      */
     public void setIsLicensed(Boolean isLicensed) { this.isLicensed = isLicensed; }
+
+    /**
+     * Возвращает набор жанров манги.
+     *
+     * @return набор жанров
+     */
+    public Set<Genre> getGenres() { return genres; }
+
+    /**
+     * Устанавливает набор жанров манги.
+     *
+     * @param genres набор жанров
+     */
+    public void setGenres(Set<Genre> genres) { this.genres = genres; }
+
+    /**
+     * Добавляет жанр к манге.
+     *
+     * @param genre жанр для добавления
+     */
+    public void addGenre(Genre genre) {
+        this.genres.add(genre);
+        genre.getMangas().add(this);
+        genre.incrementMangaCount();
+    }
+
+    /**
+     * Удаляет жанр из манги.
+     *
+     * @param genre жанр для удаления
+     */
+    public void removeGenre(Genre genre) {
+        this.genres.remove(genre);
+        genre.getMangas().remove(this);
+        genre.decrementMangaCount();
+    }
+
+    /**
+     * Возвращает набор тегов манги.
+     *
+     * @return набор тегов
+     */
+    public Set<Tag> getTags() { return tags; }
+
+    /**
+     * Устанавливает набор тегов манги.
+     *
+     * @param tags набор тегов
+     */
+    public void setTags(Set<Tag> tags) { this.tags = tags; }
+
+    /**
+     * Добавляет тег к манге.
+     *
+     * @param tag тег для добавления
+     */
+    public void addTag(Tag tag) {
+        this.tags.add(tag);
+        tag.getMangas().add(this);
+        tag.incrementMangaCount();
+        tag.incrementPopularity();
+    }
+
+    /**
+     * Удаляет тег из манги.
+     *
+     * @param tag тег для удаления
+     */
+    public void removeTag(Tag tag) {
+        this.tags.remove(tag);
+        tag.getMangas().remove(this);
+        tag.decrementMangaCount();
+    }
 
     /**
      * Перечисление статусов манги.

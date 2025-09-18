@@ -5,6 +5,7 @@ import { Grid, Filter, ArrowUpDown, ArrowUp, ArrowDown, X, ChevronLeft, ChevronR
 import { apiClient } from '@/lib/api'
 import { MangaCardWithTooltip } from '@/components/manga'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { MangaFilterSidebar } from '@/components/filters/MangaFilterSidebar'
 import { cn } from '@/lib/utils'
 import { PageResponse } from '@/types'
 
@@ -17,6 +18,7 @@ export function CatalogPage() {
   const [showSortDropdown, setShowSortDropdown] = useState(false)
   const [currentPage, setCurrentPage] = useState(0)
   const [pageSize] = useState(10) // Фиксированный размер страницы
+  const [activeFilters, setActiveFilters] = useState<any>({})
 
   // Refs для обработки кликов вне области
   const sortDropdownRef = useRef<HTMLDivElement>(null)
@@ -67,7 +69,6 @@ export function CatalogPage() {
   const isFirst = mangaPage?.first || true
   const isLast = mangaPage?.last || true
 
-  // Функция для преобразования названия сортировки в поле базы данных
   const getSortByField = (sortOrder: string): string => {
     switch (sortOrder) {
       case 'По популярности': return 'popularity' // Комплексная сортировка: views + comments + likes + reviews
@@ -82,6 +83,17 @@ export function CatalogPage() {
       case 'По комментариям': return 'comments'
       default: return 'createdAt'
     }
+  }
+
+  // Обработчики фильтров
+  const handleFiltersChange = (filters: any) => {
+    setActiveFilters(filters)
+    setCurrentPage(0) // Сбрасываем на первую страницу при изменении фильтров
+  }
+
+  const handleFiltersReset = () => {
+    setActiveFilters({})
+    setCurrentPage(0)
   }
 
   // Функции навигации по страницам
@@ -331,23 +343,13 @@ export function CatalogPage() {
                 </button>
               ))}
             </div>
-
-            {/* Кнопка фильтров справа - улучшенный дизайн */}
-            <button
-              onClick={() => setShowFilters(true)}
-              className="flex items-center px-4 py-2 h-11 rounded-xl bg-white/5 backdrop-blur-sm text-muted-foreground hover:bg-white/10 hover:text-white transition-all duration-200 border border-white/10 shadow-lg"
-              style={{ minWidth: 130 }}
-            >
-              <Filter className="h-5 w-5 mr-2" />
-              <span>Фильтры</span>
-            </button>
           </div>
         </div>
 
-        {/* Улучшенный Offcanvas фильтров */}
+        {/* Улучшенный Offcanvas фильтров для мобильных */}
         <div
           className={cn(
-            'fixed top-0 right-0 h-full w-full max-w-md bg-white/12 backdrop-blur-xl shadow-2xl z-50 transition-transform duration-300 border-l border-white/30',
+            'fixed top-0 right-0 h-full w-full max-w-md bg-white/12 backdrop-blur-xl shadow-2xl z-50 transition-transform duration-300 border-l border-white/30 lg:hidden',
             showFilters ? 'translate-x-0' : 'translate-x-full'
           )}
         >
@@ -360,148 +362,164 @@ export function CatalogPage() {
               <X className="h-5 w-5" />
             </button>
           </div>
-          <div className="p-6 text-muted-foreground">
-            <div className="text-center py-8">
-              <Filter className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-semibold text-white mb-2">Фильтры в разработке</h3>
-              <p className="text-sm text-muted-foreground">Скоро здесь появятся дополнительные опции фильтрации</p>
-            </div>
+          <div className="h-full overflow-y-auto">
+            <MangaFilterSidebar
+              onFiltersChange={handleFiltersChange}
+              onReset={handleFiltersReset}
+              className="border-0 bg-transparent"
+            />
           </div>
         </div>
 
-        {/* Улучшенный Overlay для offcanvas */}
+        {/* Улучшенный Overlay для offcanvas - только для мобильных */}
         {showFilters && (
           <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-all duration-300"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-all duration-300 lg:hidden"
             onClick={() => setShowFilters(false)}
           />
         )}
 
-        {/* Manga Grid - улучшенная сетка с анимацией */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4 lg:gap-6 animate-fade-in">
-          {manga?.map((item) => (
-            <MangaCardWithTooltip
-              key={item.id}
-              manga={item}
+        {/* Основной контейнер с боковыми фильтрами для десктопа */}
+        <div className="flex gap-8">
+          {/* Основной контент */}
+          <div className="flex-1 min-w-0">
+            {/* Manga Grid - улучшенная сетка с анимацией */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4 lg:gap-6 animate-fade-in">
+              {manga?.map((item) => (
+                <MangaCardWithTooltip
+                  key={item.id}
+                  manga={item}
+                />
+              ))}
+            </div>
+
+            {/* Pagination Component */}
+            {totalPages > 1 && (
+              <div className="flex flex-col items-center gap-4 mt-8 mb-8">
+                {/* Info */}
+                <div className="text-sm text-muted-foreground">
+                  Показано {manga?.length || 0} из {totalElements} произведений
+                </div>
+
+                {/* Pagination Controls */}
+                <div className="flex items-center gap-2">
+                  {/* First Page */}
+                  <button
+                    onClick={goToFirstPage}
+                    disabled={currentPage === 0}
+                    className={cn(
+                      'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border',
+                      currentPage === 0
+                        ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
+                        : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
+                    )}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    <ChevronLeft className="h-4 w-4 -ml-2" />
+                  </button>
+
+                  {/* Previous Page */}
+                  <button
+                    onClick={goToPreviousPage}
+                    disabled={currentPage === 0}
+                    className={cn(
+                      'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border',
+                      currentPage === 0
+                        ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
+                        : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
+                    )}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Предыдущая
+                  </button>
+
+                  {/* Page Numbers */}
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      const pageNum = Math.max(0, Math.min(totalPages - 5, currentPage - 2)) + i
+                      if (pageNum >= totalPages) return null
+
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => goToPage(pageNum)}
+                          className={cn(
+                            'px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border min-w-[40px]',
+                            currentPage === pageNum
+                              ? 'bg-primary/20 text-primary border-primary/30 shadow-lg shadow-primary/20'
+                              : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
+                          )}
+                        >
+                          {pageNum + 1}
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {/* Next Page */}
+                  <button
+                    onClick={goToNextPage}
+                    disabled={currentPage >= totalPages - 1}
+                    className={cn(
+                      'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border',
+                      currentPage >= totalPages - 1
+                        ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
+                        : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
+                    )}
+                  >
+                    Следующая
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+
+                  {/* Last Page */}
+                  <button
+                    onClick={goToLastPage}
+                    disabled={currentPage >= totalPages - 1}
+                    className={cn(
+                      'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border',
+                      currentPage >= totalPages - 1
+                        ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
+                        : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
+                    )}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                    <ChevronRight className="h-4 w-4 -ml-2" />
+                  </button>
+                </div>
+
+                {/* Current Page Info */}
+                <div className="text-sm text-muted-foreground">
+                  Страница {currentPage + 1} из {totalPages}
+                </div>
+              </div>
+            )}
+
+            {/* Улучшенный Empty State */}
+            {manga?.length === 0 && (
+              <div className="text-center py-16 md:py-20">
+                <div className="mb-6">
+                  <div className="mx-auto h-20 w-20 md:h-24 md:w-24 bg-white/5 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/10 shadow-lg">
+                    <Grid className="h-10 w-10 md:h-12 md:w-12 text-muted-foreground" />
+                  </div>
+                </div>
+                <h3 className="text-xl md:text-2xl font-semibold text-white mb-3">Ничего не найдено</h3>
+                <p className="text-muted-foreground text-sm md:text-base max-w-md mx-auto">
+                  Попробуйте изменить параметры поиска или выберите другой жанр
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Боковые фильтры для десктопа */}
+          <div className="hidden lg:block w-80 flex-shrink-0">
+            <MangaFilterSidebar
+              onFiltersChange={handleFiltersChange}
+              onReset={handleFiltersReset}
+              className="sticky top-4"
             />
-          ))}
+          </div>
         </div>
 
-        {/* Pagination Component */}
-        {totalPages > 1 && (
-          <div className="flex flex-col items-center gap-4 mt-8 mb-8">
-            {/* Info */}
-            <div className="text-sm text-muted-foreground">
-              Показано {manga?.length || 0} из {totalElements} произведений
-            </div>
-
-            {/* Pagination Controls */}
-            <div className="flex items-center gap-2">
-              {/* First Page */}
-              <button
-                onClick={goToFirstPage}
-                disabled={currentPage === 0}
-                className={cn(
-                  'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border',
-                  currentPage === 0
-                    ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
-                    : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
-                )}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                <ChevronLeft className="h-4 w-4 -ml-2" />
-              </button>
-
-              {/* Previous Page */}
-              <button
-                onClick={goToPreviousPage}
-                disabled={currentPage === 0}
-                className={cn(
-                  'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border',
-                  currentPage === 0
-                    ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
-                    : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
-                )}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Предыдущая
-              </button>
-
-              {/* Page Numbers */}
-              <div className="flex items-center gap-1">
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  const pageNum = Math.max(0, Math.min(totalPages - 5, currentPage - 2)) + i
-                  if (pageNum >= totalPages) return null
-
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => goToPage(pageNum)}
-                      className={cn(
-                        'px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border min-w-[40px]',
-                        currentPage === pageNum
-                          ? 'bg-primary/20 text-primary border-primary/30 shadow-lg shadow-primary/20'
-                          : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
-                      )}
-                    >
-                      {pageNum + 1}
-                    </button>
-                  )
-                })}
-              </div>
-
-              {/* Next Page */}
-              <button
-                onClick={goToNextPage}
-                disabled={currentPage >= totalPages - 1}
-                className={cn(
-                  'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border',
-                  currentPage >= totalPages - 1
-                    ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
-                    : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
-                )}
-              >
-                Следующая
-                <ChevronRight className="h-4 w-4" />
-              </button>
-
-              {/* Last Page */}
-              <button
-                onClick={goToLastPage}
-                disabled={currentPage >= totalPages - 1}
-                className={cn(
-                  'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border',
-                  currentPage >= totalPages - 1
-                    ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
-                    : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
-                )}
-              >
-                <ChevronRight className="h-4 w-4" />
-                <ChevronRight className="h-4 w-4 -ml-2" />
-              </button>
-            </div>
-
-            {/* Current Page Info */}
-            <div className="text-sm text-muted-foreground">
-              Страница {currentPage + 1} из {totalPages}
-            </div>
-          </div>
-        )}
-
-        {/* Улучшенный Empty State */}
-        {manga?.length === 0 && (
-          <div className="text-center py-16 md:py-20">
-            <div className="mb-6">
-              <div className="mx-auto h-20 w-20 md:h-24 md:w-24 bg-white/5 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/10 shadow-lg">
-                <Grid className="h-10 w-10 md:h-12 md:w-12 text-muted-foreground" />
-              </div>
-            </div>
-            <h3 className="text-xl md:text-2xl font-semibold text-white mb-3">Ничего не найдено</h3>
-            <p className="text-muted-foreground text-sm md:text-base max-w-md mx-auto">
-              Попробуйте изменить параметры поиска или выберите другой жанр
-            </p>
-          </div>
-        )}
       </div>
     </div>
   )
