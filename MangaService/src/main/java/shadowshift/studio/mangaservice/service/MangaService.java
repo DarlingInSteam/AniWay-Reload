@@ -272,8 +272,12 @@ public class MangaService {
         Sort sort = createSort(sortBy, sortOrder);
         Pageable pageable = PageRequest.of(page, size, sort);
 
+        // Заменяем null списки на пустые для корректной работы с SpEL выражениями
+        List<String> safeGenres = genres != null ? genres : List.of();
+        List<String> safeTags = tags != null ? tags : List.of();
+
         Page<Manga> searchResults = mangaRepository.findAllWithFilters(
-                genres, tags, validatedMangaType, validatedStatus,
+                safeGenres, safeTags, validatedMangaType, validatedStatus,
                 ageRatingMin, ageRatingMax, ratingMin, ratingMax,
                 releaseYearMin, releaseYearMax, chapterRangeMin, chapterRangeMax,
                 pageable);

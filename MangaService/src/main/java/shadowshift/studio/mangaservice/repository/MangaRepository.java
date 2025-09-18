@@ -211,8 +211,8 @@ public interface MangaRepository extends JpaRepository<Manga, Long> {
         LEFT JOIN genres g ON mg.genre_id = g.id
         LEFT JOIN manga_tags mt ON m.id = mt.manga_id
         LEFT JOIN tags t ON mt.tag_id = t.id
-        WHERE (:#{#genres.size()} = 0 OR g.name IN :genres)
-        AND (:#{#tags.size()} = 0 OR t.name IN :tags)
+        WHERE (:#{#genres == null ? 0 : #genres.size()} = 0 OR g.name IN :genres)
+        AND (:#{#tags == null ? 0 : #tags.size()} = 0 OR t.name IN :tags)
         AND (:mangaType IS NULL OR m.manga_type = :mangaType)
         AND (:status IS NULL OR m.status = :status)
         AND (:ageRatingMin IS NULL OR m.age_rating >= :ageRatingMin)
@@ -231,8 +231,8 @@ public interface MangaRepository extends JpaRepository<Manga, Long> {
         LEFT JOIN genres g ON mg.genre_id = g.id
         LEFT JOIN manga_tags mt ON m.id = mt.manga_id
         LEFT JOIN tags t ON mt.tag_id = t.id
-        WHERE (:#{#genres.size()} = 0 OR g.name IN :genres)
-        AND (:#{#tags.size()} = 0 OR t.name IN :tags)
+        WHERE (:#{#genres == null ? 0 : #genres.size()} = 0 OR g.name IN :genres)
+        AND (:#{#tags == null ? 0 : #tags.size()} = 0 OR t.name IN :tags)
         AND (:mangaType IS NULL OR m.manga_type = :mangaType)
         AND (:status IS NULL OR m.status = :status)
         AND (:ageRatingMin IS NULL OR m.age_rating >= :ageRatingMin)
