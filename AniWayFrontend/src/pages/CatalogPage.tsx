@@ -709,8 +709,8 @@ export function CatalogPage() {
               <div ref={desktopSortRef} className="relative">
                 <button
                   type="button"
-                  onClick={() => { console.log('[CatalogPage] desktop sort anchor click, wasOpen=', showSortDropdown); setShowSortDropdown(v=>!v) }}
-                  className="group flex items-center gap-2 rounded-xl px-4 h-11 text-sm font-medium bg-white/5 backdrop-blur-sm hover:bg-white/10 border border-white/10 shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  onClick={() => { setShowSortDropdown(v=>!v) }}
+                  className="catalog-sort-button group flex items-center gap-2 bg-white/5 backdrop-blur-sm hover:bg-white/10 border border-white/10 shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-primary/50"
                 >
                   <ArrowUpDown className="h-4 w-4 text-muted-foreground group-hover:text-white" />
                   <span className="truncate max-w-[140px]">{sortOrder}</span>
@@ -790,14 +790,22 @@ export function CatalogPage() {
           </div>
         </div>
 
-        {/* Selected Filters Chips */}
-        <SelectedFiltersBar
-          activeFilters={activeFilters}
-          activeType={activeType}
+        {/* Catalog Styled Wrapper */}
+        <section className="relative -mx-2 sm:mx-0 mb-10 rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.04] via-white/[0.025] to-transparent backdrop-blur-sm shadow-inner shadow-black/40 p-4 sm:p-6 lg:p-8">
+          {/* Desktop controls already rendered above, just adjust sort button size via global class override */}
+          <style>{`.catalog-sort-button{height:2.5rem;padding-top:0.25rem;padding-bottom:0.25rem;padding-left:0.9rem;padding-right:0.9rem;border-radius:0.75rem;font-size:0.8rem}`}</style>
+          {/* Reposition Selected Filters inside wrapper */}
+          <SelectedFiltersBar
+            activeFilters={activeFilters}
+            activeType={activeType}
             onRemove={removeFilterChip}
-          onClearAll={clearAllFilters}
-          className="mb-6"
-        />
+            onClearAll={clearAllFilters}
+            className="mb-4"
+          />
+          {/* Separator line */}
+          <div className="h-px w-full bg-gradient-to-r from-transparent via-white/15 to-transparent mb-6" />
+          {/* Grid stays below (grid code remains unchanged further down) */}
+        </section>
 
         {/* Улучшенный Offcanvas фильтров для мобильных */}
         <div
