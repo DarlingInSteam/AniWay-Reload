@@ -17,19 +17,17 @@ interface TooltipPosition {
 }
 
 export function MangaTooltip({ manga, children }: MangaTooltipProps) {
-  console.log('MangaTooltip rendering for manga:', manga?.id, 'genre:', manga?.genre);
-  
   if (!manga) {
-    console.error('MangaTooltip: manga is null/undefined');
-    return <>{children}</>;
+    return <>{children}</>
   }
 
   const [isVisible, setIsVisible] = useState(false)
+  const [isRendered, setIsRendered] = useState(false) // Монтируем раньше для расчёта позиции
   const [showDropdown, setShowDropdown] = useState(false)
   const [showAllGenres, setShowAllGenres] = useState(false)
   const [position, setPosition] = useState<TooltipPosition>({ top: 0, left: 0, transform: '' })
-  const [showTimeoutId, setShowTimeoutId] = useState<NodeJS.Timeout | null>(null)
-  const [hideTimeoutId, setHideTimeoutId] = useState<NodeJS.Timeout | null>(null)
+  const showTimeoutId = useRef<NodeJS.Timeout | null>(null)
+  const hideTimeoutId = useRef<NodeJS.Timeout | null>(null)
 
   const triggerRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
@@ -70,76 +68,62 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
   // Вычисление позиции tooltip
   const calculatePosition = () => {
     if (!triggerRef.current || !tooltipRef.current) return
-
     const triggerRect = triggerRef.current.getBoundingClientRect()
     const tooltipRect = tooltipRef.current.getBoundingClientRect()
-    const viewport = {
-      width: window.innerWidth,
-      height: window.innerHeight
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    const gap = 12
+    // Предпочтительно справа
+    let left = triggerRect.right + gap
+    if (left + tooltipRect.width > vw - 8) {
+      left = triggerRect.left - tooltipRect.width - gap
     }
-
+    // Если все ещё не помещается, принудительно к правому краю
+    if (left < 8) left = Math.min(vw - tooltipRect.width - 8, triggerRect.right + gap)
     let top = triggerRect.top + triggerRect.height / 2 - tooltipRect.height / 2
-    let left = triggerRect.right + 16 // 16px gap
-    let transform = ''
-
-    // Проверяем, помещается ли tooltip справа
-    if (left + tooltipRect.width > viewport.width - 20) {
-      // Показываем слева от карточки
-      left = triggerRect.left - tooltipRect.width - 16
-    }
-
-    // Проверяем вертикальное позиционирование
-    if (top < 20) {
-      top = 20
-    } else if (top + tooltipRect.height > viewport.height - 20) {
-      top = viewport.height - tooltipRect.height - 20
-    }
-
-    setPosition({ top, left, transform })
+    if (top < 8) top = 8
+    if (top + tooltipRect.height > vh - 8) top = vh - tooltipRect.height - 8
+    setPosition({ top, left, transform: '' })
   }
 
   // Обработчики событий мыши
   const handleMouseEnter = () => {
-    if (hideTimeoutId) {
-      clearTimeout(hideTimeoutId)
-      setHideTimeoutId(null)
+    if (hideTimeoutId.current) {
+      clearTimeout(hideTimeoutId.current)
+      hideTimeoutId.current = null
     }
-
-    if (!showTimeoutId) {
-      const id = setTimeout(() => {
+    if (!isRendered) setIsRendered(true)
+    if (!showTimeoutId.current) {
+      showTimeoutId.current = setTimeout(() => {
+        calculatePosition()
         setIsVisible(true)
-        setShowTimeoutId(null)
-      }, 500)
-      setShowTimeoutId(id)
+        showTimeoutId.current = null
+      }, 280)
     }
   }
 
   const handleMouseLeave = () => {
-    if (showTimeoutId) {
-      clearTimeout(showTimeoutId)
-      setShowTimeoutId(null)
+    if (showTimeoutId.current) {
+      clearTimeout(showTimeoutId.current)
+      showTimeoutId.current = null
     }
-
-    const id = setTimeout(() => {
+    hideTimeoutId.current = setTimeout(() => {
       setIsVisible(false)
       setShowDropdown(false)
-    }, 300)
-    setHideTimeoutId(id)
+    }, 160)
   }
 
   const handleTooltipMouseEnter = () => {
-    if (hideTimeoutId) {
-      clearTimeout(hideTimeoutId)
-      setHideTimeoutId(null)
+    if (hideTimeoutId.current) {
+      clearTimeout(hideTimeoutId.current)
+      hideTimeoutId.current = null
     }
   }
-
   const handleTooltipMouseLeave = () => {
-    const id = setTimeout(() => {
+    hideTimeoutId.current = setTimeout(() => {
       setIsVisible(false)
       setShowDropdown(false)
-    }, 300)
-    setHideTimeoutId(id)
+    }, 160)
   }
 
   // Обработчик изменения статуса закладки
@@ -187,12 +171,17 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
 
   // Пересчет позиции при изменении видимости
   useEffect(() => {
-    if (isVisible) {
-      calculatePosition()
-
-      const handleResize = () => calculatePosition()
-      window.addEventListener('resize', handleResize)
-      return () => window.removeEventListener('resize', handleResize)
+    if (!isRendered) return
+    calculatePosition()
+  }, [isRendered])
+  useEffect(() => {
+    if (!isVisible) return
+    const handleResize = () => calculatePosition()
+    window.addEventListener('resize', handleResize)
+    window.addEventListener('scroll', handleResize, true)
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      window.removeEventListener('scroll', handleResize, true)
     }
   }, [isVisible])
 
@@ -204,38 +193,24 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
   // Парсинг альтернативных названий
   const alternativeNames = manga.alternativeNames?.split(',').map(n => n.trim()).filter(Boolean) || []
 
-  console.log('MangaTooltip parsed genres:', genres.length, 'visible:', visibleGenres.length, 'hidden:', hiddenGenresCount);
-
   try {
     return (
       <>
-        <div
-          ref={triggerRef}
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
-          className="w-full"
-        >
+        <div ref={triggerRef} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} className="w-full">
           {children}
         </div>
-
-      {isVisible && (
-        <div
-          ref={tooltipRef}
-          style={{
-            position: 'fixed',
-            top: position.top,
-            left: position.left,
-            transform: position.transform,
-            zIndex: 9999
-          }}
-          className="hidden lg:block w-80 p-4 bg-gray-800/98 backdrop-blur-lg border border-gray-600/50 rounded-xl shadow-2xl shadow-black/50 animate-in fade-in duration-200"
-          onMouseEnter={handleTooltipMouseEnter}
-          onMouseLeave={handleTooltipMouseLeave}
-        >
+        {(isRendered) && (
+          <div
+            ref={tooltipRef}
+            style={{ position: 'fixed', top: position.top, left: position.left, zIndex: 9999, pointerEvents: isVisible ? 'auto' : 'none', opacity: isVisible ? 1 : 0, transform: `translateY(${isVisible ? '0' : '4px'}) scale(${isVisible ? 1 : 0.98})`, transition: 'opacity 140ms ease, transform 140ms ease' }}
+            className="hidden lg:block w-80 p-4 rounded-xl shadow-xl shadow-black/60 bg-black/80 backdrop-blur-md border border-white/15"
+            onMouseEnter={handleTooltipMouseEnter}
+            onMouseLeave={handleTooltipMouseLeave}
+          >
           {/* Стрелочка */}
-          <div className="absolute top-1/2 -left-2 transform -translate-y-1/2">
-            <div className="w-0 h-0 border-t-[8px] border-t-transparent border-b-[8px] border-b-transparent border-r-[8px] border-r-gray-600/50"></div>
-            <div className="absolute top-1/2 -left-[6px] transform -translate-y-1/2 w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-r-[6px] border-r-gray-800/98"></div>
+          <div className="absolute top-1/2 -left-2 -translate-y-1/2">
+            <div className="w-0 h-0 border-t-[8px] border-t-transparent border-b-[8px] border-b-transparent border-r-[8px] border-r-black/60"></div>
+            <div className="absolute top-1/2 -left-[6px] -translate-y-1/2 w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-r-[6px] border-r-black/80"></div>
           </div>
 
           {/* Заголовочная секция */}
@@ -372,10 +347,10 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
               )}
             </div>
           )}
-        </div>
-      )}
-    </>
-  )
+          </div>
+        )}
+      </>
+    )
   } catch (error) {
     console.error('MangaTooltip error:', error, 'for manga:', manga?.id);
     return <>{children}</>;
