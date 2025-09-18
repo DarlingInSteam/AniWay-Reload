@@ -178,6 +178,32 @@
   animation: fade-in 0.3s ease-out;
 }
 
+/* Glass panel utility */
+.glass-panel {
+  @apply bg-white/10 backdrop-blur-sm border border-white/15 rounded-xl;
+}
+
+/* Skeleton loading */
+@keyframes skeleton-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.skeleton-shimmer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0) 100%);
+  animation: skeleton-shimmer 1.4s infinite;
+}
+
+.skeleton-block { @apply bg-white/10 rounded-md; }
+
+
 /* Специальные стили для карточек манги */
 .manga-card {
   @apply relative overflow-hidden rounded-xl bg-card border-0;

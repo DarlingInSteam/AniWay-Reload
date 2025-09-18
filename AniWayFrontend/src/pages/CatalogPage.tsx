@@ -4,11 +4,13 @@ import { useSearchParams } from 'react-router-dom'
 import { Grid, Filter, ArrowUpDown, ArrowUp, ArrowDown, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { MangaCardWithTooltip } from '@/components/manga'
+import { MangaCardSkeleton } from '@/components/manga/MangaCardSkeleton'
+import { SelectedFiltersBar } from '@/components/filters/SelectedFiltersBar'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { MangaFilterSidebar } from '@/components/filters/MangaFilterSidebar'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { cn } from '@/lib/utils'
-import { PageResponse } from '@/types'
+import { PageResponse, MangaResponseDTO } from '@/types'
 
 export function CatalogPage() {
   const [searchParams] = useSearchParams()
@@ -47,7 +49,7 @@ export function CatalogPage() {
     activeFilters: JSON.stringify(activeFilters) // Сериализуем для стабильности
   }), [genre, sort, currentPage, sortOrder, sortDirection, activeType, activeFilters])
 
-  const { data: mangaPage, isLoading } = useQuery({
+  const { data: mangaPage, isLoading } = useQuery<PageResponse<MangaResponseDTO>>({
     queryKey: ['manga-catalog', queryKeyParams],
     queryFn: () => {
       const sortBy = getSortByField(sortOrder)
@@ -114,11 +116,11 @@ export function CatalogPage() {
   })
 
   // Извлекаем данные из ответа API
-  const manga = mangaPage?.content || []
-  const totalElements = mangaPage?.totalElements || 0
-  const totalPages = mangaPage?.totalPages || 1
-  const isFirst = mangaPage?.first || true
-  const isLast = mangaPage?.last || true
+  const manga = mangaPage?.content ?? []
+  const totalElements = mangaPage?.totalElements ?? 0
+  const totalPages = mangaPage?.totalPages ?? 1
+  const isFirst = mangaPage?.first ?? true
+  const isLast = mangaPage?.last ?? true
 
   const getSortByField = (sortOrder: string): string => {
     switch (sortOrder) {
@@ -322,12 +324,65 @@ export function CatalogPage() {
     }
   }, [showSortDropdown])
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <LoadingSpinner size="lg" />
-      </div>
-    )
+  // Функции работы с чипсами выбранных фильтров
+  const removeFilterChip = (category: string, value?: string) => {
+    // Копируем текущие состояния
+    const newActive = { ...activeFilters }
+    const newDraft = { ...draftFilters }
+
+    switch (category) {
+      case 'activeType':
+        setActiveType('все')
+        break
+      case 'genre':
+        if (value) {
+          newActive.genres = (newActive.genres || []).filter((g: string) => g !== value)
+          newDraft.selectedGenres = (newDraft.selectedGenres || []).filter((g: string) => g !== value)
+          if (newActive.genres.length === 0) delete newActive.genres
+        }
+        break
+      case 'tag':
+        if (value) {
+          newActive.tags = (newActive.tags || []).filter((t: string) => t !== value)
+          newDraft.selectedTags = (newDraft.selectedTags || []).filter((t: string) => t !== value)
+          if (newActive.tags.length === 0) delete newActive.tags
+        }
+        break
+      case 'type':
+        delete newActive.type
+        newDraft.mangaType = ''
+        break
+      case 'status':
+        delete newActive.status
+        newDraft.status = ''
+        break
+      case 'ageRating':
+        delete newActive.ageRating
+        newDraft.ageRating = [0, 21]
+        break
+      case 'rating':
+        delete newActive.rating
+        newDraft.rating = [0, 10]
+        break
+      case 'releaseYear':
+        delete newActive.releaseYear
+        newDraft.releaseYear = [1990, new Date().getFullYear()]
+        break
+      case 'chapterRange':
+        delete newActive.chapterRange
+        newDraft.chapterRange = [0, 1000]
+        break
+    }
+    setActiveFilters(newActive)
+    setDraftFilters(newDraft)
+    setCurrentPage(0)
+  }
+
+  const clearAllFilters = () => {
+    setActiveFilters({})
+    setDraftFilters({})
+    setActiveType('все')
+    setCurrentPage(0)
   }
 
   return (
@@ -342,7 +397,7 @@ export function CatalogPage() {
           </div>
         </div>
 
-        {/* Controls Bar - полностью переработанный дизайн */}
+  {/* Controls Bar - полностью переработанный дизайн */}
         <div className="flex flex-col gap-4 mb-6">
           {/* Мобильная версия: улучшенные компактные кнопки */}
           <div className="lg:hidden">
@@ -527,6 +582,15 @@ export function CatalogPage() {
           </div>
         </div>
 
+        {/* Selected Filters Chips */}
+        <SelectedFiltersBar
+          activeFilters={activeFilters}
+          activeType={activeType}
+            onRemove={removeFilterChip}
+          onClearAll={clearAllFilters}
+          className="mb-6"
+        />
+
         {/* Улучшенный Offcanvas фильтров для мобильных */}
         <div
           className={cn(
@@ -580,12 +644,21 @@ export function CatalogPage() {
               </div>
             }>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4 lg:gap-6 animate-fade-in">
-                {manga?.map((item) => (
+                {isLoading && (!manga || manga.length === 0) && Array.from({ length: pageSize }).map((_, i) => (
+                  <MangaCardSkeleton key={i} />
+                ))}
+                {!isLoading && manga?.map((item: MangaResponseDTO) => (
                   <MangaCardWithTooltip
                     key={item.id}
                     manga={item}
                   />
                 ))}
+                {isLoading && manga && manga.length > 0 && (
+                  // Отображаем полупрозрачный оверлей при обновлении данных
+                  <div className="absolute inset-0 pointer-events-none" aria-hidden>
+                    {/* Можно добавить linear progress сверху при желании */}
+                  </div>
+                )}
               </div>
             </ErrorBoundary>
 
@@ -691,7 +764,7 @@ export function CatalogPage() {
             )}
 
             {/* Улучшенный Empty State */}
-            {manga?.length === 0 && (
+            {!isLoading && manga?.length === 0 && (
               <div className="text-center py-16 md:py-20">
                 <div className="mb-6">
                   <div className="mx-auto h-20 w-20 md:h-24 md:w-24 bg-white/5 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/10 shadow-lg">
