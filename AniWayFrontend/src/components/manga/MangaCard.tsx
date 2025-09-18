@@ -57,6 +57,7 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
   const getReadChaptersCount = () => {
     if (!isAuthenticated || manga.totalChapters === 0) return 0
     const mangaProgressData = getMangaProgress(manga.id)
+    if (!mangaProgressData || !Array.isArray(mangaProgressData)) return 0
     return mangaProgressData.filter((p: any) => p.isCompleted).length
   }
   

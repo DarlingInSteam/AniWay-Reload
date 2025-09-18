@@ -49,7 +49,7 @@ export function BookmarkMangaCard({ bookmark }: BookmarkMangaCardProps) {
   
   // Вычисляем количество прочитанных глав более точно
   const mangaProgress = getMangaProgress(mangaData.id)
-  const readChapters = mangaProgress.filter(p => p.isCompleted).length
+  const readChapters = mangaProgress && Array.isArray(mangaProgress) ? mangaProgress.filter(p => p.isCompleted).length : 0
 
   const getBookmarkStatusText = (status: string) => {
     switch (status) {

@@ -103,15 +103,19 @@ const GenreMultiSelectFilter: React.FC<{
 }> = ({ genres, selectedItems, onSelectionChange, placeholder }) => {
   const [searchTerm, setSearchTerm] = useState('')
   
-  const filteredGenres = genres.filter(genre =>
+  // Защита от невалидных массивов
+  const safeSelectedItems = Array.isArray(selectedItems) ? selectedItems : [];
+  const safeGenres = Array.isArray(genres) ? genres : [];
+  
+  const filteredGenres = safeGenres.filter(genre =>
     genre.name.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   const toggleItem = (genreName: string) => {
-    if (selectedItems.includes(genreName)) {
-      onSelectionChange(selectedItems.filter(i => i !== genreName))
+    if (safeSelectedItems.includes(genreName)) {
+      onSelectionChange(safeSelectedItems.filter(i => i !== genreName))
     } else {
-      onSelectionChange([...selectedItems, genreName])
+      onSelectionChange([...safeSelectedItems, genreName])
     }
   }
 
@@ -124,9 +128,9 @@ const GenreMultiSelectFilter: React.FC<{
         className="h-9 text-sm bg-white/5 backdrop-blur-sm border-white/10 text-white placeholder:text-muted-foreground focus:border-primary/50 transition-colors duration-200"
       />
       
-      {selectedItems.length > 0 && (
+      {safeSelectedItems.length > 0 && (
         <div className="flex flex-wrap gap-1.5 animate-fade-in">
-          {selectedItems.map(item => (
+          {safeSelectedItems.map(item => (
             <Badge
               key={item}
               variant="secondary"
@@ -148,7 +152,7 @@ const GenreMultiSelectFilter: React.FC<{
             size="sm"
             className={cn(
               "w-full justify-between h-8 text-xs px-2 transition-all duration-200 rounded-lg",
-              selectedItems.includes(genre.name)
+              safeSelectedItems.includes(genre.name)
                 ? "bg-primary/20 text-primary hover:bg-primary/30"
                 : "text-gray-300 hover:text-white hover:bg-white/10"
             )}
@@ -174,15 +178,19 @@ const TagMultiSelectFilter: React.FC<{
 }> = ({ tags, selectedItems, onSelectionChange, placeholder }) => {
   const [searchTerm, setSearchTerm] = useState('')
   
-  const filteredTags = tags.filter(tag =>
+  // Защита от невалидных массивов
+  const safeSelectedItems = Array.isArray(selectedItems) ? selectedItems : [];
+  const safeTags = Array.isArray(tags) ? tags : [];
+  
+  const filteredTags = safeTags.filter(tag =>
     tag.name.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   const toggleItem = (tagName: string) => {
-    if (selectedItems.includes(tagName)) {
-      onSelectionChange(selectedItems.filter(i => i !== tagName))
+    if (safeSelectedItems.includes(tagName)) {
+      onSelectionChange(safeSelectedItems.filter(i => i !== tagName))
     } else {
-      onSelectionChange([...selectedItems, tagName])
+      onSelectionChange([...safeSelectedItems, tagName])
     }
   }
 
