@@ -339,14 +339,17 @@ const RangeSlider: React.FC<{
   onValueChange: (value: [number, number]) => void
   suffix?: string
 }> = ({ label, value, min, max, step = 1, onValueChange, suffix = '' }) => {
+  // Защита от невалидного value
+  const safeValue = Array.isArray(value) && value.length >= 2 ? value : [min, max];
+  
   const handleMinChange = (val: string) => {
-    const newMin = Math.max(min, Math.min(parseInt(val) || min, value[1]))
-    onValueChange([newMin, value[1]])
+    const newMin = Math.max(min, Math.min(parseInt(val) || min, safeValue[1]))
+    onValueChange([newMin, safeValue[1]])
   }
 
   const handleMaxChange = (val: string) => {
-    const newMax = Math.min(max, Math.max(parseInt(val) || max, value[0]))
-    onValueChange([value[0], newMax])
+    const newMax = Math.min(max, Math.max(parseInt(val) || max, safeValue[0]))
+    onValueChange([safeValue[0], newMax])
   }
 
   return (
@@ -360,10 +363,10 @@ const RangeSlider: React.FC<{
           <div className="flex-1">
             <Input
               type="number"
-              value={value[0]}
+              value={safeValue[0]}
               onChange={(e) => handleMinChange(e.target.value)}
               min={min}
-              max={value[1]}
+              max={safeValue[1]}
               className="h-9 text-xs bg-white/5 backdrop-blur-sm border-white/10 text-white focus:border-primary/50 transition-colors duration-200"
               placeholder="Мин"
             />
@@ -372,9 +375,9 @@ const RangeSlider: React.FC<{
           <div className="flex-1">
             <Input
               type="number"
-              value={value[1]}
+              value={safeValue[1]}
               onChange={(e) => handleMaxChange(e.target.value)}
-              min={value[0]}
+              min={safeValue[0]}
               max={max}
               className="h-9 text-xs bg-white/5 backdrop-blur-sm border-white/10 text-white focus:border-primary/50 transition-colors duration-200"
               placeholder="Макс"

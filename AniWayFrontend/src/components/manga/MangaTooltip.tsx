@@ -17,6 +17,13 @@ interface TooltipPosition {
 }
 
 export function MangaTooltip({ manga, children }: MangaTooltipProps) {
+  console.log('MangaTooltip rendering for manga:', manga?.id, 'genre:', manga?.genre);
+  
+  if (!manga) {
+    console.error('MangaTooltip: manga is null/undefined');
+    return <>{children}</>;
+  }
+
   const [isVisible, setIsVisible] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
   const [showAllGenres, setShowAllGenres] = useState(false)
@@ -190,23 +197,26 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
   }, [isVisible])
 
   // Парсинг жанров
-  const genres = manga.genre.split(',').map(g => g.trim()).filter(Boolean)
+  const genres = manga.genre ? manga.genre.split(',').map(g => g.trim()).filter(Boolean) : []
   const visibleGenres = showAllGenres ? genres : genres.slice(0, 6)
-  const hiddenGenresCount = genres.length - 6
+  const hiddenGenresCount = Math.max(0, genres.length - 6)
 
   // Парсинг альтернативных названий
   const alternativeNames = manga.alternativeNames?.split(',').map(n => n.trim()).filter(Boolean) || []
 
-  return (
-    <>
-      <div
-        ref={triggerRef}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        className="w-full"
-      >
-        {children}
-      </div>
+  console.log('MangaTooltip parsed genres:', genres.length, 'visible:', visibleGenres.length, 'hidden:', hiddenGenresCount);
+
+  try {
+    return (
+      <>
+        <div
+          ref={triggerRef}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+          className="w-full"
+        >
+          {children}
+        </div>
 
       {isVisible && (
         <div
@@ -366,4 +376,8 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
       )}
     </>
   )
+  } catch (error) {
+    console.error('MangaTooltip error:', error, 'for manga:', manga?.id);
+    return <>{children}</>;
+  }
 }
