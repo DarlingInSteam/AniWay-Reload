@@ -60,6 +60,19 @@ export function CatalogPage() {
   const [currentPage, setCurrentPage] = useState(isNaN(initialPage) || initialPage < 1 ? 0 : initialPage - 1)
   const [pageSize] = useState(20) // Фиксированный размер страницы - 20 тайтлов на страницу
   const [sortNonce, setSortNonce] = useState(0)
+  // Динамический отступ для sticky панели фильтров (чтобы не пряталась под глобальным хедером)
+  const [filterOffset, setFilterOffset] = useState<number>(80) // fallback 80px
+  useEffect(() => {
+    const measure = () => {
+      const headerEl = document.querySelector('header') as HTMLElement | null
+      const h = headerEl ? headerEl.getBoundingClientRect().height : 0
+      // Добавляем небольшой зазор (16px)
+      setFilterOffset(h + 16)
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [])
 
   // Разбор значений из URL
   const parseArray = (value: string | null) => !value ? [] : value.split(',').filter(Boolean)
@@ -694,13 +707,14 @@ export function CatalogPage() {
             </div>
           {/* Правая колонка: фильтры */}
           <div className="hidden lg:block w-80 flex-shrink-0">
+            <div className="sticky" style={{ top: filterOffset }}>
               <MangaFilterPanel
                 initialFilters={memoizedFilterState}
                 onFiltersChange={handleFiltersChange}
                 onReset={resetFilters}
                 onApply={applyFilters}
-                className="sticky top-4"
               />
+            </div>
           </div>
         </div>
       </div>
