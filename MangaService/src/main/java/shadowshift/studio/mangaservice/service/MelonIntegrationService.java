@@ -817,11 +817,13 @@ public class MelonIntegrationService {
                 .collect(java.util.stream.Collectors.toList());
 
             if (!filteredGenres.isEmpty()) {
-                // Создаем или получаем жанры из базы данных
-                Set<Genre> genreSet = filteredGenres.stream()
-                    .map(genreName -> genreService.createOrGetGenre(genreName))
-                    .collect(Collectors.toSet());
-                manga.setGenres(genreSet);
+                // Создаем или получаем жанры из базы данных и добавляем их к манге
+                for (String genreName : filteredGenres) {
+                    Genre genre = genreService.createOrGetGenre(genreName);
+                    manga.addGenre(genre);
+                    // Явно сохраняем жанр с обновленным счетчиком
+                    genreService.saveGenre(genre);
+                }
                 
                 // Также сохраняем как строку для совместимости
                 manga.setGenre(String.join(", ", filteredGenres));
@@ -897,11 +899,13 @@ public class MelonIntegrationService {
                 .collect(java.util.stream.Collectors.toList());
 
             if (!filteredTags.isEmpty()) {
-                // Создаем или получаем теги из базы данных
-                Set<Tag> tagSet = filteredTags.stream()
-                    .map(tagName -> tagService.createOrGetTag(tagName))
-                    .collect(Collectors.toSet());
-                manga.setTags(tagSet);
+                // Создаем или получаем теги из базы данных и добавляем их к манге
+                for (String tagName : filteredTags) {
+                    Tag tag = tagService.createOrGetTag(tagName);
+                    manga.addTag(tag);
+                    // Явно сохраняем тег с обновленным счетчиком
+                    tagService.saveTag(tag);
+                }
                 System.out.println("DEBUG: Set tags to: " + String.join(", ", filteredTags));
             }
         }
