@@ -1,14 +1,12 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { Grid, Filter, ArrowUpDown, ArrowUp, ArrowDown, X, ChevronLeft, ChevronRight, Check, RotateCcw } from 'lucide-react'
-import { SortPopover } from '@/components/catalog/SortPopover'
+import { Filter, ArrowUpDown, ArrowUp, ArrowDown, X, ChevronLeft, ChevronRight, Check, RotateCcw } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { MangaCardWithTooltip } from '@/components/manga'
 import { MangaCardSkeleton } from '@/components/manga/MangaCardSkeleton'
 import { EmptyState } from '@/components/catalog/EmptyState'
 import { ErrorState } from '@/components/catalog/ErrorState'
-import { SelectedFiltersBar } from '@/components/filters/SelectedFiltersBar'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 // import { MangaFilterSidebar } from '@/components/filters/MangaFilterSidebar'
 import { MangaFilterPanel } from '@/components/filters/MangaFilterPanel'
@@ -24,6 +22,15 @@ export function CatalogPage() {
   const initialQuery = searchParams.get('query') || ''
   const [searchInput, setSearchInput] = useState(initialQuery)
   const [searchQuery, setSearchQuery] = useState(initialQuery)
+  // Debounce фактического применения поиска (отдельно от ввода)
+  useEffect(() => {
+    const h = setTimeout(() => {
+      const trimmed = searchInput.trim()
+      setSearchQuery(trimmed)
+      setCurrentPage(0)
+    }, 450)
+    return () => clearTimeout(h)
+  }, [searchInput])
 
   // Mapping сортировок поле<->лейбл
   const SORT_LABEL_BY_FIELD: Record<string,string> = {
@@ -271,10 +278,6 @@ export function CatalogPage() {
       releaseYear: draftFilters.releaseYear || [1990, new Date().getFullYear()],
       chapterRange: draftFilters.chapterRange || [0, 1000]
     }
-    console.log('CatalogPage: Memoized FilterState updated:', 
-      'draftFilters:', draftFilters, 
-      'filterState:', filterState
-    )
     return filterState
   }, [
     JSON.stringify(draftFilters.selectedGenres || []),
@@ -457,67 +460,12 @@ export function CatalogPage() {
     const handler = (e: MouseEvent) => {
       if (!desktopSortRef.current) return
       if (!desktopSortRef.current.contains(e.target as Node)) {
-        console.log('[CatalogPage] outside desktop sort -> close')
         setShowSortDropdown(false)
       }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [showSortDropdown])
-
-  // Функции работы с чипсами выбранных фильтров
-  const removeFilterChip = (category: string, value?: string) => {
-    // Копируем текущие состояния
-    const newActive = { ...activeFilters }
-    const newDraft = { ...draftFilters }
-
-    switch (category) {
-      case 'activeType':
-        setActiveType('все')
-        break
-      case 'genre':
-        if (value) {
-          newActive.genres = (newActive.genres || []).filter((g: string) => g !== value)
-          newDraft.selectedGenres = (newDraft.selectedGenres || []).filter((g: string) => g !== value)
-          if (newActive.genres.length === 0) delete newActive.genres
-        }
-        break
-      case 'tag':
-        if (value) {
-          newActive.tags = (newActive.tags || []).filter((t: string) => t !== value)
-          newDraft.selectedTags = (newDraft.selectedTags || []).filter((t: string) => t !== value)
-          if (newActive.tags.length === 0) delete newActive.tags
-        }
-        break
-      case 'type':
-        delete newActive.type
-        newDraft.mangaType = ''
-        break
-      case 'status':
-        delete newActive.status
-        newDraft.status = ''
-        break
-      case 'ageRating':
-        delete newActive.ageRating
-        newDraft.ageRating = [0, 21]
-        break
-      case 'rating':
-        delete newActive.rating
-        newDraft.rating = [0, 10]
-        break
-      case 'releaseYear':
-        delete newActive.releaseYear
-        newDraft.releaseYear = [1990, new Date().getFullYear()]
-        break
-      case 'chapterRange':
-        delete newActive.chapterRange
-        newDraft.chapterRange = [0, 1000]
-        break
-    }
-    setActiveFilters(newActive)
-    setDraftFilters(newDraft)
-    setCurrentPage(0)
-  }
 
   const clearAllFilters = () => {
     setActiveFilters({})
@@ -529,92 +477,6 @@ export function CatalogPage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 lg:px-8 py-6">
-        {/* Новая шапка */}
-        <div className="paper-like rounded-2xl border border-white/10 bg-gradient-to-b from-white/5 to-white/[0.02] backdrop-blur-sm shadow-inner shadow-black/40 p-4 lg:p-5 mb-6 relative">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-              <div className="flex items-center gap-4 flex-1 min-w-0">
-                <h1 className="text-xl md:text-2xl font-bold text-white whitespace-nowrap">{pageTitle}</h1>
-                <div className="relative flex-1 max-w-xl">
-                  <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-muted-foreground">
-                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                  </div>
-                  <input value={searchInput} onChange={e=>setSearchInput(e.target.value)} placeholder="Поиск по названию" className="w-full h-10 pl-10 pr-10 rounded-xl bg-white/5 border border-white/10 focus:border-primary/40 focus:ring-2 focus:ring-primary/30 outline-none text-sm text-white placeholder:text-muted-foreground/60 transition" />
-                  {searchInput && (
-                    <button onClick={()=>{setSearchInput('');setSearchQuery('');setCurrentPage(0)}} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-muted-foreground hover:text-white hover:bg-white/10" aria-label="Очистить поиск">
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 lg:hidden">
-                  <button onClick={()=>setShowFilters(true)} className="h-10 w-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 hover:bg-white/10" aria-label="Фильтры">
-                    <Filter className="h-5 w-5" />
-                  </button>
-                  <div ref={desktopSortRef} className="relative">
-                    <button onClick={()=>setShowSortDropdown(v=>!v)} className="h-10 px-3 flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-sm font-medium">
-                      <ArrowUpDown className="h-4 w-4" />
-                      <span className="hidden xs:inline-block max-w-[120px] truncate">{sortOrder}</span>
-                      {sortDirection==='desc'?<ArrowDown className="h-3 w-3"/>:<ArrowUp className="h-3 w-3"/>}
-                    </button>
-                    {showSortDropdown && (
-                      <div className="absolute z-50 mt-2 w-72 right-0 origin-top-right rounded-xl border border-white/15 bg-background/95 backdrop-blur-xl shadow-2xl p-4 animate-fade-in">
-                        <div className="flex items-start gap-4">
-                          <div className="flex-1 space-y-1 max-h-[260px] overflow-y-auto pr-1 scrollbar-custom">
-                            {Object.values(SORT_LABEL_BY_FIELD).map(option=>{const selected=option===sortOrder;return(<button key={option} onClick={()=>{handleSortChange(option);setShowSortDropdown(false)}} className={cn('w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors',selected?'bg-primary/20 text-primary':'text-muted-foreground hover:bg-white/10 hover:text-white')}>{selected&&<Check className="h-4 w-4"/>}<span className="truncate">{option}</span></button>)})}
-                          </div>
-                          <div className="flex flex-col gap-2 flex-shrink-0 w-28">
-                            <button onClick={()=>{handleSortDirectionChange('desc');setShowSortDropdown(false)}} className={cn('flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors',sortDirection==='desc'?'bg-primary/20 text-primary':'text-muted-foreground hover:bg-white/10 hover:text-white')}><ArrowDown className="h-4 w-4"/> Убыв.</button>
-                            <button onClick={()=>{handleSortDirectionChange('asc');setShowSortDropdown(false)}} className={cn('flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors',sortDirection==='asc'?'bg-primary/20 text-primary':'text-muted-foreground hover:bg-white/10 hover:text-white')}><ArrowUp className="h-4 w-4"/> Возраст.</button>
-                            <button onClick={()=>{resetSort();setShowSortDropdown(false)}} className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg border border-white/10 text-muted-foreground hover:text-white hover:bg-white/10"><RotateCcw className="h-3.5 w-3.5"/> Сброс</button>
-                            <button onClick={()=>setShowSortDropdown(false)} className="text-[11px] text-muted-foreground hover:text-white px-2 py-1 rounded">Закрыть</button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="hidden lg:flex items-center gap-3">
-                <div ref={desktopSortRef} className="relative">
-                  <button onClick={()=>setShowSortDropdown(v=>!v)} className="h-10 px-4 flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-sm font-medium">
-                    <ArrowUpDown className="h-4 w-4" />
-                    <span className="max-w-[140px] truncate">{sortOrder}</span>
-                    {sortDirection==='desc'?<ArrowDown className="h-3 w-3"/>:<ArrowUp className="h-3 w-3"/>}
-                  </button>
-                  {showSortDropdown && (
-                    <div className="absolute z-50 mt-2 w-80 right-0 origin-top-right rounded-xl border border-white/15 bg-background/95 backdrop-blur-xl shadow-2xl p-4 animate-fade-in">
-                      <div className="flex items-start gap-4">
-                        <div className="flex-1 space-y-1 max-h-[300px] overflow-y-auto pr-1 scrollbar-custom">
-                          {Object.values(SORT_LABEL_BY_FIELD).map(option=>{const selected=option===sortOrder;return(<button key={option} onClick={()=>{handleSortChange(option);setShowSortDropdown(false)}} className={cn('w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors',selected?'bg-primary/20 text-primary':'text-muted-foreground hover:bg-white/10 hover:text-white')}>{selected&&<Check className="h-4 w-4"/>}<span className="truncate">{option}</span></button>)})}
-                        </div>
-                        <div className="flex flex-col gap-2 flex-shrink-0 w-28">
-                          <button onClick={()=>{handleSortDirectionChange('desc');setShowSortDropdown(false)}} className={cn('flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors',sortDirection==='desc'?'bg-primary/20 text-primary':'text-muted-foreground hover:bg-white/10 hover:text-white')}><ArrowDown className="h-4 w-4"/> Убыв.</button>
-                          <button onClick={()=>{handleSortDirectionChange('asc');setShowSortDropdown(false)}} className={cn('flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors',sortDirection==='asc'?'bg-primary/20 text-primary':'text-muted-foreground hover:bg-white/10 hover:text-white')}><ArrowUp className="h-4 w-4"/> Возраст.</button>
-                          <button onClick={()=>{resetSort();setShowSortDropdown(false)}} className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg border border-white/10 text-muted-foreground hover:text-white hover:bg-white/10"><RotateCcw className="h-3.5 w-3.5"/> Сброс</button>
-                          <button onClick={()=>setShowSortDropdown(false)} className="text-[11px] text-muted-foreground hover:text-white px-2 py-1 rounded">Закрыть</button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="hidden lg:flex flex-wrap gap-2 -mt-2">
-              {['все','манга','манхва','маньхуа','западный комикс','рукомикс','другое'].map(type=> (
-                <button key={type} onClick={()=>handleActiveTypeChange(type)} className={cn('px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all duration-200 border',activeType===type?'bg-primary/20 text-primary border-primary/30 shadow shadow-primary/20':'bg-white/5 backdrop-blur-sm text-muted-foreground hover:bg-white/10 hover:text-white border-white/10')}>{type.charAt(0).toUpperCase()+type.slice(1)}</button>
-              ))}
-            </div>
-            <div className="lg:hidden -mb-1 overflow-x-auto scrollbar-hide">
-              <div className="flex gap-2 pb-1 pr-1">
-                {['все','манга','манхва','маньхуа','западный комикс','рукомикс','другое'].map(type=> (
-                  <button key={type} onClick={()=>handleActiveTypeChange(type)} className={cn('flex-shrink-0 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all duration-200 border whitespace-nowrap',activeType===type?'bg-primary/20 text-primary border-primary/30 shadow shadow-primary/20':'bg-white/5 backdrop-blur-sm text-muted-foreground hover:bg-white/10 hover:text-white border-white/10')}>{type.charAt(0).toUpperCase()+type.slice(1)}</button>
-                ))}
-              </div>
-            </div>
-            <SelectedFiltersBar activeFilters={activeFilters} activeType={activeType} onRemove={removeFilterChip} onClearAll={clearAllFilters} className="mt-1" />
-          </div>
-          <div className="mt-4 h-px w-full bg-white/10" />
-        </div>
 
         {/* Улучшенный Offcanvas фильтров для мобильных */}
         <div
@@ -659,158 +521,187 @@ export function CatalogPage() {
 
         {/* Основной контейнер с боковыми фильтрами для десктопа */}
         <div className="flex gap-8">
-          {/* Основной контент */}
-          <div className="flex-1 min-w-0">
-            {/* Manga Grid - улучшенная сетка с анимацией */}
-            <ErrorBoundary fallback={
-              <div className="text-center py-16">
-                <h3 className="text-xl font-medium text-white mb-2">Ошибка при загрузке каталога</h3>
-                <p className="text-muted-foreground mb-4">Проверьте консоль браузера для деталей</p>
-                <button 
-                  onClick={() => window.location.reload()} 
-                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-                >
-                  Перезагрузить страницу
-                </button>
-              </div>
-            }>
-              {isError ? (
-                <ErrorState onRetry={() => refetch()} />
-              ) : (
-                <div className="relative grid grid-cols-2 gap-3 sm:gap-4 lg:gap-5 xl:gap-6 auto-rows-auto sm:[grid-template-columns:repeat(auto-fill,minmax(160px,1fr))] md:[grid-template-columns:repeat(auto-fill,minmax(170px,1fr))] lg:[grid-template-columns:repeat(auto-fill,minmax(180px,1fr))] items-start animate-fade-in">
-                  {isLoading && manga.length === 0 && Array.from({ length: pageSize }).map((_, i) => (
-                    <MangaCardSkeleton key={i} />
-                  ))}
-                  {!isLoading && manga.length === 0 && (
-                    <div className="col-span-full">
-                      <EmptyState onReset={clearAllFilters} />
+          {/* Левая колонка: каталог */}
+            <div className="flex-1 min-w-0">
+              <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/5 to-white/[0.02] backdrop-blur-sm shadow-inner shadow-black/40 p-4 lg:p-5">
+                {/* Заголовок + поиск + сортировка */}
+                <div className="flex flex-col gap-4 mb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <h1 className="text-xl md:text-2xl font-bold text-white">{pageTitle}</h1>
+                    <div className="flex items-center gap-3 w-full sm:w-auto flex-1">
+                      <div className="relative flex-1">
+                        <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-muted-foreground">
+                          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                        </div>
+                        <input value={searchInput} onChange={e=>setSearchInput(e.target.value)} placeholder="Поиск по названию" className="w-full h-10 pl-10 pr-10 rounded-xl bg-white/5 border border-white/10 focus:border-primary/40 focus:ring-2 focus:ring-primary/30 outline-none text-sm text-white placeholder:text-muted-foreground/60 transition" />
+                        {searchInput && (
+                          <button onClick={()=>{setSearchInput('');setSearchQuery('');setCurrentPage(0)}} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-muted-foreground hover:text-white hover:bg-white/10" aria-label="Очистить поиск">
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                      <div ref={desktopSortRef} className="relative">
+                        <button onClick={()=>setShowSortDropdown(v=>!v)} className="h-10 px-3 flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-sm font-medium">
+                          <ArrowUpDown className="h-4 w-4" />
+                          <span className="hidden sm:inline-block max-w-[140px] truncate">{sortOrder}</span>
+                          {sortDirection==='desc'?<ArrowDown className="h-3 w-3"/>:<ArrowUp className="h-3 w-3"/>}
+                        </button>
+                        {showSortDropdown && (
+                          <div className="absolute z-50 mt-2 w-72 sm:w-80 right-0 origin-top-right rounded-xl border border-white/15 bg-background/95 backdrop-blur-xl shadow-2xl p-4 animate-fade-in">
+                            <div className="flex items-start gap-4">
+                              <div className="flex-1 space-y-1 max-h-[260px] sm:max-h-[300px] overflow-y-auto pr-1 scrollbar-custom">
+                                {Object.values(SORT_LABEL_BY_FIELD).map(option=>{const selected=option===sortOrder;return(<button key={option} onClick={()=>{handleSortChange(option);setShowSortDropdown(false)}} className={cn('w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors',selected?'bg-primary/20 text-primary':'text-muted-foreground hover:bg-white/10 hover:text-white')}>{selected&&<Check className="h-4 w-4"/>}<span className="truncate">{option}</span></button>)})}
+                              </div>
+                              <div className="flex flex-col gap-2 flex-shrink-0 w-28">
+                                <button onClick={()=>{handleSortDirectionChange('desc');setShowSortDropdown(false)}} className={cn('flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors',sortDirection==='desc'?'bg-primary/20 text-primary':'text-muted-foreground hover:bg-white/10 hover:text-white')}><ArrowDown className="h-4 w-4"/> Убыв.</button>
+                                <button onClick={()=>{handleSortDirectionChange('asc');setShowSortDropdown(false)}} className={cn('flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors',sortDirection==='asc'?'bg-primary/20 text-primary':'text-muted-foreground hover:bg-white/10 hover:text-white')}><ArrowUp className="h-4 w-4"/> Возраст.</button>
+                                <button onClick={()=>{resetSort();setShowSortDropdown(false)}} className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg border border-white/10 text-muted-foreground hover:text-white hover:bg-white/10"><RotateCcw className="h-3.5 w-3.5"/> Сброс</button>
+                                <button onClick={()=>setShowSortDropdown(false)} className="text-[11px] text-muted-foreground hover:text-white px-2 py-1 rounded">Закрыть</button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <button onClick={()=>setShowFilters(true)} className="h-10 w-10 flex sm:hidden items-center justify-center rounded-xl bg-white/5 border border-white/10 hover:bg-white/10" aria-label="Фильтры">
+                        <Filter className="h-5 w-5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Сетка карточек */}
+                <ErrorBoundary fallback={
+                  <div className="text-center py-16">
+                    <h3 className="text-xl font-medium text-white mb-2">Ошибка при загрузке каталога</h3>
+                    <p className="text-muted-foreground mb-4">Проверьте консоль браузера для деталей</p>
+                    <button 
+                      onClick={() => window.location.reload()} 
+                      className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                    >
+                      Перезагрузить страницу
+                    </button>
+                  </div>
+                }>
+                  {isError ? (
+                    <ErrorState onRetry={() => refetch()} />
+                  ) : (
+                    <div className="relative grid grid-cols-2 gap-3 sm:gap-4 lg:gap-5 xl:gap-6 auto-rows-auto sm:[grid-template-columns:repeat(auto-fill,minmax(160px,1fr))] md:[grid-template-columns:repeat(auto-fill,minmax(170px,1fr))] lg:[grid-template-columns:repeat(auto-fill,minmax(180px,1fr))] items-start animate-fade-in">
+                      {isLoading && manga.length === 0 && Array.from({ length: pageSize }).map((_, i) => (
+                        <MangaCardSkeleton key={i} />
+                      ))}
+                      {!isLoading && manga.length === 0 && (
+                        <div className="col-span-full">
+                          <EmptyState onReset={clearAllFilters} />
+                        </div>
+                      )}
+                      {manga.length > 0 && manga.map((item: MangaResponseDTO) => (
+                        <MangaCardWithTooltip key={item.id} manga={item} />
+                      ))}
+                      {isLoading && manga.length > 0 && (
+                        <div className="absolute inset-0 bg-background/40 backdrop-blur-[2px] pointer-events-none" aria-hidden />
+                      )}
                     </div>
                   )}
-                  {manga.length > 0 && manga.map((item: MangaResponseDTO) => (
-                    <MangaCardWithTooltip key={item.id} manga={item} />
-                  ))}
-                  {isLoading && manga.length > 0 && (
-                    <div className="absolute inset-0 bg-background/40 backdrop-blur-[2px] pointer-events-none" aria-hidden />
-                  )}
-                </div>
-              )}
-            </ErrorBoundary>
+                </ErrorBoundary>
 
-            {/* Pagination Component */}
-            {totalPages > 1 && (
-              <div className="flex flex-col items-center gap-4 mt-8 mb-8">
-                {/* Info */}
-                <div className="text-sm text-muted-foreground">
-                  Показано {manga?.length || 0} из {totalElements} произведений
-                </div>
-
-                {/* Pagination Controls */}
-                <div className="flex items-center gap-2">
-                  {/* First Page */}
-                  <button
-                    onClick={goToFirstPage}
-                    disabled={currentPage === 0}
-                    className={cn(
-                      'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-                      currentPage === 0
-                        ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
-                        : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
-                    )}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                    <ChevronLeft className="h-4 w-4 -ml-2" />
-                  </button>
-
-                  {/* Previous Page */}
-                  <button
-                    onClick={goToPreviousPage}
-                    disabled={currentPage === 0}
-                    className={cn(
-                      'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-                      currentPage === 0
-                        ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
-                        : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
-                    )}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                    Предыдущая
-                  </button>
-
-                  {/* Page Numbers */}
-                  <div className="flex items-center gap-1">
-                    {totalPages > 0 && Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                      const pageNum = Math.max(0, Math.min(totalPages - 5, currentPage - 2)) + i
-                      if (pageNum >= totalPages) return null
-
-                      return (
-                        <button
-                          key={pageNum}
-                          onClick={() => goToPage(pageNum)}
-                          className={cn(
-                            'px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border min-w-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-                            currentPage === pageNum
-                              ? 'bg-primary/20 text-primary border-primary/30 shadow-lg shadow-primary/20'
-                              : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
-                          )}
-                        >
-                          {pageNum + 1}
-                        </button>
-                      )
-                    })}
+                {/* Пагинация */}
+                {totalPages > 1 && (
+                  <div className="flex flex-col items-center gap-4 mt-8 mb-2">
+                    <div className="text-sm text-muted-foreground">
+                      Показано {manga?.length || 0} из {totalElements} произведений
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={goToFirstPage}
+                        disabled={currentPage === 0}
+                        className={cn(
+                          'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                          currentPage === 0
+                            ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
+                            : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
+                        )}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        <ChevronLeft className="h-4 w-4 -ml-2" />
+                      </button>
+                      <button
+                        onClick={goToPreviousPage}
+                        disabled={currentPage === 0}
+                        className={cn(
+                          'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                          currentPage === 0
+                            ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
+                            : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
+                        )}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        Предыдущая
+                      </button>
+                      <div className="flex items-center gap-1">
+                        {totalPages > 0 && Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                          const pageNum = Math.max(0, Math.min(totalPages - 5, currentPage - 2)) + i
+                          if (pageNum >= totalPages) return null
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => goToPage(pageNum)}
+                              className={cn(
+                                'px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border min-w-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                                currentPage === pageNum
+                                  ? 'bg-primary/20 text-primary border-primary/30 shadow-lg shadow-primary/20'
+                                  : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
+                              )}
+                            >
+                              {pageNum + 1}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      <button
+                        onClick={goToNextPage}
+                        disabled={!totalPages || currentPage >= totalPages - 1}
+                        className={cn(
+                          'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                          !totalPages || currentPage >= totalPages - 1
+                            ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
+                            : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
+                        )}
+                      >
+                        Следующая
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={goToLastPage}
+                        disabled={!totalPages || currentPage >= totalPages - 1}
+                        className={cn(
+                          'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                          !totalPages || currentPage >= totalPages - 1
+                            ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
+                            : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
+                        )}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                        <ChevronRight className="h-4 w-4 -ml-2" />
+                      </button>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Страница {currentPage + 1} из {totalPages}
+                    </div>
                   </div>
-
-                  {/* Next Page */}
-                  <button
-                    onClick={goToNextPage}
-                    disabled={!totalPages || currentPage >= totalPages - 1}
-                    className={cn(
-                      'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-                      !totalPages || currentPage >= totalPages - 1
-                        ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
-                        : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
-                    )}
-                  >
-                    Следующая
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-
-                  {/* Last Page */}
-                  <button
-                    onClick={goToLastPage}
-                    disabled={!totalPages || currentPage >= totalPages - 1}
-                    className={cn(
-                      'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-                      !totalPages || currentPage >= totalPages - 1
-                        ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
-                        : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
-                    )}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                    <ChevronRight className="h-4 w-4 -ml-2" />
-                  </button>
-                </div>
-
-                {/* Current Page Info */}
-                <div className="text-sm text-muted-foreground">
-                  Страница {currentPage + 1} из {totalPages}
-                </div>
+                )}
               </div>
-            )}
-
-          </div>
-
-          {/* Боковые фильтры для десктопа */}
+            </div>
+          {/* Правая колонка: фильтры */}
           <div className="hidden lg:block w-80 flex-shrink-0">
-            <MangaFilterPanel
-              initialFilters={memoizedFilterState}
-              onFiltersChange={handleFiltersChange}
-              onReset={resetFilters}
-              onApply={applyFilters}
-              className="sticky top-4"
-            />
+              <MangaFilterPanel
+                initialFilters={memoizedFilterState}
+                onFiltersChange={handleFiltersChange}
+                onReset={resetFilters}
+                onApply={applyFilters}
+                className="sticky top-4"
+              />
           </div>
         </div>
-
       </div>
     </div>
   )
