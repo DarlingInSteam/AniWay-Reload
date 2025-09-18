@@ -314,20 +314,21 @@ public class MangaService {
         Sort.Direction direction = "desc".equalsIgnoreCase(sortOrder) ? Sort.Direction.DESC : Sort.Direction.ASC;
 
         // Для нативных SQL запросов используем имена колонок базы данных
+        Sort secondary = Sort.by(Sort.Direction.DESC, "created_at");
         return switch (sortBy != null ? sortBy.toLowerCase() : "createdat") {
-            case "title" -> Sort.by(direction, "title");
-            case "author" -> Sort.by(direction, "author");
-            case "createdat" -> Sort.by(direction, "created_at");
-            case "updatedat" -> Sort.by(direction, "updated_at");
-            case "views" -> Sort.by(direction, "views");
-            case "rating" -> Sort.by(direction, "rating");
-            case "ratingcount" -> Sort.by(direction, "rating_count");
-            case "likes" -> Sort.by(direction, "likes");
-            case "reviews" -> Sort.by(direction, "reviews");
-            case "comments" -> Sort.by(direction, "comments");
-            case "chaptercount" -> Sort.by(direction, "total_chapters");
-            case "popularity" -> Sort.by(direction, "views"); // Простое поле для начала
-            default -> Sort.by(Sort.Direction.DESC, "created_at");
+            case "title" -> Sort.by(direction, "title").and(secondary);
+            case "author" -> Sort.by(direction, "author").and(secondary);
+            case "createdat" -> Sort.by(direction, "created_at").and(Sort.by(Sort.Direction.DESC, "id"));
+            case "updatedat" -> Sort.by(direction, "updated_at").and(Sort.by(Sort.Direction.DESC, "id"));
+            case "views" -> Sort.by(direction, "views").and(secondary);
+            case "rating" -> Sort.by(direction, "rating").and(secondary);
+            case "ratingcount" -> Sort.by(direction, "rating_count").and(secondary);
+            case "likes" -> Sort.by(direction, "likes").and(secondary);
+            case "reviews" -> Sort.by(direction, "reviews").and(secondary);
+            case "comments" -> Sort.by(direction, "comments").and(secondary);
+            case "chaptercount" -> Sort.by(direction, "total_chapters").and(secondary);
+            case "popularity" -> Sort.by(direction, "views").and(secondary); // Простое поле для начала
+            default -> secondary;
         };
     }
 
