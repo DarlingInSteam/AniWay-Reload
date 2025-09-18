@@ -5,6 +5,8 @@ import { Grid, Filter, ArrowUpDown, ArrowUp, ArrowDown, X, ChevronLeft, ChevronR
 import { apiClient } from '@/lib/api'
 import { MangaCardWithTooltip } from '@/components/manga'
 import { MangaCardSkeleton } from '@/components/manga/MangaCardSkeleton'
+import { EmptyState } from '@/components/catalog/EmptyState'
+import { ErrorState } from '@/components/catalog/ErrorState'
 import { SelectedFiltersBar } from '@/components/filters/SelectedFiltersBar'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 // import { MangaFilterSidebar } from '@/components/filters/MangaFilterSidebar'
@@ -50,7 +52,7 @@ export function CatalogPage() {
     activeFilters: JSON.stringify(activeFilters) // Сериализуем для стабильности
   }), [genre, sort, currentPage, sortOrder, sortDirection, activeType, activeFilters])
 
-  const { data: mangaPage, isLoading } = useQuery<PageResponse<MangaResponseDTO>>({
+  const { data: mangaPage, isLoading, isError, refetch } = useQuery<PageResponse<MangaResponseDTO>>({
     queryKey: ['manga-catalog', queryKeyParams],
     queryFn: () => {
       const sortBy = getSortByField(sortOrder)
@@ -644,23 +646,26 @@ export function CatalogPage() {
                 </button>
               </div>
             }>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4 lg:gap-6 animate-fade-in">
-                {isLoading && (!manga || manga.length === 0) && Array.from({ length: pageSize }).map((_, i) => (
-                  <MangaCardSkeleton key={i} />
-                ))}
-                {!isLoading && manga?.map((item: MangaResponseDTO) => (
-                  <MangaCardWithTooltip
-                    key={item.id}
-                    manga={item}
-                  />
-                ))}
-                {isLoading && manga && manga.length > 0 && (
-                  // Отображаем полупрозрачный оверлей при обновлении данных
-                  <div className="absolute inset-0 pointer-events-none" aria-hidden>
-                    {/* Можно добавить linear progress сверху при желании */}
-                  </div>
-                )}
-              </div>
+              {isError ? (
+                <ErrorState onRetry={() => refetch()} />
+              ) : (
+                <div className="relative grid grid-cols-2 gap-3 sm:gap-4 lg:gap-5 xl:gap-6 [grid-auto-rows:1fr] sm:[grid-template-columns:repeat(auto-fill,minmax(150px,1fr))] md:[grid-template-columns:repeat(auto-fill,minmax(170px,1fr))] lg:[grid-template-columns:repeat(auto-fill,minmax(180px,1fr))] animate-fade-in">
+                  {isLoading && manga.length === 0 && Array.from({ length: pageSize }).map((_, i) => (
+                    <MangaCardSkeleton key={i} />
+                  ))}
+                  {!isLoading && manga.length === 0 && (
+                    <div className="col-span-full">
+                      <EmptyState onReset={clearAllFilters} />
+                    </div>
+                  )}
+                  {manga.length > 0 && manga.map((item: MangaResponseDTO) => (
+                    <MangaCardWithTooltip key={item.id} manga={item} />
+                  ))}
+                  {isLoading && manga.length > 0 && (
+                    <div className="absolute inset-0 bg-background/40 backdrop-blur-[2px] pointer-events-none" aria-hidden />
+                  )}
+                </div>
+              )}
             </ErrorBoundary>
 
             {/* Pagination Component */}
@@ -764,20 +769,6 @@ export function CatalogPage() {
               </div>
             )}
 
-            {/* Улучшенный Empty State */}
-            {!isLoading && manga?.length === 0 && (
-              <div className="text-center py-16 md:py-20">
-                <div className="mb-6">
-                  <div className="mx-auto h-20 w-20 md:h-24 md:w-24 bg-white/5 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/10 shadow-lg">
-                    <Grid className="h-10 w-10 md:h-12 md:w-12 text-muted-foreground" />
-                  </div>
-                </div>
-                <h3 className="text-xl md:text-2xl font-semibold text-white mb-3">Ничего не найдено</h3>
-                <p className="text-muted-foreground text-sm md:text-base max-w-md mx-auto">
-                  Попробуйте изменить параметры поиска или выберите другой жанр
-                </p>
-              </div>
-            )}
           </div>
 
           {/* Боковые фильтры для десктопа */}

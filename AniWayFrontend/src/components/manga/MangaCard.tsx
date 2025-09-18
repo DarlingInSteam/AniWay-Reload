@@ -1,3 +1,4 @@
+import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Calendar, User, Star, Eye, Heart, Bookmark } from 'lucide-react'
 import { MangaResponseDTO } from '@/types'
@@ -85,27 +86,39 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
     }
   }
 
+  const [imageLoaded, setImageLoaded] = useState(false)
+
   return (
-    <div className="group flex flex-col space-y-2 md:space-y-3 animate-fade-in w-full">
+    <div className="group flex flex-col space-y-2 md:space-y-3 w-full transition-transform duration-300 will-change-transform hover:-translate-y-1">
       {/* Cover Image Card */}
       <Link
         to={`/manga/${manga.id}`}
-        className="manga-card block relative overflow-hidden rounded-lg md:rounded-xl"
+        className="manga-card block relative overflow-hidden rounded-lg md:rounded-xl border border-white/10 bg-gradient-to-b from-white/5 to-white/[0.02] shadow-sm shadow-black/0 group-hover:shadow-black/40 group-hover:border-primary/40 transition-all duration-300"
       >
         <div className={cn('relative overflow-hidden', cardSizes[size])}>
           <img
             src={manga.coverImageUrl}
             alt={manga.title}
-            className="manga-cover h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            className={cn(
+              'manga-cover h-full w-full object-cover transition duration-500 ease-out',
+              'opacity-0 blur-md scale-[1.03] group-hover:scale-105',
+              imageLoaded && 'opacity-100 blur-0 scale-100'
+            )}
             loading="lazy"
+            decoding="async"
+            onLoad={() => setImageLoaded(true)}
             onError={(e) => {
               const target = e.target as HTMLImageElement
               target.src = '/placeholder-manga.jpg'
+              setImageLoaded(true)
             }}
           />
+          {!imageLoaded && (
+            <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-white/5 to-transparent animate-pulse" aria-hidden />
+          )}
 
           {/* Gradient Overlay for bottom text */}
-          <div className="manga-gradient-overlay absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          <div className="manga-gradient-overlay pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
           {/* Status Badge */}
           <div className="absolute top-2 md:top-3 left-2 md:left-3">
@@ -148,9 +161,9 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
           </div>
 
           {/* Hover overlay with quick actions */}
-          <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
             <div className="hidden md:flex items-center space-x-2">
-              <div className="bg-white/90 backdrop-blur-sm text-black px-3 py-1.5 rounded-full text-sm font-medium">
+              <div className="bg-white/90 backdrop-blur-sm text-black px-3 py-1.5 rounded-full text-sm font-medium shadow">
                 Читать
               </div>
             </div>
@@ -160,19 +173,19 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
 
       {/* Metadata */}
       {showMetadata && (
-        <div className="flex flex-col px-1 h-[4.5rem] md:h-[5rem]">
+  <div className="flex flex-col px-1 h-[4.5rem] md:h-[5rem] select-none">
           {/* Title - строго фиксированная высота для 2 строк */}
           <Link
             to={`/manga/${manga.id}`}
             className="block mb-1 md:mb-1.5"
           >
-            <h3 className="text-xs md:text-sm font-semibold text-white line-clamp-2 hover:text-primary transition-colors duration-200 leading-tight h-[2rem] md:h-[2.25rem] overflow-hidden">
+            <h3 className="text-xs md:text-sm font-semibold text-white line-clamp-2 hover:text-primary transition-colors duration-200 leading-tight h-[2rem] md:h-[2.25rem] overflow-hidden tracking-tight">
               {manga.title}
             </h3>
           </Link>
 
           {/* Genre and Year - строго фиксированная высота */}
-          <div className="flex items-center justify-between text-xs text-muted-foreground h-4 mb-1">
+          <div className="flex items-center justify-between text-xs text-muted-foreground h-4 mb-1 gap-2">
             <span className="line-clamp-1 flex-1 mr-2">
               {manga.genre ? manga.genre.split(',')[0] : 'Без жанра'}
             </span>
