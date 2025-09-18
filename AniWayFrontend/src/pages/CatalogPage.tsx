@@ -464,6 +464,18 @@ export function CatalogPage() {
     console.log('[CatalogPage] Active sorting => field(raw):', sortField, 'normalized:', normalizeSortField(sortField), 'label:', sortOrder, 'direction:', sortDirection)
   }, [sortField, sortOrder, sortDirection])
 
+  // Диагностика: вывод первых 10 значений текущего сортируемого поля после получения данных
+  useEffect(() => {
+    if (!manga || manga.length === 0) return
+    const field = sortField
+    const pick = (m: any) => {
+      if (field === 'chapterCount') return m.chapterCount ?? m.totalChapters
+      return m[field] ?? m[normalizeSortField(field)] ?? null
+    }
+    const snapshot = manga.slice(0, 10).map(m => ({ id: m.id, v: pick(m) }))
+    console.log('[CatalogPage] TOP10 snapshot for field', field, 'direction', sortDirection, snapshot)
+  }, [manga, sortField, sortDirection])
+
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   }, []);

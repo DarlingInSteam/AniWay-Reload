@@ -52,13 +52,15 @@ export const SortPopover: React.FC<SortPopoverProps> = ({
 
   useEffect(() => {
     if (!open) return
-    const handleClick = (e: MouseEvent) => {
+    const handleOutside = (e: MouseEvent) => {
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        console.log('[SortPopover] outside click detected -> close')
         onClose()
       }
     }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
+    // Используем click вместо mousedown чтобы дать шанс внутреннему onClick выполнить state update
+    document.addEventListener('click', handleOutside)
+    return () => document.removeEventListener('click', handleOutside)
   }, [open, onClose])
 
   return (
