@@ -48,6 +48,7 @@ export function CatalogPage() {
   const initialPage = parseInt(searchParams.get('page') || '1', 10)
   const [currentPage, setCurrentPage] = useState(isNaN(initialPage) || initialPage < 1 ? 0 : initialPage - 1)
   const [pageSize] = useState(20) // Фиксированный размер страницы - 20 тайтлов на страницу
+  const [sortNonce, setSortNonce] = useState(0)
 
   // Разбор значений из URL
   const parseArray = (value: string | null) => !value ? [] : value.split(',').filter(Boolean)
@@ -122,8 +123,9 @@ export function CatalogPage() {
     sortDirection,
     currentPage,
     activeType,
+    sortNonce,
     activeFilters: JSON.stringify(activeFilters)
-  }), [genre, sortField, sortDirection, currentPage, activeType, activeFilters])
+  }), [genre, sortField, sortDirection, currentPage, activeType, activeFilters, sortNonce])
 
   const normalizeSortField = (field: string) => {
     if (!field) return 'createdat'
@@ -278,7 +280,7 @@ export function CatalogPage() {
       }
     })
     if (changed) setSearchParams(current, { replace: true })
-  }, [currentPage, sortField, sortDirection, activeType, activeFilters, genre, setSearchParams])
+  }, [currentPage, sortField, sortDirection, activeType, activeFilters, genre, sortNonce, setSearchParams])
 
   // Обработчики фильтров
   const memoizedFilterState = useMemo(() => {
@@ -402,8 +404,13 @@ export function CatalogPage() {
   // Обработчик сортировки
   const handleSortChange = (newSortLabel: string) => {
     const newField = SORT_FIELD_BY_LABEL[newSortLabel] || defaultSortField
-    console.log('CatalogPage: Sort field changed from', sortField, 'to', newField, 'label:', newSortLabel)
-    setSortField(newField)
+    console.log('[CatalogPage] sort change click: label=', newSortLabel, 'rawFieldFromState=', sortField, 'mappedNewField=', newField, 'time=', Date.now())
+    if (newField === sortField) {
+      setSortNonce(n => n + 1)
+      console.log('[CatalogPage] same sort field reselected -> increment nonce', sortNonce + 1)
+    } else {
+      setSortField(newField)
+    }
     setShowSortDropdown(false)
     setCurrentPage(0) // Сбрасываем на первую страницу при изменении сортировки
     queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
@@ -411,8 +418,13 @@ export function CatalogPage() {
 
   // Обработчик направления сортировки
   const handleSortDirectionChange = (direction: 'desc' | 'asc') => {
-    console.log('CatalogPage: Sort direction changed from', sortDirection, 'to', direction)
-    setSortDirection(direction)
+    console.log('[CatalogPage] direction change click: from', sortDirection, 'to', direction, 'time=', Date.now())
+    if (direction === sortDirection) {
+      setSortNonce(n => n + 1)
+      console.log('[CatalogPage] same direction reselected -> increment nonce', sortNonce + 1)
+    } else {
+      setSortDirection(direction)
+    }
     setShowSortDropdown(false)
     setCurrentPage(0) // Сбрасываем на первую страницу при изменении направления
     queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
