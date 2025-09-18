@@ -95,22 +95,28 @@ class ApiClient {
 
     // Добавляем фильтры если есть
     if (filters) {
+      console.log('ApiClient: Processing filters:', filters)
       Object.entries(filters).forEach(([key, value]) => {
         if (value) {
+          console.log(`ApiClient: Processing filter ${key}:`, value)
           if (Array.isArray(value) && !['ageRating', 'rating', 'releaseYear', 'chapterRange'].includes(key)) {
             // Для массивов добавляем каждый элемент отдельно
+            console.log(`ApiClient: Adding array values for ${key}:`, value)
             value.forEach(item => params.append(key, item.toString()));
           } else if (Array.isArray(value) && ['ageRating', 'rating', 'releaseYear', 'chapterRange'].includes(key)) {
             // Для диапазонов [min, max]
+            console.log(`ApiClient: Adding range for ${key}:`, value)
             params.append(`${key}Min`, value[0].toString());
             params.append(`${key}Max`, value[1].toString());
           } else {
+            console.log(`ApiClient: Adding single value for ${key}:`, value)
             params.append(key, value.toString());
           }
         }
       });
     }
 
+    console.log('ApiClient: Final URL parameters:', params.toString())
     return this.request<PageResponse<MangaResponseDTO>>(`/manga/paged?${params}`);
   }
 

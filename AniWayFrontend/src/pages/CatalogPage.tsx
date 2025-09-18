@@ -76,6 +76,19 @@ export function CatalogPage() {
       console.log('ActiveFilters state:', activeFilters)
       console.log('QueryKey params:', queryKeyParams)
       
+      // Детальный лог того, что отправляется в API
+      console.log('=== API CALL DETAILS ===')
+      console.log('Genre from URL:', genre)
+      console.log('Final filterParams being sent:', JSON.stringify(filterParams, null, 2))
+      console.log('getAllMangaPaged params:', {
+        page: currentPage,
+        size: pageSize,
+        sortBy,
+        sortOrder: sortDirection,
+        filters: filterParams
+      })
+      console.log('========================')
+      
       if (genre) {
         // Для поиска по жанру создаем полный объект параметров
         const searchParams = {
@@ -123,16 +136,18 @@ export function CatalogPage() {
 
   // Обработчики фильтров
   const handleFiltersChange = (filters: any) => {
-    console.log('CatalogPage: Received filters from sidebar:', filters)
+    console.log('CatalogPage: Received filters from sidebar:', JSON.stringify(filters, null, 2))
     
     // Преобразуем FilterState в SearchParams формат
     const searchParams: any = {}
     
     if (filters.selectedGenres?.length > 0) {
+      console.log('CatalogPage: Processing selectedGenres:', filters.selectedGenres)
       searchParams.genres = filters.selectedGenres
     }
     
     if (filters.selectedTags?.length > 0) {
+      console.log('CatalogPage: Processing selectedTags:', filters.selectedTags)
       searchParams.tags = filters.selectedTags
     }
     
