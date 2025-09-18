@@ -30,6 +30,8 @@ export const SortPopover: React.FC<SortPopoverProps> = ({
   ,closeOnSelect = true
 }) => {
   const panelRef = useRef<HTMLDivElement | null>(null)
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const anchorRef = useRef<HTMLButtonElement | null>(null)
   const firstItemRef = useRef<HTMLButtonElement | null>(null)
 
   useEffect(() => {
@@ -53,24 +55,26 @@ export const SortPopover: React.FC<SortPopoverProps> = ({
   useEffect(() => {
     if (!open) return
     const handleOutside = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        console.log('[SortPopover] outside click detected -> close')
-        onClose()
-      }
+      const target = e.target as Node
+      // Если клик внутри общего корневого контейнера (кнопка или панель) — игнорируем
+      if (rootRef.current?.contains(target)) return
+      console.log('[SortPopover] outside click -> closing (target outside root)')
+      onClose()
     }
-    // Используем click вместо mousedown чтобы дать шанс внутреннему onClick выполнить state update
     document.addEventListener('click', handleOutside)
     return () => document.removeEventListener('click', handleOutside)
   }, [open, onClose])
 
   return (
-    <div className="relative inline-block text-left">
+    <div ref={rootRef} className="relative inline-block text-left">
       <button
+        ref={anchorRef}
         type="button"
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls="sort-popover-panel"
         onClick={() => {
+          console.log('[SortPopover] anchor click toggle. wasOpen=', open)
           if (onToggle) {
             onToggle()
           } else {
