@@ -19,7 +19,8 @@ export function CatalogPage() {
   const [showSortDropdown, setShowSortDropdown] = useState(false)
   const [currentPage, setCurrentPage] = useState(0)
   const [pageSize] = useState(10) // Фиксированный размер страницы
-  const [activeFilters, setActiveFilters] = useState<any>({})
+  const [activeFilters, setActiveFilters] = useState<any>({}) // Применённые фильтры (для API)
+  const [draftFilters, setDraftFilters] = useState<any>({}) // Предварительные фильтры (для UI)
 
   // Refs для обработки кликов вне области
   const sortDropdownRef = useRef<HTMLDivElement>(null)
@@ -138,29 +139,29 @@ export function CatalogPage() {
   // Обработчики фильтров
   const memoizedFilterState = useMemo(() => {
     const filterState = {
-      selectedGenres: activeFilters.genres || [],
-      selectedTags: activeFilters.tags || [],
-      mangaType: activeFilters.type || '',
-      status: activeFilters.status || '',
-      ageRating: activeFilters.ageRating || [0, 21],
-      rating: activeFilters.rating || [0, 10],
-      releaseYear: activeFilters.releaseYear || [1990, new Date().getFullYear()],
-      chapterRange: activeFilters.chapterRange || [0, 1000]
+      selectedGenres: draftFilters.selectedGenres || [],
+      selectedTags: draftFilters.selectedTags || [],
+      mangaType: draftFilters.mangaType || '',
+      status: draftFilters.status || '',
+      ageRating: draftFilters.ageRating || [0, 21],
+      rating: draftFilters.rating || [0, 10],
+      releaseYear: draftFilters.releaseYear || [1990, new Date().getFullYear()],
+      chapterRange: draftFilters.chapterRange || [0, 1000]
     }
     console.log('CatalogPage: Memoized FilterState updated:', 
-      'activeFilters:', activeFilters, 
+      'draftFilters:', draftFilters, 
       'filterState:', filterState
     )
     return filterState
   }, [
-    JSON.stringify(activeFilters.genres || []),
-    JSON.stringify(activeFilters.tags || []),
-    activeFilters.type,
-    activeFilters.status,
-    JSON.stringify(activeFilters.ageRating || [0, 21]),
-    JSON.stringify(activeFilters.rating || [0, 10]),
-    JSON.stringify(activeFilters.releaseYear || [1990, new Date().getFullYear()]),
-    JSON.stringify(activeFilters.chapterRange || [0, 1000])
+    JSON.stringify(draftFilters.selectedGenres || []),
+    JSON.stringify(draftFilters.selectedTags || []),
+    draftFilters.mangaType,
+    draftFilters.status,
+    JSON.stringify(draftFilters.ageRating || [0, 21]),
+    JSON.stringify(draftFilters.rating || [0, 10]),
+    JSON.stringify(draftFilters.releaseYear || [1990, new Date().getFullYear()]),
+    JSON.stringify(draftFilters.chapterRange || [0, 1000])
   ])
 
   const convertActiveFiltersToFilterState = (activeFilters: any) => {
@@ -181,44 +182,51 @@ export function CatalogPage() {
     return filterState
   }
 
+  // Обработка изменений в предварительных фильтрах (не применяем сразу)
   const handleFiltersChange = (filters: any) => {
-    console.log('CatalogPage: Received filters from sidebar:', JSON.stringify(filters, null, 2))
+    console.log('CatalogPage: Updating draft filters:', JSON.stringify(filters, null, 2))
+    setDraftFilters(filters)
+  }
+
+  // Функция применения фильтров (вызывается кнопкой "Применить")
+  const applyFilters = () => {
+    console.log('CatalogPage: Applying filters:', JSON.stringify(draftFilters, null, 2))
     
     // Преобразуем FilterState в SearchParams формат
     const searchParams: any = {}
     
-    if (filters.selectedGenres?.length > 0) {
-      console.log('CatalogPage: Processing selectedGenres:', filters.selectedGenres)
-      searchParams.genres = filters.selectedGenres
+    if (draftFilters.selectedGenres?.length > 0) {
+      console.log('CatalogPage: Processing selectedGenres:', draftFilters.selectedGenres)
+      searchParams.genres = draftFilters.selectedGenres
     }
     
-    if (filters.selectedTags?.length > 0) {
-      console.log('CatalogPage: Processing selectedTags:', filters.selectedTags)
-      searchParams.tags = filters.selectedTags
+    if (draftFilters.selectedTags?.length > 0) {
+      console.log('CatalogPage: Processing selectedTags:', draftFilters.selectedTags)
+      searchParams.tags = draftFilters.selectedTags
     }
     
-    if (filters.mangaType && filters.mangaType !== '') {
-      searchParams.type = filters.mangaType
+    if (draftFilters.mangaType && draftFilters.mangaType !== '') {
+      searchParams.type = draftFilters.mangaType
     }
     
-    if (filters.status && filters.status !== '') {
-      searchParams.status = filters.status
+    if (draftFilters.status && draftFilters.status !== '') {
+      searchParams.status = draftFilters.status
     }
     
-    if (filters.ageRating) {
-      searchParams.ageRating = filters.ageRating
+    if (draftFilters.ageRating) {
+      searchParams.ageRating = draftFilters.ageRating
     }
     
-    if (filters.rating) {
-      searchParams.rating = filters.rating
+    if (draftFilters.rating) {
+      searchParams.rating = draftFilters.rating
     }
     
-    if (filters.releaseYear) {
-      searchParams.releaseYear = filters.releaseYear
+    if (draftFilters.releaseYear) {
+      searchParams.releaseYear = draftFilters.releaseYear
     }
     
-    if (filters.chapterRange) {
-      searchParams.chapterRange = filters.chapterRange
+    if (draftFilters.chapterRange) {
+      searchParams.chapterRange = draftFilters.chapterRange
     }
 
     console.log('CatalogPage: Applied filters to activeFilters:', searchParams)
@@ -227,8 +235,10 @@ export function CatalogPage() {
     setCurrentPage(0) // Сбрасываем на первую страницу при изменении фильтров
   }
 
-  const handleFiltersReset = () => {
+  // Функция сброса фильтров
+  const resetFilters = () => {
     console.log('CatalogPage: Resetting filters')
+    setDraftFilters({})
     setActiveFilters({})
     setCurrentPage(0)
   }
@@ -537,7 +547,8 @@ export function CatalogPage() {
             <MangaFilterSidebar
               initialFilters={memoizedFilterState}
               onFiltersChange={handleFiltersChange}
-              onReset={handleFiltersReset}
+              onReset={resetFilters}
+              onApply={applyFilters}
               className="border-0 bg-transparent"
             />
           </div>
@@ -700,7 +711,8 @@ export function CatalogPage() {
             <MangaFilterSidebar
               initialFilters={memoizedFilterState}
               onFiltersChange={handleFiltersChange}
-              onReset={handleFiltersReset}
+              onReset={resetFilters}
+              onApply={applyFilters}
               className="sticky top-4"
             />
           </div>

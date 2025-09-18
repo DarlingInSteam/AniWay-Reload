@@ -57,6 +57,7 @@ interface MangaFilterSidebarProps {
   initialFilters?: FilterState
   onFiltersChange: (filters: FilterState) => void
   onReset: () => void
+  onApply?: () => void // Добавляем функцию применения фильтров
 }
 
 // Простой компонент разделителя
@@ -409,7 +410,8 @@ export const MangaFilterSidebar: React.FC<MangaFilterSidebarProps> = ({
   className,
   initialFilters,
   onFiltersChange,
-  onReset
+  onReset,
+  onApply
 }) => {
   // Загрузка данных фильтров с бэкенда
   const { 
@@ -457,49 +459,17 @@ export const MangaFilterSidebar: React.FC<MangaFilterSidebarProps> = ({
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }))
   }, [])
 
-  // Функция для создания debounced версии
-  const debounce = <T extends (...args: any[]) => void>(func: T, delay: number): T => {
-    let timeoutId: NodeJS.Timeout
-    return ((...args: any[]) => {
-      clearTimeout(timeoutId)
-      timeoutId = setTimeout(() => func(...args), delay)
-    }) as T
-  }
-
-  // Мгновенное обновление UI (без задержки)
-  const updateFiltersUI = (newFilters: Partial<FilterState>) => {
-    const updatedFilters = { ...filters, ...newFilters }
-    setFilters(updatedFilters)
-  }
-
-  // Debounced обновление для API (только для слайдеров)
-  const debouncedAPIUpdate = useCallback(
-    debounce((updatedFilters: FilterState) => {
-      console.log('MangaFilterSidebar: Debounced API update with:', updatedFilters)
-      onFiltersChange(updatedFilters)
-    }, 300),
-    [onFiltersChange]
-  )
-
-  // Основная функция обновления фильтров
+  // Обновление локального состояния фильтров (без применения)
   const updateFilters = (newFilters: Partial<FilterState>) => {
-    console.log('MangaFilterSidebar: Updating filters with:', newFilters)
-    console.log('MangaFilterSidebar: Current filters:', filters)
+    console.log('MangaFilterSidebar: Updating draft filters with:', newFilters)
     const updatedFilters = { ...filters, ...newFilters }
-    console.log('MangaFilterSidebar: Final filters:', updatedFilters)
+    console.log('MangaFilterSidebar: Updated draft filters:', updatedFilters)
     
-    // Всегда обновляем UI мгновенно
+    // Обновляем локальное состояние
     setFilters(updatedFilters)
     
-    // Для слайдеров используем debounce, для остальных - мгновенно
-    const isSliderUpdate = 'ageRating' in newFilters || 'rating' in newFilters || 
-                          'releaseYear' in newFilters || 'chapterRange' in newFilters
-    
-    if (isSliderUpdate) {
-      debouncedAPIUpdate(updatedFilters)
-    } else {
-      onFiltersChange(updatedFilters)
-    }
+    // Передаем изменения в родительский компонент (CatalogPage)
+    onFiltersChange(updatedFilters)
   }
 
   const resetFilters = () => {
@@ -515,7 +485,7 @@ export const MangaFilterSidebar: React.FC<MangaFilterSidebarProps> = ({
     }
     setFilters(defaultFilters)
     onFiltersChange(defaultFilters)
-    onReset()
+    onReset() // Вызываем родительскую функцию сброса
   }
 
   return (
@@ -526,14 +496,26 @@ export const MangaFilterSidebar: React.FC<MangaFilterSidebarProps> = ({
             <div className="w-2 h-2 bg-primary rounded-full"></div>
             Фильтры
           </h2>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={resetFilters}
-            className="h-8 px-2 text-muted-foreground hover:text-white hover:bg-white/10 transition-all duration-200 rounded-lg"
-          >
-            <RotateCcw className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={resetFilters}
+              className="h-8 px-2 text-muted-foreground hover:text-white hover:bg-white/10 transition-all duration-200 rounded-lg"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+            {onApply && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={onApply}
+                className="h-8 px-3 bg-primary text-white hover:bg-primary/80 transition-all duration-200 rounded-lg text-xs font-medium"
+              >
+                Применить
+              </Button>
+            )}
+          </div>
         </div>
       </div>
       
@@ -704,6 +686,26 @@ export const MangaFilterSidebar: React.FC<MangaFilterSidebarProps> = ({
             onValueChange={(chapterRange) => updateFilters({ chapterRange })}
           />
         </FilterSection>
+        
+        {/* Кнопки действий */}
+        <div className="pt-4 border-t border-white/10 flex gap-3">
+          <Button
+            variant="outline"
+            onClick={resetFilters}
+            className="flex-1 h-10 border-white/20 text-white hover:bg-white/10 hover:border-white/40 transition-all duration-200"
+          >
+            <RotateCcw className="h-4 w-4 mr-2" />
+            Сбросить
+          </Button>
+          {onApply && (
+            <Button
+              onClick={onApply}
+              className="flex-1 h-10 bg-primary text-white hover:bg-primary/80 transition-all duration-200"
+            >
+              Применить
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   )
