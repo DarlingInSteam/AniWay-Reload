@@ -160,7 +160,7 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
           {/* Genre and Year - строго фиксированная высота */}
           <div className="flex items-center justify-between text-xs text-muted-foreground h-4 mb-1">
             <span className="line-clamp-1 flex-1 mr-2">
-              {manga.genre.split(',')[0]}
+              {manga.genre ? manga.genre.split(',')[0] : 'Без жанра'}
             </span>
             <span className="flex-shrink-0">
               {new Date(manga.releaseDate).getFullYear()}
