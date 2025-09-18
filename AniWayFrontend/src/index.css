@@ -181,7 +181,8 @@
 
 /* Glass panel utility */
 .glass-panel {
-  @apply bg-white/10 backdrop-blur-sm border border-white/15 rounded-xl;
+  /* Darker translucent panel */
+  @apply bg-black/50 backdrop-blur-md border border-white/10 rounded-xl;
 }
 
 /* Skeleton loading */
