@@ -238,7 +238,9 @@ export function CatalogPage() {
   }
 
   const goToLastPage = () => {
-    goToPage(totalPages - 1)
+    if (totalPages > 0) {
+      goToPage(totalPages - 1)
+    }
   }
 
   const pageTitle = genre ? `Жанр: ${genre}` : 'Каталог'
@@ -559,7 +561,7 @@ export function CatalogPage() {
 
                   {/* Page Numbers */}
                   <div className="flex items-center gap-1">
-                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    {totalPages > 0 && Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                       const pageNum = Math.max(0, Math.min(totalPages - 5, currentPage - 2)) + i
                       if (pageNum >= totalPages) return null
 
@@ -583,10 +585,10 @@ export function CatalogPage() {
                   {/* Next Page */}
                   <button
                     onClick={goToNextPage}
-                    disabled={currentPage >= totalPages - 1}
+                    disabled={!totalPages || currentPage >= totalPages - 1}
                     className={cn(
                       'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border',
-                      currentPage >= totalPages - 1
+                      !totalPages || currentPage >= totalPages - 1
                         ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
                         : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
                     )}
@@ -598,10 +600,10 @@ export function CatalogPage() {
                   {/* Last Page */}
                   <button
                     onClick={goToLastPage}
-                    disabled={currentPage >= totalPages - 1}
+                    disabled={!totalPages || currentPage >= totalPages - 1}
                     className={cn(
                       'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border',
-                      currentPage >= totalPages - 1
+                      !totalPages || currentPage >= totalPages - 1
                         ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
                         : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
                     )}
