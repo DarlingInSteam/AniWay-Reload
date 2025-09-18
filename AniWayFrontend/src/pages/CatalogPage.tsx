@@ -136,6 +136,33 @@ export function CatalogPage() {
   }
 
   // Обработчики фильтров
+  const memoizedFilterState = useMemo(() => {
+    const filterState = {
+      selectedGenres: activeFilters.genres || [],
+      selectedTags: activeFilters.tags || [],
+      mangaType: activeFilters.type || '',
+      status: activeFilters.status || '',
+      ageRating: activeFilters.ageRating || [0, 21],
+      rating: activeFilters.rating || [0, 10],
+      releaseYear: activeFilters.releaseYear || [1990, new Date().getFullYear()],
+      chapterRange: activeFilters.chapterRange || [0, 1000]
+    }
+    console.log('CatalogPage: Memoized FilterState updated:', 
+      'activeFilters:', activeFilters, 
+      'filterState:', filterState
+    )
+    return filterState
+  }, [
+    JSON.stringify(activeFilters.genres || []),
+    JSON.stringify(activeFilters.tags || []),
+    activeFilters.type,
+    activeFilters.status,
+    JSON.stringify(activeFilters.ageRating || [0, 21]),
+    JSON.stringify(activeFilters.rating || [0, 10]),
+    JSON.stringify(activeFilters.releaseYear || [1990, new Date().getFullYear()]),
+    JSON.stringify(activeFilters.chapterRange || [0, 1000])
+  ])
+
   const convertActiveFiltersToFilterState = (activeFilters: any) => {
     const filterState = {
       selectedGenres: activeFilters.genres || [],
@@ -508,7 +535,7 @@ export function CatalogPage() {
           </div>
           <div className="h-full overflow-y-auto">
             <MangaFilterSidebar
-              initialFilters={convertActiveFiltersToFilterState(activeFilters)}
+              initialFilters={memoizedFilterState}
               onFiltersChange={handleFiltersChange}
               onReset={handleFiltersReset}
               className="border-0 bg-transparent"
@@ -671,7 +698,7 @@ export function CatalogPage() {
           {/* Боковые фильтры для десктопа */}
           <div className="hidden lg:block w-80 flex-shrink-0">
             <MangaFilterSidebar
-              initialFilters={convertActiveFiltersToFilterState(activeFilters)}
+              initialFilters={memoizedFilterState}
               onFiltersChange={handleFiltersChange}
               onReset={handleFiltersReset}
               className="sticky top-4"

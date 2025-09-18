@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -70,7 +70,7 @@ const FilterSection: React.FC<{
   isOpen: boolean
   onToggle: () => void
   children: React.ReactNode
-}> = ({ title, isOpen, onToggle, children }) => (
+}> = React.memo(({ title, isOpen, onToggle, children }) => (
   <div className="space-y-4">
     <Button
       variant="ghost"
@@ -92,7 +92,7 @@ const FilterSection: React.FC<{
       <div className="mt-4">{children}</div>
     </div>
   </div>
-)
+))
 
 // Компонент мультиселекта для жанров
 const GenreMultiSelectFilter: React.FC<{
@@ -453,17 +453,53 @@ export const MangaFilterSidebar: React.FC<MangaFilterSidebarProps> = ({
     chapters: false
   })
 
-  const toggleSection = (section: keyof typeof openSections) => {
+  const toggleSection = useCallback((section: keyof typeof openSections) => {
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }))
+  }, [])
+
+  // Функция для создания debounced версии
+  const debounce = <T extends (...args: any[]) => void>(func: T, delay: number): T => {
+    let timeoutId: NodeJS.Timeout
+    return ((...args: any[]) => {
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => func(...args), delay)
+    }) as T
   }
 
+  // Мгновенное обновление UI (без задержки)
+  const updateFiltersUI = (newFilters: Partial<FilterState>) => {
+    const updatedFilters = { ...filters, ...newFilters }
+    setFilters(updatedFilters)
+  }
+
+  // Debounced обновление для API (только для слайдеров)
+  const debouncedAPIUpdate = useCallback(
+    debounce((updatedFilters: FilterState) => {
+      console.log('MangaFilterSidebar: Debounced API update with:', updatedFilters)
+      onFiltersChange(updatedFilters)
+    }, 300),
+    [onFiltersChange]
+  )
+
+  // Основная функция обновления фильтров
   const updateFilters = (newFilters: Partial<FilterState>) => {
     console.log('MangaFilterSidebar: Updating filters with:', newFilters)
     console.log('MangaFilterSidebar: Current filters:', filters)
     const updatedFilters = { ...filters, ...newFilters }
     console.log('MangaFilterSidebar: Final filters:', updatedFilters)
+    
+    // Всегда обновляем UI мгновенно
     setFilters(updatedFilters)
-    onFiltersChange(updatedFilters)
+    
+    // Для слайдеров используем debounce, для остальных - мгновенно
+    const isSliderUpdate = 'ageRating' in newFilters || 'rating' in newFilters || 
+                          'releaseYear' in newFilters || 'chapterRange' in newFilters
+    
+    if (isSliderUpdate) {
+      debouncedAPIUpdate(updatedFilters)
+    } else {
+      onFiltersChange(updatedFilters)
+    }
   }
 
   const resetFilters = () => {
