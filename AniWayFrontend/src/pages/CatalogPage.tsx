@@ -635,6 +635,7 @@ export function CatalogPage() {
               <SortPopover
                 open={showSortDropdown}
                 onClose={() => setShowSortDropdown(false)}
+                onToggle={() => setShowSortDropdown(v => !v)}
                 sortOrder={sortOrder}
                 sortDirection={sortDirection}
                 onChangeOrder={(o) => { handleSortChange(o); setShowSortDropdown(false) }}

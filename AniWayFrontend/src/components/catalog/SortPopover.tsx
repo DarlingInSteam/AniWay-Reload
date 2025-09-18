@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 interface SortPopoverProps {
   open: boolean
   onClose: () => void
+  onToggle?: () => void
   sortOrder: string
   sortDirection: 'asc' | 'desc'
   onChangeOrder: (order: string) => void
@@ -18,6 +19,7 @@ const SORT_OPTIONS = ['По популярности','По новизне','П�
 export const SortPopover: React.FC<SortPopoverProps> = ({
   open,
   onClose,
+  onToggle,
   sortOrder,
   sortDirection,
   onChangeOrder,
@@ -64,7 +66,13 @@ export const SortPopover: React.FC<SortPopoverProps> = ({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls="sort-popover-panel"
-        onClick={() => open ? onClose() : firstItemRef.current?.focus()}
+        onClick={() => {
+          if (onToggle) {
+            onToggle()
+          } else {
+            open ? onClose() : firstItemRef.current?.focus()
+          }
+        }}
         className={cn('flex items-center gap-2 rounded-xl px-4 h-11 text-sm font-medium bg-white/5 backdrop-blur-sm hover:bg-white/10 border border-white/10 shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-primary/50', anchorClassName)}
       >
         <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
