@@ -125,10 +125,21 @@ export function CatalogPage() {
     activeFilters: JSON.stringify(activeFilters)
   }), [genre, sortField, sortDirection, currentPage, activeType, activeFilters])
 
+  const normalizeSortField = (field: string) => {
+    if (!field) return 'createdat'
+    const map: Record<string,string> = {
+      createdAt: 'createdat',
+      updatedAt: 'updatedat',
+      chapterCount: 'chaptercount',
+      ratingCount: 'ratingcount'
+    }
+    return map[field] || field.toLowerCase()
+  }
+
   const { data: mangaPage, isLoading, isError, refetch } = useQuery<PageResponse<MangaResponseDTO>>({
     queryKey: ['manga-catalog', queryKeyParams],
     queryFn: () => {
-      const sortBy = sortField
+  const sortBy = normalizeSortField(sortField)
       
       // Создаем объект только с фильтрами (без пагинации и сортировки)
       const filterParams: any = { ...activeFilters }
@@ -195,7 +206,7 @@ export function CatalogPage() {
   useEffect(() => {
     if (!mangaPage) return
     if (mangaPage.totalPages <= 1) return
-  const sortBy = sortField
+  const sortBy = normalizeSortField(sortField)
     const filterParams: any = { ...activeFilters }
     if (activeType !== 'все') {
       const typeMapping: Record<string, string> = {
@@ -438,7 +449,7 @@ export function CatalogPage() {
   const pageTitle = genre ? `Жанр: ${genre}` : 'Каталог'
 
   useEffect(() => {
-    console.log('[CatalogPage] Active sorting => field:', sortField, 'label:', sortOrder, 'direction:', sortDirection)
+    console.log('[CatalogPage] Active sorting => field(raw):', sortField, 'normalized:', normalizeSortField(sortField), 'label:', sortOrder, 'direction:', sortDirection)
   }, [sortField, sortOrder, sortDirection])
 
   useEffect(() => {
