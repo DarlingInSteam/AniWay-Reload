@@ -6,6 +6,7 @@ import { apiClient } from '@/lib/api'
 import { MangaCardWithTooltip } from '@/components/manga'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { MangaFilterSidebar } from '@/components/filters/MangaFilterSidebar'
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { cn } from '@/lib/utils'
 import { PageResponse } from '@/types'
 
@@ -510,14 +511,27 @@ export function CatalogPage() {
           {/* Основной контент */}
           <div className="flex-1 min-w-0">
             {/* Manga Grid - улучшенная сетка с анимацией */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4 lg:gap-6 animate-fade-in">
-              {manga?.map((item) => (
-                <MangaCardWithTooltip
-                  key={item.id}
-                  manga={item}
-                />
-              ))}
-            </div>
+            <ErrorBoundary fallback={
+              <div className="text-center py-16">
+                <h3 className="text-xl font-medium text-white mb-2">Ошибка при загрузке каталога</h3>
+                <p className="text-muted-foreground mb-4">Проверьте консоль браузера для деталей</p>
+                <button 
+                  onClick={() => window.location.reload()} 
+                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                >
+                  Перезагрузить страницу
+                </button>
+              </div>
+            }>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4 lg:gap-6 animate-fade-in">
+                {manga?.map((item) => (
+                  <MangaCardWithTooltip
+                    key={item.id}
+                    manga={item}
+                  />
+                ))}
+              </div>
+            </ErrorBoundary>
 
             {/* Pagination Component */}
             {totalPages > 1 && (
