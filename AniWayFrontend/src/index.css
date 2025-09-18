@@ -198,3 +198,41 @@
   @apply text-accent;
   filter: drop-shadow(0 0 2px rgba(255, 215, 0, 0.5));
 }
+
+/* Кастомные стили для скроллбара */
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+.scrollbar-track-white\/5::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.scrollbar-thumb-white\/20::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 0.25rem;
+}
+
+.hover\:scrollbar-thumb-white\/40:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+/* Анимации для фильтров */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
