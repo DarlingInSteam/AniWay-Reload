@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { Grid, Filter, ArrowUpDown, ArrowUp, ArrowDown, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { SortPopover } from '@/components/catalog/SortPopover'
 import { apiClient } from '@/lib/api'
 import { MangaCardWithTooltip } from '@/components/manga'
 import { MangaCardSkeleton } from '@/components/manga/MangaCardSkeleton'
@@ -112,11 +113,41 @@ export function CatalogPage() {
       // Для обычного просмотра передаем параметры раздельно
       return apiClient.getAllMangaPaged(currentPage, pageSize, sortBy, sortDirection, filterParams)
     },
-    enabled: true, // Всегда включен
-    staleTime: 1000 * 60 * 5, // 5 минут
+    enabled: true,
+    staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   })
+
+  // Prefetch соседних страниц после получения текущей
+  useEffect(() => {
+    if (!mangaPage) return
+    if (mangaPage.totalPages <= 1) return
+    const sortBy = getSortByField(sortOrder)
+    const filterParams: any = { ...activeFilters }
+    if (activeType !== 'все') {
+      const typeMapping: Record<string, string> = {
+        'манга': 'MANGA', 'манхва': 'MANHWA', 'маньхуа': 'MANHUA', 'западный комикс': 'WESTERN_COMIC', 'рукомикс': 'RUSSIAN_COMIC', 'другое': 'OTHER'
+      }
+      filterParams.type = typeMapping[activeType] || 'MANGA'
+    } else {
+      delete filterParams.type
+    }
+    const next = currentPage + 1
+    const prev = currentPage - 1
+    if (next < mangaPage.totalPages) {
+      queryClient.prefetchQuery({
+        queryKey: ['manga-catalog', { ...queryKeyParams, currentPage: next, activeFilters: JSON.stringify(activeFilters) }],
+        queryFn: () => apiClient.getAllMangaPaged(next, pageSize, sortBy, sortDirection, filterParams)
+      })
+    }
+    if (prev >= 0) {
+      queryClient.prefetchQuery({
+        queryKey: ['manga-catalog', { ...queryKeyParams, currentPage: prev, activeFilters: JSON.stringify(activeFilters) }],
+        queryFn: () => apiClient.getAllMangaPaged(prev, pageSize, sortBy, sortDirection, filterParams)
+      })
+    }
+  }, [mangaPage, currentPage, sortOrder, sortDirection, activeType, activeFilters, pageSize, queryClient, queryKeyParams])
 
   // Извлекаем данные из ответа API
   const manga = mangaPage?.content ?? []
@@ -409,7 +440,7 @@ export function CatalogPage() {
               {/* Сортировка - ул��чшенная кнопка */}
               <div className="relative">
                 <button
-                  className="flex items-center justify-center w-11 h-11 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/15 transition-all duration-200 shadow-lg"
+                  className="flex items-center justify-center w-11 h-11 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/15 transition-all duration-200 shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   type="button"
                   onClick={() => setShowSortDropdown(!showSortDropdown)}
                   title="Сортировка"
@@ -474,7 +505,7 @@ export function CatalogPage() {
               {/* Фильтры - улучшенная кнопка */}
               <button
                 onClick={() => setShowFilters(true)}
-                className="flex items-center justify-center w-11 h-11 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/15 transition-all duration-200 shadow-lg"
+                className="flex items-center justify-center w-11 h-11 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/15 transition-all duration-200 shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 title="Фильтры"
               >
                 <Filter className="h-5 w-5 text-white" />
@@ -489,7 +520,7 @@ export function CatalogPage() {
                     key={type}
                     onClick={() => handleActiveTypeChange(type)}
                     className={cn(
-                      'flex-shrink-0 px-3 py-2 rounded-xl text-xs font-medium transition-all duration-200 border whitespace-nowrap',
+                      'flex-shrink-0 px-3 py-2 rounded-xl text-xs font-medium transition-all duration-200 border whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                       activeType === type
                         ? 'bg-primary/20 text-primary border-primary/30 shadow-lg shadow-primary/20'
                         : 'bg-white/5 backdrop-blur-sm text-muted-foreground hover:bg-white/10 hover:text-white border-white/10'
@@ -508,61 +539,14 @@ export function CatalogPage() {
             {/* Левая группа: Сортировка + Быстрые фильтры */}
             <div className="flex items-center gap-3">
               {/* Сортировка */}
-              <div className="relative w-56 flex-shrink-0">
-                <button
-                  className="flex items-center justify-between w-full rounded-xl px-4 h-11 text-sm font-medium bg-white/5 backdrop-blur-sm hover:bg-white/10 transition-all duration-200 border border-white/10 shadow-lg"
-                  type="button"
-                  onClick={() => setShowSortDropdown(!showSortDropdown)}
-                >
-                  <span className="flex-1 text-left text-white truncate pr-2">{sortOrder}</span>
-                  <ArrowUpDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                </button>
-                {showSortDropdown && (
-                  <div ref={sortDropdownRef} className="absolute left-0 top-full mt-2 w-72 bg-card rounded-xl shadow-xl z-50 border border-border animate-fade-in">
-                    <div className="p-4">
-                      <div className="text-xs text-muted-foreground mb-3 font-medium">Сортировать по:</div>
-                      <div className="space-y-1 mb-4">
-                        {['По популярности','По новизне','По кол-ву глав','По дате обновления','По оценке','По кол-ву оценок','По лайкам','По просмотрам','По отзывам','По комментариям'].map(option => (
-                          <button
-                            key={option}
-                            onClick={() => { handleSortChange(option); }}
-                            className={cn(
-                              'w-full text-left px-3 py-2 text-sm transition-all duration-200 border-b-2',
-                              sortOrder === option
-                                ? 'text-blue-500 border-blue-500'
-                                : 'text-muted-foreground hover:text-white border-transparent hover:border-muted'
-                            )}
-                          >
-                            {option}
-                          </button>
-                        ))}
-                      </div>
-
-                      <div className="text-xs text-muted-foreground mb-3 font-medium">Направление:</div>
-                      <div className="flex gap-2">
-                        {[
-                          { label: 'По убыванию', value: 'desc', icon: ArrowDown },
-                          { label: 'По возрастанию', value: 'asc', icon: ArrowUp }
-                        ].map(dir => (
-                          <button
-                            key={dir.value}
-                            onClick={() => { handleSortDirectionChange(dir.value as 'desc' | 'asc'); }}
-                            className={cn(
-                              'flex-1 flex items-center gap-2 px-3 py-2 text-sm transition-all duration-200 border-b-2',
-                              sortDirection === dir.value
-                                ? 'text-blue-500 border-blue-500'
-                                : 'text-muted-foreground hover:text-white border-transparent hover:border-muted'
-                            )}
-                          >
-                            <dir.icon className="h-4 w-4" />
-                            {dir.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <SortPopover
+                open={showSortDropdown}
+                onClose={() => setShowSortDropdown(false)}
+                sortOrder={sortOrder}
+                sortDirection={sortDirection}
+                onChangeOrder={(o) => { handleSortChange(o); setShowSortDropdown(false) }}
+                onChangeDirection={(d) => { handleSortDirectionChange(d); setShowSortDropdown(false) }}
+              />
 
               {/* Быстрые фильтры рядом с сортировкой */}
               <div className="flex gap-2">
@@ -571,7 +555,7 @@ export function CatalogPage() {
                     key={type}
                     onClick={() => handleActiveTypeChange(type)}
                     className={cn(
-                      'px-3 py-2 rounded-xl text-xs font-medium transition-all duration-200 border whitespace-nowrap',
+                      'px-3 py-2 rounded-xl text-xs font-medium transition-all duration-200 border whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                       activeType === type
                         ? 'bg-primary/20 text-primary border-primary/30 shadow-lg shadow-primary/20'
                         : 'bg-white/5 backdrop-blur-sm text-muted-foreground hover:bg-white/10 hover:text-white border-white/10'
@@ -597,27 +581,33 @@ export function CatalogPage() {
         {/* Улучшенный Offcanvas фильтров для мобильных */}
         <div
           className={cn(
-            'fixed top-0 right-0 h-full w-full max-w-md bg-white/12 backdrop-blur-xl shadow-2xl z-50 transition-transform duration-300 border-l border-white/30 lg:hidden',
+            'fixed top-0 right-0 h-full w-full max-w-md bg-background/95 backdrop-blur-xl shadow-2xl z-50 transition-transform duration-300 border-l border-white/15 lg:hidden focus:outline-none',
             showFilters ? 'translate-x-0' : 'translate-x-full'
           )}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Фильтры каталога"
         >
-          <div className="flex justify-between items-center p-6 border-b border-white/30">
+          <div className="flex justify-between items-center p-6 border-b border-white/10">
             <span className="font-bold text-lg text-white">Фильтры</span>
             <button
               onClick={() => setShowFilters(false)}
-              className="p-2 rounded-xl hover:bg-white/10 text-muted-foreground hover:text-white transition-colors"
+              className="p-2 rounded-xl hover:bg-white/10 text-muted-foreground hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40"
+              aria-label="Закрыть фильтры"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
-          <div className="h-full overflow-y-auto">
+          <div className="h-full overflow-y-auto pb-6">
+            <span tabIndex={0} aria-hidden className="block outline-none" />
             <MangaFilterPanel
               initialFilters={memoizedFilterState}
               onFiltersChange={handleFiltersChange}
               onReset={resetFilters}
-              onApply={applyFilters}
+              onApply={() => { applyFilters(); setShowFilters(false) }}
               className="h-full"
             />
+            <span tabIndex={0} aria-hidden className="block outline-none" />
           </div>
         </div>
 
@@ -683,7 +673,7 @@ export function CatalogPage() {
                     onClick={goToFirstPage}
                     disabled={currentPage === 0}
                     className={cn(
-                      'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border',
+                      'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                       currentPage === 0
                         ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
                         : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
@@ -698,7 +688,7 @@ export function CatalogPage() {
                     onClick={goToPreviousPage}
                     disabled={currentPage === 0}
                     className={cn(
-                      'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border',
+                      'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                       currentPage === 0
                         ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
                         : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
@@ -719,7 +709,7 @@ export function CatalogPage() {
                           key={pageNum}
                           onClick={() => goToPage(pageNum)}
                           className={cn(
-                            'px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border min-w-[40px]',
+                            'px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border min-w-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                             currentPage === pageNum
                               ? 'bg-primary/20 text-primary border-primary/30 shadow-lg shadow-primary/20'
                               : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
@@ -736,7 +726,7 @@ export function CatalogPage() {
                     onClick={goToNextPage}
                     disabled={!totalPages || currentPage >= totalPages - 1}
                     className={cn(
-                      'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border',
+                      'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                       !totalPages || currentPage >= totalPages - 1
                         ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
                         : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
@@ -751,7 +741,7 @@ export function CatalogPage() {
                     onClick={goToLastPage}
                     disabled={!totalPages || currentPage >= totalPages - 1}
                     className={cn(
-                      'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border',
+                      'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                       !totalPages || currentPage >= totalPages - 1
                         ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
                         : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'

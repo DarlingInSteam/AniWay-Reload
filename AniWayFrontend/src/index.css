@@ -134,6 +134,7 @@
   .text-responsive-base {
     @apply text-sm sm:text-base lg:text-lg;
   }
+
 }
 
 /* Кастомные стили для манга-ридера */
