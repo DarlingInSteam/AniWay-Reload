@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { Calendar, User, Star, Eye, Heart, Bookmark } from 'lucide-react'
 import { MangaResponseDTO } from '@/types'
@@ -87,6 +87,15 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
   }
 
   const [imageLoaded, setImageLoaded] = useState(false)
+  const imgRef = useRef<HTMLImageElement | null>(null)
+
+  // Если изображение уже в кеше браузера и полностью загружено, снимаем блюр сразу
+  useEffect(() => {
+    const img = imgRef.current
+    if (img && img.complete && img.naturalWidth > 0) {
+      setImageLoaded(true)
+    }
+  }, [manga.coverImageUrl])
 
   return (
     <div className="group flex flex-col space-y-2 md:space-y-3 w-full transition-transform duration-300 will-change-transform hover:-translate-y-1">
@@ -97,12 +106,13 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
       >
         <div className={cn('relative overflow-hidden', cardSizes[size])}>
           <img
+            ref={imgRef}
             src={manga.coverImageUrl}
             alt={manga.title}
             className={cn(
-              'manga-cover h-full w-full object-cover transition duration-500 ease-out',
-              'opacity-0 blur-md scale-[1.03] group-hover:scale-105',
-              imageLoaded && 'opacity-100 blur-0 scale-100'
+              'manga-cover h-full w-full object-cover transition-[opacity,transform,filter] duration-500 ease-out',
+              imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 blur-md scale-[1.03]',
+              'group-hover:scale-105'
             )}
             loading="lazy"
             decoding="async"
@@ -114,7 +124,7 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
             }}
           />
           {!imageLoaded && (
-            <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-white/5 to-transparent animate-pulse" aria-hidden />
+            <div className="absolute inset-0 bg-white/5 animate-pulse" aria-hidden />
           )}
 
           {/* Gradient Overlay for bottom text */}
