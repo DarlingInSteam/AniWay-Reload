@@ -1,5 +1,6 @@
 package shadowshift.studio.mangaservice.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -70,6 +71,7 @@ public class Genre {
      * Связь Many-to-Many с мангами.
      */
     @ManyToMany(mappedBy = "genres", fetch = FetchType.LAZY)
+    @JsonIgnore
     private Set<Manga> mangas = new HashSet<>();
 
     /**

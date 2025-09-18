@@ -505,12 +505,12 @@ export const MangaFilterSidebar: React.FC<MangaFilterSidebarProps> = ({
           isOpen={openSections.types}
           onToggle={() => toggleSection('types')}
         >
-          <Select value={filters.mangaType} onValueChange={(type) => updateFilters({ mangaType: type })}>
+          <Select value={filters.mangaType || "all"} onValueChange={(type) => updateFilters({ mangaType: type === "all" ? "" : type })}>
             <SelectTrigger className="bg-black/40 border-white/20 text-white hover:border-primary/50 transition-colors duration-200">
               <SelectValue placeholder="Выберите тип" />
             </SelectTrigger>
             <SelectContent className="bg-black/95 border-white/20 backdrop-blur-xl">
-              <SelectItem value="" className="text-white hover:bg-white/10">Все типы</SelectItem>
+              <SelectItem value="all" className="text-white hover:bg-white/10">Все типы</SelectItem>
               {MANGA_TYPES.map(type => (
                 <SelectItem key={type.value} value={type.value} className="text-white hover:bg-white/10 focus:bg-primary/20">
                   {type.label}
@@ -555,12 +555,12 @@ export const MangaFilterSidebar: React.FC<MangaFilterSidebarProps> = ({
           isOpen={openSections.status}
           onToggle={() => toggleSection('status')}
         >
-          <Select value={filters.status} onValueChange={(status) => updateFilters({ status })}>
+          <Select value={filters.status || "all"} onValueChange={(status) => updateFilters({ status: status === "all" ? "" : status })}>
             <SelectTrigger className="bg-black/40 border-white/20 text-white hover:border-primary/50 transition-colors duration-200">
               <SelectValue placeholder="Выберите статус" />
             </SelectTrigger>
             <SelectContent className="bg-black/95 border-white/20 backdrop-blur-xl">
-              <SelectItem value="" className="text-white hover:bg-white/10">Все статусы</SelectItem>
+              <SelectItem value="all" className="text-white hover:bg-white/10">Все статусы</SelectItem>
               {MANGA_STATUSES.map(status => (
                 <SelectItem key={status.value} value={status.value} className="text-white hover:bg-white/10 focus:bg-primary/20">
                   {status.label}
