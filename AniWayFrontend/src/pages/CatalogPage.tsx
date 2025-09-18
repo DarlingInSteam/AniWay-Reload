@@ -7,7 +7,8 @@ import { MangaCardWithTooltip } from '@/components/manga'
 import { MangaCardSkeleton } from '@/components/manga/MangaCardSkeleton'
 import { SelectedFiltersBar } from '@/components/filters/SelectedFiltersBar'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { MangaFilterSidebar } from '@/components/filters/MangaFilterSidebar'
+// import { MangaFilterSidebar } from '@/components/filters/MangaFilterSidebar'
+import { MangaFilterPanel } from '@/components/filters/MangaFilterPanel'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { cn } from '@/lib/utils'
 import { PageResponse, MangaResponseDTO } from '@/types'
@@ -608,12 +609,12 @@ export function CatalogPage() {
             </button>
           </div>
           <div className="h-full overflow-y-auto">
-            <MangaFilterSidebar
+            <MangaFilterPanel
               initialFilters={memoizedFilterState}
               onFiltersChange={handleFiltersChange}
               onReset={resetFilters}
               onApply={applyFilters}
-              className="border-0 bg-transparent"
+              className="h-full"
             />
           </div>
         </div>
@@ -781,7 +782,7 @@ export function CatalogPage() {
 
           {/* Боковые фильтры для десктопа */}
           <div className="hidden lg:block w-80 flex-shrink-0">
-            <MangaFilterSidebar
+            <MangaFilterPanel
               initialFilters={memoizedFilterState}
               onFiltersChange={handleFiltersChange}
               onReset={resetFilters}
