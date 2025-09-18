@@ -17,11 +17,7 @@ interface MangaCardProps {
 
 export function MangaCard({ manga, size = 'default', showMetadata = true }: MangaCardProps) {
   // Временное логирование для диагностики
-  try {
-    console.log('MangaCard render - manga ID:', manga?.id, 'genre:', manga?.genre, 'full manga:', manga)
-  } catch (e) {
-    console.error('MangaCard console.log error:', e)
-  }
+  // Debug logs removed
 
   const { isAuthenticated } = useAuth()
   const { getMangaBookmark } = useBookmarks()
@@ -46,7 +42,7 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
 
   // Генерируем фейковые просмотры для демонстрации (в реальном проекте это будет из API)
   const views = manga.views || 0
-  console.log(`MangaCard ${manga.id}: views = ${views}, manga.views = ${manga.views}`)
+  // Removed verbose views log
 
   // Получаем статус закладки
   const bookmarkInfo = isAuthenticated ? getMangaBookmark(manga.id) : null
@@ -173,12 +169,20 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
             </div>
           )}
 
-          {/* Rating Badge */}
-          <div className="absolute top-2 md:top-3 right-2 md:right-3 flex items-center space-x-1 bg-black/70 backdrop-blur-sm px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
-            <Star className="h-2.5 w-2.5 md:h-3 md:w-3 text-accent fill-current" />
-            <span className="text-xs font-medium text-white">
-              {rating?.averageRating ? rating.averageRating.toFixed(1) : '—'}
-            </span>
+          {/* Rating + Views (top-right) */}
+          <div className="absolute top-2 md:top-3 right-2 md:right-3 flex flex-col items-end gap-1">
+            <div className="flex items-center space-x-1 bg-black/70 backdrop-blur-sm px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
+              <Star className="h-2.5 w-2.5 md:h-3 md:w-3 text-accent fill-current" />
+              <span className="text-xs font-medium text-white">
+                {rating?.averageRating ? rating.averageRating.toFixed(1) : '—'}
+              </span>
+            </div>
+            <div className="flex items-center space-x-1 bg-black/60 backdrop-blur-sm px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
+              <Eye className="h-2.5 w-2.5 md:h-3 md:w-3 text-white" />
+              <span className="text-[10px] md:text-xs font-medium text-white/90">
+                {views >= 1000 ? (views/1000).toFixed(1).replace(/\.0$/,'') + 'k' : views}
+              </span>
+            </div>
           </div>
 
           {/* Chapter Count with Reading Progress */}
@@ -197,7 +201,7 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
 
       {/* Metadata */}
     {showMetadata && (
-  <div className="flex flex-col px-1 h-[4.9rem] md:h-[5.2rem] select-none">
+  <div className="flex flex-col px-1 h-[3.9rem] md:h-[4.2rem] select-none">
           {/* Title - строго фиксированная высота для 2 строк */}
           <Link
             to={`/manga/${manga.id}`}
@@ -224,22 +228,7 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
             </span>
           </div>
 
-          {/* Rating and Views - строго фиксированная высота */}
-          <div className="flex items-center justify-between h-4">
-            <div className="flex items-center space-x-1">
-              <Star className="h-2.5 w-2.5 md:h-3 md:w-3 text-accent fill-current" />
-              <span className="text-xs font-medium text-accent">
-                {rating?.averageRating ? rating.averageRating.toFixed(1) : '—'}
-              </span>
-            </div>
-            <div className="flex items-center space-x-2 md:space-x-3 text-xs text-muted-foreground">
-              <div className="flex items-center space-x-1">
-                <Eye className="h-2.5 w-2.5 md:h-3 md:w-3" />
-                <span className="hidden sm:inline">{views.toLocaleString()}</span>
-                <span className="sm:hidden">{(views / 1000).toFixed(0)}k</span>
-              </div>
-            </div>
-          </div>
+          {/* Удален нижний блок рейтинга и просмотров */}
         </div>
       )}
     </div>

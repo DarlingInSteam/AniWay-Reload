@@ -164,24 +164,7 @@ export function CatalogPage() {
         delete filterParams.type
       }
       
-      console.log('Filter params only:', filterParams)
-      console.log('Sort params:', { sortBy, sortDirection })
-      console.log('Page params:', { currentPage, pageSize })
-      console.log('ActiveFilters state:', activeFilters)
-      console.log('QueryKey params:', queryKeyParams)
-      
-      // Детальный лог того, что отправляется в API
-      console.log('=== API CALL DETAILS ===')
-      console.log('Genre from URL:', genre)
-      console.log('Final filterParams being sent:', JSON.stringify(filterParams, null, 2))
-      console.log('getAllMangaPaged params:', {
-        page: currentPage,
-        size: pageSize,
-        sortBy,
-        sortOrder: sortDirection,
-        filters: filterParams
-      })
-      console.log('========================')
+      // Debug logs removed
       
       if (genre) {
         // Для поиска по жанру создаем полный объект параметров
@@ -375,33 +358,30 @@ export function CatalogPage() {
       releaseYear: activeFilters.releaseYear || [1990, new Date().getFullYear()],
       chapterRange: activeFilters.chapterRange || [0, 1000]
     }
-    console.log('CatalogPage: Converting activeFilters to FilterState:', 
-      'activeFilters:', activeFilters, 
-      'filterState:', filterState
-    )
+    // Debug removed
     return filterState
   }
 
   // Обработка изменений в предварительных фильтрах (не применяем сразу)
   const handleFiltersChange = (filters: any) => {
-    console.log('CatalogPage: Updating draft filters:', JSON.stringify(filters, null, 2))
+  // Debug removed
     setDraftFilters(filters)
   }
 
   // Функция применения фильтров (вызывается кнопкой "Применить")
   const applyFilters = () => {
-    console.log('CatalogPage: Applying filters:', JSON.stringify(draftFilters, null, 2))
+  // Debug removed
     
     // Преобразуем FilterState в SearchParams формат
     const searchParams: any = {}
     
     if (draftFilters.selectedGenres?.length > 0) {
-      console.log('CatalogPage: Processing selectedGenres:', draftFilters.selectedGenres)
+  // Debug removed
       searchParams.genres = draftFilters.selectedGenres
     }
     
     if (draftFilters.selectedTags?.length > 0) {
-      console.log('CatalogPage: Processing selectedTags:', draftFilters.selectedTags)
+  // Debug removed
       searchParams.tags = draftFilters.selectedTags
     }
     
@@ -429,15 +409,14 @@ export function CatalogPage() {
       searchParams.chapterRange = draftFilters.chapterRange
     }
 
-    console.log('CatalogPage: Applied filters to activeFilters:', searchParams)
-    console.log('CatalogPage: Previous activeFilters:', activeFilters)
+  // Debug removed
     setActiveFilters(searchParams)
     setCurrentPage(0) // Сбрасываем на первую страницу при изменении фильтров
   }
 
   // Функция сброса фильтров
   const resetFilters = () => {
-    console.log('CatalogPage: Resetting filters')
+  // Debug removed
     setDraftFilters({})
     setActiveFilters({})
     setCurrentPage(0)
@@ -445,23 +424,23 @@ export function CatalogPage() {
 
   // Обработчик быстрых фильтров
   const handleActiveTypeChange = (type: string) => {
-    console.log('CatalogPage: ActiveType changed from', activeType, 'to', type)
+  // Debug removed
     setActiveType(type)
     setCurrentPage(0) // Сбрасываем на первую страницу при изменении типа
   }
 
   // Функция для отладки изменений activeFilters
   useEffect(() => {
-    console.log('CatalogPage: activeFilters changed to:', activeFilters)
+  // Debug removed
   }, [activeFilters])
 
   // Обработчик сортировки
   const handleSortChange = (newSortLabel: string) => {
     const newField = SORT_FIELD_BY_LABEL[newSortLabel] || defaultSortField
-    console.log('[CatalogPage] sort change click: label=', newSortLabel, 'rawFieldFromState=', sortField, 'mappedNewField=', newField, 'time=', Date.now())
+  // Debug removed
     if (newField === sortField) {
       setSortNonce(n => n + 1)
-      console.log('[CatalogPage] same sort field reselected -> increment nonce', sortNonce + 1)
+  // Debug removed
     } else {
       setSortField(newField)
     }
@@ -472,10 +451,10 @@ export function CatalogPage() {
 
   // Обработчик направления сортировки
   const handleSortDirectionChange = (direction: 'desc' | 'asc') => {
-    console.log('[CatalogPage] direction change click: from', sortDirection, 'to', direction, 'time=', Date.now())
+  // Debug removed
     if (direction === sortDirection) {
       setSortNonce(n => n + 1)
-      console.log('[CatalogPage] same direction reselected -> increment nonce', sortNonce + 1)
+  // Debug removed
     } else {
       setSortDirection(direction)
     }
@@ -523,21 +502,10 @@ export function CatalogPage() {
 
   const pageTitle = genre ? `Жанр: ${genre}` : 'Каталог'
 
-  useEffect(() => {
-    console.log('[CatalogPage] Active sorting => field(raw):', sortField, 'normalized:', normalizeSortField(sortField), 'label:', sortOrder, 'direction:', sortDirection)
-  }, [sortField, sortOrder, sortDirection])
+  // Removed active sorting diagnostic effect
 
   // Диагностика: вывод первых 10 значений текущего сортируемого поля после получения данных
-  useEffect(() => {
-    if (!manga || manga.length === 0) return
-    const field = sortField
-    const pick = (m: any) => {
-      if (field === 'chapterCount') return m.chapterCount ?? m.totalChapters
-      return m[field] ?? m[normalizeSortField(field)] ?? null
-    }
-    const snapshot = manga.slice(0, 10).map(m => ({ id: m.id, v: pick(m) }))
-    console.log('[CatalogPage] TOP10 snapshot for field', field, 'direction', sortDirection, snapshot)
-  }, [manga, sortField, sortDirection])
+  // Removed TOP10 snapshot diagnostic effect
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
