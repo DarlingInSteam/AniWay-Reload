@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useResolvedAvatar } from '@/hooks/useResolvedAvatar';
 import { MessageCircle } from 'lucide-react';
 import RatingStars from './RatingStars';
 import { CommentSection } from './comments/CommentSection';
@@ -42,6 +43,7 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showComments, setShowComments] = useState(false);
+  const resolvedAvatar = useResolvedAvatar(review.userId, review.userAvatar);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -90,11 +92,14 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
         <div className="flex items-start gap-3">
           {/* Avatar */}
           <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-            {review.userAvatar ? (
-              <img 
-                src={review.userAvatar} 
+            {resolvedAvatar ? (
+              <img
+                src={resolvedAvatar}
                 alt={review.userDisplayName}
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = 'none';
+                }}
               />
             ) : (
               <span className="text-white font-medium text-lg">
