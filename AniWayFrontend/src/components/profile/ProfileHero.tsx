@@ -1,8 +1,9 @@
-import React from 'react'
+import React, { useRef, useState, useEffect } from 'react'
 import { UserProfile } from '@/types/profile'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { Camera, Edit, Share2, MoreHorizontal } from 'lucide-react'
+import { profileService } from '@/services/profileService'
 import { Progress } from '@/components/ui/progress'
 
 interface ProfileHeroProps {
@@ -14,6 +15,49 @@ interface ProfileHeroProps {
 }
 
 export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit, onShare, onMore }) => {
+  // Build tag + avatar upload logic integrated for production header
+  const BUILD_TAG = 'PROFILE-HERO-AV-UPLOAD-2025-09-20-01'
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [avatarError, setAvatarError] = useState<string | null>(null)
+  const [avatarSuccess, setAvatarSuccess] = useState<string | null>(null)
+
+  useEffect(() => { console.log('[ProfileHero] build tag:', BUILD_TAG) }, [])
+  useEffect(() => { if (avatarSuccess) { const t = setTimeout(()=>setAvatarSuccess(null), 2500); return ()=>clearTimeout(t) } }, [avatarSuccess])
+
+  const validateAvatar = (file: File): string | null => {
+    if (file.size > 5 * 1024 * 1024) return 'Файл >5MB'
+    if (!file.type.startsWith('image/')) return 'Не изображение'
+    const allowed = ['image/jpeg','image/png','image/webp']
+    if (!allowed.includes(file.type)) return 'JPEG/PNG/WebP'
+    return null
+  }
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const v = validateAvatar(file)
+    if (v) { setAvatarError(v); if (fileInputRef.current) fileInputRef.current.value=''; return }
+    setAvatarError(null)
+    setAvatarSuccess(null)
+    setUploading(true)
+    try {
+      const res = await profileService.uploadAvatar(file)
+      if (res.success) {
+        setAvatarSuccess('Готово')
+        // Allow parent to refetch / re-render if it uses onEdit for refresh
+        setTimeout(() => { onEdit?.() }, 400)
+      } else {
+        setAvatarError(res.message || 'Ошибка')
+      }
+    } catch (ex: any) {
+      setAvatarError(ex?.message || 'Сбой')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value=''
+    }
+  }
+
   // Level logic (extracted from legacy header)
   const levels = [
     { level: 1, xpRequired: 0 },
@@ -58,9 +102,33 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit
               </AvatarFallback>
             </Avatar>
             {isOwn && (
-              <button className="absolute bottom-2 right-2 p-2 rounded-md bg-black/60 hover:bg-black/70 text-white border border-white/20 shadow transition" aria-label="Изменить аватар">
-                <Camera className="w-4 h-4" />
-              </button>
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={handleAvatarChange}
+                />
+                <button
+                  className="absolute bottom-2 right-2 p-2 rounded-md bg-black/60 hover:bg-black/70 text-white border border-white/20 shadow transition disabled:opacity-50 disabled:pointer-events-none"
+                  aria-label="Изменить аватар"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                >
+                  {uploading ? (
+                    <span className="w-4 h-4 inline-block animate-spin border-2 border-white/30 border-t-white rounded-full" />
+                  ) : (
+                    <Camera className="w-4 h-4" />
+                  )}
+                </button>
+                {(avatarError || avatarSuccess) && (
+                  <div className="absolute -bottom-5 left-0 w-full text-center text-[11px] font-medium select-none">
+                    {avatarError && <span className="text-red-400">{avatarError}</span>}
+                    {avatarSuccess && <span className="text-green-400">{avatarSuccess}</span>}
+                  </div>
+                )}
+              </>
             )}
           </div>
           <div className="flex items-center gap-2 text-sm text-slate-300">
@@ -72,8 +140,11 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit
         <div className="flex-1 flex flex-col">
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
             <div className="space-y-2">
-              <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-white drop-shadow-sm">
+              <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-white drop-shadow-sm flex items-center gap-2">
                 {profile.displayName || profile.username}
+                {isOwn && (
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-blue-600/30 text-blue-200 border border-blue-400/30 tracking-wider">{BUILD_TAG}</span>
+                )}
               </h1>
               {profile.displayName && (
                 <div className="text-slate-300 text-sm">@{profile.username}</div>
