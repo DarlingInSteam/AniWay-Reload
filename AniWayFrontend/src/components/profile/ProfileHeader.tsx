@@ -96,7 +96,7 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
         <div className="relative group">
           <Avatar className="w-44 h-44 border-4 border-white/20 rounded-none">
             <AvatarImage
-              src={profile.avatar || '/placeholder-avatar.png'}
+              src={profile.avatar || '/icon.png'}
               alt={profile.username}
               className="object-cover rounded-none w-full h-full"
             />

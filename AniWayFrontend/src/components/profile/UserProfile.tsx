@@ -216,20 +216,39 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   const favoriteMangas = profileData ? profileService.getFavoriteMangas(profileData.bookmarks) : [];
   const readingProgress = profileData ? profileService.getReadingProgressData(profileData.readingProgress) : [];
   const collections = profileData ? profileService.getCollectionsFromBookmarks(profileData.bookmarks) : [];
-  let userActivities = profileData ? profileService.generateUserActivity(profileData.readingProgress, profileData.bookmarks) : [];
-  // Fallback: if activities empty but we have some bookmarks, synthesize a minimal event so block not "broken"
-  if (userActivities.length === 0 && profileData?.bookmarks?.length) {
-    const last = [...profileData.bookmarks].sort((a:any,b:any)=> new Date(b.updatedAt).getTime()-new Date(a.updatedAt).getTime())[0];
-    if (last?.mangaTitle) {
-      userActivities = [{
-        id: 'synthetic-bookmark-'+last.id,
-        type: 'bookmark',
-        description: `Добавил "${last.mangaTitle}" в закладки`,
-        timestamp: new Date(last.updatedAt),
-        relatedMangaId: last.mangaId
-      }];
+  const [activity, setActivity] = useState<any[]>([])
+  const [activityLoaded, setActivityLoaded] = useState(false)
+  useEffect(()=>{
+    let cancelled = false
+    const load = async () => {
+      if (!profile) return
+      try {
+        const { extendedProfileService } = await import('@/services/extendedProfileService')
+        const [readA, reviewA] = await Promise.all([
+          extendedProfileService.getReadingActivity(parseInt(profile.id), 10).catch(()=>[]),
+          extendedProfileService.getReviewActivity(parseInt(profile.id), 5).catch(()=>[])
+        ])
+        const generated = profileData ? profileService.generateUserActivity(profileData.readingProgress, profileData.bookmarks) : []
+        const merged = [...readA, ...reviewA, ...generated]
+          .sort((a,b)=> b.timestamp.getTime()-a.timestamp.getTime())
+          .reduce((acc: any[], item)=>{ // deduplicate by id
+            if (!acc.find(x=>x.id===item.id)) acc.push(item); return acc
+          }, [])
+          .slice(0,15)
+        console.debug('[ProfileActivity] fetched counts', {read: readA.length, review: reviewA.length, generated: generated.length, merged: merged.length})
+        if (!cancelled) setActivity(merged)
+      } catch(e) {
+        console.debug('[ProfileActivity] error loading activity, fallback to generated', e)
+        // final fallback
+        if (!cancelled) {
+          const generated = profileData ? profileService.generateUserActivity(profileData.readingProgress, profileData.bookmarks) : []
+          setActivity(generated)
+        }
+      } finally { if (!cancelled) setActivityLoaded(true) }
     }
-  }
+    load()
+    return ()=> { cancelled = true }
+  }, [profile?.id, profileData])
   const achievements = profileData?.readingStats ? profileService.generateAchievements(profileData.readingStats) : [];
 
   // Заглушки для данных, которые пока не реализованы
@@ -301,7 +320,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
                 <div className="space-y-6 xl:col-span-8">
                   <ProfileShowcaseFavorites favorites={favoriteMangas} />
                   <ProfileReadingProgress items={readingProgress} />
-                  <ProfileActivity activities={userActivities} />
+                  <ProfileActivity activities={activity} />
                   <Collections collections={collections} isOwnProfile={isOwnProfile} />
                 </div>
                 {/* Right / Side column */}
@@ -360,7 +379,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               <div className="space-y-6">
                 <ProfileShowcaseFavorites favorites={favoriteMangas} />
                 <ProfileReadingProgress items={readingProgress} />
-                <ProfileActivity activities={userActivities} />
+                <ProfileActivity activities={activity} />
                 <ProfileAbout profile={profile} isOwn={isOwnProfile} onUpdate={handleProfileUpdate} />
                 <ProfileGenres profile={profile} />
                 <ProfileBadgesPlaceholder />

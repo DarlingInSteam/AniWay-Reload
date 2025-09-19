@@ -68,7 +68,7 @@ class ReadingProgressService {
         .map(p => ({
           ...p,
           title: p.manga?.title || 'Неизвестная манга',
-          coverImage: p.manga?.coverImageUrl || '/placeholder-manga.png',
+          coverImage: p.manga?.coverImageUrl || '/icon.png',
           currentChapter: p.chapterNumber || 1,
           totalChapters: p.manga?.totalChapters || 1,
           lastRead: new Date(p.updatedAt)

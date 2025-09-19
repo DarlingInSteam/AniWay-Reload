@@ -78,7 +78,7 @@ export function FavoriteComics({ favorites, isOwnProfile }: FavoriteComicsProps)
               <div key={manga.id} className="group cursor-pointer flex-shrink-0 w-24">
                 <div className="relative aspect-[3/4] rounded-lg overflow-hidden mb-2 w-24 h-32">
                   <img
-                    src={manga.coverImage || '/placeholder-manga.png'}
+                    src={manga.coverImage || '/icon.png'}
                     alt={manga.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                   />
@@ -138,7 +138,7 @@ export function ReadingProgressModule({ progress, isOwnProfile }: ReadingProgres
             return (
               <div key={item.mangaId} className="flex gap-3">
                 <img
-                  src={item.coverImage || '/placeholder-manga.png'}
+                  src={item.coverImage || '/icon.png'}
                   alt={item.title}
                   className="w-12 h-16 object-cover rounded"
                 />

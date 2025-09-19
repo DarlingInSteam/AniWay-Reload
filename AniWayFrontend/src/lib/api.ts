@@ -660,7 +660,7 @@ class ApiClient {
     console.warn('Загрузка аватара пока не реализована на бэкенде');
     return {
       success: true,
-      avatarUrl: '/placeholder-avatar.png',
+  avatarUrl: '/icon.png',
       message: 'Аватар загружен (заглушка)'
     };
   }
