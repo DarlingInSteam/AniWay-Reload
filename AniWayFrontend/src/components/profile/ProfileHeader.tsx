@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
+// Build signature for runtime verification
+const PROFILE_HEADER_BUILD_TAG = 'PHv2-2025-09-20-01';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +19,11 @@ interface ProfileHeaderProps {
 }
 
 export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: ProfileHeaderProps) {
+  // Runtime log to verify updated bundle
+  useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.log('[ProfileHeader] build tag:', PROFILE_HEADER_BUILD_TAG);
+  }, []);
   const [isEditingUsername, setIsEditingUsername] = useState(false);
   const [newUsername, setNewUsername] = useState(profile.username);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -182,8 +189,13 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
               </div>
             ) : (
               <div className="flex items-center gap-2 justify-center md:justify-start">
-                <h1 className="text-2xl md:text-3xl font-bold text-white">
+                <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-2">
                   {profile.username}
+                  {isOwnProfile && (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-blue-600/30 text-blue-200 border border-blue-400/30 tracking-wider">
+                      {PROFILE_HEADER_BUILD_TAG}
+                    </span>
+                  )}
                 </h1>
                 {isOwnProfile && (
                   <>
