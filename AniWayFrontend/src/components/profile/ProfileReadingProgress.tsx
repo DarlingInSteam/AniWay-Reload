@@ -1,6 +1,7 @@
 import React from 'react'
 import { UserReadingProgress } from '@/types/profile'
 import { Progress } from '@/components/ui/progress'
+import { ProfilePanel } from './ProfilePanel'
 
 interface ProfileReadingProgressProps {
   items: UserReadingProgress[]
@@ -9,12 +10,13 @@ interface ProfileReadingProgressProps {
 export const ProfileReadingProgress: React.FC<ProfileReadingProgressProps> = ({ items }) => {
   if (items.length === 0) {
     return (
-      <div className="rounded-2xl bg-white/5 border border-white/10 p-5 text-sm text-slate-400">Нет активного чтения</div>
+      <ProfilePanel title="Читаю сейчас">
+        <div className="text-sm text-slate-400">Нет активного чтения</div>
+      </ProfilePanel>
     )
   }
   return (
-  <div className="rounded-2xl bg-white/5 border border-white/10 p-5 space-y-4">
-      <h2 className="text-lg font-semibold text-white">Читаю сейчас</h2>
+  <ProfilePanel title="Читаю сейчас">
       <div className="space-y-4">
         {items.map(item => {
           const pct = item.totalChapters ? (item.currentChapter / item.totalChapters) * 100 : 0
@@ -35,6 +37,6 @@ export const ProfileReadingProgress: React.FC<ProfileReadingProgressProps> = ({ 
           )
         })}
       </div>
-    </div>
+    </ProfilePanel>
   )
 }

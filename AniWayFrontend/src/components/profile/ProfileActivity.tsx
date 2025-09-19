@@ -1,6 +1,7 @@
 import React from 'react'
 import { UserActivity } from '@/types/profile'
 import { Clock, BookOpen, Bookmark as BookmarkIcon, Star, Award } from 'lucide-react'
+import { ProfilePanel } from './ProfilePanel'
 
 interface ProfileActivityProps { activities: UserActivity[] }
 
@@ -31,12 +32,13 @@ const iconByType: Record<string, JSX.Element> = {
 export const ProfileActivity: React.FC<ProfileActivityProps> = ({ activities }) => {
   if (activities.length === 0) {
     return (
-  <div className="rounded-2xl bg-white/5 border border-white/10 p-5 text-sm text-slate-400">Пока нет активности</div>
+      <ProfilePanel title="Активность">
+        <div className="text-sm text-slate-400">Пока нет активности</div>
+      </ProfilePanel>
     )
   }
   return (
-  <div className="rounded-2xl bg-white/5 border border-white/10 p-5 space-y-4">
-      <h2 className="text-lg font-semibold text-white">Активность</h2>
+  <ProfilePanel title="Активность">
       <ul className="space-y-3">
         {activities.slice(0,12).map(a => {
           const Icon = iconByType[a.type] || <Clock className="w-3.5 h-3.5" />
@@ -53,6 +55,6 @@ export const ProfileActivity: React.FC<ProfileActivityProps> = ({ activities }) 
           )
         })}
       </ul>
-    </div>
+    </ProfilePanel>
   )
 }
