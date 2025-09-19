@@ -19,9 +19,13 @@ interface ProfileHeaderProps {
 export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: ProfileHeaderProps) {
   const [isEditingUsername, setIsEditingUsername] = useState(false);
   const [newUsername, setNewUsername] = useState(profile.username);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
+  const [selectedAvatarFile, setSelectedAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [avatarSuccess, setAvatarSuccess] = useState<string | null>(null);
 
   // Вычисляем уровень пользователя и прогресс
   const levels = [
@@ -60,23 +64,54 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
     setIsEditingUsername(false);
   };
 
-  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setUploadingAvatar(true);
-      try {
-        const result = await profileService.uploadAvatar(file);
-        if (result.success) {
-          onProfileUpdate?.({ avatar: result.avatarUrl });
-        } else {
-          console.warn(result.message);
-        }
-      } catch (e) {
-        console.error('Avatar upload failed', e);
-      } finally {
-        setUploadingAvatar(false);
-        if (fileInputRef.current) fileInputRef.current.value = '';
+  const validateAvatar = (file: File): string | null => {
+    if (file.size > 5 * 1024 * 1024) return 'Файл превышает 5MB';
+    if (!file.type.startsWith('image/')) return 'Можно загружать только изображения';
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.type)) return 'Поддерживаются JPEG, PNG, WebP';
+    return null;
+  };
+
+  const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const err = validateAvatar(file);
+    if (err) {
+      setAvatarError(err);
+      setSelectedAvatarFile(null);
+      setAvatarPreview(null);
+      return;
+    }
+    setAvatarError(null);
+    setAvatarSuccess(null);
+    setSelectedAvatarFile(file);
+    const reader = new FileReader();
+    reader.onload = () => setAvatarPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleConfirmAvatarUpload = async () => {
+    if (!selectedAvatarFile) return;
+    setUploadingAvatar(true);
+    setAvatarError(null);
+    try {
+      const res = await profileService.uploadAvatar(selectedAvatarFile);
+      if (res.success) {
+        onProfileUpdate?.({ avatar: res.avatarUrl });
+        setAvatarSuccess('Аватар обновлён');
+        setTimeout(() => {
+          setAvatarDialogOpen(false);
+          setSelectedAvatarFile(null);
+          setAvatarPreview(null);
+          setAvatarSuccess(null);
+        }, 800);
+      } else {
+        setAvatarError(res.message || 'Ошибка загрузки');
       }
+    } catch (e: any) {
+      setAvatarError(e?.message || 'Сбой загрузки');
+    } finally {
+      setUploadingAvatar(false);
     }
   };
 
@@ -118,27 +153,18 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
             </AvatarFallback>
           </Avatar>
           {isOwnProfile && (
-            <>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={handleAvatarUpload}
-                className="hidden"
-              />
-              <Button
-                size="sm"
-                disabled={uploadingAvatar}
-                onClick={() => fileInputRef.current?.click()}
-                className="absolute bottom-0 right-0 rounded-none w-10 h-10 p-0 bg-blue-500/70 hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed transition-opacity backdrop-blur-sm border border-blue-400/50 opacity-100"
-              >
-                {uploadingAvatar ? (
-                  <span className="w-4 h-4 animate-spin border-2 border-white/30 border-t-white rounded-full" />
-                ) : (
-                  <Camera className="w-4 h-4" />
-                )}
-              </Button>
-            </>
+            <Button
+              size="sm"
+              disabled={uploadingAvatar}
+              onClick={() => { setAvatarDialogOpen(true); setAvatarError(null); setAvatarSuccess(null); }}
+              className="absolute bottom-0 right-0 rounded-none w-10 h-10 p-0 bg-blue-500/70 hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed transition-opacity backdrop-blur-sm border border-blue-400/50 opacity-100"
+            >
+              {uploadingAvatar ? (
+                <span className="w-4 h-4 animate-spin border-2 border-white/30 border-t-white rounded-full" />
+              ) : (
+                <Camera className="w-4 h-4" />
+              )}
+            </Button>
           )}
         </div>
 
@@ -390,6 +416,54 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
               }}
             >
               Сохранить изменения
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    {/* Диалог изменения аватара */}
+    <Dialog open={avatarDialogOpen} onOpenChange={(o) => { if (!uploadingAvatar) setAvatarDialogOpen(o); }}>
+      <DialogContent className="bg-gray-900/95 backdrop-blur-md border border-white/10 max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-white">Изменить аватар</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handleAvatarFileChange}
+              disabled={uploadingAvatar}
+              className="bg-white/10 border-white/20 text-white"
+            />
+            <p className="mt-2 text-xs text-gray-400">Макс 5MB. Форматы: JPG, PNG, WebP. Рекомендуемый размер ~184x184.</p>
+          </div>
+          {avatarPreview && (
+            <div className="flex items-center gap-4">
+              <img src={avatarPreview} alt="preview" className="w-24 h-24 object-cover rounded-md border border-white/10" />
+              <div className="text-xs text-gray-400 break-all max-w-[200px]">
+                {selectedAvatarFile?.name}
+              </div>
+            </div>
+          )}
+          {avatarError && <div className="text-sm text-red-400">{avatarError}</div>}
+          {avatarSuccess && <div className="text-sm text-green-400">{avatarSuccess}</div>}
+          <div className="flex justify-end gap-3 pt-2">
+            <Button
+              variant="outline"
+              className="border-white/20 text-gray-300 hover:bg-white/10"
+              onClick={() => { if (!uploadingAvatar) { setAvatarDialogOpen(false); setSelectedAvatarFile(null); setAvatarPreview(null); } }}
+              disabled={uploadingAvatar}
+            >
+              Отмена
+            </Button>
+            <Button
+              onClick={handleConfirmAvatarUpload}
+              disabled={!selectedAvatarFile || uploadingAvatar}
+              className="bg-blue-500/30 hover:bg-blue-500/50 border border-blue-400/40 disabled:opacity-50"
+            >
+              {uploadingAvatar ? 'Загрузка...' : 'Сохранить'}
             </Button>
           </div>
         </div>
