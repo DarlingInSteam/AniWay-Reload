@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { useBookmarks } from '../hooks/useBookmarks'
 import { useAuth } from '../contexts/AuthContext'
 import { BookmarkStatus } from '../types'
@@ -36,7 +36,7 @@ const statusColors: Record<BookmarkStatus, string> = {
 
 export const LibraryPage: React.FC = () => {
   const { isAuthenticated } = useAuth()
-  const { bookmarks, allBookmarks, loading, serverSearch, getBookmarksByStatus, getFavorites } = useBookmarks()
+  const { allBookmarks, loading, clientFilterAndSort, getBookmarksByStatus, getFavorites } = useBookmarks()
   const [selectedStatus, setSelectedStatus] = useState<BookmarkStatus | 'FAVORITES' | 'ALL'>('ALL')
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<SortOption>('bookmark_updated')
@@ -57,20 +57,13 @@ export const LibraryPage: React.FC = () => {
     return () => document.removeEventListener('mousedown', handler)
   }, [showSortDropdown])
 
-  // Trigger server search on relevant parameter changes (debounced for query)
-  useEffect(()=>{
-    const handler = setTimeout(()=>{
-      serverSearch({
-        query: searchQuery || undefined,
-        status: selectedStatus,
-        sortBy,
-        sortOrder
-      })
-    }, 300)
-    return ()=>clearTimeout(handler)
-  }, [searchQuery, selectedStatus, sortBy, sortOrder])
-
-  const filteredBookmarks = bookmarks
+  const debouncedQuery = useDebouncedValue(searchQuery, 250)
+  const filteredBookmarks = useMemo(()=> clientFilterAndSort({
+    query: debouncedQuery,
+    status: selectedStatus,
+    sortBy,
+    sortOrder
+  }), [debouncedQuery, selectedStatus, sortBy, sortOrder, allBookmarks])
   const getStatusCount = (status: BookmarkStatus | 'FAVORITES') => status==='FAVORITES'? getFavorites().length : getBookmarksByStatus(status as BookmarkStatus).length
 
   if (!isAuthenticated) {
@@ -169,4 +162,13 @@ export const LibraryPage: React.FC = () => {
       </div>
     </div>
   )
+}
+
+function useDebouncedValue<T>(value: T, delay: number) {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(()=>{
+    const t = setTimeout(()=> setDebounced(value), delay)
+    return ()=> clearTimeout(t)
+  }, [value, delay])
+  return debounced
 }

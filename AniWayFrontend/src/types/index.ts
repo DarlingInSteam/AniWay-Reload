@@ -171,6 +171,7 @@ export interface Bookmark {
   // Поля для отображения информации о манге (из BookmarkDTO)
   mangaTitle?: string
   mangaCoverUrl?: string
+  mangaUpdatedAt?: string
   // Поля для прогресса чтения
   currentChapter?: number
   totalChapters?: number

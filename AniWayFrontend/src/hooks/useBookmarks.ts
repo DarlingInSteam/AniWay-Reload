@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Bookmark, BookmarkStatus } from '../types'
 import { bookmarkService } from '../services/bookmarkService'
 import { useAuth } from '../contexts/AuthContext'
 
 export const useBookmarks = () => {
-  const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
-  const [allBookmarks, setAllBookmarks] = useState<Bookmark[]>([])
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]) // view subset (optional)
+  const [allBookmarks, setAllBookmarks] = useState<Bookmark[]>([]) // canonical full list
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { isAuthenticated } = useAuth()
@@ -31,28 +31,57 @@ export const useBookmarks = () => {
     }
   }
 
-  // Server-side search/sort wrapper
-  const searchOnServer = async (options: { query?: string; status?: BookmarkStatus | 'ALL' | 'FAVORITES'; favorite?: boolean; sortBy?: string; sortOrder?: 'asc' | 'desc' }) => {
-    if (!isAuthenticated) return
-    try {
-      setLoading(true)
-      setError(null)
-      const { query, status, sortBy, sortOrder } = options
-      const favorite = status === 'FAVORITES' ? true : options.favorite
-      const statusParam = status && status !== 'ALL' && status !== 'FAVORITES' ? status : undefined
-      const data = await bookmarkService.searchBookmarks({
-        query: query || undefined,
-        status: statusParam,
-        favorite,
-        sortBy,
-        sortOrder
-      })
-      setBookmarks(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to search bookmarks')
-    } finally {
-      setLoading(false)
+  /**
+   * Client-side filtering & sorting utility.
+   * Accepts full dataset and derives a view list based on provided params.
+   */
+  const clientFilterAndSort = (params: {
+    query?: string
+    status?: BookmarkStatus | 'ALL' | 'FAVORITES'
+    sortBy?: 'bookmark_updated' | 'manga_updated' | 'chapters_count' | 'alphabetical'
+    sortOrder?: 'asc' | 'desc'
+  }): Bookmark[] => {
+    const { query, status, sortBy = 'bookmark_updated', sortOrder = 'desc' } = params
+    const q = (query || '').trim().toLowerCase()
+    let list = [...allBookmarks]
+    // status / favorites filter
+    if (status && status !== 'ALL') {
+      if (status === 'FAVORITES') list = list.filter(b => b.isFavorite)
+      else list = list.filter(b => b.status === status)
     }
+    // text search (title only for now)
+    if (q) {
+      list = list.filter(b => (b.mangaTitle || '').toLowerCase().includes(q))
+    }
+    // sorting
+    const dir = sortOrder === 'asc' ? 1 : -1
+    list.sort((a, b) => {
+      const safe = <T,>(v: T | undefined | null) => v
+      switch (sortBy) {
+        case 'alphabetical': {
+          const at = (a.mangaTitle || '').toLowerCase()
+          const bt = (b.mangaTitle || '').toLowerCase()
+          return at.localeCompare(bt) * dir
+        }
+        case 'chapters_count': {
+          const av = a.totalChapters ?? -1
+            const bv = b.totalChapters ?? -1
+            return (av - bv) * dir
+        }
+        case 'manga_updated': {
+          const av = a.mangaUpdatedAt ? Date.parse(a.mangaUpdatedAt as unknown as string) : 0
+          const bv = b.mangaUpdatedAt ? Date.parse(b.mangaUpdatedAt as unknown as string) : 0
+          return (av - bv) * dir
+        }
+        case 'bookmark_updated':
+        default: {
+          const av = Date.parse(a.updatedAt)
+          const bv = Date.parse(b.updatedAt)
+          return (av - bv) * dir
+        }
+      }
+    })
+    return list
   }
 
   useEffect(() => {
@@ -168,7 +197,8 @@ export const useBookmarks = () => {
     getBookmarksByStatus,
     getFavorites,
     refetch: fetchBookmarks,
-    serverSearch: searchOnServer
+    serverSearch: async () => {}, // deprecated placeholder to avoid runtime errors
+    clientFilterAndSort
   }
 }
 
