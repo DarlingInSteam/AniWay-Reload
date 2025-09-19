@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useResolvedAvatar } from '@/hooks/useResolvedAvatar'
 import { formatDistanceToNow } from '@/lib/date-utils'
 import { 
   Heart, 
@@ -111,17 +112,8 @@ export function CommentItem({
     )
   }
 
-  const computedAvatar = useMemo(() => {
-    if (comment.userAvatar && comment.userAvatar.trim().length > 0) return comment.userAvatar
-    // fallback attempt: global user avatar field if present (some APIs may return 'avatar')
-    const anyComment: any = comment as any
-    if (anyComment.avatar) return anyComment.avatar
-    const uid = comment.userId
-    if (uid) {
-      return `/images/avatars/${uid}`
-    }
-    return undefined
-  }, [comment.userAvatar, (comment as any).avatar, comment.userId])
+  const primaryProvided = comment.userAvatar || (comment as any).avatar || undefined
+  const computedAvatar = useResolvedAvatar(comment.userId, primaryProvided)
 
   return (
     <div className={cn(
