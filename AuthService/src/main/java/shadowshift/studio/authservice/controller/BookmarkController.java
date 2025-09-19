@@ -254,4 +254,18 @@ public class BookmarkController {
             return ResponseEntity.badRequest().build();
         }
     }
+
+    /**
+     * Административная операция: массовое заполнение кэша метаданных манги в закладках.
+     */
+    @PostMapping("/backfill-cache")
+    public ResponseEntity<Map<String,Object>> backfillCache() {
+        try {
+            var result = bookmarkService.backfillMangaCache();
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            log.error("Backfill cache failed: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        }
+    }
 }
