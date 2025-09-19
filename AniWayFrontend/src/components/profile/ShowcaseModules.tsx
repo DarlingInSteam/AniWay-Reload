@@ -1,5 +1,6 @@
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+// Removed Card components in favor of unified ProfilePanel
 import { Button } from '@/components/ui/button';
+import { ProfilePanel } from './ProfilePanel';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -36,24 +37,17 @@ interface ShowcaseModuleProps {
 
 function ShowcaseModule({ title, icon, children, isEditable, onEdit, className }: ShowcaseModuleProps) {
   return (
-    <Card className={`bg-white/3 backdrop-blur-md border border-white/8 shadow-lg ${className}`}>
-      <CardHeader className="pb-4">
-        <CardTitle className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {icon}
-            <span>{title}</span>
-          </div>
-          {isEditable && (
-            <Button onClick={onEdit} variant="ghost" size="sm" className="p-1 h-auto hover:bg-white/8">
-              <MoreHorizontal className="w-4 h-4" />
-            </Button>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {children}
-      </CardContent>
-    </Card>
+    <ProfilePanel
+      title={<span className="flex items-center gap-2">{icon}<span>{title}</span></span>}
+      actions={isEditable ? (
+        <Button onClick={onEdit} variant="ghost" size="sm" className="p-1 h-auto hover:bg-white/10">
+          <MoreHorizontal className="w-4 h-4" />
+        </Button>
+      ) : undefined}
+      className={className}
+    >
+      {children}
+    </ProfilePanel>
   );
 }
 
