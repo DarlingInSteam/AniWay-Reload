@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { ProfileBackground } from './ProfileBackground';
-import { ProfileHeader } from './ProfileHeader';
-import { ProfileSummary } from './ProfileSummary';
-import { ProfileSidebar } from './ProfileSidebar';
+// Legacy components (may be removed later)
+// import { ProfileHeader } from './ProfileHeader';
+// import { ProfileSummary } from './ProfileSummary';
+// import { ProfileSidebar } from './ProfileSidebar';
 import { ProfileFooter } from './ProfileFooter';
 import {
   FavoriteComics,
@@ -13,6 +14,14 @@ import {
   UserComments
 } from './ShowcaseModules';
 import { UserProfile as UserProfileType, UserProfileProps, UserReview } from '@/types/profile';
+// New redesigned components
+import { ProfileHero } from './ProfileHero';
+import { ProfileStatsStrip } from './ProfileStatsStrip';
+import { ProfileAbout } from './ProfileAbout';
+import { ProfileGenres } from './ProfileGenres';
+import { ProfileShowcaseFavorites } from './ProfileShowcaseFavorites';
+import { ProfileActivity } from './ProfileActivity';
+import { ProfileBadgesPlaceholder } from './ProfileBadgesPlaceholder';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { profileService } from '@/services/profileService';
@@ -249,13 +258,16 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
       isOwnProfile={isOwnProfile}
     >
       <div className="container mx-auto px-4 py-8 max-w-7xl">
-        {/* Заголовок профиля - по центру */}
-        <div className="mb-8">
-          <ProfileHeader
+        {/* New Hero Section */}
+        <div className="mb-4">
+          <ProfileHero
             profile={profile}
-            isOwnProfile={isOwnProfile}
-            onProfileUpdate={handleProfileUpdate}
+            isOwn={isOwnProfile}
+            onEdit={() => console.log('Edit profile (modal TODO)')}
+            onShare={handleShare}
+            onMore={() => console.log('More actions TBD')}
           />
+          <ProfileStatsStrip profile={profile} extra={{ favorites: favoriteMangas.length, achievements: achievements.length }} />
         </div>
 
         {/* Desktop Layout: Табы занимают всю ширину */}
@@ -270,25 +282,20 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">
-              {/* О пользователе */}
-              <ProfileSummary
-                profile={profile}
-                isOwnProfile={isOwnProfile}
-                onProfileUpdate={handleProfileUpdate}
-              />
-
-              {/* Содержимое сайдбара */}
-              <ProfileSidebar
-                friends={mockFriends}
-                communities={mockCommunities}
-                activities={userActivities}
-                isOwnProfile={isOwnProfile}
-                userId={parseInt(profile.id)}
-                profileData={profileData}
-              />
-
-              {/* Основные компоненты профиля */}
-              <Collections collections={collections} isOwnProfile={isOwnProfile} />
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+                {/* Left / Main column */}
+                <div className="space-y-6 xl:col-span-8">
+                  <ProfileShowcaseFavorites favorites={favoriteMangas} />
+                  <ProfileActivity activities={userActivities} />
+                  <Collections collections={collections} isOwnProfile={isOwnProfile} />
+                </div>
+                {/* Right / Side column */}
+                <div className="space-y-6 xl:col-span-4">
+                  <ProfileAbout profile={profile} isOwn={isOwnProfile} onUpdate={handleProfileUpdate} />
+                  <ProfileGenres profile={profile} />
+                  <ProfileBadgesPlaceholder />
+                </div>
+              </div>
             </TabsContent>
 
             <TabsContent value="library" className="space-y-6">
@@ -335,25 +342,14 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">
-              {/* О пользователе */}
-              <ProfileSummary
-                profile={profile}
-                isOwnProfile={isOwnProfile}
-                onProfileUpdate={handleProfileUpdate}
-              />
-
-              {/* Содержимое сайдбара */}
-              <ProfileSidebar
-                friends={mockFriends}
-                communities={mockCommunities}
-                activities={userActivities}
-                isOwnProfile={isOwnProfile}
-                userId={parseInt(profile.id)}
-                profileData={profileData}
-              />
-
-              {/* Основные компоненты профиля */}
-              <Collections collections={collections} isOwnProfile={isOwnProfile} />
+              <div className="space-y-6">
+                <ProfileShowcaseFavorites favorites={favoriteMangas} />
+                <ProfileActivity activities={userActivities} />
+                <ProfileAbout profile={profile} isOwn={isOwnProfile} onUpdate={handleProfileUpdate} />
+                <ProfileGenres profile={profile} />
+                <ProfileBadgesPlaceholder />
+                <Collections collections={collections} isOwnProfile={isOwnProfile} />
+              </div>
             </TabsContent>
 
             <TabsContent value="library" className="space-y-6">
