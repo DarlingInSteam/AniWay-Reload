@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { UserProfile } from '@/types/profile';
 import { Camera, Edit, UserPlus, MessageCircle, Settings, MoreHorizontal } from 'lucide-react';
@@ -19,7 +19,8 @@ interface ProfileHeaderProps {
 export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: ProfileHeaderProps) {
   const [isEditingUsername, setIsEditingUsername] = useState(false);
   const [newUsername, setNewUsername] = useState(profile.username);
-  const [avatarUploadOpen, setAvatarUploadOpen] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Вычисляем уровень пользователя и прогресс
@@ -62,6 +63,7 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      setUploadingAvatar(true);
       try {
         const result = await profileService.uploadAvatar(file);
         if (result.success) {
@@ -72,7 +74,8 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
       } catch (e) {
         console.error('Avatar upload failed', e);
       } finally {
-        setAvatarUploadOpen(false);
+        setUploadingAvatar(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
       }
     }
   };
@@ -114,34 +117,28 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
               {profile.username.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
-
           {isOwnProfile && (
-            <Dialog open={avatarUploadOpen} onOpenChange={setAvatarUploadOpen}>
-              <DialogTrigger asChild>
-                <Button
-                  size="sm"
-                  className="absolute bottom-0 right-0 rounded-none w-10 h-10 p-0 bg-blue-500/30 hover:bg-blue-500/50 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm border border-blue-400/30"
-                >
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleAvatarUpload}
+                className="hidden"
+              />
+              <Button
+                size="sm"
+                disabled={uploadingAvatar}
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute bottom-0 right-0 rounded-none w-10 h-10 p-0 bg-blue-500/70 hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed transition-opacity backdrop-blur-sm border border-blue-400/50 opacity-100"
+              >
+                {uploadingAvatar ? (
+                  <span className="w-4 h-4 animate-spin border-2 border-white/30 border-t-white rounded-full" />
+                ) : (
                   <Camera className="w-4 h-4" />
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="bg-gray-900/95 backdrop-blur-md border border-white/10">
-                <DialogHeader>
-                  <DialogTitle className="text-white">Изменить аватар</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <Input
-                    type="file"
-                    accept="image/jpeg,image/png"
-                    onChange={handleAvatarUpload}
-                    className="bg-white/10 border-white/20 text-white"
-                  />
-                  <p className="text-sm text-gray-300">
-                    Поддерживаются JPG и PNG файлы. Рекомендуемый размер: 184x184px
-                  </p>
-                </div>
-              </DialogContent>
-            </Dialog>
+                )}
+              </Button>
+            </>
           )}
         </div>
 
