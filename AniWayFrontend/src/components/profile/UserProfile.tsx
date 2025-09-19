@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ProfileBackground } from './ProfileBackground';
 // Legacy components (may be removed later)
 // import { ProfileHeader } from './ProfileHeader';
@@ -40,6 +40,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
 
   const { user: currentUser } = useAuth();
 
+  // MAIN LOAD EFFECT: depends only on userId / isOwnProfile to avoid loops on avatar changes
   useEffect(() => {
     const loadProfileData = async () => {
       setLoading(true);
@@ -68,7 +69,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
           username: data.user.username,
           email: data.user.email,
           displayName: data.user.displayName,
-          avatar: data.user.avatar,
+          avatar: data.user.avatar || (profile?.avatar || undefined),
           bio: data.user.bio,
           role: data.user.role,
           isOnline: true, // TODO: Реализовать систему онлайн статуса
@@ -139,7 +140,8 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
     };
 
     loadProfileData();
-  }, [userId, isOwnProfile, currentUser]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, isOwnProfile]);
 
   const handleProfileUpdate = async (updates: Partial<UserProfileType>) => {
     if (!profile || !isOwnProfile) return;
@@ -308,16 +310,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               if (isOwnProfile) {
                 setUserAvatarLocal(newUrl);
               }
-              try {
-                // Refetch canonical profile to ensure backend persisted avatar field
-                const fresh = await profileService.getProfileData(profile.id.toString());
-                const freshAvatar = fresh?.user?.avatar;
-                if (freshAvatar) {
-                  setProfile(p => p ? { ...p, avatar: `${freshAvatar}${freshAvatar.includes('?') ? '&' : '?'}v=${Date.now()}` } : p);
-                }
-              } catch (e) {
-                console.warn('Avatar refetch failed (continuing with optimistic):', e);
-              }
+              // Skip immediate refetch to avoid loop (backend doesn't yet return avatar). Can be re-enabled later.
             }}
           />
           <ProfileStatsStrip profile={profile} extra={{ favorites: favoriteMangas.length, achievements: achievements.length }} />
