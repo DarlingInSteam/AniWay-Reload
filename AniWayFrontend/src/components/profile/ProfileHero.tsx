@@ -12,9 +12,10 @@ interface ProfileHeroProps {
   onEdit?: () => void
   onShare?: () => void
   onMore?: () => void
+  onAvatarUpdated?: (newUrl: string) => void
 }
 
-export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit, onShare, onMore }) => {
+export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit, onShare, onMore, onAvatarUpdated }) => {
   // Build tag + avatar upload logic integrated for production header
   const BUILD_TAG = 'PROFILE-HERO-AV-UPLOAD-2025-09-20-01'
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -44,9 +45,9 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit
     try {
       const res = await profileService.uploadAvatar(file)
       if (res.success) {
+        const busted = res.avatarUrl ? `${res.avatarUrl}${res.avatarUrl.includes('?') ? '&' : '?'}v=${Date.now()}` : ''
         setAvatarSuccess('Готово')
-        // Allow parent to refetch / re-render if it uses onEdit for refresh
-        setTimeout(() => { onEdit?.() }, 400)
+        onAvatarUpdated?.(busted)
       } else {
         setAvatarError(res.message || 'Ошибка')
       }

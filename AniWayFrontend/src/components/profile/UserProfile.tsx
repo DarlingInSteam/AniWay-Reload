@@ -299,6 +299,10 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
             onEdit={() => console.log('Edit profile (modal TODO)')}
             onShare={handleShare}
             onMore={() => console.log('More actions TBD')}
+            onAvatarUpdated={(newUrl) => {
+              if (!newUrl) return;
+              setProfile(prev => prev ? { ...prev, avatar: newUrl } : prev);
+            }}
           />
           <ProfileStatsStrip profile={profile} extra={{ favorites: favoriteMangas.length, achievements: achievements.length }} />
         </div>

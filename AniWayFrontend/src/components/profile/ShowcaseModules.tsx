@@ -255,26 +255,44 @@ export function Reviews({ reviews, isOwnProfile }: ReviewsProps) {
     >
       {displayedReviews.length > 0 ? (
         <div className="space-y-4">
-          {displayedReviews.map((review) => (
-            <div key={review.id} className="border-b border-gray-700 last:border-b-0 pb-4 last:pb-0">
-              <div className="flex items-start justify-between mb-2">
-                <h4 className="text-sm font-medium text-white truncate">
-                  {review.mangaTitle}
-                </h4>
-                <div className="flex items-center gap-1 ml-2">
-                  <Star className="w-4 h-4 text-yellow-500 fill-current" />
-                  <span className="text-sm">{review.rating}</span>
-                </div>
-              </div>
-              <p className="text-sm text-gray-300 line-clamp-3 mb-2">
-                {review.text}
-              </p>
-              <div className="flex items-center justify-between text-xs text-gray-500">
-                <span>{new Date(review.createdAt).toLocaleDateString('ru-RU')}</span>
-                <span>{review.likes} лайков</span>
-              </div>
-            </div>
-          ))}
+                {displayedReviews.map((review) => {
+                  const avatarUrl = (review as any).userAvatar || (review as any).avatar || '/icon.png'
+                  const username = (review as any).username || (review as any).userName || 'User'
+                  return (
+                    <div key={review.id} className="border-b border-gray-700 last:border-b-0 pb-4 last:pb-0">
+                      <div className="flex items-start gap-3 mb-2">
+                        <div className="flex-shrink-0">
+                          <div className="w-10 h-10 rounded-full overflow-hidden bg-white/10 flex items-center justify-center text-white text-sm font-semibold border border-white/10">
+                            {avatarUrl ? (
+                              <img src={avatarUrl} alt={username} className="w-full h-full object-cover" />
+                            ) : (
+                              username.charAt(0).toUpperCase()
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between">
+                            <h4 className="text-sm font-medium text-white truncate">
+                              {review.mangaTitle}
+                            </h4>
+                            <div className="flex items-center gap-1 ml-2">
+                              <Star className="w-4 h-4 text-yellow-500 fill-current" />
+                              <span className="text-sm">{review.rating}</span>
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-400 mb-1">{username}</p>
+                          <p className="text-sm text-gray-300 line-clamp-3 mb-2">
+                            {review.text}
+                          </p>
+                          <div className="flex items-center justify-between text-xs text-gray-500">
+                            <span>{new Date(review.createdAt).toLocaleDateString('ru-RU')}</span>
+                            <span>{review.likes} лайков</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
         </div>
       ) : (
         <div className="text-center py-8 text-gray-400">
