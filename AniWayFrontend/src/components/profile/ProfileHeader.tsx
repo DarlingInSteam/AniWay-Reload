@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +26,10 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const [avatarSuccess, setAvatarSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    console.log('[AvatarUpload] avatarDialogOpen:', avatarDialogOpen);
+  }, [avatarDialogOpen]);
 
   // Вычисляем уровень пользователя и прогресс
   const levels = [
@@ -145,7 +149,7 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
       <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
         {/* Аватар */}
         <div className="relative group">
-          <Avatar className="w-44 h-44 border-4 border-white/20 rounded-none">
+          <Avatar className="w-44 h-44 border-4 border-white/20 rounded-none relative z-10 pointer-events-none select-none">
             <AvatarImage
               src={profile.avatar || '/icon.png'}
               alt={profile.username}
@@ -160,7 +164,8 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
               size="sm"
               disabled={uploadingAvatar}
               onClick={() => { console.log('[AvatarUpload] Camera button clicked'); setAvatarDialogOpen(true); setAvatarError(null); setAvatarSuccess(null); }}
-              className="absolute bottom-0 right-0 rounded-none w-10 h-10 p-0 bg-blue-500/70 hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed transition-opacity backdrop-blur-sm border border-blue-400/50 opacity-100"
+              className="absolute bottom-0 right-0 z-20 rounded-none w-10 h-10 p-0 bg-blue-500/80 hover:bg-blue-500 focus:ring-2 focus:ring-blue-300 disabled:opacity-60 disabled:cursor-not-allowed transition-all backdrop-blur-sm border border-blue-400/50 opacity-100 pointer-events-auto"
+              style={{ boxShadow: '0 0 0 2px rgba(0,0,0,0.4)' }}
             >
               {uploadingAvatar ? (
                 <span className="w-4 h-4 animate-spin border-2 border-white/30 border-t-white rounded-full" />
