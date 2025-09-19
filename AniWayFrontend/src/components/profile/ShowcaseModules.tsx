@@ -185,17 +185,24 @@ export function Collections({ collections, isOwnProfile }: CollectionsProps) {
   const displayedCollections = collections.slice(0, 8); // Показываем больше коллекций
 
   return (
-    <ShowcaseModule
-      title="Коллекции"
-      icon={<Folder className="w-5 h-5 text-purple-500" />}
-      isEditable={isOwnProfile}
-    >
+    <div className="glass-panel p-4 lg:p-5 shadow-lg">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2 text-white font-medium">
+          <Folder className="w-5 h-5 text-purple-400" />
+          <span>Коллекции</span>
+        </div>
+        {isOwnProfile && (
+          <Button variant="ghost" size="sm" className="p-1 h-auto hover:bg-white/10">
+            <MoreHorizontal className="w-4 h-4" />
+          </Button>
+        )}
+      </div>
       {displayedCollections.length > 0 ? (
-        <div className="overflow-x-auto pb-2">
+        <div className="overflow-x-auto pb-2 -mx-1 px-1">
           <div className="flex gap-4 min-w-max">
             {displayedCollections.map((collection) => (
               <div key={collection.id} className="group cursor-pointer flex-shrink-0 w-40">
-                <div className="relative aspect-[3/4] rounded-lg overflow-hidden mb-2 bg-gray-800 w-40 h-48">
+                <div className="relative aspect-[3/4] rounded-lg overflow-hidden mb-2 bg-white/5 border border-white/10 w-40 h-48">
                   {collection.coverImages.length > 0 ? (
                     <img
                       src={collection.coverImages[0]}
@@ -203,10 +210,11 @@ export function Collections({ collections, isOwnProfile }: CollectionsProps) {
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                     />
                   ) : (
-                    <div className="flex items-center justify-center h-full">
-                      <Folder className="w-6 h-6 text-gray-600" />
+                    <div className="flex items-center justify-center h-full text-white/40">
+                      <Folder className="w-6 h-6" />
                     </div>
                   )}
+                  <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
                 </div>
                 <h4 className="text-xs font-medium text-white truncate mb-1">
                   {collection.name}
@@ -232,7 +240,7 @@ export function Collections({ collections, isOwnProfile }: CollectionsProps) {
           )}
         </div>
       )}
-    </ShowcaseModule>
+    </div>
   );
 }
 
