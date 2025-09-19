@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { UserProfile } from '@/types/profile';
 import { Camera, Edit, UserPlus, MessageCircle, Settings, MoreHorizontal } from 'lucide-react';
+import { profileService } from '@/services/profileService';
 
 interface ProfileHeaderProps {
   profile: UserProfile;
@@ -58,12 +59,21 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
     setIsEditingUsername(false);
   };
 
-  const handleAvatarUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      // TODO: Реализовать загрузку аватара
-      console.log('Uploading avatar:', file);
-      setAvatarUploadOpen(false);
+      try {
+        const result = await profileService.uploadAvatar(file);
+        if (result.success) {
+          onProfileUpdate?.({ avatar: result.avatarUrl });
+        } else {
+          console.warn(result.message);
+        }
+      } catch (e) {
+        console.error('Avatar upload failed', e);
+      } finally {
+        setAvatarUploadOpen(false);
+      }
     }
   };
 

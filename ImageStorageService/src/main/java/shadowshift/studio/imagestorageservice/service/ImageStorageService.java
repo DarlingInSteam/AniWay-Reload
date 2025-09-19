@@ -7,8 +7,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import shadowshift.studio.imagestorageservice.config.YandexStorageProperties;
 import shadowshift.studio.imagestorageservice.dto.ChapterImageResponseDTO;
+import shadowshift.studio.imagestorageservice.dto.UserAvatarResponseDTO;
 import shadowshift.studio.imagestorageservice.entity.ChapterImage;
+import shadowshift.studio.imagestorageservice.entity.UserAvatar;
+import shadowshift.studio.imagestorageservice.exception.AvatarUploadRateLimitException;
 import shadowshift.studio.imagestorageservice.repository.ChapterImageRepository;
+import shadowshift.studio.imagestorageservice.repository.UserAvatarRepository;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -45,6 +49,9 @@ public class ImageStorageService {
 
     @Autowired
     private YandexStorageProperties yandexProperties;
+
+    @Autowired
+    private UserAvatarRepository userAvatarRepository;
 
     /**
      * Получает список всех изображений для указанной главы, отсортированных по номеру страницы.
@@ -752,5 +759,96 @@ public class ImageStorageService {
 
         ChapterImage savedImage = imageRepository.save(chapterImage);
         return new ChapterImageResponseDTO(savedImage);
+    }
+
+    // Helper to generate avatar object key
+    private String generateAvatarObjectKey(Long userId, String originalFilename) {
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+        String extension = getFileExtension(originalFilename);
+        if (extension.isEmpty()) {
+            extension = ".jpg"; // default
+        }
+        String uniqueId = UUID.randomUUID().toString().substring(0, 8);
+        return String.format("avatars/%d/%s_%s%s", userId, timestamp, uniqueId, extension);
+    }
+
+    public UserAvatarResponseDTO uploadUserAvatar(Long userId, MultipartFile file) {
+        try {
+            createBucketIfNotExists();
+            if (file.isEmpty()) {
+                throw new RuntimeException("Empty file");
+            }
+            if (file.getSize() > 5 * 1024 * 1024) { // 5MB limit
+                throw new RuntimeException("Avatar file too large (max 5MB)");
+            }
+            String contentType = file.getContentType();
+            if (contentType == null || !contentType.startsWith("image/")) {
+                throw new RuntimeException("Invalid image type");
+            }
+
+            Optional<UserAvatar> existingOpt = userAvatarRepository.findByUserId(userId);
+            LocalDateTime now = LocalDateTime.now();
+            if (existingOpt.isPresent()) {
+                UserAvatar existing = existingOpt.get();
+                if (existing.getUpdatedAt() != null && existing.getUpdatedAt().isAfter(now.minusHours(24))) {
+                    throw new AvatarUploadRateLimitException("Avatar can be updated only once per 24h");
+                }
+            }
+
+            String objectKey = generateAvatarObjectKey(userId, file.getOriginalFilename());
+
+            // Remove previous object if any
+            if (existingOpt.isPresent()) {
+                try {
+                    minioClient.removeObject(
+                            RemoveObjectArgs.builder()
+                                    .bucket(yandexProperties.getBucketName())
+                                    .object(existingOpt.get().getImageKey())
+                                    .build()
+                    );
+                } catch (Exception ignored) {}
+            }
+
+            minioClient.putObject(
+                    PutObjectArgs.builder()
+                            .bucket(yandexProperties.getBucketName())
+                            .object(objectKey)
+                            .stream(file.getInputStream(), file.getSize(), -1)
+                            .contentType(contentType)
+                            .build()
+            );
+
+            BufferedImage bufferedImage = ImageIO.read(file.getInputStream());
+            Integer width = null;
+            Integer height = null;
+            if (bufferedImage != null) {
+                width = bufferedImage.getWidth();
+                height = bufferedImage.getHeight();
+            }
+
+            UserAvatar avatar = existingOpt.orElseGet(UserAvatar::new);
+            avatar.setUserId(userId);
+            avatar.setImageKey(objectKey);
+            avatar.setImageUrl(generateImageUrl(objectKey));
+            avatar.setFileSize(file.getSize());
+            avatar.setMimeType(contentType);
+            avatar.setWidth(width);
+            avatar.setHeight(height);
+            avatar.setUpdatedAt(LocalDateTime.now());
+            if (avatar.getCreatedAt() == null) {
+                avatar.setCreatedAt(LocalDateTime.now());
+            }
+
+            UserAvatar saved = userAvatarRepository.save(avatar);
+            return new UserAvatarResponseDTO(saved);
+        } catch (AvatarUploadRateLimitException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to upload avatar: " + e.getMessage(), e);
+        }
+    }
+
+    public Optional<UserAvatar> getUserAvatar(Long userId) {
+        return userAvatarRepository.findByUserId(userId);
     }
 }

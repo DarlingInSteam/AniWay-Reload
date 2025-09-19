@@ -25,6 +25,7 @@ import {
   ThumbsUp,
   Reply
 } from 'lucide-react';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 interface ShowcaseModuleProps {
   title: string;
@@ -427,9 +428,18 @@ export function UserComments({ userId, isOwnProfile }: UserCommentsProps) {
             const rating = calculateRating(comment);
             const isReply = comment.parentCommentId !== null;
             const commentType = (comment as any).commentType || comment.type;
+            const avatarUrl = (comment as any).userAvatar || (comment as any).avatar || '/icon.png';
 
             return (
               <div key={comment.id} className="border-b border-gray-700 last:border-b-0 pb-4 last:pb-0">
+                <div className="flex items-start gap-3">
+                  <Avatar className="w-10 h-10 border border-white/10 bg-white/5">
+                    <AvatarImage src={avatarUrl} alt={comment.username} className="object-cover" />
+                    <AvatarFallback className="bg-white/10 text-white">
+                      {comment.username.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
                 {/* Заголовок комментария */}
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 min-w-0">
@@ -437,7 +447,6 @@ export function UserComments({ userId, isOwnProfile }: UserCommentsProps) {
                       <Badge variant="outline" className="text-xs border-gray-600 text-gray-300">
                         {getCommentTypeText(commentType || 'UNKNOWN')}
                       </Badge>
-                      
                       {comment.targetInfo && (
                         <div className={`text-xs flex items-center gap-1 ${getCommentTypeColor(commentType || 'UNKNOWN')}`}>
                           <span>{getCommentTypeIcon(commentType || 'UNKNOWN')}</span>
@@ -454,8 +463,6 @@ export function UserComments({ userId, isOwnProfile }: UserCommentsProps) {
                         </div>
                       )}
                     </div>
-
-                    {/* Информация об авторе */}
                     <div className="text-xs text-gray-500 mb-1">
                       от <span className="text-blue-400 font-medium">{comment.username}</span>
                       {isReply && comment.parentCommentAuthor && (
@@ -465,8 +472,6 @@ export function UserComments({ userId, isOwnProfile }: UserCommentsProps) {
                       )}
                     </div>
                   </div>
-
-                  {/* Рейтинг и статистика */}
                   <div className="flex items-center gap-3 text-xs flex-shrink-0 ml-2">
                     <div className={`flex items-center gap-1 font-medium ${
                       rating > 0 ? 'text-green-400' : 
@@ -519,19 +524,8 @@ export function UserComments({ userId, isOwnProfile }: UserCommentsProps) {
                       })}
                     </time>
                   </span>
-
-                  <div className="flex items-center gap-2">
-                    {comment.isEdited && (
-                      <span className="text-yellow-400 text-xs px-1.5 py-0.5 rounded bg-yellow-400/10">
-                        ред.
-                      </span>
-                    )}
-                    {comment.isDeleted && (
-                      <span className="text-red-400 text-xs px-1.5 py-0.5 rounded bg-red-400/10">
-                        удален
-                      </span>
-                    )}
-                  </div>
+                </div>
+                </div>
                 </div>
               </div>
             );
