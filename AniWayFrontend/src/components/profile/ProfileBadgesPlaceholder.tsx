@@ -2,7 +2,7 @@ import React from 'react'
 
 export const ProfileBadgesPlaceholder: React.FC = () => {
   return (
-  <div className="rounded-2xl bg-[#1a1d22] border border-white/10 p-5 space-y-3">
+  <div className="rounded-2xl bg-white/5 border border-white/10 p-5 space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-white">Бэйджи</h2>
         <span className="text-xs text-slate-400">Скоро</span>

@@ -9,11 +9,11 @@ interface ProfileReadingProgressProps {
 export const ProfileReadingProgress: React.FC<ProfileReadingProgressProps> = ({ items }) => {
   if (items.length === 0) {
     return (
-      <div className="rounded-2xl bg-[#1a1d22] border border-white/10 p-5 text-sm text-slate-400">Нет активного чтения</div>
+      <div className="rounded-2xl bg-white/5 border border-white/10 p-5 text-sm text-slate-400">Нет активного чтения</div>
     )
   }
   return (
-    <div className="rounded-2xl bg-[#1a1d22] border border-white/10 p-5 space-y-4">
+  <div className="rounded-2xl bg-white/5 border border-white/10 p-5 space-y-4">
       <h2 className="text-lg font-semibold text-white">Читаю сейчас</h2>
       <div className="space-y-4">
         {items.map(item => {

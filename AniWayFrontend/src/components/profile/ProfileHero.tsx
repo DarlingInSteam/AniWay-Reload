@@ -3,6 +3,7 @@ import { UserProfile } from '@/types/profile'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { Camera, Edit, Share2, MoreHorizontal } from 'lucide-react'
+import { Progress } from '@/components/ui/progress'
 
 interface ProfileHeroProps {
   profile: UserProfile
@@ -13,12 +14,37 @@ interface ProfileHeroProps {
 }
 
 export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit, onShare, onMore }) => {
+  // Level logic (extracted from legacy header)
+  const levels = [
+    { level: 1, xpRequired: 0 },
+    { level: 2, xpRequired: 50 },
+    { level: 3, xpRequired: 150 },
+    { level: 4, xpRequired: 300 },
+    { level: 5, xpRequired: 500 },
+    { level: 6, xpRequired: 750 },
+    { level: 7, xpRequired: 1000 },
+    { level: 8, xpRequired: 1500 },
+    { level: 9, xpRequired: 2000 },
+    { level: 10, xpRequired: 3000 },
+  ]
+  const totalActivity = (profile.mangaRead || 0) * 10 + (profile.chaptersRead || 0)
+  let userLevel = 1
+  for (let i = levels.length - 1; i >= 0; i--) {
+    if (totalActivity >= levels[i].xpRequired) { userLevel = levels[i].level; break }
+  }
+  const current = levels[userLevel - 1]
+  const next = levels[userLevel] || levels[levels.length - 1]
+  const xpCurrent = current.xpRequired
+  const xpNext = next.xpRequired
+  const gained = totalActivity - xpCurrent
+  const need = xpNext - xpCurrent
+  const pct = userLevel >= 10 ? 100 : (need>0? Math.min(100, (gained/need)*100): 0)
+
   return (
-    <div className="relative w-full rounded-2xl overflow-hidden border border-white/10 shadow-xl bg-[#14171d]">
-      {/* Subtle vignette + accent haze */}
+    <div className="relative w-full rounded-2xl overflow-hidden border border-white/10 shadow-lg bg-background">
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_25%,rgba(56,132,255,0.18),transparent_65%)]" />
-        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,0)_55%,rgba(0,0,0,0.85))]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_30%,rgba(59,130,246,0.12),transparent_70%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,0)_55%,rgba(0,0,0,0.7))]" />
       </div>
       <div className="relative px-6 pt-6 pb-5 md:px-10 md:pt-8 md:pb-8 flex flex-col md:flex-row gap-6 md:gap-10">
         {/* Avatar + level */}
@@ -72,15 +98,26 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit
             <p className="mt-4 max-w-2xl text-slate-300 text-sm leading-relaxed line-clamp-3">{profile.bio}</p>
           )}
         </div>
-        {/* Right side showcase placeholder (desktop) */}
-        <div className="hidden lg:flex flex-col gap-3 w-72">
-          <div className="text-sm font-medium text-slate-200 tracking-wide">Избранное</div>
-          <div className="grid grid-cols-3 gap-2">
-            {[0,1,2].map(i => (
-              <div key={i} className="aspect-[2/3] rounded-md bg-primary/10 border border-white/10" />
-            ))}
+        {/* Right side level panel */}
+        <div className="hidden lg:flex flex-col w-72">
+          <div className="rounded-xl bg-white/5 border border-white/10 p-4 flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs tracking-wide text-slate-400 uppercase">Уровень</span>
+              <span className="text-sm font-semibold text-white">{userLevel}</span>
+            </div>
+            <div>
+              <div className="flex justify-between text-[11px] text-slate-500 mb-1">
+                <span>{gained} XP</span>
+                <span>{xpNext} XP</span>
+              </div>
+              <Progress value={pct} className="h-2" />
+              <div className="mt-1 text-[11px] text-slate-500">{userLevel>=10? 'MAX' : `До след.: ${Math.max(0, xpNext-totalActivity)} XP`}</div>
+            </div>
+            <div className="flex flex-col gap-1 text-[11px] text-slate-500">
+              <div><span className="text-slate-300">Манги:</span> {profile.mangaRead}</div>
+              <div><span className="text-slate-300">Глав:</span> {profile.chaptersRead}</div>
+            </div>
           </div>
-          <div className="text-xs text-slate-400">Слот витрины (будет заполнен реальными данными)</div>
         </div>
       </div>
     </div>

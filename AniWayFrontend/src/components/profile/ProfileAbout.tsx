@@ -13,7 +13,7 @@ export const ProfileAbout: React.FC<ProfileAboutProps> = ({ profile, isOwn, onUp
   const [editing, setEditing] = useState(false)
   const [bio, setBio] = useState(profile.bio || '')
   return (
-  <div className="rounded-2xl bg-[#1a1d22] border border-white/10 p-5 space-y-4">
+  <div className="rounded-2xl bg-white/5 border border-white/10 p-5 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-white">О пользователе</h2>
         {isOwn && !editing && (

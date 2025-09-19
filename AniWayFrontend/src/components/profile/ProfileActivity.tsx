@@ -1,30 +1,57 @@
 import React from 'react'
 import { UserActivity } from '@/types/profile'
-import { Clock } from 'lucide-react'
+import { Clock, BookOpen, Bookmark as BookmarkIcon, Star, Award } from 'lucide-react'
 
 interface ProfileActivityProps { activities: UserActivity[] }
+
+function relativeTime(ts: Date) {
+  const diff = Date.now() - ts.getTime()
+  const m = Math.floor(diff/60000)
+  if (m < 1) return 'только что'
+  if (m < 60) return `${m} мин назад`
+  const h = Math.floor(m/60)
+  if (h < 24) return `${h} ч назад`
+  const d = Math.floor(h/24)
+  if (d < 7) return `${d} дн назад`
+  const w = Math.floor(d/7)
+  if (w < 4) return `${w} нед назад`
+  const mon = Math.floor(d/30)
+  if (mon < 12) return `${mon} мес назад`
+  const y = Math.floor(d/365)
+  return `${y} г назад`
+}
+
+const iconByType: Record<string, JSX.Element> = {
+  read: <BookOpen className="w-3.5 h-3.5" />,
+  review: <Star className="w-3.5 h-3.5" />,
+  bookmark: <BookmarkIcon className="w-3.5 h-3.5" />,
+  achievement: <Award className="w-3.5 h-3.5" />
+}
 
 export const ProfileActivity: React.FC<ProfileActivityProps> = ({ activities }) => {
   if (activities.length === 0) {
     return (
-      <div className="rounded-2xl bg-[#1a1d22] border border-white/10 p-5 text-sm text-slate-400">Пока нет активности</div>
+  <div className="rounded-2xl bg-white/5 border border-white/10 p-5 text-sm text-slate-400">Пока нет активности</div>
     )
   }
   return (
-    <div className="rounded-2xl bg-[#1a1d22] border border-white/10 p-5 space-y-4">
+  <div className="rounded-2xl bg-white/5 border border-white/10 p-5 space-y-4">
       <h2 className="text-lg font-semibold text-white">Активность</h2>
       <ul className="space-y-3">
-        {activities.slice(0,12).map(a => (
-          <li key={a.id} className="flex items-start gap-3 text-sm">
-            <div className="w-6 h-6 rounded-md bg-primary/20 flex items-center justify-center text-primary shrink-0">
-              <Clock className="w-3.5 h-3.5" />
-            </div>
-            <div className="flex-1 text-slate-200">
-              <div>{a.description}</div>
-              <div className="text-[11px] uppercase tracking-wide text-slate-500 mt-0.5">{a.timestamp.toLocaleString()}</div>
-            </div>
-          </li>
-        ))}
+        {activities.slice(0,12).map(a => {
+          const Icon = iconByType[a.type] || <Clock className="w-3.5 h-3.5" />
+          return (
+            <li key={a.id} className="flex items-start gap-3 text-sm">
+              <div className="w-6 h-6 rounded-md bg-primary/20 flex items-center justify-center text-primary shrink-0">
+                {Icon}
+              </div>
+              <div className="flex-1 text-slate-200">
+                <div>{a.description}</div>
+                <div className="text-[11px] tracking-wide text-slate-500 mt-0.5">{relativeTime(a.timestamp)}</div>
+              </div>
+            </li>
+          )
+        })}
       </ul>
     </div>
   )

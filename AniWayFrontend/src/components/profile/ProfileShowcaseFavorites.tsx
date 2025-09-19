@@ -8,7 +8,7 @@ interface ProfileShowcaseFavoritesProps {
 export const ProfileShowcaseFavorites: React.FC<ProfileShowcaseFavoritesProps> = ({ favorites }) => {
   const top = favorites.slice(0, 9)
   return (
-  <div className="rounded-2xl bg-[#1a1d22] border border-white/10 p-5 space-y-4">
+  <div className="rounded-2xl bg-white/5 border border-white/10 p-5 space-y-4">
       <h2 className="text-lg font-semibold text-white flex items-center gap-2">Избранное <span className="text-xs font-normal text-slate-400">{favorites.length}</span></h2>
       {top.length===0 ? (
         <div className="text-sm text-slate-400">Нет избранного</div>
