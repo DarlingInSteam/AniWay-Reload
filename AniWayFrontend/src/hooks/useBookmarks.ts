@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 
 export const useBookmarks = () => {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
+  const [allBookmarks, setAllBookmarks] = useState<Bookmark[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { isAuthenticated } = useAuth()
@@ -20,6 +21,7 @@ export const useBookmarks = () => {
       setLoading(true)
       setError(null)
       const data = await bookmarkService.getUserBookmarks()
+      setAllBookmarks(data)
       setBookmarks(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch bookmarks')
@@ -66,6 +68,14 @@ export const useBookmarks = () => {
       })
       
       // Обновляем локальное состояние
+      setAllBookmarks(prev => {
+        const existing = prev.find(b => b.mangaId === mangaId)
+        if (existing) {
+          return prev.map(b => b.mangaId === mangaId ? newBookmark : b)
+        } else {
+          return [...prev, newBookmark]
+        }
+      })
       setBookmarks(prev => {
         const existing = prev.find(b => b.mangaId === mangaId)
         if (existing) {
@@ -84,6 +94,7 @@ export const useBookmarks = () => {
   const removeBookmark = async (mangaId: number) => {
     try {
       await bookmarkService.deleteBookmark(mangaId)
+      setAllBookmarks(prev => prev.filter(b => b.mangaId !== mangaId))
       setBookmarks(prev => prev.filter(b => b.mangaId !== mangaId))
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : 'Failed to remove bookmark')
@@ -110,6 +121,14 @@ export const useBookmarks = () => {
   const changeStatus = async (mangaId: number, status: BookmarkStatus) => {
     try {
       const updatedBookmark = await bookmarkService.changeReadingStatus(mangaId, status)
+      setAllBookmarks(prev => {
+        const existing = prev.find(b => b.mangaId === mangaId)
+        if (existing) {
+          return prev.map(b => b.mangaId === mangaId ? updatedBookmark : b)
+        } else {
+          return [...prev, updatedBookmark]
+        }
+      })
       setBookmarks(prev => {
         const existing = prev.find(b => b.mangaId === mangaId)
         if (existing) {
@@ -129,15 +148,16 @@ export const useBookmarks = () => {
   }
 
   const getBookmarksByStatus = (status: BookmarkStatus): Bookmark[] => {
-    return bookmarks.filter(b => b.status === status)
+  return allBookmarks.filter(b => b.status === status)
   }
 
   const getFavorites = (): Bookmark[] => {
-    return bookmarks.filter(b => b.isFavorite)
+  return allBookmarks.filter(b => b.isFavorite)
   }
 
   return {
     bookmarks,
+      allBookmarks,
     loading,
     error,
     addBookmark,

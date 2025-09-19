@@ -36,7 +36,7 @@ const statusColors: Record<BookmarkStatus, string> = {
 
 export const LibraryPage: React.FC = () => {
   const { isAuthenticated } = useAuth()
-  const { bookmarks, loading, serverSearch, getBookmarksByStatus, getFavorites } = useBookmarks()
+  const { bookmarks, allBookmarks, loading, serverSearch, getBookmarksByStatus, getFavorites } = useBookmarks()
   const [selectedStatus, setSelectedStatus] = useState<BookmarkStatus | 'FAVORITES' | 'ALL'>('ALL')
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<SortOption>('bookmark_updated')
@@ -145,7 +145,7 @@ export const LibraryPage: React.FC = () => {
               </div>
             </div>
             <div ref={chipsContainerRef} className="flex overflow-x-auto no-scrollbar gap-2 pb-1 -ml-1 pr-1">
-              <button onClick={()=>setSelectedStatus('ALL')} className={cn('px-4 h-9 rounded-full text-sm font-medium whitespace-nowrap transition border flex items-center gap-2', selectedStatus==='ALL' ? 'bg-primary/20 text-primary border-primary/30 shadow' : 'bg-white/5 text-white/70 hover:text-white hover:bg-white/10 border-white/10')}>Все <span className="opacity-80">{bookmarks.length}</span></button>
+              <button onClick={()=>setSelectedStatus('ALL')} className={cn('px-4 h-9 rounded-full text-sm font-medium whitespace-nowrap transition border flex items-center gap-2', selectedStatus==='ALL' ? 'bg-primary/20 text-primary border-primary/30 shadow' : 'bg-white/5 text-white/70 hover:text-white hover:bg-white/10 border-white/10')}>Все <span className="opacity-80">{allBookmarks.length}</span></button>
               {Object.entries(statusLabels).map(([status,label])=> (
                 <button key={status} onClick={()=>setSelectedStatus(status as BookmarkStatus)} className={cn('px-4 h-9 rounded-full text-sm font-medium whitespace-nowrap transition border flex items-center gap-2', selectedStatus===status ? `${statusColors[status as BookmarkStatus]} text-white border-white/20 shadow` : 'bg-white/5 text-white/70 hover:text-white hover:bg-white/10 border-white/10')}>
                   {label} <span className="opacity-80">{getStatusCount(status as BookmarkStatus)}</span>
