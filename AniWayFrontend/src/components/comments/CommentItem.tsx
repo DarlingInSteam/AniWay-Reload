@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { formatDistanceToNow } from '@/lib/date-utils'
 import { 
   Heart, 
@@ -111,6 +111,18 @@ export function CommentItem({
     )
   }
 
+  const computedAvatar = useMemo(() => {
+    if (comment.userAvatar && comment.userAvatar.trim().length > 0) return comment.userAvatar
+    // fallback attempt: global user avatar field if present (some APIs may return 'avatar')
+    const anyComment: any = comment as any
+    if (anyComment.avatar) return anyComment.avatar
+    const uid = comment.userId
+    if (uid) {
+      return `/images/avatars/${uid}`
+    }
+    return undefined
+  }, [comment.userAvatar, (comment as any).avatar, comment.userId])
+
   return (
     <div className={cn(
       "p-4 rounded-3xl bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/10 transition-colors group",
@@ -120,7 +132,7 @@ export function CommentItem({
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center space-x-3">
           <Avatar className="h-8 w-8">
-            <AvatarImage src={comment.userAvatar} />
+            <AvatarImage src={computedAvatar} />
             <AvatarFallback className="bg-primary text-white">
               {comment.username.charAt(0).toUpperCase()}
             </AvatarFallback>

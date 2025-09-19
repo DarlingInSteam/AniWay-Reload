@@ -256,7 +256,12 @@ export function Reviews({ reviews, isOwnProfile }: ReviewsProps) {
       {displayedReviews.length > 0 ? (
         <div className="space-y-4">
                 {displayedReviews.map((review) => {
-                  const avatarUrl = (review as any).userAvatar || (review as any).avatar || '/icon.png'
+                  let avatarUrl = (review as any).userAvatar || (review as any).avatar
+                  if (!avatarUrl) {
+                    const uid = (review as any).userId || (review as any).authorId
+                    if (uid) avatarUrl = `/images/avatars/${uid}`
+                  }
+                  if (!avatarUrl) avatarUrl = '/icon.png'
                   const username = (review as any).username || (review as any).userName || 'User'
                   return (
                     <div key={review.id} className="border-b border-gray-700 last:border-b-0 pb-4 last:pb-0">

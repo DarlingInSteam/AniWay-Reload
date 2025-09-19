@@ -285,6 +285,8 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
     );
   }
 
+  const { setUserAvatarLocal } = useAuth();
+
   return (
     <ProfileBackground
       profile={profile}
@@ -299,9 +301,23 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
             onEdit={() => console.log('Edit profile (modal TODO)')}
             onShare={handleShare}
             onMore={() => console.log('More actions TBD')}
-            onAvatarUpdated={(newUrl) => {
+            onAvatarUpdated={async (newUrl) => {
               if (!newUrl) return;
+              // Optimistic local update
               setProfile(prev => prev ? { ...prev, avatar: newUrl } : prev);
+              if (isOwnProfile) {
+                setUserAvatarLocal(newUrl);
+              }
+              try {
+                // Refetch canonical profile to ensure backend persisted avatar field
+                const fresh = await profileService.getProfileData(profile.id.toString());
+                const freshAvatar = fresh?.user?.avatar;
+                if (freshAvatar) {
+                  setProfile(p => p ? { ...p, avatar: `${freshAvatar}${freshAvatar.includes('?') ? '&' : '?'}v=${Date.now()}` } : p);
+                }
+              } catch (e) {
+                console.warn('Avatar refetch failed (continuing with optimistic):', e);
+              }
             }}
           />
           <ProfileStatsStrip profile={profile} extra={{ favorites: favoriteMangas.length, achievements: achievements.length }} />

@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react'
+import React, { useRef, useState, useEffect, useMemo } from 'react'
 import { UserProfile } from '@/types/profile'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
@@ -43,21 +43,41 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit
     setAvatarSuccess(null)
     setUploading(true)
     try {
+      console.log('[ProfileHero] uploading avatar file:', { name: file.name, size: file.size, type: file.type })
       const res = await profileService.uploadAvatar(file)
       if (res.success) {
         const busted = res.avatarUrl ? `${res.avatarUrl}${res.avatarUrl.includes('?') ? '&' : '?'}v=${Date.now()}` : ''
         setAvatarSuccess('Готово')
+        console.log('[ProfileHero] upload success. Raw url:', res.avatarUrl, 'cache-busted:', busted)
         onAvatarUpdated?.(busted)
       } else {
         setAvatarError(res.message || 'Ошибка')
+        console.warn('[ProfileHero] upload failed:', res.message)
       }
     } catch (ex: any) {
       setAvatarError(ex?.message || 'Сбой')
+      console.error('[ProfileHero] upload exception:', ex)
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value=''
     }
   }
+
+  // Computed avatar URL with fallback construction if backend didn't yet return avatar in profile
+  const computedAvatarUrl = useMemo(() => {
+    const base = profile.avatar?.trim()
+    if (base) return base
+    // heuristic fallback path (adjust if gateway path differs)
+    // We'll attempt /images/avatars/{userId}
+    const userId = (profile as any).id || (profile as any).userId
+    if (!userId) return '/icon.png'
+    const guess = `/images/avatars/${userId}`
+    return guess
+  }, [profile.avatar, (profile as any).id])
+
+  useEffect(() => {
+    console.log('[ProfileHero] profile.avatar field:', profile.avatar, 'computedAvatarUrl:', computedAvatarUrl)
+  }, [profile.avatar, computedAvatarUrl])
 
   // Level logic (extracted from legacy header)
   const levels = [
@@ -97,7 +117,7 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit
           <div className="relative group">
             <div className="absolute -inset-1 rounded-xl bg-gradient-to-br from-primary/40 via-primary/10 to-transparent blur-sm opacity-70 group-hover:opacity-95 transition" />
             <Avatar className="relative w-40 h-40 rounded-xl ring-2 ring-white/15 shadow-lg">
-              <AvatarImage src={profile.avatar || '/icon.png'} />
+              <AvatarImage src={computedAvatarUrl || '/icon.png'} />
               <AvatarFallback className="bg-slate-700 text-3xl text-white font-semibold">
                 {profile.username.charAt(0).toUpperCase()}
               </AvatarFallback>
