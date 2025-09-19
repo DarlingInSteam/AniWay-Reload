@@ -87,14 +87,6 @@ export const UserMenu: React.FC = () => {
           </Link>
 
           <Link
-            to="/library"
-            className="block px-4 py-2 text-sm text-white hover:bg-secondary transition-colors"
-            onClick={() => setIsOpen(false)}
-          >
-            Моя библиотека
-          </Link>
-
-          <Link
             to="/bookmarks"
             className="block px-4 py-2 text-sm text-white hover:bg-secondary transition-colors"
             onClick={() => setIsOpen(false)}

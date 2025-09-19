@@ -268,9 +268,9 @@ export function Header() {
               {/* Иконки действий - скрываем на мобилке */}
               <div className="hidden md:flex items-center gap-1 lg:gap-2">
                 <Link
-                  to="/library"
+                  to="/bookmarks"
                   className="p-2 lg:p-3 rounded-xl hover:bg-secondary/50 text-muted-foreground hover:text-white transition-colors duration-200"
-                  title="Библиотека"
+                  title="Закладки"
                 >
                   <Bookmark className="h-5 w-5" />
                 </Link>
@@ -358,12 +358,12 @@ export function Header() {
                   <>
                     <hr className="my-2 border-border/30" />
                     <Link
-                      to="/library"
+                      to="/bookmarks"
                       className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       <Bookmark className="h-4 w-4 mr-3" />
-                      Библиотека
+                      Закладки
                     </Link>
                     <button
                       className="flex items-center w-full px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"

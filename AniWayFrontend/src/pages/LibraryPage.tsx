@@ -3,7 +3,7 @@ import { useBookmarks } from '../hooks/useBookmarks'
 import { useAuth } from '../contexts/AuthContext'
 import { BookmarkStatus } from '../types'
 import { BookmarkMangaCard } from '../components/manga/BookmarkMangaCard'
-import { Edit, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { ArrowUpDown, ArrowUp, ArrowDown, Heart } from 'lucide-react'
 import { cn } from '../lib/utils'
 
 const statusLabels: Record<BookmarkStatus, string> = {
@@ -40,9 +40,11 @@ export const LibraryPage: React.FC = () => {
   const [sortBy, setSortBy] = useState<SortOption>('bookmark_updated')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const [showSortDropdown, setShowSortDropdown] = useState(false)
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
 
   // Ref для обработки кликов вне области dropdown
   const sortDropdownRef = useRef<HTMLDivElement>(null)
+  const chipsContainerRef = useRef<HTMLDivElement>(null)
 
   // Закрываем dropdown сортировки при клике вне его области
   useEffect(() => {
@@ -157,208 +159,68 @@ export const LibraryPage: React.FC = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-20 w-20 border-b-2 border-primary" />
       </div>
     )
   }
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 lg:px-8 py-4 md:py-8">
-        {/* Заголовок */}
-        <div className="mb-6 md:mb-8">
-          <div className="text-center">
-            <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-2 bg-gradient-to-r from-white to-muted-foreground bg-clip-text text-transparent">
-              Моя библиотека
-            </h1>
-          </div>
-        </div>
-
-        {/* Мобильная версия - список закладок и кнопка редактирования сверху */}
-        <div className="lg:hidden mb-6 space-y-4">
-          {/* Кнопка редактирования закладок */}
-          <button
-            className="w-full h-12 px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white hover:bg-white/15 transition-all duration-200 flex items-center justify-center gap-2 font-medium"
-            disabled
-            title="Функция в разработке"
-          >
-            <Edit className="h-5 w-5" />
-            Редактировать закладки
-          </button>
-
-          {/* Список закладок */}
-          <div className="bg-card/30 backdrop-blur-sm border border-border/30 rounded-xl p-4">
-            <h3 className="text-lg font-semibold text-white mb-4">Закладки</h3>
-
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => setSelectedStatus('ALL')}
-                className={`text-center px-3 py-2 rounded-lg font-medium transition-colors text-sm ${
-                  selectedStatus === 'ALL'
-                    ? 'bg-primary text-white'
-                    : 'text-muted-foreground hover:text-white hover:bg-white/10'
-                }`}
-              >
-                Все ({bookmarks.length})
-              </button>
-
-              <button
-                onClick={() => setSelectedStatus('FAVORITES')}
-                className={`text-center px-3 py-2 rounded-lg font-medium transition-colors text-sm ${
-                  selectedStatus === 'FAVORITES'
-                    ? 'bg-red-500 text-white'
-                    : 'text-muted-foreground hover:text-white hover:bg-white/10'
-                }`}
-              >
-                ❤️ Избранное ({getStatusCount('FAVORITES')})
-              </button>
-
-              {Object.entries(statusLabels).map(([status, label]) => (
-                <button
-                  key={status}
-                  onClick={() => setSelectedStatus(status as BookmarkStatus)}
-                  className={`text-center px-3 py-2 rounded-lg font-medium transition-colors text-sm ${
-                    selectedStatus === status
-                      ? `text-white ${statusColors[status as BookmarkStatus]}`
-                      : 'text-muted-foreground hover:text-white hover:bg-white/10'
-                  }`}
-                >
-                  {label} ({getStatusCount(status as BookmarkStatus)})
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Поиск в мобильной версии */}
-          <input
-            type="text"
-            placeholder="Поиск по названию, автору или жанру..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-3 bg-card border border-border/30 rounded-xl text-white placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-200"
-          />
-
-          {/* Сортировка в мобильной версии */}
-          <div className="relative">
-            <label className="block text-sm font-medium text-white mb-2">Сортировка</label>
-            <button
-              className="flex items-center justify-between w-full rounded-xl px-4 h-11 text-sm font-medium bg-white/5 backdrop-blur-sm hover:bg-white/10 transition-all duration-200 border border-white/10 shadow-lg"
-              type="button"
-              onClick={() => setShowSortDropdown(!showSortDropdown)}
-            >
-              <span className="flex-1 text-left text-white truncate pr-2">{sortOptions[sortBy]}</span>
-              <ArrowUpDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-            </button>
-            {showSortDropdown && (
-              <div ref={sortDropdownRef} className="absolute left-0 top-full mt-2 w-72 bg-card rounded-xl shadow-xl z-50 border border-border animate-fade-in">
-                <div className="p-4">
-                  <div className="text-xs text-muted-foreground mb-3 font-medium">Сортировать по:</div>
-                  <div className="space-y-1 mb-4">
-                    {Object.entries(sortOptions).map(([value, label]) => (
-                      <button
-                        key={value}
-                        onClick={() => { setSortBy(value as SortOption); setShowSortDropdown(false); }}
-                        className={cn(
-                          'w-full text-left px-3 py-2 text-sm transition-all duration-200 border-b-2',
-                          sortBy === value
-                            ? 'text-blue-500 border-blue-500'
-                            : 'text-muted-foreground hover:text-white border-transparent hover:border-muted'
-                        )}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="text-xs text-muted-foreground mb-3 font-medium">Направление:</div>
-                  <div className="flex gap-2">
-                    {[
-                      { label: 'По убыванию', value: 'desc', icon: ArrowDown },
-                      { label: 'По возрастанию', value: 'asc', icon: ArrowUp }
-                    ].map(dir => (
-                      <button
-                        key={dir.value}
-                        onClick={() => { setSortOrder(dir.value as SortOrder); setShowSortDropdown(false); }}
-                        className={cn(
-                          'flex-1 flex items-center gap-2 px-3 py-2 text-sm transition-all duration-200 border-b-2',
-                          sortOrder === dir.value
-                            ? 'text-blue-500 border-blue-500'
-                            : 'text-muted-foreground hover:text-white border-transparent hover:border-muted'
-                        )}
-                      >
-                        <dir.icon className="h-4 w-4" />
-                        {dir.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Десктопная версия - двухколоночная структура */}
-        <div className="hidden lg:flex flex-row gap-6">
-          {/* Левый столбец - шире */}
-          <div className="flex-1 lg:flex-[2]">
-            {/* Поиск */}
-            <div className="mb-4">
+      <div className="container mx-auto px-4 lg:px-8 py-5 md:py-8">
+        {/* Toolbar */}
+        <div className="flex flex-col gap-4 mb-6">
+          <div className="flex flex-col md:flex-row md:items-center gap-4">
+            <div className="flex-1 flex items-center gap-3">
               <input
                 type="text"
                 placeholder="Поиск по названию, автору или жанру..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-3 bg-card border border-border/30 rounded-xl text-white placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-200"
+                className="w-full h-11 px-4 rounded-xl bg-card border border-border/40 text-white placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition"
               />
-            </div>
-
-            {/* Сортировка в десктопной версии */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-white mb-2">Сортировка</label>
-              <div className="relative w-56 flex-shrink-0">
+              <div className="relative">
                 <button
-                  className="flex items-center justify-between w-full rounded-xl px-4 h-11 text-sm font-medium bg-white/5 backdrop-blur-sm hover:bg-white/10 transition-all duration-200 border border-white/10 shadow-lg"
+                  className="flex items-center gap-2 h-11 px-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-sm font-medium text-white/80 hover:text-white transition"
                   type="button"
                   onClick={() => setShowSortDropdown(!showSortDropdown)}
                 >
-                  <span className="flex-1 text-left text-white truncate pr-2">{sortOptions[sortBy]}</span>
-                  <ArrowUpDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <span className="hidden sm:inline">{sortOptions[sortBy]}</span>
+                  <ArrowUpDown className="h-4 w-4" />
                 </button>
                 {showSortDropdown && (
-                  <div ref={sortDropdownRef} className="absolute left-0 top-full mt-2 w-72 bg-card rounded-xl shadow-xl z-50 border border-border animate-fade-in">
+                  <div ref={sortDropdownRef} className="absolute right-0 mt-2 w-72 bg-card rounded-xl shadow-xl z-50 border border-border/60 animate-fade-in">
                     <div className="p-4">
-                      <div className="text-xs text-muted-foreground mb-3 font-medium">Сортировать по:</div>
+                      <div className="text-xs text-muted-foreground mb-3 font-medium tracking-wide uppercase">Сортировать по</div>
                       <div className="space-y-1 mb-4">
                         {Object.entries(sortOptions).map(([value, label]) => (
                           <button
                             key={value}
                             onClick={() => { setSortBy(value as SortOption); setShowSortDropdown(false); }}
                             className={cn(
-                              'w-full text-left px-3 py-2 text-sm transition-all duration-200 border-b-2',
+                              'w-full text-left px-3 py-2 rounded-lg text-sm transition-all duration-150',
                               sortBy === value
-                                ? 'text-blue-500 border-blue-500'
-                                : 'text-muted-foreground hover:text-white border-transparent hover:border-muted'
+                                ? 'bg-primary/15 text-primary border border-primary/30'
+                                : 'text-muted-foreground hover:text-white hover:bg-white/10'
                             )}
                           >
                             {label}
                           </button>
                         ))}
                       </div>
-
-                      <div className="text-xs text-muted-foreground mb-3 font-medium">Направление:</div>
+                      <div className="text-xs text-muted-foreground mb-3 font-medium tracking-wide uppercase">Направление</div>
                       <div className="flex gap-2">
                         {[
-                          { label: 'По убыванию', value: 'desc', icon: ArrowDown },
-                          { label: 'По возрастанию', value: 'asc', icon: ArrowUp }
+                          { label: 'Убыванию', value: 'desc', icon: ArrowDown },
+                          { label: 'Возрастанию', value: 'asc', icon: ArrowUp }
                         ].map(dir => (
                           <button
                             key={dir.value}
                             onClick={() => { setSortOrder(dir.value as SortOrder); setShowSortDropdown(false); }}
                             className={cn(
-                              'flex-1 flex items-center gap-2 px-3 py-2 text-sm transition-all duration-200 border-b-2',
+                              'flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-150',
                               sortOrder === dir.value
-                                ? 'text-blue-500 border-blue-500'
-                                : 'text-muted-foreground hover:text-white border-transparent hover:border-muted'
+                                ? 'bg-primary/15 text-primary border border-primary/30'
+                                : 'text-muted-foreground hover:text-white hover:bg-white/10 border border-transparent'
                             )}
                           >
                             <dir.icon className="h-4 w-4" />
@@ -371,131 +233,80 @@ export const LibraryPage: React.FC = () => {
                 )}
               </div>
             </div>
+            <button
+              type="button"
+              onClick={() => setSelectedStatus('FAVORITES')}
+              className={cn(
+                'flex items-center justify-center gap-2 h-11 px-4 rounded-xl text-sm font-medium transition border',
+                selectedStatus === 'FAVORITES'
+                  ? 'bg-red-500 text-white border-red-400'
+                  : 'bg-white/5 text-white/70 hover:text-white hover:bg-white/10 border-white/10'
+              )}
+            >
+              <Heart className={cn('h-4 w-4', selectedStatus === 'FAVORITES' && 'animate-pulse')} />
+              <span className="hidden sm:inline">Избранное</span>
+              <span className="text-xs sm:text-sm">({getStatusCount('FAVORITES')})</span>
+            </button>
+          </div>
 
-            {/* Список манг */}
-            {filteredBookmarks.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="text-6xl mb-4">📚</div>
-                <h3 className="text-xl font-medium text-white mb-2">
-                  {searchQuery ? 'Ничего не найдено' : 'Пока нет закладок'}
-                </h3>
-                <p className="text-muted-foreground mb-6">
-                  {searchQuery
-                    ? 'Попробуйте изменить поисковый запрос'
-                    : 'Добавьте манги в закладки, чтобы отслеживать свой прогресс чтения'
-                  }
-                </p>
-                {!searchQuery && (
-                  <a
-                    href="/catalog"
-                    className="inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/80 transition-colors"
-                  >
-                    Перейти к каталогу
-                  </a>
+          {/* Status chips */}
+          <div ref={chipsContainerRef} className="flex overflow-x-auto no-scrollbar gap-2 pb-1 -ml-1 pr-1">
+            <button
+              onClick={() => setSelectedStatus('ALL')}
+              className={cn(
+                'px-4 h-9 rounded-full text-sm font-medium whitespace-nowrap transition border flex items-center gap-2',
+                selectedStatus === 'ALL'
+                  ? 'bg-primary text-white border-primary/80 shadow'
+                  : 'bg-white/5 text-white/70 hover:text-white hover:bg-white/10 border-white/10'
+              )}
+            >
+              Все <span className="opacity-80">{bookmarks.length}</span>
+            </button>
+            {Object.entries(statusLabels).map(([status, label]) => (
+              <button
+                key={status}
+                onClick={() => setSelectedStatus(status as BookmarkStatus)}
+                className={cn(
+                  'px-4 h-9 rounded-full text-sm font-medium whitespace-nowrap transition border flex items-center gap-2',
+                  selectedStatus === status
+                    ? `${statusColors[status as BookmarkStatus]} text-white border-white/20 shadow`
+                    : 'bg-white/5 text-white/70 hover:text-white hover:bg-white/10 border-white/10'
                 )}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4 lg:gap-6 animate-fade-in">
-                {filteredBookmarks.map((bookmark) => (
-                  <BookmarkMangaCard key={bookmark.id} bookmark={bookmark} />
-                ))}
-              </div>
+              >
+                {label} <span className="opacity-80">{getStatusCount(status as BookmarkStatus)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Content grid */}
+        {filteredBookmarks.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="text-6xl mb-4">📚</div>
+            <h3 className="text-xl font-semibold text-white mb-2">
+              {searchQuery ? 'Ничего не найдено' : 'Пока нет закладок'}
+            </h3>
+            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+              {searchQuery
+                ? 'Попробуйте изменить поисковый запрос'
+                : 'Добавьте манги в закладки, чтобы отслеживать свой прогресс чтения'}
+            </p>
+            {!searchQuery && (
+              <a
+                href="/catalog"
+                className="inline-flex items-center px-5 py-2.5 bg-primary text-white rounded-xl hover:bg-primary/80 transition-colors text-sm font-medium"
+              >
+                Перейти к каталогу
+              </a>
             )}
           </div>
-
-          {/* Правый столбец - уже */}
-          <div className="w-full lg:w-80 lg:flex-shrink-0">
-            {/* Контейнер с sticky позиционированием */}
-            <div className="sticky top-4 space-y-6">
-              {/* Кнопка редактирования закладок */}
-              <div>
-                <button
-                  className="w-full h-12 px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white hover:bg-white/15 transition-all duration-200 flex items-center justify-center gap-2 font-medium"
-                  disabled
-                  title="Функция в разработке"
-                >
-                  <Edit className="h-5 w-5" />
-                  Редактировать закладки
-                </button>
-              </div>
-
-              {/* Список закладок */}
-              <div className="bg-card/30 backdrop-blur-sm border border-border/30 rounded-xl p-4 max-h-[calc(100vh-8rem)] overflow-y-auto">
-                <h3 className="text-lg font-semibold text-white mb-4">Закладки</h3>
-
-                <div className="space-y-2">
-                  <button
-                    onClick={() => setSelectedStatus('ALL')}
-                    className={`w-full text-left px-3 py-2 rounded-lg font-medium transition-colors ${
-                      selectedStatus === 'ALL'
-                        ? 'bg-primary text-white'
-                        : 'text-muted-foreground hover:text-white hover:bg-white/10'
-                    }`}
-                  >
-                    Все ({bookmarks.length})
-                  </button>
-
-                  <button
-                    onClick={() => setSelectedStatus('FAVORITES')}
-                    className={`w-full text-left px-3 py-2 rounded-lg font-medium transition-colors ${
-                      selectedStatus === 'FAVORITES'
-                        ? 'bg-red-500 text-white'
-                        : 'text-muted-foreground hover:text-white hover:bg-white/10'
-                    }`}
-                  >
-                    ❤️ Избранное ({getStatusCount('FAVORITES')})
-                  </button>
-
-                  {Object.entries(statusLabels).map(([status, label]) => (
-                    <button
-                      key={status}
-                      onClick={() => setSelectedStatus(status as BookmarkStatus)}
-                      className={`w-full text-left px-3 py-2 rounded-lg font-medium transition-colors ${
-                        selectedStatus === status
-                          ? `text-white ${statusColors[status as BookmarkStatus]}`
-                          : 'text-muted-foreground hover:text-white hover:bg-white/10'
-                      }`}
-                    >
-                      {label} ({getStatusCount(status as BookmarkStatus)})
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4 lg:gap-5 animate-fade-in">
+            {filteredBookmarks.map((bookmark) => (
+              <BookmarkMangaCard key={bookmark.id} bookmark={bookmark} />
+            ))}
           </div>
-        </div>
-
-        {/* Список манг для мобильной версии */}
-        <div className="lg:hidden">
-          {filteredBookmarks.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="text-6xl mb-4">📚</div>
-              <h3 className="text-xl font-medium text-white mb-2">
-                {searchQuery ? 'Ничего не найдено' : 'Пока нет закладок'}
-              </h3>
-              <p className="text-muted-foreground mb-6">
-                {searchQuery
-                  ? 'Попробуйте изменить поисковый запрос'
-                  : 'Добавьте манги в закладки, чтобы отслеживать свой прогресс чтения'
-                }
-              </p>
-              {!searchQuery && (
-                <a
-                  href="/catalog"
-                  className="inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/80 transition-colors"
-                >
-                  Перейти к каталогу
-                </a>
-              )}
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4 animate-fade-in">
-              {filteredBookmarks.map((bookmark) => (
-                <BookmarkMangaCard key={bookmark.id} bookmark={bookmark} />
-              ))}
-            </div>
-          )}
-        </div>
+        )}
       </div>
     </div>
   )
