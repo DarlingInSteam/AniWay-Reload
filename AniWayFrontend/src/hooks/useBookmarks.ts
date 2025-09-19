@@ -29,6 +29,30 @@ export const useBookmarks = () => {
     }
   }
 
+  // Server-side search/sort wrapper
+  const searchOnServer = async (options: { query?: string; status?: BookmarkStatus | 'ALL' | 'FAVORITES'; favorite?: boolean; sortBy?: string; sortOrder?: 'asc' | 'desc' }) => {
+    if (!isAuthenticated) return
+    try {
+      setLoading(true)
+      setError(null)
+      const { query, status, sortBy, sortOrder } = options
+      const favorite = status === 'FAVORITES' ? true : options.favorite
+      const statusParam = status && status !== 'ALL' && status !== 'FAVORITES' ? status : undefined
+      const data = await bookmarkService.searchBookmarks({
+        query: query || undefined,
+        status: statusParam,
+        favorite,
+        sortBy,
+        sortOrder
+      })
+      setBookmarks(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to search bookmarks')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
     fetchBookmarks()
   }, [isAuthenticated])
@@ -123,7 +147,8 @@ export const useBookmarks = () => {
     getMangaBookmark,
     getBookmarksByStatus,
     getFavorites,
-    refetch: fetchBookmarks
+    refetch: fetchBookmarks,
+    serverSearch: searchOnServer
   }
 }
 

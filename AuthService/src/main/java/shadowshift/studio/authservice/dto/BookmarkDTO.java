@@ -49,6 +49,9 @@ public class BookmarkDTO {
     
     /** URL обложки манги. */
     private String mangaCoverUrl;
+
+    /** Дата обновления манги (кэш). */
+    private LocalDateTime mangaUpdatedAt;
     
     // Reading progress info
     /** Текущая глава. */

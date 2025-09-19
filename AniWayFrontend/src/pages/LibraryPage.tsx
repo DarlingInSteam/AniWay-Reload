@@ -36,7 +36,7 @@ const statusColors: Record<BookmarkStatus, string> = {
 
 export const LibraryPage: React.FC = () => {
   const { isAuthenticated } = useAuth()
-  const { bookmarks, loading, getBookmarksByStatus, getFavorites } = useBookmarks()
+  const { bookmarks, loading, serverSearch, getBookmarksByStatus, getFavorites } = useBookmarks()
   const [selectedStatus, setSelectedStatus] = useState<BookmarkStatus | 'FAVORITES' | 'ALL'>('ALL')
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<SortOption>('bookmark_updated')
@@ -57,55 +57,20 @@ export const LibraryPage: React.FC = () => {
     return () => document.removeEventListener('mousedown', handler)
   }, [showSortDropdown])
 
-  const sortBookmarks = (items: any[], option: SortOption) => {
-    const sorted = [...items]
-    switch(option) {
-      case 'bookmark_updated':
-        return sorted.sort((a,b)=>{
-          const da = new Date(a.updatedAt || a.createdAt || 0).getTime()
-          const db = new Date(b.updatedAt || b.createdAt || 0).getTime()
-          return sortOrder==='desc'? db-da : da-db
-        })
-      case 'manga_updated':
-        return sorted.sort((a,b)=>{
-          const da = new Date(a.manga?.updatedAt || a.manga?.createdAt || 0).getTime()
-          const db = new Date(b.manga?.updatedAt || b.manga?.createdAt || 0).getTime()
-          return sortOrder==='desc'? db-da : da-db
-        })
-      case 'chapters_count':
-        return sorted.sort((a,b)=>{
-          const ca = a.manga?.totalChapters || 0
-          const cb = b.manga?.totalChapters || 0
-          return sortOrder==='desc'? cb-ca : ca-cb
-        })
-      case 'alphabetical':
-        return sorted.sort((a,b)=>{
-          const ta = (a.manga?.title || a.mangaTitle || '').toLowerCase()
-          const tb = (b.manga?.title || b.mangaTitle || '').toLowerCase()
-          return sortOrder==='desc'? tb.localeCompare(ta,'ru'): ta.localeCompare(tb,'ru')
-        })
-      default:
-        return sorted
-    }
-  }
-
-  const getFilteredBookmarks = () => {
-    let filtered = bookmarks
-    if (selectedStatus === 'FAVORITES') filtered = getFavorites()
-    else if (selectedStatus !== 'ALL') filtered = getBookmarksByStatus(selectedStatus as BookmarkStatus)
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase()
-      filtered = filtered.filter(b=>{
-        const title = b.manga?.title || b.mangaTitle || ''
-        const author = b.manga?.author || ''
-        const genre = b.manga?.genre || ''
-        return title.toLowerCase().includes(q) || author.toLowerCase().includes(q) || genre.toLowerCase().includes(q)
+  // Trigger server search on relevant parameter changes (debounced for query)
+  useEffect(()=>{
+    const handler = setTimeout(()=>{
+      serverSearch({
+        query: searchQuery || undefined,
+        status: selectedStatus,
+        sortBy,
+        sortOrder
       })
-    }
-    return sortBookmarks(filtered, sortBy)
-  }
+    }, 300)
+    return ()=>clearTimeout(handler)
+  }, [searchQuery, selectedStatus, sortBy, sortOrder])
 
-  const filteredBookmarks = getFilteredBookmarks()
+  const filteredBookmarks = bookmarks
   const getStatusCount = (status: BookmarkStatus | 'FAVORITES') => status==='FAVORITES'? getFavorites().length : getBookmarksByStatus(status as BookmarkStatus).length
 
   if (!isAuthenticated) {
@@ -172,7 +137,7 @@ export const LibraryPage: React.FC = () => {
                     </div>
                   )}
                 </div>
-                <button type="button" onClick={()=>setSelectedStatus('FAVORITES')} className={cn('h-10 px-4 flex items-center gap-2 rounded-xl text-sm font-medium transition border', selectedStatus==='FAVORITES' ? 'bg-red-500 text-white border-red-400' : 'bg-white/5 text-white/70 hover:text-white hover:bg-white/10 border-white/10')}>
+                <button type="button" onClick={()=>setSelectedStatus(selectedStatus==='FAVORITES' ? 'ALL' : 'FAVORITES')} className={cn('h-10 px-4 flex items-center gap-2 rounded-xl text-sm font-medium transition border', selectedStatus==='FAVORITES' ? 'bg-red-500 text-white border-red-400' : 'bg-white/5 text-white/70 hover:text-white hover:bg-white/10 border-white/10')}>
                   <Heart className={cn('h-4 w-4', selectedStatus==='FAVORITES' && 'animate-pulse')} />
                   <span className="hidden sm:inline">Избранное</span>
                   <span className="text-xs sm:text-sm">({getStatusCount('FAVORITES')})</span>

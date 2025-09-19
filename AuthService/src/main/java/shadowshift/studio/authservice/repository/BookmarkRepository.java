@@ -18,7 +18,7 @@ import java.util.Optional;
  * @version 1.0
  */
 @Repository
-public interface BookmarkRepository extends JpaRepository<Bookmark, Long> {
+public interface BookmarkRepository extends JpaRepository<Bookmark, Long>, BookmarkRepositoryCustom {
     
     /**
      * Находит все закладки пользователя.

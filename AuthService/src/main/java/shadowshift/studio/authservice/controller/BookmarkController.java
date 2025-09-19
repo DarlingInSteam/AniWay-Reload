@@ -231,4 +231,27 @@ public class BookmarkController {
             return ResponseEntity.badRequest().build();
         }
     }
+
+    /**
+     * Расширенный поиск закладок текущего пользователя с фильтрацией и сортировкой.
+     */
+    @GetMapping("/search")
+    public ResponseEntity<List<BookmarkDTO>> searchUserBookmarks(
+            Authentication authentication,
+            @RequestParam(value = "query", required = false) String query,
+            @RequestParam(value = "status", required = false) BookmarkStatus status,
+            @RequestParam(value = "favorite", required = false) Boolean favorite,
+            @RequestParam(value = "sortBy", required = false) String sortBy,
+            @RequestParam(value = "sortOrder", required = false) String sortOrder
+    ) {
+        try {
+            List<BookmarkDTO> bookmarks = bookmarkService.searchUserBookmarks(
+                    authentication.getName(), query, status, favorite, sortBy, sortOrder
+            );
+            return ResponseEntity.ok(bookmarks);
+        } catch (Exception e) {
+            log.error("Search bookmarks failed: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        }
+    }
 }

@@ -74,6 +74,30 @@ public class BookmarkService {
                     .build();
         }
         
+        // Попытка кэшировать данные манги (название, обновление, главы)
+        try {
+            String mangaUrl = mangaServiceUrl + "/api/manga/" + mangaId;
+            ResponseEntity<?> response = restTemplate.getForEntity(mangaUrl, Map.class);
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() instanceof Map) {
+                @SuppressWarnings("unchecked") Map<String, Object> manga = (Map<String, Object>) response.getBody();
+                bookmark.setMangaTitle((String) manga.get("title"));
+                Object totalChaptersObj = manga.get("totalChapters");
+                if (totalChaptersObj instanceof Integer) {
+                    bookmark.setTotalChapters((Integer) totalChaptersObj);
+                } else if (totalChaptersObj instanceof Number) {
+                    bookmark.setTotalChapters(((Number) totalChaptersObj).intValue());
+                }
+                Object updatedAtObj = manga.get("updatedAt");
+                if (updatedAtObj instanceof String) {
+                    try {
+                        bookmark.setMangaUpdatedAt(java.time.LocalDateTime.parse((String) updatedAtObj));
+                    } catch (Exception ignore) {}
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Failed to cache manga info for bookmark creation/update: {}", e.getMessage());
+        }
+
         bookmarkRepository.save(bookmark);
         log.info("Bookmark saved for user: {} manga: {} status: {}", username, mangaId, status);
         
@@ -177,6 +201,21 @@ public class BookmarkService {
 
         return bookmarkRepository.countByUserIdAndStatus(user.getId(), status);
     }
+
+    /**
+     * Поиск закладок с фильтрацией и сортировкой на стороне сервера.
+     */
+    public List<BookmarkDTO> searchUserBookmarks(String username,
+                         String query,
+                         BookmarkStatus status,
+                         Boolean favorite,
+                         String sortBy,
+                         String sortOrder) {
+    var user = userRepository.findByUsername(username)
+        .orElseThrow(() -> new IllegalArgumentException("User not found"));
+    return bookmarkRepository.searchBookmarks(user.getId(), query, status, favorite, sortBy, sortOrder)
+        .stream().map(this::convertToDTOWithMangaInfo).collect(java.util.stream.Collectors.toList());
+    }
     
     /**
      * Удаляет все закладки для указанной манги.
@@ -266,25 +305,55 @@ public class BookmarkService {
 
     private BookmarkDTO convertToDTOWithMangaInfo(Bookmark bookmark) {
         BookmarkDTO dto = convertToDTO(bookmark);
+        // Если кэш уже есть — заполняем сразу
+        dto.setMangaTitle(bookmark.getMangaTitle());
+        dto.setTotalChapters(bookmark.getTotalChapters());
+        dto.setMangaUpdatedAt(bookmark.getMangaUpdatedAt());
         
         try {
             String mangaUrl = mangaServiceUrl + "/api/manga/" + bookmark.getMangaId();
             log.info("Fetching manga info from URL: {}", mangaUrl);
-            ResponseEntity<Map> response = restTemplate.getForEntity(mangaUrl, Map.class);
+            ResponseEntity<?> response = restTemplate.getForEntity(mangaUrl, Map.class);
             
             log.info("Response status: {}, body exists: {}", response.getStatusCode(), response.getBody() != null);
             
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                Map<String, Object> manga = response.getBody();
+                @SuppressWarnings("unchecked") Map<String, Object> manga = (Map<String, Object>) response.getBody();
                 log.info("Manga data received: title={}, coverImageUrl={}", 
                     manga.get("title"), manga.get("coverImageUrl"));
                     
-                dto.setMangaTitle((String) manga.get("title"));
+                String title = (String) manga.get("title");
+                dto.setMangaTitle(title);
+                // Обновляем кэш если изменилось
+                if (title != null && (bookmark.getMangaTitle() == null || !title.equals(bookmark.getMangaTitle()))) {
+                    bookmark.setMangaTitle(title);
+                }
                 dto.setMangaCoverUrl((String) manga.get("coverImageUrl"));
                 
                 Object totalChaptersObj = manga.get("totalChapters");
                 if (totalChaptersObj instanceof Integer) {
-                    dto.setTotalChapters((Integer) totalChaptersObj);
+                    Integer chapters = (Integer) totalChaptersObj;
+                    dto.setTotalChapters(chapters);
+                    if (bookmark.getTotalChapters() == null || !chapters.equals(bookmark.getTotalChapters())) {
+                        bookmark.setTotalChapters(chapters);
+                    }
+                } else if (totalChaptersObj instanceof Number) {
+                    Integer chapters = ((Number) totalChaptersObj).intValue();
+                    dto.setTotalChapters(chapters);
+                    if (bookmark.getTotalChapters() == null || !chapters.equals(bookmark.getTotalChapters())) {
+                        bookmark.setTotalChapters(chapters);
+                    }
+                }
+
+                Object updatedAtObj = manga.get("updatedAt");
+                if (updatedAtObj instanceof String) {
+                    try {
+                        var mangaUpdated = java.time.LocalDateTime.parse((String) updatedAtObj);
+                        dto.setMangaUpdatedAt(mangaUpdated);
+                        if (bookmark.getMangaUpdatedAt() == null || !mangaUpdated.equals(bookmark.getMangaUpdatedAt())) {
+                            bookmark.setMangaUpdatedAt(mangaUpdated);
+                        }
+                    } catch (Exception ignore) {}
                 }
             } else {
                 log.warn("Failed to fetch manga info: status={}", response.getStatusCode());
@@ -316,6 +385,8 @@ public class BookmarkService {
             log.warn("Failed to fetch manga info for bookmark {}: {}", bookmark.getId(), e.getMessage());
         }
         
+        // Пытаемся сохранить обновленные кэш поля без влияния на транзакцию
+        try { bookmarkRepository.save(bookmark); } catch (Exception ignore) {}
         return dto;
     }
     
