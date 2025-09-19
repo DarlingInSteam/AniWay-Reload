@@ -91,11 +91,13 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
   };
 
   const handleConfirmAvatarUpload = async () => {
+    console.log('[AvatarUpload] Confirm clicked, file:', selectedAvatarFile);
     if (!selectedAvatarFile) return;
     setUploadingAvatar(true);
     setAvatarError(null);
     try {
       const res = await profileService.uploadAvatar(selectedAvatarFile);
+      console.log('[AvatarUpload] Response:', res);
       if (res.success) {
         onProfileUpdate?.({ avatar: res.avatarUrl });
         setAvatarSuccess('Аватар обновлён');
@@ -109,6 +111,7 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
         setAvatarError(res.message || 'Ошибка загрузки');
       }
     } catch (e: any) {
+      console.error('[AvatarUpload] Upload exception', e);
       setAvatarError(e?.message || 'Сбой загрузки');
     } finally {
       setUploadingAvatar(false);
@@ -156,7 +159,7 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
             <Button
               size="sm"
               disabled={uploadingAvatar}
-              onClick={() => { setAvatarDialogOpen(true); setAvatarError(null); setAvatarSuccess(null); }}
+              onClick={() => { console.log('[AvatarUpload] Camera button clicked'); setAvatarDialogOpen(true); setAvatarError(null); setAvatarSuccess(null); }}
               className="absolute bottom-0 right-0 rounded-none w-10 h-10 p-0 bg-blue-500/70 hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed transition-opacity backdrop-blur-sm border border-blue-400/50 opacity-100"
             >
               {uploadingAvatar ? (
@@ -423,52 +426,53 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
     </Dialog>
 
     {/* Диалог изменения аватара */}
-    <Dialog open={avatarDialogOpen} onOpenChange={(o) => { if (!uploadingAvatar) setAvatarDialogOpen(o); }}>
-      <DialogContent className="bg-gray-900/95 backdrop-blur-md border border-white/10 max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-white">Изменить аватар</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div>
-            <Input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={handleAvatarFileChange}
-              disabled={uploadingAvatar}
-              className="bg-white/10 border-white/20 text-white"
-            />
-            <p className="mt-2 text-xs text-gray-400">Макс 5MB. Форматы: JPG, PNG, WebP. Рекомендуемый размер ~184x184.</p>
-          </div>
-          {avatarPreview && (
-            <div className="flex items-center gap-4">
-              <img src={avatarPreview} alt="preview" className="w-24 h-24 object-cover rounded-md border border-white/10" />
-              <div className="text-xs text-gray-400 break-all max-w-[200px]">
-                {selectedAvatarFile?.name}
-              </div>
+    {avatarDialogOpen && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => !uploadingAvatar && setAvatarDialogOpen(false)} />
+        <div className="relative z-10 w-full max-w-md bg-gray-900/95 border border-white/10 rounded-xl p-6 shadow-2xl">
+          <h2 className="text-lg font-semibold text-white mb-4">Изменить аватар</h2>
+          <div className="space-y-4">
+            <div>
+              <Input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleAvatarFileChange}
+                disabled={uploadingAvatar}
+                className="bg-white/10 border-white/20 text-white"
+              />
+              <p className="mt-2 text-xs text-gray-400">Макс 5MB. Форматы: JPG, PNG, WebP. Рекомендуемый размер ~184x184.</p>
             </div>
-          )}
-          {avatarError && <div className="text-sm text-red-400">{avatarError}</div>}
-          {avatarSuccess && <div className="text-sm text-green-400">{avatarSuccess}</div>}
-          <div className="flex justify-end gap-3 pt-2">
-            <Button
-              variant="outline"
-              className="border-white/20 text-gray-300 hover:bg-white/10"
-              onClick={() => { if (!uploadingAvatar) { setAvatarDialogOpen(false); setSelectedAvatarFile(null); setAvatarPreview(null); } }}
-              disabled={uploadingAvatar}
-            >
-              Отмена
-            </Button>
-            <Button
-              onClick={handleConfirmAvatarUpload}
-              disabled={!selectedAvatarFile || uploadingAvatar}
-              className="bg-blue-500/30 hover:bg-blue-500/50 border border-blue-400/40 disabled:opacity-50"
-            >
-              {uploadingAvatar ? 'Загрузка...' : 'Сохранить'}
-            </Button>
+            {avatarPreview && (
+              <div className="flex items-center gap-4">
+                <img src={avatarPreview} alt="preview" className="w-24 h-24 object-cover rounded-md border border-white/10" />
+                <div className="text-xs text-gray-400 break-all max-w-[200px]">
+                  {selectedAvatarFile?.name}
+                </div>
+              </div>
+            )}
+            {avatarError && <div className="text-sm text-red-400">{avatarError}</div>}
+            {avatarSuccess && <div className="text-sm text-green-400">{avatarSuccess}</div>}
+            <div className="flex justify-end gap-3 pt-2">
+              <Button
+                variant="outline"
+                className="border-white/20 text-gray-300 hover:bg-white/10"
+                onClick={() => { if (!uploadingAvatar) { setAvatarDialogOpen(false); setSelectedAvatarFile(null); setAvatarPreview(null); } }}
+                disabled={uploadingAvatar}
+              >
+                Отмена
+              </Button>
+              <Button
+                onClick={handleConfirmAvatarUpload}
+                disabled={!selectedAvatarFile || uploadingAvatar}
+                className="bg-blue-500/30 hover:bg-blue-500/50 border border-blue-400/40 disabled:opacity-50"
+              >
+                {uploadingAvatar ? 'Загрузка...' : 'Сохранить'}
+              </Button>
+            </div>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    )}
     </>
   );
 }
