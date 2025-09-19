@@ -685,6 +685,17 @@ class ApiClient {
     }
   }
 
+  // Получить метаданные аватара пользователя (imageUrl) если есть
+  async getUserAvatar(userId: number): Promise<string | null> {
+    try {
+      const res = await this.request<any>(`/images/avatars/${userId}`)
+      const url = res?.imageUrl || res?.url || res?.avatarUrl
+      return url || null
+    } catch (e) {
+      return null
+    }
+  }
+
   // 7. Статистика чтения (используем существующий API)
   async getProfileStatistics(): Promise<{
     totalReadingTimeMinutes: number;

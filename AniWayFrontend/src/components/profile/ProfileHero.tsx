@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react'
+import { apiClient } from '@/lib/api'
 import { UserProfile } from '@/types/profile'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
@@ -78,6 +79,25 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit
   useEffect(() => {
     console.log('[ProfileHero] profile.avatar field:', profile.avatar, 'computedAvatarUrl:', computedAvatarUrl)
   }, [profile.avatar, computedAvatarUrl])
+
+  // If backend does not yet inject avatar into profile, try fetching avatar meta explicitly
+  useEffect(() => {
+    let cancelled = false
+    if (!profile.avatar) {
+      const userId = (profile as any).id || (profile as any).userId
+      if (userId) {
+        apiClient.getUserAvatar(userId).then(url => {
+          if (!cancelled && url) {
+            const busted = `${url}${url.includes('?') ? '&' : '?'}v=${Date.now()}`
+            console.log('[ProfileHero] fetched avatar meta url via API:', url)
+            onAvatarUpdated?.(busted)
+          }
+        })
+      }
+    }
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile.avatar, (profile as any).id])
 
   // Level logic (extracted from legacy header)
   const levels = [
