@@ -22,6 +22,7 @@ import { ProfileGenres } from './ProfileGenres';
 import { ProfileShowcaseFavorites } from './ProfileShowcaseFavorites';
 import { ProfileActivity } from './ProfileActivity';
 import { ProfileBadgesPlaceholder } from './ProfileBadgesPlaceholder';
+import { ProfileReadingProgress } from './ProfileReadingProgress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { profileService } from '@/services/profileService';
@@ -215,7 +216,20 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   const favoriteMangas = profileData ? profileService.getFavoriteMangas(profileData.bookmarks) : [];
   const readingProgress = profileData ? profileService.getReadingProgressData(profileData.readingProgress) : [];
   const collections = profileData ? profileService.getCollectionsFromBookmarks(profileData.bookmarks) : [];
-  const userActivities = profileData ? profileService.generateUserActivity(profileData.readingProgress, profileData.bookmarks) : [];
+  let userActivities = profileData ? profileService.generateUserActivity(profileData.readingProgress, profileData.bookmarks) : [];
+  // Fallback: if activities empty but we have some bookmarks, synthesize a minimal event so block not "broken"
+  if (userActivities.length === 0 && profileData?.bookmarks?.length) {
+    const last = [...profileData.bookmarks].sort((a:any,b:any)=> new Date(b.updatedAt).getTime()-new Date(a.updatedAt).getTime())[0];
+    if (last?.mangaTitle) {
+      userActivities = [{
+        id: 'synthetic-bookmark-'+last.id,
+        type: 'bookmark',
+        description: `Добавил "${last.mangaTitle}" в закладки`,
+        timestamp: new Date(last.updatedAt),
+        relatedMangaId: last.mangaId
+      }];
+    }
+  }
   const achievements = profileData?.readingStats ? profileService.generateAchievements(profileData.readingStats) : [];
 
   // Заглушки для данных, которые пока не реализованы
@@ -257,7 +271,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
       profile={profile}
       isOwnProfile={isOwnProfile}
     >
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
+  <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* New Hero Section */}
         <div className="mb-4">
           <ProfileHero
@@ -286,6 +300,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
                 {/* Left / Main column */}
                 <div className="space-y-6 xl:col-span-8">
                   <ProfileShowcaseFavorites favorites={favoriteMangas} />
+                  <ProfileReadingProgress items={readingProgress} />
                   <ProfileActivity activities={userActivities} />
                   <Collections collections={collections} isOwnProfile={isOwnProfile} />
                 </div>
@@ -344,6 +359,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
             <TabsContent value="overview" className="space-y-6">
               <div className="space-y-6">
                 <ProfileShowcaseFavorites favorites={favoriteMangas} />
+                <ProfileReadingProgress items={readingProgress} />
                 <ProfileActivity activities={userActivities} />
                 <ProfileAbout profile={profile} isOwn={isOwnProfile} onUpdate={handleProfileUpdate} />
                 <ProfileGenres profile={profile} />
