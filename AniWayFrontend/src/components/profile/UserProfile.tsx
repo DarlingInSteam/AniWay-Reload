@@ -290,9 +290,9 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
       profile={profile}
       isOwnProfile={isOwnProfile}
     >
-  <div className="container mx-auto px-4 py-8 max-w-7xl">
+  <div className="container mx-auto px-4 py-10 max-w-7xl">
         {/* New Hero Section */}
-        <div className="mb-4">
+  <div className="mb-6 animate-fade-in">
           <ProfileHero
             profile={profile}
             isOwn={isOwnProfile}
@@ -304,27 +304,42 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
         </div>
 
         {/* Desktop Layout: Табы занимают всю ширину */}
-        <div className="hidden lg:block">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid grid-cols-5 bg-white/3 backdrop-blur-md border border-white/8 rounded-xl shadow-lg">
-              <TabsTrigger value="overview" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Обзор</TabsTrigger>
-              <TabsTrigger value="library" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Библиотека</TabsTrigger>
-              <TabsTrigger value="reviews" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Отзывы</TabsTrigger>
-              <TabsTrigger value="comments" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Комментарии</TabsTrigger>
-              <TabsTrigger value="achievements" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Достижения</TabsTrigger>
+        <div className="hidden lg:block animate-fade-in">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-7">
+            <TabsList className="grid grid-cols-5 bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl shadow-xl p-1.5 overflow-hidden">
+              <TabsTrigger value="overview" className="relative group data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-4 py-2 font-medium">
+                <span className="relative z-10">Обзор</span>
+                <span className="pointer-events-none absolute inset-0 opacity-0 group-data-[state=active]:opacity-100 bg-gradient-to-br from-primary/30 to-primary/10 rounded-xl transition-opacity" />
+              </TabsTrigger>
+              <TabsTrigger value="library" className="relative group data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-4 py-2 font-medium">
+                <span className="relative z-10">Библиотека</span>
+                <span className="pointer-events-none absolute inset-0 opacity-0 group-data-[state=active]:opacity-100 bg-gradient-to-br from-primary/30 to-primary/10 rounded-xl transition-opacity" />
+              </TabsTrigger>
+              <TabsTrigger value="reviews" className="relative group data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-4 py-2 font-medium">
+                <span className="relative z-10">Отзывы</span>
+                <span className="pointer-events-none absolute inset-0 opacity-0 group-data-[state=active]:opacity-100 bg-gradient-to-br from-primary/30 to-primary/10 rounded-xl transition-opacity" />
+              </TabsTrigger>
+              <TabsTrigger value="comments" className="relative group data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-4 py-2 font-medium">
+                <span className="relative z-10">Комментарии</span>
+                <span className="pointer-events-none absolute inset-0 opacity-0 group-data-[state=active]:opacity-100 bg-gradient-to-br from-primary/30 to-primary/10 rounded-xl transition-opacity" />
+              </TabsTrigger>
+              <TabsTrigger value="achievements" className="relative group data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-4 py-2 font-medium">
+                <span className="relative z-10">Достижения</span>
+                <span className="pointer-events-none absolute inset-0 opacity-0 group-data-[state=active]:opacity-100 bg-gradient-to-br from-primary/30 to-primary/10 rounded-xl transition-opacity" />
+              </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview" className="space-y-6">
+            <TabsContent value="overview" className="space-y-7">
               <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
                 {/* Left / Main column */}
-                <div className="space-y-6 xl:col-span-8">
+                <div className="space-y-7 xl:col-span-8">
                   <ProfileShowcaseFavorites favorites={favoriteMangas} />
                   <ProfileReadingProgress items={readingProgress} />
                   <ProfileActivity activities={activity} />
                   <Collections collections={collections} isOwnProfile={isOwnProfile} />
                 </div>
                 {/* Right / Side column */}
-                <div className="space-y-6 xl:col-span-4">
+                <div className="space-y-7 xl:col-span-4">
                   <ProfileAbout profile={profile} isOwn={isOwnProfile} onUpdate={handleProfileUpdate} />
                   <ProfileGenres profile={profile} />
                   <ProfileBadgesPlaceholder />
@@ -365,18 +380,28 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
         </div>
 
         {/* Mobile/Tablet Layout: Одноколоночный стек */}
-        <div className="lg:hidden space-y-6">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid grid-cols-2 md:grid-cols-5 bg-white/3 backdrop-blur-md border border-white/8 rounded-xl shadow-lg">
-              <TabsTrigger value="overview" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Обзор</TabsTrigger>
-              <TabsTrigger value="library" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Библиотека</TabsTrigger>
-              <TabsTrigger value="reviews" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Отзывы</TabsTrigger>
-              <TabsTrigger value="comments" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Комментарии</TabsTrigger>
-              <TabsTrigger value="achievements" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Достижения</TabsTrigger>
+        <div className="lg:hidden space-y-7 animate-fade-in">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-7">
+            <TabsList className="grid grid-cols-2 md:grid-cols-5 bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl shadow-xl p-1.5">
+              <TabsTrigger value="overview" className="relative group data-[state=active]:bg-primary/25 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-3 py-2 text-sm font-medium">
+                <span className="relative z-10">Обзор</span>
+              </TabsTrigger>
+              <TabsTrigger value="library" className="relative group data-[state=active]:bg-primary/25 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-3 py-2 text-sm font-medium">
+                <span className="relative z-10">Библиотека</span>
+              </TabsTrigger>
+              <TabsTrigger value="reviews" className="relative group data-[state=active]:bg-primary/25 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-3 py-2 text-sm font-medium">
+                <span className="relative z-10">Отзывы</span>
+              </TabsTrigger>
+              <TabsTrigger value="comments" className="relative group data-[state=active]:bg-primary/25 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-3 py-2 text-sm font-medium">
+                <span className="relative z-10">Комментарии</span>
+              </TabsTrigger>
+              <TabsTrigger value="achievements" className="relative group data-[state=active]:bg-primary/25 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-3 py-2 text-sm font-medium">
+                <span className="relative z-10">Достижения</span>
+              </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview" className="space-y-6">
-              <div className="space-y-6">
+            <TabsContent value="overview" className="space-y-7">
+              <div className="space-y-7">
                 <ProfileShowcaseFavorites favorites={favoriteMangas} />
                 <ProfileReadingProgress items={readingProgress} />
                 <ProfileActivity activities={activity} />
