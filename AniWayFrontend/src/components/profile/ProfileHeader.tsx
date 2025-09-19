@@ -149,7 +149,7 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
       <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
         {/* Аватар */}
         <div className="relative group">
-          <Avatar className="w-44 h-44 border-4 border-white/20 rounded-none relative z-10 pointer-events-none select-none">
+          <Avatar className="w-44 h-44 border-4 border-white/20 rounded-none relative z-10 select-none">
             <AvatarImage
               src={profile.avatar || '/icon.png'}
               alt={profile.username}
@@ -159,21 +159,6 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
               {profile.username.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
-          {isOwnProfile && (
-            <Button
-              size="sm"
-              disabled={uploadingAvatar}
-              onClick={() => { console.log('[AvatarUpload] Camera button clicked'); setAvatarDialogOpen(true); setAvatarError(null); setAvatarSuccess(null); }}
-              className="absolute bottom-0 right-0 z-20 rounded-none w-10 h-10 p-0 bg-blue-500/80 hover:bg-blue-500 focus:ring-2 focus:ring-blue-300 disabled:opacity-60 disabled:cursor-not-allowed transition-all backdrop-blur-sm border border-blue-400/50 opacity-100 pointer-events-auto"
-              style={{ boxShadow: '0 0 0 2px rgba(0,0,0,0.4)' }}
-            >
-              {uploadingAvatar ? (
-                <span className="w-4 h-4 animate-spin border-2 border-white/30 border-t-white rounded-full" />
-              ) : (
-                <Camera className="w-4 h-4" />
-              )}
-            </Button>
-          )}
         </div>
 
         {/* Основная информация пользователя */}
@@ -210,6 +195,7 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
                   {profile.username}
                 </h1>
                 {isOwnProfile && (
+                  <>
                   <Button
                     onClick={() => setIsEditingUsername(true)}
                     variant="ghost"
@@ -218,6 +204,15 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
                   >
                     <Edit className="w-4 h-4" />
                   </Button>
+                  <Button
+                    onClick={() => { setAvatarDialogOpen(true); setAvatarError(null); setAvatarSuccess(null); }}
+                    variant="ghost"
+                    size="sm"
+                    className="p-1 h-auto hover:bg-white/10 text-blue-300"
+                  >
+                    <Camera className="w-4 h-4" />
+                  </Button>
+                  </>
                 )}
               </div>
             )}
@@ -306,6 +301,7 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {isOwnProfile && (
+                  <>
                   <DropdownMenuItem 
                     className="text-white hover:bg-white/10 focus:bg-white/10"
                     onClick={() => setSettingsOpen(true)}
@@ -313,6 +309,14 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
                     <Settings className="w-4 h-4 mr-2" />
                     Настройки
                   </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    className="text-white hover:bg-white/10 focus:bg-white/10"
+                    onClick={() => { setAvatarDialogOpen(true); setAvatarError(null); setAvatarSuccess(null); }}
+                  >
+                    <Camera className="w-4 h-4 mr-2" />
+                    Изменить аватар
+                  </DropdownMenuItem>
+                  </>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
