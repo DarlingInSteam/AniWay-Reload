@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import { useSyncedSearchParam } from '@/hooks/useSyncedSearchParam';
 import { ProfileBackground } from './ProfileBackground';
 // Legacy components (may be removed later)
@@ -296,11 +296,20 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   // Slug in profile URL: /profile/:id-:slug (client side; id first)
   useEffect(() => {
     if (!profile) return;
-    const makeSlug = (name: string) => name.toLowerCase().trim().replace(/[_\s]+/g,'-').replace(/[^a-z0-9\-а-яё]/g,'').replace(/-+/g,'-').replace(/^-|-$/g,'');
+    const makeSlug = (name: string) => name
+      .toLowerCase()
+      .trim()
+      .replace(/[_\s]+/g,'-')
+      .replace(/[^a-z0-9-]/g,'')
+      .replace(/-+/g,'-')
+      .replace(/^-|-$/g,'');
     const current = window.location.pathname.split('/').pop() || '';
-    if (!current.includes('-')) {
-      const slug = makeSlug(profile.displayName || profile.username);
-      navigate(`/profile/${profile.id}-${slug}${params.toString()?`?${params.toString()}`:''}`, { replace: true });
+    const numericPart = current.split('--')[0].split('-')[0];
+    if (numericPart !== profile.id) return; // safety
+    const hasSlug = current.includes('--');
+    const slug = makeSlug(profile.displayName || profile.username);
+    if (!hasSlug || (hasSlug && !current.endsWith(`--${slug}`))) {
+      navigate(`/profile/${profile.id}--${slug}${params.toString()?`?${params.toString()}`:''}`, { replace: true });
     }
   }, [profile, navigate, params]);
 

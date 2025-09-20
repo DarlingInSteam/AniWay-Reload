@@ -22,7 +22,13 @@ export function MangaPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const rawId = id || '0'
-  const numericId = parseInt(rawId.split('-')[0] || '0')
+  const numericId = (() => {
+    const primary = rawId.split('--')[0] // preferred pattern id--slug
+    if (/^\d+$/.test(primary)) return parseInt(primary, 10)
+    // fallback single dash legacy
+    const legacy = rawId.split('-')[0]
+    return parseInt(legacy, 10) || 0
+  })()
   const mangaId = numericId
   const [activeTabParam, setActiveTabParam] = useSyncedSearchParam<'main' | 'chapters' | 'reviews' | 'discussions' | 'moments' | 'cards' | 'characters' | 'similar'>('tab', 'main')
   const activeTab = activeTabParam
@@ -64,17 +70,50 @@ export function MangaPage() {
   // Slug handling: enhance URL to /manga/:id-:slug (client side only)
   useEffect(() => {
     if (!manga || !rawId) return
-    const hasSlug = rawId.includes('-')
-    const makeSlug = (title: string) => title
+    const hasSlug = rawId.includes('--')
+
+    // Collect candidate titles (primary + alternatives if present)
+    const altRaw: string[] = []
+    const possibleAlts: any = (manga as any)
+    ;['alternativeTitles','alternativeNames','altTitles','alt_names','altNames']
+      .forEach(k => { if (possibleAlts?.[k]) {
+        const v = possibleAlts[k]
+        if (Array.isArray(v)) altRaw.push(...v)
+        else if (typeof v === 'string') altRaw.push(...v.split(/,|;|\n/))
+      } })
+
+    const candidates = [manga.title, ...altRaw].filter(Boolean) as string[]
+
+    // Simple Cyrillic transliteration map (Russian)
+    const translitMap: Record<string,string> = {
+      а:'a', б:'b', в:'v', г:'g', д:'d', е:'e', ё:'e', ж:'zh', з:'z', и:'i', й:'y', к:'k', л:'l', м:'m', н:'n', о:'o', п:'p', р:'r', с:'s', т:'t', у:'u', ф:'f', х:'h', ц:'ts', ч:'ch', ш:'sh', щ:'sch', ъ:'', ы:'y', ь:'', э:'e', ю:'yu', я:'ya'
+    }
+    const transliterate = (s: string) => s.toLowerCase().split('').map(ch => translitMap[ch] ?? ch).join('')
+
+    const sanitize = (s: string) => s
       .toLowerCase()
-      .trim()
-      .replace(/[_\s]+/g, '-')
-      .replace(/[^a-z0-9\-а-яё]/g, '')
+      .normalize('NFKD')
+      .replace(/[^a-z0-9\s-]/g, ' ') // remove non-latin; keep digits & spaces
+      .replace(/\s+/g, '-')
       .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-    if (!hasSlug) {
-      const slug = makeSlug(manga.title || 'manga')
-      navigate(`/manga/${mangaId}-${slug}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`, { replace: true })
+      .replace(/^-|-$/g,'')
+
+    // Pick best ASCII/romanized candidate: most a-z characters
+    let best = candidates[0] || 'manga'
+    let bestScore = -1
+    for (const c of candidates) {
+      const base = /[a-z]/i.test(c) ? c : transliterate(c)
+      const ascii = base.replace(/[^a-z]/gi,'')
+      const score = ascii.length
+      if (score > bestScore) { bestScore = score; best = base }
+    }
+
+    const slug = sanitize(best) || 'manga'
+
+    if (!hasSlug || (hasSlug && !rawId.endsWith(`--${slug}`))) {
+      // Preserve existing search params (tab, etc.)
+      const query = searchParams.toString() ? `?${searchParams.toString()}` : ''
+      navigate(`/manga/${mangaId}--${slug}${query}` , { replace: true })
     }
   }, [manga, rawId, mangaId, navigate, searchParams])
 
