@@ -258,6 +258,26 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   }, [profile?.id, profileData])
   const achievements = profileData?.readingStats ? profileService.generateAchievements(profileData.readingStats) : [];
 
+  // Ensure slug enforcement effect is declared BEFORE any early returns to keep hook order stable.
+  useEffect(() => {
+    if (!profile) return;
+    const makeSlug = (name: string) => name
+      .toLowerCase()
+      .trim()
+      .replace(/[_\s]+/g,'-')
+      .replace(/[^a-z0-9-]/g,'')
+      .replace(/-+/g,'-')
+      .replace(/^-|-$/g,'');
+    const current = window.location.pathname.split('/').pop() || '';
+    const numericPart = current.split('--')[0].split('-')[0];
+    if (numericPart !== profile.id) return; // safety guard
+    const hasSlug = current.includes('--');
+    const slug = makeSlug(profile.displayName || profile.username);
+    if (!hasSlug || (hasSlug && !current.endsWith(`--${slug}`))) {
+      navigate(`/profile/${profile.id}--${slug}${params.toString()?`?${params.toString()}`:''}`, { replace: true });
+    }
+  }, [profile, navigate, params]);
+
   // Заглушки для данных, которые пока не реализованы
   const mockFriends: any[] = []; // TODO: Добавить систему друзей
   const mockCommunities: any[] = []; // TODO: Добавить систему сообществ
@@ -292,25 +312,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
     );
   }
 
-  // Slug in profile URL: /profile/:id-:slug (client side; id first)
-  useEffect(() => {
-    if (!profile) return;
-    const makeSlug = (name: string) => name
-      .toLowerCase()
-      .trim()
-      .replace(/[_\s]+/g,'-')
-      .replace(/[^a-z0-9-]/g,'')
-      .replace(/-+/g,'-')
-      .replace(/^-|-$/g,'');
-    const current = window.location.pathname.split('/').pop() || '';
-    const numericPart = current.split('--')[0].split('-')[0];
-    if (numericPart !== profile.id) return; // safety
-    const hasSlug = current.includes('--');
-    const slug = makeSlug(profile.displayName || profile.username);
-    if (!hasSlug || (hasSlug && !current.endsWith(`--${slug}`))) {
-      navigate(`/profile/${profile.id}--${slug}${params.toString()?`?${params.toString()}`:''}`, { replace: true });
-    }
-  }, [profile, navigate, params]);
+  // (Slug effect moved above early returns)
 
   return (
     <ProfileBackground
