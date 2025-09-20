@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSyncedSearchParam } from '@/hooks/useSyncedSearchParam';
 import { ProfileBackground } from './ProfileBackground';
 // Legacy components (may be removed later)
 // import { ProfileHeader } from './ProfileHeader';
@@ -36,7 +38,9 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTabParam] = useSyncedSearchParam<'overview' | 'library' | 'reviews' | 'comments' | 'achievements'>('tab', 'overview');
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
 
   const { user: currentUser } = useAuth();
 
@@ -183,7 +187,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   };
 
   const handleShare = () => {
-    const profileUrl = `${window.location.origin}/profile/${userId}`;
+    const profileUrl = window.location.href;
     navigator.clipboard.writeText(profileUrl).then(() => {
       // TODO: Показать уведомление об успешном копировании
       console.log('Ссылка на профиль скопирована');
@@ -289,6 +293,17 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
 
   const { setUserAvatarLocal } = useAuth();
 
+  // Slug in profile URL: /profile/:id-:slug (client side; id first)
+  useEffect(() => {
+    if (!profile) return;
+    const makeSlug = (name: string) => name.toLowerCase().trim().replace(/[_\s]+/g,'-').replace(/[^a-z0-9\-а-яё]/g,'').replace(/-+/g,'-').replace(/^-|-$/g,'');
+    const current = window.location.pathname.split('/').pop() || '';
+    if (!current.includes('-')) {
+      const slug = makeSlug(profile.displayName || profile.username);
+      navigate(`/profile/${profile.id}-${slug}${params.toString()?`?${params.toString()}`:''}`, { replace: true });
+    }
+  }, [profile, navigate, params]);
+
   return (
     <ProfileBackground
       profile={profile}
@@ -318,7 +333,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
 
         {/* Desktop Layout: Табы занимают всю ширину */}
         <div className="hidden lg:block animate-fade-in">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-7">
+          <Tabs value={activeTab} onValueChange={v => setActiveTabParam(v as any)} className="space-y-7">
             <TabsList className="grid grid-cols-5 bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl shadow-xl p-1.5 overflow-hidden">
               <TabsTrigger value="overview" className="relative group data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-4 py-2 font-medium">
                 <span className="relative z-10">Обзор</span>
@@ -394,7 +409,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
 
         {/* Mobile/Tablet Layout: Одноколоночный стек */}
         <div className="lg:hidden space-y-7 animate-fade-in">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-7">
+          <Tabs value={activeTab} onValueChange={v => setActiveTabParam(v as any)} className="space-y-7">
             <TabsList className="grid grid-cols-2 md:grid-cols-5 bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl shadow-xl p-1.5">
               <TabsTrigger value="overview" className="relative group data-[state=active]:bg-primary/25 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-3 py-2 text-sm font-medium">
                 <span className="relative z-10">Обзор</span>

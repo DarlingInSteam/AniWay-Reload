@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   BookOpen, Play, Eye, Heart, Star, ChevronDown, ChevronUp, Send,
   Bookmark, Edit, AlertTriangle, Share, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Check
@@ -16,11 +16,16 @@ import { useReadingProgress } from '@/hooks/useProgress'
 import { CommentSection } from '../components/comments/CommentSection'
 import MangaReviews from '../components/MangaReviews'
 import { useAuth } from '@/contexts/AuthContext'
+import { useSyncedSearchParam } from '@/hooks/useSyncedSearchParam'
 
 export function MangaPage() {
   const { id } = useParams<{ id: string }>()
-  const mangaId = parseInt(id!)
-  const [activeTab, setActiveTab] = useState<'main' | 'chapters' | 'reviews' | 'discussions' | 'moments' | 'cards' | 'characters' | 'similar'>('main')
+  const navigate = useNavigate()
+  const rawId = id || '0'
+  const numericId = parseInt(rawId.split('-')[0] || '0')
+  const mangaId = numericId
+  const [activeTabParam, setActiveTabParam] = useSyncedSearchParam<'main' | 'chapters' | 'reviews' | 'discussions' | 'moments' | 'cards' | 'characters' | 'similar'>('tab', 'main')
+  const activeTab = activeTabParam
   const [chapterSort, setChapterSort] = useState<'asc' | 'desc' | 'none'>('asc')
   const [showFullDescription, setShowFullDescription] = useState(false)
   const [showFullStats, setShowFullStats] = useState(false)
@@ -31,6 +36,7 @@ export function MangaPage() {
   const [likingChapters, setLikingChapters] = useState<Set<number>>(new Set())
 
   const { user } = useAuth()
+  const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
 
   // Удалили избыточную инвалидацию кэша при входе на страницу
@@ -50,10 +56,27 @@ export function MangaPage() {
   const { data: manga, isLoading: mangaLoading } = useQuery({
     queryKey: ['manga', mangaId, user?.id],
     queryFn: () => apiClient.getMangaById(mangaId, user?.id),
-    staleTime: 5 * 60 * 1000, // Кеш данных на 5 минут
-    refetchOnWindowFocus: false, // Не перезапрашивать при фокусе окна
-    refetchOnMount: false, // Не перезапрашивать при монтировании если есть кеш
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   })
+
+  // Slug handling: enhance URL to /manga/:id-:slug (client side only)
+  useEffect(() => {
+    if (!manga || !rawId) return
+    const hasSlug = rawId.includes('-')
+    const makeSlug = (title: string) => title
+      .toLowerCase()
+      .trim()
+      .replace(/[_\s]+/g, '-')
+      .replace(/[^a-z0-9\-а-яё]/g, '')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+    if (!hasSlug) {
+      const slug = makeSlug(manga.title || 'manga')
+      navigate(`/manga/${mangaId}-${slug}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`, { replace: true })
+    }
+  }, [manga, rawId, mangaId, navigate, searchParams])
 
   // Удалили избыточную инвалидацию кэша после загрузки манги
   // Это было причиной "танца" тегов и жанров
@@ -388,7 +411,7 @@ export function MangaPage() {
                     return (
                       <button
                         key={tab.id}
-                        onClick={() => setActiveTab(tab.id as any)}
+                        onClick={() => setActiveTabParam(tab.id as any)}
                         className={cn(
                           'px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex-shrink-0',
                           activeTab === tab.id
