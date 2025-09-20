@@ -13,7 +13,8 @@ import {
   ZoomIn,
   ZoomOut,
   MessageCircle,
-  Heart
+  Heart,
+  X
 } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
@@ -35,6 +36,7 @@ export function ReaderPage() {
   const [isLiked, setIsLiked] = useState(false)
   const [liking, setLiking] = useState(false)
   const [lastTap, setLastTap] = useState(0)
+  const [showSideComments, setShowSideComments] = useState(false)
 
   const { user } = useAuth()
   const queryClient = useQueryClient()
@@ -514,7 +516,7 @@ export function ReaderPage() {
       <div className="pt-16">
         {/* Reading Area */}
         <div className={cn(
-          "mx-auto px-2 sm:px-4",
+          "mx-auto px-2 sm:px-4 overflow-x-hidden",
           getImageWidthClass()
         )}>
           {images.map((image, index) => (
@@ -525,7 +527,7 @@ export function ReaderPage() {
                 className={cn(
                   "block w-full h-auto transition-all duration-200",
                   imageWidth === 'fit' && "max-w-4xl",
-                  imageWidth === 'full' && "max-w-none w-screen px-0",
+                  imageWidth === 'full' && "max-w-none w-full sm:w-screen px-0",
                   imageWidth === 'wide' && "max-w-6xl"
                 )}
                 loading={index < 3 ? 'eager' : 'lazy'}
@@ -665,6 +667,52 @@ export function ReaderPage() {
           <div>Двойной тап - Лайк</div>
         </div>
       </div>
+
+      {/* Floating comments button (side panel) */}
+      {chapter && (
+        <button
+          onClick={() => setShowSideComments(true)}
+          className={cn(
+            'fixed right-3 sm:right-4 top-1/2 -translate-y-1/2 z-40 bg-blue-600/80 hover:bg-blue-600 text-white p-3 rounded-full shadow-lg border border-blue-500/30 backdrop-blur-md transition-all',
+            showUI ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          )}
+          aria-label="Открыть комментарии"
+        >
+          <MessageCircle className="h-5 w-5" />
+        </button>
+      )}
+
+      {/* Side comments panel */}
+      {showSideComments && chapter && (
+        <div className="fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowSideComments(false)}
+          />
+          {/* Panel */}
+            <div className="relative ml-auto h-full w-full sm:w-[480px] md:w-[520px] bg-[#0f1115]/95 backdrop-blur-xl border-l border-white/10 flex flex-col animate-in slide-in-from-right">
+              <div className="flex items-center justify-between p-4 border-b border-white/10">
+                <h3 className="text-white font-semibold text-sm sm:text-base">Комментарии к главе {getDisplayChapterNumber(chapter.chapterNumber)}</h3>
+                <button
+                  onClick={() => setShowSideComments(false)}
+                  className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                  aria-label="Закрыть"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto px-3 sm:px-4 pb-4">
+                <CommentSection
+                  targetId={chapter.id}
+                  type="CHAPTER"
+                  title=""
+                  maxLevel={3}
+                />
+              </div>
+            </div>
+        </div>
+      )}
 
       {/* Mobile navigation hints */}
       <div className={cn(
