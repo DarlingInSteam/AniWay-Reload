@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { buildProfileUrl } from '@/lib/profileUrl';
+import { buildProfileUrl } from '../lib/profileUrl';
 import { useResolvedAvatar } from '@/hooks/useResolvedAvatar';
 import { MessageCircle } from 'lucide-react';
 import RatingStars from './RatingStars';
