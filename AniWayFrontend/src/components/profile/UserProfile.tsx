@@ -42,7 +42,8 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   const navigate = useNavigate();
   const [params] = useSearchParams();
 
-  const { user: currentUser } = useAuth();
+  // Pull both user and avatar setter in a single hook call to avoid conditional hook order issues
+  const { user: currentUser, setUserAvatarLocal } = useAuth();
 
   // MAIN LOAD EFFECT: depends only on userId / isOwnProfile to avoid loops on avatar changes
   useEffect(() => {
@@ -290,8 +291,6 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
       </div>
     );
   }
-
-  const { setUserAvatarLocal } = useAuth();
 
   // Slug in profile URL: /profile/:id-:slug (client side; id first)
   useEffect(() => {

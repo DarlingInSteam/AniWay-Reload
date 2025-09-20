@@ -1,3 +1,6 @@
+// DEPRECATED: This legacy ProfileHeader component is no longer used after the redesign.
+// Retained temporarily for reference and potential extraction of small pieces.
+// Safe to delete once new profile UI is fully validated.
 import { useState, useRef, useEffect } from 'react';
 // Build signature for runtime verification
 const PROFILE_HEADER_BUILD_TAG = 'PHv2-2025-09-20-01';

@@ -41,6 +41,32 @@ export function ReaderPage() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
 
+  // Hydrate reading settings from localStorage once
+  useEffect(() => {
+    try {
+      const storedMode = localStorage.getItem('reader.mode')
+      if (storedMode === 'vertical' || storedMode === 'horizontal') {
+        setReadingMode(storedMode)
+      }
+      const storedWidth = localStorage.getItem('reader.imageWidth')
+      if (storedWidth === 'fit' || storedWidth === 'full' || storedWidth === 'wide') {
+        setImageWidth(storedWidth)
+      }
+    } catch (e) {
+      // ignore storage errors (e.g., privacy mode)
+    }
+  }, [])
+
+  // Persist when settings change
+  useEffect(() => {
+    try {
+      localStorage.setItem('reader.mode', readingMode)
+      localStorage.setItem('reader.imageWidth', imageWidth)
+    } catch (e) {
+      // ignore
+    }
+  }, [readingMode, imageWidth])
+
   // Reading progress tracking
   const { trackChapterViewed, markChapterCompleted, isChapterCompleted, clearTrackedChapters } = useReadingProgress()
 
