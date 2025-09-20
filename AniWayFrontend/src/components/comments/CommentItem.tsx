@@ -1,4 +1,6 @@
 import { useState, useMemo } from 'react'
+import { Link } from 'react-router-dom'
+import { buildProfileUrl } from '@/lib/profileUrl'
 import { useResolvedAvatar } from '@/hooks/useResolvedAvatar'
 import { formatDistanceToNow } from '@/lib/date-utils'
 import { 
@@ -123,14 +125,25 @@ export function CommentItem({
       {/* Заголовок комментария */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center space-x-3">
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={computedAvatar} />
-            <AvatarFallback className="bg-primary text-white">
-              {comment.username.charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
+          <Link
+            to={buildProfileUrl(comment.userId, (comment as any).userDisplayName || comment.username, comment.username)}
+            className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 rounded-full"
+            aria-label={`Профиль пользователя ${comment.username}`}
+          >
+            <Avatar className="h-8 w-8">
+              <AvatarImage src={computedAvatar} />
+              <AvatarFallback className="bg-primary text-white">
+                {comment.username.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+          </Link>
           <div>
-            <span className="font-medium text-white group-hover:text-primary transition-colors">{comment.username}</span>
+            <Link
+              to={buildProfileUrl(comment.userId, (comment as any).userDisplayName || comment.username, comment.username)}
+              className="font-medium text-white group-hover:text-primary transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 rounded"
+            >
+              {comment.username}
+            </Link>
             <div className="flex items-center space-x-2 text-sm text-gray-400 group-hover:text-primary/80 transition-colors">
               <span>{formatDate(comment.createdAt)}</span>
               {comment.isEdited && (

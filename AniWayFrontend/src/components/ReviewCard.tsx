@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { buildProfileUrl } from '@/lib/profileUrl';
 import { useResolvedAvatar } from '@/hooks/useResolvedAvatar';
 import { MessageCircle } from 'lucide-react';
 import RatingStars from './RatingStars';
@@ -91,7 +93,11 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
       <div className="flex flex-col gap-4 mb-4">
         <div className="flex items-start gap-3">
           {/* Avatar */}
-          <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+          <Link
+            to={buildProfileUrl(review.userId, review.userDisplayName, review.username)}
+            className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center ring-0 focus-visible:ring-2 focus-visible:ring-blue-400 transition-shadow"
+            aria-label={`Открыть профиль ${review.userDisplayName}`}
+          >
             {resolvedAvatar ? (
               <img
                 src={resolvedAvatar}
@@ -106,12 +112,17 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
                 {review.userDisplayName.charAt(0).toUpperCase()}
               </span>
             )}
-          </div>
+          </Link>
 
           {/* User info */}
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2 mb-1">
-              <h4 className="font-semibold text-white truncate max-w-[160px] sm:max-w-none">{review.userDisplayName}</h4>
+              <Link
+                to={buildProfileUrl(review.userId, review.userDisplayName, review.username)}
+                className="font-semibold text-white truncate max-w-[160px] sm:max-w-none hover:text-blue-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 rounded"
+              >
+                {review.userDisplayName}
+              </Link>
               <span
                 className="px-2 py-0.5 text-xs font-medium rounded-full text-white whitespace-nowrap"
                 style={{ backgroundColor: review.trustFactorColor }}
