@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
@@ -55,6 +55,53 @@ export function ReaderPage() {
     queryFn: () => apiClient.getChapterImages(parseInt(chapterId!)),
     enabled: !!chapterId,
   })
+
+  // Lazy visibility state for images (virtual-ish)
+  const [visibleIndexes, setVisibleIndexes] = useState<Set<number>>(() => new Set([0,1,2]))
+  const observerRef = useRef<IntersectionObserver | null>(null)
+  const wrappersRef = useRef<(HTMLDivElement | null)[]>([])
+
+  // Reset visibility when chapter changes
+  useEffect(() => {
+    setVisibleIndexes(new Set([0,1,2]))
+  }, [chapterId])
+
+  useEffect(() => {
+    if (!images || images.length === 0) return
+    if (observerRef.current) {
+      observerRef.current.disconnect()
+    }
+    observerRef.current = new IntersectionObserver((entries) => {
+      let changed = false
+      const next = new Set(visibleIndexes)
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          const idxAttr = entry.target.getAttribute('data-index')
+            
+          if (idxAttr) {
+            const idx = parseInt(idxAttr)
+            if (!next.has(idx)) {
+              next.add(idx)
+              // Prefetch next immediate page for smoother scroll
+              if (idx + 1 < images.length) next.add(idx + 1)
+              changed = true
+            }
+          }
+        }
+      }
+      if (changed) setVisibleIndexes(next)
+    }, { root: null, rootMargin: '800px 0px 800px 0px', threshold: 0.01 })
+
+    wrappersRef.current.forEach((el, idx) => {
+      if (el && !visibleIndexes.has(idx)) {
+        observerRef.current?.observe(el)
+      }
+    })
+
+    return () => {
+      observerRef.current?.disconnect()
+    }
+  }, [images, visibleIndexes])
 
   const { data: manga } = useQuery({
     queryKey: ['manga', chapter?.mangaId, user?.id],
@@ -519,25 +566,49 @@ export function ReaderPage() {
           "mx-auto px-2 sm:px-4 overflow-x-hidden",
           getImageWidthClass()
         )}>
-          {images.map((image, index) => (
-            <div key={image.id} className="relative mb-0 flex justify-center">
-              <img
-                src={image.imageUrl || apiClient.getImageUrl(image.imageKey)}
-                alt={`Страница ${image.pageNumber}`}
-                className={cn(
-                  "block w-full h-auto transition-all duration-200",
-                  imageWidth === 'fit' && "max-w-4xl",
-                  imageWidth === 'full' && "max-w-none w-full sm:w-screen px-0",
-                  imageWidth === 'wide' && "max-w-6xl"
+          {images.map((image, index) => {
+            const isVisible = visibleIndexes.has(index)
+            return (
+              <div
+                key={image.id}
+                data-index={index}
+                ref={el => { wrappersRef.current[index] = el }}
+                className="relative mb-0 flex justify-center min-h-[40vh]"
+              >
+                {isVisible ? (
+                  <img
+                    src={image.imageUrl || apiClient.getImageUrl(image.imageKey)}
+                    alt={`Страница ${image.pageNumber}`}
+                    className={cn(
+                      "block w-full h-auto transition-all duration-200 will-change-transform",
+                      imageWidth === 'fit' && "max-w-4xl",
+                      imageWidth === 'full' && "max-w-none w-full sm:w-screen px-0",
+                      imageWidth === 'wide' && "max-w-6xl"
+                    )}
+                    loading={index === 0 ? 'eager' : 'lazy'}
+                    decoding="async"
+                    fetchPriority={index === 0 ? 'high' : index < 3 ? 'auto' : 'low'}
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement
+                      target.src = '/placeholder-page.jpg'
+                    }}
+                    onLoad={() => {
+                      // Progressive reveal next image if not yet visible
+                      if (!visibleIndexes.has(index + 1) && index + 1 < images.length) {
+                        setVisibleIndexes(prev => new Set(prev).add(index + 1))
+                      }
+                    }}
+                    onClick={() => setShowUI(!showUI)}
+                    onDoubleClick={handleImageDoubleClick}
+                  />
+                ) : (
+                  <div className={cn(
+                    "w-full animate-pulse bg-white/5 rounded-lg",
+                    imageWidth === 'fit' && "max-w-4xl h-[60vh]",
+                    imageWidth === 'full' && "max-w-none w-full sm:w-screen h-[65vh]",
+                    imageWidth === 'wide' && "max-w-6xl h-[60vh]"
+                  )} />
                 )}
-                loading={index < 3 ? 'eager' : 'lazy'}
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement
-                  target.src = '/placeholder-page.jpg'
-                }}
-                onClick={() => setShowUI(!showUI)}
-                onDoubleClick={handleImageDoubleClick}
-              />
 
               {/* Page Number Indicator */}
               <div className={cn(
@@ -548,7 +619,7 @@ export function ReaderPage() {
               </div>
 
               {/* Navigation hints on first page */}
-              {index === 0 && showUI && (
+              {index === 0 && showUI && isVisible && (
                 <div className="absolute inset-0 pointer-events-none">
                   {/* Previous chapter hint */}
                   {previousChapter && (
@@ -568,7 +639,8 @@ export function ReaderPage() {
                 </div>
               )}
             </div>
-          ))}
+            )
+          })}
         </div>
 
         {/* Chapter Navigation - улучшенный дизайн */}
