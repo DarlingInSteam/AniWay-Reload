@@ -1,5 +1,5 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { Search, Bell, Bookmark, User, Menu, X, Settings } from 'lucide-react'
+import { Search, Bell, Bookmark, User, Menu, X, Settings, MessageSquare } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api'
@@ -108,30 +108,24 @@ export function Header() {
 
           {/* Навигация - только на десктопе */}
           <nav className="hidden lg:flex items-center space-x-4 lg:space-x-6 ml-4">
-            <Link
-              to="/catalog"
-              className="text-sm font-medium text-muted-foreground hover:text-white transition-colors duration-200 whitespace-nowrap"
-            >
-              Каталог
-            </Link>
-            <Link
-              to="#"
-              className="text-sm font-medium text-muted-foreground hover:text-white transition-colors duration-200 whitespace-nowrap"
-            >
-              Топы
-            </Link>
-            <Link
-              to="#"
-              className="text-sm font-medium text-muted-foreground hover:text-white transition-colors duration-200 whitespace-nowrap"
-            >
-              Форум
-            </Link>
-            <Link
-              to="/api-docs"
-              className="text-sm font-medium text-muted-foreground hover:text-white transition-colors duration-200 whitespace-nowrap"
-            >
-              API Docs
-            </Link>
+            {[
+              { label: 'Каталог', to: '/catalog' },
+              { label: 'Топы', to: '/#tops' },
+              { label: 'Форум', to: '/forum' },
+              { label: 'API Docs', to: '/api-docs' }
+            ].map(item => (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={cn(
+                  'text-sm font-medium transition-colors duration-200 whitespace-nowrap',
+                  'text-muted-foreground hover:text-white',
+                  location.pathname.startsWith(item.to.replace('#tops','/catalog')) && item.to !== '/#tops' && 'text-white'
+                )}
+              >
+                {item.label}
+              </Link>
+            ))}
           </nav>
         </div>
 
@@ -340,10 +334,11 @@ export function Header() {
                   Топы
                 </Link>
                 <Link
-                  to="#"
+                  to="/forum"
                   className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
                   onClick={() => setMobileMenuOpen(false)}
                 >
+                  <MessageSquare className="h-4 w-4 mr-3" />
                   Форум
                 </Link>
                 <Link

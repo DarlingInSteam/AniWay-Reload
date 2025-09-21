@@ -8,6 +8,7 @@ import { AuthPage } from './pages/AuthPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { LibraryPage } from './pages/LibraryPage'
 import ApiDocsPage from './pages/ApiDocsPage'
+import { ForumPage } from './pages/ForumPage'
 import { AuthProvider, ProtectedRoute } from './contexts/AuthContext'
 import { Toaster } from 'sonner'
 
@@ -20,6 +21,7 @@ function App() {
           <Route path="/catalog" element={<CatalogPage />} />
           <Route path="/manga/:id" element={<MangaPage />} />
           <Route path="/reader/:chapterId" element={<ReaderPage />} />
+          <Route path="/forum" element={<ForumPage />} />
           
           {/* Аутентификация */}
           <Route path="/login" element={<AuthPage />} />

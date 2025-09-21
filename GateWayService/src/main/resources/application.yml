@@ -108,6 +108,15 @@ spring:
             - StripPrefix=0
           order: 5
 
+        # ForumService - Forum API
+        - id: forum-api
+          uri: http://forum-service:8087
+          predicates:
+            - Path=/api/forum/**
+          filters:
+            - StripPrefix=0
+          order: 6
+
         # MangaService - Parser API endpoints (ВЫСОКИЙ ПРИОРИТЕТ)
         - id: manga-parser
           uri: http://manga-service:8081
@@ -115,7 +124,7 @@ spring:
             - Path=/api/parser/**
           filters:
             - StripPrefix=1
-          order: 6
+          order: 7
 
         # MangaService - Parser Web UI (веб-интерфейс парсера)
         - id: manga-parser-web
@@ -124,7 +133,7 @@ spring:
             - Path=/parser/**
           filters:
             - StripPrefix=0
-          order: 7
+          order: 8
 
         # MangaService - API endpoints
         - id: manga-api
@@ -141,7 +150,7 @@ spring:
             - Path=/api/genres/**
           filters:
             - StripPrefix=0
-          order: 8
+          order: 9
 
         # MangaService - Tags API  
         - id: tags-api
@@ -150,7 +159,7 @@ spring:
             - Path=/api/tags/**
           filters:
             - StripPrefix=0
-          order: 9
+          order: 10
 
         # MangaService - Web UI (Thymeleaf страницы)
         - id: manga-web
