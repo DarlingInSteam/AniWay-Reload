@@ -120,7 +120,11 @@ export function Header() {
                 className={cn(
                   'text-sm font-medium transition-colors duration-200 whitespace-nowrap',
                   'text-muted-foreground hover:text-white',
-                  location.pathname.startsWith(item.to.replace('#tops','/catalog')) && item.to !== '/#tops' && 'text-white'
+                  (() => {
+                    if (item.to === '/#tops') return false
+                    if (item.to === '/forum') return location.pathname.startsWith('/forum')
+                    return location.pathname.startsWith(item.to)
+                  })() && 'text-white'
                 )}
               >
                 {item.label}

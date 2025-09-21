@@ -9,6 +9,9 @@ import { ProfilePage } from './pages/ProfilePage'
 import { LibraryPage } from './pages/LibraryPage'
 import ApiDocsPage from './pages/ApiDocsPage'
 import { ForumPage } from './pages/ForumPage'
+import { ForumCategoryPage } from './pages/ForumCategoryPage'
+import { ForumThreadPage } from './pages/ForumThreadPage'
+import { CreateThreadPage } from './pages/CreateThreadPage'
 import { AuthProvider, ProtectedRoute } from './contexts/AuthContext'
 import { Toaster } from 'sonner'
 
@@ -22,6 +25,10 @@ function App() {
           <Route path="/manga/:id" element={<MangaPage />} />
           <Route path="/reader/:chapterId" element={<ReaderPage />} />
           <Route path="/forum" element={<ForumPage />} />
+          <Route path="/forum/category/:categoryId" element={<ForumCategoryPage />} />
+            <Route path="/forum/category/:categoryId/create-thread" element={<CreateThreadPage />} />
+          <Route path="/forum/thread/:threadId" element={<ForumThreadPage />} />
+          <Route path="/forum/create-thread" element={<CreateThreadPage />} />
           
           {/* Аутентификация */}
           <Route path="/login" element={<AuthPage />} />
