@@ -13,7 +13,21 @@ import {
 class ForumService {
   // Categories
   async getCategories(): Promise<ForumCategory[]> {
-    return apiClient['publicRequest'] ? (apiClient as any).publicRequest('/forum/categories') : apiClient['request']('/forum/categories')
+    const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
+    // Если есть токен – всегда используем приватный request с Authorization
+    if (token) {
+      try {
+        return (apiClient as any).request('/forum/categories')
+      } catch (e: any) {
+        // В маловероятном случае 401 попробуем публично (например если endpoint реально открытый)
+        if (String(e?.message).includes('401')) {
+          return (apiClient as any).publicRequest('/forum/categories')
+        }
+        throw e
+      }
+    }
+    // Нет токена – пробуем публично
+    return (apiClient as any).publicRequest('/forum/categories')
   }
 
   async getCategory(id: number): Promise<ForumCategory> {
