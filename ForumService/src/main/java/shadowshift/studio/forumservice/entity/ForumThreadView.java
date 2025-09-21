@@ -1,6 +1,8 @@
 package shadowshift.studio.forumservice.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -28,8 +30,11 @@ public class ForumThreadView {
     @Column(name = "user_id")
     private Long userId; // NULL для анонимных пользователей
     
-    @Column(name = "ip_address")
-    private String ipAddress; // для анонимных пользователей
+    // PostgreSQL INET тип: в схеме указан INET, чтобы избежать ошибки валидации
+    // Hibernate 6 поддерживает INET через SqlTypes.INET
+    @JdbcTypeCode(SqlTypes.INET)
+    @Column(name = "ip_address", columnDefinition = "inet")
+    private String ipAddress; // для анонимных пользователей (хранит IPv4/IPv6)
     
     @Column(name = "created_at")
     @Builder.Default
