@@ -185,9 +185,10 @@ public class MangaService {
     public PageResponseDTO<MangaResponseDTO> getAllMangaPaged(int page, int size, String sortBy, String sortOrder) {
         logger.debug("Запрос пагинированного списка всех манг - page: {}, size: {}, sortBy: {}, sortOrder: {}", page, size, sortBy, sortOrder);
 
-        // Создаем правильную сортировку на основе параметров
-        Sort sort = createSort(sortBy, sortOrder);
-        Pageable pageable = PageRequest.of(page, size, sort);
+    // Для native searchMangaPaged (репозиторий уже содержит ORDER BY через CASE) нельзя добавлять Sort,
+    // иначе Hibernate сформирует второй ORDER BY ... order by ... -> синтаксическая ошибка.
+    // Используем PageRequest без сортировки: см. SQL ошибка near "order" в логах.
+    Pageable pageable = PageRequest.of(page, size);
 
         Page<Manga> mangaPage = mangaRepository.findAll(pageable);
         logger.debug("Найдено {} манг на странице {} из {}", mangaPage.getNumberOfElements(), page, mangaPage.getTotalPages());
