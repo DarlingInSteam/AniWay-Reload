@@ -6,6 +6,8 @@ import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.http.server.reactive.ServerHttpResponse;
+import org.springframework.cloud.gateway.route.Route;
+import org.springframework.cloud.gateway.support.ServerWebExchangeUtils;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
@@ -30,8 +32,8 @@ public class RouteTimingFilter implements GlobalFilter, Ordered {
         Instant start = exchange.getAttribute(ATTR_START);
         Instant end = Instant.now();
         Duration d = start != null ? Duration.between(start, end) : Duration.ZERO;
-        String routeId = exchange.getAttributeOrDefault("org.springframework.cloud.gateway.support.ServerWebExchangeUtils.gatewayRoute", null) != null ?
-                String.valueOf(exchange.getAttribute("org.springframework.cloud.gateway.support.ServerWebExchangeUtils.gatewayRoute")) : "n/a";
+    Route route = exchange.getAttribute(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR);
+    String routeId = route != null ? route.getId() : "n/a";
         ServerHttpResponse resp = exchange.getResponse();
         int status = resp.getStatusCode() != null ? resp.getStatusCode().value() : 0;
         String path = exchange.getRequest().getURI().getPath();
