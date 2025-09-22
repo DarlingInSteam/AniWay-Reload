@@ -1,7 +1,6 @@
 import { ForumPost } from '@/types/forum'
 import { useCreatePost, usePostReaction, useUpdatePost, useDeletePost } from '@/hooks/useForum'
 import { AvatarMini } from './AvatarMini'
-import { buildProfileSlug } from '@/utils/profileSlug'
 import { ReactionButtons } from './ReactionButtons'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -60,7 +59,7 @@ function PostNode({ post, depth, threadId, users }: PostNodeProps) {
       </div>
       {post.replies && post.replies.length > 0 && (
         <div className="ml-4 border-l border-white/10 pl-4 space-y-3">
-          {post.replies.map(r => <PostNode key={r.id} post={r} depth={depth+1} threadId={threadId} />)}
+          {post.replies.map(r => <PostNode key={r.id} post={r} depth={depth+1} threadId={threadId} users={users} />)}
         </div>
       )}
     </div>
