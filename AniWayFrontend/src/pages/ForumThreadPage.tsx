@@ -1,6 +1,8 @@
 import { useParams, Link } from 'react-router-dom'
 import { useForumThread, useThreadPosts, useCreatePost, usePostTree, useThreadReaction } from '@/hooks/useForum'
 import { buildProfileSlug } from '@/utils/profileSlug'
+import { useForumUsers } from '@/hooks/useForumUsers'
+import { AvatarMini } from '@/components/forum/AvatarMini'
 import { PostTree } from '@/components/forum/PostTree'
 import { ReactionButtons } from '@/components/forum/ReactionButtons'
 import { ForumPostEditor } from '@/components/forum/ForumPostEditor'
@@ -14,6 +16,7 @@ export function ForumThreadPage() {
   const { data: thread } = useForumThread(id)
   const { data: postsData, isLoading: isLoadingPosts } = useThreadPosts(id, 0, 30)
   const { data: tree } = usePostTree(id, { maxDepth: 5, maxTotal: 800, pageSize: 30 })
+  const { users } = useForumUsers(thread, tree)
   const threadReaction = useThreadReaction(id || 0, thread?.userReaction)
   const createPost = useCreatePost()
   const updateThread = useUpdateThread(id || 0)
@@ -53,7 +56,7 @@ export function ForumThreadPage() {
             )}
           </div>
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <span>Автор: {thread && <Link to={`/profile/${buildProfileSlug(thread.authorId, thread.authorName)}`} className="text-primary hover:underline">{thread.authorName || `Пользователь ${thread.authorId}`}</Link>}</span>
+            <span>Автор: {thread && (()=> { const u = users[thread.authorId]; const name = u?.displayName || thread.authorName || `Пользователь ${thread.authorId}`; return <Link to={`/profile/${buildProfileSlug(thread.authorId, name)}`} className="flex items-center gap-2 text-primary hover:underline"><AvatarMini avatar={u?.avatar} name={name} />{name}</Link> })()}</span>
             {thread?.canEdit && !editingThread && <button onClick={()=> setEditingThread(true)} className="rounded bg-white/10 px-2 py-1 hover:bg-white/20 text-white/80 text-[11px]">Редактировать</button>}
             {thread?.canEdit && editingThread && <button onClick={()=> {
               updateThread.mutate(threadDraft, { onSuccess: ()=> setEditingThread(false) })
@@ -70,7 +73,7 @@ export function ForumThreadPage() {
         <section className="space-y-4">
           <h2 className="text-lg font-semibold text-white">Ответы</h2>
           {isLoadingPosts && <div className="text-sm text-muted-foreground">Загрузка...</div>}
-          {tree && <PostTree posts={tree} threadId={id!} />}
+          {tree && <PostTree posts={tree} threadId={id!} users={users} />}
         </section>
         {thread && (
           <div>

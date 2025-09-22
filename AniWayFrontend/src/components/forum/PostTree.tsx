@@ -1,14 +1,16 @@
 import { ForumPost } from '@/types/forum'
 import { useCreatePost, usePostReaction, useUpdatePost, useDeletePost } from '@/hooks/useForum'
+import { AvatarMini } from './AvatarMini'
+import { buildProfileSlug } from '@/utils/profileSlug'
 import { ReactionButtons } from './ReactionButtons'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { buildProfileSlug } from '@/utils/profileSlug'
 import { ForumPostEditor } from './ForumPostEditor'
 
-interface PostNodeProps { post: ForumPost; depth: number; threadId: number }
+interface PostNodeProps { post: ForumPost; depth: number; threadId: number; users?: Record<number, any> }
 
-function PostNode({ post, depth, threadId }: PostNodeProps) {
+function PostNode({ post, depth, threadId, users }: PostNodeProps) {
   const [replying, setReplying] = useState(false)
   const reaction = usePostReaction(post.id, threadId, post.userReaction)
   const create = useCreatePost()
@@ -22,7 +24,14 @@ function PostNode({ post, depth, threadId }: PostNodeProps) {
       <div className="rounded-lg border border-white/10 bg-white/5 p-3">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
-            <div className="mb-1 text-xs text-muted-foreground">Автор: <Link to={`/profile/${buildProfileSlug(post.authorId, post.authorName)}`} className="text-primary hover:underline">{post.authorName || `Пользователь ${post.authorId}`}</Link></div>
+            <div className="mb-1 text-xs text-muted-foreground flex items-center gap-2">Автор:
+              {(()=> { const u = users?.[post.authorId]; const name = u?.displayName || post.authorName || `Пользователь ${post.authorId}`; return (
+                <Link to={`/profile/${buildProfileSlug(post.authorId, name)}`} className="flex items-center gap-2 text-primary hover:underline">
+                  <AvatarMini avatar={u?.avatar} name={name} size={20} />
+                  <span>{name}</span>
+                </Link>
+              ) })()}
+            </div>
             {editing ? (
               <div className="space-y-2">
                 <textarea className="w-full rounded bg-black/40 border border-white/10 px-2 py-1 text-xs text-white" value={draft} onChange={e=> setDraft(e.target.value)} />
@@ -58,12 +67,12 @@ function PostNode({ post, depth, threadId }: PostNodeProps) {
   )
 }
 
-interface TreeProps { posts: ForumPost[]; threadId: number }
-export function PostTree({ posts, threadId }: TreeProps) {
+interface TreeProps { posts: ForumPost[]; threadId: number; users?: Record<number, any> }
+export function PostTree({ posts, threadId, users }: TreeProps) {
   if (!posts.length) return <div className="text-sm text-muted-foreground">Нет сообщений</div>
   return (
     <div className="space-y-4">
-      {posts.map(p => <PostNode key={p.id} post={p} depth={0} threadId={threadId} />)}
+      {posts.map(p => <PostNode key={p.id} post={p} depth={0} threadId={threadId} users={users} />)}
     </div>
   )
 }

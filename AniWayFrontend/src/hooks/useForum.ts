@@ -114,6 +114,7 @@ export function useDeletePost() {
   return useMutation({
     mutationFn: (id: number) => forumService.deletePost(id),
     onSuccess: (_,_vars,ctx) => {
+      // Broad invalidation fallback (thread-specific handled by caller sometimes)
       qc.invalidateQueries({ queryKey: ['forum','postTree'] })
       qc.invalidateQueries({ queryKey: ['forum','thread'] })
     }
