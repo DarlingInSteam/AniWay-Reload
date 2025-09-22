@@ -1,4 +1,5 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query'
+import type { PaginatedResponse, ForumThread } from '@/types/forum'
 import { forumService } from '@/services/forumService'
 import type { CreateThreadRequest, UpdateThreadRequest, CreatePostRequest, UpdatePostRequest } from '@/types/forum'
 
@@ -24,6 +25,21 @@ export function useForumThreads(params: { categoryId?: number; page?: number; si
   return useQuery({
     queryKey: ['forum','threads', params],
     queryFn: () => forumService.getThreads(params)
+  })
+}
+
+// Infinite threads (category scoped). Backend pagination: page,size. We aggregate pages client-side.
+export function useInfiniteForumThreads(params: { categoryId?: number; size?: number }) {
+  const size = params.size ?? 30
+  return useInfiniteQuery({
+    queryKey: ['forum','threads','infinite', params],
+    initialPageParam: 0,
+    getNextPageParam: (lastPage: PaginatedResponse<ForumThread>) => {
+      if (!lastPage) return undefined
+      const next = lastPage.number + 1
+      return lastPage.last ? undefined : next
+    },
+    queryFn: ({ pageParam }) => forumService.getThreads({ categoryId: params.categoryId, page: pageParam, size }) as Promise<PaginatedResponse<ForumThread>>
   })
 }
 
