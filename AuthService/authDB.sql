@@ -66,3 +66,22 @@ VALUES (
     'ADMIN',
     0, 0, 0
 ) ON CONFLICT (username) DO NOTHING;
+
+-- Email verification table (with purpose support)
+CREATE TABLE IF NOT EXISTS email_verification (
+    id UUID PRIMARY KEY,
+    email VARCHAR(200) NOT NULL,
+    code_hash VARCHAR(120) NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    purpose VARCHAR(30) NOT NULL,
+    attempts_remaining INT NOT NULL,
+    send_count INT NOT NULL,
+    verified_at TIMESTAMP NULL,
+    verification_token VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_verification_email ON email_verification(email);
+CREATE INDEX IF NOT EXISTS idx_email_verification_status ON email_verification(status);
+CREATE INDEX IF NOT EXISTS idx_email_verification_purpose ON email_verification(purpose);
