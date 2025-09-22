@@ -13,6 +13,7 @@ import shadowshift.studio.forumservice.dto.response.ForumCategoryResponse;
 import shadowshift.studio.forumservice.entity.ForumCategory;
 import shadowshift.studio.forumservice.repository.ForumCategoryRepository;
 import shadowshift.studio.forumservice.repository.ForumThreadRepository;
+import shadowshift.studio.forumservice.repository.ForumPostRepository;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -25,6 +26,7 @@ public class ForumCategoryService {
 
     private final ForumCategoryRepository categoryRepository;
     private final ForumThreadRepository threadRepository;
+    private final ForumPostRepository postRepository;
 
     /**
      * Получить все активные категории
@@ -35,9 +37,9 @@ public class ForumCategoryService {
         
         List<ForumCategory> categories = categoryRepository.findAllActiveOrderByDisplayOrder();
         
-        return categories.stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+    return categories.stream()
+        .map(this::mapToResponseWithStats)
+        .collect(Collectors.toList());
     }
 
     /**
@@ -171,7 +173,8 @@ public class ForumCategoryService {
      */
     private ForumCategoryResponse mapToResponseWithStats(ForumCategory category) {
         Long threadsCount = threadRepository.countByCategoryIdAndNotDeleted(category.getId());
-        
+        Long postsCount = postRepository.countPostsByCategoryId(category.getId());
+
         return ForumCategoryResponse.builder()
                 .id(category.getId())
                 .name(category.getName())
@@ -183,6 +186,7 @@ public class ForumCategoryService {
                 .createdAt(category.getCreatedAt())
                 .updatedAt(category.getUpdatedAt())
                 .threadsCount(threadsCount)
+                .postsCount(postsCount)
                 .build();
     }
 }

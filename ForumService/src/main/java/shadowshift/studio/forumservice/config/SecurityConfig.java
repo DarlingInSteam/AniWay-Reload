@@ -39,6 +39,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/forum/threads/search").permitAll()
                 .requestMatchers("/api/forum/threads/author/{authorId}").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/forum/threads/{threadId}/posts").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/forum/threads/{threadId}/posts/tree").permitAll()
                 
                 // Административные endpoint'ы
                 .requestMatchers("/api/forum/categories/admin/**").hasRole("ADMIN")
@@ -56,12 +57,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/forum/threads/{threadId}/posts").hasRole("USER") // создание поста
                 .requestMatchers("/api/forum/posts/{postId}").hasRole("USER") // PUT, DELETE
                 // Реакции (ограничимся конкретными типами ресурсов вместо двойного wildcard)
-                .requestMatchers("/api/forum/threads/{threadId}/like").hasRole("USER")
-                .requestMatchers("/api/forum/threads/{threadId}/dislike").hasRole("USER")
-                .requestMatchers("/api/forum/threads/{threadId}/reaction").hasRole("USER")
-                .requestMatchers("/api/forum/posts/{postId}/like").hasRole("USER")
-                .requestMatchers("/api/forum/posts/{postId}/dislike").hasRole("USER")
-                .requestMatchers("/api/forum/posts/{postId}/reaction").hasRole("USER")
+                .requestMatchers("/api/forum/threads/{threadId}/reactions").hasRole("USER")
+                .requestMatchers("/api/forum/posts/{postId}/reactions").hasRole("USER")
                 
                 // Actuator endpoint'ы
                 .requestMatchers("/actuator/health").permitAll()

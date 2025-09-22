@@ -19,9 +19,11 @@ import shadowshift.studio.forumservice.entity.ForumPost;
 import shadowshift.studio.forumservice.dto.response.ForumPostResponse;
 import shadowshift.studio.forumservice.repository.ForumPostRepository;
 import shadowshift.studio.forumservice.repository.ForumThreadRepository;
+import shadowshift.studio.forumservice.repository.ForumReactionRepository;
+import shadowshift.studio.forumservice.entity.ForumReaction;
 
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/forum/threads/{threadId}/posts")
@@ -31,6 +33,7 @@ public class ForumPostController {
 
     private final ForumPostRepository postRepository;
     private final ForumThreadRepository threadRepository;
+    private final ForumReactionRepository reactionRepository;
 
     @GetMapping
     public ResponseEntity<Page<ForumPostResponse>> getPosts(
@@ -48,6 +51,63 @@ public class ForumPostController {
     }
 
     public record CreatePostRequest(String content, Long parentPostId) {}
+
+    /**
+     * Древовидная структура постов (ограничение глубины и кол-ва потомков)
+     */
+    @GetMapping("/tree")
+    public ResponseEntity<List<ForumPostResponse>> getPostsTree(
+            @PathVariable Long threadId,
+            @RequestParam(defaultValue = "5") int maxDepth,
+            @RequestParam(defaultValue = "1000") int maxTotal,
+            @RequestParam(defaultValue = "50") int pageSize) {
+        log.info("GET /api/forum/threads/{}/posts/tree - получение дерева постов", threadId);
+
+        if (!threadRepository.existsById(threadId)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        // Получаем корневые посты (первый уровень)
+        Pageable rootPageable = PageRequest.of(0, pageSize);
+        List<ForumPost> roots = postRepository.findRootPostsByThreadId(threadId, rootPageable).getContent();
+
+        Map<Long, List<ForumPost>> repliesMap = new HashMap<>();
+        List<ForumPostResponse> tree = new ArrayList<>();
+
+        // Итеративно строим дерево до maxDepth
+        Queue<ForumPostResponse> queue = new ArrayDeque<>();
+        for (ForumPost root : roots) {
+            ForumPostResponse rootDto = mapToResponse(root).toBuilder().replies(new ArrayList<>()).build();
+            tree.add(rootDto);
+            queue.add(rootDto);
+        }
+
+        int processed = roots.size();
+        int depth = 1;
+        while (!queue.isEmpty() && depth < maxDepth && processed < maxTotal) {
+            int levelSize = queue.size();
+            depth++;
+            for (int i = 0; i < levelSize; i++) {
+                ForumPostResponse current = queue.poll();
+                if (current == null) continue;
+                Long parentId = current.getId();
+                List<ForumPost> replies = postRepository.findRepliesByParentPostId(parentId);
+                if (replies.isEmpty()) continue;
+                List<ForumPostResponse> replyDtos = new ArrayList<>();
+                for (ForumPost rp : replies) {
+                    if (processed >= maxTotal) break;
+                    ForumPostResponse dto = mapToResponse(rp).toBuilder().replies(new ArrayList<>()).build();
+                    replyDtos.add(dto);
+                    queue.add(dto);
+                    processed++;
+                }
+                //noinspection unchecked
+                ((List<ForumPostResponse>)current.getReplies()).addAll(replyDtos);
+            }
+        }
+
+        return ResponseEntity.ok(tree);
+    }
 
     @PostMapping
     public ResponseEntity<ForumPostResponse> createPost(
@@ -92,6 +152,17 @@ public class ForumPostController {
     }
 
     private ForumPostResponse mapToResponse(ForumPost post) {
+        Long currentUserId = null;
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof GatewayAuthenticationFilter.AuthUserPrincipal principal) {
+            currentUserId = principal.id();
+        }
+        String userReaction = null;
+        if (currentUserId != null) {
+            userReaction = reactionRepository.findByUserIdAndTargetTypeAndTargetId(currentUserId, ForumReaction.TargetType.POST, post.getId())
+                    .map(r -> r.getReactionType().name())
+                    .orElse(null);
+        }
         return ForumPostResponse.builder()
                 .id(post.getId())
                 .threadId(post.getThreadId())
@@ -107,7 +178,7 @@ public class ForumPostController {
                 .dislikesCount(post.getDislikesCount())
                 .createdAt(post.getCreatedAt())
                 .updatedAt(post.getUpdatedAt())
-                .userReaction(null) // TODO реакция пользователя
+                .userReaction(userReaction)
                 .canEdit(false) // TODO вычисление прав
                 .canDelete(false) // TODO вычисление прав
                 .build();

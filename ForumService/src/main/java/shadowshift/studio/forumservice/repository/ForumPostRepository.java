@@ -82,4 +82,10 @@ public interface ForumPostRepository extends JpaRepository<ForumPost, Long> {
      */
     @Query("SELECT COUNT(p) > 0 FROM ForumPost p WHERE p.parentPostId = :postId AND p.isDeleted = false")
     boolean hasReplies(@Param("postId") Long postId);
+
+    /**
+     * Подсчитать количество постов во всех темах категории
+     */
+    @Query("SELECT COUNT(p) FROM ForumPost p WHERE p.threadId IN (SELECT t.id FROM ForumThread t WHERE t.categoryId = :categoryId AND t.isDeleted = false) AND p.isDeleted = false")
+    Long countPostsByCategoryId(@Param("categoryId") Long categoryId);
 }
