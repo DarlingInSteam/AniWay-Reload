@@ -13,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import shadowshift.studio.forumservice.entity.ForumPost;
+import shadowshift.studio.forumservice.dto.response.ForumPostResponse;
 import shadowshift.studio.forumservice.repository.ForumPostRepository;
 import shadowshift.studio.forumservice.repository.ForumThreadRepository;
 
@@ -29,7 +30,7 @@ public class ForumPostController {
     private final ForumThreadRepository threadRepository;
 
     @GetMapping
-    public ResponseEntity<Page<ForumPost>> getPosts(
+    public ResponseEntity<Page<ForumPostResponse>> getPosts(
             @PathVariable Long threadId,
             @PageableDefault(size = 20) Pageable pageable) {
         log.info("GET /api/forum/threads/{}/posts - получение постов", threadId);
@@ -39,13 +40,14 @@ public class ForumPostController {
         }
 
         Page<ForumPost> page = postRepository.findByThreadIdAndNotDeleted(threadId, pageable);
-        return ResponseEntity.ok(page);
+        Page<ForumPostResponse> dtoPage = page.map(this::mapToResponse);
+        return ResponseEntity.ok(dtoPage);
     }
 
     public record CreatePostRequest(String content, Long parentPostId) {}
 
     @PostMapping
-    public ResponseEntity<ForumPost> createPost(
+    public ResponseEntity<ForumPostResponse> createPost(
             @PathVariable Long threadId,
             @Valid @RequestBody CreatePostRequest request,
             HttpServletRequest httpRequest) {
@@ -70,7 +72,7 @@ public class ForumPostController {
                 .build();
 
         ForumPost saved = postRepository.save(post);
-        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+        return ResponseEntity.status(HttpStatus.CREATED).body(mapToResponse(saved));
     }
 
     private Long getCurrentUserId(HttpServletRequest request) {
@@ -79,5 +81,27 @@ public class ForumPostController {
             return 1L; // заглушка
         }
         return null;
+    }
+
+    private ForumPostResponse mapToResponse(ForumPost post) {
+        return ForumPostResponse.builder()
+                .id(post.getId())
+                .threadId(post.getThreadId())
+                .content(post.getContent())
+                .authorId(post.getAuthorId())
+                .authorName("Пользователь " + post.getAuthorId()) // TODO AuthService
+                .authorAvatar(null) // TODO avatar
+                .parentPostId(post.getParentPostId())
+                .replies(null) // вложенные ответы реализовать позже
+                .isDeleted(post.getIsDeleted())
+                .isEdited(post.getIsEdited())
+                .likesCount(post.getLikesCount())
+                .dislikesCount(post.getDislikesCount())
+                .createdAt(post.getCreatedAt())
+                .updatedAt(post.getUpdatedAt())
+                .userReaction(null) // TODO реакция пользователя
+                .canEdit(false) // TODO вычисление прав
+                .canDelete(false) // TODO вычисление прав
+                .build();
     }
 }

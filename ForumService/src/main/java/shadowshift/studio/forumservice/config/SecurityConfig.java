@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
@@ -36,7 +37,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/forum/threads/{threadId}").permitAll()
                 .requestMatchers("/api/forum/threads/search").permitAll()
                 .requestMatchers("/api/forum/threads/author/{authorId}").permitAll()
-                .requestMatchers("/api/forum/threads/{threadId}/posts").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/forum/threads/{threadId}/posts").permitAll()
                 
                 // Административные endpoint'ы
                 .requestMatchers("/api/forum/categories/admin/**").hasRole("ADMIN")
@@ -51,7 +52,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/forum/threads").hasRole("USER") // POST - создание темы
                 .requestMatchers("/api/forum/threads/{threadId}").hasRole("USER") // PUT, DELETE
                 .requestMatchers("/api/forum/threads/{threadId}/subscribe").hasRole("USER")
-                .requestMatchers("/api/forum/threads/{threadId}/posts").hasRole("USER") // POST - создание поста
+                .requestMatchers(HttpMethod.POST, "/api/forum/threads/{threadId}/posts").hasRole("USER") // создание поста
                 .requestMatchers("/api/forum/posts/{postId}").hasRole("USER") // PUT, DELETE
                 // Реакции (ограничимся конкретными типами ресурсов вместо двойного wildcard)
                 .requestMatchers("/api/forum/threads/{threadId}/like").hasRole("USER")

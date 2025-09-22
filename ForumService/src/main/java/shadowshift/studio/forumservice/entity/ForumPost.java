@@ -65,10 +65,12 @@ public class ForumPost {
     // Связи
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "thread_id", insertable = false, updatable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private ForumThread thread;
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_post_id", insertable = false, updatable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private ForumPost parentPost;
     
     @PreUpdate
