@@ -83,6 +83,14 @@ public class NotificationServiceFacade {
         return changed;
     }
 
+    @Transactional
+    public long deleteAllForUser(Long userId) {
+        List<Notification> all = notificationRepository.findByUserIdOrderByIdDesc(userId);
+        long count = all.size();
+        if (count > 0) notificationRepository.deleteAllInBatch(all);
+        return count;
+    }
+
     private void pushToUser(Notification n) {
         NotificationResponseDTO dto = NotificationResponseDTO.builder()
                 .id(n.getId())

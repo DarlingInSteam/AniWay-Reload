@@ -19,15 +19,24 @@ public class InternalEventController {
 
     @PostMapping("/comment-created")
     public ResponseEntity<Void> commentCreated(@RequestBody CommentCreatedEvent body) {
-    java.util.Map<String,Object> map = new java.util.LinkedHashMap<>();
-    map.put("commentId", body.getCommentId());
-    map.put("mangaId", body.getMangaId());
-    map.put("chapterId", body.getChapterId());
-    map.put("replyToCommentId", body.getReplyToCommentId());
-    map.put("excerpt", truncate(body.getContent(), 120));
-    String payload = toJson(map);
-    // Mapping assumption: direct comment creation for user's content -> PROFILE_COMMENT (placeholder until refined types added)
-    facade.createBasic(body.getTargetUserId(), NotificationType.PROFILE_COMMENT, payload, null);
+        java.util.Map<String,Object> map = new java.util.LinkedHashMap<>();
+        map.put("commentId", body.getCommentId());
+        map.put("mangaId", body.getMangaId());
+        map.put("chapterId", body.getChapterId());
+        map.put("replyToCommentId", body.getReplyToCommentId());
+        map.put("commentType", body.getCommentType());
+        map.put("excerpt", truncate(body.getContent(), 120));
+        String payload = toJson(map);
+        NotificationType type;
+        if (body.getReplyToCommentId() != null) {
+            type = NotificationType.REPLY_TO_COMMENT;
+        } else if ("PROFILE".equals(body.getCommentType())) {
+            type = NotificationType.PROFILE_COMMENT;
+        } else {
+            // generic fallback (reply on content w/o subtype mapping yet)
+            type = NotificationType.REPLY_TO_COMMENT;
+        }
+        facade.createBasic(body.getTargetUserId(), type, payload, null);
         return ResponseEntity.accepted().build();
     }
 
@@ -55,6 +64,25 @@ public class InternalEventController {
                 "mangaTitle", body.getMangaTitle()
         ));
         facade.createBasic(body.getTargetUserId(), NotificationType.BOOKMARK_NEW_CHAPTER, payload, dedupeKey);
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/chapter-published-batch")
+    public ResponseEntity<Void> chapterPublishedBatch(@RequestBody ChapterPublishedBatchEvent body) {
+        // Same payload reused for all subscribers; dedupe per user+manga
+        String basePayload = toJson(Map.of(
+                "mangaId", body.getMangaId(),
+                "chapterId", body.getChapterId(),
+                "chapterNumber", body.getChapterNumber(),
+                "mangaTitle", body.getMangaTitle()
+        ));
+        if (body.getTargetUserIds() != null) {
+            for (Long uid : body.getTargetUserIds()) {
+                if (uid == null) continue;
+                String dedupeKey = "chapter_published:" + uid + ":" + body.getMangaId();
+                facade.createBasic(uid, NotificationType.BOOKMARK_NEW_CHAPTER, basePayload, dedupeKey);
+            }
+        }
         return ResponseEntity.accepted().build();
     }
 
@@ -118,6 +146,7 @@ public class InternalEventController {
         private Long mangaId;
         private Long chapterId;
         private Long replyToCommentId;
+        private String commentType; // PROFILE, MANGA, CHAPTER, REVIEW
         private String content;
     }
 
@@ -133,6 +162,15 @@ public class InternalEventController {
     @Data
     public static class ChapterPublishedEvent {
         private Long targetUserId;
+        private Long mangaId;
+        private Long chapterId;
+        private String chapterNumber;
+        private String mangaTitle;
+    }
+
+    @Data
+    public static class ChapterPublishedBatchEvent {
+        private List<Long> targetUserIds; // subscribers
         private Long mangaId;
         private Long chapterId;
         private String chapterNumber;

@@ -23,7 +23,7 @@ public class NotificationEventPublisher {
 
     private WebClient client() { return builder.baseUrl(notificationBaseUrl).build(); }
 
-    public void publishCommentCreated(Long targetUserId, Long commentId, Long mangaId, Long chapterId, Long replyToCommentId, String content) {
+    public void publishCommentCreated(Long targetUserId, Long commentId, Long mangaId, Long chapterId, Long replyToCommentId, String content, String commentType) {
         if (targetUserId == null || targetUserId <= 0) return; // no target
         Map<String,Object> body = new HashMap<>();
         body.put("targetUserId", targetUserId);
@@ -32,6 +32,7 @@ public class NotificationEventPublisher {
         body.put("chapterId", chapterId);
         body.put("replyToCommentId", replyToCommentId);
         body.put("content", content);
+        body.put("commentType", commentType);
         client().post()
                 .uri("/internal/events/comment-created")
                 .contentType(MediaType.APPLICATION_JSON)

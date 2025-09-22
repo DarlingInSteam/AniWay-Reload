@@ -140,7 +140,8 @@ public class CommentService {
                             mangaId,
                             chapterId,
                             replyToCommentId,
-                            savedComment.getContent()
+                            savedComment.getContent(),
+                            savedComment.getType().name()
                     );
                 }
             }

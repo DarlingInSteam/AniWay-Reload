@@ -137,6 +137,38 @@ public class ChapterService {
         }
 
         Chapter savedChapter = chapterRepository.save(chapter);
+
+        // Fan-out notifications for bookmarked users (best-effort, non-blocking failures)
+        try {
+            WebClient client = webClientBuilder.build();
+            // 1. Fetch subscribers from AuthService
+            List<Long> subscribers = client.get()
+                    .uri("http://auth-service:8080/internal/bookmarks/manga/" + createDTO.getMangaId() + "/subscribers")
+                    .retrieve()
+                    .bodyToFlux(Long.class)
+                    .collectList()
+                    .blockOptional(java.time.Duration.ofSeconds(3))
+                    .orElse(java.util.Collections.emptyList());
+            if (!subscribers.isEmpty()) {
+                // 2. Send batch event to NotificationService
+                Map<String,Object> payload = Map.of(
+                        "targetUserIds", subscribers,
+                        "mangaId", createDTO.getMangaId(),
+                        "chapterId", savedChapter.getId(),
+                        "chapterNumber", String.valueOf(createDTO.getChapterNumber()),
+                        "mangaTitle", fetchMangaTitle(createDTO.getMangaId())
+                );
+                client.post()
+                        .uri("http://notification-service:8080/internal/events/chapter-published-batch")
+                        .bodyValue(payload)
+                        .retrieve()
+                        .toBodilessEntity()
+                        .block(java.time.Duration.ofSeconds(2));
+            }
+        } catch (Exception ex) {
+            System.err.println("Fan-out chapter-published failed: " + ex.getMessage());
+        }
+
         return new ChapterResponseDTO(savedChapter);
     }
 
@@ -374,5 +406,21 @@ public class ChapterService {
      */
     public boolean isLikedByUser(Long userId, Long chapterId) {
         return chapterLikeRepository.existsByUserIdAndChapterId(userId, chapterId);
+    }
+
+    private String fetchMangaTitle(Long mangaId) {
+        try {
+            WebClient client = webClientBuilder.build();
+            Map<?,?> map = client.get()
+                    .uri("http://manga-service:8082/api/manga/" + mangaId)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block(java.time.Duration.ofSeconds(2));
+            if (map != null) {
+                Object title = map.get("title");
+                if (title != null) return String.valueOf(title);
+            }
+        } catch (Exception ignored) {}
+        return null;
     }
 }

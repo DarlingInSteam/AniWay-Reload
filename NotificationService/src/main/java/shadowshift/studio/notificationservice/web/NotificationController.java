@@ -67,6 +67,13 @@ public class NotificationController {
         return ResponseEntity.ok(changed);
     }
 
+    @DeleteMapping("/all")
+    public ResponseEntity<Long> deleteAll(@RequestHeader(value = "X-User-Id", required = false) String userHeader) {
+        Long userId = currentUserId(userHeader);
+        long deleted = notificationServiceFacade.deleteAllForUser(userId);
+        return ResponseEntity.ok(deleted);
+    }
+
     @GetMapping(path = "/stream", produces = "text/event-stream")
     public SseEmitter stream(@RequestHeader(value = "X-User-Id", required = false) String userHeader,
                              @RequestParam(value = "userId", required = false) Long userIdParam) {
@@ -82,6 +89,21 @@ public class NotificationController {
                 .payload(n.getPayloadJson())
                 .createdAtEpoch(n.getCreatedAt() != null ? n.getCreatedAt().toEpochMilli() : 0L)
                 .readAtEpoch(n.getReadAt() != null ? n.getReadAt().toEpochMilli() : null)
+                .build();
+    }
+
+    @GetMapping("/page")
+    public NotificationListResponse page(@RequestHeader(value = "X-User-Id", required = false) String userHeader,
+                                         @RequestParam(defaultValue = "0") int page,
+                                         @RequestParam(defaultValue = "30") int size) {
+        Long userId = currentUserId(userHeader);
+        var pageObj = notificationRepository.findByUser(userId, null, PageRequest.of(page, size));
+        List<NotificationResponseDTO> items = pageObj.getContent().stream().map(this::map).collect(Collectors.toList());
+        long unread = notificationServiceFacade.countUnread(userId);
+        return NotificationListResponse.builder()
+                .items(items)
+                .nextCursor(pageObj.hasNext() ? items.get(items.size()-1).getId() : null)
+                .unreadCount(unread)
                 .build();
     }
 }

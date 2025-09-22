@@ -49,6 +49,15 @@ export async function markAllRead(token: string | null, userId: number): Promise
   return res.json();
 }
 
+export async function deleteAll(token: string | null, userId: number): Promise<number> {
+  const res = await fetch(`${base}/all`, {
+    method: 'DELETE',
+    headers: buildHeaders(token, userId)
+  });
+  if (!res.ok) throw new Error('Failed to delete all notifications');
+  return res.json();
+}
+
 function buildHeaders(token: string | null, userId: number) {
   const h: Record<string,string> = { 'X-User-Id': String(userId) };
   if (token) h['Authorization'] = `Bearer ${token}`;

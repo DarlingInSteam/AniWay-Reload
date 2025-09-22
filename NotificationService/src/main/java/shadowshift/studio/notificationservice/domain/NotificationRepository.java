@@ -17,6 +17,8 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     long countByUserIdAndStatus(Long userId, NotificationStatus status);
 
     List<Notification> findTop50ByUserIdAndStatusOrderByIdDesc(Long userId, NotificationStatus status);
+    
+        List<Notification> findByUserIdOrderByIdDesc(Long userId);
 
     Optional<Notification> findByDedupeKey(String dedupeKey);
 }

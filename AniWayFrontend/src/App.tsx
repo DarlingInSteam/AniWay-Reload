@@ -15,6 +15,7 @@ import { ForumThreadPage } from './pages/ForumThreadPage'
 import { CreateThreadPage } from './pages/CreateThreadPage'
 import { AuthProvider, ProtectedRoute, useAuth } from './contexts/AuthContext'
 import { NotificationProvider } from './notifications/NotificationContext'
+import { NotificationsPage } from './notifications/NotificationsPage'
 import { authService } from './services/authService'
 import { Toaster } from 'sonner'
 
@@ -55,6 +56,11 @@ function InnerApp() {
           <Route path="/reading-history" element={
             <ProtectedRoute>
               <LibraryPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/notifications" element={
+            <ProtectedRoute>
+              <NotificationsPage />
             </ProtectedRoute>
           } />
           
