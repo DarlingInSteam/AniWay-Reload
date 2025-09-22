@@ -14,6 +14,7 @@ import shadowshift.studio.commentservice.enums.ReactionType;
 import shadowshift.studio.commentservice.repository.CommentRepository;
 import shadowshift.studio.commentservice.repository.CommentReactionRepository;
 import shadowshift.studio.commentservice.notification.NotificationEventPublisher;
+import shadowshift.studio.commentservice.review.ReviewAuthorClient;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -39,6 +40,7 @@ public class CommentService {
     private final CommentReactionRepository commentReactionRepository;
     private final AuthService authService;
     private final NotificationEventPublisher notificationEventPublisher;
+    private final ReviewAuthorClient reviewAuthorClient;
 
     private static final int EDIT_TIME_LIMIT_DAYS = 7;
 
@@ -111,17 +113,33 @@ public class CommentService {
                 if (!savedComment.getTargetId().equals(userId)) {
                     targetUserId = savedComment.getTargetId();
                 }
+            } else if (savedComment.getType() == CommentType.REVIEW) {
+                // comment on review (root only) -> notify review author
+                Long reviewAuthor = reviewAuthorClient.findReviewAuthorId(savedComment.getTargetId());
+                if (reviewAuthor != null && !reviewAuthor.equals(userId)) {
+                    targetUserId = reviewAuthor;
+                    notificationEventPublisher.publishCommentOnReview(
+                            targetUserId,
+                            savedComment.getTargetId(), // reviewId
+                            savedComment.getId(),
+                            mangaId,
+                            savedComment.getContent()
+                    );
+                }
             }
 
             if (targetUserId != null) {
-                notificationEventPublisher.publishCommentCreated(
-                        targetUserId,
-                        savedComment.getId(),
-                        mangaId,
-                        chapterId,
-                        replyToCommentId,
-                        savedComment.getContent()
-                );
+                // For review root comments we already emitted specialized event above.
+                if (savedComment.getType() != CommentType.REVIEW || replyToCommentId != null) {
+                    notificationEventPublisher.publishCommentCreated(
+                            targetUserId,
+                            savedComment.getId(),
+                            mangaId,
+                            chapterId,
+                            replyToCommentId,
+                            savedComment.getContent()
+                    );
+                }
             }
         } catch (Exception e) {
             log.warn("Failed to emit comment-created notification event: {}", e.getMessage());

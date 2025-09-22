@@ -33,12 +33,12 @@ public class InternalEventController {
 
     @PostMapping("/forum-post-created")
     public ResponseEntity<Void> forumPostCreated(@RequestBody ForumPostCreatedEvent body) {
-        String payload = toJson(Map.of(
-                "postId", body.getPostId(),
-                "threadId", body.getThreadId(),
-                "title", body.getTitle(),
-                "excerpt", truncate(body.getContent(), 140)
-        ));
+    java.util.Map<String,Object> map = new java.util.LinkedHashMap<>();
+    map.put("postId", body.getPostId());
+    map.put("threadId", body.getThreadId());
+    map.put("title", body.getTitle());
+    map.put("excerpt", truncate(body.getContent(), 140));
+    String payload = toJson(map);
     // Mapping assumption: new forum post in a thread the user follows -> REPLY_IN_FORUM_THREAD (placeholder)
     facade.createBasic(body.getTargetUserId(), NotificationType.REPLY_IN_FORUM_THREAD, payload, null);
         return ResponseEntity.accepted().build();
@@ -55,6 +55,30 @@ public class InternalEventController {
                 "mangaTitle", body.getMangaTitle()
         ));
         facade.createBasic(body.getTargetUserId(), NotificationType.BOOKMARK_NEW_CHAPTER, payload, dedupeKey);
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/comment-on-review")
+    public ResponseEntity<Void> commentOnReview(@RequestBody CommentOnReviewEvent body) {
+        java.util.Map<String,Object> map = new java.util.LinkedHashMap<>();
+        map.put("reviewId", body.getReviewId());
+        map.put("commentId", body.getCommentId());
+        map.put("mangaId", body.getMangaId());
+        map.put("excerpt", truncate(body.getContent(), 120));
+        String payload = toJson(map);
+        facade.createBasic(body.getTargetUserId(), NotificationType.COMMENT_ON_REVIEW, payload, null);
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/forum-thread-post-created")
+    public ResponseEntity<Void> forumThreadPostCreated(@RequestBody ForumThreadPostCreatedEvent body) {
+        java.util.Map<String,Object> map = new java.util.LinkedHashMap<>();
+        map.put("threadId", body.getThreadId());
+        map.put("postId", body.getPostId());
+        map.put("title", body.getTitle());
+        map.put("excerpt", truncate(body.getContent(), 140));
+        String payload = toJson(map);
+        facade.createBasic(body.getTargetUserId(), NotificationType.NEW_COMMENT_ON_USER_FORUM_THREAD, payload, null);
         return ResponseEntity.accepted().build();
     }
 
@@ -113,5 +137,23 @@ public class InternalEventController {
         private Long chapterId;
         private String chapterNumber;
         private String mangaTitle;
+    }
+
+    @Data
+    public static class CommentOnReviewEvent {
+        private Long targetUserId; // review author
+        private Long reviewId;
+        private Long commentId;
+        private Long mangaId;
+        private String content;
+    }
+
+    @Data
+    public static class ForumThreadPostCreatedEvent {
+        private Long targetUserId; // thread author
+        private Long threadId;
+        private Long postId;
+        private String title;
+        private String content;
     }
 }

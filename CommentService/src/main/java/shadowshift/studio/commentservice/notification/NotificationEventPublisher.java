@@ -43,4 +43,24 @@ public class NotificationEventPublisher {
                 .onErrorResume(e -> Mono.empty())
                 .subscribe();
     }
+
+    public void publishCommentOnReview(Long targetUserId, Long reviewId, Long commentId, Long mangaId, String content) {
+        if (targetUserId == null || targetUserId <= 0) return;
+        Map<String,Object> body = new HashMap<>();
+        body.put("targetUserId", targetUserId);
+        body.put("reviewId", reviewId);
+        body.put("commentId", commentId);
+        body.put("mangaId", mangaId);
+        body.put("content", content);
+        client().post()
+                .uri("/internal/events/comment-on-review")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(body)
+                .retrieve()
+                .toBodilessEntity()
+                .timeout(java.time.Duration.ofSeconds(2))
+                .doOnError(e -> log.warn("Failed to publish comment-on-review event: {}", e.getMessage()))
+                .onErrorResume(e -> Mono.empty())
+                .subscribe();
+    }
 }
