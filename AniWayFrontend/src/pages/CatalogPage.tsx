@@ -520,6 +520,7 @@ export function CatalogPage() {
               onReset={resetFilters}
               onApply={() => { applyFilters(); setShowFilters(false) }}
               className="h-full"
+              appearance="mobile"
             />
             <span tabIndex={0} aria-hidden className="block outline-none" />
           </div>
@@ -722,6 +723,7 @@ export function CatalogPage() {
                 onFiltersChange={handleFiltersChange}
                 onReset={resetFilters}
                 onApply={applyFilters}
+                appearance="desktop"
               />
             </div>
           </div>

@@ -23,6 +23,7 @@ interface MangaFilterPanelProps {
   onReset: () => void
   onApply?: () => void
   className?: string
+  appearance?: 'desktop' | 'mobile'
 }
 
 // Утилиты форматирования состояния
@@ -61,13 +62,13 @@ interface RowProps {
   children: React.ReactNode
 }
 const FilterRow: React.FC<RowProps> = ({ id, title, summary, isOpen, onToggle, children }) => (
-  <div className="border-b border-white/10" aria-expanded={isOpen} aria-controls={id} role="group">
+  <div className="border-b border-white/10 mobile-filter:rounded-xl mobile-filter:border mobile-filter:border-white/10 mobile-filter:bg-white/5 mobile-filter:shadow-sm mobile-filter:overflow-hidden" aria-expanded={isOpen} aria-controls={id} role="group">
     <button
       onClick={onToggle}
       aria-haspopup="true"
       aria-expanded={isOpen}
       aria-controls={`${id}-content`}
-      className={cn('w-full flex items-center gap-3 py-3 px-2 rounded-lg hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-colors')}
+      className={cn('w-full flex items-center gap-3 py-3 px-2 rounded-lg hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-colors','mobile-filter:px-4 mobile-filter:py-4 mobile-filter:hover:bg-white/10')}
     >
       <div className="flex-1 text-left">
         <div className="text-sm font-medium text-white leading-none mb-1 tracking-tight">{title}</div>
@@ -77,7 +78,7 @@ const FilterRow: React.FC<RowProps> = ({ id, title, summary, isOpen, onToggle, c
         <ChevronRight className="h-4 w-4" />
       </div>
     </button>
-    <div id={`${id}-content`} hidden={!isOpen} className="px-2 pb-4 animate-fade-in">
+    <div id={`${id}-content`} hidden={!isOpen} className="px-2 pb-4 animate-fade-in mobile-filter:px-4 mobile-filter:pb-5">
       {isOpen && children}
     </div>
   </div>
@@ -88,7 +89,8 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
   onFiltersChange,
   onReset,
   onApply,
-  className
+  className,
+  appearance = 'desktop'
 }) => {
   const { genres, tags, isLoadingGenres, isLoadingTags, genresError, tagsError } = useFilterData()
   const [filters, setFilters] = useState<FilterState>(initialFilters || DEFAULTS)
@@ -184,23 +186,47 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
   if (filters.releaseYear.some((v,i)=>v!==DEFAULTS.releaseYear[i])) activeChips.push({ label: `${filters.releaseYear[0]}–${filters.releaseYear[1]}`, onRemove: () => update({ releaseYear: DEFAULTS.releaseYear }), key: 'year' })
   if (filters.chapterRange.some((v,i)=>v!==DEFAULTS.chapterRange[i])) activeChips.push({ label: `${filters.chapterRange[0]}–${filters.chapterRange[1]} гл.`, onRemove: () => update({ chapterRange: DEFAULTS.chapterRange }), key: 'chapters' })
 
+  const isMobile = appearance === 'mobile'
+
   return (
-    <div className={cn('w-80 glass-panel overflow-hidden flex flex-col h-full max-h-full', className)}>
-      {/* Sticky header (mobile + desktop) */}
-      <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b border-white/10 backdrop-blur-md bg-background/70">
+    <div className={cn(
+      'flex flex-col h-full max-h-full',
+      isMobile ? 'w-full rounded-none bg-[#0f0f10] text-white' : 'w-80 glass-panel overflow-hidden rounded-xl'
+    , className)}>
+      {/* Header */}
+      <div className={cn('sticky top-0 z-20 flex items-center justify-between px-4 py-3 border-b border-white/10 backdrop-blur-md',
+        isMobile ? 'bg-[#0f0f10]/95' : 'bg-background/80')}>        
         <div className="flex items-center gap-2 text-sm font-semibold text-white">
           <Filter className="h-4 w-4 text-primary" /> Фильтры
           {activeChips.length>0 && <span className="text-[11px] font-normal text-muted-foreground">{activeChips.length}</span>}
         </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={resetAll} className="h-8 px-2 text-muted-foreground hover:text-white hover:bg-white/10" aria-label="Сбросить все фильтры"><RotateCcw className="h-4 w-4" /></Button>
-          {onApply && <Button size="sm" onClick={onApply} className="h-8 px-3 bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 text-xs">Применить</Button>}
+          {onApply && !isMobile && <Button size="sm" onClick={onApply} className="h-8 px-3 bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 text-xs">Применить</Button>}
         </div>
       </div>
 
       {/* Active chips bar (mobile emphasis) */}
+      {/* Mobile secondary actions & search */}
+      {isMobile && (
+        <div className="px-4 pt-3 flex items-center gap-2">
+          <Button variant="outline" size="sm" disabled className="h-8 px-3 text-[11px] bg-white/5 border-white/15 text-muted-foreground cursor-not-allowed">Сохранить пресет</Button>
+          <Button variant="ghost" size="sm" onClick={resetAll} className="h-8 px-3 text-[11px] text-muted-foreground hover:text-white hover:bg-white/10">Сбросить</Button>
+        </div>
+      )}
+      {isMobile && (
+        <div className="px-4 mt-2">
+          <div className="relative">
+            <span className="absolute inset-y-0 left-3 flex items-center text-muted-foreground/60">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            </span>
+            <Input value={genreSearch} onChange={e=>setGenreSearch(e.target.value)} placeholder="Поиск по названию" className="pl-10 h-9 bg-white/5 border-white/10 text-sm" />
+          </div>
+        </div>
+      )}
+
       {activeChips.length>0 && (
-        <div className="px-4 pt-3 pb-2 overflow-x-auto scrollbar-thin flex gap-2 flex-wrap sm:max-h-none">
+        <div className={cn('px-4 pt-3 pb-2 overflow-x-auto scrollbar-thin flex gap-2 flex-wrap', isMobile && 'bg-transparent mt-1')}>        
           {activeChips.map(c => (
             <button
               key={c.key}
@@ -219,7 +245,7 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
       )}
 
       {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto divide-y divide-white/10 px-0 pb-20 scrollbar-custom">
+      <div className={cn('flex-1 overflow-y-auto px-0 pb-20 scrollbar-custom', isMobile ? 'space-y-2 pt-2' : 'divide-y divide-white/10')}>        
         <FilterRow id="row-genres" title="Жанры" summary={rowSummary.genres} isOpen={openRow==='genres'} onToggle={()=>setOpenRow(openRow==='genres'?null:'genres')}>
           {isLoadingGenres ? (
             <div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><Loader2 className="h-4 w-4 animate-spin" /> Загрузка...</div>
@@ -296,10 +322,12 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
       </div>
 
       {/* Sticky bottom bar (mobile) */}
-      <div className="sticky bottom-0 mt-auto bg-background/80 backdrop-blur-xl border-t border-white/10 px-4 py-3 flex gap-3 sm:hidden">
-        <Button variant="outline" onClick={resetAll} className="flex-1 h-10 bg-white/5 border-white/15 text-muted-foreground hover:bg-white/10 hover:text-white" aria-label="Сбросить фильтры">Сброс</Button>
-        {onApply && <Button onClick={onApply} className="flex-1 h-10 bg-primary/70 text-white font-semibold hover:bg-primary/80 shadow-lg shadow-primary/30" aria-label="Применить фильтры">Применить</Button>}
-      </div>
+      {isMobile && (
+        <div className="sticky bottom-0 mt-auto bg-[#0f0f10]/95 backdrop-blur-xl border-t border-white/10 px-4 py-3 flex gap-3 sm:hidden">
+          <Button variant="outline" onClick={resetAll} className="flex-1 h-10 bg-white/5 border-white/15 text-muted-foreground hover:bg-white/10 hover:text-white" aria-label="Сбросить фильтры">Сброс</Button>
+          {onApply && <Button onClick={onApply} className="flex-1 h-10 bg-primary/70 text-white font-semibold hover:bg-primary/80 shadow-lg shadow-primary/30" aria-label="Применить фильтры">Применить</Button>}
+        </div>
+      )}
     </div>
   )
 }
