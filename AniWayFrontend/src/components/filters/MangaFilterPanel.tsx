@@ -194,7 +194,7 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
       isMobile ? 'w-full rounded-none bg-[#0f0f10] text-white' : 'w-80 glass-panel overflow-hidden rounded-xl'
     , className)}>
       {/* Header */}
-      <div className={cn('sticky top-0 z-20 flex items-center justify-between px-4 py-3 border-b border-white/10 backdrop-blur-md',
+      <div className={cn('sticky top-0 z-20 flex items-center justify-between px-4 py-3 border-b border-white/10 divide-white/10',
         isMobile ? 'bg-[#0f0f10]/95' : 'bg-background/80')}>        
         <div className="flex items-center gap-2 text-sm font-semibold text-white">
           <Filter className="h-4 w-4 text-primary" /> Фильтры
