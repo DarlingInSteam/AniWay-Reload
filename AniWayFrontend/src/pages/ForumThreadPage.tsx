@@ -1,6 +1,7 @@
 import { useParams, Link } from 'react-router-dom'
-import { useForumThread, useThreadPosts, useCreatePost } from '@/hooks/useForum'
-import { ForumPostItem } from '@/components/forum/ForumPostItem'
+import { useForumThread, useThreadPosts, useCreatePost, usePostTree, useThreadReaction } from '@/hooks/useForum'
+import { PostTree } from '@/components/forum/PostTree'
+import { ReactionButtons } from '@/components/forum/ReactionButtons'
 import { ForumPostEditor } from '@/components/forum/ForumPostEditor'
 import { ArrowLeft } from 'lucide-react'
 import { useEffect } from 'react'
@@ -9,7 +10,9 @@ export function ForumThreadPage() {
   const { threadId } = useParams()
   const id = threadId ? parseInt(threadId) : undefined
   const { data: thread } = useForumThread(id)
-  const { data: postsData, isLoading } = useThreadPosts(id, 0, 50)
+  const { data: postsData, isLoading: isLoadingPosts } = useThreadPosts(id, 0, 30)
+  const { data: tree } = usePostTree(id, { maxDepth: 5, maxTotal: 800, pageSize: 30 })
+  const threadReaction = useThreadReaction(id || 0, thread?.userReaction)
   const createPost = useCreatePost()
 
   useEffect(()=>{ if(thread) document.title = thread.title + ' | Форум'},[thread])
@@ -24,14 +27,25 @@ export function ForumThreadPage() {
           <span>/</span>
           <span className="text-white">{thread?.title || '...'}</span>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-          <h1 className="mb-4 text-2xl font-bold leading-tight tracking-tight text-white">{thread?.title || '...'}</h1>
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <h1 className="text-2xl font-bold leading-tight tracking-tight text-white">{thread?.title || '...'}</h1>
+            {thread && (
+              <ReactionButtons
+                userReaction={thread.userReaction}
+                likes={thread.likesCount}
+                dislikes={0 /* нет отдельного счётчика дизлайков у thread */}
+                busy={threadReaction.isPending}
+                onChange={(n)=> threadReaction.mutate(n)}
+              />
+            )}
+          </div>
           <div className="prose prose-invert max-w-none text-sm leading-relaxed">{thread?.content}</div>
         </div>
         <section className="space-y-4">
           <h2 className="text-lg font-semibold text-white">Ответы</h2>
-          {isLoading && <div className="text-sm text-muted-foreground">Загрузка...</div>}
-          {postsData && postsData.content.map(p => <ForumPostItem key={p.id} post={p} />)}
+          {isLoadingPosts && <div className="text-sm text-muted-foreground">Загрузка...</div>}
+          {tree && <PostTree posts={tree} threadId={id!} />}
         </section>
         {thread && (
           <div>

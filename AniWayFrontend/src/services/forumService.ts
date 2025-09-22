@@ -70,6 +70,16 @@ class ForumService {
     return (apiClient as any).request(`/forum/threads/${threadId}/posts?${sp.toString()}`)
   }
 
+  // Posts Tree
+  async getPostTree(threadId: number, opts: { maxDepth?: number; maxTotal?: number; pageSize?: number } = {}): Promise<ForumPost[]> {
+    const p = new URLSearchParams()
+    if (opts.maxDepth) p.append('maxDepth', String(opts.maxDepth))
+    if (opts.maxTotal) p.append('maxTotal', String(opts.maxTotal))
+    if (opts.pageSize) p.append('pageSize', String(opts.pageSize))
+    const q = p.toString()
+    return (apiClient as any).request(`/forum/threads/${threadId}/posts/tree${q ? '?' + q : ''}`)
+  }
+
   async createPost(body: CreatePostRequest): Promise<ForumPost> {
     return (apiClient as any).request(`/forum/threads/${body.threadId}/posts`, { method: 'POST', body: JSON.stringify(body) })
   }
@@ -80,6 +90,20 @@ class ForumService {
 
   async deletePost(id: number): Promise<void> {
     await (apiClient as any).request(`/forum/posts/${id}`, { method: 'DELETE' })
+  }
+
+  // Reactions
+  async reactToThread(threadId: number, type: 'LIKE' | 'DISLIKE'): Promise<void> {
+    await (apiClient as any).request(`/forum/threads/${threadId}/reactions?type=${type}`, { method: 'POST' })
+  }
+  async removeThreadReaction(threadId: number): Promise<void> {
+    await (apiClient as any).request(`/forum/threads/${threadId}/reactions`, { method: 'DELETE' })
+  }
+  async reactToPost(postId: number, type: 'LIKE' | 'DISLIKE'): Promise<void> {
+    await (apiClient as any).request(`/forum/posts/${postId}/reactions?type=${type}`, { method: 'POST' })
+  }
+  async removePostReaction(postId: number): Promise<void> {
+    await (apiClient as any).request(`/forum/posts/${postId}/reactions`, { method: 'DELETE' })
   }
 }
 

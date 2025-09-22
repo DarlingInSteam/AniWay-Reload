@@ -91,6 +91,7 @@ export function useCreatePost() {
     mutationFn: (data: CreatePostRequest) => forumService.createPost(data),
     onSuccess: (post) => {
       qc.invalidateQueries({ queryKey: ['forum','posts', post.threadId] })
+      qc.invalidateQueries({ queryKey: ['forum','postTree', post.threadId] })
       qc.invalidateQueries({ queryKey: ['forum','thread', post.threadId] })
     }
   })
@@ -112,6 +113,53 @@ export function useDeletePost() {
     mutationFn: (id: number) => forumService.deletePost(id),
     onSuccess: () => {
       // caller provides own invalidation if needed
+    }
+  })
+}
+
+// Post Tree
+export function usePostTree(threadId?: number, opts: { maxDepth?: number; maxTotal?: number; pageSize?: number } = {}) {
+  return useQuery({
+    queryKey: ['forum','postTree', threadId, opts],
+    queryFn: () => forumService.getPostTree(threadId!, opts),
+    enabled: !!threadId
+  })
+}
+
+// Reactions (thread)
+export function useThreadReaction(threadId: number, currentReaction?: 'LIKE'|'DISLIKE'|null) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (next: 'LIKE'|'DISLIKE'|null) => {
+      if (next === null && currentReaction) {
+        await forumService.removeThreadReaction(threadId)
+        return next
+      }
+      if (next) await forumService.reactToThread(threadId, next)
+      return next
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['forum','thread', threadId] })
+      qc.invalidateQueries({ queryKey: ['forum','threads'] })
+    }
+  })
+}
+
+// Reactions (post)
+export function usePostReaction(postId: number, threadId: number, currentReaction?: 'LIKE'|'DISLIKE'|null) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (next: 'LIKE'|'DISLIKE'|null) => {
+      if (next === null && currentReaction) {
+        await forumService.removePostReaction(postId)
+        return next
+      }
+      if (next) await forumService.reactToPost(postId, next)
+      return next
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['forum','posts', threadId] })
+      qc.invalidateQueries({ queryKey: ['forum','postTree', threadId] })
     }
   })
 }

@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Value
-@Builder
+@Builder(toBuilder = true)
 public class ForumPostResponse {
     Long id;
     Long threadId;
