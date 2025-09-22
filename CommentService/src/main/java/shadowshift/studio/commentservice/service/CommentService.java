@@ -115,9 +115,12 @@ public class CommentService {
                 }
             } else if (savedComment.getType() == CommentType.REVIEW) {
                 // comment on review (root only) -> notify review author
+                log.debug("Review comment detected: target(reviewId)={}, commentId={}", savedComment.getTargetId(), savedComment.getId());
                 Long reviewAuthor = reviewAuthorClient.findReviewAuthorId(savedComment.getTargetId());
+                log.debug("Resolved reviewAuthor={} for reviewId={}", reviewAuthor, savedComment.getTargetId());
                 if (reviewAuthor != null && !reviewAuthor.equals(userId)) {
                     targetUserId = reviewAuthor;
+                    log.debug("Publishing comment-on-review notification: targetUserId={}, commentId={}", targetUserId, savedComment.getId());
                     notificationEventPublisher.publishCommentOnReview(
                             targetUserId,
                             savedComment.getTargetId(), // reviewId
