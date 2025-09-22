@@ -216,6 +216,12 @@
 
 .skeleton-block { @apply bg-white/10 rounded-md; }
 
+/* Fade mask for scrollable areas (top & bottom subtle gradient) */
+.scroll-fade-mask {
+  mask-image: linear-gradient(to bottom, transparent, black 16px, black calc(100% - 16px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 16px, black calc(100% - 16px), transparent 100%);
+}
+
 
 /* Специальные стили для карточек манги */
 .manga-card {
