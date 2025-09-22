@@ -59,6 +59,7 @@ public class SecurityConfig {
                 // Реакции
                 .requestMatchers("/api/forum/threads/*/reactions").hasRole("USER")
                 .requestMatchers("/api/forum/posts/*/reactions").hasRole("USER")
+                .requestMatchers(HttpMethod.POST, "/api/forum/threads/**").hasRole("USER")
                 
                 // Actuator endpoint'ы
                 .requestMatchers("/actuator/health").permitAll()
