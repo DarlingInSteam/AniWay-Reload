@@ -611,12 +611,12 @@ export function CatalogPage() {
                       grid-cols-2
                       [grid-auto-rows:auto]
                       gap-2.5 xs:gap-3 sm:gap-4 lg:gap-5 xl:gap-6
-                      sm:[grid-template-columns:repeat(auto-fit,minmax(150px,1fr))]
-                      md:[grid-template-columns:repeat(auto-fit,minmax(160px,1fr))]
-                      lg:[grid-template-columns:repeat(auto-fit,minmax(170px,1fr))]
-                      xl:[grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]
-                      2xl:[grid-template-columns:repeat(auto-fit,minmax(190px,1fr))]
-                      items-start animate-fade-in">
+                      sm:[grid-template-columns:repeat(auto-fill,minmax(170px,1fr))]
+                      md:[grid-template-columns:repeat(auto-fill,minmax(175px,1fr))]
+                      lg:[grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]
+                      xl:[grid-template-columns:repeat(auto-fill,minmax(185px,1fr))]
+                      2xl:[grid-template-columns:repeat(auto-fill,minmax(190px,1fr))]
+                      items-start place-content-start justify-items-start animate-fade-in max-w-[1400px]">
                       {isLoading && manga.length === 0 && Array.from({ length: pageSize }).map((_, i) => (
                         <MangaCardSkeleton key={i} />
                       ))}
@@ -626,9 +626,7 @@ export function CatalogPage() {
                         </div>
                       )}
                       {manga.length > 0 && manga.map((item: MangaResponseDTO) => (
-                        <div key={item.id} className="w-full max-w-[200px] mx-auto">
-                          <MangaCardWithTooltip manga={item} />
-                        </div>
+                        <MangaCardWithTooltip key={item.id} manga={item} />
                       ))}
                       {isLoading && manga.length > 0 && (
                         <div className="absolute inset-0 bg-background/40 backdrop-blur-[2px] pointer-events-none" aria-hidden />
