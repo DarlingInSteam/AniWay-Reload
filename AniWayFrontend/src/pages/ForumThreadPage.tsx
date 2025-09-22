@@ -40,7 +40,10 @@ export function ForumThreadPage() {
               />
             )}
           </div>
-          <div className="prose prose-invert max-w-none text-sm leading-relaxed">{thread?.content}</div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            Автор: {thread && <Link to={`/user/${thread.authorId}`} className="text-primary hover:underline">{thread.authorName || `Пользователь ${thread.authorId}`}</Link>}
+          </div>
+          <div className="prose prose-invert max-w-none text-sm leading-relaxed mt-2">{thread?.content}</div>
         </div>
         <section className="space-y-4">
           <h2 className="text-lg font-semibold text-white">Ответы</h2>

@@ -2,6 +2,7 @@ import { ForumPost } from '@/types/forum'
 import { useCreatePost, usePostReaction } from '@/hooks/useForum'
 import { ReactionButtons } from './ReactionButtons'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { ForumPostEditor } from './ForumPostEditor'
 
 interface PostNodeProps { post: ForumPost; depth: number; threadId: number }
@@ -16,7 +17,7 @@ function PostNode({ post, depth, threadId }: PostNodeProps) {
       <div className="rounded-lg border border-white/10 bg-white/5 p-3">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
-            <div className="mb-1 text-xs text-muted-foreground">Автор: Пользователь {post.authorId}</div>
+            <div className="mb-1 text-xs text-muted-foreground">Автор: <Link to={`/user/${post.authorId}`} className="text-primary hover:underline">{post.authorName || `Пользователь ${post.authorId}`}</Link></div>
             <div className="whitespace-pre-wrap text-sm leading-relaxed text-white/90">{post.content}</div>
             <div className="mt-2 flex items-center gap-3">
               <ReactionButtons userReaction={post.userReaction} likes={post.likesCount} dislikes={post.dislikesCount} busy={reaction.isPending} onChange={(n)=> reaction.mutate(n)} />
@@ -27,7 +28,7 @@ function PostNode({ post, depth, threadId }: PostNodeProps) {
         </div>
         {replying && (
           <div className="mt-3">
-            <ForumPostEditor submitting={create.isPending} onSubmit={(content)=> create.mutate({ content, threadId, parentPostId: post.id })} placeholder="Ваш ответ..." />
+            <ForumPostEditor submitting={create.isPending} onSubmit={(content)=> create.mutate({ content, threadId, parentPostId: post.id }, { onSuccess: ()=> { setReplying(false) } })} placeholder="Ваш ответ..." />
           </div>
         )}
       </div>

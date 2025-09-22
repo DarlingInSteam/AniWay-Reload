@@ -34,6 +34,10 @@ class ForumService {
     return (apiClient as any).request(`/forum/categories/${id}`)
   }
 
+  async createCategory(body: { name: string; description?: string; icon?: string; color?: string; displayOrder?: number }): Promise<ForumCategory> {
+    return (apiClient as any).request(`/forum/categories`, { method: 'POST', body: JSON.stringify(body) })
+  }
+
   // Threads
   async getThreads(params: { categoryId?: number; page?: number; size?: number } = {}): Promise<PaginatedResponse<ForumThread>> {
     const search = new URLSearchParams()

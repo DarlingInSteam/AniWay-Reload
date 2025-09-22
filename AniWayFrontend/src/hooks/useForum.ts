@@ -117,6 +117,17 @@ export function useDeletePost() {
   })
 }
 
+// Categories (admin)
+export function useCreateCategory() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { name: string; description?: string; icon?: string; color?: string; displayOrder?: number }) => forumService.createCategory(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['forum','categories'] })
+    }
+  })
+}
+
 // Post Tree
 export function usePostTree(threadId?: number, opts: { maxDepth?: number; maxTotal?: number; pageSize?: number } = {}) {
   return useQuery({
@@ -138,7 +149,22 @@ export function useThreadReaction(threadId: number, currentReaction?: 'LIKE'|'DI
       if (next) await forumService.reactToThread(threadId, next)
       return next
     },
-    onSuccess: () => {
+    onMutate: async (next) => {
+      await qc.cancelQueries({ queryKey: ['forum','thread', threadId] })
+      const prev = qc.getQueryData<any>(['forum','thread', threadId])
+      if (prev) {
+        const likeDelta = (()=>{
+          if (prev.userReaction === 'LIKE' && next === null) return -1
+          if (prev.userReaction === 'LIKE' && next === 'DISLIKE') return -1
+          if (prev.userReaction !== 'LIKE' && next === 'LIKE') return 1
+          return 0
+        })()
+        qc.setQueryData(['forum','thread', threadId], { ...prev, userReaction: next, likesCount: prev.likesCount + likeDelta })
+      }
+      return { prev }
+    },
+    onError: (_e,_v,ctx) => { if (ctx?.prev) qc.setQueryData(['forum','thread', threadId], ctx.prev) },
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: ['forum','thread', threadId] })
       qc.invalidateQueries({ queryKey: ['forum','threads'] })
     }
@@ -157,8 +183,28 @@ export function usePostReaction(postId: number, threadId: number, currentReactio
       if (next) await forumService.reactToPost(postId, next)
       return next
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['forum','posts', threadId] })
+    onMutate: async (next) => {
+      await qc.cancelQueries({ queryKey: ['forum','postTree', threadId] })
+      const prevTree = qc.getQueryData<any>(['forum','postTree', threadId])
+      if (prevTree) {
+        const update = (nodes: any[]): any[] => nodes.map(n => {
+          if (n.id === postId) {
+            const likeDelta = (()=>{
+              if (n.userReaction === 'LIKE' && next === null) return -1
+              if (n.userReaction === 'LIKE' && next === 'DISLIKE') return -1
+              if (n.userReaction !== 'LIKE' && next === 'LIKE') return 1
+              return 0
+            })()
+            return { ...n, userReaction: next, likesCount: n.likesCount + likeDelta }
+          }
+          return n.replies ? { ...n, replies: update(n.replies) } : n
+        })
+        qc.setQueryData(['forum','postTree', threadId], update(prevTree))
+      }
+      return { prevTree }
+    },
+    onError: (_e,_v,ctx) => { if (ctx?.prevTree) qc.setQueryData(['forum','postTree', threadId], ctx.prevTree) },
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: ['forum','postTree', threadId] })
     }
   })
