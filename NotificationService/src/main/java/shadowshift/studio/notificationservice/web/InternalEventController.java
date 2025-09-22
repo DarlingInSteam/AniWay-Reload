@@ -19,13 +19,13 @@ public class InternalEventController {
 
     @PostMapping("/comment-created")
     public ResponseEntity<Void> commentCreated(@RequestBody CommentCreatedEvent body) {
-        String payload = toJson(Map.of(
-                "commentId", body.getCommentId(),
-                "mangaId", body.getMangaId(),
-                "chapterId", body.getChapterId(),
-                "replyToCommentId", body.getReplyToCommentId(),
-                "excerpt", truncate(body.getContent(), 120)
-        ));
+    java.util.Map<String,Object> map = new java.util.LinkedHashMap<>();
+    map.put("commentId", body.getCommentId());
+    map.put("mangaId", body.getMangaId());
+    map.put("chapterId", body.getChapterId());
+    map.put("replyToCommentId", body.getReplyToCommentId());
+    map.put("excerpt", truncate(body.getContent(), 120));
+    String payload = toJson(map);
     // Mapping assumption: direct comment creation for user's content -> PROFILE_COMMENT (placeholder until refined types added)
     facade.createBasic(body.getTargetUserId(), NotificationType.PROFILE_COMMENT, payload, null);
         return ResponseEntity.accepted().build();
