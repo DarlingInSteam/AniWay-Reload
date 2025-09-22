@@ -45,14 +45,14 @@ services:
       - SPRING_DATASOURCE_USERNAME=authuser
       - SPRING_DATASOURCE_PASSWORD=authpass123
       # --- Email verification / SMTP (set real secrets via .env or CI vars) ---
-      - MAIL_HOST=${MAIL_HOST:smtp.gmail.com}
-      - MAIL_PORT=${MAIL_PORT:587}
-      - MAIL_USERNAME=${MAIL_USERNAME:artempronko241@gmail.com}
-      - MAIL_PASSWORD=${MAIL_PASSWORD:}
-      - MAIL_AUTH=${MAIL_AUTH:true}
-      - MAIL_STARTTLS=${MAIL_STARTTLS:true}
-      - EMAIL_VERIFICATION_ENABLED=${EMAIL_VERIFICATION_ENABLED:true}
-      - EMAIL_VERIFICATION_FROM=${EMAIL_VERIFICATION_FROM:${MAIL_USERNAME}}
+      - MAIL_HOST=${MAIL_HOST:-smtp.gmail.com}
+      - MAIL_PORT=${MAIL_PORT:-587}
+      - MAIL_USERNAME=${MAIL_USERNAME:-artempronko241@gmail.com}
+      - MAIL_PASSWORD=${MAIL_PASSWORD:-CHANGE_ME_APP_PASSWORD}
+      - MAIL_AUTH=${MAIL_AUTH:-true}
+      - MAIL_STARTTLS=${MAIL_STARTTLS:-true}
+      - EMAIL_VERIFICATION_ENABLED=${EMAIL_VERIFICATION_ENABLED:-true}
+      - EMAIL_VERIFICATION_FROM=${EMAIL_VERIFICATION_FROM:-artempronko241@gmail.com}
     restart: unless-stopped
     depends_on:
       - auth-postgres
