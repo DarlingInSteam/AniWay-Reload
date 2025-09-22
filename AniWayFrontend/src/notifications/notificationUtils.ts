@@ -70,3 +70,56 @@ export function formatDate(epochMs?: number | null): string {
   const d = new Date(epochMs);
   return d.toLocaleString('ru-RU', {hour12:false});
 }
+
+// Determine navigation target (path + optional anchor) based on type/payload
+export function getNavigationTarget(type: string, payload: NotificationPayload): string | null {
+  if (!payload) return null;
+  switch (type) {
+    case 'PROFILE_COMMENT': {
+      // navigate to profile of current user (handled outside) -> return generic path
+      return '/profile';
+    }
+    case 'REPLY_TO_COMMENT': {
+      // For replies we need context: commentType and related ids
+      const ctype = payload.commentType;
+      const commentId = payload.commentId || payload.replyToCommentId || payload.comment_id; // fallback possibilities
+      if (ctype === 'MANGA' && payload.mangaId) {
+        return `/manga/${payload.mangaId}#comment-${commentId}`;
+      }
+      if (ctype === 'CHAPTER' && payload.chapterId) {
+        return `/reader/${payload.chapterId}#comment-${commentId}`;
+      }
+      if (ctype === 'REVIEW' && payload.reviewId) {
+        return `/manga/${payload.mangaId || ''}?review=${payload.reviewId}#comment-${commentId}`;
+      }
+      if (ctype === 'PROFILE') {
+        return `/profile#comment-${commentId}`;
+      }
+      // fallback: maybe manga context present
+      if (payload.chapterId) return `/reader/${payload.chapterId}#comment-${commentId}`;
+      if (payload.mangaId) return `/manga/${payload.mangaId}#comment-${commentId}`;
+      return '/profile';
+    }
+    case 'COMMENT_ON_REVIEW': {
+      if (payload.reviewId) {
+        return `/manga/${payload.mangaId || ''}?review=${payload.reviewId}#comment-${payload.commentId}`;
+      }
+      return payload.mangaId ? `/manga/${payload.mangaId}` : '/';
+    }
+    case 'NEW_COMMENT_ON_USER_FORUM_THREAD':
+    case 'REPLY_IN_FORUM_THREAD': {
+      if (payload.threadId) {
+        const postAnchor = payload.postId ? `#post-${payload.postId}` : '';
+        return `/forum/thread/${payload.threadId}${postAnchor}`;
+      }
+      return '/forum';
+    }
+    case 'BOOKMARK_NEW_CHAPTER': {
+      if (payload.chapterId) return `/reader/${payload.chapterId}`;
+      if (payload.mangaId) return `/manga/${payload.mangaId}`;
+      return '/';
+    }
+    default:
+      return null;
+  }
+}

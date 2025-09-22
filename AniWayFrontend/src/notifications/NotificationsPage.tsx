@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNotifications } from './NotificationContext';
-import { parsePayload, formatTitle, formatDescription, formatDate, getIcon } from './notificationUtils';
+import { parsePayload, formatTitle, formatDescription, formatDate, getIcon, getNavigationTarget } from './notificationUtils';
+import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/authService';
 
 interface NotificationItem {
@@ -13,6 +14,7 @@ interface NotificationItem {
 
 export const NotificationsPage: React.FC = () => {
   const { items: realtimeItems, markRead, markAll } = useNotifications();
+  const navigate = useNavigate();
   const [pages, setPages] = useState<NotificationItem[][]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
@@ -76,7 +78,7 @@ export const NotificationsPage: React.FC = () => {
         </div>
       </div>
       <div className="space-y-2">
-        {merged.map(n => <Row key={n.id} n={n} onClick={() => markRead([n.id])} />)}
+  {merged.map(n => <Row key={n.id} n={n} onActivate={(target) => { markRead([n.id]); if (target) navigate(target); }} />)}
       </div>
       {!end && <div ref={sentinelRef} className="h-10" />}
       {loading && <div className="text-center py-4 text-neutral-500 text-sm">Загрузка...</div>}
@@ -85,13 +87,14 @@ export const NotificationsPage: React.FC = () => {
   );
 };
 
-const Row: React.FC<{ n: NotificationItem; onClick: () => void }> = ({ n, onClick }) => {
+const Row: React.FC<{ n: NotificationItem; onActivate: (target: string | null) => void }> = ({ n, onActivate }) => {
   const parsed = parsePayload(n.payload);
   const title = formatTitle(n.type, parsed);
   const desc = formatDescription(n.type, parsed);
   const icon = getIcon(n.type);
+  const target = getNavigationTarget(n.type, parsed);
   return (
-    <div onClick={onClick} className={`p-3 rounded border border-neutral-800 bg-neutral-900 hover:bg-neutral-800 transition cursor-pointer ${n.status==='UNREAD' ? 'shadow-inner' : ''}`}>
+    <div onClick={() => onActivate(target)} className={`p-3 rounded border border-neutral-800 bg-neutral-900 hover:bg-neutral-800 transition cursor-pointer ${n.status==='UNREAD' ? 'shadow-inner' : ''}`}>
       <div className="flex items-start gap-3">
         <div className="text-lg leading-none mt-0.5">{icon}</div>
         <div className="flex-1 min-w-0">

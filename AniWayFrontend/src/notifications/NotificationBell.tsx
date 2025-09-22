@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNotifications } from './NotificationContext';
 import { deleteAll } from './api';
-import { parsePayload, formatTitle, formatDescription, formatDate, getIcon } from './notificationUtils';
+import { parsePayload, formatTitle, formatDescription, formatDate, getIcon, getNavigationTarget } from './notificationUtils';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/authService';
 
@@ -15,9 +15,19 @@ export const NotificationBell: React.FC = () => {
   const toggle = () => setOpen(o => !o);
   const unreadItems = items.filter(i => i.status === 'UNREAD');
 
-  const handleItemClick = (id: number, payload: string) => {
-    // Placeholder: open details / navigate; mark read
-    markRead([id]);
+  const handleItemClick = (id: number, rawPayload: string, type: string) => {
+    try {
+      const parsed = parsePayload(rawPayload);
+      const target = getNavigationTarget(type, parsed);
+      markRead([id]);
+      if (target) {
+        setOpen(false);
+        // Defer navigation slightly so state updates flush
+        setTimeout(() => navigate(target), 0);
+      }
+    } catch {
+      markRead([id]);
+    }
   };
 
   useEffect(() => {
@@ -34,7 +44,7 @@ export const NotificationBell: React.FC = () => {
   return (
     <div className="relative inline-block text-left" ref={ref}>
       <button onClick={toggle} className="relative p-2 rounded hover:bg-neutral-800 transition" aria-label="Уведомления">
-        <span className="text-xl">🔔</span>
+        <BellIcon className="w-5 h-5 text-neutral-300" />
         {unread > 0 && (
           <span className="absolute -top-0.5 -right-0.5 bg-red-600 text-white text-[10px] px-1 rounded-full">{unread}</span>
         )}
@@ -51,7 +61,7 @@ export const NotificationBell: React.FC = () => {
           </div>
           <div className="flex-1 overflow-auto divide-y divide-neutral-800">
             {items.length === 0 && <div className="p-4 text-xs text-neutral-400">Пусто</div>}
-            {items.map(n => <NotificationRow key={n.id} n={n} onClick={() => handleItemClick(n.id, n.payload)} />)}
+            {items.map(n => <NotificationRow key={n.id} n={n} onClick={() => handleItemClick(n.id, n.payload, n.type)} />)}
           </div>
           <div className="p-2 flex items-center justify-between gap-2 border-t border-neutral-700 bg-neutral-950">
             <div className="flex gap-2">
@@ -86,3 +96,18 @@ function NotificationRow({ n, onClick }: { n: any, onClick: () => void }) {
     </div>
   );
 }
+
+const BellIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M18 15.5V11a6 6 0 1 0-12 0v4.5l-1.5 2h15z" />
+    <path d="M9.5 19a2.5 2.5 0 0 0 5 0" />
+  </svg>
+);
