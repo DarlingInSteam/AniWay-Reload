@@ -118,8 +118,8 @@ export function CommentItem({
   const computedAvatar = useResolvedAvatar(comment.userId, primaryProvided)
 
   return (
-    <div className={cn(
-      "p-4 rounded-3xl bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/10 transition-colors group",
+    <div id={`comment-${comment.id}`} className={cn(
+      "p-4 rounded-3xl bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/10 transition-colors group target-comment",
       level > 0 && "ml-6"
     )}>
       {/* Заголовок комментария */}
