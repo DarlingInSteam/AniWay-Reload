@@ -7,7 +7,7 @@ import { PostTree } from '@/components/forum/PostTree'
 import { ReactionButtons } from '@/components/forum/ReactionButtons'
 import { ForumPostEditor } from '@/components/forum/ForumPostEditor'
 import { ArrowLeft } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useUpdateThread, useDeleteThread, useUpdatePost, useDeletePost } from '@/hooks/useForum'
 
 export function ForumThreadPage() {
@@ -23,6 +23,31 @@ export function ForumThreadPage() {
   const deleteThread = useDeleteThread()
   const [editingThread, setEditingThread] = useState(false)
   const [threadDraft, setThreadDraft] = useState<{title:string; content:string}>({ title: thread?.title || '', content: thread?.content || '' })
+  const editSaveTimer = useRef<any>(null)
+  // Load saved edit draft if present when entering edit mode
+  useEffect(()=> {
+    if(editingThread && thread?.id){
+      try {
+        const key = `forum.threadEditDraft.${thread.id}`
+        const raw = localStorage.getItem(key)
+        if(raw){
+          const parsed = JSON.parse(raw)
+          if(parsed?.title || parsed?.content){
+            setThreadDraft({ title: parsed.title ?? thread.title, content: parsed.content ?? thread.content })
+          }
+        }
+      } catch {}
+    }
+  }, [editingThread, thread?.id])
+  // Autosave edit draft
+  useEffect(()=> {
+    if(!editingThread || !thread?.id) return
+    if(editSaveTimer.current) clearTimeout(editSaveTimer.current)
+    editSaveTimer.current = setTimeout(()=> {
+      try { localStorage.setItem(`forum.threadEditDraft.${thread.id}`, JSON.stringify(threadDraft)) } catch {}
+    }, 500)
+    return () => { if(editSaveTimer.current) clearTimeout(editSaveTimer.current) }
+  }, [threadDraft, editingThread, thread?.id])
 
   useEffect(()=> { if(thread){ setThreadDraft({ title: thread.title, content: thread.content }) } }, [thread])
 
@@ -71,9 +96,9 @@ export function ForumThreadPage() {
             <span>Автор: {thread && (()=> { const u = users[thread.authorId]; const name = u?.displayName || thread.authorName || `Пользователь ${thread.authorId}`; const avatar = u?.avatar || thread.authorAvatar; return <Link to={`/profile/${buildProfileSlug(thread.authorId, name)}`} className="flex items-center gap-2 text-primary hover:underline"><AvatarMini avatar={avatar} name={name} />{name}</Link> })()}</span>
             {thread?.canEdit && !editingThread && <button onClick={()=> setEditingThread(true)} className="rounded bg-white/10 px-2 py-1 hover:bg-white/20 text-white/80 text-[11px]">Редактировать</button>}
             {thread?.canEdit && editingThread && <button onClick={()=> {
-              updateThread.mutate(threadDraft, { onSuccess: ()=> setEditingThread(false) })
+              updateThread.mutate(threadDraft, { onSuccess: ()=> { setEditingThread(false); try { localStorage.removeItem(`forum.threadEditDraft.${thread.id}`) } catch {} } })
             }} disabled={updateThread.isPending} className="rounded bg-emerald-600/80 px-2 py-1 text-white text-[11px] disabled:opacity-50">Сохранить</button>}
-            {editingThread && <button onClick={()=> { setEditingThread(false); setThreadDraft({ title: thread?.title||'', content: thread?.content||'' }) }} className="rounded bg-white/5 px-2 py-1 text-white/70 text-[11px] hover:bg-white/10">Отмена</button>}
+            {editingThread && <button onClick={()=> { setEditingThread(false); setThreadDraft({ title: thread?.title||'', content: thread?.content||'' }); if(thread?.id) try { localStorage.removeItem(`forum.threadEditDraft.${thread.id}`) } catch {} }} className="rounded bg-white/5 px-2 py-1 text-white/70 text-[11px] hover:bg-white/10">Отмена</button>}
             {thread?.canDelete && <button onClick={()=> { if(confirm('Удалить тему?')) deleteThread.mutate(thread.id) }} className="rounded bg-red-600/80 px-2 py-1 text-white text-[11px] hover:bg-red-600">Удалить</button>}
           </div>
           {editingThread ? (
@@ -90,7 +115,7 @@ export function ForumThreadPage() {
         {thread && (
           <div>
             <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Новый ответ</h3>
-            <ForumPostEditor onSubmit={(content)=> createPost.mutate({ content, threadId: thread.id })} submitting={createPost.isPending} />
+            <ForumPostEditor draftKey={`${thread.id}-root`} onSubmit={(content)=> createPost.mutate({ content, threadId: thread.id })} submitting={createPost.isPending} />
           </div>
         )}
       </div>

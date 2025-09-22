@@ -53,7 +53,7 @@ function PostNode({ post, depth, threadId, users }: PostNodeProps) {
         </div>
         {replying && (
           <div className="mt-3">
-            <ForumPostEditor submitting={create.isPending} onSubmit={(content)=> create.mutate({ content, threadId, parentPostId: post.id }, { onSuccess: ()=> { setReplying(false) } })} placeholder="Ваш ответ..." />
+            <ForumPostEditor draftKey={`${threadId}-${post.id}`} submitting={create.isPending} onSubmit={(content)=> create.mutate({ content, threadId, parentPostId: post.id }, { onSuccess: ()=> { setReplying(false) } })} placeholder="Ваш ответ..." />
           </div>
         )}
       </div>
