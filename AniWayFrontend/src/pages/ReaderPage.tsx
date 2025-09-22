@@ -832,46 +832,56 @@ export function ReaderPage() {
           wrappersRef={wrappersRef}
         />
 
-        {/* Bottom adaptive navigation */}
-        <div className="border-t border-white/10 bg-black/70 backdrop-blur-sm sticky bottom-0 z-30">
-          <div className="max-w-6xl mx-auto px-3 py-4 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
-            <div className="flex flex-1 items-center gap-2 justify-center sm:justify-start">
-              <button
-                onClick={navigateToPreviousChapter}
-                disabled={!previousChapter}
-                className={cn('px-4 py-2 rounded-lg text-sm font-medium border transition flex items-center gap-2',
-                  previousChapter ? 'bg-white/5 hover:bg-white/10 border-white/10 text-white' : 'bg-white/5 border-white/10 text-white/40 cursor-not-allowed')}
-              >
-                <ChevronLeft className="h-4 w-4" /> Предыдущая
-              </button>
-              <button
-                onClick={() => setShowChapterList(true)}
-                className="px-4 py-2 rounded-lg text-sm font-medium border bg-primary/80 hover:bg-primary border-primary/30 text-white transition"
-              >Список глав</button>
-              <button
-                onClick={navigateToNextChapter}
-                disabled={!nextChapter}
-                className={cn('px-4 py-2 rounded-lg text-sm font-medium border transition flex items-center gap-2',
-                  nextChapter ? 'bg-white/5 hover:bg-white/10 border-white/10 text-white' : 'bg-white/5 border-white/10 text-white/40 cursor-not-allowed')}
-              >
-                Следующая <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="flex flex-wrap justify-center sm:justify-end gap-2">
-              {manga && (
-                <Link
-                  to={`/manga/${manga.id}`}
-                  className="px-4 py-2 rounded-lg text-sm font-medium border bg-white/5 hover:bg-white/10 border-white/10 text-white transition"
-                >Страница манги</Link>
-              )}
-              <button
-                onClick={() => setShowSideComments(true)}
-                className="px-4 py-2 rounded-lg text-sm font-medium border bg-blue-600/80 hover:bg-blue-600 border-blue-500/30 text-white transition flex items-center gap-2"
-              ><MessageCircle className="h-4 w-4" /> Комментарии</button>
-              <button
-                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                className="px-3 py-2 rounded-lg text-sm font-medium border bg-white/5 hover:bg-white/10 border-white/10 text-white/80 transition"
-              >Вверх</button>
+        {/* End-of-chapter action panel */}
+        <div className="mt-12 mb-16">
+          <div className="max-w-6xl mx-auto px-4">
+            <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/5 via-white/5 to-white/[0.03] backdrop-blur-md shadow-xl shadow-black/30 p-6 space-y-6">
+              <div className="flex flex-wrap gap-3 justify-center">
+                <button
+                  onClick={navigateToPreviousChapter}
+                  disabled={!previousChapter}
+                  className={cn('px-4 py-3 rounded-xl text-sm md:text-base font-medium border transition flex items-center gap-2 min-w-[140px] justify-center',
+                    previousChapter ? 'bg-white/7 hover:bg-white/10 border-white/15 text-white' : 'bg-white/5 border-white/10 text-white/35 cursor-not-allowed')}
+                >
+                  <ChevronLeft className="h-5 w-5" /> Предыдущая
+                </button>
+                <button
+                  onClick={() => setShowChapterList(true)}
+                  className="px-5 py-3 rounded-xl text-sm md:text-base font-semibold border bg-primary/85 hover:bg-primary transition border-primary/40 text-white flex items-center gap-2 shadow-md shadow-primary/30"
+                >
+                  <BookOpen className="h-5 w-5" /> Список глав
+                </button>
+                <button
+                  onClick={navigateToNextChapter}
+                  disabled={!nextChapter}
+                  className={cn('px-4 py-3 rounded-xl text-sm md:text-base font-medium border transition flex items-center gap-2 min-w-[140px] justify-center',
+                    nextChapter ? 'bg-white/7 hover:bg-white/10 border-white/15 text-white' : 'bg-white/5 border-white/10 text-white/35 cursor-not-allowed')}
+                >
+                  Следующая <ChevronRight className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-3 justify-center">
+                {manga && (
+                  <Link
+                    to={`/manga/${manga.id}`}
+                    className="px-5 py-3 rounded-xl text-sm md:text-base font-medium border bg-white/6 hover:bg-white/10 border-white/15 text-white transition flex items-center gap-2"
+                  >
+                    <Home className="h-5 w-5" /> Страница манги
+                  </Link>
+                )}
+                <button
+                  onClick={() => setShowSideComments(true)}
+                  className="px-5 py-3 rounded-xl text-sm md:text-base font-medium border bg-blue-600/85 hover:bg-blue-600 border-blue-500/40 text-white transition flex items-center gap-2 shadow-md shadow-blue-600/30"
+                >
+                  <MessageCircle className="h-5 w-5" /> Комментарии
+                </button>
+                <button
+                  onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                  className="px-5 py-3 rounded-xl text-sm md:text-base font-medium border bg-white/6 hover:bg-white/10 border-white/15 text-white/90 transition flex items-center gap-2"
+                >
+                  <ArrowLeft className="h-5 w-5 rotate-90" /> Вверх
+                </button>
+              </div>
             </div>
           </div>
         </div>
