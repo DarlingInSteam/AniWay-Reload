@@ -9,6 +9,7 @@ interface NotificationState {
   refresh: () => Promise<void>;
   markRead: (ids: number[]) => Promise<void>;
   markAll: () => Promise<void>;
+  clearAll: () => Promise<void>;
 }
 
 const Ctx = createContext<NotificationState | undefined>(undefined);
@@ -86,7 +87,13 @@ export const NotificationProvider: React.FC<ProviderProps> = ({ userId, token = 
     setUnread(0);
   };
 
-  const value: NotificationState = { items, unread, loading, loadMore, refresh, markRead: doMarkRead, markAll: doMarkAll };
+  const clearAll = async () => {
+    setItems([]);
+    setUnread(0);
+    setPage(0);
+    setHasMore(false);
+  };
+  const value: NotificationState = { items, unread, loading, loadMore, refresh, markRead: doMarkRead, markAll: doMarkAll, clearAll };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 };
 

@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/authService';
 
 export const NotificationBell: React.FC = () => {
-  const { unread, items, markRead, markAll, loadMore, loading } = useNotifications();
+  const { unread, items, markRead, markAll, loadMore, loading, clearAll } = useNotifications();
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement|null>(null);
@@ -55,7 +55,7 @@ export const NotificationBell: React.FC = () => {
             <span className="text-sm font-semibold">Уведомления</span>
             <div className="flex gap-2 items-center">
               {unread > 0 && <button disabled={busy} className="text-xs text-blue-400 hover:underline disabled:opacity-40" onClick={() => markAll()}>Прочитать все</button>}
-              {items.length > 0 && <button disabled={busy} className="text-xs text-red-400 hover:underline disabled:opacity-40" onClick={async () => { setBusy(true); try { await deleteAll(authService.getToken(), (window as any).currentUserId ); } catch(_){} finally { setBusy(false); } }}>Удалить все</button>}
+              {items.length > 0 && <button disabled={busy} className="text-xs text-red-400 hover:underline disabled:opacity-40" onClick={async () => { setBusy(true); try { await deleteAll(authService.getToken(), (window as any).currentUserId ); await clearAll(); } catch(_){} finally { setBusy(false); } }}>Удалить все</button>}
               <button className="text-xs text-blue-400 hover:underline" onClick={() => setOpen(false)}>Закрыть</button>
             </div>
           </div>

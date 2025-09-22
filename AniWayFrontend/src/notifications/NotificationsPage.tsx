@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNotifications } from './NotificationContext';
+import { deleteAll } from './api';
 import { parsePayload, formatTitle, formatDescription, formatDate, getIcon, getNavigationTarget } from './notificationUtils';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/authService';
@@ -13,7 +14,7 @@ interface NotificationItem {
 }
 
 export const NotificationsPage: React.FC = () => {
-  const { items: realtimeItems, markRead, markAll } = useNotifications();
+  const { items: realtimeItems, markRead, markAll, clearAll } = useNotifications();
   const navigate = useNavigate();
   const [pages, setPages] = useState<NotificationItem[][]>([]);
   const [loading, setLoading] = useState(false);
@@ -73,8 +74,9 @@ export const NotificationsPage: React.FC = () => {
     <div className="max-w-3xl mx-auto px-4 py-6">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-semibold">Уведомления</h1>
-        <div className="flex gap-3">
+        <div className="flex gap-4">
           <button onClick={() => markAll()} className="text-xs text-blue-400 hover:underline">Прочитать все</button>
+          <button onClick={async () => { try { await deleteAll(authService.getToken(), (window as any).currentUserId); await clearAll(); setPages([]); setPage(0); setEnd(true);} catch(e){ console.error(e);} }} className="text-xs text-red-400 hover:underline">Удалить все</button>
         </div>
       </div>
       <div className="space-y-2">
