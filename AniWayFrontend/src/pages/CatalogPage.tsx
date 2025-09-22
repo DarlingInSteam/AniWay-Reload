@@ -576,7 +576,7 @@ export function CatalogPage() {
                           </div>
                         )}
                       </div>
-                      <button onClick={()=>setShowFilters(true)} className="h-10 w-10 flex sm:hidden items-center justify-center rounded-xl bg-white/5 border border-white/10 hover:bg-white/10" aria-label="Фильтры">
+                      <button onClick={()=>setShowFilters(true)} className="h-11 w-11 min-w-[44px] min-h-[44px] flex sm:hidden items-center justify-center rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 active:scale-[0.97] transition" aria-label="Фильтры">
                         <Filter className="h-5 w-5" />
                       </button>
                     </div>
@@ -599,7 +599,16 @@ export function CatalogPage() {
                   {isError ? (
                     <ErrorState onRetry={() => refetch()} />
                   ) : (
-                    <div className="relative grid grid-cols-2 gap-3 sm:gap-4 lg:gap-5 xl:gap-6 auto-rows-auto sm:[grid-template-columns:repeat(auto-fill,minmax(160px,1fr))] md:[grid-template-columns:repeat(auto-fill,minmax(170px,1fr))] lg:[grid-template-columns:repeat(auto-fill,minmax(180px,1fr))] items-start animate-fade-in">
+                    <div className="relative grid
+                      grid-cols-2
+                      [grid-auto-rows:auto]
+                      gap-2.5 xs:gap-3 sm:gap-4 lg:gap-5 xl:gap-6
+                      sm:[grid-template-columns:repeat(auto-fit,minmax(150px,1fr))]
+                      md:[grid-template-columns:repeat(auto-fit,minmax(160px,1fr))]
+                      lg:[grid-template-columns:repeat(auto-fit,minmax(170px,1fr))]
+                      xl:[grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]
+                      2xl:[grid-template-columns:repeat(auto-fit,minmax(190px,1fr))]
+                      items-start animate-fade-in">
                       {isLoading && manga.length === 0 && Array.from({ length: pageSize }).map((_, i) => (
                         <MangaCardSkeleton key={i} />
                       ))}
@@ -624,12 +633,12 @@ export function CatalogPage() {
                     <div className="text-sm text-muted-foreground">
                       Показано {manga?.length || 0} из {totalElements} произведений
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap justify-center">
                       <button
                         onClick={goToFirstPage}
                         disabled={currentPage === 0}
                         className={cn(
-                          'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                          'hidden sm:flex items-center gap-1 px-3 py-2 min-h-[44px] min-w-[44px] rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                           currentPage === 0
                             ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
                             : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
@@ -642,7 +651,7 @@ export function CatalogPage() {
                         onClick={goToPreviousPage}
                         disabled={currentPage === 0}
                         className={cn(
-                          'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                          'flex items-center gap-1 px-3 py-2 min-h-[44px] min-w-[44px] rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                           currentPage === 0
                             ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
                             : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
@@ -660,7 +669,7 @@ export function CatalogPage() {
                               key={pageNum}
                               onClick={() => goToPage(pageNum)}
                               className={cn(
-                                'px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border min-w-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                                  'px-3 py-2 min-h-[44px] min-w-[44px] rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                                 currentPage === pageNum
                                   ? 'bg-primary/20 text-primary border-primary/30 shadow-lg shadow-primary/20'
                                   : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
@@ -675,7 +684,7 @@ export function CatalogPage() {
                         onClick={goToNextPage}
                         disabled={!totalPages || currentPage >= totalPages - 1}
                         className={cn(
-                          'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                          'flex items-center gap-1 px-3 py-2 min-h-[44px] min-w-[44px] rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                           !totalPages || currentPage >= totalPages - 1
                             ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
                             : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
@@ -688,7 +697,7 @@ export function CatalogPage() {
                         onClick={goToLastPage}
                         disabled={!totalPages || currentPage >= totalPages - 1}
                         className={cn(
-                          'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                          'hidden sm:flex items-center gap-1 px-3 py-2 min-h-[44px] min-w-[44px] rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                           !totalPages || currentPage >= totalPages - 1
                             ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
                             : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'

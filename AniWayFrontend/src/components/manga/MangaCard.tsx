@@ -103,7 +103,7 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
   const hiddenGenresCount = rawGenres.length - primaryGenres.length
 
   return (
-    <div className="group flex flex-col space-y-2 md:space-y-3 w-full transition-transform duration-300 will-change-transform hover:-translate-y-1">
+    <div className="group flex flex-col space-y-2 md:space-y-3 w-full transition-transform duration-300 will-change-transform hover:md:-translate-y-1 hover:lg:-translate-y-1 motion-reduce:transform-none">
       {/* Cover Image Card */}
       <Link
         to={`/manga/${manga.id}`}
@@ -114,13 +114,22 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
             ref={imgRef}
             src={manga.coverImageUrl}
             alt={manga.title}
+            width={480}
+            height={640}
             className={cn(
               'manga-cover h-full w-full object-cover transition-[opacity,transform,filter] duration-500 ease-out',
               imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 blur-md scale-[1.03]',
-              'group-hover:scale-105'
+              'group-hover:hover:scale-105'
             )}
             loading="lazy"
             decoding="async"
+            sizes="(max-width: 480px) 45vw, (max-width: 768px) 25vw, (max-width: 1280px) 18vw, 180px"
+            srcSet={[
+              `${manga.coverImageUrl}?w=180 180w`,
+              `${manga.coverImageUrl}?w=240 240w`,
+              `${manga.coverImageUrl}?w=320 320w`,
+              `${manga.coverImageUrl}?w=480 480w`
+            ].join(', ')}
             onLoad={() => setImageLoaded(true)}
             onError={(e) => {
               const target = e.target as HTMLImageElement
@@ -201,7 +210,7 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
 
       {/* Metadata */}
     {showMetadata && (
-  <div className="flex flex-col px-1 h-[3.9rem] md:h-[4.2rem] select-none">
+  <div className="flex flex-col px-1 h-[3.6rem] md:h-[4.2rem] select-none">
           {/* Title - строго фиксированная высота для 2 строк */}
           <Link
             to={`/manga/${manga.id}`}
@@ -214,9 +223,12 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
 
           {/* Genre and Year - строго фиксированная высота */}
           <div className="flex items-center justify-between text-[11px] text-muted-foreground h-4 mb-1 gap-2">
-            <span className="line-clamp-1 flex-1 mr-2 flex items-center gap-1">
-              {primaryGenres.map(g => (
-                <span key={g} className="bg-white/5 px-1.5 py-0.5 rounded-md text-[10px] leading-none text-white/80">{g}</span>
+            <span className="line-clamp-1 flex-1 mr-2 flex items-center gap-1 overflow-hidden">
+              {primaryGenres.map((g,idx) => (
+                <span key={g} className={cn(
+                  'bg-white/5 px-1.5 py-0.5 rounded-md text-[10px] leading-none text-white/80',
+                  idx>0 && 'hidden [@media(min-width:480px)]:inline-flex'
+                )}>{g}</span>
               ))}
               {hiddenGenresCount > 0 && (
                 <span className="bg-white/5 px-1.5 py-0.5 rounded-md text-[10px] leading-none text-white/50">+{hiddenGenresCount}</span>
