@@ -1,4 +1,4 @@
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useForumThread, useThreadPosts, useCreatePost, usePostTree, useThreadReaction } from '@/hooks/useForum'
 import { buildProfileSlug } from '@/utils/profileSlug'
 import { useForumUsers } from '@/hooks/useForumUsers'
@@ -21,6 +21,7 @@ export function ForumThreadPage() {
   const createPost = useCreatePost()
   const updateThread = useUpdateThread(id || 0)
   const deleteThread = useDeleteThread()
+  const navigate = useNavigate()
   const [editingThread, setEditingThread] = useState(false)
   const [threadDraft, setThreadDraft] = useState<{title:string; content:string}>({ title: thread?.title || '', content: thread?.content || '' })
   const editSaveTimer = useRef<any>(null)
@@ -115,7 +116,26 @@ export function ForumThreadPage() {
               updateThread.mutate(threadDraft, { onSuccess: ()=> { setEditingThread(false); try { localStorage.removeItem(`forum.threadEditDraft.${thread.id}`) } catch {} } })
             }} disabled={updateThread.isPending} className="rounded bg-emerald-600/80 px-2 py-1 text-white text-[11px] disabled:opacity-50">Сохранить</button>}
             {editingThread && <button onClick={()=> { setEditingThread(false); setThreadDraft({ title: thread?.title||'', content: thread?.content||'' }); if(thread?.id) try { localStorage.removeItem(`forum.threadEditDraft.${thread.id}`) } catch {} }} className="rounded bg-white/5 px-2 py-1 text-white/70 text-[11px] hover:bg-white/10">Отмена</button>}
-            {thread?.canDelete && <button onClick={()=> { if(confirm('Удалить тему?')) deleteThread.mutate(thread.id) }} className="rounded bg-red-600/80 px-2 py-1 text-white text-[11px] hover:bg-red-600">Удалить</button>}
+            {thread?.canDelete && (
+              <button
+                onClick={() => {
+                  if (deleteThread.isPending) return
+                  if (confirm('Удалить тему?')) {
+                    deleteThread.mutate(thread.id, {
+                      onSuccess: () => {
+                        // После оптимистичного удаления перейти на категорию или общий форум
+                        if (thread?.categoryId) navigate(`/forum/category/${thread.categoryId}`)
+                        else navigate('/forum')
+                      }
+                    })
+                  }
+                }}
+                disabled={deleteThread.isPending}
+                className="rounded bg-red-600/80 px-2 py-1 text-white text-[11px] hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deleteThread.isPending ? 'Удаление...' : 'Удалить'}
+              </button>
+            )}
           </div>
           {editingThread ? (
             <textarea className="w-full min-h-40 rounded bg-black/40 border border-white/10 px-3 py-2 text-sm text-white" value={threadDraft.content} onChange={e=> setThreadDraft(d=> ({...d,content:e.target.value}))} />

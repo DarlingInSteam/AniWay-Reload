@@ -83,7 +83,47 @@ export function useDeleteThread() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => forumService.deleteThread(id),
-    onSuccess: () => {
+    onMutate: async (id: number) => {
+      // Отменяем активные запросы списка тем
+      await qc.cancelQueries({ queryKey: ['forum','threads','infinite'] })
+      // Сохраняем предыдущие данные для отката
+      const prevInfinite = qc.getQueriesData<any>({ queryKey: ['forum','threads','infinite'] })
+      // Для каждого совпавшего ключа (react-query v4 getQueriesData возвращает массив [key,data]) обновляем data
+      prevInfinite.forEach(([key, data]) => {
+        if (!data) return
+        // Ожидаем структуру { pages: PaginatedResponse<ForumThread>[] , pageParams: any[] }
+        if (data.pages) {
+          const nextPages = data.pages.map((p: any) => ({
+            ...p,
+            content: Array.isArray(p.content) ? p.content.filter((t: any) => t.id !== id) : p.content
+          }))
+          qc.setQueryData(key as any, { ...data, pages: nextPages })
+        }
+      })
+      // Также помечаем кеш конкретной темы как удалённый (если открыт)
+      const prevThread = qc.getQueryData<any>(['forum','thread', id])
+      if (prevThread) {
+        qc.setQueryData(['forum','thread', id], { ...prevThread, _deleted: true })
+      }
+      return { prevInfinite, prevThread }
+    },
+    onError: (_err,_vars,ctx) => {
+      // Откатываем изменения
+      if (ctx?.prevInfinite) {
+        ctx.prevInfinite.forEach(([key, data]: any) => {
+          qc.setQueryData(key, data)
+        })
+      }
+      if (ctx?.prevThread) {
+        qc.setQueryData(['forum','thread', ctx.prevThread.id], ctx.prevThread)
+      }
+    },
+    onSuccess: (_,_vars) => {
+      // Инвалидации для актуализации статистик
+      qc.invalidateQueries({ queryKey: ['forum','categories'] })
+    },
+    onSettled: (_,_e,_v) => {
+      qc.invalidateQueries({ queryKey: ['forum','threads','infinite'] })
       qc.invalidateQueries({ queryKey: ['forum','threads'] })
     }
   })
