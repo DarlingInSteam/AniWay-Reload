@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { MessageSquare, Eye, Heart, Pin, Lock } from 'lucide-react'
 import { AvatarMini } from './AvatarMini'
 import { buildProfileSlug } from '@/utils/profileSlug'
+import { Badge } from '@/components/ui/badge'
 
 interface Props { thread: ForumThread; users?: Record<number, any>; density?: 'comfortable' | 'compact'; isNew?: boolean; isUpdated?: boolean }
 
@@ -16,15 +17,18 @@ export function ForumThreadCard({ thread, users, density = 'comfortable', isNew,
   const snippetClamp = density === 'compact' ? 'line-clamp-1' : 'line-clamp-2'
   const metricsText = density === 'compact' ? 'text-[10px]' : 'text-[11px]'
   const highlight = isNew || isUpdated
-  const ring = isNew ? 'ring-2 ring-emerald-500/60' : isUpdated ? 'ring-2 ring-sky-500/50' : ''
-  const bgPulse = isNew ? 'animate-[pulse_2.4s_ease-in-out_infinite]' : ''
+  const ring = isNew ? 'ring-2 ring-emerald-500/40' : isUpdated ? 'ring-2 ring-sky-500/40' : ''
   return (
     <Link to={`/forum/thread/${thread.id}`} aria-label={highlight ? (isNew ? 'Новая тема' : 'Обновлённая тема') : undefined} className={`group relative block rounded-xl border border-white/10 bg-white/5 ${padding} hover:bg-white/10 transition-colors ${ring}`}> 
       <div className="flex flex-col gap-3">
         <div className="flex items-start gap-3">
-          <div className="flex flex-col items-center gap-2 w-5 pt-1">
-            {thread.isPinned && <Pin className="h-4 w-4 text-amber-400" />}
-            {thread.isLocked && <Lock className="h-4 w-4 text-red-400" />}
+          <div className="flex flex-col items-start gap-1 w-16 pt-0.5">
+            <div className="flex flex-wrap gap-1">
+              {thread.isPinned && <Badge variant="pinned" size="xs" className="flex items-center gap-1"><Pin className="h-3 w-3" /> PIN</Badge>}
+              {thread.isLocked && <Badge variant="locked" size="xs" className="flex items-center gap-1"><Lock className="h-3 w-3" /> LOCK</Badge>}
+              {isNew && <Badge variant="new" size="xs">NEW</Badge>}
+              {!isNew && isUpdated && <Badge variant="updated" size="xs">UPD</Badge>}
+            </div>
           </div>
           <div className="min-w-0 flex-1 space-y-2">
             <h4 className={`${titleClamp} font-medium text-white tracking-tight`}>{thread.title}</h4>
@@ -37,16 +41,10 @@ export function ForumThreadCard({ thread, users, density = 'comfortable', isNew,
                 <AvatarMini avatar={avatar} name={name} size={22} />
                 <span className="truncate max-w-[140px]">{name}</span>
               </span>
-              {highlight && (
-                <span className={`ml-auto inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${isNew ? 'bg-emerald-500/20 text-emerald-300' : 'bg-sky-500/20 text-sky-300'}`}>
-                  {isNew ? 'NEW' : 'UPDATED'}
-                </span>
-              )}
             </div>
           </div>
         </div>
       </div>
-      {highlight && <span className={`pointer-events-none absolute inset-0 rounded-xl ${bgPulse}`}></span>}
     </Link>
   )
 }
