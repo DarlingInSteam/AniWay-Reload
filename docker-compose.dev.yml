@@ -114,6 +114,10 @@ services:
       - chapter-service
       - image-storage-service
       - auth-service
+      - comment-service
+      - forum-service
+      - notification-service
+      - melon-service
     networks:
       - aniway-network
 
@@ -315,6 +319,109 @@ services:
       timeout: 5s
       retries: 5
 
+  # Forum Service - for development (added to mirror prod environment)
+  forum-service:
+    build:
+      context: ./ForumService
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./ForumService/src:/app/src:ro
+      - ./ForumService/build.gradle.kts:/app/build.gradle.kts:ro
+      - gradle-cache-forum:/home/gradle/.gradle
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DEVTOOLS_RESTART_ENABLED=true
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://forum-postgres:5432/forum_db
+      - SPRING_DATASOURCE_USERNAME=forum_user
+      - SPRING_DATASOURCE_PASSWORD=forum_password
+      - JWT_SECRET=mySecretKey12345678901234567890123456789012345678901234567890
+      - JWT_EXPIRATION=86400000
+      - AUTH_SERVICE_URL=http://auth-service:8085
+      - MANGA_SERVICE_URL=http://manga-service:8081
+    ports:
+      - "8087:8087"
+    depends_on:
+      forum-postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      manga-service:
+        condition: service_started
+    networks:
+      - aniway-network
+
+  # Notification Service - for development (added to mirror prod environment)
+  notification-service:
+    build:
+      context: ./NotificationService
+      dockerfile: Dockerfile # no dev Dockerfile present, reuse prod
+    volumes:
+      - ./NotificationService/src:/app/src:ro
+      - ./NotificationService/build.gradle:/app/build.gradle:ro
+      - gradle-cache-notification:/home/gradle/.gradle
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DEVTOOLS_RESTART_ENABLED=true
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://notification-postgres:5432/notification_db
+      - SPRING_DATASOURCE_USERNAME=notification_user
+      - SPRING_DATASOURCE_PASSWORD=notification_password
+      # Internal service URLs to ensure chapter title enrichment, etc.
+      - MANGA_SERVICE_INTERNAL_URL=http://manga-service:8081
+      - CHAPTER_SERVICE_INTERNAL_URL=http://chapter-service:8082
+      - NOTIFICATION_CHAPTER_DEDUPE_MODE=PER_CHAPTER
+    ports:
+      - "8095:8095"
+    depends_on:
+      notification-postgres:
+        condition: service_healthy
+      manga-service:
+        condition: service_started
+      chapter-service:
+        condition: service_started
+    networks:
+      - aniway-network
+
+  forum-postgres:
+    image: postgres:16
+    container_name: forum-postgres-dev
+    environment:
+      POSTGRES_DB: forum_db
+      POSTGRES_USER: forum_user
+      POSTGRES_PASSWORD: forum_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5438:5432"
+    volumes:
+      - forum_postgres_data:/var/lib/postgresql/data
+      - ./ForumService/forumDB.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U forum_user -d forum_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  notification-postgres:
+    image: postgres:16
+    container_name: notification-postgres-dev
+    environment:
+      POSTGRES_DB: notification_db
+      POSTGRES_USER: notification_user
+      POSTGRES_PASSWORD: notification_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5439:5432"
+    volumes:
+      - notification_postgres_data:/var/lib/postgresql/data
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notification_user -d notification_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # MinIO for development
   minio:
     image: minio/minio:latest
@@ -376,3 +483,7 @@ volumes:
   melon_temp:
   melon_logs_temp:
   melon_data_temp:
+  forum_postgres_data:
+  notification_postgres_data:
+  gradle-cache-forum:
+  gradle-cache-notification:
