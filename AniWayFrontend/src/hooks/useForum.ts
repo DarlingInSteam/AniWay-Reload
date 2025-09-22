@@ -20,15 +20,7 @@ export function useForumCategory(id?: number) {
   })
 }
 
-// Threads
-export function useForumThreads(params: { categoryId?: number; page?: number; size?: number }) {
-  return useQuery({
-    queryKey: ['forum','threads', params],
-    queryFn: () => forumService.getThreads(params)
-  })
-}
-
-// Infinite threads (category scoped). Backend pagination: page,size. We aggregate pages client-side.
+// Threads (infinite category-scoped). Backend pagination: page,size. We aggregate pages client-side.
 export function useInfiniteForumThreads(params: { categoryId?: number; size?: number }) {
   const size = params.size ?? 30
   return useInfiniteQuery({
