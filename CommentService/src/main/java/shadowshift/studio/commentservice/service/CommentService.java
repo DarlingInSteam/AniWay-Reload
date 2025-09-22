@@ -13,6 +13,7 @@ import shadowshift.studio.commentservice.enums.CommentType;
 import shadowshift.studio.commentservice.enums.ReactionType;
 import shadowshift.studio.commentservice.repository.CommentRepository;
 import shadowshift.studio.commentservice.repository.CommentReactionRepository;
+import shadowshift.studio.commentservice.notification.NotificationEventPublisher;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -37,6 +38,7 @@ public class CommentService {
     private final CommentRepository commentRepository;
     private final CommentReactionRepository commentReactionRepository;
     private final AuthService authService;
+    private final NotificationEventPublisher notificationEventPublisher;
 
     private static final int EDIT_TIME_LIMIT_DAYS = 7;
 
@@ -83,6 +85,47 @@ public class CommentService {
 
         Comment savedComment = commentRepository.save(comment);
         log.info("Comment created with ID: {}", savedComment.getId());
+
+        try {
+            Long targetUserId = null;
+            Long mangaId = null;
+            Long chapterId = null;
+            Long replyToCommentId = savedComment.getParentCommentId();
+
+            // Derive context ids based on type
+            if (savedComment.getType() == CommentType.MANGA) {
+                mangaId = savedComment.getTargetId();
+            } else if (savedComment.getType() == CommentType.CHAPTER) {
+                chapterId = savedComment.getTargetId();
+            }
+
+            // Determine target user to notify
+            if (replyToCommentId != null) {
+                // Notify parent comment author (if not self)
+                Comment parent = commentRepository.findById(replyToCommentId).orElse(null);
+                if (parent != null && !parent.getUserId().equals(userId)) {
+                    targetUserId = parent.getUserId();
+                }
+            } else if (savedComment.getType() == CommentType.PROFILE) {
+                // PROFILE comment: targetId assumed to be profile owner's userId
+                if (!savedComment.getTargetId().equals(userId)) {
+                    targetUserId = savedComment.getTargetId();
+                }
+            }
+
+            if (targetUserId != null) {
+                notificationEventPublisher.publishCommentCreated(
+                        targetUserId,
+                        savedComment.getId(),
+                        mangaId,
+                        chapterId,
+                        replyToCommentId,
+                        savedComment.getContent()
+                );
+            }
+        } catch (Exception e) {
+            log.warn("Failed to emit comment-created notification event: {}", e.getMessage());
+        }
 
         return mapToResponseDTO(savedComment);
     }
