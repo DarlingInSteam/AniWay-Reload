@@ -131,7 +131,7 @@ spring:
         - id: manga-parser-web
           uri: http://manga-service:8081
           predicates:
-            - Path=/parser/**
+            - Path=/parser,/parser/**
           filters:
             - StripPrefix=0
           order: 8
@@ -166,7 +166,7 @@ spring:
         - id: manga-web
           uri: http://manga-service:8081
           predicates:
-            - Path=/manga/**
+            - Path=/manga,/manga/**
           filters:
             - StripPrefix=0
 

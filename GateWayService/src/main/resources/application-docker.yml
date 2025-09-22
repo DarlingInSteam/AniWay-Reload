@@ -116,14 +116,14 @@ spring:
         - id: manga-web
           uri: http://manga-service:8081
           predicates:
-            - Path=/manga/**
+            - Path=/manga,/manga/**
           filters:
             - StripPrefix=0
 
         - id: manga-web-parser
           uri: http://manga-service:8081
           predicates:
-            - Path=/parser/**
+            - Path=/parser,/parser/**
           filters:
             - StripPrefix=0
 
@@ -212,4 +212,3 @@ logging:
     org.springframework.cloud.gateway: INFO
     org.springframework.web: WARN
     shadowshift.studio: INFO
-  "shadowshift.studio.gatewayservice.security.JwtAuthFilter": DEBUG
