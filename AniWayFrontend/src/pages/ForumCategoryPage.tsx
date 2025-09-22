@@ -4,13 +4,29 @@ import { ForumThreadList } from '@/components/forum/ForumThreadList'
 import { Plus, ArrowLeft } from 'lucide-react'
 import { useEffect } from 'react'
 import { useThreadAuthors } from '@/hooks/useThreadAuthors'
+import { useState } from 'react'
+import { ForumThreadToolbar, ThreadSortMode, ThreadDensity } from '@/components/forum/ForumThreadToolbar'
 
 export function ForumCategoryPage() {
   const { categoryId } = useParams()
   const id = categoryId ? parseInt(categoryId) : undefined
   const { data: category } = useForumCategory(id)
   const infinite = useInfiniteForumThreads({ categoryId: id, size: 30 })
-  const allThreads = infinite.data?.pages.flatMap(p=> p.content) || []
+  const [toolbarState, setToolbarState] = useState<{ sort: ThreadSortMode; density: ThreadDensity }>({ sort: 'active', density: 'comfortable' })
+  const allThreadsRaw = infinite.data?.pages.flatMap(p=> p.content) || []
+  // Sorting client side
+  const allThreads = [...allThreadsRaw].sort((a,b)=> {
+    switch (toolbarState.sort) {
+      case 'latest': return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      case 'popular':
+        // simple weight: likes + replies*2
+        const wa = (a.likesCount||0) + (a.repliesCount||0)*2
+        const wb = (b.likesCount||0) + (b.repliesCount||0)*2
+        return wb - wa
+      case 'active':
+      default: return new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime()
+    }
+  })
   const authorUsers = useThreadAuthors(allThreads)
   const loadingMore = infinite.isFetchingNextPage
   const canLoadMore = !!infinite.hasNextPage
@@ -37,7 +53,7 @@ export function ForumCategoryPage() {
           <span>/</span>
           <span className="text-white">{category?.name || '...'}</span>
         </div>
-        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="mb-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-2xl font-semibold tracking-tight text-white">{category?.name || '...'}</h2>
             {category?.description && <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{category.description}</p>}
@@ -51,9 +67,10 @@ export function ForumCategoryPage() {
             </Link>
           </div>
         </div>
-        {infinite.isLoading && <div className="text-sm text-muted-foreground">Загрузка тем...</div>}
+  <ForumThreadToolbar onChange={setToolbarState} />
+  {infinite.isLoading && <div className="text-sm text-muted-foreground">Загрузка тем...</div>}
         {infinite.isError && <div className="text-sm text-red-400">Ошибка загрузки тем</div>}
-        <ForumThreadList threads={allThreads} users={authorUsers} />
+  <ForumThreadList threads={allThreads} users={authorUsers} density={toolbarState.density} />
         <div ref={sentinelRef} className="h-10 flex items-center justify-center text-xs text-muted-foreground">
           {loadingMore ? 'Загружается...' : (canLoadMore ? 'Прокрутите ниже, чтобы загрузить ещё' : (allThreads.length ? 'Все темы загружены' : ''))}
         </div>
