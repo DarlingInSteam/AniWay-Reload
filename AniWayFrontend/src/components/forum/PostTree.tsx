@@ -1,8 +1,9 @@
 import { ForumPost } from '@/types/forum'
-import { useCreatePost, usePostReaction } from '@/hooks/useForum'
+import { useCreatePost, usePostReaction, useUpdatePost, useDeletePost } from '@/hooks/useForum'
 import { ReactionButtons } from './ReactionButtons'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { buildProfileSlug } from '@/utils/profileSlug'
 import { ForumPostEditor } from './ForumPostEditor'
 
 interface PostNodeProps { post: ForumPost; depth: number; threadId: number }
@@ -11,17 +12,33 @@ function PostNode({ post, depth, threadId }: PostNodeProps) {
   const [replying, setReplying] = useState(false)
   const reaction = usePostReaction(post.id, threadId, post.userReaction)
   const create = useCreatePost()
+  const update = useUpdatePost(post.id)
+  const del = useDeletePost()
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(post.content)
 
   return (
     <div className="space-y-2">
       <div className="rounded-lg border border-white/10 bg-white/5 p-3">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
-            <div className="mb-1 text-xs text-muted-foreground">Автор: <Link to={`/user/${post.authorId}`} className="text-primary hover:underline">{post.authorName || `Пользователь ${post.authorId}`}</Link></div>
-            <div className="whitespace-pre-wrap text-sm leading-relaxed text-white/90">{post.content}</div>
+            <div className="mb-1 text-xs text-muted-foreground">Автор: <Link to={`/profile/${buildProfileSlug(post.authorId, post.authorName)}`} className="text-primary hover:underline">{post.authorName || `Пользователь ${post.authorId}`}</Link></div>
+            {editing ? (
+              <div className="space-y-2">
+                <textarea className="w-full rounded bg-black/40 border border-white/10 px-2 py-1 text-xs text-white" value={draft} onChange={e=> setDraft(e.target.value)} />
+                <div className="flex gap-2">
+                  <button disabled={update.isPending} onClick={()=> update.mutate({ content: draft }, { onSuccess: ()=> setEditing(false) })} className="rounded bg-emerald-600/80 px-2 py-1 text-[11px] text-white disabled:opacity-50">Сохранить</button>
+                  <button onClick={()=> { setEditing(false); setDraft(post.content) }} className="rounded bg-white/10 px-2 py-1 text-[11px] text-white/80 hover:bg-white/20">Отмена</button>
+                </div>
+              </div>
+            ) : (
+              <div className="whitespace-pre-wrap text-sm leading-relaxed text-white/90">{post.content}</div>
+            )}
             <div className="mt-2 flex items-center gap-3">
               <ReactionButtons userReaction={post.userReaction} likes={post.likesCount} dislikes={post.dislikesCount} busy={reaction.isPending} onChange={(n)=> reaction.mutate(n)} />
               {depth < 5 && <button onClick={()=> setReplying(v=> !v)} className="text-xs text-primary hover:underline">{replying? 'Отмена' : 'Ответить'}</button>}
+              {post.canEdit && !editing && <button onClick={()=> setEditing(true)} className="text-xs text-primary hover:underline">Редактировать</button>}
+              {post.canDelete && <button onClick={()=> { if(confirm('Удалить сообщение?')) del.mutate(post.id, { onSuccess: ()=> { /* rely on refetch */ } }) }} className="text-xs text-red-400 hover:underline">Удалить</button>}
             </div>
           </div>
           <div className="text-[10px] text-muted-foreground">{new Date(post.createdAt).toLocaleString()}</div>

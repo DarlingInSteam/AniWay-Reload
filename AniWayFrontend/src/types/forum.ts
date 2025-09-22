@@ -39,6 +39,8 @@ export interface ForumThread {
   lastReplyUserName?: string;
   isSubscribed?: boolean;
   userReaction?: 'LIKE' | 'DISLIKE' | null;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 export interface ForumPost {

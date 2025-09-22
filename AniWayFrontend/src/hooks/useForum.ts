@@ -103,6 +103,8 @@ export function useUpdatePost(id: number) {
     mutationFn: (data: UpdatePostRequest) => forumService.updatePost(id, data),
     onSuccess: (post) => {
       qc.invalidateQueries({ queryKey: ['forum','posts', post.threadId] })
+      qc.invalidateQueries({ queryKey: ['forum','postTree', post.threadId] })
+      qc.invalidateQueries({ queryKey: ['forum','thread', post.threadId] })
     }
   })
 }
@@ -111,8 +113,9 @@ export function useDeletePost() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => forumService.deletePost(id),
-    onSuccess: () => {
-      // caller provides own invalidation if needed
+    onSuccess: (_,_vars,ctx) => {
+      qc.invalidateQueries({ queryKey: ['forum','postTree'] })
+      qc.invalidateQueries({ queryKey: ['forum','thread'] })
     }
   })
 }
