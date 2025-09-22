@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { ChevronRight, ChevronDown, X, RotateCcw, Loader2 } from 'lucide-react'
+import { ChevronRight, ChevronDown, X, RotateCcw, Loader2, Filter } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useFilterData } from '@/hooks/useFilterData'
 import { Button } from '@/components/ui/button'
@@ -61,21 +61,25 @@ interface RowProps {
   children: React.ReactNode
 }
 const FilterRow: React.FC<RowProps> = ({ id, title, summary, isOpen, onToggle, children }) => (
-  <div className="border-b border-white/10" aria-expanded={isOpen} aria-controls={id}> 
-    <button onClick={onToggle} className={cn('w-full flex items-center gap-3 py-3 px-2 rounded-lg hover:bg-white/5 transition-colors')}>
+  <div className="border-b border-white/10" aria-expanded={isOpen} aria-controls={id} role="group">
+    <button
+      onClick={onToggle}
+      aria-haspopup="true"
+      aria-expanded={isOpen}
+      aria-controls={`${id}-content`}
+      className={cn('w-full flex items-center gap-3 py-3 px-2 rounded-lg hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-colors')}
+    >
       <div className="flex-1 text-left">
-        <div className="text-sm font-medium text-white leading-none mb-1">{title}</div>
-        <div className="text-xs text-muted-foreground line-clamp-1">{summary}</div>
+        <div className="text-sm font-medium text-white leading-none mb-1 tracking-tight">{title}</div>
+        <div className="text-[11px] text-muted-foreground/80 line-clamp-1 font-normal">{summary}</div>
       </div>
-      <div className={cn('text-muted-foreground transition-transform', isOpen ? 'rotate-90' : '')}>
+      <div className={cn('text-muted-foreground transition-transform shrink-0', isOpen ? 'rotate-90' : '')}>
         <ChevronRight className="h-4 w-4" />
       </div>
     </button>
-    {isOpen && (
-      <div id={id} className="px-2 pb-4 animate-fade-in">
-        {children}
-      </div>
-    )}
+    <div id={`${id}-content`} hidden={!isOpen} className="px-2 pb-4 animate-fade-in">
+      {isOpen && children}
+    </div>
   </div>
 )
 
@@ -169,17 +173,53 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
     )
   }
 
+  // Active chips (flattened) for mobile quick view
+  const activeChips: { label: string; onRemove: () => void; key: string }[] = []
+  filters.selectedGenres.forEach(g => activeChips.push({ label: g, onRemove: () => toggleGenre(g), key: 'g-'+g }))
+  filters.selectedTags.forEach(t => activeChips.push({ label: t, onRemove: () => toggleTag(t), key: 't-'+t }))
+  if (filters.mangaType) activeChips.push({ label: TYPE_MAP[filters.mangaType] || filters.mangaType, onRemove: () => update({ mangaType: '' }), key: 'type' })
+  if (filters.status) activeChips.push({ label: STATUS_MAP[filters.status] || filters.status, onRemove: () => update({ status: '' }), key: 'status' })
+  if (filters.ageRating.some((v,i)=>v!==DEFAULTS.ageRating[i])) activeChips.push({ label: `${filters.ageRating[0]}+–${filters.ageRating[1]}+`, onRemove: () => update({ ageRating: DEFAULTS.ageRating }), key: 'age' })
+  if (filters.rating.some((v,i)=>v!==DEFAULTS.rating[i])) activeChips.push({ label: `${filters.rating[0]}–${filters.rating[1]}`, onRemove: () => update({ rating: DEFAULTS.rating }), key: 'rating' })
+  if (filters.releaseYear.some((v,i)=>v!==DEFAULTS.releaseYear[i])) activeChips.push({ label: `${filters.releaseYear[0]}–${filters.releaseYear[1]}`, onRemove: () => update({ releaseYear: DEFAULTS.releaseYear }), key: 'year' })
+  if (filters.chapterRange.some((v,i)=>v!==DEFAULTS.chapterRange[i])) activeChips.push({ label: `${filters.chapterRange[0]}–${filters.chapterRange[1]} гл.`, onRemove: () => update({ chapterRange: DEFAULTS.chapterRange }), key: 'chapters' })
+
   return (
-    <div className={cn('w-80 glass-panel overflow-hidden', className)}>
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-        <div className="text-sm font-semibold text-white">Фильтры</div>
+    <div className={cn('w-80 glass-panel overflow-hidden flex flex-col h-full max-h-full', className)}>
+      {/* Sticky header (mobile + desktop) */}
+      <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b border-white/10 backdrop-blur-md bg-background/70">
+        <div className="flex items-center gap-2 text-sm font-semibold text-white">
+          <Filter className="h-4 w-4 text-primary" /> Фильтры
+          {activeChips.length>0 && <span className="text-[11px] font-normal text-muted-foreground">{activeChips.length}</span>}
+        </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={resetAll} className="h-8 px-2 text-muted-foreground hover:text-white hover:bg-white/10"><RotateCcw className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="sm" onClick={resetAll} className="h-8 px-2 text-muted-foreground hover:text-white hover:bg-white/10" aria-label="Сбросить все фильтры"><RotateCcw className="h-4 w-4" /></Button>
           {onApply && <Button size="sm" onClick={onApply} className="h-8 px-3 bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 text-xs">Применить</Button>}
         </div>
       </div>
-      {/* Rows */}
-      <div className="divide-y divide-white/10">
+
+      {/* Active chips bar (mobile emphasis) */}
+      {activeChips.length>0 && (
+        <div className="px-4 pt-3 pb-2 overflow-x-auto scrollbar-thin flex gap-2 flex-wrap sm:max-h-none">
+          {activeChips.map(c => (
+            <button
+              key={c.key}
+              onClick={c.onRemove}
+              aria-label={`Удалить фильтр ${c.label}`}
+              className="group flex items-center gap-1 pl-2 pr-1 py-1 rounded-full text-[11px] bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 hover:border-primary/40 transition"
+            >
+              <span className="font-medium leading-none">{c.label}</span>
+              <span className="flex items-center justify-center h-4 w-4 rounded-full bg-primary/25 group-hover:bg-primary/35">
+                <X className="h-3 w-3" />
+              </span>
+            </button>
+          ))}
+          <button onClick={resetAll} className="text-[11px] px-2 py-1 rounded-full bg-white/5 text-muted-foreground hover:text-white hover:bg-white/10 border border-white/10" aria-label="Очистить все фильтры">Очистить</button>
+        </div>
+      )}
+
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto divide-y divide-white/10 px-0 pb-20 scrollbar-custom">
         <FilterRow id="row-genres" title="Жанры" summary={rowSummary.genres} isOpen={openRow==='genres'} onToggle={()=>setOpenRow(openRow==='genres'?null:'genres')}>
           {isLoadingGenres ? (
             <div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><Loader2 className="h-4 w-4 animate-spin" /> Загрузка...</div>
@@ -255,9 +295,10 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
         </FilterRow>
       </div>
 
-      <div className="px-4 py-3 flex gap-2 border-t border-white/10">
-        <Button variant="outline" onClick={resetAll} className="flex-1 h-9 bg-white/5 border-white/15 text-muted-foreground hover:bg-white/10 hover:text-white">Сбросить</Button>
-        {onApply && <Button onClick={onApply} className="flex-1 h-9 bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30">Применить</Button>}
+      {/* Sticky bottom bar (mobile) */}
+      <div className="sticky bottom-0 mt-auto bg-background/80 backdrop-blur-xl border-t border-white/10 px-4 py-3 flex gap-3 sm:hidden">
+        <Button variant="outline" onClick={resetAll} className="flex-1 h-10 bg-white/5 border-white/15 text-muted-foreground hover:bg-white/10 hover:text-white" aria-label="Сбросить фильтры">Сброс</Button>
+        {onApply && <Button onClick={onApply} className="flex-1 h-10 bg-primary/70 text-white font-semibold hover:bg-primary/80 shadow-lg shadow-primary/30" aria-label="Применить фильтры">Применить</Button>}
       </div>
     </div>
   )
