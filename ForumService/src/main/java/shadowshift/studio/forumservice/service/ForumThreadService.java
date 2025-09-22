@@ -54,9 +54,8 @@ public class ForumThreadService {
     }
 
     /**
-     * Получить тему по ID
+     * Получить тему по ID (не readOnly, т.к. регистрируем просмотр)
      */
-    @Transactional(readOnly = true)
     public ForumThreadResponse getThreadById(Long threadId, Long currentUserId, String userIp) {
         log.debug("Получение темы по ID: {}", threadId);
         

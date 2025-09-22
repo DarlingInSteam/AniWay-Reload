@@ -53,9 +53,13 @@ public class SecurityConfig {
                 .requestMatchers("/api/forum/threads/{threadId}/subscribe").hasRole("USER")
                 .requestMatchers("/api/forum/threads/{threadId}/posts").hasRole("USER") // POST - создание поста
                 .requestMatchers("/api/forum/posts/{postId}").hasRole("USER") // PUT, DELETE
-                .requestMatchers("/api/forum/**/like").hasRole("USER")
-                .requestMatchers("/api/forum/**/dislike").hasRole("USER")
-                .requestMatchers("/api/forum/**/reaction").hasRole("USER")
+                // Реакции (ограничимся конкретными типами ресурсов вместо двойного wildcard)
+                .requestMatchers("/api/forum/threads/{threadId}/like").hasRole("USER")
+                .requestMatchers("/api/forum/threads/{threadId}/dislike").hasRole("USER")
+                .requestMatchers("/api/forum/threads/{threadId}/reaction").hasRole("USER")
+                .requestMatchers("/api/forum/posts/{postId}/like").hasRole("USER")
+                .requestMatchers("/api/forum/posts/{postId}/dislike").hasRole("USER")
+                .requestMatchers("/api/forum/posts/{postId}/reaction").hasRole("USER")
                 
                 // Actuator endpoint'ы
                 .requestMatchers("/actuator/health").permitAll()
