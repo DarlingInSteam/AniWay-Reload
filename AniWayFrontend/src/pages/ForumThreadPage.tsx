@@ -65,6 +65,22 @@ export function ForumThreadPage() {
     }
   }, [thread?.id])
 
+  const [rootReplySeed, setRootReplySeed] = useState('')
+  const handleQuoteToRoot = (quoted: string) => {
+    // merge with existing draft if present
+    try {
+      const raw = localStorage.getItem('forum.replyDrafts')
+      let map: any = raw ? JSON.parse(raw) : {}
+      const key = thread ? `${thread.id}-root` : undefined
+      if(key){
+        const existing = map[key] || ''
+        const merged = existing ? existing + (existing.endsWith('\n')? '' : '\n') + quoted : quoted
+        map[key] = merged
+        localStorage.setItem('forum.replyDrafts', JSON.stringify(map))
+        setRootReplySeed(merged + (merged.endsWith('\n')? '' : '\n'))
+      }
+    } catch {}
+  }
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-manga-black px-4 pb-32 pt-6">
       <div className="mx-auto w-full max-w-4xl space-y-8">
@@ -110,12 +126,12 @@ export function ForumThreadPage() {
         <section className="space-y-4">
           <h2 className="text-lg font-semibold text-white">Ответы</h2>
           {isLoadingPosts && <div className="text-sm text-muted-foreground">Загрузка...</div>}
-          {tree && <PostTree posts={tree} threadId={id!} users={users} />}
+          {tree && <PostTree posts={tree} threadId={id!} users={users} onQuote={handleQuoteToRoot} />}
         </section>
         {thread && (
           <div>
             <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Новый ответ</h3>
-            <ForumPostEditor draftKey={`${thread.id}-root`} onSubmit={(content)=> createPost.mutate({ content, threadId: thread.id })} submitting={createPost.isPending} />
+            <ForumPostEditor draftKey={`${thread.id}-root`} value={rootReplySeed} onSubmit={(content)=> createPost.mutate({ content, threadId: thread.id })} submitting={createPost.isPending} />
           </div>
         )}
       </div>

@@ -2,21 +2,29 @@ import { ForumPost } from '@/types/forum'
 import { useCreatePost, usePostReaction, useUpdatePost, useDeletePost } from '@/hooks/useForum'
 import { AvatarMini } from './AvatarMini'
 import { ReactionButtons } from './ReactionButtons'
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { buildProfileSlug } from '@/utils/profileSlug'
 import { ForumPostEditor } from './ForumPostEditor'
 
-interface PostNodeProps { post: ForumPost; depth: number; threadId: number; users?: Record<number, any> }
+interface PostNodeProps { post: ForumPost; depth: number; threadId: number; users?: Record<number, any>; onQuote: (content: string, author?: string) => void }
 
-function PostNode({ post, depth, threadId, users }: PostNodeProps) {
+function PostNode({ post, depth, threadId, users, onQuote }: PostNodeProps) {
   const [replying, setReplying] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
   const reaction = usePostReaction(post.id, threadId, post.userReaction)
   const create = useCreatePost()
   const update = useUpdatePost(post.id)
   const del = useDeletePost()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(post.content)
+  const handleQuote = useCallback(()=> {
+    const snippet = post.content.length > 400 ? post.content.slice(0,400) + '…' : post.content
+    const author = users?.[post.authorId]?.displayName || post.authorName || `User ${post.authorId}`
+    const formatted = `> ${snippet.replace(/\n/g, '\n> ')}\n\n`
+    onQuote(formatted, author)
+    setReplying(true)
+  }, [post.content, post.authorId, users, onQuote])
 
   return (
     <div className="space-y-2">
@@ -42,9 +50,11 @@ function PostNode({ post, depth, threadId, users }: PostNodeProps) {
             ) : (
               <div className="whitespace-pre-wrap text-sm leading-relaxed text-white/90">{post.content}</div>
             )}
-            <div className="mt-2 flex items-center gap-3">
+            <div className="mt-2 flex items-center gap-3 flex-wrap">
               <ReactionButtons userReaction={post.userReaction} likes={post.likesCount} dislikes={post.dislikesCount} busy={reaction.isPending} onChange={(n)=> reaction.mutate(n)} />
               {depth < 5 && <button onClick={()=> setReplying(v=> !v)} className="text-xs text-primary hover:underline">{replying? 'Отмена' : 'Ответить'}</button>}
+              <button onClick={handleQuote} className="text-xs text-primary hover:underline">Цитировать</button>
+              {post.replies?.length ? <button onClick={()=> setCollapsed(c=> !c)} className="text-xs text-white/60 hover:text-white/90">{collapsed? `Показать ответы (${post.replies.length})` : `Свернуть ответы (${post.replies.length})`}</button> : null}
               {post.canEdit && !editing && <button onClick={()=> setEditing(true)} className="text-xs text-primary hover:underline">Редактировать</button>}
               {post.canDelete && <button onClick={()=> { if(confirm('Удалить сообщение?')) del.mutate(post.id, { onSuccess: ()=> { /* rely on refetch */ } }) }} className="text-xs text-red-400 hover:underline">Удалить</button>}
             </div>
@@ -57,21 +67,22 @@ function PostNode({ post, depth, threadId, users }: PostNodeProps) {
           </div>
         )}
       </div>
-      {post.replies && post.replies.length > 0 && (
+      {post.replies && post.replies.length > 0 && !collapsed && (
         <div className="ml-4 border-l border-white/10 pl-4 space-y-3">
-          {post.replies.map(r => <PostNode key={r.id} post={r} depth={depth+1} threadId={threadId} users={users} />)}
+          {post.replies.map(r => <PostNode key={r.id} post={r} depth={depth+1} threadId={threadId} users={users} onQuote={onQuote} />)}
         </div>
       )}
     </div>
   )
 }
 
-interface TreeProps { posts: ForumPost[]; threadId: number; users?: Record<number, any> }
-export function PostTree({ posts, threadId, users }: TreeProps) {
+interface TreeProps { posts: ForumPost[]; threadId: number; users?: Record<number, any>; onQuote?: (text: string)=> void }
+export function PostTree({ posts, threadId, users, onQuote }: TreeProps) {
   if (!posts.length) return <div className="text-sm text-muted-foreground">Нет сообщений</div>
+  const handleQuote = (content: string) => { onQuote?.(content) }
   return (
     <div className="space-y-4">
-      {posts.map(p => <PostNode key={p.id} post={p} depth={0} threadId={threadId} users={users} />)}
+      {posts.map(p => <PostNode key={p.id} post={p} depth={0} threadId={threadId} users={users} onQuote={(c)=> handleQuote(c)} />)}
     </div>
   )
 }
