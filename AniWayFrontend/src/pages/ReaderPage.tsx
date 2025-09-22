@@ -23,6 +23,7 @@ import { formatChapterTitle, getDisplayChapterNumber } from '@/lib/chapterUtils'
 import { useAuth } from '@/contexts/AuthContext'
 import { useReadingProgress } from '@/hooks/useProgress'
 import { CommentSection } from '@/components/comments/CommentSection'
+import { useLocation } from 'react-router-dom'
 
 // Extracted component for chapter images list to keep main component compact
 function ChapterImageList({
@@ -127,6 +128,7 @@ function ChapterImageList({
 export function ReaderPage() {
   const { chapterId } = useParams<{ chapterId: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const [showUI, setShowUI] = useState(true)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [imageWidth, setImageWidth] = useState<'fit' | 'full' | 'wide'>('fit')
@@ -162,6 +164,15 @@ export function ReaderPage() {
       // ignore storage errors (e.g., privacy mode)
     }
   }, [])
+
+  // Auto-open side comments panel if navigating directly to a comment anchor (#comment-...)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (window.location.hash.startsWith('#comment-')) {
+      setShowSideComments(true)
+    }
+  // react to hash changes (navigation to another comment within reader)
+  }, [location?.hash])
 
   // Persist when settings change
   useEffect(() => {
