@@ -96,16 +96,21 @@ public class MangaRestController {
     @GetMapping("/search")
     public ResponseEntity<List<MangaResponseDTO>> searchManga(
             @RequestParam(required = false) String title,
+            @RequestParam(required = false, name = "query") String queryAlias,
             @RequestParam(required = false) String author,
             @RequestParam(required = false) String genre,
             @RequestParam(required = false) String status) {
 
-        logger.debug("API запрос: поиск манги с параметрами - title: '{}', author: '{}', genre: '{}', status: '{}'",
-                title, author, genre, status);
+        if ((title == null || title.isBlank()) && queryAlias != null && !queryAlias.isBlank()) {
+            title = queryAlias;
+        }
+
+        logger.debug("API запрос: поиск манги (simple) - title: '{}', author: '{}', genre: '{}', status: '{}' (alias query='{}')",
+                title, author, genre, status, queryAlias);
 
         List<MangaResponseDTO> searchResults = mangaService.searchManga(title, author, genre, status);
 
-        logger.debug("API ответ: найдено {} манг по поисковому запросу", searchResults.size());
+        logger.debug("API ответ: найдено {} манг по поисковому запросу (simple)", searchResults.size());
         return ResponseEntity.ok(searchResults);
     }
 

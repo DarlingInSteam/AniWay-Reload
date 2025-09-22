@@ -9,6 +9,7 @@ import { useAuth } from '../../contexts/AuthContext'
 
 export function Header() {
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const navigate = useNavigate()
@@ -18,10 +19,16 @@ export function Header() {
   const { isAuthenticated, isAdmin, isTranslator } = useAuth()
 
   // Универсальный поиск манги
+  // Debounce input to limit network calls
+  useEffect(() => {
+    const h = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 250)
+    return () => clearTimeout(h)
+  }, [searchQuery])
+
   const { data: mangaSuggestions, isError: mangaError } = useQuery({
-    queryKey: ['search-manga-suggestions', searchQuery],
-    queryFn: () => apiClient.searchManga({ query: searchQuery }),
-    enabled: searchQuery.length >= 2,
+    queryKey: ['search-manga-suggestions', debouncedQuery],
+    queryFn: () => apiClient.searchManga({ query: debouncedQuery }),
+    enabled: debouncedQuery.length >= 2,
     staleTime: 30000,
     retry: 1,
     retryDelay: 1000,
@@ -29,9 +36,9 @@ export function Header() {
 
   // Универсальный поиск пользователей
   const { data: userSuggestions, isError: userError } = useQuery({
-    queryKey: ['search-user-suggestions', searchQuery],
-    queryFn: () => apiClient.searchUsers({ query: searchQuery, limit: 6 }),
-    enabled: searchQuery.length >= 2,
+    queryKey: ['search-user-suggestions', debouncedQuery],
+    queryFn: () => apiClient.searchUsers({ query: debouncedQuery, limit: 6 }),
+    enabled: debouncedQuery.length >= 2,
     staleTime: 30000,
     retry: 1,
     retryDelay: 1000,
@@ -85,8 +92,8 @@ export function Header() {
 
   // Показываем автодополнение при вводе
   useEffect(() => {
-    if (searchQuery.length >= 2) {
-      if ((mangaSuggestions && mangaSuggestions.length > 0 && !mangaError) || 
+    if (debouncedQuery.length >= 2) {
+      if ((mangaSuggestions && mangaSuggestions.length > 0 && !mangaError) ||
           (userSuggestions && userSuggestions.users && userSuggestions.users.length > 0 && !userError)) {
         setShowSuggestions(true)
       } else {
@@ -95,7 +102,7 @@ export function Header() {
     } else {
       setShowSuggestions(false)
     }
-  }, [searchQuery, mangaSuggestions, userSuggestions, mangaError, userError])
+  }, [debouncedQuery, mangaSuggestions, userSuggestions, mangaError, userError])
 
   return (
     <header className="sticky top-0 z-50 w-full bg-manga-black/95 backdrop-blur-md border-b border-border/20">
@@ -145,8 +152,8 @@ export function Header() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => {
-                  if (searchQuery.length >= 2) {
-                    if ((mangaSuggestions && mangaSuggestions.length > 0 && !mangaError) || 
+                  if (debouncedQuery.length >= 2) {
+                    if ((mangaSuggestions && mangaSuggestions.length > 0 && !mangaError) ||
                         (userSuggestions && userSuggestions.users && userSuggestions.users.length > 0 && !userError)) {
                       setShowSuggestions(true)
                     }
@@ -234,7 +241,7 @@ export function Header() {
                   )}
 
                   {/* Сообщение если ничего не найдено */}
-                  {searchQuery.length >= 2 && 
+                  {debouncedQuery.length >= 2 && 
                    (!mangaSuggestions || mangaSuggestions.length === 0) && 
                    (!userSuggestions || !userSuggestions.users || userSuggestions.users.length === 0) && 
                    !mangaError && !userError && (
@@ -246,7 +253,7 @@ export function Header() {
                   )}
 
                   {/* Ошибка загрузки */}
-                  {searchQuery.length >= 2 && (mangaError || userError) && (
+                  {debouncedQuery.length >= 2 && (mangaError || userError) && (
                     <div className="p-4 text-center text-sm text-muted-foreground">
                       <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
                       <p>Ошибка при поиске</p>
