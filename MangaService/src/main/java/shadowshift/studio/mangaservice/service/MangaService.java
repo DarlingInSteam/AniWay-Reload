@@ -434,7 +434,11 @@ public class MangaService {
         Sort sort = Sort.by(direction, sortProperty).and(Sort.by(Sort.Direction.DESC, "createdAt"));
         Pageable pageable = PageRequest.of(page, size, sort);
 
-        Page<Manga> searchResults = mangaRepository.searchMangaPagedJPQL(title, author, genre, validatedStatus, pageable);
+    String titlePattern = (title != null && !title.isBlank()) ? "%" + title.toLowerCase() + "%" : null;
+    String authorPattern = (author != null && !author.isBlank()) ? "%" + author.toLowerCase() + "%" : null;
+    String genrePattern = (genre != null && !genre.isBlank()) ? "%" + genre.toLowerCase() + "%" : null;
+
+    Page<Manga> searchResults = mangaRepository.searchMangaPagedJPQL(titlePattern, authorPattern, genrePattern, validatedStatus, pageable);
         logger.debug("Найдено {} манг по поисковому запросу на странице {}", searchResults.getNumberOfElements(), page);
 
         List<MangaResponseDTO> responseDTOs = mangaMapper.toResponseDTOList(searchResults.getContent());
