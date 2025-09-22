@@ -56,7 +56,7 @@ export function ForumThreadPage() {
             )}
           </div>
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <span>Автор: {thread && (()=> { const u = users[thread.authorId]; const name = u?.displayName || thread.authorName || `Пользователь ${thread.authorId}`; return <Link to={`/profile/${buildProfileSlug(thread.authorId, name)}`} className="flex items-center gap-2 text-primary hover:underline"><AvatarMini avatar={u?.avatar} name={name} />{name}</Link> })()}</span>
+            <span>Автор: {thread && (()=> { const u = users[thread.authorId]; const name = u?.displayName || thread.authorName || `Пользователь ${thread.authorId}`; const avatar = u?.avatar || thread.authorAvatar; return <Link to={`/profile/${buildProfileSlug(thread.authorId, name)}`} className="flex items-center gap-2 text-primary hover:underline"><AvatarMini avatar={avatar} name={name} />{name}</Link> })()}</span>
             {thread?.canEdit && !editingThread && <button onClick={()=> setEditingThread(true)} className="rounded bg-white/10 px-2 py-1 hover:bg-white/20 text-white/80 text-[11px]">Редактировать</button>}
             {thread?.canEdit && editingThread && <button onClick={()=> {
               updateThread.mutate(threadDraft, { onSuccess: ()=> setEditingThread(false) })

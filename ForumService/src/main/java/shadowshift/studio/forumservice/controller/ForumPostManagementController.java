@@ -13,6 +13,7 @@ import shadowshift.studio.forumservice.entity.ForumPost;
 import shadowshift.studio.forumservice.repository.ForumPostRepository;
 import shadowshift.studio.forumservice.security.GatewayAuthenticationFilter;
 import shadowshift.studio.forumservice.dto.response.ForumPostResponse;
+import shadowshift.studio.forumservice.service.UserDirectoryClient;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -24,6 +25,7 @@ import java.time.LocalDateTime;
 public class ForumPostManagementController {
 
     private final ForumPostRepository postRepository;
+    private final UserDirectoryClient userDirectoryClient;
 
     public record UpdatePostRequest(@NotBlank String content) {}
 
@@ -85,13 +87,25 @@ public class ForumPostManagementController {
     private ForumPostResponse mapToResponse(ForumPost post) {
     boolean isAuthor = true; // already verified
     boolean withinEditWindow = java.time.Duration.between(post.getCreatedAt(), LocalDateTime.now()).toDays() < 7;
+    String authorName = "Пользователь " + post.getAuthorId();
+    String authorAvatar = null;
+    try {
+        java.util.Map<Long, UserDirectoryClient.UserBasic> users = userDirectoryClient.fetchUsers(java.util.Collections.singleton(post.getAuthorId()));
+        UserDirectoryClient.UserBasic ub = users.get(post.getAuthorId());
+        if (ub != null) {
+            if (ub.displayName() != null && !ub.displayName().isBlank()) authorName = ub.displayName();
+            else if (ub.username() != null) authorName = ub.username();
+            authorAvatar = ub.avatar();
+        }
+    } catch (Exception e) { log.debug("Не удалось обогатить данные автора поста {}: {}", post.getAuthorId(), e.getMessage()); }
+
     return ForumPostResponse.builder()
                 .id(post.getId())
                 .threadId(post.getThreadId())
                 .content(post.getContent())
                 .authorId(post.getAuthorId())
-                .authorName("Пользователь " + post.getAuthorId())
-                .authorAvatar(null)
+                .authorName(authorName)
+                .authorAvatar(authorAvatar)
                 .parentPostId(post.getParentPostId())
                 .replies(null)
                 .isDeleted(post.getIsDeleted())

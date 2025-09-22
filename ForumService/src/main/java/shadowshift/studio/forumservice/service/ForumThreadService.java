@@ -29,6 +29,7 @@ public class ForumThreadService {
     private final ForumReactionRepository reactionRepository;
     private final ForumThreadViewRepository viewRepository;
     private final ForumSubscriptionRepository subscriptionRepository;
+    private final UserDirectoryClient userDirectoryClient;
 
     /**
      * Получить темы в категории с пагинацией
@@ -263,8 +264,20 @@ public class ForumThreadService {
                 .map(category -> category.getName())
                 .orElse("Неизвестная категория");
         
-    // Автор (пока без batch - добавим простой заглушкой)
+    // Автор: пытаемся обогатить через UserDirectoryClient (кеширует)
     String authorName = "Пользователь " + thread.getAuthorId();
+    String authorAvatar = null;
+    try {
+        Map<Long, UserDirectoryClient.UserBasic> users = userDirectoryClient.fetchUsers(Collections.singleton(thread.getAuthorId()));
+        UserDirectoryClient.UserBasic ub = users.get(thread.getAuthorId());
+        if (ub != null) {
+            if (ub.displayName() != null && !ub.displayName().isBlank()) authorName = ub.displayName();
+            else if (ub.username() != null) authorName = ub.username();
+            authorAvatar = ub.avatar();
+        }
+    } catch (Exception e) {
+        log.debug("Не удалось получить данные автора {}: {}", thread.getAuthorId(), e.getMessage());
+    }
     // Редактирование разрешено автору в течение 7 дней
     boolean isAuthor = currentUserId != null && currentUserId.equals(thread.getAuthorId());
     boolean withinEditWindow = Duration.between(thread.getCreatedAt(), LocalDateTime.now()).toDays() < 7;
@@ -276,7 +289,8 @@ public class ForumThreadService {
                 .categoryId(thread.getCategoryId())
                 .categoryName(categoryName)
         .authorId(thread.getAuthorId())
-        .authorName(authorName)
+    .authorName(authorName)
+    .authorAvatar(authorAvatar)
                 .viewsCount(thread.getViewsCount())
                 .repliesCount(thread.getRepliesCount())
                 .likesCount(thread.getLikesCount())

@@ -24,9 +24,9 @@ function PostNode({ post, depth, threadId, users }: PostNodeProps) {
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
             <div className="mb-1 text-xs text-muted-foreground flex items-center gap-2">Автор:
-              {(()=> { const u = users?.[post.authorId]; const name = u?.displayName || post.authorName || `Пользователь ${post.authorId}`; return (
+              {(()=> { const u = users?.[post.authorId]; const name = u?.displayName || post.authorName || `Пользователь ${post.authorId}`; const avatar = u?.avatar || post.authorAvatar; return (
                 <Link to={`/profile/${buildProfileSlug(post.authorId, name)}`} className="flex items-center gap-2 text-primary hover:underline">
-                  <AvatarMini avatar={u?.avatar} name={name} size={20} />
+                  <AvatarMini avatar={avatar} name={name} size={20} />
                   <span>{name}</span>
                 </Link>
               ) })()}

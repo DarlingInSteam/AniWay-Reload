@@ -21,6 +21,7 @@ import shadowshift.studio.forumservice.repository.ForumPostRepository;
 import shadowshift.studio.forumservice.repository.ForumThreadRepository;
 import shadowshift.studio.forumservice.repository.ForumReactionRepository;
 import shadowshift.studio.forumservice.entity.ForumReaction;
+import shadowshift.studio.forumservice.service.UserDirectoryClient;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -34,6 +35,7 @@ public class ForumPostController {
     private final ForumPostRepository postRepository;
     private final ForumThreadRepository threadRepository;
     private final ForumReactionRepository reactionRepository;
+    private final UserDirectoryClient userDirectoryClient;
 
     @GetMapping
     public ResponseEntity<Page<ForumPostResponse>> getPosts(
@@ -166,13 +168,28 @@ public class ForumPostController {
     boolean isAuthor = currentUserId != null && currentUserId.equals(post.getAuthorId());
     boolean withinEditWindow = java.time.Duration.between(post.getCreatedAt(), LocalDateTime.now()).toDays() < 7;
 
+    // Enrich author
+    String authorName = "Пользователь " + post.getAuthorId();
+    String authorAvatar = null;
+    try {
+        Map<Long, UserDirectoryClient.UserBasic> users = userDirectoryClient.fetchUsers(java.util.Collections.singleton(post.getAuthorId()));
+        UserDirectoryClient.UserBasic ub = users.get(post.getAuthorId());
+        if (ub != null) {
+            if (ub.displayName() != null && !ub.displayName().isBlank()) authorName = ub.displayName();
+            else if (ub.username() != null) authorName = ub.username();
+            authorAvatar = ub.avatar();
+        }
+    } catch (Exception e) {
+        log.debug("Не удалось получить данные автора поста {}: {}", post.getAuthorId(), e.getMessage());
+    }
+
     return ForumPostResponse.builder()
                 .id(post.getId())
                 .threadId(post.getThreadId())
                 .content(post.getContent())
                 .authorId(post.getAuthorId())
-                .authorName("Пользователь " + post.getAuthorId()) // TODO AuthService
-                .authorAvatar(null) // TODO avatar
+                .authorName(authorName)
+                .authorAvatar(authorAvatar)
                 .parentPostId(post.getParentPostId())
                 .replies(null) // вложенные ответы реализовать позже
                 .isDeleted(post.getIsDeleted())
