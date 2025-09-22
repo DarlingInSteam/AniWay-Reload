@@ -12,7 +12,7 @@ export function ForumThreadList({ threads, users, density = 'comfortable' }: Pro
   if (!threads.length) return <div className="text-sm text-muted-foreground">Тем пока нет</div>
   const visits = loadVisits()
   return (
-    <div className={density === 'compact' ? 'space-y-1.5' : 'space-y-3'}>
+    <div className={(density === 'compact' ? 'space-y-1.5' : 'space-y-3') + ' sm:space-y-3'}>
       {threads.map(t => {
         const lastVisit = visits[t.id]
         const lastActivity = new Date(t.lastActivityAt).getTime()

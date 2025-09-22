@@ -1,16 +1,22 @@
 import { useThreadPreview } from '@/hooks/useForum'
 import { useEffect, useRef, useState } from 'react'
 
-interface Props { threadId: number; open: boolean }
+interface Props { threadId: number; open: boolean; placement: 'right' | 'left' | 'overlay' }
 
-export function ThreadHoverPreview({ threadId, open }: Props){
+export function ThreadHoverPreview({ threadId, open, placement }: Props){
   const { data, isLoading } = useThreadPreview(threadId)
   const ref = useRef<HTMLDivElement|null>(null)
   const [mounted, setMounted] = useState(false)
   useEffect(()=> { if(open) setMounted(true) }, [open])
   if(!mounted) return null
+  const base = 'pointer-events-none absolute z-40 w-80 sm:w-96 max-w-[28rem] rounded-xl border border-white/10 bg-black/80 backdrop-blur p-4 text-xs text-white shadow-xl transition-opacity duration-150'
+  const cls = placement === 'right'
+    ? 'left-full top-0 ml-3'
+    : placement === 'left'
+      ? 'right-full top-0 mr-3'
+      : 'left-0 right-0 top-full mt-2 w-full max-w-none'
   return (
-    <div ref={ref} className={`pointer-events-none absolute left-full top-0 z-40 ml-3 w-96 max-w-[28rem] rounded-xl border border-white/10 bg-black/80 backdrop-blur p-4 text-xs text-white shadow-xl transition-opacity duration-150 ${open ? 'opacity-100' : 'opacity-0'} `}>
+    <div ref={ref} className={`${base} ${cls} ${open ? 'opacity-100' : 'opacity-0'} hidden sm:block`}>
       {isLoading && <div className="text-white/50">Загрузка…</div>}
       {data && (
         <div className="space-y-3">

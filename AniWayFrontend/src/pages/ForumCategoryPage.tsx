@@ -46,7 +46,7 @@ export function ForumCategoryPage() {
   useEffect(()=>{ if(category) document.title = `${category.name} | Форум`},[category])
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-manga-black px-4 pb-24 pt-6">
+  <div className="min-h-[calc(100vh-4rem)] bg-manga-black px-3 sm:px-4 pb-24 pt-4 sm:pt-6">
       <div className="mx-auto w-full max-w-6xl">
         <div className="mb-6 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
           <Link to="/forum" className="hover:text-white transition-colors">Форум</Link>

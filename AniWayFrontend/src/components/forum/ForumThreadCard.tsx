@@ -5,7 +5,7 @@ import { AvatarMini } from './AvatarMini'
 import { Badge } from '@/components/ui/badge'
 import { ThreadHoverPreview } from './ThreadHoverPreview'
 import { useQueryClient } from '@tanstack/react-query'
-import { useRef, useState, useCallback } from 'react'
+import { useRef, useState, useCallback, useEffect } from 'react'
 
 interface Props { thread: ForumThread; users?: Record<number, any>; density?: 'comfortable' | 'compact'; isNew?: boolean; isUpdated?: boolean }
 
@@ -13,11 +13,26 @@ export function ForumThreadCard({ thread, users, density = 'comfortable', isNew,
   const qc = useQueryClient()
   const hoverTimer = useRef<any>(null)
   const [open, setOpen] = useState(false)
+  const [placement, setPlacement] = useState<'right'|'left'|'overlay'>('right')
+  const rootRef = useRef<HTMLAnchorElement|null>(null)
+  const recalcPlacement = () => {
+    if(!rootRef.current) return
+    const rect = rootRef.current.getBoundingClientRect()
+    const vw = window.innerWidth
+    if(vw < 640) { setPlacement('overlay'); return }
+    const spaceRight = vw - rect.right
+    const spaceLeft = rect.left
+    if(spaceRight > 380) setPlacement('right')
+    else if(spaceLeft > 380) setPlacement('left')
+    else setPlacement('overlay')
+  }
+  useEffect(()=> { if(open) recalcPlacement() }, [open])
   const handleEnter = useCallback(()=> {
     if(hoverTimer.current) clearTimeout(hoverTimer.current)
     hoverTimer.current = setTimeout(()=> {
       qc.prefetchQuery({ queryKey: ['forum','threadPreview', thread.id] })
       setOpen(true)
+      recalcPlacement()
     }, 320)
   }, [thread.id])
   const handleLeave = useCallback(()=> {
@@ -35,7 +50,7 @@ export function ForumThreadCard({ thread, users, density = 'comfortable', isNew,
   const highlight = isNew || isUpdated
   const ring = isNew ? 'ring-2 ring-emerald-500/40' : isUpdated ? 'ring-2 ring-sky-500/40' : ''
   return (
-  <Link to={`/forum/thread/${thread.id}`} onMouseEnter={handleEnter} onMouseLeave={handleLeave} aria-label={highlight ? (isNew ? 'Новая тема' : 'Обновлённая тема') : undefined} className={`group relative block rounded-xl border border-white/10 bg-white/5 ${padding} hover:bg-white/10 transition-colors ${ring}`}> 
+  <Link ref={rootRef} to={`/forum/thread/${thread.id}`} onMouseEnter={handleEnter} onMouseLeave={handleLeave} aria-label={highlight ? (isNew ? 'Новая тема' : 'Обновлённая тема') : undefined} role="article" className={`group relative block rounded-xl border border-white/10 bg-white/5 ${padding} hover:bg-white/10 transition-colors ${ring} focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2 focus:ring-offset-manga-black sm:pr-6`}> 
       <div className="flex flex-col gap-3">
         <div className="flex items-start gap-3">
           <div className="flex flex-col items-start gap-1 w-16 pt-0.5">
@@ -61,7 +76,7 @@ export function ForumThreadCard({ thread, users, density = 'comfortable', isNew,
           </div>
         </div>
       </div>
-      <ThreadHoverPreview threadId={thread.id} open={open} />
+      <ThreadHoverPreview threadId={thread.id} open={open} placement={placement} />
     </Link>
   )
 }
