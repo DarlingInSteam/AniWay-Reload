@@ -241,6 +241,34 @@ services:
     networks:
       - aniway-network
 
+  # Notification Service
+  notification-service:
+    build:
+      context: ./NotificationService
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://notification-postgres:5432/notificationdb
+      - SPRING_DATASOURCE_USERNAME=notificationuser
+      - SPRING_DATASOURCE_PASSWORD=notificationpass123
+    restart: unless-stopped
+    depends_on:
+      - notification-postgres
+    networks:
+      - aniway-network
+
+  notification-postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: notificationdb
+      POSTGRES_USER: notificationuser
+      POSTGRES_PASSWORD: notificationpass123
+    volumes:
+      - notification_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - aniway-network
+
 volumes:
   auth_data:
   manga_data:
@@ -251,6 +279,7 @@ volumes:
   melon_data:
   melon_logs:
   melon_temp:
+  notification_data:
 
 networks:
   aniway-network:

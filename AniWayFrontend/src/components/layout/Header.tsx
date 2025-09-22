@@ -1,5 +1,6 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { Search, Bell, Bookmark, User, Menu, X, Settings, MessageSquare } from 'lucide-react'
+import { NotificationBell } from '@/notifications/NotificationBell'
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api'
@@ -280,12 +281,7 @@ export function Header() {
                   <Bookmark className="h-5 w-5" />
                 </Link>
                 
-                <button
-                  className="p-2 lg:p-3 rounded-xl hover:bg-secondary/50 text-muted-foreground hover:text-white transition-colors duration-200"
-                  title="Уведомления"
-                >
-                  <Bell className="h-5 w-5" />
-                </button>
+                <NotificationBell />
 
                 {(isAdmin || isTranslator) && (
                   <Link

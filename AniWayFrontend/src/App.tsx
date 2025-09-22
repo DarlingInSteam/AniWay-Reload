@@ -13,12 +13,14 @@ import { CreateCategoryPage } from './pages/CreateCategoryPage'
 import { ForumCategoryPage } from './pages/ForumCategoryPage'
 import { ForumThreadPage } from './pages/ForumThreadPage'
 import { CreateThreadPage } from './pages/CreateThreadPage'
-import { AuthProvider, ProtectedRoute } from './contexts/AuthContext'
+import { AuthProvider, ProtectedRoute, useAuth } from './contexts/AuthContext'
+import { NotificationProvider } from './notifications/NotificationContext'
 import { Toaster } from 'sonner'
 
-function App() {
+function InnerApp() {
+  const { user } = useAuth();
   return (
-    <AuthProvider>
+    <NotificationProvider userId={user?.id ?? null} token={null}>
       <Layout>
         <Routes>
           <Route path="/" element={<CatalogPage />} />
@@ -89,6 +91,14 @@ function App() {
         </Routes>
         <Toaster position="top-right" theme="dark" />
       </Layout>
+    </NotificationProvider>
+  )
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <InnerApp />
     </AuthProvider>
   )
 }
