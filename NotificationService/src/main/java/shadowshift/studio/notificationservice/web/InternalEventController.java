@@ -2,6 +2,7 @@ package shadowshift.studio.notificationservice.web;
 
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import shadowshift.studio.notificationservice.domain.NotificationType;
@@ -16,6 +17,12 @@ import java.util.Map;
 public class InternalEventController {
 
     private final NotificationServiceFacade facade;
+
+    @Value("${manga.service.internal-url:http://manga-service:8081}")
+    private String mangaServiceInternalUrl;
+
+    @Value("${chapter.service.internal-url:http://chapter-service:8082}")
+    private String chapterServiceInternalUrl;
 
     @PostMapping("/comment-created")
     public ResponseEntity<Void> commentCreated(@RequestBody CommentCreatedEvent body) {
@@ -158,8 +165,8 @@ public class InternalEventController {
     private String fetchMangaTitle(Long mangaId) {
         try {
             java.net.http.HttpClient http = java.net.http.HttpClient.newHttpClient();
-            java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
-                    .uri(java.net.URI.create("http://manga-service:8082/api/manga/" + mangaId))
+        java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
+            .uri(java.net.URI.create(mangaServiceInternalUrl + "/api/manga/" + mangaId))
                     .timeout(java.time.Duration.ofMillis(800))
                     .GET().build();
             java.net.http.HttpResponse<String> resp = http.send(req, java.net.http.HttpResponse.BodyHandlers.ofString());
@@ -183,8 +190,8 @@ public class InternalEventController {
     private java.util.Map<String,Object> fetchChapterMeta(Long chapterId) {
         try {
             java.net.http.HttpClient http = java.net.http.HttpClient.newHttpClient();
-            java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
-                    .uri(java.net.URI.create("http://chapter-service:8083/api/chapters/" + chapterId))
+        java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
+            .uri(java.net.URI.create(chapterServiceInternalUrl + "/api/chapters/" + chapterId))
                     .timeout(java.time.Duration.ofMillis(800))
                     .GET().build();
             java.net.http.HttpResponse<String> resp = http.send(req, java.net.http.HttpResponse.BodyHandlers.ofString());

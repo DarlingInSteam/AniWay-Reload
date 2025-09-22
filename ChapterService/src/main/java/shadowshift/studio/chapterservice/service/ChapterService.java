@@ -41,6 +41,9 @@ public class ChapterService {
     @Value("${notification.service.base-url:http://notification-service:8095}")
     private String notificationServiceBaseUrl;
 
+    @Value("${auth.service.internal-url:http://auth-service:8085}")
+    private String authServiceInternalUrl;
+
     /**
      * Получить все главы для указанной манги.
      * Автоматически синхронизирует количество страниц с сервисом хранения изображений.
@@ -145,14 +148,29 @@ public class ChapterService {
         try {
             WebClient client = webClientBuilder.build();
             // 1. Fetch subscribers from AuthService
-            List<Long> subscribers = client.get()
-                    .uri("http://auth-service:8080/internal/bookmarks/manga/" + createDTO.getMangaId() + "/subscribers")
-                    .retrieve()
-                    .bodyToFlux(Long.class)
-                    .collectList()
-                    .blockOptional(java.time.Duration.ofSeconds(3))
-                    .orElse(java.util.Collections.emptyList());
-            System.out.println("Fan-out: fetched subscribers for manga " + createDTO.getMangaId() + ": " + subscribers.size());
+            String subscribersUrl = authServiceInternalUrl + "/internal/bookmarks/manga/" + createDTO.getMangaId() + "/subscribers";
+            List<Long> subscribers = java.util.Collections.emptyList();
+            int attempts = 0;
+            while (attempts < 2) { // simple retry once
+                attempts++;
+                try {
+                    subscribers = client.get()
+                            .uri(subscribersUrl)
+                            .retrieve()
+                            .bodyToFlux(Long.class)
+                            .collectList()
+                            .blockOptional(java.time.Duration.ofSeconds(4))
+                            .orElse(java.util.Collections.emptyList());
+                    break;
+                } catch (Exception fetchEx) {
+                    if (attempts >= 2) {
+                        System.err.println("Fan-out: failed to fetch subscribers after retries url=" + subscribersUrl + " error=" + fetchEx.getMessage());
+                    } else {
+                        System.out.println("Fan-out: retry fetching subscribers (attempt " + (attempts+1) + ") url=" + subscribersUrl);
+                    }
+                }
+            }
+            System.out.println("Fan-out: subscribers url=" + subscribersUrl + " count=" + subscribers.size());
             if (!subscribers.isEmpty()) {
                 // 2. Send batch event to NotificationService
                 Map<String,Object> payload = Map.of(
@@ -162,16 +180,17 @@ public class ChapterService {
                         "chapterNumber", String.valueOf(createDTO.getChapterNumber()),
                         "mangaTitle", fetchMangaTitle(createDTO.getMangaId())
                 );
+        String notifyUrl = notificationServiceBaseUrl + "/internal/events/chapter-published-batch";
         var responseEntity = client.post()
-            .uri(notificationServiceBaseUrl + "/internal/events/chapter-published-batch")
+            .uri(notifyUrl)
                         .bodyValue(payload)
                         .retrieve()
                         .toBodilessEntity()
-                        .block(java.time.Duration.ofSeconds(2));
+                        .block(java.time.Duration.ofSeconds(3));
                 if (responseEntity != null) {
-                    System.out.println("Fan-out: notification batch sent, status=" + responseEntity.getStatusCode());
+                    System.out.println("Fan-out: notification batch sent url=" + notifyUrl + " status=" + responseEntity.getStatusCode());
                 } else {
-                    System.out.println("Fan-out: notification batch call returned null response");
+                    System.out.println("Fan-out: notification batch call returned null response url=" + notifyUrl);
                 }
             }
         } catch (Exception ex) {
