@@ -3,7 +3,7 @@ server:
 
 auth:
   introspect-url: "http://auth-service:8085/api/auth/validate"
-  public-paths: "/api/auth/**,/api/health/**,/api/public/**,/parser/**,/manga/**,/api/genres/**,/api/tags/**"
+  public-paths: "/api/auth/**,/api/health/**,/api/public/**,/parser/**,/manga/**,/api/genres/**,/api/tags/**,/api/notifications/stream"
   cache-ttl-seconds: 300
 
 spring:

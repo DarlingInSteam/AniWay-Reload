@@ -15,12 +15,14 @@ import { ForumThreadPage } from './pages/ForumThreadPage'
 import { CreateThreadPage } from './pages/CreateThreadPage'
 import { AuthProvider, ProtectedRoute, useAuth } from './contexts/AuthContext'
 import { NotificationProvider } from './notifications/NotificationContext'
+import { authService } from './services/authService'
 import { Toaster } from 'sonner'
 
 function InnerApp() {
   const { user } = useAuth();
+  const token = authService.getToken();
   return (
-    <NotificationProvider userId={user?.id ?? null} token={null}>
+    <NotificationProvider userId={user?.id ?? null} token={token}>
       <Layout>
         <Routes>
           <Route path="/" element={<CatalogPage />} />
