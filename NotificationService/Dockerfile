@@ -2,7 +2,7 @@
 FROM eclipse-temurin:21-jdk AS build
 WORKDIR /app
 COPY . .
-RUN ./gradlew clean bootJar -x test --no-daemon
+RUN chmod +x gradlew && ./gradlew clean bootJar -x test --no-daemon
 
 # Run stage
 FROM eclipse-temurin:21-jre
