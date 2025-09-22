@@ -38,6 +38,9 @@ public class ChapterService {
     @Value("${image.storage.service.url}")
     private String imageStorageServiceUrl;
 
+    @Value("${notification.service.base-url:http://notification-service:8095}")
+    private String notificationServiceBaseUrl;
+
     /**
      * Получить все главы для указанной манги.
      * Автоматически синхронизирует количество страниц с сервисом хранения изображений.
@@ -158,8 +161,8 @@ public class ChapterService {
                         "chapterNumber", String.valueOf(createDTO.getChapterNumber()),
                         "mangaTitle", fetchMangaTitle(createDTO.getMangaId())
                 );
-                client.post()
-                        .uri("http://notification-service:8080/internal/events/chapter-published-batch")
+        client.post()
+            .uri(notificationServiceBaseUrl + "/internal/events/chapter-published-batch")
                         .bodyValue(payload)
                         .retrieve()
                         .toBodilessEntity()
