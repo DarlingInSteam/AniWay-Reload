@@ -36,6 +36,9 @@ export function ReaderPage() {
   const [isLiked, setIsLiked] = useState(false)
   const [liking, setLiking] = useState(false)
   const [lastTap, setLastTap] = useState(0)
+  const likeGestureCooldownRef = useRef<number>(0)
+  const gesturePosRef = useRef<{x:number,y:number}|null>(null)
+  const [gestureBursts, setGestureBursts] = useState<Array<{id:number,x:number,y:number}>>([])
   const [showSideComments, setShowSideComments] = useState(false)
 
   const { user } = useAuth()
@@ -168,16 +171,48 @@ export function ReaderPage() {
     }
   }
 
-  // Handle double tap for like
-  const handleImageDoubleClick = () => {
+  // Handle double tap / double click for like with cooldown & visual feedback
+  const triggerHeartBurst = (clientX:number, clientY:number) => {
+    // store relative to viewport; container is full width so OK
+    setGestureBursts(prev => [...prev, { id: Date.now() + Math.random(), x: clientX, y: clientY }])
+    // prune after 1.2s
+    setTimeout(() => {
+      setGestureBursts(prev => prev.slice(1))
+    }, 1200)
+  }
+
+  const attemptLikeFromGesture = (clientX:number, clientY:number) => {
+    const now = Date.now()
+    if (now - likeGestureCooldownRef.current < 600) return // cooldown
+    likeGestureCooldownRef.current = now
+    triggerHeartBurst(clientX, clientY)
+    handleChapterLike()
+  }
+
+  const handleTapOrClick = (e: React.MouseEvent | React.TouchEvent) => {
+    let clientX: number
+    let clientY: number
+    if ('touches' in e && e.touches.length > 0) {
+      clientX = e.touches[0].clientX
+      clientY = e.touches[0].clientY
+    } else if ('changedTouches' in (e as any) && (e as any).changedTouches.length > 0) {
+      clientX = (e as any).changedTouches[0].clientX
+      clientY = (e as any).changedTouches[0].clientY
+    } else {
+      const mouseEvent = e as React.MouseEvent
+      clientX = mouseEvent.clientX
+      clientY = mouseEvent.clientY
+    }
     const currentTime = Date.now()
     const timeDiff = currentTime - lastTap
-
-    if (timeDiff < 300 && timeDiff > 0) { // Double tap within 300ms
-      handleChapterLike()
+    if (timeDiff < 320 && timeDiff > 0) {
+      attemptLikeFromGesture(clientX, clientY)
     }
-
     setLastTap(currentTime)
+  }
+
+  const handleDoubleClickDesktop = (e: React.MouseEvent) => {
+    attemptLikeFromGesture(e.clientX, e.clientY)
   }
 
   // Load chapter like status
@@ -452,6 +487,31 @@ export function ReaderPage() {
 
   return (
     <div className="manga-reader min-h-screen bg-black relative">
+      <style>{`
+        @keyframes heart-pop {
+          0% { transform: scale(0.3) translateY(0); opacity: 0; }
+          10% { transform: scale(1) translateY(0); opacity: 1; }
+          60% { transform: scale(1.05) translateY(-40px); opacity: 0.9; }
+          100% { transform: scale(0.6) translateY(-80px); opacity: 0; }
+        }
+      `}</style>
+      {/* Gesture Heart Bursts */}
+      {gestureBursts.map(burst => (
+        <div
+          key={burst.id}
+          style={{
+            position: 'fixed',
+            left: burst.x - 40,
+            top: burst.y - 40,
+            pointerEvents: 'none',
+            zIndex: 60,
+            animation: 'heart-pop 1.2s ease-out forwards'
+          }}
+          className="select-none"
+        >
+          <Heart className="w-20 h-20 text-red-500/80 fill-red-500/80 drop-shadow-[0_0_8px_rgba(239,68,68,0.6)]" />
+        </div>
+      ))}
       {/* Top Navigation Bar - ИСПРАВЛЕНО центрирование */}
       <div className={cn(
         'fixed top-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-sm border-b border-white/10 transition-all duration-300',
@@ -625,7 +685,8 @@ export function ReaderPage() {
                       }
                     }}
                     onClick={() => setShowUI(!showUI)}
-                    onDoubleClick={handleImageDoubleClick}
+                    onDoubleClick={handleDoubleClickDesktop}
+                    onTouchStart={handleTapOrClick}
                   />
                 ) : (
                   <div className={cn(
