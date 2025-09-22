@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNotifications } from './NotificationContext';
 import { parsePayload, formatTitle, formatDescription, formatDate, getIcon } from './notificationUtils';
+import { authService } from '../services/authService';
 
 interface NotificationItem {
   id: number;
@@ -32,7 +33,12 @@ export const NotificationsPage: React.FC = () => {
     if (loading || end) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/notifications/page?page=${page}&size=30`, { headers: { 'X-User-Id': (window as any).currentUserId } });
+  const token = authService.getToken();
+  const headers: Record<string,string> = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  // X-User-Id no longer strictly required when JWT present, keep fallback if gateway bypassed locally
+  if ((window as any).currentUserId) headers['X-User-Id'] = String((window as any).currentUserId);
+  const res = await fetch(`/api/notifications/page?page=${page}&size=30`, { headers });
       if (!res.ok) throw new Error('Failed');
       const data = await res.json();
       const list: NotificationItem[] = data.items || [];

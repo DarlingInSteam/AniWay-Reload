@@ -3,6 +3,7 @@ import { useNotifications } from './NotificationContext';
 import { deleteAll } from './api';
 import { parsePayload, formatTitle, formatDescription, formatDate, getIcon } from './notificationUtils';
 import { useNavigate } from 'react-router-dom';
+import { authService } from '../services/authService';
 
 export const NotificationBell: React.FC = () => {
   const { unread, items, markRead, markAll, loadMore, loading } = useNotifications();
@@ -32,8 +33,8 @@ export const NotificationBell: React.FC = () => {
 
   return (
     <div className="relative inline-block text-left" ref={ref}>
-      <button onClick={toggle} className="relative p-2 rounded hover:bg-neutral-800 transition">
-        <span className="material-icons">notifications_none</span>
+      <button onClick={toggle} className="relative p-2 rounded hover:bg-neutral-800 transition" aria-label="Уведомления">
+        <span className="text-xl">🔔</span>
         {unread > 0 && (
           <span className="absolute -top-0.5 -right-0.5 bg-red-600 text-white text-[10px] px-1 rounded-full">{unread}</span>
         )}
@@ -44,7 +45,7 @@ export const NotificationBell: React.FC = () => {
             <span className="text-sm font-semibold">Уведомления</span>
             <div className="flex gap-2 items-center">
               {unread > 0 && <button disabled={busy} className="text-xs text-blue-400 hover:underline disabled:opacity-40" onClick={() => markAll()}>Прочитать все</button>}
-              {items.length > 0 && <button disabled={busy} className="text-xs text-red-400 hover:underline disabled:opacity-40" onClick={async () => { setBusy(true); try { await deleteAll(null,  /* userId header set inside provider */ (window as any).currentUserId ); } catch(_){} finally { setBusy(false); } }}>Удалить все</button>}
+              {items.length > 0 && <button disabled={busy} className="text-xs text-red-400 hover:underline disabled:opacity-40" onClick={async () => { setBusy(true); try { await deleteAll(authService.getToken(), (window as any).currentUserId ); } catch(_){} finally { setBusy(false); } }}>Удалить все</button>}
               <button className="text-xs text-blue-400 hover:underline" onClick={() => setOpen(false)}>Закрыть</button>
             </div>
           </div>
