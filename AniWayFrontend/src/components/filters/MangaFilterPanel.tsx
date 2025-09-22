@@ -240,9 +240,9 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
           >
             <RotateCcw className="h-4 w-4" />
           </Button>
-          {/* Desktop strict toggle */}
+          {/* Desktop strict toggle (compact, tooltip on hover) */}
           {!isMobile && (
-            <div className="relative group flex items-center">
+            <div className="relative group">
               <button
                 type="button"
                 onClick={() => update({ strictMatch: !filters.strictMatch })}
@@ -258,22 +258,12 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
                 <span className="inline-block h-2 w-2 rounded-full bg-current" />
                 Строго
               </button>
-              <button
-                type="button"
-                className="ml-1 h-6 w-6 inline-flex items-center justify-center rounded-md bg-white/5 border border-white/10 text-muted-foreground hover:text-white hover:bg-white/10"
-                aria-label="Пояснение строгого режима"
-                aria-describedby="strict-tooltip"
-                tabIndex={0}
-              >
-                <HelpCircle className="h-3.5 w-3.5" />
-              </button>
-              {/* Tooltip */}
               <div
                 id="strict-tooltip"
                 role="tooltip"
-                className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity absolute top-full left-0 mt-2 w-60 rounded-md border border-white/15 bg-[#111418] p-3 shadow-lg text-[11px] leading-snug text-muted-foreground z-50"
+                className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity absolute top-full left-0 mt-2 w-56 rounded-md border border-white/15 bg-[#111418] p-2.5 shadow-lg text-[11px] leading-snug text-muted-foreground z-50"
               >
-                Включает логическое И для жанров и тегов: показываются только произведения, содержащие <span className="text-white font-medium">все</span> выбранные жанры и теги. Выключено — подходит любое совпадение (ИЛИ).
+                Показать только тайтлы, у которых есть все выбранные жанры и теги (И). Выключено — любое совпадение (ИЛИ).
                 <div className="absolute -top-2 left-4 h-2 w-2 rotate-45 bg-[#111418] border-l border-t border-white/15" />
               </div>
             </div>
