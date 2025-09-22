@@ -14,7 +14,7 @@ import { ForumCategoryPage } from './pages/ForumCategoryPage'
 import { ForumThreadPage } from './pages/ForumThreadPage'
 import { CreateThreadPage } from './pages/CreateThreadPage'
 import { AuthProvider, ProtectedRoute, useAuth } from './contexts/AuthContext'
-import SecuritySettingsPage from './pages/SecuritySettingsPage'
+import SettingsPage from './pages/SettingsPage'
 import { NotificationProvider } from './notifications/NotificationContext'
 import { NotificationsPage } from './notifications/NotificationsPage'
 import { authService } from './services/authService'
@@ -49,7 +49,7 @@ function InnerApp() {
             </ProtectedRoute>
           } />
           <Route path="/profile/:userId" element={<ProfilePage />} />
-          <Route path="/security" element={<ProtectedRoute><SecuritySettingsPage /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
           <Route path="/bookmarks" element={
             <ProtectedRoute>
               <LibraryPage />
