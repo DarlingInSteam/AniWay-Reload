@@ -14,13 +14,21 @@ async function fetchUser(id: number): Promise<UserLite | null> {
   if (c && now - c.ts < TTL) return c.user
   try {
     const profile = await apiClient.getUserProfile(id) // will fallback internal
-    const u: UserLite = { id: profile.id, username: profile.username, displayName: (profile.displayName || profile.username), avatar: profile.avatar }
+    let avatar = profile.avatar
+    if (!avatar) {
+      try { avatar = await apiClient.getUserAvatar(id) || undefined } catch { /* ignore */ }
+    }
+    const u: UserLite = { id: profile.id, username: profile.username, displayName: (profile.displayName || profile.username), avatar }
     cache.set(id, { user: u, ts: now })
     return u
   } catch {
     try {
       const pub = await apiClient.getUserPublicProfile(id)
-      const u: UserLite = { id: pub.id, username: pub.username, displayName: (pub.displayName || pub.username), avatar: pub.avatar }
+      let avatar = pub.avatar
+      if (!avatar) {
+        try { avatar = await apiClient.getUserAvatar(id) || undefined } catch { /* ignore */ }
+      }
+      const u: UserLite = { id: pub.id, username: pub.username, displayName: (pub.displayName || pub.username), avatar }
       cache.set(id, { user: u, ts: now })
       return u
     } catch { return null }
