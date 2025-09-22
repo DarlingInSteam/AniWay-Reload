@@ -177,24 +177,24 @@ public interface MangaRepository extends JpaRepository<Manga, Long> {
         Pageable pageable
     );
     
-        /**
-         * Упрощённый JPQL-вариант пагинированного поиска без динамического ORDER BY внутри SQL.
-         * Сортировка будет применена через Pageable (Spring Data), что исключает дублирование ORDER BY.
-         */
-        @Query("""
-            SELECT m FROM Manga m
-            WHERE (:title IS NULL OR LOWER(m.title) LIKE LOWER(CONCAT('%', :title, '%')))
-              AND (:author IS NULL OR LOWER(m.author) LIKE LOWER(CONCAT('%', :author, '%')))
-              AND (:genre IS NULL OR LOWER(m.genre) LIKE LOWER(CONCAT('%', :genre, '%')))
-              AND (:status IS NULL OR m.status = :status)
-        """)
-        Page<Manga> searchMangaPagedJPQL(
-            @Param("title") String title,
-            @Param("author") String author,
-            @Param("genre") String genre,
-            @Param("status") String status,
-            Pageable pageable
-        );
+    /**
+     * Упрощённый JPQL-поиск: передаются уже подготовленные паттерны ("%text%") в нижнем регистре.
+     * Исключаем CONCAT/LOWER над параметрами, чтобы предотвратить приведение к bytea в PostgreSQL.
+     */
+    @Query("""
+        SELECT m FROM Manga m
+        WHERE (:titlePattern IS NULL OR LOWER(m.title) LIKE :titlePattern)
+          AND (:authorPattern IS NULL OR LOWER(m.author) LIKE :authorPattern)
+          AND (:genrePattern IS NULL OR LOWER(m.genre) LIKE :genrePattern)
+          AND (:status IS NULL OR m.status = :status)
+    """)
+    Page<Manga> searchMangaPagedJPQL(
+        @Param("titlePattern") String titlePattern,
+        @Param("authorPattern") String authorPattern,
+        @Param("genrePattern") String genrePattern,
+        @Param("status") String status,
+        Pageable pageable
+    );
 
     /**
      * Инкрементирует счетчик просмотров манги.
