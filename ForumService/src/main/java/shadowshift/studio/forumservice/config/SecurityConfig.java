@@ -53,9 +53,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/forum/threads/{threadId}/subscribe").hasRole("USER")
                 .requestMatchers("/api/forum/threads/{threadId}/posts").hasRole("USER") // POST - создание поста
                 .requestMatchers("/api/forum/posts/{postId}").hasRole("USER") // PUT, DELETE
-                .requestMatchers("/api/forum/**/**/like").hasRole("USER")
-                .requestMatchers("/api/forum/**/**/dislike").hasRole("USER")
-                .requestMatchers("/api/forum/**/**/reaction").hasRole("USER")
+                .requestMatchers("/api/forum/**/like").hasRole("USER")
+                .requestMatchers("/api/forum/**/dislike").hasRole("USER")
+                .requestMatchers("/api/forum/**/reaction").hasRole("USER")
                 
                 // Actuator endpoint'ы
                 .requestMatchers("/actuator/health").permitAll()

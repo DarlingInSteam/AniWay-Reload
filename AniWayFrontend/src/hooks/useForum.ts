@@ -71,7 +71,16 @@ export function useDeleteThread() {
 export function useThreadPosts(threadId?: number, page=0, size=20) {
   return useQuery({
     queryKey: ['forum','posts', threadId, page, size],
-    queryFn: () => forumService.getPostsByThread(threadId!, page, size),
+    queryFn: async () => {
+      try {
+        return await forumService.getPostsByThread(threadId!, page, size)
+      } catch (e: any) {
+        if (String(e?.message).includes('404')) {
+          return { content: [], page: 0, size, totalElements: 0, totalPages: 0, last: true }
+        }
+        throw e
+      }
+    },
     enabled: !!threadId
   })
 }

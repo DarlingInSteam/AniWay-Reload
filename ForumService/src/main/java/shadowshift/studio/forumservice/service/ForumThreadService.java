@@ -20,7 +20,7 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-@Transactional(readOnly = true)
+@Transactional
 public class ForumThreadService {
 
     private final ForumThreadRepository threadRepository;
@@ -32,6 +32,7 @@ public class ForumThreadService {
     /**
      * Получить темы в категории с пагинацией
      */
+    @Transactional(readOnly = true)
     public Page<ForumThreadResponse> getThreadsByCategory(Long categoryId, Pageable pageable, Long currentUserId) {
         log.debug("Получение тем в категории: {}, страница: {}", categoryId, pageable.getPageNumber());
         
@@ -43,6 +44,7 @@ public class ForumThreadService {
     /**
      * Получить все темы с пагинацией
      */
+    @Transactional(readOnly = true)
     public Page<ForumThreadResponse> getAllThreads(Pageable pageable, Long currentUserId) {
         log.debug("Получение всех тем, страница: {}", pageable.getPageNumber());
         
@@ -54,6 +56,7 @@ public class ForumThreadService {
     /**
      * Получить тему по ID
      */
+    @Transactional(readOnly = true)
     public ForumThreadResponse getThreadById(Long threadId, Long currentUserId, String userIp) {
         log.debug("Получение темы по ID: {}", threadId);
         
@@ -183,6 +186,7 @@ public class ForumThreadService {
     /**
      * Поиск тем
      */
+    @Transactional(readOnly = true)
     public Page<ForumThreadResponse> searchThreads(String query, Pageable pageable, Long currentUserId) {
         log.debug("Поиск тем по запросу: {}", query);
         
@@ -197,6 +201,7 @@ public class ForumThreadService {
     /**
      * Получить темы автора
      */
+    @Transactional(readOnly = true)
     public Page<ForumThreadResponse> getThreadsByAuthor(Long authorId, Pageable pageable, Long currentUserId) {
         log.debug("Получение тем автора: {}", authorId);
         
