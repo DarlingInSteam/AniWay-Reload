@@ -9,8 +9,9 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "email_verification", indexes = {
-        @Index(name = "idx_email_verification_email", columnList = "email"),
-        @Index(name = "idx_email_verification_status", columnList = "status")
+    @Index(name = "idx_email_verification_email", columnList = "email"),
+    @Index(name = "idx_email_verification_status", columnList = "status"),
+    @Index(name = "idx_email_verification_purpose", columnList = "purpose")
 })
 @Getter
 @Setter
@@ -36,6 +37,10 @@ public class EmailVerification {
     @Column(nullable = false, length = 20)
     private Status status;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private Purpose purpose; // REGISTRATION, PASSWORD_RESET, ACCOUNT_DELETION
+
     @Column(nullable = false)
     private int attemptsRemaining;
 
@@ -50,6 +55,7 @@ public class EmailVerification {
     private LocalDateTime createdAt;
 
     public enum Status { ACTIVE, VERIFIED, FAILED, EXPIRED }
+    public enum Purpose { REGISTRATION, PASSWORD_RESET, ACCOUNT_DELETION }
 
     public boolean isExpired() {
         return LocalDateTime.now().isAfter(expiresAt);

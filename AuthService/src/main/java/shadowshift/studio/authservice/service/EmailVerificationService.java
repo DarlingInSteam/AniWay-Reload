@@ -49,12 +49,12 @@ public class EmailVerificationService {
     }
 
     @Transactional
-    public EmailVerification requestCode(String email) {
+    public EmailVerification requestCode(String email, EmailVerification.Purpose purpose) {
         String normEmail = email.trim().toLowerCase();
 
         // Rate limiting per email last hour
         LocalDateTime hourAgo = LocalDateTime.now().minusHours(1);
-        List<EmailVerification> lastHour = emailVerificationRepository.findByEmailAndCreatedAtAfter(normEmail, hourAgo);
+    List<EmailVerification> lastHour = emailVerificationRepository.findByEmailAndPurposeAndCreatedAtAfter(normEmail, purpose, hourAgo);
         if (lastHour.size() >= perEmailHour) {
             throw new IllegalArgumentException("RATE_LIMIT_EMAIL");
         }
@@ -66,11 +66,12 @@ public class EmailVerificationService {
 
         String code = generateCode();
         String hash = passwordEncoder.encode(code);
-        EmailVerification verification = EmailVerification.builder()
+    EmailVerification verification = EmailVerification.builder()
                 .email(normEmail)
                 .codeHash(hash)
                 .expiresAt(LocalDateTime.now().plusSeconds(codeTtlSeconds))
                 .status(EmailVerification.Status.ACTIVE)
+        .purpose(purpose)
                 .attemptsRemaining(maxAttempts)
                 .sendCount(1)
                 .build();
@@ -82,8 +83,8 @@ public class EmailVerificationService {
     }
 
     @Transactional
-    public String verifyCode(UUID requestId, String code) {
-        EmailVerification verification = emailVerificationRepository.findFirstByIdAndStatus(requestId, EmailVerification.Status.ACTIVE)
+    public String verifyCode(UUID requestId, String code, EmailVerification.Purpose purpose) {
+        EmailVerification verification = emailVerificationRepository.findFirstByIdAndStatusAndPurpose(requestId, EmailVerification.Status.ACTIVE, purpose)
                 .orElseThrow(() -> new IllegalArgumentException("INVALID_REQUEST"));
 
         if (verification.isExpired()) {
@@ -114,8 +115,8 @@ public class EmailVerificationService {
         return token;
     }
 
-    public String consumeVerificationToken(String token) {
-        Optional<EmailVerification> opt = emailVerificationRepository.findFirstByVerificationTokenAndStatus(token, EmailVerification.Status.VERIFIED);
+    public String consumeVerificationToken(String token, EmailVerification.Purpose purpose) {
+        Optional<EmailVerification> opt = emailVerificationRepository.findFirstByVerificationTokenAndStatusAndPurpose(token, EmailVerification.Status.VERIFIED, purpose);
         EmailVerification verification = opt.orElseThrow(() -> new IllegalArgumentException("TOKEN_INVALID"));
         if (verification.isExpired()) {
             throw new IllegalArgumentException("TOKEN_EXPIRED");
@@ -132,4 +133,9 @@ public class EmailVerificationService {
     public long getRemainingTtlSeconds(EmailVerification v) {
         return Math.max(0, Duration.between(LocalDateTime.now(), v.getExpiresAt()).toSeconds());
     }
+
+    // Convenience wrappers
+    public EmailVerification requestRegistrationCode(String email) { return requestCode(email, EmailVerification.Purpose.REGISTRATION); }
+    public EmailVerification requestPasswordResetCode(String email) { return requestCode(email, EmailVerification.Purpose.PASSWORD_RESET); }
+    public EmailVerification requestAccountDeletionCode(String email) { return requestCode(email, EmailVerification.Purpose.ACCOUNT_DELETION); }
 }

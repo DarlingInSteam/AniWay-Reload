@@ -48,7 +48,7 @@ public class AuthService {
             throw new IllegalArgumentException("EMAIL_NOT_VERIFIED");
         }
 
-        String verifiedEmail = emailVerificationService.consumeVerificationToken(request.getVerificationToken());
+    String verifiedEmail = emailVerificationService.consumeVerificationToken(request.getVerificationToken(), shadowshift.studio.authservice.entity.EmailVerification.Purpose.REGISTRATION);
         if (!verifiedEmail.equalsIgnoreCase(request.getEmail())) {
             throw new IllegalArgumentException("EMAIL_MISMATCH");
         }
@@ -148,5 +148,41 @@ public class AuthService {
             log.error("Token validation failed: {}", e.getMessage());
             return null;
         }
+    }
+
+    // Password reset using previously verified token (PASSWORD_RESET purpose)
+    public void resetPasswordWithToken(String verificationToken, String newPassword) {
+        String email = emailVerificationService.consumeVerificationToken(verificationToken, shadowshift.studio.authservice.entity.EmailVerification.Purpose.PASSWORD_RESET);
+        var userOpt = userRepository.findByEmail(email);
+        if (userOpt.isEmpty()) {
+            throw new IllegalArgumentException("USER_NOT_FOUND");
+        }
+        var user = userOpt.get();
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+        log.info("Password reset for user {}", user.getUsername());
+    }
+
+    // Authenticated password change
+    public void changePassword(String username, String currentPassword, String newPassword) {
+        var user = userRepository.findByUsername(username).orElseThrow(() -> new IllegalArgumentException("USER_NOT_FOUND"));
+        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+            throw new IllegalArgumentException("BAD_CREDENTIALS");
+        }
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+        log.info("Password changed for user {}", username);
+    }
+
+    // Account deletion after email confirmation token (ACCOUNT_DELETION purpose)
+    public void deleteAccountWithToken(String verificationToken) {
+        String email = emailVerificationService.consumeVerificationToken(verificationToken, shadowshift.studio.authservice.entity.EmailVerification.Purpose.ACCOUNT_DELETION);
+        var userOpt = userRepository.findByEmail(email);
+        if (userOpt.isEmpty()) {
+            throw new IllegalArgumentException("USER_NOT_FOUND");
+        }
+        var user = userOpt.get();
+        userRepository.delete(user);
+        log.info("Account deleted for user {}", user.getUsername());
     }
 }

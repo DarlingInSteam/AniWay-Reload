@@ -9,8 +9,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface EmailVerificationRepository extends JpaRepository<EmailVerification, UUID> {
-    List<EmailVerification> findTop5ByEmailAndStatusOrderByCreatedAtDesc(String email, EmailVerification.Status status);
-    List<EmailVerification> findByEmailAndCreatedAtAfter(String email, LocalDateTime after);
-    Optional<EmailVerification> findFirstByIdAndStatus(UUID id, EmailVerification.Status status);
-    Optional<EmailVerification> findFirstByVerificationTokenAndStatus(String token, EmailVerification.Status status);
+    List<EmailVerification> findTop5ByEmailAndStatusAndPurposeOrderByCreatedAtDesc(String email, EmailVerification.Status status, EmailVerification.Purpose purpose);
+    List<EmailVerification> findByEmailAndPurposeAndCreatedAtAfter(String email, EmailVerification.Purpose purpose, LocalDateTime after);
+    Optional<EmailVerification> findFirstByIdAndStatusAndPurpose(UUID id, EmailVerification.Status status, EmailVerification.Purpose purpose);
+    Optional<EmailVerification> findFirstByVerificationTokenAndStatusAndPurpose(String token, EmailVerification.Status status, EmailVerification.Purpose purpose);
 }

@@ -110,6 +110,13 @@ export const UserMenu: React.FC = () => {
           >
             История чтения
           </Link>
+          <Link
+            to="/security"
+            className="block px-4 py-2 text-sm text-white hover:bg-secondary transition-colors"
+            onClick={() => setIsOpen(false)}
+          >
+            Безопасность
+          </Link>
 
           {isTranslator && (
             <>
