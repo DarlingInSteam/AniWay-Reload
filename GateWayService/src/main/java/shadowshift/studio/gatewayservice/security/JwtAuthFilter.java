@@ -47,15 +47,16 @@ public class JwtAuthFilter implements WebFilter {
         // check public paths
         for (String p : authProperties.getPublicPaths()) {
             String trimmed = p.trim();
+            if (trimmed.isEmpty()) continue;
             if (trimmed.endsWith("/**")) {
                 String prefix = trimmed.substring(0, trimmed.length() - 3);
-                if (path.startsWith(prefix)) {
-                    logger.debug("Path {} is public (matches {})", path, trimmed);
+                if (path.equals(prefix) || path.startsWith(prefix + "/")) {
+                    logger.debug("Path {} is public (matches pattern {})", path, trimmed);
                     return chain.filter(exchange);
                 }
             } else {
-                if (path.equals(trimmed) || path.startsWith(trimmed)) {
-                    logger.debug("Path {} is public (matches {})", path, trimmed);
+                if (path.equals(trimmed) || path.startsWith(trimmed + "/")) {
+                    logger.debug("Path {} is public (matches literal {})", path, trimmed);
                     return chain.filter(exchange);
                 }
             }
@@ -89,7 +90,9 @@ public class JwtAuthFilter implements WebFilter {
                 .onStatus(s -> s.value() == 401, resp -> Mono.error(new RuntimeException("Invalid token")))
                 .bodyToMono(Map.class)
                 .flatMap(map -> {
-                    Boolean valid = (Boolean) ((Map<String, Object>) map).getOrDefault("valid", false);
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> m = (Map<String, Object>) map;
+                    Boolean valid = (Boolean) m.getOrDefault("valid", false);
                     if (Boolean.TRUE.equals(valid)) {
                         Object uid = map.get("userId");
                         Object role = map.get("role");
@@ -115,6 +118,7 @@ public class JwtAuthFilter implements WebFilter {
                 });
     }
 
+    @SuppressWarnings("unused")
     private static class CachedIntrospect {
         private final boolean valid;
         private final Object userId;

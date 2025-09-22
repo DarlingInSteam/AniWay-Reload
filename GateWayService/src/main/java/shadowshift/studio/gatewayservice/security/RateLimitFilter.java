@@ -17,7 +17,6 @@ import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -59,18 +58,17 @@ public class RateLimitFilter implements WebFilter {
     }
 
     private boolean isPublicPath(String path) {
-        List<String> publicPaths = authProperties.getPublicPaths();
-        for (String p : publicPaths) {
+        for (String p : authProperties.getPublicPaths()) {
             String trimmed = p.trim();
+            if (trimmed.isEmpty()) continue;
             if (trimmed.endsWith("/**")) {
                 String prefix = trimmed.substring(0, trimmed.length() - 3);
-                if (path.startsWith(prefix)) return true;
+                if (path.equals(prefix) || path.startsWith(prefix + "/")) return true;
             } else {
-                if (path.equals(trimmed) || path.startsWith(trimmed)) return true;
+                if (path.equals(trimmed) || path.startsWith(trimmed + "/")) return true;
             }
         }
-        // also static assets
-        if (path.startsWith("/favicon.ico") || path.startsWith("/static/") || path.startsWith("/css/") || path.startsWith("/js/") || path.startsWith("/images/")) return true;
+        if (path.equals("/favicon.ico") || path.startsWith("/static/") || path.startsWith("/css/") || path.startsWith("/js/") || path.startsWith("/images/")) return true;
         return false;
     }
 

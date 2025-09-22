@@ -3,7 +3,8 @@ server:
 
 auth:
   introspect-url: "http://auth-service:8085/api/auth/validate"
-  public-paths: "/api/auth/**,/api/health/**,/api/public/**,/parser/**,/manga/**,/api/genres/**,/api/tags/**,/api/notifications/stream"
+  # Added explicit base paths /parser and /manga so that base URLs without trailing slash are public
+  public-paths: "/api/auth/**,/api/health/**,/api/public/**,/parser,/parser/**,/manga,/manga/**,/api/genres/**,/api/tags/**,/api/notifications/stream"
   cache-ttl-seconds: 300
 
 spring:
@@ -243,8 +244,8 @@ management:
 # Логирование
 logging:
   level:
-    org.springframework.cloud.gateway: INFO
-    org.springframework.web.cors: INFO
-    shadowshift.studio.gatewayservice: INFO
+    '[org.springframework.cloud.gateway]': INFO
+    '[org.springframework.web.cors]': INFO
+    '[shadowshift.studio.gatewayservice]': INFO
   pattern:
     console: "%d{HH:mm:ss.SSS} [%thread] %-5level [%logger{36}] - %msg%n"
