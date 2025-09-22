@@ -362,6 +362,31 @@ public class MangaService {
         logger.debug("Пагинированный поиск манги - title: '{}', author: '{}', genre: '{}', status: '{}', page: {}, size: {}, sortBy: {}, sortOrder: {}",
                     title, author, genre, status, page, size, sortBy, sortOrder);
 
+        // Нормализация sortBy от фронтенда (в т.ч. snake/alias варианты)
+        if (sortBy != null) {
+            String normalized = switch (sortBy.toLowerCase()) {
+                case "createdat", "created_at" -> "createdAt";
+                case "updatedat", "updated_at" -> "updatedAt";
+                case "chaptercount", "chapter_count", "chapters" -> "chapterCount";
+                case "ratingcount", "rating_count" -> "ratingCount";
+                case "popularity", "popular" -> "popularity";
+                case "views" -> "views";
+                case "likes" -> "likes";
+                case "reviews" -> "reviews";
+                case "comments" -> "comments";
+                case "rating" -> "rating";
+                case "title" -> "title";
+                case "author" -> "author";
+                default -> "createdAt"; // безопасный дефолт
+            };
+            if (!normalized.equals(sortBy)) {
+                logger.debug("Нормализован sortBy '{}' -> '{}'", sortBy, normalized);
+                sortBy = normalized;
+            }
+        } else {
+            sortBy = "createdAt";
+        }
+
         // Валидируем и нормализуем статус
         String validatedStatus = null;
         if (status != null && !status.trim().isEmpty()) {
@@ -377,7 +402,7 @@ public class MangaService {
         Sort sort = createSort(sortBy, sortOrder);
         Pageable pageable = PageRequest.of(page, size, sort);
 
-        Page<Manga> searchResults = mangaRepository.searchMangaPaged(title, author, genre, validatedStatus, sortBy, sortOrder, pageable);
+    Page<Manga> searchResults = mangaRepository.searchMangaPaged(title, author, genre, validatedStatus, sortBy, sortOrder, pageable);
         logger.debug("Найдено {} манг по поисковому запросу на странице {}", searchResults.getNumberOfElements(), page);
 
         List<MangaResponseDTO> responseDTOs = mangaMapper.toResponseDTOList(searchResults.getContent());

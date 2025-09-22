@@ -187,13 +187,24 @@ public class MangaRestController {
             @RequestParam(required = false) String author,
             @RequestParam(required = false) String genre,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false, name = "query") String queryAlias,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(required = false, name = "limit") Integer limitAlias,
             @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "desc") String sortOrder) {
 
-        logger.debug("API запрос: пагинированный поиск манги - title: '{}', author: '{}', genre: '{}', status: '{}', page: {}, size: {}, sortBy: {}, sortOrder: {}",
-                title, author, genre, status, page, size, sortBy, sortOrder);
+        // Поддержка alias параметров от фронтенда: query -> title, limit -> size
+        if ((title == null || title.isBlank()) && queryAlias != null && !queryAlias.isBlank()) {
+            title = queryAlias;
+        }
+        if ((size == null || size <= 0) && limitAlias != null && limitAlias > 0) {
+            size = limitAlias;
+        }
+        if (size == null || size <= 0) size = 10; // гарантируем значение
+
+        logger.debug("API запрос: пагинированный поиск манги - title: '{}', author: '{}', genre: '{}', status: '{}', page: {}, size: {}, sortBy: {}, sortOrder: {} (alias query='{}', limit='{}')",
+                title, author, genre, status, page, size, sortBy, sortOrder, queryAlias, limitAlias);
 
         PageResponseDTO<MangaResponseDTO> result = mangaService.searchMangaPaged(title, author, genre, status, page, size, sortBy, sortOrder);
 
