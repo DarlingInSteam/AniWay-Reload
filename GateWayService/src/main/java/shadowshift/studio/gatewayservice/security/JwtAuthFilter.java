@@ -44,21 +44,18 @@ public class JwtAuthFilter implements WebFilter {
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         String path = exchange.getRequest().getURI().getPath();
 
-        // check public paths
+        // check public paths (fix handling of patterns ending with /** so /api/auth/** matches /api/auth/...)
         for (String p : authProperties.getPublicPaths()) {
             String trimmed = p.trim();
             if (trimmed.isEmpty()) continue;
-            if (trimmed.endsWith("/**")) {
-                String prefix = trimmed.substring(0, trimmed.length() - 3);
-                if (path.equals(prefix) || path.startsWith(prefix + "/")) {
-                    logger.debug("Path {} is public (matches pattern {})", path, trimmed);
-                    return chain.filter(exchange);
-                }
-            } else {
-                if (path.equals(trimmed) || path.startsWith(trimmed + "/")) {
-                    logger.debug("Path {} is public (matches literal {})", path, trimmed);
-                    return chain.filter(exchange);
-                }
+
+            boolean wildcard = trimmed.endsWith("/**");
+            String base = wildcard ? trimmed.substring(0, trimmed.length() - 3) : trimmed; // remove /**
+            if (base.endsWith("/")) base = base.substring(0, base.length() - 1); // normalize
+
+            if (path.equals(base) || path.startsWith(base + "/")) {
+                logger.debug("Path {} is public (matches pattern {})", path, trimmed);
+                return chain.filter(exchange);
             }
         }
 
