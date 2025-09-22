@@ -15,7 +15,8 @@ import shadowshift.studio.forumservice.entity.ForumThreadView;
 import shadowshift.studio.forumservice.repository.*;
 
 import java.time.LocalDateTime;
-import java.util.Optional;
+import java.time.Duration;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -262,15 +263,20 @@ public class ForumThreadService {
                 .map(category -> category.getName())
                 .orElse("Неизвестная категория");
         
-        return ForumThreadResponse.builder()
+    // Автор (пока без batch - добавим простой заглушкой)
+    String authorName = "Пользователь " + thread.getAuthorId();
+    // Редактирование разрешено автору в течение 7 дней
+    boolean isAuthor = currentUserId != null && currentUserId.equals(thread.getAuthorId());
+    boolean withinEditWindow = Duration.between(thread.getCreatedAt(), LocalDateTime.now()).toDays() < 7;
+
+    return ForumThreadResponse.builder()
                 .id(thread.getId())
                 .title(thread.getTitle())
                 .content(thread.getContent())
                 .categoryId(thread.getCategoryId())
                 .categoryName(categoryName)
-                .authorId(thread.getAuthorId())
-                // TODO: получить информацию об авторе из AuthService
-                .authorName("Пользователь " + thread.getAuthorId())
+        .authorId(thread.getAuthorId())
+        .authorName(authorName)
                 .viewsCount(thread.getViewsCount())
                 .repliesCount(thread.getRepliesCount())
                 .likesCount(thread.getLikesCount())
@@ -287,7 +293,9 @@ public class ForumThreadService {
                 .lastReplyUserId(thread.getLastReplyUserId())
                 // TODO: получить имя последнего отвечавшего из AuthService
                 .isSubscribed(isSubscribed)
-                .userReaction(userReaction)
+        .userReaction(userReaction)
+        .canEdit(isAuthor && withinEditWindow)
+        .canDelete(isAuthor)
                 .build();
     }
 }

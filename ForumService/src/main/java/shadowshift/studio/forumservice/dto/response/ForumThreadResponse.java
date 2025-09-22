@@ -43,4 +43,6 @@ public class ForumThreadResponse {
     // Пользователь-специфичная информация
     private Boolean isSubscribed; // Подписан ли текущий пользователь
     private String userReaction; // LIKE/DISLIKE/null
+    private Boolean canEdit;
+    private Boolean canDelete;
 }

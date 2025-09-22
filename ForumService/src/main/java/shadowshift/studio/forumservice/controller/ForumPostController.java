@@ -163,7 +163,10 @@ public class ForumPostController {
                     .map(r -> r.getReactionType().name())
                     .orElse(null);
         }
-        return ForumPostResponse.builder()
+    boolean isAuthor = currentUserId != null && currentUserId.equals(post.getAuthorId());
+    boolean withinEditWindow = java.time.Duration.between(post.getCreatedAt(), LocalDateTime.now()).toDays() < 7;
+
+    return ForumPostResponse.builder()
                 .id(post.getId())
                 .threadId(post.getThreadId())
                 .content(post.getContent())
@@ -179,8 +182,9 @@ public class ForumPostController {
                 .createdAt(post.getCreatedAt())
                 .updatedAt(post.getUpdatedAt())
                 .userReaction(userReaction)
-                .canEdit(false) // TODO вычисление прав
-                .canDelete(false) // TODO вычисление прав
+        .canEdit(isAuthor && withinEditWindow)
+        .canDelete(isAuthor)
                 .build();
     }
+
 }
