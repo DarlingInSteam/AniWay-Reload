@@ -191,11 +191,11 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
   return (
     <div className={cn(
       'flex flex-col h-full max-h-full',
-      isMobile ? 'w-full rounded-none bg-[#0f0f10] text-white' : 'w-80 glass-panel overflow-hidden rounded-xl'
+      isMobile ? 'w-full rounded-none bg-[#0f0f10] text-white' : 'w-80 glass-panel overflow-hidden rounded-xl bg-background/40'
     , className)}>
       {/* Header */}
-      <div className={cn('sticky top-0 z-20 flex items-center justify-between px-4 py-3 border-b border-white/10 divide-white/10',
-        isMobile ? 'bg-[#0f0f10]/95' : 'bg-background/80')}>        
+      <div className={cn('sticky top-0 z-20 flex items-center justify-between px-4 py-3 border-b border-white/10',
+        isMobile ? 'bg-[#0f0f10]/95' : 'bg-transparent backdrop-blur-none')}>        
         <div className="flex items-center gap-2 text-sm font-semibold text-white">
           <Filter className="h-4 w-4 text-primary" /> Фильтры
           {activeChips.length>0 && <span className="text-[11px] font-normal text-muted-foreground">{activeChips.length}</span>}
@@ -245,7 +245,7 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
       )}
 
       {/* Scrollable content */}
-      <div className={cn('flex-1 overflow-y-auto px-0 pb-20 scrollbar-custom', isMobile ? 'space-y-2 pt-2' : 'divide-y divide-white/10')}>        
+  <div className={cn('flex-1 overflow-y-auto px-0 scrollbar-custom', isMobile ? 'space-y-2 pt-2 pb-20' : 'divide-y divide-white/10 pb-4')}>        
         <FilterRow id="row-genres" title="Жанры" summary={rowSummary.genres} isOpen={openRow==='genres'} onToggle={()=>setOpenRow(openRow==='genres'?null:'genres')}>
           {isLoadingGenres ? (
             <div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><Loader2 className="h-4 w-4 animate-spin" /> Загрузка...</div>
