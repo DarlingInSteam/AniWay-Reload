@@ -4,6 +4,7 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 import shadowshift.studio.notificationservice.domain.NotificationType;
 import shadowshift.studio.notificationservice.service.NotificationServiceFacade;
@@ -17,6 +18,9 @@ import java.util.Map;
 public class InternalEventController {
 
     private final NotificationServiceFacade facade;
+
+    @Value("${notification.chapter.dedupe-mode:PER_CHAPTER}")
+    private String chapterDedupeMode; // PER_CHAPTER or AGGREGATE
 
     @Value("${manga.service.internal-url:http://manga-service:8081}")
     private String mangaServiceInternalUrl;
@@ -78,7 +82,13 @@ public class InternalEventController {
     @PostMapping("/chapter-published")
     public ResponseEntity<Void> chapterPublished(@RequestBody ChapterPublishedEvent body) {
         // Dedupe key groups by user + manga to aggregate consecutive new chapters (simple strategy)
-        String dedupeKey = "chapter_published:" + body.getTargetUserId() + ":" + body.getMangaId();
+        String dedupeKey;
+        if ("AGGREGATE".equalsIgnoreCase(chapterDedupeMode)) {
+            dedupeKey = "chapter_published:" + body.getTargetUserId() + ":" + body.getMangaId();
+        } else {
+            // PER_CHAPTER: unique key per chapter so все главы сохраняются
+            dedupeKey = "chapter_published:" + body.getTargetUserId() + ":" + body.getMangaId() + ":" + body.getChapterId();
+        }
         String payload = toJson(Map.of(
                 "mangaId", body.getMangaId(),
                 "chapterId", body.getChapterId(),
@@ -99,9 +109,12 @@ public class InternalEventController {
                 "mangaTitle", body.getMangaTitle()
         ));
         if (body.getTargetUserIds() != null) {
+            boolean aggregate = "AGGREGATE".equalsIgnoreCase(chapterDedupeMode);
             for (Long uid : body.getTargetUserIds()) {
                 if (uid == null) continue;
-                String dedupeKey = "chapter_published:" + uid + ":" + body.getMangaId();
+                String dedupeKey = aggregate
+                        ? ("chapter_published:" + uid + ":" + body.getMangaId())
+                        : ("chapter_published:" + uid + ":" + body.getMangaId() + ":" + body.getChapterId());
                 facade.createBasic(uid, NotificationType.BOOKMARK_NEW_CHAPTER, basePayload, dedupeKey);
             }
         }
