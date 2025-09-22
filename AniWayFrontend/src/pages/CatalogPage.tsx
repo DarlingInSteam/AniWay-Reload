@@ -258,6 +258,7 @@ export function CatalogPage() {
     if (activeFilters.rating) params.rating = activeFilters.rating.join('-')
     if (activeFilters.releaseYear) params.releaseYear = activeFilters.releaseYear.join('-')
     if (activeFilters.chapterRange) params.chapterRange = activeFilters.chapterRange.join('-')
+  if (activeFilters.strictMatch) params.strict = '1'
 
     // Сравнение текущих и новых search params чтобы избежать лишних обновлений
     const current = new URLSearchParams(searchParams)
@@ -289,7 +290,8 @@ export function CatalogPage() {
       ageRating: draftFilters.ageRating || [0, 21],
       rating: draftFilters.rating || [0, 10],
       releaseYear: draftFilters.releaseYear || [1990, new Date().getFullYear()],
-      chapterRange: draftFilters.chapterRange || [0, 1000]
+      chapterRange: draftFilters.chapterRange || [0, 1000],
+      strictMatch: draftFilters.strictMatch || false
     }
     return filterState
   }, [
@@ -300,7 +302,8 @@ export function CatalogPage() {
     JSON.stringify(draftFilters.ageRating || [0, 21]),
     JSON.stringify(draftFilters.rating || [0, 10]),
     JSON.stringify(draftFilters.releaseYear || [1990, new Date().getFullYear()]),
-    JSON.stringify(draftFilters.chapterRange || [0, 1000])
+    JSON.stringify(draftFilters.chapterRange || [0, 1000]),
+    draftFilters.strictMatch
   ])
 
   const convertActiveFiltersToFilterState = (activeFilters: any) => {
@@ -312,7 +315,8 @@ export function CatalogPage() {
       ageRating: activeFilters.ageRating || [0, 21],
       rating: activeFilters.rating || [0, 10],
       releaseYear: activeFilters.releaseYear || [1990, new Date().getFullYear()],
-      chapterRange: activeFilters.chapterRange || [0, 1000]
+      chapterRange: activeFilters.chapterRange || [0, 1000],
+      strictMatch: activeFilters.strictMatch || false
     }
     // Debug removed
     return filterState
@@ -363,6 +367,9 @@ export function CatalogPage() {
     
     if (draftFilters.chapterRange) {
       searchParams.chapterRange = draftFilters.chapterRange
+    }
+    if (draftFilters.strictMatch) {
+      searchParams.strictMatch = true
     }
 
   // Debug removed

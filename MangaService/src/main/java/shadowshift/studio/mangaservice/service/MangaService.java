@@ -234,10 +234,11 @@ public class MangaService {
      */
     @Transactional(readOnly = true)
     public PageResponseDTO<MangaResponseDTO> getAllMangaPagedWithFilters(
-            int page, int size, String sortBy, String sortOrder,
-            List<String> genres, List<String> tags, String mangaType, String status,
-            Integer ageRatingMin, Integer ageRatingMax, Double ratingMin, Double ratingMax,
-            Integer releaseYearMin, Integer releaseYearMax, Integer chapterRangeMin, Integer chapterRangeMax) {
+        int page, int size, String sortBy, String sortOrder,
+        List<String> genres, List<String> tags, String mangaType, String status,
+        Integer ageRatingMin, Integer ageRatingMax, Double ratingMin, Double ratingMax,
+        Integer releaseYearMin, Integer releaseYearMax, Integer chapterRangeMin, Integer chapterRangeMax,
+        Boolean strictMatch) {
 
         logger.debug("Запрос пагинированного списка манг с фильтрами - page: {}, size: {}, sortBy: {}, sortOrder: {}, " +
                 "genres: {}, tags: {}, mangaType: {}, status: {}, ageRatingMin: {}, ageRatingMax: {}, " +
@@ -276,11 +277,21 @@ public class MangaService {
         List<String> safeGenres = genres != null ? genres : List.of();
         List<String> safeTags = tags != null ? tags : List.of();
 
-        Page<Manga> searchResults = mangaRepository.findAllWithFilters(
-                safeGenres, safeTags, validatedMangaType, validatedStatus,
-                ageRatingMin, ageRatingMax, ratingMin, ratingMax,
-                releaseYearMin, releaseYearMax, chapterRangeMin, chapterRangeMax,
-                pageable);
+    Page<Manga> searchResults;
+    if (Boolean.TRUE.equals(strictMatch)) {
+        searchResults = mangaRepository.findAllWithFiltersStrict(
+            safeGenres, safeTags, validatedMangaType, validatedStatus,
+            ageRatingMin, ageRatingMax, ratingMin, ratingMax,
+            releaseYearMin, releaseYearMax, chapterRangeMin, chapterRangeMax,
+            pageable);
+        logger.debug("Строгий режим фильтрации активен (AND по жанрам/тегам)");
+    } else {
+        searchResults = mangaRepository.findAllWithFilters(
+            safeGenres, safeTags, validatedMangaType, validatedStatus,
+            ageRatingMin, ageRatingMax, ratingMin, ratingMax,
+            releaseYearMin, releaseYearMax, chapterRangeMin, chapterRangeMax,
+            pageable);
+    }
 
         logger.debug("Найдено {} манг с фильтрами на странице {}", searchResults.getNumberOfElements(), page);
 

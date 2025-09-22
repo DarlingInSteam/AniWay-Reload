@@ -15,6 +15,7 @@ interface FilterState {
   rating: [number, number]
   releaseYear: [number, number]
   chapterRange: [number, number]
+  strictMatch?: boolean
 }
 
 interface MangaFilterPanelProps {
@@ -49,7 +50,8 @@ const DEFAULTS: FilterState = {
   ageRating: [0,21],
   rating: [0,10],
   releaseYear: [1990, new Date().getFullYear()],
-  chapterRange: [0,1000]
+  chapterRange: [0,1000],
+  strictMatch: false
 }
 
 // Генерик компонент строки фильтра
@@ -111,13 +113,13 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
   appearance = 'desktop'
 }) => {
   const { genres, tags, isLoadingGenres, isLoadingTags, genresError, tagsError } = useFilterData()
-  const [filters, setFilters] = useState<FilterState>(initialFilters || DEFAULTS)
+  const [filters, setFilters] = useState<FilterState>(initialFilters ? { ...DEFAULTS, ...initialFilters } : DEFAULTS)
   const [openRow, setOpenRow] = useState<string | null>(null)
   const [genreSearch, setGenreSearch] = useState('')
   const [tagSearch, setTagSearch] = useState('')
 
   // Синхронизация входных фильтров
-  useEffect(() => { if (initialFilters) setFilters(initialFilters) }, [initialFilters])
+  useEffect(() => { if (initialFilters) setFilters(prev => ({ ...prev, ...initialFilters })) }, [initialFilters])
 
   const update = (partial: Partial<FilterState>) => {
     const next = { ...filters, ...partial }
@@ -270,6 +272,21 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
           >
             Сбросить
           </Button>
+          <button
+            type="button"
+            onClick={() => update({ strictMatch: !filters.strictMatch })}
+            className={cn(
+              'h-8 px-3 text-[11px] rounded-md border transition flex items-center gap-1',
+              filters.strictMatch
+                ? 'bg-primary/20 border-primary/40 text-primary hover:bg-primary/30'
+                : 'bg-white/5 border-white/10 text-muted-foreground hover:text-white hover:bg-white/10'
+            )}
+            aria-pressed={filters.strictMatch ? 'true' : 'false'}
+            aria-label="Строгое совпадение жанров и тегов"
+          >
+            <span className="inline-block h-2 w-2 rounded-full bg-current opacity-80" />
+            Строго
+          </button>
         </div>
       )}
       {isMobile && activeChips.length === 0 && (
@@ -298,6 +315,18 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
               </span>
             </button>
           ))}
+          {filters.strictMatch && (
+            <span className="flex items-center gap-1 pl-2 pr-1 py-1 rounded-full text-[11px] bg-amber-400/20 text-amber-300 border border-amber-300/30">
+              AND
+              <button
+                onClick={() => update({ strictMatch: false })}
+                aria-label="Выключить строгий режим"
+                className="flex items-center justify-center h-4 w-4 rounded-full bg-amber-400/25 hover:bg-amber-400/40 transition"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          )}
           <button
             onClick={resetAll}
             className="text-[11px] px-2 py-1 rounded-full bg-white/5 text-muted-foreground hover:text-white hover:bg-white/10 border border-white/10"
@@ -396,6 +425,19 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
           >
             Сброс
           </Button>
+          <button
+            type="button"
+            onClick={() => update({ strictMatch: !filters.strictMatch })}
+            className={cn(
+              'h-11 px-3 rounded-lg border flex items-center gap-2 text-[12px] font-medium',
+              filters.strictMatch
+                ? 'bg-primary/25 border-primary/40 text-primary hover:bg-primary/35'
+                : 'bg-white/5 border-white/10 text-muted-foreground hover:text-white hover:bg-white/10'
+            )}
+          >
+            <span className="inline-block h-2.5 w-2.5 rounded-sm border border-current bg-current/70" />
+            Строго
+          </button>
           {onApply && (
             <Button
               onClick={onApply}

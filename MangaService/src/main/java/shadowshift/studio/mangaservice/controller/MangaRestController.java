@@ -146,8 +146,9 @@ public class MangaRestController {
             @RequestParam(required = false) Double ratingMax,
             @RequestParam(required = false) Integer releaseYearMin,
             @RequestParam(required = false) Integer releaseYearMax,
-            @RequestParam(required = false) Integer chapterRangeMin,
-            @RequestParam(required = false) Integer chapterRangeMax) {
+        @RequestParam(required = false) Integer chapterRangeMin,
+        @RequestParam(required = false) Integer chapterRangeMax,
+        @RequestParam(required = false, name = "strictMatch") Boolean strictMatch) {
 
         logger.debug("API запрос: пагинированный список всех манг - page: {}, size: {}, sortBy: {}, sortOrder: {}, " +
                 "genres: {}, tags: {}, mangaType: {}, status: {}, ageRatingMin: {}, ageRatingMax: {}, " +
@@ -156,10 +157,11 @@ public class MangaRestController {
                 ageRatingMin, ageRatingMax, ratingMin, ratingMax, 
                 releaseYearMin, releaseYearMax, chapterRangeMin, chapterRangeMax);
 
-        PageResponseDTO<MangaResponseDTO> result = mangaService.getAllMangaPagedWithFilters(
-                page, size, sortBy, sortOrder, genres, tags, mangaType, status,
-                ageRatingMin, ageRatingMax, ratingMin, ratingMax,
-                releaseYearMin, releaseYearMax, chapterRangeMin, chapterRangeMax);
+    PageResponseDTO<MangaResponseDTO> result = mangaService.getAllMangaPagedWithFilters(
+        page, size, sortBy, sortOrder, genres, tags, mangaType, status,
+        ageRatingMin, ageRatingMax, ratingMin, ratingMax,
+        releaseYearMin, releaseYearMax, chapterRangeMin, chapterRangeMax,
+        strictMatch);
 
         logger.debug("API ответ: возвращается пагинированный список из {} манг на странице {} из {}",
                 result.getContent().size(), result.getPage(), result.getTotalPages());

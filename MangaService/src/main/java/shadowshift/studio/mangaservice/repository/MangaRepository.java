@@ -259,4 +259,81 @@ public interface MangaRepository extends JpaRepository<Manga, Long> {
             @Param("chapterRangeMax") Integer chapterRangeMax,
             Pageable pageable
     );
+
+        /**
+         * Строгая фильтрация: требуются ВСЕ выбранные жанры (AND) и ВСЕ выбранные теги (AND).
+         * Если списки пустые / null — ведём себя как обычный запрос.
+         */
+        @Query(value = """
+                SELECT m.* FROM manga m
+                LEFT JOIN manga_genres mg ON m.id = mg.manga_id
+                LEFT JOIN genres g ON mg.genre_id = g.id
+                LEFT JOIN manga_tags mt ON m.id = mt.manga_id
+                LEFT JOIN tags t ON mt.tag_id = t.id
+                WHERE 1=1
+                AND (:mangaType IS NULL OR m.manga_type = :mangaType)
+                AND (:status IS NULL OR m.status = :status)
+                AND (:ageRatingMin IS NULL OR m.age_limit >= :ageRatingMin)
+                AND (:ageRatingMax IS NULL OR m.age_limit <= :ageRatingMax)
+                AND (:ratingMin IS NULL OR m.rating >= :ratingMin)
+                AND (:ratingMax IS NULL OR m.rating <= :ratingMax)
+                AND (:releaseYearMin IS NULL OR EXTRACT(YEAR FROM m.release_date) >= :releaseYearMin)
+                AND (:releaseYearMax IS NULL OR EXTRACT(YEAR FROM m.release_date) <= :releaseYearMax)
+                AND (:chapterRangeMin IS NULL OR m.total_chapters >= :chapterRangeMin)
+                AND (:chapterRangeMax IS NULL OR m.total_chapters <= :chapterRangeMax)
+                GROUP BY m.id
+                HAVING (
+                    :#{#genres == null || #genres.isEmpty()} = true OR (
+                        COUNT(DISTINCT CASE WHEN g.name IN :genres THEN g.id END) = :#{#genres.size()} )
+                )
+                AND (
+                    :#{#tags == null || #tags.isEmpty()} = true OR (
+                        COUNT(DISTINCT CASE WHEN t.name IN :tags THEN t.id END) = :#{#tags.size()} )
+                )
+                """,
+                countQuery = """
+                SELECT COUNT(*) FROM (
+                    SELECT m.id FROM manga m
+                    LEFT JOIN manga_genres mg ON m.id = mg.manga_id
+                    LEFT JOIN genres g ON mg.genre_id = g.id
+                    LEFT JOIN manga_tags mt ON m.id = mt.manga_id
+                    LEFT JOIN tags t ON mt.tag_id = t.id
+                    WHERE 1=1
+                    AND (:mangaType IS NULL OR m.manga_type = :mangaType)
+                    AND (:status IS NULL OR m.status = :status)
+                    AND (:ageRatingMin IS NULL OR m.age_limit >= :ageRatingMin)
+                    AND (:ageRatingMax IS NULL OR m.age_limit <= :ageRatingMax)
+                    AND (:ratingMin IS NULL OR m.rating >= :ratingMin)
+                    AND (:ratingMax IS NULL OR m.rating <= :ratingMax)
+                    AND (:releaseYearMin IS NULL OR EXTRACT(YEAR FROM m.release_date) >= :releaseYearMin)
+                    AND (:releaseYearMax IS NULL OR EXTRACT(YEAR FROM m.release_date) <= :releaseYearMax)
+                    AND (:chapterRangeMin IS NULL OR m.total_chapters >= :chapterRangeMin)
+                    AND (:chapterRangeMax IS NULL OR m.total_chapters <= :chapterRangeMax)
+                    GROUP BY m.id
+                    HAVING (
+                        :#{#genres == null || #genres.isEmpty()} = true OR (
+                            COUNT(DISTINCT CASE WHEN g.name IN :genres THEN g.id END) = :#{#genres.size()} )
+                    )
+                    AND (
+                        :#{#tags == null || #tags.isEmpty()} = true OR (
+                            COUNT(DISTINCT CASE WHEN t.name IN :tags THEN t.id END) = :#{#tags.size()} )
+                    )
+                ) sub
+                """,
+                nativeQuery = true)
+        Page<Manga> findAllWithFiltersStrict(
+                        @Param("genres") List<String> genres,
+                        @Param("tags") List<String> tags,
+                        @Param("mangaType") String mangaType,
+                        @Param("status") String status,
+                        @Param("ageRatingMin") Integer ageRatingMin,
+                        @Param("ageRatingMax") Integer ageRatingMax,
+                        @Param("ratingMin") Double ratingMin,
+                        @Param("ratingMax") Double ratingMax,
+                        @Param("releaseYearMin") Integer releaseYearMin,
+                        @Param("releaseYearMax") Integer releaseYearMax,
+                        @Param("chapterRangeMin") Integer chapterRangeMin,
+                        @Param("chapterRangeMax") Integer chapterRangeMax,
+                        Pageable pageable
+        );
 }
