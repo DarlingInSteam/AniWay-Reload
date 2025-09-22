@@ -9,6 +9,7 @@ interface AuthContextType {
   register: (data: RegisterRequest) => Promise<void>
   logout: () => Promise<void>
   updateProfile: (data: Partial<User>) => Promise<void>
+  setUserAvatarLocal: (avatarUrl: string) => void
   isAuthenticated: boolean
   isAdmin: boolean
   isTranslator: boolean
@@ -81,6 +82,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }
 
+  const setUserAvatarLocal = (avatarUrl: string) => {
+    setUser(prev => prev ? { ...prev, avatar: avatarUrl } : prev)
+  }
+
   const value: AuthContextType = {
     user,
     loading,
@@ -88,6 +93,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     register,
     logout,
     updateProfile,
+    setUserAvatarLocal,
     isAuthenticated: !!user,
     isAdmin: authService.isAdmin(),
     isTranslator: authService.isTranslator()

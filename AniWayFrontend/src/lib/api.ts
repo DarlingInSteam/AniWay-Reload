@@ -657,12 +657,43 @@ class ApiClient {
 
   // 6. Загрузка аватара - пока заглушка
   async uploadAvatar(file: File): Promise<{ success: boolean; avatarUrl: string; message: string }> {
-    console.warn('Загрузка аватара пока не реализована на бэкенде');
-    return {
-      success: true,
-      avatarUrl: '/placeholder-avatar.png',
-      message: 'Аватар загружен (заглушка)'
-    };
+    try {
+      const currentUser = await this.getCurrentUser();
+      const userId: any = (currentUser as any)?.id || (currentUser as any)?.userId;
+      if (!userId) {
+        return { success: false, avatarUrl: '', message: 'Не удалось определить пользователя' };
+      }
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await fetch(`${API_BASE_URL}/images/avatars/${userId}`, {
+        method: 'POST',
+        headers: {
+          ...this.getAuthHeaders()
+        },
+        body: formData
+      });
+      if (response.status === 429) {
+        return { success: false, avatarUrl: '', message: 'Аватар можно менять раз в 24 часа' };
+      }
+      if (!response.ok) {
+        return { success: false, avatarUrl: '', message: 'Ошибка загрузки аватара' };
+      }
+      const data = await response.json();
+      return { success: true, avatarUrl: data.url || data.imageUrl || data.avatarUrl, message: 'Аватар обновлён' };
+    } catch (e) {
+      return { success: false, avatarUrl: '', message: 'Сбой загрузки аватара' };
+    }
+  }
+
+  // Получить метаданные аватара пользователя (imageUrl) если есть
+  async getUserAvatar(userId: number): Promise<string | null> {
+    try {
+      const res = await this.request<any>(`/images/avatars/${userId}`)
+      const url = res?.imageUrl || res?.url || res?.avatarUrl
+      return url || null
+    } catch (e) {
+      return null
+    }
   }
 
   // 7. Статистика чтения (используем существующий API)

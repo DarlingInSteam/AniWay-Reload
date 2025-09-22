@@ -62,14 +62,7 @@ export const SortPopover: React.FC<SortPopoverProps> = ({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls="sort-popover-panel"
-        onClick={() => {
-          console.log('[SortPopover] anchor click toggle. wasOpen=', open)
-          if (onToggle) {
-            onToggle()
-          } else {
-            open ? onClose() : firstItemRef.current?.focus()
-          }
-        }}
+        onClick={() => { if (onToggle) { onToggle() } else { open ? onClose() : firstItemRef.current?.focus() } }}
         className={cn('flex items-center gap-2 rounded-xl px-4 h-11 text-sm font-medium bg-white/5 backdrop-blur-sm hover:bg-white/10 border border-white/10 shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-primary/50', anchorClassName)}
       >
         <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
@@ -94,14 +87,12 @@ export const SortPopover: React.FC<SortPopoverProps> = ({
                     ref={idx===0?firstItemRef:undefined}
                     role="option"
                     aria-selected={selected}
-                    onMouseDown={(e) => { console.log('[SortPopover] mousedown option', option, 'selected?', selected, 'time=', Date.now()); }}
+                    onMouseDown={() => { /* removed debug */ }}
                     onClick={(e) => { 
                       e.stopPropagation();
-                      console.log('[SortPopover] click option', option, 'selected?', selected, 'time=', Date.now()); 
                       onChangeOrder(option); 
                       if (closeOnSelect) {
-                        // Даем тик на отработку состояния сортировки до закрытия
-                        requestAnimationFrame(() => { console.log('[SortPopover] closing after selection option=', option); onClose(); })
+                        requestAnimationFrame(() => { onClose(); })
                       }
                     }}
                     className={cn('w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40',
@@ -116,12 +107,11 @@ export const SortPopover: React.FC<SortPopoverProps> = ({
             {/* Direction */}
             <div className="flex flex-col gap-2 flex-shrink-0 w-32" aria-label="Направление">
               <button
-                onMouseDown={(e) => { console.log('[SortPopover] mousedown direction desc time=', Date.now()); }}
+                onMouseDown={() => { /* removed debug */ }}
                 onClick={(e) => { 
                   e.stopPropagation(); 
-                  console.log('[SortPopover] click direction desc time=', Date.now()); 
                   onChangeDirection('desc'); 
-                  if (closeOnSelect) requestAnimationFrame(() => { console.log('[SortPopover] closing after direction desc'); onClose(); }) 
+                  if (closeOnSelect) requestAnimationFrame(() => { onClose(); }) 
                 }}
                 className={cn('flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40',
                   sortDirection==='desc' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/10 hover:text-white')}
@@ -130,12 +120,11 @@ export const SortPopover: React.FC<SortPopoverProps> = ({
                 Убыв.
               </button>
               <button
-                onMouseDown={(e) => { console.log('[SortPopover] mousedown direction asc time=', Date.now()); }}
+                onMouseDown={() => { /* removed debug */ }}
                 onClick={(e) => { 
                   e.stopPropagation(); 
-                  console.log('[SortPopover] click direction asc time=', Date.now()); 
                   onChangeDirection('asc'); 
-                  if (closeOnSelect) requestAnimationFrame(() => { console.log('[SortPopover] closing after direction asc'); onClose(); }) 
+                  if (closeOnSelect) requestAnimationFrame(() => { onClose(); }) 
                 }}
                 className={cn('flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40',
                   sortDirection==='asc' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/10 hover:text-white')}

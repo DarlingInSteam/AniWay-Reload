@@ -185,7 +185,7 @@ class ProfileService {
         return {
           ...progress,
           title: progress.manga?.title || 'Неизвестная манга',
-          coverImage: progress.manga?.coverImageUrl || '/placeholder-manga.png',
+          coverImage: progress.manga?.coverImageUrl || '/icon.png',
           currentChapter: progress.chapterNumber || 1,
           totalChapters: progress.manga?.totalChapters || 1,
           lastRead: new Date(progress.updatedAt)
@@ -216,7 +216,7 @@ class ProfileService {
           mangaCount: statusBookmarks.length,
           coverImages: statusBookmarks
             .slice(0, 4)
-            .map(b => b.manga?.coverImageUrl || '/placeholder-manga.png'),
+            .map(b => b.manga?.coverImageUrl || '/icon.png'),
           isPublic: true,
           bookmarks: statusBookmarks
         });
@@ -233,7 +233,7 @@ class ProfileService {
         mangaCount: favorites.length,
         coverImages: favorites
           .slice(0, 4)
-          .map(b => b.manga?.coverImageUrl || '/placeholder-manga.png'),
+          .map(b => b.manga?.coverImageUrl || '/icon.png'),
         isPublic: true,
         bookmarks: favorites
       });
@@ -252,10 +252,11 @@ class ProfileService {
       .slice(0, 10)
       .forEach(progress => {
         if (progress.manga) {
+          const title = progress.manga?.title || progress.mangaTitle || 'Неизвестная манга';
           activities.push({
             id: `activity-read-${progress.id}`,
             type: 'read',
-            description: `Прочитал главу ${progress.chapterNumber || 1} "${progress.mangaTitle}"`,
+            description: `Прочитал главу ${progress.chapterNumber || 1} "${title}"`,
             timestamp: new Date(progress.updatedAt),
             relatedMangaId: progress.mangaId
           });
@@ -276,10 +277,11 @@ class ProfileService {
             'DROPPED': 'бросил'
           }[bookmark.status] || 'изменил статус';
 
+          const title = bookmark.manga?.title || bookmark.mangaTitle || 'Неизвестная манга';
           activities.push({
             id: `activity-bookmark-${bookmark.id}`,
             type: 'bookmark',
-            description: `${statusText} "${bookmark.mangaTitle}"`,
+            description: `${statusText} "${title}"`,
             timestamp: new Date(bookmark.updatedAt),
             relatedMangaId: bookmark.mangaId
           });

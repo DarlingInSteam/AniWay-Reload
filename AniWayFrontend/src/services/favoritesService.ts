@@ -49,7 +49,7 @@ class FavoritesService {
         .map(bookmark => ({
           id: bookmark.manga!.id,
           title: bookmark.manga!.title,
-          coverImage: bookmark.manga!.coverImageUrl || '/placeholder-manga.png',
+          coverImage: bookmark.manga!.coverImageUrl || '/icon.png',
           rating: 8.5, // TODO: Добавить систему рейтингов
           manga: bookmark.manga
         }));

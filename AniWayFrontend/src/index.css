@@ -181,7 +181,12 @@
 
 /* Glass panel utility */
 .glass-panel {
-  @apply bg-white/10 backdrop-blur-sm border border-white/15 rounded-xl;
+  /* Subtle glass panel: slightly darker than original (was rgba 0.10) */
+  background: rgba(255,255,255,0.12);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 0.75rem; /* matches rounded-xl */
 }
 
 /* Skeleton loading */

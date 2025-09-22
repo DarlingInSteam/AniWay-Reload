@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Calendar, User, Star, Eye, Heart, Bookmark, Flame, ShieldCheck } from 'lucide-react'
 import { MangaResponseDTO } from '@/types'
 import { formatDate, getStatusColor, getStatusText, cn } from '@/lib/utils'
+import { computeMangaBadges } from '@/utils/mangaBadges'
 import { useBookmarks } from '@/hooks/useBookmarks'
 import { useAuth } from '@/contexts/AuthContext'
 import { useReadingProgress } from '@/hooks/useProgress'
@@ -16,11 +17,7 @@ interface MangaCardProps {
 
 export function MangaCard({ manga, size = 'default', showMetadata = true }: MangaCardProps) {
   // Временное логирование для диагностики
-  try {
-    console.log('MangaCard render - manga ID:', manga?.id, 'genre:', manga?.genre, 'full manga:', manga)
-  } catch (e) {
-    console.error('MangaCard console.log error:', e)
-  }
+  // Debug logs removed
 
   const { isAuthenticated } = useAuth()
   const { getMangaBookmark } = useBookmarks()
@@ -45,7 +42,7 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
 
   // Генерируем фейковые просмотры для демонстрации (в реальном проекте это будет из API)
   const views = manga.views || 0
-  console.log(`MangaCard ${manga.id}: views = ${views}, manga.views = ${manga.views}`)
+  // Removed verbose views log
 
   // Получаем статус закладки
   const bookmarkInfo = isAuthenticated ? getMangaBookmark(manga.id) : null
@@ -97,12 +94,8 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
     }
   }, [manga.coverImageUrl])
 
-  // Derived flags
-  const createdAt = manga.createdAt ? new Date(manga.createdAt) : null
-  const isNew = createdAt ? (Date.now() - createdAt.getTime()) < 1000*60*60*24*7 : false
-  // Простая эвристика тренда: views > 100 и rating >= 7
-  const isTrending = (manga.views ?? 0) > 100 && (rating?.averageRating ?? 0) >= 7
-  const isLicensed = manga.isLicensed
+  // Derived flags via util
+  const { isTrending, isLicensed } = computeMangaBadges(manga, rating?.averageRating)
 
   // Condense genres (до 2 + +N)
   const rawGenres = manga.genre ? manga.genre.split(',').map(g=>g.trim()).filter(Boolean) : []
@@ -110,7 +103,7 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
   const hiddenGenresCount = rawGenres.length - primaryGenres.length
 
   return (
-    <div className="group flex flex-col space-y-2 md:space-y-3 w-full transition-transform duration-300 will-change-transform hover:-translate-y-1">
+    <div className="group flex flex-col space-y-2 md:space-y-3 w-full transition-transform duration-300 will-change-transform hover:md:-translate-y-1 hover:lg:-translate-y-1 motion-reduce:transform-none">
       {/* Cover Image Card */}
       <Link
         to={`/manga/${manga.id}`}
@@ -121,13 +114,22 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
             ref={imgRef}
             src={manga.coverImageUrl}
             alt={manga.title}
+            width={480}
+            height={640}
             className={cn(
               'manga-cover h-full w-full object-cover transition-[opacity,transform,filter] duration-500 ease-out',
               imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 blur-md scale-[1.03]',
-              'group-hover:scale-105'
+              'group-hover:hover:scale-105'
             )}
             loading="lazy"
             decoding="async"
+            sizes="(max-width: 480px) 45vw, (max-width: 768px) 25vw, (max-width: 1280px) 18vw, 180px"
+            srcSet={[
+              `${manga.coverImageUrl}?w=180 180w`,
+              `${manga.coverImageUrl}?w=240 240w`,
+              `${manga.coverImageUrl}?w=320 320w`,
+              `${manga.coverImageUrl}?w=480 480w`
+            ].join(', ')}
             onLoad={() => setImageLoaded(true)}
             onError={(e) => {
               const target = e.target as HTMLImageElement
@@ -156,9 +158,6 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
                 LIC
               </span>
             )}
-            {isNew && (
-              <span className="px-1.5 md:px-2 py-0.5 md:py-1 text-[10px] font-semibold rounded-full bg-indigo-500/80 text-white backdrop-blur-sm shadow animate-pulse">NEW</span>
-            )}
             {isTrending && (
               <span className="px-1.5 md:px-2 py-0.5 md:py-1 text-[10px] font-semibold rounded-full bg-orange-500/80 text-white backdrop-blur-sm flex items-center gap-0.5 shadow">
                 <Flame className="h-3 w-3" />TOP
@@ -179,12 +178,20 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
             </div>
           )}
 
-          {/* Rating Badge */}
-          <div className="absolute top-2 md:top-3 right-2 md:right-3 flex items-center space-x-1 bg-black/70 backdrop-blur-sm px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
-            <Star className="h-2.5 w-2.5 md:h-3 md:w-3 text-accent fill-current" />
-            <span className="text-xs font-medium text-white">
-              {rating?.averageRating ? rating.averageRating.toFixed(1) : '—'}
-            </span>
+          {/* Rating + Views (top-right) */}
+          <div className="absolute top-2 md:top-3 right-2 md:right-3 flex flex-col items-end gap-1">
+            <div className="flex items-center space-x-1 bg-black/70 backdrop-blur-sm px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
+              <Star className="h-2.5 w-2.5 md:h-3 md:w-3 text-accent fill-current" />
+              <span className="text-xs font-medium text-white">
+                {rating?.averageRating ? rating.averageRating.toFixed(1) : '—'}
+              </span>
+            </div>
+            <div className="flex items-center space-x-1 bg-black/60 backdrop-blur-sm px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
+              <Eye className="h-2.5 w-2.5 md:h-3 md:w-3 text-white" />
+              <span className="text-[10px] md:text-xs font-medium text-white/90">
+                {views >= 1000 ? (views/1000).toFixed(1).replace(/\.0$/,'') + 'k' : views}
+              </span>
+            </div>
           </div>
 
           {/* Chapter Count with Reading Progress */}
@@ -196,24 +203,14 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
             )}
           </div>
 
-          {/* Hover overlay with quick actions & description */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3 gap-2">
-            <p className="hidden md:-mb-1 md:block text-[11px] leading-snug text-white/80 line-clamp-2">
-              {manga.description || 'Без описания'}
-            </p>
-            <div className="flex items-center gap-2">
-              <Link to={`/manga/${manga.id}`} className="flex-1 text-center bg-primary/90 hover:bg-primary text-white rounded-md text-xs font-semibold py-1.5 shadow transition-colors">Читать</Link>
-              <button type="button" className="px-2.5 py-1.5 rounded-md bg-white/15 hover:bg-white/25 text-white transition-colors text-xs font-semibold flex items-center gap-1">
-                <Heart className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
+          {/* Subtle hover dim (без описаний и кнопок) */}
+          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
         </div>
       </Link>
 
       {/* Metadata */}
     {showMetadata && (
-  <div className="flex flex-col px-1 h-[4.9rem] md:h-[5.2rem] select-none">
+  <div className="flex flex-col px-1 h-[3.6rem] md:h-[4.2rem] select-none">
           {/* Title - строго фиксированная высота для 2 строк */}
           <Link
             to={`/manga/${manga.id}`}
@@ -226,9 +223,12 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
 
           {/* Genre and Year - строго фиксированная высота */}
           <div className="flex items-center justify-between text-[11px] text-muted-foreground h-4 mb-1 gap-2">
-            <span className="line-clamp-1 flex-1 mr-2 flex items-center gap-1">
-              {primaryGenres.map(g => (
-                <span key={g} className="bg-white/5 px-1.5 py-0.5 rounded-md text-[10px] leading-none text-white/80">{g}</span>
+            <span className="line-clamp-1 flex-1 mr-2 flex items-center gap-1 overflow-hidden">
+              {primaryGenres.map((g,idx) => (
+                <span key={g} className={cn(
+                  'bg-white/5 px-1.5 py-0.5 rounded-md text-[10px] leading-none text-white/80',
+                  idx>0 && 'hidden [@media(min-width:480px)]:inline-flex'
+                )}>{g}</span>
               ))}
               {hiddenGenresCount > 0 && (
                 <span className="bg-white/5 px-1.5 py-0.5 rounded-md text-[10px] leading-none text-white/50">+{hiddenGenresCount}</span>
@@ -240,22 +240,7 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
             </span>
           </div>
 
-          {/* Rating and Views - строго фиксированная высота */}
-          <div className="flex items-center justify-between h-4">
-            <div className="flex items-center space-x-1">
-              <Star className="h-2.5 w-2.5 md:h-3 md:w-3 text-accent fill-current" />
-              <span className="text-xs font-medium text-accent">
-                {rating?.averageRating ? rating.averageRating.toFixed(1) : '—'}
-              </span>
-            </div>
-            <div className="flex items-center space-x-2 md:space-x-3 text-xs text-muted-foreground">
-              <div className="flex items-center space-x-1">
-                <Eye className="h-2.5 w-2.5 md:h-3 md:w-3" />
-                <span className="hidden sm:inline">{views.toLocaleString()}</span>
-                <span className="sm:hidden">{(views / 1000).toFixed(0)}k</span>
-              </div>
-            </div>
-          </div>
+          {/* Удален нижний блок рейтинга и просмотров */}
         </div>
       )}
     </div>

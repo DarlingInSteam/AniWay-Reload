@@ -16,10 +16,7 @@ export function MangaCardWithTooltip({
   showMetadata = true,
   enableTooltip = true
 }: MangaCardWithTooltipProps) {
-  console.log('MangaCardWithTooltip rendering manga:', manga);
-  
   if (!manga) {
-    console.error('MangaCardWithTooltip: manga is null/undefined');
     return null;
   }
 

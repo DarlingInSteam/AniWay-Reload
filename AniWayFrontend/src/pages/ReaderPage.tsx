@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
@@ -13,7 +13,8 @@ import {
   ZoomIn,
   ZoomOut,
   MessageCircle,
-  Heart
+  Heart,
+  X
 } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
@@ -22,6 +23,106 @@ import { formatChapterTitle, getDisplayChapterNumber } from '@/lib/chapterUtils'
 import { useAuth } from '@/contexts/AuthContext'
 import { useReadingProgress } from '@/hooks/useProgress'
 import { CommentSection } from '@/components/comments/CommentSection'
+
+// Extracted component for chapter images list to keep main component compact
+function ChapterImageList({
+  images,
+  imageWidth,
+  showUI,
+  previousChapter,
+  setShowUI,
+  handleTapOrClick,
+  handleDoubleClickDesktop,
+  handleTouchStartSwipe,
+  handleTouchMoveSwipe,
+  handleTouchEndSwipe,
+  visibleIndexes,
+  setVisibleIndexes,
+  wrappersRef
+}: any) {
+  const getWidthClass = () => {
+    switch (imageWidth) {
+      case 'fit': return 'max-w-4xl'
+      case 'full': return 'max-w-full'
+      case 'wide': return 'max-w-6xl'
+      default: return 'max-w-4xl'
+    }
+  }
+  return (
+    <div className={cn("mx-auto px-2 sm:px-4 overflow-x-hidden", getWidthClass())}>
+      {images.map((image: any, index: number) => {
+        const isVisible = visibleIndexes.has(index)
+        return (
+          <div
+            key={image.id}
+            data-index={index}
+            ref={el => { wrappersRef.current[index] = el }}
+            className="relative mb-0 flex justify-center min-h-[40vh]"
+          >
+            {isVisible ? (
+              <img
+                src={image.imageUrl || apiClient.getImageUrl(image.imageKey)}
+                alt={`Страница ${image.pageNumber}`}
+                className={cn(
+                  "block w-full h-auto transition-all duration-200 will-change-transform",
+                  imageWidth === 'fit' && "max-w-4xl",
+                  imageWidth === 'full' && "max-w-none w-full sm:w-screen px-0",
+                  imageWidth === 'wide' && "max-w-6xl"
+                )}
+                loading={index === 0 ? 'eager' : 'lazy'}
+                decoding="async"
+                fetchPriority={index === 0 ? 'high' : index < 3 ? 'auto' : 'low'}
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement
+                  target.src = '/placeholder-page.jpg'
+                }}
+                onLoad={() => {
+                  if (!visibleIndexes.has(index + 1) && index + 1 < images.length) {
+                    setVisibleIndexes((prev: Set<number>) => new Set(prev).add(index + 1))
+                  }
+                }}
+                onClick={() => setShowUI((v: boolean) => !v)}
+                onDoubleClick={handleDoubleClickDesktop}
+                onTouchStart={(e) => { handleTapOrClick(e); handleTouchStartSwipe(e) }}
+                onTouchMove={handleTouchMoveSwipe}
+                onTouchEnd={handleTouchEndSwipe}
+              />
+            ) : (
+              <div className={cn(
+                "w-full animate-pulse bg-white/5 rounded-lg",
+                imageWidth === 'fit' && "max-w-4xl h-[60vh]",
+                imageWidth === 'full' && "max-w-none w-full sm:w-screen h-[65vh]",
+                imageWidth === 'wide' && "max-w-6xl h-[60vh]"
+              )} />
+            )}
+            <div className={cn(
+              'absolute top-2 right-2 sm:top-4 sm:right-4 bg-black/80 backdrop-blur-sm text-white px-2 py-1 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 border border-white/20',
+              showUI ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
+            )}>
+              {image.pageNumber} / {images.length}
+            </div>
+            {index === 0 && showUI && isVisible && (
+              <div className="absolute inset-0 pointer-events-none">
+                {previousChapter && (
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 p-2">
+                    <div className="bg-black/70 backdrop-blur-sm text-white px-3 py-2 rounded-r-lg text-sm border border-white/20 animate-pulse">
+                      ← Листать главы стрелками
+                    </div>
+                  </div>
+                )}
+                <div className="absolute top-20 right-2 sm:right-4">
+                  <div className="bg-black/70 backdrop-blur-sm text-white px-3 py-2 rounded-lg text-sm border border-white/20 animate-pulse">
+                    Настройки в правом углу
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 export function ReaderPage() {
   const { chapterId } = useParams<{ chapterId: string }>()
@@ -35,9 +136,41 @@ export function ReaderPage() {
   const [isLiked, setIsLiked] = useState(false)
   const [liking, setLiking] = useState(false)
   const [lastTap, setLastTap] = useState(0)
+  const likeGestureCooldownRef = useRef<number>(0)
+  const gesturePosRef = useRef<{x:number,y:number}|null>(null)
+  const [gestureBursts, setGestureBursts] = useState<Array<{id:number,x:number,y:number}>>([])
+  const touchStartRef = useRef<{x:number,y:number,time:number}|null>(null)
+  const touchMovedRef = useRef<boolean>(false)
+  const [showSideComments, setShowSideComments] = useState(false)
 
   const { user } = useAuth()
   const queryClient = useQueryClient()
+
+  // Hydrate reading settings from localStorage once
+  useEffect(() => {
+    try {
+      const storedMode = localStorage.getItem('reader.mode')
+      if (storedMode === 'vertical' || storedMode === 'horizontal') {
+        setReadingMode(storedMode)
+      }
+      const storedWidth = localStorage.getItem('reader.imageWidth')
+      if (storedWidth === 'fit' || storedWidth === 'full' || storedWidth === 'wide') {
+        setImageWidth(storedWidth)
+      }
+    } catch (e) {
+      // ignore storage errors (e.g., privacy mode)
+    }
+  }, [])
+
+  // Persist when settings change
+  useEffect(() => {
+    try {
+      localStorage.setItem('reader.mode', readingMode)
+      localStorage.setItem('reader.imageWidth', imageWidth)
+    } catch (e) {
+      // ignore
+    }
+  }, [readingMode, imageWidth])
 
   // Reading progress tracking
   const { trackChapterViewed, markChapterCompleted, isChapterCompleted, clearTrackedChapters } = useReadingProgress()
@@ -53,6 +186,53 @@ export function ReaderPage() {
     queryFn: () => apiClient.getChapterImages(parseInt(chapterId!)),
     enabled: !!chapterId,
   })
+
+  // Lazy visibility state for images (virtual-ish)
+  const [visibleIndexes, setVisibleIndexes] = useState<Set<number>>(() => new Set([0,1,2]))
+  const observerRef = useRef<IntersectionObserver | null>(null)
+  const wrappersRef = useRef<(HTMLDivElement | null)[]>([])
+
+  // Reset visibility when chapter changes
+  useEffect(() => {
+    setVisibleIndexes(new Set([0,1,2]))
+  }, [chapterId])
+
+  useEffect(() => {
+    if (!images || images.length === 0) return
+    if (observerRef.current) {
+      observerRef.current.disconnect()
+    }
+    observerRef.current = new IntersectionObserver((entries) => {
+      let changed = false
+      const next = new Set(visibleIndexes)
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          const idxAttr = entry.target.getAttribute('data-index')
+            
+          if (idxAttr) {
+            const idx = parseInt(idxAttr)
+            if (!next.has(idx)) {
+              next.add(idx)
+              // Prefetch next immediate page for smoother scroll
+              if (idx + 1 < images.length) next.add(idx + 1)
+              changed = true
+            }
+          }
+        }
+      }
+      if (changed) setVisibleIndexes(next)
+    }, { root: null, rootMargin: '800px 0px 800px 0px', threshold: 0.01 })
+
+    wrappersRef.current.forEach((el, idx) => {
+      if (el && !visibleIndexes.has(idx)) {
+        observerRef.current?.observe(el)
+      }
+    })
+
+    return () => {
+      observerRef.current?.disconnect()
+    }
+  }, [images, visibleIndexes])
 
   const { data: manga } = useQuery({
     queryKey: ['manga', chapter?.mangaId, user?.id],
@@ -93,16 +273,82 @@ export function ReaderPage() {
     }
   }
 
-  // Handle double tap for like
-  const handleImageDoubleClick = () => {
+  // Handle double tap / double click for like with cooldown & visual feedback
+  const triggerHeartBurst = (clientX:number, clientY:number) => {
+    // store relative to viewport; container is full width so OK
+    setGestureBursts(prev => [...prev, { id: Date.now() + Math.random(), x: clientX, y: clientY }])
+    // prune after 1.2s
+    setTimeout(() => {
+      setGestureBursts(prev => prev.slice(1))
+    }, 1200)
+  }
+
+  const attemptLikeFromGesture = (clientX:number, clientY:number) => {
+    const now = Date.now()
+    if (now - likeGestureCooldownRef.current < 600) return // cooldown
+    likeGestureCooldownRef.current = now
+    triggerHeartBurst(clientX, clientY)
+    handleChapterLike()
+  }
+
+  const handleTapOrClick = (e: React.MouseEvent | React.TouchEvent) => {
+    let clientX: number
+    let clientY: number
+    if ('touches' in e && e.touches.length > 0) {
+      clientX = e.touches[0].clientX
+      clientY = e.touches[0].clientY
+    } else if ('changedTouches' in (e as any) && (e as any).changedTouches.length > 0) {
+      clientX = (e as any).changedTouches[0].clientX
+      clientY = (e as any).changedTouches[0].clientY
+    } else {
+      const mouseEvent = e as React.MouseEvent
+      clientX = mouseEvent.clientX
+      clientY = mouseEvent.clientY
+    }
     const currentTime = Date.now()
     const timeDiff = currentTime - lastTap
-
-    if (timeDiff < 300 && timeDiff > 0) { // Double tap within 300ms
-      handleChapterLike()
+    if (timeDiff < 320 && timeDiff > 0) {
+      attemptLikeFromGesture(clientX, clientY)
     }
-
     setLastTap(currentTime)
+  }
+
+  const handleDoubleClickDesktop = (e: React.MouseEvent) => {
+    attemptLikeFromGesture(e.clientX, e.clientY)
+  }
+
+  // Swipe handlers
+  const handleTouchStartSwipe = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return
+    const t = e.touches[0]
+    touchStartRef.current = { x: t.clientX, y: t.clientY, time: Date.now() }
+    touchMovedRef.current = false
+  }
+  const handleTouchMoveSwipe = (e: React.TouchEvent) => {
+    if (!touchStartRef.current) return
+    const t = e.touches[0]
+    const dx = t.clientX - touchStartRef.current.x
+    const dy = t.clientY - touchStartRef.current.y
+    if (Math.abs(dx) > 8 || Math.abs(dy) > 8) touchMovedRef.current = true
+  }
+  const handleTouchEndSwipe = (e: React.TouchEvent) => {
+    if (!touchStartRef.current) return
+    const start = touchStartRef.current
+    const endTime = Date.now()
+    const dt = endTime - start.time
+    const touch = e.changedTouches[0]
+    const dx = touch.clientX - start.x
+    const dy = touch.clientY - start.y
+    touchStartRef.current = null
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.2) return // horizontal intent
+    if (dt > 800) return // too slow
+    if (Math.abs(dy) > 120) return // large vertical movement
+    if (dx < 0) {
+      // swipe left -> next chapter
+      navigateToNextChapter()
+    } else {
+      navigateToPreviousChapter()
+    }
   }
 
   // Load chapter like status
@@ -377,6 +623,31 @@ export function ReaderPage() {
 
   return (
     <div className="manga-reader min-h-screen bg-black relative">
+      <style>{`
+        @keyframes heart-pop {
+          0% { transform: scale(0.3) translateY(0); opacity: 0; }
+          10% { transform: scale(1) translateY(0); opacity: 1; }
+          60% { transform: scale(1.05) translateY(-40px); opacity: 0.9; }
+          100% { transform: scale(0.6) translateY(-80px); opacity: 0; }
+        }
+      `}</style>
+      {/* Gesture Heart Bursts */}
+      {gestureBursts.map(burst => (
+        <div
+          key={burst.id}
+          style={{
+            position: 'fixed',
+            left: burst.x - 40,
+            top: burst.y - 40,
+            pointerEvents: 'none',
+            zIndex: 60,
+            animation: 'heart-pop 1.2s ease-out forwards'
+          }}
+          className="select-none"
+        >
+          <Heart className="w-20 h-20 text-red-500/80 fill-red-500/80 drop-shadow-[0_0_8px_rgba(239,68,68,0.6)]" />
+        </div>
+      ))}
       {/* Top Navigation Bar - ИСПРАВЛЕНО центрирование */}
       <div className={cn(
         'fixed top-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-sm border-b border-white/10 transition-all duration-300',
@@ -470,16 +741,21 @@ export function ReaderPage() {
               </div>
             </button>
             <button
-              onClick={() => setImageWidth(width => width === 'fit' ? 'full' : 'fit')}
-              className="w-full text-left text-sm text-muted-foreground hover:text-white transition-colors p-2 rounded hover:bg-secondary"
+              onClick={() => setImageWidth(width => width === 'fit' ? 'full' : width === 'full' ? 'wide' : 'fit')}
+              className="w-full text-left text-sm text-muted-foreground hover:text-white transition-colors p-2 rounded hover:bg-secondary group"
             >
               <div className="flex items-center justify-between">
-                <span>Размер изображений</span>
-                {imageWidth === 'fit' ? (
-                  <ZoomIn className="h-5 w-5 text-primary" />
-                ) : (
-                  <ZoomOut className="h-5 w-5 text-muted-foreground" />
-                )}
+                <span className="flex flex-col">
+                  <span>Размер изображений</span>
+                  <span className="text-[10px] uppercase tracking-wide text-primary/70 mt-0.5">
+                    {imageWidth === 'fit' && 'FIT'}
+                    {imageWidth === 'full' && 'FULL'}
+                    {imageWidth === 'wide' && 'WIDE'}
+                  </span>
+                </span>
+                {imageWidth === 'fit' && <ZoomIn className="h-5 w-5 text-primary" />}
+                {imageWidth === 'full' && <ZoomOut className="h-5 w-5 text-primary" />}
+                {imageWidth === 'wide' && <ZoomOut className="h-5 w-5 text-red-400" />}
               </div>
             </button>
             <button
@@ -513,61 +789,21 @@ export function ReaderPage() {
       {/* Main Content - Vertical Scroll */}
       <div className="pt-16">
         {/* Reading Area */}
-        <div className={cn(
-          "mx-auto px-2 sm:px-4",
-          getImageWidthClass()
-        )}>
-          {images.map((image, index) => (
-            <div key={image.id} className="relative mb-0 flex justify-center">
-              <img
-                src={image.imageUrl || apiClient.getImageUrl(image.imageKey)}
-                alt={`Страница ${image.pageNumber}`}
-                className={cn(
-                  "block w-full h-auto transition-all duration-200",
-                  imageWidth === 'fit' && "max-w-4xl",
-                  imageWidth === 'full' && "max-w-none w-screen px-0",
-                  imageWidth === 'wide' && "max-w-6xl"
-                )}
-                loading={index < 3 ? 'eager' : 'lazy'}
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement
-                  target.src = '/placeholder-page.jpg'
-                }}
-                onClick={() => setShowUI(!showUI)}
-                onDoubleClick={handleImageDoubleClick}
-              />
-
-              {/* Page Number Indicator */}
-              <div className={cn(
-                'absolute top-2 right-2 sm:top-4 sm:right-4 bg-black/80 backdrop-blur-sm text-white px-2 py-1 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 border border-white/20',
-                showUI ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
-              )}>
-                {image.pageNumber} / {images.length}
-              </div>
-
-              {/* Navigation hints on first page */}
-              {index === 0 && showUI && (
-                <div className="absolute inset-0 pointer-events-none">
-                  {/* Previous chapter hint */}
-                  {previousChapter && (
-                    <div className="absolute left-0 top-1/2 -translate-y-1/2 p-2">
-                      <div className="bg-black/70 backdrop-blur-sm text-white px-3 py-2 rounded-r-lg text-sm border border-white/20 animate-pulse">
-                        ← Листать главы стрелками
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Settings hint */}
-                  <div className="absolute top-20 right-2 sm:right-4">
-                    <div className="bg-black/70 backdrop-blur-sm text-white px-3 py-2 rounded-lg text-sm border border-white/20 animate-pulse">
-                      Настройки в правом углу
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+        <ChapterImageList
+          images={images}
+          imageWidth={imageWidth}
+          showUI={showUI}
+          previousChapter={previousChapter}
+          setShowUI={setShowUI}
+          handleTapOrClick={handleTapOrClick}
+          handleDoubleClickDesktop={handleDoubleClickDesktop}
+          handleTouchStartSwipe={handleTouchStartSwipe}
+          handleTouchMoveSwipe={handleTouchMoveSwipe}
+          handleTouchEndSwipe={handleTouchEndSwipe}
+          visibleIndexes={visibleIndexes}
+          setVisibleIndexes={setVisibleIndexes}
+          wrappersRef={wrappersRef}
+        />
 
         {/* Chapter Navigation - улучшенный дизайн */}
         <div className="bg-gradient-to-r from-card/30 via-card/50 to-card/30 backdrop-blur-sm border-t border-white/10 py-6 sm:py-8">
@@ -665,6 +901,52 @@ export function ReaderPage() {
           <div>Двойной тап - Лайк</div>
         </div>
       </div>
+
+      {/* Floating comments button (side panel) */}
+      {chapter && (
+        <button
+          onClick={() => setShowSideComments(true)}
+          className={cn(
+            'fixed right-3 sm:right-4 top-1/2 -translate-y-1/2 z-40 bg-blue-600/80 hover:bg-blue-600 text-white p-3 rounded-full shadow-lg border border-blue-500/30 backdrop-blur-md transition-all',
+            showUI ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          )}
+          aria-label="Открыть комментарии"
+        >
+          <MessageCircle className="h-5 w-5" />
+        </button>
+      )}
+
+      {/* Side comments panel */}
+      {showSideComments && chapter && (
+        <div className="fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowSideComments(false)}
+          />
+          {/* Panel */}
+            <div className="relative ml-auto h-full w-full sm:w-[480px] md:w-[520px] bg-[#0f1115]/95 backdrop-blur-xl border-l border-white/10 flex flex-col animate-in slide-in-from-right">
+              <div className="flex items-center justify-between p-4 border-b border-white/10">
+                <h3 className="text-white font-semibold text-sm sm:text-base">Комментарии к главе {getDisplayChapterNumber(chapter.chapterNumber)}</h3>
+                <button
+                  onClick={() => setShowSideComments(false)}
+                  className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                  aria-label="Закрыть"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto px-3 sm:px-4 pb-4">
+                <CommentSection
+                  targetId={chapter.id}
+                  type="CHAPTER"
+                  title=""
+                  maxLevel={3}
+                />
+              </div>
+            </div>
+        </div>
+      )}
 
       {/* Mobile navigation hints */}
       <div className={cn(

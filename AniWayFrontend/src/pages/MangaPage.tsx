@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   BookOpen, Play, Eye, Heart, Star, ChevronDown, ChevronUp, Send,
   Bookmark, Edit, AlertTriangle, Share, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Check
@@ -16,11 +16,22 @@ import { useReadingProgress } from '@/hooks/useProgress'
 import { CommentSection } from '../components/comments/CommentSection'
 import MangaReviews from '../components/MangaReviews'
 import { useAuth } from '@/contexts/AuthContext'
+import { useSyncedSearchParam } from '@/hooks/useSyncedSearchParam'
 
 export function MangaPage() {
   const { id } = useParams<{ id: string }>()
-  const mangaId = parseInt(id!)
-  const [activeTab, setActiveTab] = useState<'main' | 'chapters' | 'reviews' | 'discussions' | 'moments' | 'cards' | 'characters' | 'similar'>('main')
+  const navigate = useNavigate()
+  const rawId = id || '0'
+  const numericId = (() => {
+    const primary = rawId.split('--')[0] // preferred pattern id--slug
+    if (/^\d+$/.test(primary)) return parseInt(primary, 10)
+    // fallback single dash legacy
+    const legacy = rawId.split('-')[0]
+    return parseInt(legacy, 10) || 0
+  })()
+  const mangaId = numericId
+  const [activeTabParam, setActiveTabParam] = useSyncedSearchParam<'main' | 'chapters' | 'reviews' | 'discussions' | 'moments' | 'cards' | 'characters' | 'similar'>('tab', 'main')
+  const activeTab = activeTabParam
   const [chapterSort, setChapterSort] = useState<'asc' | 'desc' | 'none'>('asc')
   const [showFullDescription, setShowFullDescription] = useState(false)
   const [showFullStats, setShowFullStats] = useState(false)
@@ -31,6 +42,7 @@ export function MangaPage() {
   const [likingChapters, setLikingChapters] = useState<Set<number>>(new Set())
 
   const { user } = useAuth()
+  const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
 
   // Удалили избыточную инвалидацию кэша при входе на страницу
@@ -50,10 +62,60 @@ export function MangaPage() {
   const { data: manga, isLoading: mangaLoading } = useQuery({
     queryKey: ['manga', mangaId, user?.id],
     queryFn: () => apiClient.getMangaById(mangaId, user?.id),
-    staleTime: 5 * 60 * 1000, // Кеш данных на 5 минут
-    refetchOnWindowFocus: false, // Не перезапрашивать при фокусе окна
-    refetchOnMount: false, // Не перезапрашивать при монтировании если есть кеш
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   })
+
+  // Slug handling: enhance URL to /manga/:id-:slug (client side only)
+  useEffect(() => {
+    if (!manga || !rawId) return
+    const hasSlug = rawId.includes('--')
+
+    // Collect candidate titles (primary + alternatives if present)
+    const altRaw: string[] = []
+    const possibleAlts: any = (manga as any)
+    ;['alternativeTitles','alternativeNames','altTitles','alt_names','altNames']
+      .forEach(k => { if (possibleAlts?.[k]) {
+        const v = possibleAlts[k]
+        if (Array.isArray(v)) altRaw.push(...v)
+        else if (typeof v === 'string') altRaw.push(...v.split(/,|;|\n/))
+      } })
+
+    const candidates = [manga.title, ...altRaw].filter(Boolean) as string[]
+
+    // Simple Cyrillic transliteration map (Russian)
+    const translitMap: Record<string,string> = {
+      а:'a', б:'b', в:'v', г:'g', д:'d', е:'e', ё:'e', ж:'zh', з:'z', и:'i', й:'y', к:'k', л:'l', м:'m', н:'n', о:'o', п:'p', р:'r', с:'s', т:'t', у:'u', ф:'f', х:'h', ц:'ts', ч:'ch', ш:'sh', щ:'sch', ъ:'', ы:'y', ь:'', э:'e', ю:'yu', я:'ya'
+    }
+    const transliterate = (s: string) => s.toLowerCase().split('').map(ch => translitMap[ch] ?? ch).join('')
+
+    const sanitize = (s: string) => s
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[^a-z0-9\s-]/g, ' ') // remove non-latin; keep digits & spaces
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g,'')
+
+    // Pick best ASCII/romanized candidate: most a-z characters
+    let best = candidates[0] || 'manga'
+    let bestScore = -1
+    for (const c of candidates) {
+      const base = /[a-z]/i.test(c) ? c : transliterate(c)
+      const ascii = base.replace(/[^a-z]/gi,'')
+      const score = ascii.length
+      if (score > bestScore) { bestScore = score; best = base }
+    }
+
+    const slug = sanitize(best) || 'manga'
+
+    if (!hasSlug || (hasSlug && !rawId.endsWith(`--${slug}`))) {
+      // Preserve existing search params (tab, etc.)
+      const query = searchParams.toString() ? `?${searchParams.toString()}` : ''
+      navigate(`/manga/${mangaId}--${slug}${query}` , { replace: true })
+    }
+  }, [manga, rawId, mangaId, navigate, searchParams])
 
   // Удалили избыточную инвалидацию кэша после загрузки манги
   // Это было причиной "танца" тегов и жанров
@@ -388,7 +450,7 @@ export function MangaPage() {
                     return (
                       <button
                         key={tab.id}
-                        onClick={() => setActiveTab(tab.id as any)}
+                        onClick={() => setActiveTabParam(tab.id as any)}
                         className={cn(
                           'px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex-shrink-0',
                           activeTab === tab.id

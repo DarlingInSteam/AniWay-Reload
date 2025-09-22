@@ -1,13 +1,19 @@
-import { useState } from 'react';
+// DEPRECATED: This legacy ProfileHeader component is no longer used after the redesign.
+// Retained temporarily for reference and potential extraction of small pieces.
+// Safe to delete once new profile UI is fully validated.
+import { useState, useRef, useEffect } from 'react';
+// Build signature for runtime verification
+const PROFILE_HEADER_BUILD_TAG = 'PHv2-2025-09-20-01';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { UserProfile } from '@/types/profile';
 import { Camera, Edit, UserPlus, MessageCircle, Settings, MoreHorizontal } from 'lucide-react';
+import { profileService } from '@/services/profileService';
 
 interface ProfileHeaderProps {
   profile: UserProfile;
@@ -16,10 +22,27 @@ interface ProfileHeaderProps {
 }
 
 export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: ProfileHeaderProps) {
+  // Runtime log to verify updated bundle
+  useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.log('[ProfileHeader] build tag:', PROFILE_HEADER_BUILD_TAG);
+  }, []);
   const [isEditingUsername, setIsEditingUsername] = useState(false);
   const [newUsername, setNewUsername] = useState(profile.username);
-  const [avatarUploadOpen, setAvatarUploadOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Simplified avatar upload (no modal / preview)
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [avatarSuccess, setAvatarSuccess] = useState<string | null>(null);
+
+  // Auto-hide success after delay
+  useEffect(() => {
+    if (avatarSuccess) {
+      const t = setTimeout(() => setAvatarSuccess(null), 2500);
+      return () => clearTimeout(t);
+    }
+  }, [avatarSuccess]);
 
   // Вычисляем уровень пользователя и прогресс
   const levels = [
@@ -58,12 +81,39 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
     setIsEditingUsername(false);
   };
 
-  const handleAvatarUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      // TODO: Реализовать загрузку аватара
-      console.log('Uploading avatar:', file);
-      setAvatarUploadOpen(false);
+  const validateAvatar = (file: File): string | null => {
+    if (file.size > 5 * 1024 * 1024) return 'Файл превышает 5MB';
+    if (!file.type.startsWith('image/')) return 'Можно загружать только изображения';
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.type)) return 'Поддерживаются JPEG, PNG, WebP';
+    return null;
+  };
+
+  const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const err = validateAvatar(file);
+    if (err) {
+      setAvatarError(err);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+    setAvatarError(null);
+    setAvatarSuccess(null);
+    setUploadingAvatar(true);
+    try {
+      const res = await profileService.uploadAvatar(file);
+      if (res.success) {
+        onProfileUpdate?.({ avatar: res.avatarUrl });
+        setAvatarSuccess('Аватар обновлён');
+      } else {
+        setAvatarError(res.message || 'Ошибка загрузки');
+      }
+    } catch (ex: any) {
+      setAvatarError(ex?.message || 'Сбой загрузки');
+    } finally {
+      setUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -94,9 +144,9 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
       <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
         {/* Аватар */}
         <div className="relative group">
-          <Avatar className="w-44 h-44 border-4 border-white/20 rounded-none">
+          <Avatar className="w-44 h-44 border-4 border-white/20 rounded-none relative z-10 select-none">
             <AvatarImage
-              src={profile.avatar || '/placeholder-avatar.png'}
+              src={profile.avatar || '/icon.png'}
               alt={profile.username}
               className="object-cover rounded-none w-full h-full"
             />
@@ -104,34 +154,11 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
               {profile.username.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
-
-          {isOwnProfile && (
-            <Dialog open={avatarUploadOpen} onOpenChange={setAvatarUploadOpen}>
-              <DialogTrigger asChild>
-                <Button
-                  size="sm"
-                  className="absolute bottom-0 right-0 rounded-none w-10 h-10 p-0 bg-blue-500/30 hover:bg-blue-500/50 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm border border-blue-400/30"
-                >
-                  <Camera className="w-4 h-4" />
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="bg-gray-900/95 backdrop-blur-md border border-white/10">
-                <DialogHeader>
-                  <DialogTitle className="text-white">Изменить аватар</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <Input
-                    type="file"
-                    accept="image/jpeg,image/png"
-                    onChange={handleAvatarUpload}
-                    className="bg-white/10 border-white/20 text-white"
-                  />
-                  <p className="text-sm text-gray-300">
-                    Поддерживаются JPG и PNG файлы. Рекомендуемый размер: 184x184px
-                  </p>
-                </div>
-              </DialogContent>
-            </Dialog>
+          {isOwnProfile && (avatarError || avatarSuccess) && (
+            <div className="absolute -bottom-6 left-0 w-full text-center text-xs font-medium">
+              {avatarError && <span className="text-red-400">{avatarError}</span>}
+              {avatarSuccess && <span className="text-green-400">{avatarSuccess}</span>}
+            </div>
           )}
         </div>
 
@@ -165,18 +192,45 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
               </div>
             ) : (
               <div className="flex items-center gap-2 justify-center md:justify-start">
-                <h1 className="text-2xl md:text-3xl font-bold text-white">
+                <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-2">
                   {profile.username}
+                  {isOwnProfile && (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-blue-600/30 text-blue-200 border border-blue-400/30 tracking-wider">
+                      {PROFILE_HEADER_BUILD_TAG}
+                    </span>
+                  )}
                 </h1>
                 {isOwnProfile && (
-                  <Button
-                    onClick={() => setIsEditingUsername(true)}
-                    variant="ghost"
-                    size="sm"
-                    className="p-1 h-auto hover:bg-white/10"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </Button>
+                  <>
+                    <Button
+                      onClick={() => setIsEditingUsername(true)}
+                      variant="ghost"
+                      size="sm"
+                      className="p-1 h-auto hover:bg-white/10"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={handleAvatarFileChange}
+                    />
+                    <Button
+                      onClick={() => fileInputRef.current?.click()}
+                      variant="ghost"
+                      size="sm"
+                      disabled={uploadingAvatar}
+                      className="p-1 h-auto hover:bg-white/10 text-blue-300"
+                    >
+                      {uploadingAvatar ? (
+                        <span className="w-4 h-4 animate-spin border-2 border-white/30 border-t-white rounded-full" />
+                      ) : (
+                        <Camera className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </>
                 )}
               </div>
             )}
@@ -388,6 +442,8 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Avatar dialog removed - inline upload flow */}
     </>
   );
 }

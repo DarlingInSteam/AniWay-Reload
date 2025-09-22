@@ -29,6 +29,7 @@ services:
       - comment-service
       - chapter-service
       - image-storage-service
+      - forum-service
       - melon-service
     networks:
       - aniway-network
@@ -121,6 +122,28 @@ services:
     networks:
       - aniway-network
 
+  # Forum Service
+  forum-service:
+    build:
+      context: ./ForumService
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://forum-postgres:5432/forumdb
+      - SPRING_DATASOURCE_USERNAME=forumuser
+      - SPRING_DATASOURCE_PASSWORD=forumpass123
+      - JWT_SECRET=${JWT_SECRET:-mySecretKey12345678901234567890123456789012345678901234567890}
+      - JWT_EXPIRATION=86400000
+      - AUTH_SERVICE_URL=http://auth-service:8085
+      - MANGA_SERVICE_URL=http://manga-service:8081
+    restart: unless-stopped
+    depends_on:
+      - forum-postgres
+      - auth-service
+      - manga-service
+    networks:
+      - aniway-network
+
   # Melon Service - парсер манги
   melon-service:
     build:
@@ -205,12 +228,26 @@ services:
     networks:
       - aniway-network
 
+  forum-postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: forumdb
+      POSTGRES_USER: forumuser
+      POSTGRES_PASSWORD: forumpass123
+    volumes:
+      - forum_data:/var/lib/postgresql/data
+      - ./ForumService/forumDB.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+    networks:
+      - aniway-network
+
 volumes:
   auth_data:
   manga_data:
   comment_data:
   chapter_data:
   image_data:
+  forum_data:
   melon_data:
   melon_logs:
   melon_temp:

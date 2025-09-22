@@ -1,14 +1,12 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { Grid, Filter, ArrowUpDown, ArrowUp, ArrowDown, X, ChevronLeft, ChevronRight, Check } from 'lucide-react'
-import { SortPopover } from '@/components/catalog/SortPopover'
+import { Filter, ArrowUpDown, ArrowUp, ArrowDown, X, ChevronLeft, ChevronRight, Check, RotateCcw } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { MangaCardWithTooltip } from '@/components/manga'
 import { MangaCardSkeleton } from '@/components/manga/MangaCardSkeleton'
 import { EmptyState } from '@/components/catalog/EmptyState'
 import { ErrorState } from '@/components/catalog/ErrorState'
-import { SelectedFiltersBar } from '@/components/filters/SelectedFiltersBar'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 // import { MangaFilterSidebar } from '@/components/filters/MangaFilterSidebar'
 import { MangaFilterPanel } from '@/components/filters/MangaFilterPanel'
@@ -20,6 +18,19 @@ export function CatalogPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [showFilters, setShowFilters] = useState(false)
   const [activeType, setActiveType] = useState(searchParams.get('activeType') || 'все')
+  // Поиск
+  const initialQuery = searchParams.get('query') || ''
+  const [searchInput, setSearchInput] = useState(initialQuery)
+  const [searchQuery, setSearchQuery] = useState(initialQuery)
+  // Debounce фактического применения поиска (отдельно от ввода)
+  useEffect(() => {
+    const h = setTimeout(() => {
+      const trimmed = searchInput.trim()
+      setSearchQuery(trimmed)
+      setCurrentPage(0)
+    }, 450)
+    return () => clearTimeout(h)
+  }, [searchInput])
 
   // Mapping сортировок поле<->лейбл
   const SORT_LABEL_BY_FIELD: Record<string,string> = {
@@ -49,6 +60,19 @@ export function CatalogPage() {
   const [currentPage, setCurrentPage] = useState(isNaN(initialPage) || initialPage < 1 ? 0 : initialPage - 1)
   const [pageSize] = useState(20) // Фиксированный размер страницы - 20 тайтлов на страницу
   const [sortNonce, setSortNonce] = useState(0)
+  // Динамический отступ для sticky панели фильтров (чтобы не пряталась под глобальным хедером)
+  const [filterOffset, setFilterOffset] = useState<number>(80) // fallback 80px
+  useEffect(() => {
+    const measure = () => {
+      const headerEl = document.querySelector('header') as HTMLElement | null
+      const h = headerEl ? headerEl.getBoundingClientRect().height : 0
+      // Добавляем небольшой зазор (16px)
+      setFilterOffset(h + 16)
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [])
 
   // Разбор значений из URL
   const parseArray = (value: string | null) => !value ? [] : value.split(',').filter(Boolean)
@@ -84,40 +108,12 @@ export function CatalogPage() {
     releaseYear: initialActiveFilters.releaseYear || [1990, new Date().getFullYear()],
     chapterRange: initialActiveFilters.chapterRange || [0, 1000]
   })) // Предварительные фильтры (для UI)
-
-  // Нормализация значений (однократно после монтирования)
-  useEffect(() => {
-    setDraftFilters((df: any) => {
-      const norm = { ...df }
-      const clampRange = (range: [number,number], min:number, max:number, def:[number,number]) => {
-        if(!Array.isArray(range) || range.length !==2) return def
-        const a = Math.max(min, Math.min(max, range[0]))
-        const b = Math.max(min, Math.min(max, range[1]))
-        return a<=b ? [a,b] as [number,number] : [b,a] as [number,number]
-      }
-      norm.ageRating = clampRange(norm.ageRating,0,21,[0,21])
-      norm.rating = clampRange(norm.rating,0,10,[0,10])
-      norm.releaseYear = clampRange(norm.releaseYear,1990,new Date().getFullYear(),[1990,new Date().getFullYear()])
-      norm.chapterRange = clampRange(norm.chapterRange,0,100000,[0,1000])
-      return norm
-    })
-  }, [])
-
-  // Refs для обработки кликов вне области
+  // Refs & QueryClient
   const sortDropdownRef = useRef<HTMLDivElement>(null)
   const desktopSortRef = useRef<HTMLDivElement>(null)
-
   const queryClient = useQueryClient()
   const genre = searchParams.get('genre')
 
-  // Убираем ненужную инвалидацию кэша при монтировании
-  // Кэш должен инвалидироваться только при реальных изменениях данных
-  // useEffect(() => {
-  //   console.log('CatalogPage: Invalidating manga cache on mount')
-  //   queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
-  // }, [queryClient])
-
-  // Создаем стабильный объект для queryKey
   const queryKeyParams = useMemo(() => ({
     genre: genre || null,
     sortField,
@@ -125,8 +121,9 @@ export function CatalogPage() {
     currentPage,
     activeType,
     sortNonce,
-    activeFilters: JSON.stringify(activeFilters)
-  }), [genre, sortField, sortDirection, currentPage, activeType, activeFilters, sortNonce])
+    activeFilters: JSON.stringify(activeFilters),
+    searchQuery
+  }), [genre, sortField, sortDirection, currentPage, activeType, activeFilters, sortNonce, searchQuery])
 
   const normalizeSortField = (field: string) => {
     if (!field) return 'createdat'
@@ -142,17 +139,12 @@ export function CatalogPage() {
   const { data: mangaPage, isLoading, isError, refetch } = useQuery<PageResponse<MangaResponseDTO>>({
     queryKey: ['manga-catalog', queryKeyParams],
     queryFn: () => {
-  const sortBy = normalizeSortField(sortField)
-      
-      // Создаем объект только с фильтрами (без пагинации и сортировки)
+      const sortBy = normalizeSortField(sortField)
       const filterParams: any = { ...activeFilters }
-      
-      // Добавляем тип манги, если он отличается от "все"
-      // activeType имеет приоритет над mangaType из боковых фильтров
       if (activeType !== 'все') {
         const typeMapping: Record<string, string> = {
           'манга': 'MANGA',
-          'манхва': 'MANHWA', 
+          'манхва': 'MANHWA',
           'маньхуа': 'MANHUA',
           'западный комикс': 'WESTERN_COMIC',
           'рукомикс': 'RUSSIAN_COMIC',
@@ -160,83 +152,86 @@ export function CatalogPage() {
         }
         filterParams.type = typeMapping[activeType] || 'MANGA'
       } else {
-        // Если выбрано "все", удаляем тип из фильтров
         delete filterParams.type
       }
-      
-      console.log('Filter params only:', filterParams)
-      console.log('Sort params:', { sortBy, sortDirection })
-      console.log('Page params:', { currentPage, pageSize })
-      console.log('ActiveFilters state:', activeFilters)
-      console.log('QueryKey params:', queryKeyParams)
-      
-      // Детальный лог того, что отправляется в API
-      console.log('=== API CALL DETAILS ===')
-      console.log('Genre from URL:', genre)
-      console.log('Final filterParams being sent:', JSON.stringify(filterParams, null, 2))
-      console.log('getAllMangaPaged params:', {
-        page: currentPage,
-        size: pageSize,
-        sortBy,
-        sortOrder: sortDirection,
-        filters: filterParams
-      })
-      console.log('========================')
-      
       if (genre) {
-        // Для поиска по жанру создаем полный объект параметров
-        const searchParams = {
+        return apiClient.searchMangaPaged({
           genre,
+          page: currentPage,
+          limit: pageSize,
+            sortBy,
+            sortOrder: sortDirection,
+          ...filterParams
+        })
+      }
+      if (searchQuery) {
+        return apiClient.searchMangaPaged({
+          query: searchQuery,
           page: currentPage,
           limit: pageSize,
           sortBy,
           sortOrder: sortDirection,
           ...filterParams
-        }
-        return apiClient.searchMangaPaged(searchParams)
+        })
       }
-      
-      // Для обычного просмотра передаем параметры раздельно
       return apiClient.getAllMangaPaged(currentPage, pageSize, sortBy, sortDirection, filterParams)
     },
-    enabled: true,
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    refetchOnMount: false
   })
 
-  // Prefetch соседних страниц после получения текущей
-  useEffect(() => {
-    if (!mangaPage) return
-    if (mangaPage.totalPages <= 1) return
-  const sortBy = normalizeSortField(sortField)
-    const filterParams: any = { ...activeFilters }
-    if (activeType !== 'все') {
-      const typeMapping: Record<string, string> = {
-        'манга': 'MANGA', 'манхва': 'MANHWA', 'маньхуа': 'MANHUA', 'западный комикс': 'WESTERN_COMIC', 'рукомикс': 'RUSSIAN_COMIC', 'другое': 'OTHER'
+  // Данные
+  let manga = mangaPage?.content ?? []
+  const getComparable = (obj: any, field: string) => {
+    if (!obj) return 0
+    switch(field) {
+      case 'createdAt':
+      case 'updatedAt':
+        return obj[field] ? new Date(obj[field]).getTime() : 0
+      case 'chapterCount':
+        return obj.totalChapters ?? obj.chapterCount ?? 0
+      case 'rating':
+        return (obj as any).rating?.averageRating ?? (obj as any).averageRating ?? 0
+      case 'ratingCount':
+        return (obj as any).rating?.ratingCount ?? (obj as any).ratingCount ?? 0
+      case 'likes':
+        return obj.likes ?? 0
+      case 'views':
+        return obj.views ?? 0
+      case 'popularity':
+        return obj.popularity ?? obj.views ?? 0
+      case 'reviews':
+        return obj.reviews ?? 0
+      case 'comments':
+        return obj.comments ?? 0
+      default:
+        return typeof obj[field] === 'number' ? obj[field] : 0
+    }
+  }
+  try {
+    if (manga.length > 1 && sortField) {
+      const primaryField = sortField
+      const direction = sortDirection === 'desc' ? -1 : 1
+      const needTieBreak = manga.some((m,i,arr) => i>0 && getComparable(arr[i-1], primaryField) === getComparable(m, primaryField))
+      if (needTieBreak) {
+        manga = [...manga].sort((a,b) => {
+          const av = getComparable(a, primaryField)
+          const bv = getComparable(b, primaryField)
+          if (av < bv) return -1 * direction
+          if (av > bv) return 1 * direction
+          const ac = a.createdAt ? new Date(a.createdAt).getTime() : 0
+          const bc = b.createdAt ? new Date(b.createdAt).getTime() : 0
+          if (ac !== bc) return bc - ac
+          if (a.id < b.id) return 1
+          if (a.id > b.id) return -1
+          return 0
+        })
       }
-      filterParams.type = typeMapping[activeType] || 'MANGA'
-    } else {
-      delete filterParams.type
     }
-    const next = currentPage + 1
-    const prev = currentPage - 1
-    if (next < mangaPage.totalPages) {
-      queryClient.prefetchQuery({
-        queryKey: ['manga-catalog', { ...queryKeyParams, currentPage: next, activeFilters: JSON.stringify(activeFilters) }],
-        queryFn: () => apiClient.getAllMangaPaged(next, pageSize, sortBy, sortDirection, filterParams)
-      })
-    }
-    if (prev >= 0) {
-      queryClient.prefetchQuery({
-        queryKey: ['manga-catalog', { ...queryKeyParams, currentPage: prev, activeFilters: JSON.stringify(activeFilters) }],
-        queryFn: () => apiClient.getAllMangaPaged(prev, pageSize, sortBy, sortDirection, filterParams)
-      })
-    }
-  }, [mangaPage, currentPage, sortField, sortDirection, activeType, activeFilters, pageSize, queryClient, queryKeyParams])
-
-  // Извлекаем данные из ответа API
-  const manga = mangaPage?.content ?? []
+  } catch (e) {
+    console.warn('Frontend tie-break sort failed:', e)
+  }
   const totalElements = mangaPage?.totalElements ?? 0
   const totalPages = mangaPage?.totalPages ?? 1
   const isFirst = mangaPage?.first ?? true
@@ -252,6 +247,7 @@ export function CatalogPage() {
   params.sortField = sortField
     if (sortDirection !== 'desc') params.dir = sortDirection
     if (activeType && activeType !== 'все') params.activeType = activeType
+    if (searchQuery) params.query = searchQuery
 
     // Сериализация фильтров
     if (activeFilters.genres?.length) params.genres = activeFilters.genres.join(',')
@@ -262,6 +258,7 @@ export function CatalogPage() {
     if (activeFilters.rating) params.rating = activeFilters.rating.join('-')
     if (activeFilters.releaseYear) params.releaseYear = activeFilters.releaseYear.join('-')
     if (activeFilters.chapterRange) params.chapterRange = activeFilters.chapterRange.join('-')
+  if (activeFilters.strictMatch) params.strict = '1'
 
     // Сравнение текущих и новых search params чтобы избежать лишних обновлений
     const current = new URLSearchParams(searchParams)
@@ -281,7 +278,7 @@ export function CatalogPage() {
       }
     })
     if (changed) setSearchParams(current, { replace: true })
-  }, [currentPage, sortField, sortDirection, activeType, activeFilters, genre, sortNonce, setSearchParams])
+  }, [currentPage, sortField, sortDirection, activeType, activeFilters, genre, sortNonce, searchQuery, setSearchParams])
 
   // Обработчики фильтров
   const memoizedFilterState = useMemo(() => {
@@ -293,12 +290,9 @@ export function CatalogPage() {
       ageRating: draftFilters.ageRating || [0, 21],
       rating: draftFilters.rating || [0, 10],
       releaseYear: draftFilters.releaseYear || [1990, new Date().getFullYear()],
-      chapterRange: draftFilters.chapterRange || [0, 1000]
+      chapterRange: draftFilters.chapterRange || [0, 1000],
+      strictMatch: draftFilters.strictMatch || false
     }
-    console.log('CatalogPage: Memoized FilterState updated:', 
-      'draftFilters:', draftFilters, 
-      'filterState:', filterState
-    )
     return filterState
   }, [
     JSON.stringify(draftFilters.selectedGenres || []),
@@ -308,7 +302,8 @@ export function CatalogPage() {
     JSON.stringify(draftFilters.ageRating || [0, 21]),
     JSON.stringify(draftFilters.rating || [0, 10]),
     JSON.stringify(draftFilters.releaseYear || [1990, new Date().getFullYear()]),
-    JSON.stringify(draftFilters.chapterRange || [0, 1000])
+    JSON.stringify(draftFilters.chapterRange || [0, 1000]),
+    draftFilters.strictMatch
   ])
 
   const convertActiveFiltersToFilterState = (activeFilters: any) => {
@@ -320,35 +315,33 @@ export function CatalogPage() {
       ageRating: activeFilters.ageRating || [0, 21],
       rating: activeFilters.rating || [0, 10],
       releaseYear: activeFilters.releaseYear || [1990, new Date().getFullYear()],
-      chapterRange: activeFilters.chapterRange || [0, 1000]
+      chapterRange: activeFilters.chapterRange || [0, 1000],
+      strictMatch: activeFilters.strictMatch || false
     }
-    console.log('CatalogPage: Converting activeFilters to FilterState:', 
-      'activeFilters:', activeFilters, 
-      'filterState:', filterState
-    )
+    // Debug removed
     return filterState
   }
 
   // Обработка изменений в предварительных фильтрах (не применяем сразу)
   const handleFiltersChange = (filters: any) => {
-    console.log('CatalogPage: Updating draft filters:', JSON.stringify(filters, null, 2))
+  // Debug removed
     setDraftFilters(filters)
   }
 
   // Функция применения фильтров (вызывается кнопкой "Применить")
   const applyFilters = () => {
-    console.log('CatalogPage: Applying filters:', JSON.stringify(draftFilters, null, 2))
+  // Debug removed
     
     // Преобразуем FilterState в SearchParams формат
     const searchParams: any = {}
     
     if (draftFilters.selectedGenres?.length > 0) {
-      console.log('CatalogPage: Processing selectedGenres:', draftFilters.selectedGenres)
+  // Debug removed
       searchParams.genres = draftFilters.selectedGenres
     }
     
     if (draftFilters.selectedTags?.length > 0) {
-      console.log('CatalogPage: Processing selectedTags:', draftFilters.selectedTags)
+  // Debug removed
       searchParams.tags = draftFilters.selectedTags
     }
     
@@ -375,16 +368,18 @@ export function CatalogPage() {
     if (draftFilters.chapterRange) {
       searchParams.chapterRange = draftFilters.chapterRange
     }
+    if (draftFilters.strictMatch) {
+      searchParams.strictMatch = true
+    }
 
-    console.log('CatalogPage: Applied filters to activeFilters:', searchParams)
-    console.log('CatalogPage: Previous activeFilters:', activeFilters)
+  // Debug removed
     setActiveFilters(searchParams)
     setCurrentPage(0) // Сбрасываем на первую страницу при изменении фильтров
   }
 
   // Функция сброса фильтров
   const resetFilters = () => {
-    console.log('CatalogPage: Resetting filters')
+  // Debug removed
     setDraftFilters({})
     setActiveFilters({})
     setCurrentPage(0)
@@ -392,23 +387,23 @@ export function CatalogPage() {
 
   // Обработчик быстрых фильтров
   const handleActiveTypeChange = (type: string) => {
-    console.log('CatalogPage: ActiveType changed from', activeType, 'to', type)
+  // Debug removed
     setActiveType(type)
     setCurrentPage(0) // Сбрасываем на первую страницу при изменении типа
   }
 
   // Функция для отладки изменений activeFilters
   useEffect(() => {
-    console.log('CatalogPage: activeFilters changed to:', activeFilters)
+  // Debug removed
   }, [activeFilters])
 
   // Обработчик сортировки
   const handleSortChange = (newSortLabel: string) => {
     const newField = SORT_FIELD_BY_LABEL[newSortLabel] || defaultSortField
-    console.log('[CatalogPage] sort change click: label=', newSortLabel, 'rawFieldFromState=', sortField, 'mappedNewField=', newField, 'time=', Date.now())
+  // Debug removed
     if (newField === sortField) {
       setSortNonce(n => n + 1)
-      console.log('[CatalogPage] same sort field reselected -> increment nonce', sortNonce + 1)
+  // Debug removed
     } else {
       setSortField(newField)
     }
@@ -419,15 +414,24 @@ export function CatalogPage() {
 
   // Обработчик направления сортировки
   const handleSortDirectionChange = (direction: 'desc' | 'asc') => {
-    console.log('[CatalogPage] direction change click: from', sortDirection, 'to', direction, 'time=', Date.now())
+  // Debug removed
     if (direction === sortDirection) {
       setSortNonce(n => n + 1)
-      console.log('[CatalogPage] same direction reselected -> increment nonce', sortNonce + 1)
+  // Debug removed
     } else {
       setSortDirection(direction)
     }
     setShowSortDropdown(false)
     setCurrentPage(0) // Сбрасываем на первую страницу при изменении направления
+    queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
+  }
+
+  // Сброс сортировки к дефолтной (поле + направление)
+  const resetSort = () => {
+    setSortField(defaultSortField)
+    setSortDirection('desc')
+    setSortNonce(n=>n+1)
+    setCurrentPage(0)
     queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
   }
 
@@ -461,21 +465,10 @@ export function CatalogPage() {
 
   const pageTitle = genre ? `Жанр: ${genre}` : 'Каталог'
 
-  useEffect(() => {
-    console.log('[CatalogPage] Active sorting => field(raw):', sortField, 'normalized:', normalizeSortField(sortField), 'label:', sortOrder, 'direction:', sortDirection)
-  }, [sortField, sortOrder, sortDirection])
+  // Removed active sorting diagnostic effect
 
   // Диагностика: вывод первых 10 значений текущего сортируемого поля после получения данных
-  useEffect(() => {
-    if (!manga || manga.length === 0) return
-    const field = sortField
-    const pick = (m: any) => {
-      if (field === 'chapterCount') return m.chapterCount ?? m.totalChapters
-      return m[field] ?? m[normalizeSortField(field)] ?? null
-    }
-    const snapshot = manga.slice(0, 10).map(m => ({ id: m.id, v: pick(m) }))
-    console.log('[CatalogPage] TOP10 snapshot for field', field, 'direction', sortDirection, snapshot)
-  }, [manga, sortField, sortDirection])
+  // Removed TOP10 snapshot diagnostic effect
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -487,67 +480,12 @@ export function CatalogPage() {
     const handler = (e: MouseEvent) => {
       if (!desktopSortRef.current) return
       if (!desktopSortRef.current.contains(e.target as Node)) {
-        console.log('[CatalogPage] outside desktop sort -> close')
         setShowSortDropdown(false)
       }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [showSortDropdown])
-
-  // Функции работы с чипсами выбранных фильтров
-  const removeFilterChip = (category: string, value?: string) => {
-    // Копируем текущие состояния
-    const newActive = { ...activeFilters }
-    const newDraft = { ...draftFilters }
-
-    switch (category) {
-      case 'activeType':
-        setActiveType('все')
-        break
-      case 'genre':
-        if (value) {
-          newActive.genres = (newActive.genres || []).filter((g: string) => g !== value)
-          newDraft.selectedGenres = (newDraft.selectedGenres || []).filter((g: string) => g !== value)
-          if (newActive.genres.length === 0) delete newActive.genres
-        }
-        break
-      case 'tag':
-        if (value) {
-          newActive.tags = (newActive.tags || []).filter((t: string) => t !== value)
-          newDraft.selectedTags = (newDraft.selectedTags || []).filter((t: string) => t !== value)
-          if (newActive.tags.length === 0) delete newActive.tags
-        }
-        break
-      case 'type':
-        delete newActive.type
-        newDraft.mangaType = ''
-        break
-      case 'status':
-        delete newActive.status
-        newDraft.status = ''
-        break
-      case 'ageRating':
-        delete newActive.ageRating
-        newDraft.ageRating = [0, 21]
-        break
-      case 'rating':
-        delete newActive.rating
-        newDraft.rating = [0, 10]
-        break
-      case 'releaseYear':
-        delete newActive.releaseYear
-        newDraft.releaseYear = [1990, new Date().getFullYear()]
-        break
-      case 'chapterRange':
-        delete newActive.chapterRange
-        newDraft.chapterRange = [0, 1000]
-        break
-    }
-    setActiveFilters(newActive)
-    setDraftFilters(newDraft)
-    setCurrentPage(0)
-  }
 
   const clearAllFilters = () => {
     setActiveFilters({})
@@ -556,208 +494,10 @@ export function CatalogPage() {
     setCurrentPage(0)
   }
 
+
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 lg:px-8 py-4 md:py-8">
-        {/* Header Section - улучшенный дизайн */}
-        <div className="mb-6 md:mb-8">
-          <div className="text-center">
-            <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-2 bg-gradient-to-r from-white to-muted-foreground bg-clip-text text-transparent">
-              {pageTitle}
-            </h1>
-          </div>
-        </div>
-
-  {/* Controls Bar - полностью переработанный дизайн */}
-        <div className="flex flex-col gap-4 mb-6">
-          {/* Мобильная версия: улучшенные компактные кнопки */}
-          <div className="lg:hidden">
-            {/* Компактная панель управления на м��бильном */}
-            <div className="flex items-center gap-3 mb-4">
-              {/* Сортировка - ул��чшенная кнопка */}
-              <div className="relative">
-                <button
-                  className="flex items-center justify-center w-11 h-11 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/15 transition-all duration-200 shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                  type="button"
-                  onClick={() => setShowSortDropdown(!showSortDropdown)}
-                  title="Сортировка"
-                >
-                  <ArrowUpDown className="h-5 w-5 text-white" />
-                </button>
-                {showSortDropdown && (
-                  <div ref={sortDropdownRef} className="absolute left-0 top-full mt-2 w-72 bg-card rounded-xl shadow-xl z-50 border border-border animate-fade-in">
-                    <div className="p-4">
-                      <div className="text-xs text-muted-foreground mb-3 font-medium">Сортировать по:</div>
-                      <div className="space-y-1 mb-4">
-                        {['По популярности','По новизне','По кол-ву глав','По дате обновления','По оценке','По кол-ву оценок','По лайкам','По просмотрам','По отзывам','По комментариям'].map(option => (
-                          <button
-                            key={option}
-                            onClick={() => { handleSortChange(option); }}
-                            className={cn(
-                              'w-full text-left px-3 py-2 text-sm transition-all duration-200 border-b-2',
-                              sortOrder === option
-                                ? 'text-blue-500 border-blue-500'
-                                : 'text-muted-foreground hover:text-white border-transparent hover:border-muted'
-                            )}
-                          >
-                            {option}
-                          </button>
-                        ))}
-                      </div>
-
-                      <div className="text-xs text-muted-foreground mb-3 font-medium">Направление:</div>
-                      <div className="flex gap-2">
-                        {[
-                          { label: 'По убыванию', value: 'desc', icon: ArrowDown },
-                          { label: 'По возрастанию', value: 'asc', icon: ArrowUp }
-                        ].map(dir => (
-                          <button
-                            key={dir.value}
-                            onClick={() => { handleSortDirectionChange(dir.value as 'desc' | 'asc'); }}
-                            className={cn(
-                              'flex-1 flex items-center gap-2 px-3 py-2 text-sm transition-all duration-200 border-b-2',
-                              sortDirection === dir.value
-                                ? 'text-blue-500 border-blue-500'
-                                : 'text-muted-foreground hover:text-white border-transparent hover:border-muted'
-                            )}
-                          >
-                            <dir.icon className="h-4 w-4" />
-                            {dir.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Индикатор ��екущей сортировки - улучшенный стиль */}
-              <div className="flex-1 min-w-0 bg-white/10 backdrop-blur-sm rounded-xl px-3 py-2 border border-white/20">
-                <div className="text-xs text-muted-foreground truncate">
-                  <span className="text-white font-medium">{sortOrder}</span>
-                  <span className="ml-2">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                </div>
-              </div>
-
-              {/* Фильтры - улучшенная кнопка */}
-              <button
-                onClick={() => setShowFilters(true)}
-                className="flex items-center justify-center w-11 h-11 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/15 transition-all duration-200 shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                title="Фильтры"
-              >
-                <Filter className="h-5 w-5 text-white" />
-              </button>
-            </div>
-
-            {/* Быстрые фильтры для мобильной версии */}
-            <div className="mt-3 overflow-x-auto scrollbar-hide">
-              <div className="flex gap-2 pb-2 px-1">
-                {['все', 'манга', 'манхва', 'маньхуа', 'западный комикс', 'рукомикс', 'другое'].map(type => (
-                  <button
-                    key={type}
-                    onClick={() => handleActiveTypeChange(type)}
-                    className={cn(
-                      'flex-shrink-0 px-3 py-2 rounded-xl text-xs font-medium transition-all duration-200 border whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-                      activeType === type
-                        ? 'bg-primary/20 text-primary border-primary/30 shadow-lg shadow-primary/20'
-                        : 'bg-white/5 backdrop-blur-sm text-muted-foreground hover:bg-white/10 hover:text-white border-white/10'
-                    )}
-                  >
-                    {type.charAt(0).toUpperCase() + type.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-          </div>
-
-          {/* Десктопная версия: улучшенная горизонтальная компоновка */}
-          <div className="hidden lg:flex lg:items-center lg:justify-between w-full gap-6">
-            {/* Левая группа: Сортировка + Быстрые фильтры */}
-            <div className="flex items-center gap-3">
-              {/* Сортировка */}
-              <div ref={desktopSortRef} className="relative">
-                <button
-                  type="button"
-                  onClick={() => { console.log('[CatalogPage] desktop sort anchor click, wasOpen=', showSortDropdown); setShowSortDropdown(v=>!v) }}
-                  className="flex items-center gap-2 rounded-xl px-4 h-11 text-sm font-medium bg-white/5 backdrop-blur-sm hover:bg-white/10 border border-white/10 shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-primary/50"
-                >
-                  <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-                  <span className="truncate max-w-[140px]">{sortOrder}</span>
-                  {sortDirection==='desc'? <ArrowDown className="h-3 w-3 opacity-70" /> : <ArrowUp className="h-3 w-3 opacity-70" />}
-                </button>
-                {showSortDropdown && (
-                  <div className="absolute z-50 mt-2 w-80 md:w-96 left-0 origin-top-left rounded-xl border border-white/15 bg-background/95 backdrop-blur-xl shadow-2xl p-4 animate-fade-in">
-                    <div className="flex items-start gap-6">
-                      <div className="flex-1 space-y-1 max-h-[300px] overflow-y-auto pr-1 scrollbar-custom" role="listbox" aria-label="Поля сортировки">
-                        {Object.values(SORT_LABEL_BY_FIELD).map(option => {
-                          const selected = option === sortOrder
-                          return (
-                            <button
-                              key={option}
-                              onClick={() => { console.log('[CatalogPage] select sort field label=', option); handleSortChange(option); setShowSortDropdown(false) }}
-                              className={cn('w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40',
-                                selected ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/10 hover:text-white')}
-                            >
-                              {selected && <Check className="h-4 w-4" />}
-                              <span className="truncate">{option}</span>
-                            </button>
-                          )
-                        })}
-                      </div>
-                      <div className="flex flex-col gap-2 flex-shrink-0 w-32" aria-label="Направление">
-                        <button
-                          onClick={() => { console.log('[CatalogPage] select dir desc'); handleSortDirectionChange('desc'); setShowSortDropdown(false) }}
-                          className={cn('flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40',
-                            sortDirection==='desc' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/10 hover:text-white')}
-                        >
-                          <ArrowDown className="h-4 w-4" />
-                          Убыв.
-                        </button>
-                        <button
-                          onClick={() => { console.log('[CatalogPage] select dir asc'); handleSortDirectionChange('asc'); setShowSortDropdown(false) }}
-                          className={cn('flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40',
-                            sortDirection==='asc' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/10 hover:text-white')}
-                        >
-                          <ArrowUp className="h-4 w-4" />
-                          Возраст.
-                        </button>
-                        <button onClick={()=>setShowSortDropdown(false)} className="mt-2 text-xs text-muted-foreground hover:text-white px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-primary/40">Закрыть</button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Быстрые фильтры рядом с сортировкой */}
-              <div className="flex gap-2">
-                {['все', 'манга', 'манхва', 'маньхуа', 'западный комикс', 'рукомикс', 'другое'].map(type => (
-                  <button
-                    key={type}
-                    onClick={() => handleActiveTypeChange(type)}
-                    className={cn(
-                      'px-3 py-2 rounded-xl text-xs font-medium transition-all duration-200 border whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-                      activeType === type
-                        ? 'bg-primary/20 text-primary border-primary/30 shadow-lg shadow-primary/20'
-                        : 'bg-white/5 backdrop-blur-sm text-muted-foreground hover:bg-white/10 hover:text-white border-white/10'
-                    )}
-                  >
-                    {type.charAt(0).toUpperCase() + type.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Selected Filters Chips */}
-        <SelectedFiltersBar
-          activeFilters={activeFilters}
-          activeType={activeType}
-            onRemove={removeFilterChip}
-          onClearAll={clearAllFilters}
-          className="mb-6"
-        />
+      <div className="container mx-auto px-4 lg:px-8 py-6">
 
         {/* Улучшенный Offcanvas фильтров для мобильных */}
         <div
@@ -787,6 +527,7 @@ export function CatalogPage() {
               onReset={resetFilters}
               onApply={() => { applyFilters(); setShowFilters(false) }}
               className="h-full"
+              appearance="mobile"
             />
             <span tabIndex={0} aria-hidden className="block outline-none" />
           </div>
@@ -802,158 +543,198 @@ export function CatalogPage() {
 
         {/* Основной контейнер с боковыми фильтрами для десктопа */}
         <div className="flex gap-8">
-          {/* Основной контент */}
-          <div className="flex-1 min-w-0">
-            {/* Manga Grid - улучшенная сетка с анимацией */}
-            <ErrorBoundary fallback={
-              <div className="text-center py-16">
-                <h3 className="text-xl font-medium text-white mb-2">Ошибка при загрузке каталога</h3>
-                <p className="text-muted-foreground mb-4">Проверьте консоль браузера для деталей</p>
-                <button 
-                  onClick={() => window.location.reload()} 
-                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-                >
-                  Перезагрузить страницу
-                </button>
-              </div>
-            }>
-              {isError ? (
-                <ErrorState onRetry={() => refetch()} />
-              ) : (
-                <div className="relative grid grid-cols-2 gap-3 sm:gap-4 lg:gap-5 xl:gap-6 [grid-auto-rows:1fr] sm:[grid-template-columns:repeat(auto-fill,minmax(150px,1fr))] md:[grid-template-columns:repeat(auto-fill,minmax(170px,1fr))] lg:[grid-template-columns:repeat(auto-fill,minmax(180px,1fr))] animate-fade-in">
-                  {isLoading && manga.length === 0 && Array.from({ length: pageSize }).map((_, i) => (
-                    <MangaCardSkeleton key={i} />
-                  ))}
-                  {!isLoading && manga.length === 0 && (
-                    <div className="col-span-full">
-                      <EmptyState onReset={clearAllFilters} />
+          {/* Левая колонка: каталог */}
+            <div className="flex-1 min-w-0">
+              <div className="glass-panel p-4 lg:p-5">
+                {/* Заголовок + поиск + сортировка */}
+                <div className="flex flex-col gap-4 mb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <h1 className="text-xl md:text-2xl font-bold text-white">{pageTitle}</h1>
+                    <div className="flex items-center gap-3 w-full sm:w-auto flex-1">
+                      <div className="relative flex-1">
+                        <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-muted-foreground">
+                          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                        </div>
+                        <input value={searchInput} onChange={e=>setSearchInput(e.target.value)} placeholder="Поиск по названию" className="w-full h-10 pl-10 pr-10 rounded-xl bg-white/5 border border-white/10 focus:border-primary/40 focus:ring-2 focus:ring-primary/30 outline-none text-sm text-white placeholder:text-muted-foreground/60 transition" />
+                        {searchInput && (
+                          <button onClick={()=>{setSearchInput('');setSearchQuery('');setCurrentPage(0)}} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-muted-foreground hover:text-white hover:bg-white/10" aria-label="Очистить поиск">
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                      <div ref={desktopSortRef} className="relative">
+                        <button onClick={()=>setShowSortDropdown(v=>!v)} className="h-10 px-3 flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-sm font-medium">
+                          <ArrowUpDown className="h-4 w-4" />
+                          <span className="hidden sm:inline-block max-w-[140px] truncate">{sortOrder}</span>
+                          {sortDirection==='desc'?<ArrowDown className="h-3 w-3"/>:<ArrowUp className="h-3 w-3"/>}
+                        </button>
+                        {showSortDropdown && (
+                          <div className="absolute z-50 mt-2 w-72 sm:w-80 right-0 origin-top-right rounded-xl border border-white/15 bg-background/95 backdrop-blur-xl shadow-2xl p-4 animate-fade-in">
+                            <div className="flex items-start gap-4">
+                              <div className="flex-1 space-y-1 max-h-[260px] sm:max-h-[300px] overflow-y-auto pr-1 scrollbar-custom">
+                                {Object.values(SORT_LABEL_BY_FIELD).map(option=>{const selected=option===sortOrder;return(<button key={option} onClick={()=>{handleSortChange(option);setShowSortDropdown(false)}} className={cn('w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors',selected?'bg-primary/20 text-primary':'text-muted-foreground hover:bg-white/10 hover:text-white')}>{selected&&<Check className="h-4 w-4"/>}<span className="truncate">{option}</span></button>)})}
+                              </div>
+                              <div className="flex flex-col gap-2 flex-shrink-0 w-28">
+                                <button onClick={()=>{handleSortDirectionChange('desc');setShowSortDropdown(false)}} className={cn('flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors',sortDirection==='desc'?'bg-primary/20 text-primary':'text-muted-foreground hover:bg-white/10 hover:text-white')}><ArrowDown className="h-4 w-4"/> Убыв.</button>
+                                <button onClick={()=>{handleSortDirectionChange('asc');setShowSortDropdown(false)}} className={cn('flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors',sortDirection==='asc'?'bg-primary/20 text-primary':'text-muted-foreground hover:bg-white/10 hover:text-white')}><ArrowUp className="h-4 w-4"/> Возраст.</button>
+                                <button onClick={()=>{resetSort();setShowSortDropdown(false)}} className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg border border-white/10 text-muted-foreground hover:text-white hover:bg-white/10"><RotateCcw className="h-3.5 w-3.5"/> Сброс</button>
+                                <button onClick={()=>setShowSortDropdown(false)} className="text-[11px] text-muted-foreground hover:text-white px-2 py-1 rounded">Закрыть</button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <button onClick={()=>setShowFilters(true)} className="h-11 w-11 min-w-[44px] min-h-[44px] flex sm:hidden items-center justify-center rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 active:scale-[0.97] transition" aria-label="Фильтры">
+                        <Filter className="h-5 w-5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Сетка карточек */}
+                <ErrorBoundary fallback={
+                  <div className="text-center py-16">
+                    <h3 className="text-xl font-medium text-white mb-2">Ошибка при загрузке каталога</h3>
+                    <p className="text-muted-foreground mb-4">Проверьте консоль браузера для деталей</p>
+                    <button 
+                      onClick={() => window.location.reload()} 
+                      className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                    >
+                      Перезагрузить страницу
+                    </button>
+                  </div>
+                }>
+                  {isError ? (
+                    <ErrorState onRetry={() => refetch()} />
+                  ) : (
+                    <div className="relative grid
+                      grid-cols-2
+                      [grid-auto-rows:auto]
+                      gap-2.5 xs:gap-3 sm:gap-4 lg:gap-5 xl:gap-6
+                      sm:[grid-template-columns:repeat(auto-fill,minmax(170px,1fr))]
+                      md:[grid-template-columns:repeat(auto-fill,minmax(175px,1fr))]
+                      lg:[grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]
+                      xl:[grid-template-columns:repeat(auto-fill,minmax(185px,1fr))]
+                      2xl:[grid-template-columns:repeat(auto-fill,minmax(190px,1fr))]
+                      items-start place-content-start justify-items-start animate-fade-in max-w-[1400px]">
+                      {isLoading && manga.length === 0 && Array.from({ length: pageSize }).map((_, i) => (
+                        <MangaCardSkeleton key={i} />
+                      ))}
+                      {!isLoading && manga.length === 0 && (
+                        <div className="col-span-full">
+                          <EmptyState onReset={clearAllFilters} />
+                        </div>
+                      )}
+                      {manga.length > 0 && manga.map((item: MangaResponseDTO) => (
+                        <MangaCardWithTooltip key={item.id} manga={item} />
+                      ))}
+                      {isLoading && manga.length > 0 && (
+                        <div className="absolute inset-0 bg-background/40 backdrop-blur-[2px] pointer-events-none" aria-hidden />
+                      )}
                     </div>
                   )}
-                  {manga.length > 0 && manga.map((item: MangaResponseDTO) => (
-                    <MangaCardWithTooltip key={item.id} manga={item} />
-                  ))}
-                  {isLoading && manga.length > 0 && (
-                    <div className="absolute inset-0 bg-background/40 backdrop-blur-[2px] pointer-events-none" aria-hidden />
-                  )}
-                </div>
-              )}
-            </ErrorBoundary>
+                </ErrorBoundary>
 
-            {/* Pagination Component */}
-            {totalPages > 1 && (
-              <div className="flex flex-col items-center gap-4 mt-8 mb-8">
-                {/* Info */}
-                <div className="text-sm text-muted-foreground">
-                  Показано {manga?.length || 0} из {totalElements} произведений
-                </div>
-
-                {/* Pagination Controls */}
-                <div className="flex items-center gap-2">
-                  {/* First Page */}
-                  <button
-                    onClick={goToFirstPage}
-                    disabled={currentPage === 0}
-                    className={cn(
-                      'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-                      currentPage === 0
-                        ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
-                        : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
-                    )}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                    <ChevronLeft className="h-4 w-4 -ml-2" />
-                  </button>
-
-                  {/* Previous Page */}
-                  <button
-                    onClick={goToPreviousPage}
-                    disabled={currentPage === 0}
-                    className={cn(
-                      'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-                      currentPage === 0
-                        ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
-                        : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
-                    )}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                    Предыдущая
-                  </button>
-
-                  {/* Page Numbers */}
-                  <div className="flex items-center gap-1">
-                    {totalPages > 0 && Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                      const pageNum = Math.max(0, Math.min(totalPages - 5, currentPage - 2)) + i
-                      if (pageNum >= totalPages) return null
-
-                      return (
-                        <button
-                          key={pageNum}
-                          onClick={() => goToPage(pageNum)}
-                          className={cn(
-                            'px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border min-w-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-                            currentPage === pageNum
-                              ? 'bg-primary/20 text-primary border-primary/30 shadow-lg shadow-primary/20'
-                              : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
-                          )}
-                        >
-                          {pageNum + 1}
-                        </button>
-                      )
-                    })}
+                {/* Пагинация */}
+                {totalPages > 1 && (
+                  <div className="flex flex-col items-center gap-4 mt-8 mb-2">
+                    <div className="text-sm text-muted-foreground">
+                      Показано {manga?.length || 0} из {totalElements} произведений
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap justify-center">
+                      <button
+                        onClick={goToFirstPage}
+                        disabled={currentPage === 0}
+                        className={cn(
+                          'hidden sm:flex items-center gap-1 px-3 py-2 min-h-[44px] min-w-[44px] rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                          currentPage === 0
+                            ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
+                            : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
+                        )}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        <ChevronLeft className="h-4 w-4 -ml-2" />
+                      </button>
+                      <button
+                        onClick={goToPreviousPage}
+                        disabled={currentPage === 0}
+                        className={cn(
+                          'flex items-center gap-1 px-3 py-2 min-h-[44px] min-w-[44px] rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                          currentPage === 0
+                            ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
+                            : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
+                        )}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        Предыдущая
+                      </button>
+                      <div className="flex items-center gap-1">
+                        {totalPages > 0 && Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                          const pageNum = Math.max(0, Math.min(totalPages - 5, currentPage - 2)) + i
+                          if (pageNum >= totalPages) return null
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => goToPage(pageNum)}
+                              className={cn(
+                                  'px-3 py-2 min-h-[44px] min-w-[44px] rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                                currentPage === pageNum
+                                  ? 'bg-primary/20 text-primary border-primary/30 shadow-lg shadow-primary/20'
+                                  : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
+                              )}
+                            >
+                              {pageNum + 1}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      <button
+                        onClick={goToNextPage}
+                        disabled={!totalPages || currentPage >= totalPages - 1}
+                        className={cn(
+                          'flex items-center gap-1 px-3 py-2 min-h-[44px] min-w-[44px] rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                          !totalPages || currentPage >= totalPages - 1
+                            ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
+                            : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
+                        )}
+                      >
+                        Следующая
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={goToLastPage}
+                        disabled={!totalPages || currentPage >= totalPages - 1}
+                        className={cn(
+                          'hidden sm:flex items-center gap-1 px-3 py-2 min-h-[44px] min-w-[44px] rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                          !totalPages || currentPage >= totalPages - 1
+                            ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
+                            : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
+                        )}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                        <ChevronRight className="h-4 w-4 -ml-2" />
+                      </button>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Страница {currentPage + 1} из {totalPages}
+                    </div>
                   </div>
-
-                  {/* Next Page */}
-                  <button
-                    onClick={goToNextPage}
-                    disabled={!totalPages || currentPage >= totalPages - 1}
-                    className={cn(
-                      'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-                      !totalPages || currentPage >= totalPages - 1
-                        ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
-                        : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
-                    )}
-                  >
-                    Следующая
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-
-                  {/* Last Page */}
-                  <button
-                    onClick={goToLastPage}
-                    disabled={!totalPages || currentPage >= totalPages - 1}
-                    className={cn(
-                      'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-                      !totalPages || currentPage >= totalPages - 1
-                        ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
-                        : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
-                    )}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                    <ChevronRight className="h-4 w-4 -ml-2" />
-                  </button>
-                </div>
-
-                {/* Current Page Info */}
-                <div className="text-sm text-muted-foreground">
-                  Страница {currentPage + 1} из {totalPages}
-                </div>
+                )}
               </div>
-            )}
-
-          </div>
-
-          {/* Боковые фильтры для десктопа */}
+            </div>
+          {/* Правая колонка: фильтры */}
           <div className="hidden lg:block w-80 flex-shrink-0">
-            <MangaFilterPanel
-              initialFilters={memoizedFilterState}
-              onFiltersChange={handleFiltersChange}
-              onReset={resetFilters}
-              onApply={applyFilters}
-              className="sticky top-4"
-            />
+            <div className="sticky" style={{ top: filterOffset }}>
+              <MangaFilterPanel
+                initialFilters={memoizedFilterState}
+                onFiltersChange={handleFiltersChange}
+                onReset={resetFilters}
+                onApply={applyFilters}
+                appearance="desktop"
+              />
+            </div>
           </div>
         </div>
-
       </div>
     </div>
   )
