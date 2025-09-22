@@ -44,6 +44,9 @@ public class ChapterService {
     @Value("${auth.service.internal-url:http://auth-service:8085}")
     private String authServiceInternalUrl;
 
+    @Value("${manga.service.internal-url:http://manga-service:8081}")
+    private String mangaServiceInternalUrl;
+
     /**
      * Получить все главы для указанной манги.
      * Автоматически синхронизирует количество страниц с сервисом хранения изображений.
@@ -181,20 +184,35 @@ public class ChapterService {
                         "mangaTitle", fetchMangaTitle(createDTO.getMangaId())
                 );
         String notifyUrl = notificationServiceBaseUrl + "/internal/events/chapter-published-batch";
-        var responseEntity = client.post()
-            .uri(notifyUrl)
-                        .bodyValue(payload)
-                        .retrieve()
-                        .toBodilessEntity()
-                        .block(java.time.Duration.ofSeconds(3));
-                if (responseEntity != null) {
-                    System.out.println("Fan-out: notification batch sent url=" + notifyUrl + " status=" + responseEntity.getStatusCode());
-                } else {
-                    System.out.println("Fan-out: notification batch call returned null response url=" + notifyUrl);
-                }
+        try {
+            var responseEntity = client.post()
+                .uri(notifyUrl)
+                            .bodyValue(payload)
+                            .exchangeToMono(res -> {
+                                var sc = res.statusCode();
+                                if (sc.is2xxSuccessful()) {
+                                    return res.releaseBody().thenReturn(sc);
+                                } else {
+                                    return res.bodyToMono(String.class)
+                                        .defaultIfEmpty("")
+                                        .map(body -> {
+                                            System.err.println("Fan-out: notification non-2xx status=" + sc + " body=" + body);
+                                            return sc;
+                                        });
+                                }
+                            })
+                            .block(java.time.Duration.ofSeconds(4));
+            if (responseEntity != null && responseEntity.is2xxSuccessful()) {
+                System.out.println("Fan-out: notification batch sent url=" + notifyUrl + " status=" + responseEntity);
+            } else if (responseEntity == null) {
+                System.err.println("Fan-out: notification batch POST returned null status url=" + notifyUrl);
+            }
+        } catch (Exception postEx) {
+            System.err.println("Fan-out: notification batch exception url=" + notifyUrl + " error=" + postEx.getClass().getSimpleName() + ":" + postEx.getMessage());
+        }
             }
         } catch (Exception ex) {
-            System.err.println("Fan-out chapter-published failed: " + ex.getMessage());
+            System.err.println("Fan-out chapter-published failed: " + ex.getClass().getSimpleName() + ":" + ex.getMessage());
         }
 
         return new ChapterResponseDTO(savedChapter);
@@ -437,18 +455,21 @@ public class ChapterService {
     }
 
     private String fetchMangaTitle(Long mangaId) {
+        String url = mangaServiceInternalUrl + "/api/manga/" + mangaId;
         try {
             WebClient client = webClientBuilder.build();
             Map<?,?> map = client.get()
-                    .uri("http://manga-service:8082/api/manga/" + mangaId)
+                    .uri(url)
                     .retrieve()
                     .bodyToMono(Map.class)
-                    .block(java.time.Duration.ofSeconds(2));
+                    .block(java.time.Duration.ofSeconds(3));
             if (map != null) {
                 Object title = map.get("title");
                 if (title != null) return String.valueOf(title);
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ex) {
+            System.err.println("fetchMangaTitle failed url=" + url + " error=" + ex.getMessage());
+        }
         return null;
     }
 }
