@@ -26,6 +26,21 @@ public class InternalEventController {
         map.put("replyToCommentId", body.getReplyToCommentId());
         map.put("commentType", body.getCommentType());
         map.put("excerpt", truncate(body.getContent(), 120));
+        // Enrichment (best-effort) for context
+        try {
+            if (body.getMangaId() != null) {
+                var title = fetchMangaTitle(body.getMangaId());
+                if (title != null) map.put("mangaTitle", title);
+            }
+            if (body.getChapterId() != null) {
+                var chapterMeta = fetchChapterMeta(body.getChapterId());
+                if (chapterMeta != null) {
+                    if (chapterMeta.get("chapterNumber") != null) map.put("chapterNumber", chapterMeta.get("chapterNumber"));
+                    if (chapterMeta.get("mangaId") != null && body.getMangaId()==null) map.put("mangaId", chapterMeta.get("mangaId"));
+                    if (chapterMeta.get("mangaTitle") != null && !map.containsKey("mangaTitle")) map.put("mangaTitle", chapterMeta.get("mangaTitle"));
+                }
+            }
+        } catch (Exception ignored) {}
         String payload = toJson(map);
         NotificationType type;
         if (body.getReplyToCommentId() != null) {
@@ -138,6 +153,72 @@ public class InternalEventController {
     }
 
     private String escape(String s) { return s.replace("\\", "\\\\").replace("\"", "\\\""); }
+
+    // --- Simple blocking HTTP helpers (could be refactored to service bean) ---
+    private String fetchMangaTitle(Long mangaId) {
+        try {
+            java.net.http.HttpClient http = java.net.http.HttpClient.newHttpClient();
+            java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create("http://manga-service:8082/api/manga/" + mangaId))
+                    .timeout(java.time.Duration.ofMillis(800))
+                    .GET().build();
+            java.net.http.HttpResponse<String> resp = http.send(req, java.net.http.HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() >=200 && resp.statusCode()<300) {
+                String body = resp.body();
+                // very naive extraction of "title":"..."
+                int idx = body.indexOf("\"title\"");
+                if (idx>0) {
+                    int colon = body.indexOf(':', idx);
+                    int quote1 = body.indexOf('"', colon+1);
+                    int quote2 = body.indexOf('"', quote1+1);
+                    if (quote1>0 && quote2>quote1) {
+                        return body.substring(quote1+1, quote2);
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    private java.util.Map<String,Object> fetchChapterMeta(Long chapterId) {
+        try {
+            java.net.http.HttpClient http = java.net.http.HttpClient.newHttpClient();
+            java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create("http://chapter-service:8083/api/chapters/" + chapterId))
+                    .timeout(java.time.Duration.ofMillis(800))
+                    .GET().build();
+            java.net.http.HttpResponse<String> resp = http.send(req, java.net.http.HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode()>=200 && resp.statusCode()<300) {
+                String json = resp.body();
+                java.util.Map<String,Object> map = new java.util.HashMap<>();
+                // naive parse for chapterNumber, mangaId
+                extractNumber(json, "chapterNumber", map);
+                extractNumber(json, "mangaId", map);
+                // attempt fetch manga title if mangaId found
+                if (map.get("mangaId") instanceof Number mid) {
+                    String title = fetchMangaTitle(mid.longValue());
+                    if (title!=null) map.put("mangaTitle", title);
+                }
+                return map;
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    private void extractNumber(String json, String field, java.util.Map<String,Object> out) {
+        int idx = json.indexOf('"'+field+'"');
+        if (idx<0) return;
+        int colon = json.indexOf(':', idx);
+        if (colon<0) return;
+        int i = colon+1;
+        while (i<json.length() && Character.isWhitespace(json.charAt(i))) i++;
+        int start=i;
+        while (i<json.length() && (Character.isDigit(json.charAt(i)) || json.charAt(i)=='.')) i++;
+        if (start<i) {
+            String num = json.substring(start,i);
+            try { if (num.contains(".")) out.put(field, Double.parseDouble(num)); else out.put(field, Long.parseLong(num)); } catch (Exception ignored) {}
+        }
+    }
 
     @Data
     public static class CommentCreatedEvent {

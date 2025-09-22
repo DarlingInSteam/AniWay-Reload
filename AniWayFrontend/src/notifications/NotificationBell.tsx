@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNotifications } from './NotificationContext';
 import { deleteAll } from './api';
 import { parsePayload, formatTitle, formatDescription, formatDate, getIcon } from './notificationUtils';
+import { useNavigate } from 'react-router-dom';
 
 export const NotificationBell: React.FC = () => {
   const { unread, items, markRead, markAll, loadMore, loading } = useNotifications();
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement|null>(null);
+  const navigate = useNavigate();
 
   const toggle = () => setOpen(o => !o);
   const unreadItems = items.filter(i => i.status === 'UNREAD');
@@ -16,10 +19,21 @@ export const NotificationBell: React.FC = () => {
     markRead([id]);
   };
 
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
   return (
-    <div className="relative inline-block text-left">
+    <div className="relative inline-block text-left" ref={ref}>
       <button onClick={toggle} className="relative p-2 rounded hover:bg-neutral-800 transition">
-        <span className="material-icons">notifications</span>
+        <span className="material-icons">notifications_none</span>
         {unread > 0 && (
           <span className="absolute -top-0.5 -right-0.5 bg-red-600 text-white text-[10px] px-1 rounded-full">{unread}</span>
         )}
@@ -39,7 +53,10 @@ export const NotificationBell: React.FC = () => {
             {items.map(n => <NotificationRow key={n.id} n={n} onClick={() => handleItemClick(n.id, n.payload)} />)}
           </div>
           <div className="p-2 flex items-center justify-between gap-2 border-t border-neutral-700 bg-neutral-950">
-            <button disabled={loading} onClick={loadMore} className="text-xs text-blue-400 disabled:opacity-40">Ещё</button>
+            <div className="flex gap-2">
+              <button disabled={loading} onClick={loadMore} className="text-xs text-blue-400 disabled:opacity-40">Загрузить ещё</button>
+            </div>
+            <button onClick={() => { setOpen(false); navigate('/notifications'); }} className="text-xs text-neutral-300 hover:text-white">Все</button>
           </div>
         </div>
       )}

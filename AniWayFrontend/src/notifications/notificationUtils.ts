@@ -28,6 +28,10 @@ export function formatTitle(type: string, payload: NotificationPayload): string 
     case 'PROFILE_COMMENT':
       return 'Новый комментарий на вашей странице';
     case 'REPLY_TO_COMMENT':
+      if (payload?.commentType === 'PROFILE') return 'Ответ в вашем профиле';
+      if (payload?.commentType === 'MANGA') return 'Ответ на ваш комментарий к манге';
+      if (payload?.commentType === 'CHAPTER') return 'Ответ на ваш комментарий к главе';
+      if (payload?.commentType === 'REVIEW') return 'Ответ на ваш комментарий к отзыву';
       return 'Ответ на ваш комментарий';
     case 'COMMENT_ON_REVIEW':
       return 'Комментарий к вашему отзыву';
