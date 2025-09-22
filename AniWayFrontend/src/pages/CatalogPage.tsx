@@ -626,7 +626,9 @@ export function CatalogPage() {
                         </div>
                       )}
                       {manga.length > 0 && manga.map((item: MangaResponseDTO) => (
-                        <MangaCardWithTooltip key={item.id} manga={item} />
+                        <div key={item.id} className="w-full max-w-[200px] mx-auto">
+                          <MangaCardWithTooltip manga={item} />
+                        </div>
                       ))}
                       {isLoading && manga.length > 0 && (
                         <div className="absolute inset-0 bg-background/40 backdrop-blur-[2px] pointer-events-none" aria-hidden />

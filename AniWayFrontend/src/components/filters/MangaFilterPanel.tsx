@@ -230,24 +230,24 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 flex-nowrap">
           <Button
             variant="ghost"
             size="sm"
             onClick={resetAll}
-            className="h-8 px-2 text-muted-foreground hover:text-white hover:bg-white/10"
+            className="h-8 px-1.5 text-muted-foreground hover:text-white hover:bg-white/10"
             aria-label="Сбросить все фильтры"
           >
             <RotateCcw className="h-4 w-4" />
           </Button>
           {/* Desktop strict toggle (compact, tooltip on hover) */}
           {!isMobile && (
-            <div className="relative group">
+            <div className="relative group shrink-0">
               <button
                 type="button"
                 onClick={() => update({ strictMatch: !filters.strictMatch })}
                 className={cn(
-                  'h-8 px-2.5 rounded-md border text-[11px] font-medium tracking-tight transition flex items-center gap-1',
+                  'h-8 px-2 rounded-md border text-[11px] font-medium tracking-tight transition flex items-center gap-1',
                   filters.strictMatch
                     ? 'bg-primary/20 border-primary/40 text-primary hover:bg-primary/30'
                     : 'bg-white/5 border-white/10 text-muted-foreground hover:text-white hover:bg-white/10'
@@ -272,7 +272,7 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
             <Button
               size="sm"
               onClick={onApply}
-              className="h-8 px-3 bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 text-xs"
+              className="h-8 px-2 shrink-0 bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 text-[11px]"
             >
               Применить
             </Button>
