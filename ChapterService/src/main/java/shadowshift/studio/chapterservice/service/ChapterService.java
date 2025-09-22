@@ -152,6 +152,7 @@ public class ChapterService {
                     .collectList()
                     .blockOptional(java.time.Duration.ofSeconds(3))
                     .orElse(java.util.Collections.emptyList());
+            System.out.println("Fan-out: fetched subscribers for manga " + createDTO.getMangaId() + ": " + subscribers.size());
             if (!subscribers.isEmpty()) {
                 // 2. Send batch event to NotificationService
                 Map<String,Object> payload = Map.of(
@@ -161,12 +162,17 @@ public class ChapterService {
                         "chapterNumber", String.valueOf(createDTO.getChapterNumber()),
                         "mangaTitle", fetchMangaTitle(createDTO.getMangaId())
                 );
-        client.post()
+        var responseEntity = client.post()
             .uri(notificationServiceBaseUrl + "/internal/events/chapter-published-batch")
                         .bodyValue(payload)
                         .retrieve()
                         .toBodilessEntity()
                         .block(java.time.Duration.ofSeconds(2));
+                if (responseEntity != null) {
+                    System.out.println("Fan-out: notification batch sent, status=" + responseEntity.getStatusCode());
+                } else {
+                    System.out.println("Fan-out: notification batch call returned null response");
+                }
             }
         } catch (Exception ex) {
             System.err.println("Fan-out chapter-published failed: " + ex.getMessage());
