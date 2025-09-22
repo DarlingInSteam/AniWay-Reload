@@ -4,10 +4,27 @@ import { MessageSquare, Eye, Heart, Pin, Lock } from 'lucide-react'
 import { AvatarMini } from './AvatarMini'
 import { buildProfileSlug } from '@/utils/profileSlug'
 import { Badge } from '@/components/ui/badge'
+import { ThreadHoverPreview } from './ThreadHoverPreview'
+import { useQueryClient } from '@tanstack/react-query'
+import { useRef, useState, useCallback } from 'react'
 
 interface Props { thread: ForumThread; users?: Record<number, any>; density?: 'comfortable' | 'compact'; isNew?: boolean; isUpdated?: boolean }
 
 export function ForumThreadCard({ thread, users, density = 'comfortable', isNew, isUpdated }: Props) {
+  const qc = useQueryClient()
+  const hoverTimer = useRef<any>(null)
+  const [open, setOpen] = useState(false)
+  const handleEnter = useCallback(()=> {
+    if(hoverTimer.current) clearTimeout(hoverTimer.current)
+    hoverTimer.current = setTimeout(()=> {
+      qc.prefetchQuery({ queryKey: ['forum','threadPreview', thread.id] })
+      setOpen(true)
+    }, 320)
+  }, [thread.id])
+  const handleLeave = useCallback(()=> {
+    if(hoverTimer.current) clearTimeout(hoverTimer.current)
+    hoverTimer.current = setTimeout(()=> setOpen(false), 150)
+  }, [])
   const u = users?.[thread.authorId]
   const name = u?.displayName || thread.authorName || `Пользователь ${thread.authorId}`
   const avatar = u?.avatar || thread.authorAvatar
@@ -19,7 +36,7 @@ export function ForumThreadCard({ thread, users, density = 'comfortable', isNew,
   const highlight = isNew || isUpdated
   const ring = isNew ? 'ring-2 ring-emerald-500/40' : isUpdated ? 'ring-2 ring-sky-500/40' : ''
   return (
-    <Link to={`/forum/thread/${thread.id}`} aria-label={highlight ? (isNew ? 'Новая тема' : 'Обновлённая тема') : undefined} className={`group relative block rounded-xl border border-white/10 bg-white/5 ${padding} hover:bg-white/10 transition-colors ${ring}`}> 
+  <Link to={`/forum/thread/${thread.id}`} onMouseEnter={handleEnter} onMouseLeave={handleLeave} aria-label={highlight ? (isNew ? 'Новая тема' : 'Обновлённая тема') : undefined} className={`group relative block rounded-xl border border-white/10 bg-white/5 ${padding} hover:bg-white/10 transition-colors ${ring}`}> 
       <div className="flex flex-col gap-3">
         <div className="flex items-start gap-3">
           <div className="flex flex-col items-start gap-1 w-16 pt-0.5">
@@ -45,6 +62,7 @@ export function ForumThreadCard({ thread, users, density = 'comfortable', isNew,
           </div>
         </div>
       </div>
+      <ThreadHoverPreview threadId={thread.id} open={open} />
     </Link>
   )
 }

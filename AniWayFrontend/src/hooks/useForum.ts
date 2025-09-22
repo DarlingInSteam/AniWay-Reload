@@ -51,6 +51,20 @@ export function useForumThread(id?: number) {
   })
 }
 
+// Lightweight preview: thread + first few posts (cached separately to avoid full tree fetch)
+export function useThreadPreview(id?: number) {
+  return useQuery({
+    queryKey: ['forum','threadPreview', id],
+    queryFn: async () => {
+      const thread = await forumService.getThreadById(id!)
+      const posts = await forumService.getPostsByThread(id!, 0, 3)
+      return { thread, posts: posts.content }
+    },
+    staleTime: 1000 * 30,
+    enabled: !!id
+  })
+}
+
 export function useCreateThread() {
   const qc = useQueryClient()
   return useMutation({
