@@ -9,6 +9,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import shadowshift.studio.forumservice.security.GatewayAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -70,8 +71,8 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
             );
 
-        // TODO: Добавить JWT фильтр
-        // http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+    // Аутентификация обеспечивается Gateway: добавляем фильтр, читающий X-User-* заголовки
+    http.addFilterBefore(new GatewayAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

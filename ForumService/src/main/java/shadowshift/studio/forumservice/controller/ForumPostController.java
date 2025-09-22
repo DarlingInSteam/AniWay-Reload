@@ -12,6 +12,9 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import shadowshift.studio.forumservice.security.GatewayAuthenticationFilter;
 import shadowshift.studio.forumservice.entity.ForumPost;
 import shadowshift.studio.forumservice.dto.response.ForumPostResponse;
 import shadowshift.studio.forumservice.repository.ForumPostRepository;
@@ -57,7 +60,7 @@ public class ForumPostController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
 
-        Long currentUserId = getCurrentUserId(httpRequest);
+    Long currentUserId = getCurrentUserId(httpRequest);
         if (currentUserId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
@@ -76,9 +79,14 @@ public class ForumPostController {
     }
 
     private Long getCurrentUserId(HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            return 1L; // заглушка
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof GatewayAuthenticationFilter.AuthUserPrincipal principal) {
+            return principal.id();
+        }
+        // Fallback: напрямую из заголовка (если SecurityContext не заполнился)
+        String header = request.getHeader("X-User-Id");
+        if (header != null) {
+            try { return Long.valueOf(header); } catch (NumberFormatException ignored) {}
         }
         return null;
     }
