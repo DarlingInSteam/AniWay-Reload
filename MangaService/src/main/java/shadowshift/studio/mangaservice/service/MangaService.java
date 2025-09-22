@@ -185,10 +185,25 @@ public class MangaService {
     public PageResponseDTO<MangaResponseDTO> getAllMangaPaged(int page, int size, String sortBy, String sortOrder) {
         logger.debug("Запрос пагинированного списка всех манг - page: {}, size: {}, sortBy: {}, sortOrder: {}", page, size, sortBy, sortOrder);
 
-    // Для native searchMangaPaged (репозиторий уже содержит ORDER BY через CASE) нельзя добавлять Sort,
-    // иначе Hibernate сформирует второй ORDER BY ... order by ... -> синтаксическая ошибка.
-    // Используем PageRequest без сортировки: см. SQL ошибка near "order" в логах.
-    Pageable pageable = PageRequest.of(page, size);
+        // Используем JPQL-вариант без встроенного ORDER BY и передаём Sort из кода.
+        Sort.Direction direction = "desc".equalsIgnoreCase(sortOrder) ? Sort.Direction.DESC : Sort.Direction.ASC;
+        // Карта сортируемых полей -> поля сущности
+        String sortProperty = switch (sortBy) {
+            case "title" -> "title";
+            case "author" -> "author";
+            case "updatedAt" -> "updatedAt";
+            case "views" -> "views";
+            case "rating" -> "rating";
+            case "ratingCount" -> "ratingCount";
+            case "likes" -> "likes";
+            case "reviews" -> "reviews";
+            case "comments" -> "comments";
+            case "chapterCount" -> "totalChapters";
+            case "popularity" -> "views"; // временная подмена
+            default -> "createdAt";
+        };
+        Sort sort = Sort.by(direction, sortProperty).and(Sort.by(Sort.Direction.DESC, "createdAt"));
+        Pageable pageable = PageRequest.of(page, size, sort);
 
         Page<Manga> mangaPage = mangaRepository.findAll(pageable);
         logger.debug("Найдено {} манг на странице {} из {}", mangaPage.getNumberOfElements(), page, mangaPage.getTotalPages());
@@ -399,11 +414,27 @@ public class MangaService {
             }
         }
 
-        // Создаем правильную сортировку на основе параметров
-        Sort sort = createSort(sortBy, sortOrder);
+        // Создаем сортировку для JPQL (используем имена полей сущности)
+        Sort.Direction direction = "desc".equalsIgnoreCase(sortOrder) ? Sort.Direction.DESC : Sort.Direction.ASC;
+        String sortProperty = switch (sortBy) {
+            case "title" -> "title";
+            case "author" -> "author";
+            case "createdAt" -> "createdAt";
+            case "updatedAt" -> "updatedAt";
+            case "views" -> "views";
+            case "rating" -> "rating";
+            case "ratingCount" -> "ratingCount";
+            case "likes" -> "likes";
+            case "reviews" -> "reviews";
+            case "comments" -> "comments";
+            case "chapterCount" -> "totalChapters";
+            case "popularity" -> "views"; // временная подмена популярности
+            default -> "createdAt";
+        };
+        Sort sort = Sort.by(direction, sortProperty).and(Sort.by(Sort.Direction.DESC, "createdAt"));
         Pageable pageable = PageRequest.of(page, size, sort);
 
-    Page<Manga> searchResults = mangaRepository.searchMangaPaged(title, author, genre, validatedStatus, sortBy, sortOrder, pageable);
+        Page<Manga> searchResults = mangaRepository.searchMangaPagedJPQL(title, author, genre, validatedStatus, pageable);
         logger.debug("Найдено {} манг по поисковому запросу на странице {}", searchResults.getNumberOfElements(), page);
 
         List<MangaResponseDTO> responseDTOs = mangaMapper.toResponseDTOList(searchResults.getContent());

@@ -176,6 +176,25 @@ public interface MangaRepository extends JpaRepository<Manga, Long> {
         @Param("sortOrder") String sortOrder,
         Pageable pageable
     );
+    
+        /**
+         * Упрощённый JPQL-вариант пагинированного поиска без динамического ORDER BY внутри SQL.
+         * Сортировка будет применена через Pageable (Spring Data), что исключает дублирование ORDER BY.
+         */
+        @Query("""
+            SELECT m FROM Manga m
+            WHERE (:title IS NULL OR LOWER(m.title) LIKE LOWER(CONCAT('%', :title, '%')))
+              AND (:author IS NULL OR LOWER(m.author) LIKE LOWER(CONCAT('%', :author, '%')))
+              AND (:genre IS NULL OR LOWER(m.genre) LIKE LOWER(CONCAT('%', :genre, '%')))
+              AND (:status IS NULL OR m.status = :status)
+        """)
+        Page<Manga> searchMangaPagedJPQL(
+            @Param("title") String title,
+            @Param("author") String author,
+            @Param("genre") String genre,
+            @Param("status") String status,
+            Pageable pageable
+        );
 
     /**
      * Инкрементирует счетчик просмотров манги.
