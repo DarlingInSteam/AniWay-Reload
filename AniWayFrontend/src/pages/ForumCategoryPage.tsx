@@ -3,12 +3,14 @@ import { useForumCategory, useForumThreads } from '@/hooks/useForum'
 import { ForumThreadList } from '@/components/forum/ForumThreadList'
 import { Plus, ArrowLeft } from 'lucide-react'
 import { useEffect } from 'react'
+import { useThreadAuthors } from '@/hooks/useThreadAuthors'
 
 export function ForumCategoryPage() {
   const { categoryId } = useParams()
   const id = categoryId ? parseInt(categoryId) : undefined
   const { data: category } = useForumCategory(id)
   const { data: threadsData, isLoading, error } = useForumThreads({ categoryId: id, page: 0, size: 30 })
+  const authorUsers = useThreadAuthors(threadsData?.content)
 
   useEffect(()=>{ if(category) document.title = `${category.name} | Форум`},[category])
 
@@ -36,7 +38,7 @@ export function ForumCategoryPage() {
         </div>
         {isLoading && <div className="text-sm text-muted-foreground">Загрузка тем...</div>}
         {error && <div className="text-sm text-red-400">Ошибка загрузки тем</div>}
-        {threadsData && <ForumThreadList threads={threadsData.content} />}
+  {threadsData && <ForumThreadList threads={threadsData.content} users={authorUsers} />}
       </div>
     </div>
   )
