@@ -27,6 +27,18 @@ export function ForumThreadPage() {
   useEffect(()=> { if(thread){ setThreadDraft({ title: thread.title, content: thread.content }) } }, [thread])
 
   useEffect(()=>{ if(thread) document.title = thread.title + ' | Форум'},[thread])
+  // Record visit timestamp for highlight logic
+  useEffect(()=> {
+    if(thread && thread.id){
+      try {
+        const key = 'forum.threadVisits'
+        const raw = localStorage.getItem(key)
+        const map = raw ? JSON.parse(raw) : {}
+        map[thread.id] = Date.now()
+        localStorage.setItem(key, JSON.stringify(map))
+      } catch(e) { /* ignore */ }
+    }
+  }, [thread?.id])
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-manga-black px-4 pb-32 pt-6">
