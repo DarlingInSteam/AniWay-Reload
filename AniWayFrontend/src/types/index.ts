@@ -150,6 +150,7 @@ export interface RegisterRequest {
   email: string
   password: string
   displayName?: string
+  verificationToken?: string
 }
 
 export interface UpdateProfileRequest {

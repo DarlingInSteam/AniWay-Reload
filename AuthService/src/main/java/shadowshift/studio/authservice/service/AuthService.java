@@ -31,6 +31,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final UserService userService;
+    private final EmailVerificationService emailVerificationService;
     
     /**
      * Регистрирует нового пользователя в системе.
@@ -42,6 +43,16 @@ public class AuthService {
      * @throws IllegalArgumentException если имя пользователя или email уже существуют
      */
     public AuthResponse register(RegisterRequest request) {
+        // Enforce email verification
+        if (request.getVerificationToken() == null || request.getVerificationToken().isBlank()) {
+            throw new IllegalArgumentException("EMAIL_NOT_VERIFIED");
+        }
+
+        String verifiedEmail = emailVerificationService.consumeVerificationToken(request.getVerificationToken());
+        if (!verifiedEmail.equalsIgnoreCase(request.getEmail())) {
+            throw new IllegalArgumentException("EMAIL_MISMATCH");
+        }
+
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new IllegalArgumentException("Username already exists");
         }
@@ -63,6 +74,8 @@ public class AuthService {
                 .build();
         
         userRepository.save(user);
+
+    emailVerificationService.markEmailUsed(verifiedEmail);
         
         log.info("User registered successfully: {}", user.getUsername());
         

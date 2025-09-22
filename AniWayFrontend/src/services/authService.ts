@@ -60,6 +60,34 @@ class AuthService {
     return authResponse
   }
 
+  // Request email verification code
+  async requestEmailCode(email: string): Promise<{requestId: string, expiresInSeconds: number, alreadyRegistered: boolean}> {
+    const res = await fetch(`${this.baseUrl}/auth/email/request-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    })
+    if (!res.ok) {
+      const t = await res.text()
+      throw new Error(t || 'Failed to request code')
+    }
+    return res.json()
+  }
+
+  // Verify email code
+  async verifyEmailCode(requestId: string, code: string): Promise<{success: boolean, verificationToken: string, expiresInSeconds: number}> {
+    const res = await fetch(`${this.baseUrl}/auth/email/verify-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId, code })
+    })
+    if (!res.ok) {
+      const t = await res.text()
+      throw new Error(t || 'Failed to verify code')
+    }
+    return res.json()
+  }
+
   // Вход
   async login(data: LoginRequest): Promise<AuthResponse> {
     const response = await fetch(`${this.baseUrl}/auth/login`, {

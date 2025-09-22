@@ -269,4 +269,8 @@ public class UserService implements UserDetailsService {
                  .map(UserMapper::toFullUserDTO)
                  .collect(Collectors.toList());
      }
+
+    public boolean existsByEmail(String email) {
+        return userRepository.existsByEmail(email.toLowerCase());
+    }
 }

@@ -39,4 +39,7 @@ public class RegisterRequest {
     /** Отображаемое имя (необязательно, до 100 символов). */
     @Size(max = 100, message = "Display name must not exceed 100 characters")
     private String displayName;
+
+    // Optional one-time verification token proving email ownership
+    private String verificationToken;
 }

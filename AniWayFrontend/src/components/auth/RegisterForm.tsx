@@ -1,6 +1,7 @@
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { RegisterRequest } from '../../types'
+import { authService } from '../../services/authService'
 
 interface RegisterFormProps {
   onSuccess?: () => void
@@ -8,11 +9,14 @@ interface RegisterFormProps {
 }
 
 export const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess, onSwitchToLogin }) => {
-  const [formData, setFormData] = useState<RegisterRequest>({
-    username: '',
-    email: '',
-    password: ''
-  })
+  const [step, setStep] = useState<'email' | 'code' | 'account'>('email')
+  const [email, setEmail] = useState('')
+  const [requestId, setRequestId] = useState<string | null>(null)
+  const [code, setCode] = useState(['', '', '', '', '', ''])
+  const inputsRef = useRef<Array<HTMLInputElement | null>>([])
+  const [verificationToken, setVerificationToken] = useState<string | null>(null)
+  const [resendCooldown, setResendCooldown] = useState(0)
+  const [formData, setFormData] = useState<RegisterRequest>({ username: '', email: '', password: '' })
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -36,12 +40,92 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess, onSwitchT
     setLoading(true)
 
     try {
-      await register(formData)
+      const payload: RegisterRequest = { ...formData, email, verificationToken: verificationToken || undefined }
+      await register(payload)
       onSuccess?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка регистрации')
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Request verification code
+  const handleRequestCode = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    if (!email) { setError('Введите email'); return }
+    setLoading(true)
+    try {
+      const resp = await authService.requestEmailCode(email)
+      setRequestId(resp.requestId)
+      setResendCooldown(45)
+      setStep('code')
+    } catch (e:any) {
+      setError(e.message || 'Не удалось отправить код')
+    } finally { setLoading(false) }
+  }
+
+  // Verify code
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    if (!requestId) { setError('Нет запроса'); return }
+    const fullCode = code.join('')
+    if (fullCode.length !== 6) { setError('Введите 6 цифр'); return }
+    setLoading(true)
+    try {
+      const resp = await authService.verifyEmailCode(requestId, fullCode)
+      if (resp.success) {
+        setVerificationToken(resp.verificationToken)
+        setFormData(prev => ({ ...prev, email }))
+        setStep('account')
+      } else {
+        setError('Неверный код')
+      }
+    } catch (e:any) {
+      setError(e.message || 'Ошибка подтверждения')
+    } finally { setLoading(false) }
+  }
+
+  // Resend logic
+  const handleResend = async () => {
+    if (resendCooldown > 0) return
+    if (!email) return
+    try {
+      setLoading(true)
+      await authService.requestEmailCode(email)
+      setResendCooldown(45)
+    } catch (e:any) {
+      setError(e.message || 'Ошибка повтора')
+    } finally { setLoading(false) }
+  }
+
+  useEffect(() => {
+    if (step === 'code' && inputsRef.current[0]) {
+      inputsRef.current[0].focus()
+    }
+  }, [step])
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return
+    const t = setTimeout(() => setResendCooldown(c => c - 1), 1000)
+    return () => clearTimeout(t)
+  }, [resendCooldown])
+
+  const handleCodeChange = (idx: number, val: string) => {
+    if (!/^[0-9]?$/.test(val)) return
+    const next = [...code]
+    next[idx] = val
+    setCode(next)
+    if (val && idx < 5) {
+      inputsRef.current[idx+1]?.focus()
+    }
+  }
+
+  const handleCodeKeyDown = (idx: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !code[idx] && idx > 0) {
+      inputsRef.current[idx-1]?.focus()
     }
   }
 
@@ -57,7 +141,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess, onSwitchT
       <div className="bg-card shadow-xl rounded-lg p-8 border border-border/30">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold text-white">Регистрация</h2>
-          <p className="text-muted-foreground mt-2">Создайте новый аккаунт</p>
+          <p className="text-muted-foreground mt-2">{step === 'email' && 'Подтвердите email'}{step === 'code' && 'Введите код'}{step === 'account' && 'Создайте аккаунт'}</p>
         </div>
 
         {error && (
@@ -66,86 +150,53 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess, onSwitchT
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label htmlFor="username" className="block text-sm font-medium text-white mb-2">
-              Имя пользователя
-            </label>
-            <input
-              id="username"
-              name="username"
-              type="text"
-              required
-              value={formData.username}
-              onChange={handleChange}
-              className="w-full px-3 py-2 bg-white/5 border border-border/30 rounded-md shadow-sm placeholder-muted-foreground text-white focus:outline-none focus:ring-primary/50 focus:border-primary/50"
-              placeholder="Введите имя пользователя"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-white mb-2">
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              value={formData.email}
-              onChange={handleChange}
-              className="w-full px-3 py-2 bg-white/5 border border-border/30 rounded-md shadow-sm placeholder-muted-foreground text-white focus:outline-none focus:ring-primary/50 focus:border-primary/50"
-              placeholder="Введите email"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-white mb-2">
-              Пароль
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              value={formData.password}
-              onChange={handleChange}
-              className="w-full px-3 py-2 bg-white/5 border border-border/30 rounded-md shadow-sm placeholder-muted-foreground text-white focus:outline-none focus:ring-primary/50 focus:border-primary/50"
-              placeholder="Введите пароль"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-white mb-2">
-              Подтвердите пароль
-            </label>
-            <input
-              id="confirmPassword"
-              name="confirmPassword"
-              type="password"
-              required
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-3 py-2 bg-white/5 border border-border/30 rounded-md shadow-sm placeholder-muted-foreground text-white focus:outline-none focus:ring-primary/50 focus:border-primary/50"
-              placeholder="Повторите пароль"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary/80 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? (
-              <div className="flex items-center">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Регистрация...
-              </div>
-            ) : (
-              'Зарегистрироваться'
-            )}
-          </button>
-        </form>
+        {step === 'email' && (
+          <form onSubmit={handleRequestCode} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">Email</label>
+              <input value={email} onChange={e=>setEmail(e.target.value)} type="email" required placeholder="Введите email" className="w-full px-3 py-2 bg-white/5 border border-border/30 rounded-md text-white focus:outline-none focus:ring-primary/50 focus:border-primary/50" />
+            </div>
+            <button type="submit" disabled={loading} className="w-full py-2 px-4 rounded-md text-sm font-medium text-white bg-primary hover:bg-primary/80 disabled:opacity-50">
+              {loading ? 'Отправка...' : 'Получить код'}
+            </button>
+          </form>
+        )}
+        {step === 'code' && (
+          <form onSubmit={handleVerifyCode} className="space-y-6">
+            <div className="flex justify-center gap-2">
+              {code.map((c,i)=>(
+                <input key={i} ref={el=>inputsRef.current[i]=el} value={c} onChange={e=>handleCodeChange(i,e.target.value)} onKeyDown={e=>handleCodeKeyDown(i,e)} maxLength={1} className="w-12 h-14 text-center text-xl bg-white/5 border border-border/30 rounded-md text-white focus:outline-none focus:ring-primary/50 focus:border-primary/50" />
+              ))}
+            </div>
+            <div className="text-center text-sm text-muted-foreground">Введите 6-значный код отправленный на {email}</div>
+            <div className="flex justify-between items-center">
+              <button type="button" onClick={()=>{setStep('email'); setCode(['','','','','',''])}} className="text-xs text-muted-foreground hover:text-white">Изменить email</button>
+              <button type="button" disabled={resendCooldown>0||loading} onClick={handleResend} className="text-xs text-primary disabled:opacity-40">{resendCooldown>0?`Отправить снова (${resendCooldown})`:'Отправить ещё раз'}</button>
+            </div>
+            <button type="submit" disabled={loading || code.join('').length!==6} className="w-full py-2 px-4 rounded-md text-sm font-medium text-white bg-primary hover:bg-primary/80 disabled:opacity-50">
+              {loading ? 'Проверка...' : 'Подтвердить'}
+            </button>
+          </form>
+        )}
+        {step === 'account' && (
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">Имя пользователя</label>
+              <input name="username" value={formData.username} onChange={handleChange} required className="w-full px-3 py-2 bg-white/5 border border-border/30 rounded-md text-white focus:outline-none focus:ring-primary/50 focus:border-primary/50" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">Пароль</label>
+              <input name="password" type="password" value={formData.password} onChange={handleChange} required className="w-full px-3 py-2 bg-white/5 border border-border/30 rounded-md text-white focus:outline-none focus:ring-primary/50 focus:border-primary/50" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">Подтвердите пароль</label>
+              <input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} required className="w-full px-3 py-2 bg-white/5 border border-border/30 rounded-md text-white focus:outline-none focus:ring-primary/50 focus:border-primary/50" />
+            </div>
+            <button type="submit" disabled={loading} className="w-full py-2 px-4 rounded-md text-sm font-medium text-white bg-primary hover:bg-primary/80 disabled:opacity-50">
+              {loading ? 'Регистрация...' : 'Завершить'}
+            </button>
+          </form>
+        )}
 
         {onSwitchToLogin && (
           <div className="mt-6 text-center">

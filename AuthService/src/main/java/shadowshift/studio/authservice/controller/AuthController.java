@@ -13,6 +13,8 @@ import shadowshift.studio.authservice.dto.*;
 import shadowshift.studio.authservice.entity.User;
 import shadowshift.studio.authservice.mapper.UserMapper;
 import shadowshift.studio.authservice.service.AuthService;
+import shadowshift.studio.authservice.service.EmailVerificationService;
+import shadowshift.studio.authservice.dto.EmailVerificationDtos.*;
 import shadowshift.studio.authservice.service.UserService;
 
 import java.util.HashMap;
@@ -37,6 +39,7 @@ import java.util.Map;
 public class AuthController {
     
     private final AuthService authService;
+    private final EmailVerificationService emailVerificationService;
     private final UserService userService;
     
     /**
@@ -54,6 +57,27 @@ public class AuthController {
         } catch (IllegalArgumentException e) {
             log.error("Registration failed: {}", e.getMessage());
             return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @PostMapping("/email/request-code")
+    public ResponseEntity<?> requestEmailCode(@Valid @RequestBody RequestCodeRequest request) {
+        try {
+            var v = emailVerificationService.requestCode(request.getEmail());
+            EmailVerificationDtos.RequestCodeResponse resp = new EmailVerificationDtos.RequestCodeResponse(v.getId(), emailVerificationService.getRemainingTtlSeconds(v), userService.existsByEmail(request.getEmail()));
+            return ResponseEntity.ok(resp);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/email/verify-code")
+    public ResponseEntity<?> verifyEmailCode(@Valid @RequestBody VerifyCodeRequest request) {
+        try {
+            var token = emailVerificationService.verifyCode(java.util.UUID.fromString(request.getRequestId()), request.getCode());
+            return ResponseEntity.ok(EmailVerificationDtos.VerifyCodeResponse.builder().success(true).verificationToken(token).expiresInSeconds(900).build());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
         }
     }
     
