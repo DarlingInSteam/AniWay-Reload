@@ -387,6 +387,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
 
             <TabsContent value="library" className="space-y-6">
               <Collections collections={collections} isOwnProfile={isOwnProfile} />
+
             </TabsContent>
 
             <TabsContent value="reviews" className="space-y-6 max-h-96 overflow-y-auto">
@@ -407,6 +408,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               )}
             </TabsContent>
 
+
             <TabsContent value="comments" className="space-y-6 max-h-96 overflow-y-auto">
               <UserComments userId={parseInt(userId)} isOwnProfile={isOwnProfile} />
             </TabsContent>
@@ -418,6 +420,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
         </div>
 
         {/* Mobile/Tablet Layout: Одноколоночный стек */}
+
         <div className="lg:hidden space-y-7 animate-fade-in">
           <Tabs value={activeTab} onValueChange={v => setActiveTabParam(v as any)} className="space-y-7">
             <TabsList className="grid grid-cols-2 md:grid-cols-5 bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl shadow-xl p-1.5">

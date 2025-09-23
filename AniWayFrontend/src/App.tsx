@@ -4,6 +4,7 @@ import { CatalogPage } from './pages/CatalogPage'
 import { MangaPage } from './pages/MangaPage'
 import { ReaderPage } from './pages/ReaderPage'
 import { AdminMangaPage } from './pages/AdminMangaPage'
+import { AdminUsersPage } from './pages/AdminUsersPage'
 import { AuthPage } from './pages/AuthPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { LibraryPage } from './pages/LibraryPage'
@@ -13,12 +14,18 @@ import { CreateCategoryPage } from './pages/CreateCategoryPage'
 import { ForumCategoryPage } from './pages/ForumCategoryPage'
 import { ForumThreadPage } from './pages/ForumThreadPage'
 import { CreateThreadPage } from './pages/CreateThreadPage'
-import { AuthProvider, ProtectedRoute } from './contexts/AuthContext'
+import { AuthProvider, ProtectedRoute, useAuth } from './contexts/AuthContext'
+import SettingsPage from './pages/SettingsPage'
+import { NotificationProvider } from './notifications/NotificationContext'
+import { NotificationsPage } from './notifications/NotificationsPage'
+import { authService } from './services/authService'
 import { Toaster } from 'sonner'
 
-function App() {
+function InnerApp() {
+  const { user } = useAuth();
+  const token = authService.getToken();
   return (
-    <AuthProvider>
+    <NotificationProvider userId={user?.id ?? null} token={token}>
       <Layout>
         <Routes>
           <Route path="/" element={<CatalogPage />} />
@@ -43,6 +50,7 @@ function App() {
             </ProtectedRoute>
           } />
           <Route path="/profile/:userId" element={<ProfilePage />} />
+          <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
           <Route path="/bookmarks" element={
             <ProtectedRoute>
               <LibraryPage />
@@ -53,11 +61,16 @@ function App() {
               <LibraryPage />
             </ProtectedRoute>
           } />
+          <Route path="/notifications" element={
+            <ProtectedRoute>
+              <NotificationsPage />
+            </ProtectedRoute>
+          } />
           
           {/* API Документация */}
           <Route path="/api-docs" element={<ApiDocsPage />} />
           
-          {/* Админские маршруты */}
+          {/* Раздел управления - доступен только для администраторов */}
           <Route path="/admin/manga" element={
             <ProtectedRoute requireAdmin>
               <AdminMangaPage />
@@ -70,10 +83,7 @@ function App() {
           } />
           <Route path="/admin/users" element={
             <ProtectedRoute requireAdmin>
-              <div className="p-8 text-center">
-                <h1 className="text-2xl font-bold mb-4">Управление пользователями</h1>
-                <p className="text-gray-600">Функция в разработке</p>
-              </div>
+              <AdminUsersPage />
             </ProtectedRoute>
           } />
           
@@ -89,6 +99,14 @@ function App() {
         </Routes>
         <Toaster position="top-right" theme="dark" />
       </Layout>
+    </NotificationProvider>
+  )
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <InnerApp />
     </AuthProvider>
   )
 }

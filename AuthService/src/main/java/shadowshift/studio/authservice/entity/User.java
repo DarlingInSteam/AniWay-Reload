@@ -109,6 +109,21 @@ public class User implements UserDetails {
     @Column(name = "comments_count")
     @Builder.Default
     private Integer commentsCount = 0;
+
+    /** Тип бана. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "ban_type", nullable = false)
+    @Builder.Default
+    private BanType banType = BanType.NONE;
+
+    /** Дата истечения временного бана (только для TEMP). */
+    @Column(name = "ban_expires_at")
+    private LocalDateTime banExpiresAt;
+
+    /** Версия токена для инвалидации сессий (увеличивается при критических изменениях). */
+    @Column(name = "token_version", nullable = false)
+    @Builder.Default
+    private Integer tokenVersion = 0;
     
     /**
      * Возвращает список прав доступа пользователя.

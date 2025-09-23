@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import shadowshift.studio.authservice.entity.Role;
+import shadowshift.studio.authservice.entity.BanType;
 
 import java.time.LocalDateTime;
 
@@ -66,4 +67,10 @@ public class UserDTO {
     
     /** Количество комментариев. */
     private Integer commentsCount;
+
+    /** Тип бана. */
+    private BanType banType;
+
+    /** Дата истечения временного бана. */
+    private LocalDateTime banExpiresAt;
 }

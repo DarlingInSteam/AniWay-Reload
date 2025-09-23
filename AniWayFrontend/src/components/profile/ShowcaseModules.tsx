@@ -194,6 +194,7 @@ export function Collections({ collections, isOwnProfile }: CollectionsProps) {
         )}
       </div>
       {displayedCollections.length > 0 ? (
+
         <div className="overflow-x-auto pb-2 -mx-1 px-1">
           <div className="flex gap-4 min-w-max">
             {displayedCollections.map((collection) => (
@@ -206,6 +207,7 @@ export function Collections({ collections, isOwnProfile }: CollectionsProps) {
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                     />
                   ) : (
+
                     <div className="flex items-center justify-center h-full text-white/40">
                       <Folder className="w-6 h-6" />
                     </div>

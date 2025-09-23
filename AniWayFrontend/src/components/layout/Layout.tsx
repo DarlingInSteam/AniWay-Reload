@@ -1,6 +1,7 @@
 import { ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Header } from './Header'
+import { AnchorScrollHighlighter } from '../AnchorScrollHighlighter'
 
 interface LayoutProps {
   children: ReactNode
@@ -14,6 +15,7 @@ export function Layout({ children }: LayoutProps) {
     <div className="min-h-screen bg-manga-black">
       {!isReaderPage && <Header />}
       <main className="w-full">
+        <AnchorScrollHighlighter />
         {children}
       </main>
     </div>

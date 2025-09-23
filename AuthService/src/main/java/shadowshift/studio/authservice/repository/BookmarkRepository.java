@@ -88,4 +88,10 @@ public interface BookmarkRepository extends JpaRepository<Bookmark, Long>, Bookm
      * @return количество удаленных закладок
      */
     Long deleteByMangaId(Long mangaId);
+
+    /**
+     * Находит все закладки по идентификатору манги.
+     * @param mangaId идентификатор манги
+     */
+    List<Bookmark> findByMangaId(Long mangaId);
 }

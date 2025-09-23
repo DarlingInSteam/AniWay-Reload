@@ -3,7 +3,7 @@ server:
 
 auth:
   introspect-url: "http://auth-service:8085/api/auth/validate"
-  public-paths: "/api/auth/**,/api/health/**,/api/public/**,/parser/**,/manga/**,/api/genres/**,/api/tags/**"
+  public-paths: "/api/auth/**,/api/health/**,/api/public/**,/parser,/parser/**,/manga,/manga/**,/api/genres/**,/api/tags/**,/api/notifications/stream"
   cache-ttl-seconds: 300
 
 spring:
@@ -27,6 +27,14 @@ spring:
               - "http://192.168.*.*:*" # Вся локальная сеть 192.168.x.x
               - "http://10.*.*.*:*"    # Вся локальная сеть 10.x.x.x
               - "http://172.16.*.*:*"  # Частная сеть 172.16.x.x
+              - "http://172.17.*.*:*"  # Docker сеть 172.17
+              - "http://172.18.*.*:*"  # Docker сеть 172.18
+              - "http://aniway.space"    # Прод домен HTTP
+              - "https://aniway.space"   # Прод домен HTTPS
+              - "http://www.aniway.space"  # WWW HTTP
+              - "https://www.aniway.space" # WWW HTTPS
+              - "http://*.yandexcloud.net" # Yandex Cloud
+              - "https://*.yandexcloud.net" # Yandex Cloud HTTPS
             allowed-methods:
               - GET
               - POST
@@ -86,6 +94,15 @@ spring:
             - StripPrefix=0
           order: 4
 
+        # AuthService - Admin utilities
+        - id: admin-utils-api
+          uri: http://auth-service:8085
+          predicates:
+            - Path=/api/admin/**
+          filters:
+            - StripPrefix=0
+          order: 5
+
         # MangaService - API endpoints
         - id: manga-api
           uri: http://manga-service:8081
@@ -116,14 +133,14 @@ spring:
         - id: manga-web
           uri: http://manga-service:8081
           predicates:
-            - Path=/manga/**
+            - Path=/manga,/manga/**
           filters:
             - StripPrefix=0
 
         - id: manga-web-parser
           uri: http://manga-service:8081
           predicates:
-            - Path=/parser/**
+            - Path=/parser,/parser/**
           filters:
             - StripPrefix=0
 
@@ -175,6 +192,13 @@ spring:
           filters:
             - StripPrefix=1
           order: 5
+
+        - id: notification-api
+          uri: http://notification-service:8095
+          predicates:
+            - Path=/api/notifications/**
+          filters:
+            - StripPrefix=0
 
         # Статические ресурсы MangaService (favicon, CSS, JS)
         - id: manga-static

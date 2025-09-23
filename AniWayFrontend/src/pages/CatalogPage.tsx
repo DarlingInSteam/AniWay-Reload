@@ -176,6 +176,7 @@ export function CatalogPage() {
       }
       return apiClient.getAllMangaPaged(currentPage, pageSize, sortBy, sortDirection, filterParams)
     },
+
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
     refetchOnMount: false

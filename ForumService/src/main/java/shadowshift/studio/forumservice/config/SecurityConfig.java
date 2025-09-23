@@ -32,33 +32,34 @@ public class SecurityConfig {
             .authorizeHttpRequests(authz -> authz
                 // Публичные endpoint'ы (чтение без авторизации)
                 .requestMatchers("/api/forum/categories").permitAll()
-                .requestMatchers("/api/forum/categories/{categoryId}").permitAll()
+                .requestMatchers("/api/forum/categories/*").permitAll()
                 .requestMatchers("/api/forum/categories/search").permitAll()
                 .requestMatchers("/api/forum/threads").permitAll()
-                .requestMatchers("/api/forum/threads/{threadId}").permitAll()
+                .requestMatchers("/api/forum/threads/*").permitAll()
                 .requestMatchers("/api/forum/threads/search").permitAll()
-                .requestMatchers("/api/forum/threads/author/{authorId}").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/forum/threads/{threadId}/posts").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/forum/threads/{threadId}/posts/tree").permitAll()
+                .requestMatchers("/api/forum/threads/author/*").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/forum/threads/*/posts").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/forum/threads/*/posts/tree").permitAll()
                 
                 // Административные endpoint'ы
                 .requestMatchers("/api/forum/categories/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/forum/categories").hasRole("ADMIN") // POST
-                .requestMatchers("/api/forum/categories/{categoryId}").hasRole("ADMIN") // PUT, DELETE
+                .requestMatchers("/api/forum/categories/*").hasRole("ADMIN") // PUT, DELETE
                 
                 // Модераторские endpoint'ы
-                .requestMatchers("/api/forum/threads/{threadId}/pin").hasAnyRole("MODERATOR", "ADMIN")
-                .requestMatchers("/api/forum/threads/{threadId}/lock").hasAnyRole("MODERATOR", "ADMIN")
+                .requestMatchers("/api/forum/threads/*/pin").hasAnyRole("MODERATOR", "ADMIN")
+                .requestMatchers("/api/forum/threads/*/lock").hasAnyRole("MODERATOR", "ADMIN")
                 
                 // Endpoint'ы для авторизованных пользователей
                 .requestMatchers("/api/forum/threads").hasRole("USER") // POST - создание темы
-                .requestMatchers("/api/forum/threads/{threadId}").hasRole("USER") // PUT, DELETE
-                .requestMatchers("/api/forum/threads/{threadId}/subscribe").hasRole("USER")
-                .requestMatchers(HttpMethod.POST, "/api/forum/threads/{threadId}/posts").hasRole("USER") // создание поста
-                .requestMatchers("/api/forum/posts/{postId}").hasRole("USER") // PUT, DELETE
-                // Реакции (ограничимся конкретными типами ресурсов вместо двойного wildcard)
-                .requestMatchers("/api/forum/threads/{threadId}/reactions").hasRole("USER")
-                .requestMatchers("/api/forum/posts/{postId}/reactions").hasRole("USER")
+                .requestMatchers("/api/forum/threads/*").hasRole("USER") // PUT, DELETE
+                .requestMatchers("/api/forum/threads/*/subscribe").hasRole("USER")
+                .requestMatchers(HttpMethod.POST, "/api/forum/threads/*/posts").hasRole("USER") // создание поста
+                .requestMatchers("/api/forum/posts/*").hasRole("USER") // PUT, DELETE
+                // Реакции
+                .requestMatchers("/api/forum/threads/*/reactions").hasRole("USER")
+                .requestMatchers("/api/forum/posts/*/reactions").hasRole("USER")
+                .requestMatchers(HttpMethod.POST, "/api/forum/threads/**").hasRole("USER")
                 
                 // Actuator endpoint'ы
                 .requestMatchers("/actuator/health").permitAll()

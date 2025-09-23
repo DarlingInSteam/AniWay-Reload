@@ -60,6 +60,127 @@ class AuthService {
     return authResponse
   }
 
+  // Request email verification code
+  async requestEmailCode(email: string): Promise<{requestId: string, expiresInSeconds: number, alreadyRegistered: boolean}> {
+    const res = await fetch(`${this.baseUrl}/auth/email/request-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    })
+    if (!res.ok) {
+      const t = await res.text()
+      throw new Error(t || 'Failed to request code')
+    }
+    return res.json()
+  }
+
+  // Verify email code
+  async verifyEmailCode(requestId: string, code: string): Promise<{success: boolean, verificationToken: string, expiresInSeconds: number}> {
+    const res = await fetch(`${this.baseUrl}/auth/email/verify-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId, code })
+    })
+    if (!res.ok) {
+      const t = await res.text()
+      throw new Error(t || 'Failed to verify code')
+    }
+    return res.json()
+  }
+
+  // Password reset: request code (email exists or silent success)
+  async requestPasswordResetCode(email: string): Promise<{requestId?: string, ttlSeconds?: number}> {
+    const res = await fetch(`${this.baseUrl}/auth/password/reset/request-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    })
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(t || 'Failed to request password reset code')
+    }
+    return res.json()
+  }
+
+  async verifyPasswordResetCode(requestId: string, code: string): Promise<{verificationToken: string}> {
+    const res = await fetch(`${this.baseUrl}/auth/password/reset/verify-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId, code })
+    })
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(t || 'Failed to verify password reset code')
+    }
+    return res.json()
+  }
+
+  async performPasswordReset(verificationToken: string, newPassword: string): Promise<boolean> {
+    const res = await fetch(`${this.baseUrl}/auth/password/reset/perform`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ verificationToken, newPassword })
+    })
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(t || 'Failed to reset password')
+    }
+    return true
+  }
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<boolean> {
+    const res = await fetch(`${this.baseUrl}/auth/password/change`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ currentPassword, newPassword })
+    })
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(t || 'Failed to change password')
+    }
+    return true
+  }
+
+  async requestAccountDeletionCode(): Promise<{requestId: string, ttlSeconds: number}> {
+    const res = await fetch(`${this.baseUrl}/auth/account/delete/request-code`, {
+      method: 'POST',
+      headers: this.getAuthHeaders()
+    })
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(t || 'Failed to request deletion code')
+    }
+    return res.json()
+  }
+
+  async verifyAccountDeletionCode(requestId: string, code: string): Promise<{verificationToken: string}> {
+    const res = await fetch(`${this.baseUrl}/auth/account/delete/verify-code`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ requestId, code })
+    })
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(t || 'Failed to verify deletion code')
+    }
+    return res.json()
+  }
+
+  async performAccountDeletion(verificationToken: string): Promise<boolean> {
+    const res = await fetch(`${this.baseUrl}/auth/account/delete/perform`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ verificationToken })
+    })
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(t || 'Failed to delete account')
+    }
+    // After deletion, wipe token
+    this.removeToken()
+    return true
+  }
+
   // Вход
   async login(data: LoginRequest): Promise<AuthResponse> {
     const response = await fetch(`${this.baseUrl}/auth/login`, {
@@ -112,7 +233,7 @@ class AuthService {
     return response.json()
   }
 
-  // Получить пользователя по ID (исправлен эндпоинт)
+  // Получить пользователя по ID
   async getUserById(id: number): Promise<User> {
     const response = await fetch(`${this.baseUrl}/auth/users/${id}`, {
       headers: this.getAuthHeaders()
@@ -132,8 +253,34 @@ class AuthService {
     
     try {
       const payload = JSON.parse(atob(token.split('.')[1]))
-      return payload.role || null
+      const raw = payload.role || payload.authorities?.[0] || null
+      if (!raw) return null
+      return String(raw).toUpperCase().replace(/^ROLE_/, '')
     } catch {
+      return null
+    }
+  }
+
+  // Получить ID пользователя из токена или загрузить с сервера
+  async getCurrentUserId(): Promise<number | null> {
+    const token = this.getToken()
+    if (!token) return null
+    
+    try {
+      // Сначала пробуем получить ID из токена (если он там есть)
+      const payload = JSON.parse(atob(token.split('.')[1]))
+      
+      if (payload.userId || payload.id) {
+        const userId = payload.userId || payload.id
+        return userId
+      }
+      
+      // Если ID нет в токене, получаем данные пользователя с сервера
+      const currentUser = await this.getCurrentUser()
+      const userId = currentUser.id || null
+      return userId
+    } catch (error) {
+      console.error('Error getting current user ID:', error)
       return null
     }
   }

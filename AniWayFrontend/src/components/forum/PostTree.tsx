@@ -27,8 +27,8 @@ function PostNode({ post, depth, threadId, users, onQuote }: PostNodeProps) {
   }, [post.content, post.authorId, users, onQuote])
 
   return (
-    <div className="space-y-2">
-      <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+    <div className="space-y-2" id={`post-${post.id}`}>
+      <div className="rounded-lg border border-white/10 bg-white/5 p-3 target-post">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
             <div className="mb-1 text-xs text-muted-foreground flex items-center gap-2">Автор:

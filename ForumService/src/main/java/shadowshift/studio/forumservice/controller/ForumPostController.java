@@ -34,6 +34,7 @@ public class ForumPostController {
     private final ForumPostRepository postRepository;
     private final ForumThreadRepository threadRepository;
     private final ForumReactionRepository reactionRepository;
+    private final shadowshift.studio.forumservice.notification.ForumNotificationPublisher forumNotificationPublisher;
 
     @GetMapping
     public ResponseEntity<Page<ForumPostResponse>> getPosts(
@@ -71,7 +72,6 @@ public class ForumPostController {
         Pageable rootPageable = PageRequest.of(0, pageSize);
         List<ForumPost> roots = postRepository.findRootPostsByThreadId(threadId, rootPageable).getContent();
 
-        Map<Long, List<ForumPost>> repliesMap = new HashMap<>();
         List<ForumPostResponse> tree = new ArrayList<>();
 
         // Итеративно строим дерево до maxDepth
@@ -135,6 +135,27 @@ public class ForumPostController {
                 .build();
 
         ForumPost saved = postRepository.save(post);
+
+        try {
+            Long targetUserId = null;
+            if (post.getParentPostId() != null) {
+                // Reply -> notify parent author
+                ForumPost parent = postRepository.findById(post.getParentPostId()).orElse(null);
+                if (parent != null && !parent.getAuthorId().equals(currentUserId)) {
+                    targetUserId = parent.getAuthorId();
+                    forumNotificationPublisher.publishReply(targetUserId, threadId, saved.getId(), parent.getId(), saved.getContent());
+                }
+            } else {
+                // Root post -> notify thread author (if not self)
+                var threadOpt = threadRepository.findById(threadId);
+                if (threadOpt.isPresent() && !threadOpt.get().getAuthorId().equals(currentUserId)) {
+                    targetUserId = threadOpt.get().getAuthorId();
+                    forumNotificationPublisher.publishThreadRootPost(targetUserId, threadId, saved.getId(), threadOpt.get().getTitle(), saved.getContent());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to publish forum notification: {}", e.getMessage());
+        }
         return ResponseEntity.status(HttpStatus.CREATED).body(mapToResponse(saved));
     }
 

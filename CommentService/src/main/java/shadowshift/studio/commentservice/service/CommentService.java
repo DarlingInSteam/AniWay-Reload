@@ -13,6 +13,8 @@ import shadowshift.studio.commentservice.enums.CommentType;
 import shadowshift.studio.commentservice.enums.ReactionType;
 import shadowshift.studio.commentservice.repository.CommentRepository;
 import shadowshift.studio.commentservice.repository.CommentReactionRepository;
+import shadowshift.studio.commentservice.notification.NotificationEventPublisher;
+import shadowshift.studio.commentservice.review.ReviewAuthorClient;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -37,6 +39,8 @@ public class CommentService {
     private final CommentRepository commentRepository;
     private final CommentReactionRepository commentReactionRepository;
     private final AuthService authService;
+    private final NotificationEventPublisher notificationEventPublisher;
+    private final ReviewAuthorClient reviewAuthorClient;
 
     private static final int EDIT_TIME_LIMIT_DAYS = 7;
 
@@ -83,6 +87,67 @@ public class CommentService {
 
         Comment savedComment = commentRepository.save(comment);
         log.info("Comment created with ID: {}", savedComment.getId());
+
+        try {
+            Long targetUserId = null;
+            Long mangaId = null;
+            Long chapterId = null;
+            Long replyToCommentId = savedComment.getParentCommentId();
+
+            // Derive context ids based on type
+            if (savedComment.getType() == CommentType.MANGA) {
+                mangaId = savedComment.getTargetId();
+            } else if (savedComment.getType() == CommentType.CHAPTER) {
+                chapterId = savedComment.getTargetId();
+            }
+
+            // Determine target user to notify
+            if (replyToCommentId != null) {
+                // Notify parent comment author (if not self)
+                Comment parent = commentRepository.findById(replyToCommentId).orElse(null);
+                if (parent != null && !parent.getUserId().equals(userId)) {
+                    targetUserId = parent.getUserId();
+                }
+            } else if (savedComment.getType() == CommentType.PROFILE) {
+                // PROFILE comment: targetId assumed to be profile owner's userId
+                if (!savedComment.getTargetId().equals(userId)) {
+                    targetUserId = savedComment.getTargetId();
+                }
+            } else if (savedComment.getType() == CommentType.REVIEW) {
+                // comment on review (root only) -> notify review author
+                log.debug("Review comment detected: target(reviewId)={}, commentId={}", savedComment.getTargetId(), savedComment.getId());
+                Long reviewAuthor = reviewAuthorClient.findReviewAuthorId(savedComment.getTargetId());
+                log.debug("Resolved reviewAuthor={} for reviewId={}", reviewAuthor, savedComment.getTargetId());
+                if (reviewAuthor != null && !reviewAuthor.equals(userId)) {
+                    targetUserId = reviewAuthor;
+                    log.debug("Publishing comment-on-review notification: targetUserId={}, commentId={}", targetUserId, savedComment.getId());
+                    notificationEventPublisher.publishCommentOnReview(
+                            targetUserId,
+                            savedComment.getTargetId(), // reviewId
+                            savedComment.getId(),
+                            mangaId,
+                            savedComment.getContent()
+                    );
+                }
+            }
+
+            if (targetUserId != null) {
+                // For review root comments we already emitted specialized event above.
+                if (savedComment.getType() != CommentType.REVIEW || replyToCommentId != null) {
+                    notificationEventPublisher.publishCommentCreated(
+                            targetUserId,
+                            savedComment.getId(),
+                            mangaId,
+                            chapterId,
+                            replyToCommentId,
+                            savedComment.getContent(),
+                            savedComment.getType().name()
+                    );
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to emit comment-created notification event: {}", e.getMessage());
+        }
 
         return mapToResponseDTO(savedComment);
     }

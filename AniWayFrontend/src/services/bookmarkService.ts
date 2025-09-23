@@ -26,6 +26,7 @@ class BookmarkService {
     return response.json()
   }
 
+
   // Поиск закладок с фильтрами/сортировкой на бэкенде
   async searchBookmarks(params: {
     query?: string

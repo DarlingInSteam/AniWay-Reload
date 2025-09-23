@@ -23,6 +23,7 @@ import { formatChapterTitle, getDisplayChapterNumber } from '@/lib/chapterUtils'
 import { useAuth } from '@/contexts/AuthContext'
 import { useReadingProgress } from '@/hooks/useProgress'
 import { CommentSection } from '@/components/comments/CommentSection'
+import { useLocation } from 'react-router-dom'
 
 // Extracted component for chapter images list to keep main component compact
 function ChapterImageList({
@@ -127,12 +128,14 @@ function ChapterImageList({
 export function ReaderPage() {
   const { chapterId } = useParams<{ chapterId: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const [showUI, setShowUI] = useState(true)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [imageWidth, setImageWidth] = useState<'fit' | 'full' | 'wide'>('fit')
   const [readingMode, setReadingMode] = useState<'vertical' | 'horizontal'>('vertical')
   const [isAutoCompleted, setIsAutoCompleted] = useState(false)
-  const [showComments, setShowComments] = useState(false)
+  // showComments legacy removed; comments accessed via side panel
+  const [showChapterList, setShowChapterList] = useState(false)
   const [isLiked, setIsLiked] = useState(false)
   const [liking, setLiking] = useState(false)
   const [lastTap, setLastTap] = useState(0)
@@ -161,6 +164,15 @@ export function ReaderPage() {
       // ignore storage errors (e.g., privacy mode)
     }
   }, [])
+
+  // Auto-open side comments panel if navigating directly to a comment anchor (#comment-...)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (window.location.hash.startsWith('#comment-')) {
+      setShowSideComments(true)
+    }
+  // react to hash changes (navigation to another comment within reader)
+  }, [location?.hash])
 
   // Persist when settings change
   useEffect(() => {
@@ -648,7 +660,7 @@ export function ReaderPage() {
           <Heart className="w-20 h-20 text-red-500/80 fill-red-500/80 drop-shadow-[0_0_8px_rgba(239,68,68,0.6)]" />
         </div>
       ))}
-      {/* Top Navigation Bar - ИСПРАВЛЕНО центрирование */}
+      {/* Top Navigation Bar - updated with prev/next buttons */}
       <div className={cn(
         'fixed top-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-sm border-b border-white/10 transition-all duration-300',
         showUI ? 'translate-y-0' : '-translate-y-full'
@@ -682,14 +694,40 @@ export function ReaderPage() {
               </div>
             </div>
 
-            {/* Center - идеально центрированная информация о главе */}
-            <div className="flex flex-col items-center justify-center text-center text-white">
-              <h1 className="font-semibold text-base">
-                {formatChapterTitle(chapter)}
-              </h1>
-              <p className="text-xs text-gray-400 mt-1">
-                {currentChapterIndex + 1} из {sortedChapters?.length || 0}
-              </p>
+            {/* Center - chapter navigation + clickable index */}
+            <div className="flex items-center justify-center text-white space-x-3">
+              <button
+                disabled={!previousChapter}
+                onClick={navigateToPreviousChapter}
+                className={cn('p-2 rounded-lg border border-white/10 hover:bg-white/10 transition disabled:opacity-30 disabled:cursor-not-allowed')}
+                title="Предыдущая глава"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <div className="flex flex-col items-center">
+                <button
+                  onClick={() => setShowChapterList(true)}
+                  className="font-semibold text-base hover:text-primary transition-colors"
+                  title="Открыть список глав"
+                >
+                  {formatChapterTitle(chapter)}
+                </button>
+                <button
+                  onClick={() => setShowChapterList(true)}
+                  className="text-xs text-gray-400 mt-1 hover:text-primary/80 transition"
+                  title="Открыть список глав"
+                >
+                  {currentChapterIndex + 1} из {sortedChapters?.length || 0}
+                </button>
+              </div>
+              <button
+                disabled={!nextChapter}
+                onClick={navigateToNextChapter}
+                className={cn('p-2 rounded-lg border border-white/10 hover:bg-white/10 transition disabled:opacity-30 disabled:cursor-not-allowed')}
+                title="Следующая глава"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
             </div>
 
             {/* Right side - фиксированная ширина */}
@@ -722,7 +760,7 @@ export function ReaderPage() {
         </div>
       </div>
 
-      {/* Settings Panel */}
+  {/* Settings Panel */}
       {isSettingsOpen && (
         <div className="fixed top-16 right-4 z-40 bg-card border border-border/30 rounded-xl p-4 min-w-[200px] animate-fade-in settings-panel">
           <h3 className="text-white font-semibold mb-3">Настройки чтения</h3>
@@ -786,7 +824,7 @@ export function ReaderPage() {
         </div>
       )}
 
-      {/* Main Content - Vertical Scroll */}
+  {/* Main Content - Vertical Scroll */}
       <div className="pt-16">
         {/* Reading Area */}
         <ChapterImageList
@@ -805,88 +843,60 @@ export function ReaderPage() {
           wrappersRef={wrappersRef}
         />
 
-        {/* Chapter Navigation - улучшенный дизайн */}
-        <div className="bg-gradient-to-r from-card/30 via-card/50 to-card/30 backdrop-blur-sm border-t border-white/10 py-6 sm:py-8">
-          <div className="container mx-auto px-4">
-            <div className="flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0 gap-4">
-              {/* Previous Chapter */}
-              {previousChapter ? (
+        {/* End-of-chapter action panel */}
+        <div className="mt-12 mb-16">
+          <div className="max-w-6xl mx-auto px-4">
+            <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/5 via-white/5 to-white/[0.03] backdrop-blur-md shadow-xl shadow-black/30 p-6 space-y-6">
+              <div className="flex flex-wrap gap-3 justify-center">
                 <button
                   onClick={navigateToPreviousChapter}
-                  className="flex items-center space-x-3 p-3 sm:p-4 bg-white/5 backdrop-blur-sm rounded-xl hover:bg-white/10 transition-all duration-200 group w-full sm:w-auto border border-white/10 hover:border-white/20"
+                  disabled={!previousChapter}
+                  className={cn('px-4 py-3 rounded-xl text-sm md:text-base font-medium border transition flex items-center gap-2 min-w-[140px] justify-center',
+                    previousChapter ? 'bg-white/7 hover:bg-white/10 border-white/15 text-white' : 'bg-white/5 border-white/10 text-white/35 cursor-not-allowed')}
                 >
-                  <ChevronLeft className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
-                  <div className="text-left min-w-0 flex-1">
-                    <p className="text-muted-foreground text-xs sm:text-sm">Предыдущая глава</p>
-                    <p className="text-white font-medium text-sm sm:text-base line-clamp-1">
-                      {formatChapterTitle(previousChapter)}
-                    </p>
-                  </div>
+                  <ChevronLeft className="h-5 w-5" /> Предыдущая
                 </button>
-              ) : (
-                <div className="w-full sm:w-auto opacity-50 p-4">
-                  <p className="text-muted-foreground text-center text-sm">Это первая глава</p>
-                </div>
-              )}
-
-              {/* Back to Manga - центральная кнопка */}
-              {manga && (
-                <Link
-                  to={`/manga/${manga.id}`}
-                  className="flex items-center justify-center px-4 sm:px-6 py-3 bg-primary/90 backdrop-blur-sm text-white rounded-xl font-semibold hover:bg-primary transition-all duration-200 transform hover:scale-105 border border-primary/20 shadow-lg shadow-primary/20"
+                <button
+                  onClick={() => setShowChapterList(true)}
+                  className="px-5 py-3 rounded-xl text-sm md:text-base font-semibold border bg-primary/85 hover:bg-primary transition border-primary/40 text-white flex items-center gap-2 shadow-md shadow-primary/30"
                 >
-                  <BookOpen className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
-                  <span className="text-sm sm:text-base">К главам</span>
-                </Link>
-              )}
-
-              {/* Comments Toggle Button */}
-              <button
-                onClick={() => setShowComments(!showComments)}
-                className="flex items-center justify-center px-4 sm:px-6 py-3 bg-blue-600/90 backdrop-blur-sm text-white rounded-xl font-semibold hover:bg-blue-600 transition-all duration-200 transform hover:scale-105 border border-blue-500/20 shadow-lg shadow-blue-500/20"
-              >
-                <MessageCircle className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
-                <span className="text-sm sm:text-base">
-                  {showComments ? 'Скрыть комментарии' : 'Комментарии'}
-                </span>
-              </button>
-
-              {/* Next Chapter */}
-              {nextChapter ? (
+                  <BookOpen className="h-5 w-5" /> Список глав
+                </button>
                 <button
                   onClick={navigateToNextChapter}
-                  className="flex items-center space-x-3 p-3 sm:p-4 bg-white/5 backdrop-blur-sm rounded-xl hover:bg-white/10 transition-all duration-200 group w-full sm:w-auto border border-white/10 hover:border-white/20"
+                  disabled={!nextChapter}
+                  className={cn('px-4 py-3 rounded-xl text-sm md:text-base font-medium border transition flex items-center gap-2 min-w-[140px] justify-center',
+                    nextChapter ? 'bg-white/7 hover:bg-white/10 border-white/15 text-white' : 'bg-white/5 border-white/10 text-white/35 cursor-not-allowed')}
                 >
-                  <div className="text-right min-w-0 flex-1">
-                    <p className="text-muted-foreground text-xs sm:text-sm">Следующая глава</p>
-                    <p className="text-white font-medium text-sm sm:text-base line-clamp-1">
-                      {formatChapterTitle(nextChapter)}
-                    </p>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                  Следующая <ChevronRight className="h-5 w-5" />
                 </button>
-              ) : (
-                <div className="w-full sm:w-auto opacity-50 p-4">
-                  <p className="text-muted-foreground text-center text-sm">Это последняя глава</p>
-                </div>
-              )}
+              </div>
+              <div className="flex flex-wrap gap-3 justify-center">
+                {manga && (
+                  <Link
+                    to={`/manga/${manga.id}`}
+                    className="px-5 py-3 rounded-xl text-sm md:text-base font-medium border bg-white/6 hover:bg-white/10 border-white/15 text-white transition flex items-center gap-2"
+                  >
+                    <Home className="h-5 w-5" /> Страница манги
+                  </Link>
+                )}
+                <button
+                  onClick={() => setShowSideComments(true)}
+                  className="px-5 py-3 rounded-xl text-sm md:text-base font-medium border bg-blue-600/85 hover:bg-blue-600 border-blue-500/40 text-white transition flex items-center gap-2 shadow-md shadow-blue-600/30"
+                >
+                  <MessageCircle className="h-5 w-5" /> Комментарии
+                </button>
+                <button
+                  onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                  className="px-5 py-3 rounded-xl text-sm md:text-base font-medium border bg-white/6 hover:bg-white/10 border-white/15 text-white/90 transition flex items-center gap-2"
+                >
+                  <ArrowLeft className="h-5 w-5 rotate-90" /> Вверх
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Comments Section */}
-        {showComments && chapter && (
-          <div className="bg-gradient-to-r from-card/30 via-card/50 to-card/30 backdrop-blur-sm border-t border-white/10 py-6 sm:py-8">
-            <div className="container mx-auto px-4">
-              <CommentSection
-                targetId={chapter.id}
-                type="CHAPTER"
-                title={`Комментарии к главе ${getDisplayChapterNumber(chapter.chapterNumber)}`}
-                maxLevel={3}
-              />
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Keyboard Shortcuts Help */}
@@ -902,18 +912,84 @@ export function ReaderPage() {
         </div>
       </div>
 
-      {/* Floating comments button (side panel) */}
+      {/* Right vertical action bar */}
       {chapter && (
-        <button
-          onClick={() => setShowSideComments(true)}
-          className={cn(
-            'fixed right-3 sm:right-4 top-1/2 -translate-y-1/2 z-40 bg-blue-600/80 hover:bg-blue-600 text-white p-3 rounded-full shadow-lg border border-blue-500/30 backdrop-blur-md transition-all',
-            showUI ? 'opacity-100' : 'opacity-0 pointer-events-none'
-          )}
-          aria-label="Открыть комментарии"
-        >
-          <MessageCircle className="h-5 w-5" />
-        </button>
+        <div className={cn(
+          'fixed top-1/2 -translate-y-1/2 right-2 sm:right-4 z-40 flex flex-col space-y-3',
+          showUI ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        )}>
+          <button
+            onClick={() => setShowChapterList(true)}
+            className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white shadow-lg backdrop-blur-md transition group focus:outline-none focus:ring-2 focus:ring-primary/50 active:scale-95"
+            title="Список глав" aria-label="Список глав"
+          >
+            <BookOpen className="h-5 w-5 group-hover:text-primary transition-colors" />
+          </button>
+          <button
+            onClick={() => setShowSideComments(true)}
+            className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white shadow-lg backdrop-blur-md transition group focus:outline-none focus:ring-2 focus:ring-blue-500/40 active:scale-95"
+            title="Комментарии" aria-label="Комментарии"
+          >
+            <MessageCircle className="h-5 w-5 group-hover:text-blue-400 transition-colors" />
+          </button>
+          <button
+            onClick={handleChapterLike}
+            disabled={liking}
+            className={cn(
+              'p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white shadow-lg backdrop-blur-md transition group focus:outline-none focus:ring-2 focus:ring-red-500/40 active:scale-95',
+              isLiked && 'text-red-400'
+            )}
+            title={isLiked ? 'Убрать лайк' : 'Поставить лайк'}
+          >
+            <Heart className={cn('h-5 w-5', isLiked && 'fill-current')} />
+          </button>
+          <button
+            onClick={() => setIsSettingsOpen(v=>!v)}
+            className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white shadow-lg backdrop-blur-md transition group focus:outline-none focus:ring-2 focus:ring-amber-300/40 active:scale-95"
+            title="Настройки" aria-label="Настройки"
+          >
+            <Settings className="h-5 w-5 group-hover:text-amber-300 transition-colors" />
+          </button>
+          <button
+            onClick={() => navigate(-1)}
+            className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white shadow-lg backdrop-blur-md transition group focus:outline-none focus:ring-2 focus:ring-white/30 active:scale-95"
+            title="Назад" aria-label="Назад"
+          >
+            <ArrowLeft className="h-5 w-5 group-hover:text-gray-300" />
+          </button>
+        </div>
+      )}
+
+      {/* Chapter list side panel */}
+      {showChapterList && manga && allChapters && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={()=>setShowChapterList(false)} />
+          <div className="relative ml-auto h-full w-full sm:w-[420px] md:w-[460px] bg-[#0f1115]/95 backdrop-blur-xl border-l border-white/10 flex flex-col animate-in slide-in-from-right">
+            <div className="flex items-center justify-between p-4 border-b border-white/10">
+              <h3 className="text-white font-semibold text-sm sm:text-base">Главы • {manga.title}</h3>
+              <button onClick={()=>setShowChapterList(false)} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" aria-label="Закрыть">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-3 sm:px-4 pb-4 space-y-2" id="chapter-list-scroll">
+              {sortedChapters?.map(ch => {
+                const active = ch.id === chapter.id
+                return (
+                  <button
+                    key={ch.id}
+                    onClick={() => { navigate(`/reader/${ch.id}`); setShowChapterList(false) }}
+                    className={cn('w-full text-left px-3 py-2 rounded-lg border text-sm flex items-center justify-between transition',
+                      active ? 'bg-primary/20 border-primary/40 text-white' : 'bg-white/5 border-white/10 hover:bg-white/10 text-gray-300')}
+                    data-active={active || undefined}
+                  >
+                    <span className="truncate">{formatChapterTitle(ch)}</span>
+                    <span className="ml-3 text-xs opacity-70">#{getDisplayChapterNumber(ch.chapterNumber)}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Side comments panel */}

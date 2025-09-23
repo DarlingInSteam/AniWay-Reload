@@ -38,7 +38,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         
         // Пропускаем только публичные auth endpoints
         String path = request.getServletPath();
-        if (path.equals("/api/auth/login") || path.equals("/api/auth/register")) {
+    if (path.equals("/api/auth/login") || path.equals("/api/auth/register") ||
+        path.equals("/api/auth/email/request-code") || path.equals("/api/auth/email/verify-code")) {
             log.debug("JWT Filter: Skipping public auth endpoints");
             filterChain.doFilter(request, response);
             return;

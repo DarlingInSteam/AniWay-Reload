@@ -1,0 +1,298 @@
+package shadowshift.studio.notificationservice.web;
+
+import lombok.Data;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.bind.annotation.*;
+import shadowshift.studio.notificationservice.domain.NotificationType;
+import shadowshift.studio.notificationservice.service.NotificationServiceFacade;
+
+import java.util.List;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/internal/events")
+@RequiredArgsConstructor
+public class InternalEventController {
+
+    private final NotificationServiceFacade facade;
+
+    @Value("${notification.chapter.dedupe-mode:PER_CHAPTER}")
+    private String chapterDedupeMode; // PER_CHAPTER or AGGREGATE
+
+    @Value("${manga.service.internal-url:http://manga-service:8081}")
+    private String mangaServiceInternalUrl;
+
+    @Value("${chapter.service.internal-url:http://chapter-service:8082}")
+    private String chapterServiceInternalUrl;
+
+    @PostMapping("/comment-created")
+    public ResponseEntity<Void> commentCreated(@RequestBody CommentCreatedEvent body) {
+        java.util.Map<String,Object> map = new java.util.LinkedHashMap<>();
+        map.put("commentId", body.getCommentId());
+        map.put("mangaId", body.getMangaId());
+        map.put("chapterId", body.getChapterId());
+        map.put("replyToCommentId", body.getReplyToCommentId());
+        map.put("commentType", body.getCommentType());
+        map.put("excerpt", truncate(body.getContent(), 120));
+        // Enrichment (best-effort) for context
+        try {
+            if (body.getMangaId() != null) {
+                var title = fetchMangaTitle(body.getMangaId());
+                if (title != null) map.put("mangaTitle", title);
+            }
+            if (body.getChapterId() != null) {
+                var chapterMeta = fetchChapterMeta(body.getChapterId());
+                if (chapterMeta != null) {
+                    if (chapterMeta.get("chapterNumber") != null) map.put("chapterNumber", chapterMeta.get("chapterNumber"));
+                    if (chapterMeta.get("mangaId") != null && body.getMangaId()==null) map.put("mangaId", chapterMeta.get("mangaId"));
+                    if (chapterMeta.get("mangaTitle") != null && !map.containsKey("mangaTitle")) map.put("mangaTitle", chapterMeta.get("mangaTitle"));
+                }
+            }
+        } catch (Exception ignored) {}
+        String payload = toJson(map);
+        NotificationType type;
+        if (body.getReplyToCommentId() != null) {
+            type = NotificationType.REPLY_TO_COMMENT;
+        } else if ("PROFILE".equals(body.getCommentType())) {
+            type = NotificationType.PROFILE_COMMENT;
+        } else {
+            // generic fallback (reply on content w/o subtype mapping yet)
+            type = NotificationType.REPLY_TO_COMMENT;
+        }
+        facade.createBasic(body.getTargetUserId(), type, payload, null);
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/forum-post-created")
+    public ResponseEntity<Void> forumPostCreated(@RequestBody ForumPostCreatedEvent body) {
+    java.util.Map<String,Object> map = new java.util.LinkedHashMap<>();
+    map.put("postId", body.getPostId());
+    map.put("threadId", body.getThreadId());
+    map.put("title", body.getTitle());
+    map.put("excerpt", truncate(body.getContent(), 140));
+    String payload = toJson(map);
+    // Mapping assumption: new forum post in a thread the user follows -> REPLY_IN_FORUM_THREAD (placeholder)
+    facade.createBasic(body.getTargetUserId(), NotificationType.REPLY_IN_FORUM_THREAD, payload, null);
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/chapter-published")
+    public ResponseEntity<Void> chapterPublished(@RequestBody ChapterPublishedEvent body) {
+        // Dedupe key groups by user + manga to aggregate consecutive new chapters (simple strategy)
+        String dedupeKey;
+        if ("AGGREGATE".equalsIgnoreCase(chapterDedupeMode)) {
+            dedupeKey = "chapter_published:" + body.getTargetUserId() + ":" + body.getMangaId();
+        } else {
+            // PER_CHAPTER: unique key per chapter so все главы сохраняются
+            dedupeKey = "chapter_published:" + body.getTargetUserId() + ":" + body.getMangaId() + ":" + body.getChapterId();
+        }
+        String payload = toJson(Map.of(
+                "mangaId", body.getMangaId(),
+                "chapterId", body.getChapterId(),
+                "chapterNumber", body.getChapterNumber(),
+                "mangaTitle", body.getMangaTitle()
+        ));
+        facade.createBasic(body.getTargetUserId(), NotificationType.BOOKMARK_NEW_CHAPTER, payload, dedupeKey);
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/chapter-published-batch")
+    public ResponseEntity<Void> chapterPublishedBatch(@RequestBody ChapterPublishedBatchEvent body) {
+        // Same payload reused for all subscribers; dedupe per user+manga
+        String basePayload = toJson(Map.of(
+                "mangaId", body.getMangaId(),
+                "chapterId", body.getChapterId(),
+                "chapterNumber", body.getChapterNumber(),
+                "mangaTitle", body.getMangaTitle()
+        ));
+        if (body.getTargetUserIds() != null) {
+            boolean aggregate = "AGGREGATE".equalsIgnoreCase(chapterDedupeMode);
+            for (Long uid : body.getTargetUserIds()) {
+                if (uid == null) continue;
+                String dedupeKey = aggregate
+                        ? ("chapter_published:" + uid + ":" + body.getMangaId())
+                        : ("chapter_published:" + uid + ":" + body.getMangaId() + ":" + body.getChapterId());
+                facade.createBasic(uid, NotificationType.BOOKMARK_NEW_CHAPTER, basePayload, dedupeKey);
+            }
+        }
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/comment-on-review")
+    public ResponseEntity<Void> commentOnReview(@RequestBody CommentOnReviewEvent body) {
+        java.util.Map<String,Object> map = new java.util.LinkedHashMap<>();
+        map.put("reviewId", body.getReviewId());
+        map.put("commentId", body.getCommentId());
+        map.put("mangaId", body.getMangaId());
+        map.put("excerpt", truncate(body.getContent(), 120));
+        String payload = toJson(map);
+        facade.createBasic(body.getTargetUserId(), NotificationType.COMMENT_ON_REVIEW, payload, null);
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/forum-thread-post-created")
+    public ResponseEntity<Void> forumThreadPostCreated(@RequestBody ForumThreadPostCreatedEvent body) {
+        java.util.Map<String,Object> map = new java.util.LinkedHashMap<>();
+        map.put("threadId", body.getThreadId());
+        map.put("postId", body.getPostId());
+        map.put("title", body.getTitle());
+        map.put("excerpt", truncate(body.getContent(), 140));
+        String payload = toJson(map);
+        facade.createBasic(body.getTargetUserId(), NotificationType.NEW_COMMENT_ON_USER_FORUM_THREAD, payload, null);
+        return ResponseEntity.accepted().build();
+    }
+
+    private String truncate(String s, int max) {
+        if (s == null) return null;
+        if (s.length() <= max) return s;
+        return s.substring(0, max - 3) + "...";
+    }
+
+    private String toJson(Map<String, Object> map) {
+        StringBuilder sb = new StringBuilder();
+        sb.append('{');
+        boolean first = true;
+        for (var e : map.entrySet()) {
+            if (!first) sb.append(',');
+            first = false;
+            sb.append('"').append(escape(e.getKey())).append('"').append(':');
+            Object v = e.getValue();
+            if (v == null) {
+                sb.append("null");
+            } else if (v instanceof Number || v instanceof Boolean) {
+                sb.append(v.toString());
+            } else {
+                sb.append('"').append(escape(String.valueOf(v))).append('"');
+            }
+        }
+        sb.append('}');
+        return sb.toString();
+    }
+
+    private String escape(String s) { return s.replace("\\", "\\\\").replace("\"", "\\\""); }
+
+    // --- Simple blocking HTTP helpers (could be refactored to service bean) ---
+    private String fetchMangaTitle(Long mangaId) {
+        try {
+            java.net.http.HttpClient http = java.net.http.HttpClient.newHttpClient();
+        java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
+            .uri(java.net.URI.create(mangaServiceInternalUrl + "/api/manga/" + mangaId))
+                    .timeout(java.time.Duration.ofMillis(800))
+                    .GET().build();
+            java.net.http.HttpResponse<String> resp = http.send(req, java.net.http.HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() >=200 && resp.statusCode()<300) {
+                String body = resp.body();
+                // very naive extraction of "title":"..."
+                int idx = body.indexOf("\"title\"");
+                if (idx>0) {
+                    int colon = body.indexOf(':', idx);
+                    int quote1 = body.indexOf('"', colon+1);
+                    int quote2 = body.indexOf('"', quote1+1);
+                    if (quote1>0 && quote2>quote1) {
+                        return body.substring(quote1+1, quote2);
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    private java.util.Map<String,Object> fetchChapterMeta(Long chapterId) {
+        try {
+            java.net.http.HttpClient http = java.net.http.HttpClient.newHttpClient();
+        java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
+            .uri(java.net.URI.create(chapterServiceInternalUrl + "/api/chapters/" + chapterId))
+                    .timeout(java.time.Duration.ofMillis(800))
+                    .GET().build();
+            java.net.http.HttpResponse<String> resp = http.send(req, java.net.http.HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode()>=200 && resp.statusCode()<300) {
+                String json = resp.body();
+                java.util.Map<String,Object> map = new java.util.HashMap<>();
+                // naive parse for chapterNumber, mangaId
+                extractNumber(json, "chapterNumber", map);
+                extractNumber(json, "mangaId", map);
+                // attempt fetch manga title if mangaId found
+                if (map.get("mangaId") instanceof Number mid) {
+                    String title = fetchMangaTitle(mid.longValue());
+                    if (title!=null) map.put("mangaTitle", title);
+                }
+                return map;
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    private void extractNumber(String json, String field, java.util.Map<String,Object> out) {
+        int idx = json.indexOf('"'+field+'"');
+        if (idx<0) return;
+        int colon = json.indexOf(':', idx);
+        if (colon<0) return;
+        int i = colon+1;
+        while (i<json.length() && Character.isWhitespace(json.charAt(i))) i++;
+        int start=i;
+        while (i<json.length() && (Character.isDigit(json.charAt(i)) || json.charAt(i)=='.')) i++;
+        if (start<i) {
+            String num = json.substring(start,i);
+            try { if (num.contains(".")) out.put(field, Double.parseDouble(num)); else out.put(field, Long.parseLong(num)); } catch (Exception ignored) {}
+        }
+    }
+
+    @Data
+    public static class CommentCreatedEvent {
+        private Long targetUserId; // user who should receive notification
+        private Long commentId;
+        private Long mangaId;
+        private Long chapterId;
+        private Long replyToCommentId;
+        private String commentType; // PROFILE, MANGA, CHAPTER, REVIEW
+        private String content;
+    }
+
+    @Data
+    public static class ForumPostCreatedEvent {
+        private Long targetUserId;
+        private Long postId;
+        private Long threadId;
+        private String title;
+        private String content;
+    }
+
+    @Data
+    public static class ChapterPublishedEvent {
+        private Long targetUserId;
+        private Long mangaId;
+        private Long chapterId;
+        private String chapterNumber;
+        private String mangaTitle;
+    }
+
+    @Data
+    public static class ChapterPublishedBatchEvent {
+        private List<Long> targetUserIds; // subscribers
+        private Long mangaId;
+        private Long chapterId;
+        private String chapterNumber;
+        private String mangaTitle;
+    }
+
+    @Data
+    public static class CommentOnReviewEvent {
+        private Long targetUserId; // review author
+        private Long reviewId;
+        private Long commentId;
+        private Long mangaId;
+        private String content;
+    }
+
+    @Data
+    public static class ForumThreadPostCreatedEvent {
+        private Long targetUserId; // thread author
+        private Long threadId;
+        private Long postId;
+        private String title;
+        private String content;
+    }
+}

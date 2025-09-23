@@ -12,6 +12,7 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -30,10 +31,9 @@ public class GatewayAuthenticationFilter extends OncePerRequestFilter {
             String roleHeader = request.getHeader("X-User-Role");
             if (userIdHeader != null && !userIdHeader.isBlank() && roleHeader != null) {
                 Long userId = parseLongSafe(userIdHeader);
-                List<GrantedAuthority> authorities = Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + roleHeader));
+                List<GrantedAuthority> authorities = buildAuthorities(roleHeader);
                 AuthUserPrincipal principal = new AuthUserPrincipal(userId, roleHeader);
-                UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
-                        principal, null, authorities);
+                UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(principal, null, authorities);
                 auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(auth);
             }
@@ -43,6 +43,25 @@ public class GatewayAuthenticationFilter extends OncePerRequestFilter {
 
     private Long parseLongSafe(String v) {
         try { return Long.valueOf(v); } catch (NumberFormatException e) { return null; }
+    }
+
+    private List<GrantedAuthority> buildAuthorities(String role) {
+        String normalized = role.trim().toUpperCase();
+        List<GrantedAuthority> list = new ArrayList<>();
+        switch (normalized) {
+            case "ADMIN" -> {
+                list.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+                list.add(new SimpleGrantedAuthority("ROLE_MODERATOR"));
+                list.add(new SimpleGrantedAuthority("ROLE_USER"));
+            }
+            case "MODERATOR" -> {
+                list.add(new SimpleGrantedAuthority("ROLE_MODERATOR"));
+                list.add(new SimpleGrantedAuthority("ROLE_USER"));
+            }
+            case "USER" -> list.add(new SimpleGrantedAuthority("ROLE_USER"));
+            default -> list.add(new SimpleGrantedAuthority("ROLE_" + normalized));
+        }
+        return list;
     }
 
     public record AuthUserPrincipal(Long id, String role) {}

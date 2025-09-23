@@ -110,6 +110,13 @@ export const UserMenu: React.FC = () => {
           >
             История чтения
           </Link>
+          <Link
+            to="/settings"
+            className="block px-4 py-2 text-sm text-white hover:bg-secondary transition-colors"
+            onClick={() => setIsOpen(false)}
+          >
+            Настройки
+          </Link>
 
           {isTranslator && (
             <>
@@ -124,6 +131,7 @@ export const UserMenu: React.FC = () => {
             </>
           )}
 
+          {/* Раздел управления доступен только для администраторов */}
           {isAdmin && (
             <>
               <hr className="my-1 border-border/30" />
@@ -132,7 +140,7 @@ export const UserMenu: React.FC = () => {
                 className="block px-4 py-2 text-sm text-white hover:bg-secondary transition-colors"
                 onClick={() => setIsOpen(false)}
               >
-                Админ панель
+                Управление
               </Link>
               <Link
                 to="/admin/users"
