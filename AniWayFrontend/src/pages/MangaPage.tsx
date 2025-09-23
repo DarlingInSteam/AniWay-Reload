@@ -501,27 +501,39 @@ export function MangaPage() {
                       </div>
                     </div>
 
-                    {/* Genres - полная ширина */}
+                    {/* Genres - полная ширина (clickable -> catalog with filter) */}
                     <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
                       <h3 className="text-lg font-bold text-white mb-3">Жанры</h3>
                       <div className="flex flex-wrap gap-2">
                         {genres.map((genre, index) => (
-                          <span key={index} className="px-3 py-1 bg-white/10 backdrop-blur-sm text-white text-sm rounded-full border border-white/20 hover:bg-white/20 transition-colors cursor-pointer">
-                            {genre}
-                          </span>
+                          <button
+                            key={index}
+                            type="button"
+                            onClick={() => navigate(`/catalog?genres=${encodeURIComponent(genre)}`)}
+                            className="group px-3 py-1 bg-white/10 backdrop-blur-sm text-white text-sm rounded-full border border-white/20 hover:bg-primary/30 hover:border-primary/50 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                            aria-label={`Перейти в каталог по жанру ${genre}`}
+                          >
+                            <span className="pointer-events-none select-none">{genre}</span>
+                          </button>
                         ))}
                       </div>
                     </div>
 
-                    {/* Tags - только если есть теги */}
+                    {/* Tags - только если есть теги (clickable -> catalog with filter) */}
                     {tags.length > 0 && (
                       <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
                         <h3 className="text-lg font-bold text-white mb-3">Теги</h3>
                         <div className="flex flex-wrap gap-2">
                           {tags.map((tag, index) => (
-                            <span key={index} className="px-3 py-1 bg-primary/10 backdrop-blur-sm text-primary text-sm rounded-full border border-primary/30 hover:bg-primary/20 transition-colors cursor-pointer">
-                              {tag}
-                            </span>
+                            <button
+                              key={index}
+                              type="button"
+                              onClick={() => navigate(`/catalog?tags=${encodeURIComponent(tag)}`)}
+                              className="group px-3 py-1 bg-primary/10 backdrop-blur-sm text-primary text-sm rounded-full border border-primary/30 hover:bg-primary/30 hover:text-white hover:border-primary/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                              aria-label={`Перейти в каталог по тегу ${tag}`}
+                            >
+                              <span className="pointer-events-none select-none">{tag}</span>
+                            </button>
                           ))}
                         </div>
                       </div>
