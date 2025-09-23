@@ -46,7 +46,7 @@ public class ReadingProgressService {
      * @throws IllegalArgumentException если пользователь не найден
      */
     @CacheEvict(value = {"userProgress", "mangaProgress", "chapterProgress", "readingStats"}, key = "#username")
-    public ReadingProgressDTO updateProgress(String username, Long mangaId, Long chapterId, 
+    public ReadingProgressDTO updateProgress(String username, Long mangaId, Long chapterId,
                                            Double chapterNumber, Integer pageNumber, Boolean isCompleted) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -165,7 +165,7 @@ public class ReadingProgressService {
      * @param username имя пользователя
      * @param chapterId идентификатор главы
      * @return объект DTO прогресса чтения или null, если не найден
-     * @throws IllegalArgumentException если пользователь не на��ден
+     * @throws IllegalArgumentException если пользователь не найден
      */
     @Cacheable(value = "chapterProgress", key = "#username + '_' + #chapterId")
     public ReadingProgressDTO getChapterProgress(String username, Long chapterId) {
@@ -282,7 +282,7 @@ public class ReadingProgressService {
         
         return stats;
     }
-    
+
     /**
      * Публичный метод: получает весь прогресс чтения пользователя по его userId.
      * Используется публичным контроллером, не требует аутентификации по username.

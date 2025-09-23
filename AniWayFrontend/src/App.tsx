@@ -4,6 +4,7 @@ import { CatalogPage } from './pages/CatalogPage'
 import { MangaPage } from './pages/MangaPage'
 import { ReaderPage } from './pages/ReaderPage'
 import { AdminMangaPage } from './pages/AdminMangaPage'
+import { AdminUsersPage } from './pages/AdminUsersPage'
 import { AuthPage } from './pages/AuthPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { LibraryPage } from './pages/LibraryPage'
@@ -69,7 +70,7 @@ function InnerApp() {
           {/* API Документация */}
           <Route path="/api-docs" element={<ApiDocsPage />} />
           
-          {/* Админские маршруты */}
+          {/* Раздел управления - доступен только для администраторов */}
           <Route path="/admin/manga" element={
             <ProtectedRoute requireAdmin>
               <AdminMangaPage />
@@ -82,10 +83,7 @@ function InnerApp() {
           } />
           <Route path="/admin/users" element={
             <ProtectedRoute requireAdmin>
-              <div className="p-8 text-center">
-                <h1 className="text-2xl font-bold mb-4">Управление пользователями</h1>
-                <p className="text-gray-600">Функция в разработке</p>
-              </div>
+              <AdminUsersPage />
             </ProtectedRoute>
           } />
           

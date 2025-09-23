@@ -100,6 +100,15 @@ spring:
             - StripPrefix=0
           order: 4
 
+        # AuthService - Admin utilities
+        - id: admin-utils-api
+          uri: http://auth-service:8085
+          predicates:
+            - Path=/api/admin/**
+          filters:
+            - StripPrefix=0
+          order: 5
+
         # CommentService - Comments API
         - id: comments-api
           uri: http://comment-service:8086
@@ -107,7 +116,7 @@ spring:
             - Path=/api/comments/**
           filters:
             - StripPrefix=0
-          order: 5
+          order: 6
 
         # ForumService - Forum API
         - id: forum-api
@@ -143,6 +152,7 @@ spring:
             - Path=/api/manga/**
           filters:
             - StripPrefix=0
+          order: 9
 
         # MangaService - Genres API
         - id: genres-api

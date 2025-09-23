@@ -283,11 +283,12 @@ export function Header() {
                 
                 <NotificationBell />
 
-                {(isAdmin || isTranslator) && (
+                {/* Ссылка на управление доступна только для администраторов */}
+                {isAdmin && (
                   <Link
                     to="/admin"
                     className="p-2 lg:p-3 rounded-xl hover:bg-secondary/50 text-muted-foreground hover:text-white transition-colors duration-200"
-                    title="Админ панель"
+                    title="Управление"
                   >
                     <Settings className="h-5 w-5" />
                   </Link>
@@ -375,7 +376,7 @@ export function Header() {
                       Уведомления
                     </button>
                     
-                    {(isAdmin || isTranslator) && (
+                    {isAdmin && (
                       <Link
                         to="/admin"
                         className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"

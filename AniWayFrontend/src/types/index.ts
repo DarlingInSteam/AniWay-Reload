@@ -248,5 +248,63 @@ export interface UserSearchResult {
   totalPages: number
 }
 
+// Типы для админской панели
+export interface AdminUserData {
+  id: number
+  username: string
+  email: string
+  displayName: string
+  avatar: string
+  bio: string
+  role: 'USER' | 'ADMIN' | 'TRANSLATOR'
+  isEnabled: boolean
+  createdAt: string
+  lastLogin: string
+  registrationDate: string
+  lastLoginDate: string
+  chaptersReadCount: number
+  likesGivenCount: number
+  commentsCount: number
+}
+
+export interface AdminUserFilter {
+  status: 'all' | 'active' | 'banned'
+  role: 'all' | 'USER' | 'ADMIN' | 'TRANSLATOR'
+  search: string
+  sortBy: string
+  sortOrder: 'asc' | 'desc'
+}
+
+export interface AdminUsersPageResponse {
+  content: AdminUserData[]
+  totalElements: number
+  totalPages: number
+  number: number
+  size: number
+}
+
+export interface AdminUsersParams {
+  page: number
+  size: number
+  sortBy: string
+  sortOrder: string
+  query: string
+  role: string
+}
+
+// Типы для логов администраторов
+export interface AdminActionLogDTO {
+  id: number
+  adminId: number | null
+  adminName: string
+  userId: number | null
+  targetUsername?: string  // для обратной совместимости
+  targetUserName?: string  // реальное поле из бэкенда
+  actionType: string | null
+  description: string
+  reason: string
+  timestamp: string
+}
+
 // Типы для комментариев
 export * from './comments'

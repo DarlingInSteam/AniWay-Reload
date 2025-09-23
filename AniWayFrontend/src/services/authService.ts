@@ -233,7 +233,7 @@ class AuthService {
     return response.json()
   }
 
-  // Получить пользователя по ID (исправлен эндпоинт)
+  // Получить пользователя по ID
   async getUserById(id: number): Promise<User> {
     const response = await fetch(`${this.baseUrl}/auth/users/${id}`, {
       headers: this.getAuthHeaders()
@@ -255,6 +255,30 @@ class AuthService {
       const payload = JSON.parse(atob(token.split('.')[1]))
       return payload.role || null
     } catch {
+      return null
+    }
+  }
+
+  // Получить ID пользователя из токена или загрузить с сервера
+  async getCurrentUserId(): Promise<number | null> {
+    const token = this.getToken()
+    if (!token) return null
+    
+    try {
+      // Сначала пробуем получить ID из токена (если он там есть)
+      const payload = JSON.parse(atob(token.split('.')[1]))
+      
+      if (payload.userId || payload.id) {
+        const userId = payload.userId || payload.id
+        return userId
+      }
+      
+      // Если ID нет в токене, получаем данные пользователя с сервера
+      const currentUser = await this.getCurrentUser()
+      const userId = currentUser.id || null
+      return userId
+    } catch (error) {
+      console.error('Error getting current user ID:', error)
       return null
     }
   }

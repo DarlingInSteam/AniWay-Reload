@@ -78,8 +78,11 @@ public class AuthService {
     emailVerificationService.markEmailUsed(verifiedEmail);
         
         log.info("User registered successfully: {}", user.getUsername());
+
+        UserDTO userDTO = UserMapper.toUserDTO(user);
         
         var jwtToken = jwtService.generateToken(user);
+
         return AuthResponse.of(jwtToken, UserMapper.toFullUserDTO(user));
     }
     
@@ -106,8 +109,11 @@ public class AuthService {
         userRepository.save(user);
         
         log.info("User authenticated successfully: {}", user.getUsername());
-        
+
+        UserDTO userDTO = UserMapper.toUserDTO(user);
+
         var jwtToken = jwtService.generateToken(user);
+
         return AuthResponse.of(jwtToken, UserMapper.toFullUserDTO(user));
     }
     
@@ -121,6 +127,7 @@ public class AuthService {
     public UserDTO getCurrentUser(String username) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
         
         return UserMapper.toFullUserDTO(user);
     }

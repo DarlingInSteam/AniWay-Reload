@@ -16,6 +16,7 @@ import { useReadingProgress } from '@/hooks/useProgress'
 import { CommentSection } from '../components/comments/CommentSection'
 import MangaReviews from '../components/MangaReviews'
 import { useAuth } from '@/contexts/AuthContext'
+
 import { useSyncedSearchParam } from '@/hooks/useSyncedSearchParam'
 
 export function MangaPage() {
@@ -47,6 +48,24 @@ export function MangaPage() {
 
   // Удалили избыточную инвалидацию кэша при входе на страницу
   // Это было причиной постоянных перезапросов
+
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+
+  // Инвалидируем кэш списка манг при входе на страницу манги
+  useEffect(() => {
+    console.log('MangaPage: Invalidating manga list cache on mount')
+    queryClient.invalidateQueries({ queryKey: ['manga'] })
+    queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
+    queryClient.invalidateQueries({ queryKey: ['popular-manga'] })
+    queryClient.invalidateQueries({ queryKey: ['recent-manga'] })
+
+    // Принудительно обновляем все запросы
+    queryClient.refetchQueries({ queryKey: ['manga'] })
+    queryClient.refetchQueries({ queryKey: ['manga-catalog'] })
+    queryClient.refetchQueries({ queryKey: ['popular-manga'] })
+    queryClient.refetchQueries({ queryKey: ['recent-manga'] })
+  }, [queryClient])
 
   // Track screen size
   useEffect(() => {
