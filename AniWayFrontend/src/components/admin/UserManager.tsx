@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Users, Search, RefreshCw, UserCheck, Ban, Shield, HelpCircle, ChevronDown, ChevronUp, Activity } from 'lucide-react'
+import { Users, Search, RefreshCw, UserCheck, Ban, Shield, HelpCircle, ChevronDown, ChevronUp, Activity, History } from 'lucide-react'
+import { ModerationDrawer } from './ModerationDrawer'
 import { apiClient } from '@/lib/api'
 import { authService } from '@/services/authService'
 import { toast } from 'sonner'
@@ -87,6 +88,7 @@ function UserRow({
   currentAdminUsername: string | undefined
   mutationBusy: boolean
 }) {
+  const [expanded, setExpanded] = useState(false)
   const [banReason, setBanReason] = useState('')
   const [roleChangeReason, setRoleChangeReason] = useState('')
   const [banReasonCode, setBanReasonCode] = useState('ABUSE')
@@ -144,9 +146,16 @@ function UserRow({
   }
 
   return (
-  <TableRow className={`transition-colors hover:bg-slate-800/40 ${ (user as any).banType === 'SHADOW' && !user.isEnabled ? 'opacity-70 bg-slate-900/30' : ''}` }>
+  <>
+  <TableRow className={`transition-colors hover:bg-slate-800/40 ${ (user as any).banType === 'SHADOW' && !user.isEnabled ? 'opacity-70 bg-slate-900/30' : ''}`}>
       <TableCell>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={()=>setExpanded(e=>!e)}
+            aria-label={expanded ? 'Свернуть' : 'Развернуть'}
+            aria-expanded={expanded}
+            className="h-6 w-6 flex items-center justify-center rounded-md border border-white/10 hover:border-white/30 text-xs"
+          >{expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}</button>
           {user.avatar && (
             <img 
               src={user.avatar} 
@@ -163,7 +172,7 @@ function UserRow({
           </div>
         </div>
       </TableCell>
-      <TableCell>{user.email}</TableCell>
+  <TableCell className="hidden xl:table-cell">{user.email}</TableCell>
       <TableCell>{getRoleBadge(user.role)}</TableCell>
       <TableCell className="space-y-1">
         {getStatusBadge(user.isEnabled)}
@@ -188,18 +197,15 @@ function UserRow({
             <AlertDialogTrigger asChild>
               <Button
                 variant={user.isEnabled ? 'destructive' : 'default'}
-                size="sm"
+                size="icon"
+                className="h-8 w-8"
+                title={user.isEnabled ? 'Заблокировать' : 'Разблокировать'}
+                aria-label={user.isEnabled ? 'Заблокировать пользователя' : 'Разблокировать пользователя'}
               >
                 {user.isEnabled ? (
-                  <>
-                    <Ban className="h-4 w-4 mr-1" />
-                    Заблокировать
-                  </>
+                  <Ban className="h-4 w-4" />
                 ) : (
-                  <>
-                    <UserCheck className="h-4 w-4 mr-1" />
-                    Разблокировать
-                  </>
+                  <UserCheck className="h-4 w-4" />
                 )}
               </Button>
             </AlertDialogTrigger>
@@ -341,9 +347,8 @@ function UserRow({
           {/* Диалог смены роли */}
           <Dialog>
             <DialogTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Shield className="h-4 w-4 mr-1" />
-                Роль
+              <Button variant="outline" size="icon" className="h-8 w-8" title="Изменить роль" aria-label="Изменить роль">
+                <Shield className="h-4 w-4" />
               </Button>
             </DialogTrigger>
             <DialogContent>
@@ -462,10 +467,39 @@ function UserRow({
             </DialogContent>
           </Dialog>
           
-          <UserActionHistory username={user.username} />
+          <div title="История действий" aria-label="История действий">
+            <UserActionHistory username={user.username} />
+          </div>
         </div>
       </TableCell>
     </TableRow>
+    {expanded && (
+      <TableRow className="bg-white/5">
+        <TableCell colSpan={7} className="p-4 text-xs space-y-3">
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="space-y-1">
+              <div className="font-semibold text-[11px] uppercase tracking-wide opacity-70">Аккаунт</div>
+              <div>Создан: {formatDate(user.registrationDate || user.createdAt)}</div>
+              <div>Последний вход: {formatDate(user.lastLoginDate || user.lastLogin)}</div>
+              {(user as any).banType && <div>Тип блокировки: {(user as any).banType}</div>}
+            </div>
+            <div className="space-y-1">
+              <div className="font-semibold text-[11px] uppercase tracking-wide opacity-70">Статистика</div>
+              <div>Главы: {user.chaptersReadCount || 0}</div>
+              <div>Лайки: {user.likesGivenCount || 0}</div>
+              <div>Комментарии: {user.commentsCount || 0}</div>
+            </div>
+            <div className="space-y-1">
+              <div className="font-semibold text-[11px] uppercase tracking-wide opacity-70">Действия</div>
+              <div className="flex gap-2 flex-wrap">
+                <Button size="sm" variant="outline" onClick={()=>setExpanded(false)} className="h-7 px-2 text-[11px]">Скрыть</Button>
+              </div>
+            </div>
+          </div>
+        </TableCell>
+      </TableRow>
+    )}
+  </>
   )
 }
 
@@ -642,6 +676,12 @@ export function UserManager() {
     }
   }
 
+  // Drawer state (moderation side panel)
+  const [drawerUser, setDrawerUser] = useState<AdminUserData | null>(null)
+  const [drawerMode, setDrawerMode] = useState<'BAN' | 'ROLE' | null>(null)
+  const openDrawer = (user: AdminUserData, mode: 'BAN' | 'ROLE') => { setDrawerUser(user); setDrawerMode(mode) }
+  const closeDrawer = () => { setDrawerUser(null); setDrawerMode(null) }
+
   // Фильтрация данных по статусу
   const filteredUsers = (usersData?.content || []).filter((user: AdminUserData) => {
     if (filters.status === 'active') return user.isEnabled
@@ -675,6 +715,37 @@ export function UserManager() {
       {/* Filters */}
       <UserFilters filters={filters} onFiltersChange={setFilters} />
 
+      {/* Tabs for quick segmentation */}
+      <div className="flex flex-wrap gap-2 text-xs">
+        {[
+          { id: 'all', label: 'Все' },
+          { id: 'active', label: 'Активные' },
+          { id: 'banned', label: 'Заблок.' },
+          { id: 'admins', label: 'Админы', role: 'ADMIN' },
+          { id: 'translators', label: 'Переводчики', role: 'TRANSLATOR' }
+        ].map(t => {
+          const active = (t.id==='all' && filters.status==='all' && filters.role==='all') ||
+            (t.id==='active' && filters.status==='active') ||
+            (t.id==='banned' && filters.status==='banned') ||
+            (t.role==='ADMIN' && filters.role==='ADMIN') ||
+            (t.role==='TRANSLATOR' && filters.role==='TRANSLATOR')
+          return (
+            <button
+              key={t.id}
+              onClick={() => {
+                if (t.id==='all') setFilters(f=>({...f,status:'all',role:'all'}))
+                else if (t.id==='active') setFilters(f=>({...f,status:'active'}))
+                else if (t.id==='banned') setFilters(f=>({...f,status:'banned'}))
+                else if (t.role==='ADMIN') setFilters(f=>({...f,role:'ADMIN'}))
+                else if (t.role==='TRANSLATOR') setFilters(f=>({...f,role:'TRANSLATOR'}))
+              }}
+              className={`px-3 h-7 rounded-full border text-[11px] transition ${active ? 'bg-white/15 border-white/30' : 'border-white/10 hover:border-white/25'} focus:outline-none focus:ring-2 focus:ring-primary/50`}
+              aria-pressed={active}
+            >{t.label}</button>
+          )
+        })}
+      </div>
+
       {/* Help popover icon */}
       <div className="flex items-center gap-2 text-xs">
         <div className="flex items-center gap-1 opacity-70">
@@ -695,9 +766,6 @@ export function UserManager() {
           </div>
         </div>
       </div>
-
-      {/* Фильтры */}
-      <UserFilters filters={filters} onFiltersChange={setFilters} />
 
       {/* Минималистичная таблица */}
       <div className="flex items-center justify-between text-xs opacity-70 px-1">
@@ -727,13 +795,44 @@ export function UserManager() {
           <Table className="text-sm">
             <TableHeader>
               <TableRow>
-                <TableHead className="font-semibold">Пользователь</TableHead>
-                <TableHead className="font-semibold hidden xl:table-cell">Email</TableHead>
-                <TableHead className="font-semibold">Роль</TableHead>
-                <TableHead className="font-semibold">Статус</TableHead>
-                <TableHead className="font-semibold">Даты</TableHead>
-                <TableHead className="font-semibold">Статистика</TableHead>
-                <TableHead className="font-semibold">Действия</TableHead>
+                {[
+                  { key: 'username', label: 'Пользователь' },
+                  { key: 'email', label: 'Email', className: 'hidden xl:table-cell' },
+                  { key: 'role', label: 'Роль' },
+                  { key: 'isEnabled', label: 'Статус' },
+                  { key: 'createdAt', label: 'Даты' },
+                  { key: 'activity', label: 'Статистика', sortable: false },
+                  { key: 'actions', label: 'Действия', sortable: false }
+                ].map(col => {
+                  const active = filters.sortBy === col.key
+                  const sortable = col.sortable !== false
+                  const direction = active ? filters.sortOrder : undefined
+                  return (
+                    <TableHead
+                      key={col.key}
+                      className={`font-semibold ${col.className||''} ${sortable ? 'cursor-pointer select-none' : ''}`}
+                      onClick={() => {
+                        if (!sortable) return
+                        setFilters(f => {
+                          if (f.sortBy === col.key) {
+                            return { ...f, sortOrder: f.sortOrder === 'asc' ? 'desc' : 'asc' }
+                          }
+                          return { ...f, sortBy: col.key, sortOrder: 'asc' }
+                        })
+                      }}
+                      aria-sort={active ? (direction==='asc' ? 'ascending' : 'descending') : 'none'}
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        {col.label}
+                        {sortable && (
+                          <span className={`transition text-[10px] opacity-60 ${active ? 'opacity-90' : ''}`}>
+                            {active ? (direction==='asc' ? '▲' : '▼') : '↕'}
+                          </span>
+                        )}
+                      </span>
+                    </TableHead>
+                  )
+                })}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -745,6 +844,7 @@ export function UserManager() {
                   onChangeRole={handleChangeRole}
                   currentAdminUsername={currentUser?.username}
                   mutationBusy={busy}
+                  // Provide handlers for drawer activation via context substitution later if needed
                 />
               ))}
               {filteredUsers.length === 0 && (
@@ -758,6 +858,22 @@ export function UserManager() {
       </div>
       {/* Журнал действий администраторов */}
       <AdminActionLogger />
+      <ModerationDrawer
+        open={!!drawerUser}
+        onClose={closeDrawer}
+        title={drawerMode === 'ROLE' ? 'Изменение роли' : 'Управление блокировкой'}
+      >
+        {/* Placeholder: existing dialogs still in row; next step could migrate forms here */}
+        {drawerUser && (
+          <div className="text-sm space-y-4">
+            <div>
+              <div className="font-semibold mb-1">Пользователь</div>
+              {drawerUser.username}
+            </div>
+            <div className="opacity-70 text-xs">(Форма будет перенесена сюда на следующем шаге)</div>
+          </div>
+        )}
+      </ModerationDrawer>
     </div>
   )
 }
