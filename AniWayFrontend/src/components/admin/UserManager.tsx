@@ -761,12 +761,8 @@ export function UserManager() {
   })
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-          <Users className="h-6 w-6" />
-          Управление пользователями
-        </h2>
+    <div className="space-y-5">
+      <div className="flex items-start justify-end">
         <div className="flex items-center gap-4">
           <div className="glass-panel p-3 rounded border border-white/10 flex flex-col gap-1 text-xs min-w-[120px]">
             <div className="uppercase tracking-wide opacity-60">Всего пользователей</div>
@@ -792,15 +788,11 @@ export function UserManager() {
 
         {/* Modern Data Table */}
         <div className="glass-panel rounded-xl border border-white/10 bg-white/5 backdrop-blur-xl overflow-hidden">
-          {/* Table Header with Stats */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-white/5">
-            <div className="flex items-center gap-4">
-              <h3 className="text-lg font-semibold text-white">Пользователи</h3>
-              <div className="flex items-center gap-4 text-sm text-slate-400">
-                <span>Показано {filteredUsers.length} из {(usersData as any)?.totalElements || 0}</span>
-                <div className="w-px h-4 bg-white/20" />
-                <span>Страница {currentPage + 1} из {(usersData as any)?.totalPages || 1}</span>
-              </div>
+            <div className="flex items-center gap-4 text-sm text-slate-400">
+              <span>Показано {filteredUsers.length} из {(usersData as any)?.totalElements || 0}</span>
+              <div className="w-px h-4 bg-white/20" />
+              <span>Страница {currentPage + 1} из {(usersData as any)?.totalPages || 1}</span>
             </div>
             <div className="flex items-center gap-3">
               <Button
