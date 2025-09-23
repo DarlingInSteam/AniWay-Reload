@@ -46,6 +46,19 @@ CREATE TABLE IF NOT EXISTS reading_progress (
     UNIQUE(user_id, chapter_id)
 );
 
+-- Create admin_action_logs table
+CREATE TABLE IF NOT EXISTS admin_action_logs (
+    id BIGSERIAL PRIMARY KEY,
+    admin_id BIGINT NOT NULL,
+    admin_name VARCHAR(50) NOT NULL,
+    action_type VARCHAR(100) NOT NULL,
+    target_user_id BIGINT,
+    target_username VARCHAR(50),
+    description TEXT,
+    reason TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);

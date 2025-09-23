@@ -99,6 +99,15 @@ spring:
             - StripPrefix=0
           order: 4
 
+        # AuthService - Admin utilities
+        - id: admin-utils-api
+          uri: http://auth-service:8085
+          predicates:
+            - Path=/api/admin/**
+          filters:
+            - StripPrefix=0
+          order: 5
+
         # CommentService - Comments API
         - id: comments-api
           uri: http://comment-service:8086
@@ -106,7 +115,7 @@ spring:
             - Path=/api/comments/**
           filters:
             - StripPrefix=0
-          order: 5
+          order: 6
 
         # MangaService - Parser API endpoints (ВЫСОКИЙ ПРИОРИТЕТ)
         - id: manga-parser
@@ -115,7 +124,7 @@ spring:
             - Path=/api/parser/**
           filters:
             - StripPrefix=1
-          order: 6
+          order: 7
 
         # MangaService - Parser Web UI (веб-интерфейс парсера)
         - id: manga-parser-web
@@ -124,7 +133,7 @@ spring:
             - Path=/parser/**
           filters:
             - StripPrefix=0
-          order: 7
+          order: 8
 
         # MangaService - API endpoints
         - id: manga-api
@@ -133,6 +142,7 @@ spring:
             - Path=/api/manga/**
           filters:
             - StripPrefix=0
+          order: 9
 
         # MangaService - Web UI (Thymeleaf страницы)
         - id: manga-web

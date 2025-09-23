@@ -81,6 +81,15 @@ spring:
             - StripPrefix=0
           order: 4
 
+        # AuthService - Admin utilities
+        - id: admin-utils-api
+          uri: http://auth-service:8085
+          predicates:
+            - Path=/api/admin/**
+          filters:
+            - StripPrefix=0
+          order: 5
+
         # MangaService - API endpoints
         - id: manga-api
           uri: http://manga-service:8081

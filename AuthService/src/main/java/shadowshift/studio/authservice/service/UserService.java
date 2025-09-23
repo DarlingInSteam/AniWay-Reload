@@ -12,13 +12,19 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import shadowshift.studio.authservice.dto.UserDTO;
+import shadowshift.studio.authservice.entity.ActionType;
+import shadowshift.studio.authservice.entity.AdminActionLog;
 import shadowshift.studio.authservice.entity.Role;
 import shadowshift.studio.authservice.entity.User;
 import shadowshift.studio.authservice.mapper.UserMapper;
+import shadowshift.studio.authservice.repository.AdminActionLogRepository;
 import shadowshift.studio.authservice.repository.ReadingProgressRepository;
 import shadowshift.studio.authservice.repository.UserRepository;
 
 import jakarta.persistence.criteria.Predicate;
+
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -36,8 +42,9 @@ import java.util.stream.Collectors;
 public class UserService implements UserDetailsService {
     
     private final UserRepository userRepository;
+    private final AdminActionLogRepository adminActionLogRepository;
     private final ReadingProgressRepository readingProgressRepository;
-    
+
     /**
      * Загружает пользователя по имени пользователя или email для аутентификации.
      *
@@ -227,13 +234,43 @@ public class UserService implements UserDetailsService {
         userRepository.save(user);
     }
 
-    public void banOrUnBanUser(Long userId) {
+    public void banOrUnBanUser(Long adminId, Long userId, String reason) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
+        User admin = userRepository.findById(adminId)
+                .orElseThrow(() -> new IllegalArgumentException("Admin not found"));
+
         user.setIsEnabled(!user.getIsEnabled());
 
+        AdminActionLog logEntry;
+        if (user.getIsEnabled()) {
+            logEntry = AdminActionLog.builder()
+                    .adminId(adminId)
+                    .userId(userId)
+                    .adminName(admin.getUsername())
+                    .targetUserName(user.getUsername())
+                    .actionType(ActionType.UNBAN_USER)
+                    .description("The administrator " + admin.getUsername() + " unbanned the user " + user.getUsername())
+                    .reason(reason)
+                    .timestamp(LocalDateTime.now(ZoneOffset.UTC))
+                    .build();
+        } else {
+            logEntry = AdminActionLog.builder()
+                    .adminId(adminId)
+                    .userId(userId)
+                    .adminName(admin.getUsername())
+                    .targetUserName(user.getUsername())
+                    .actionType(ActionType.BAN_USER)
+                    .description("The administrator " + admin.getUsername() + " banned the user " + user.getUsername())
+                    .reason(reason)
+                    .timestamp(LocalDateTime.now(ZoneOffset.UTC))
+                    .build();
+        }
+
+        adminActionLogRepository.save(logEntry);
         userRepository.save(user);
+
         log.info("Changed ban status for user: {} and now his {}", user.getUsername(), user.getIsEnabled() ? "unbanned" : "banned");
     }
 
@@ -254,7 +291,7 @@ public class UserService implements UserDetailsService {
      * Получение страницы пользователей с сортировкой.
      * Пример запроса к контроллеру: GET /api/auth/users?page=0&size=20&sortBy=username&sortOrder=asc
      */
-    public List<UserDTO> getUsersSortablePage(int page, int size, String sortBy, String sortOrder) {
+    public Page<UserDTO> getUsersSortablePage(int page, int size, String sortBy, String sortOrder, String query, String role) {
          if (sortBy == null || sortBy.isBlank()) {
              sortBy = "username";
          }
@@ -264,9 +301,38 @@ public class UserService implements UserDetailsService {
 
          Sort.Direction direction = Sort.Direction.fromString(sortOrder);
          PageRequest pageRequest = PageRequest.of(page, size, Sort.by(direction, sortBy));
-         Page<User> userPage = userRepository.findAll(pageRequest);
-         return userPage.stream()
-                 .map(UserMapper::toFullUserDTO)
-                 .collect(Collectors.toList());
+
+         return searchUsers(query, role, pageRequest).map(UserMapper::toFullUserDTO);
      }
+
+    public void updateUserRole(Long adminId, Long userId, String role, String reason) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        User admin = userRepository.findById(adminId)
+                .orElseThrow(() -> new IllegalArgumentException("Admin not found"));
+
+        try {
+            Role roleEnum = Role.valueOf(role.toUpperCase());
+            user.setRole(roleEnum);
+            userRepository.save(user);
+
+            AdminActionLog logEntry = AdminActionLog.builder()
+                    .adminId(adminId)
+                    .userId(userId)
+                    .adminName(admin.getUsername())
+                    .actionType(ActionType.CHANGE_ROLE)
+                    .targetUserName(user.getUsername())
+                    .description("Changed role of user " + user.getUsername() + " to " + role)
+                    .reason(reason)
+                    .timestamp(LocalDateTime.now())
+                    .build();
+            adminActionLogRepository.save(logEntry);
+
+
+            log.info("Updated role for user: {} to {}", user.getUsername(), roleEnum);
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid role provided: {}", role);
+            throw new IllegalArgumentException("Invalid role: " + role);
+        }
+    }
 }

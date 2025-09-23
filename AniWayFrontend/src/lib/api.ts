@@ -1,4 +1,4 @@
-import { MangaResponseDTO, ChapterDTO, ChapterImageDTO, SearchParams, UserSearchParams, UserSearchResult, User, UpdateProfileRequest } from '@/types';
+import { MangaResponseDTO, ChapterDTO, ChapterImageDTO, SearchParams, UserSearchParams, UserSearchResult, User, UpdateProfileRequest, AdminUserData, AdminUserFilter, AdminUsersPageResponse, AdminUsersParams, AdminActionLogDTO } from '@/types';
 
 const API_BASE_URL = '/api';
 
@@ -32,7 +32,30 @@ class ApiClient {
       throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
-    return response.json();
+    // Проверяем, есть ли содержимое в ответе
+    const contentLength = response.headers.get('content-length');
+    const contentType = response.headers.get('content-type');
+    
+    // Если нет содержимого или длина равна 0, возвращаем undefined как T
+    if (contentLength === '0' || (!contentType?.includes('application/json') && !contentLength)) {
+      return undefined as T;
+    }
+
+    // Пытаемся получить текст ответа
+    const text = await response.text();
+    
+    // Если текст пустой, возвращаем undefined
+    if (!text.trim()) {
+      return undefined as T;
+    }
+
+    // Пытаемся парсить JSON
+    try {
+      return JSON.parse(text);
+    } catch (error) {
+      console.error('Failed to parse response as JSON:', text);
+      throw new Error('Invalid JSON response');
+    }
   }
 
   
@@ -675,6 +698,54 @@ class ApiClient {
 
   async getCommentReactions(commentId: number): Promise<any> {
     return this.request<any>(`/comments/${commentId}/reactions`);
+  }
+
+  // Admin API - методы для администрирования пользователей
+  async getAdminUsers(params: AdminUsersParams): Promise<AdminUsersPageResponse> {
+    const searchParams = new URLSearchParams({
+      page: params.page.toString(),
+      size: params.size.toString(),
+      sortBy: params.sortBy,
+      sortOrder: params.sortOrder,
+      query: params.query,
+      role: params.role
+    });
+    
+    return this.request<AdminUsersPageResponse>(`/admin/util/users/sortable?${searchParams}`);
+  }
+
+  async getAdminUsersCount(): Promise<number> {
+    return this.request<number>('/admin/util/users-count');
+  }
+
+  async toggleUserBanStatus(userId: number, adminId: number, reason: string): Promise<void> {
+    const params = new URLSearchParams({
+      userId: userId.toString(),
+      adminId: adminId.toString(),
+      reason: reason
+    });
+    
+    await this.request<void>(`/admin/util/ban-toggle?${params}`, {
+      method: 'PUT',
+    });
+  }
+
+  async changeUserRole(userId: number, adminId: number, role: string, reason: string): Promise<void> {
+    const params = new URLSearchParams({
+      adminId: adminId.toString(),
+      reason: reason,
+      role: role
+    });
+    
+    console.log('Changing user role:', { userId, adminId, role, reason });
+    
+    await this.request<void>(`/admin/util/users/${userId}/role?${params}`, {
+      method: 'PUT',
+    });
+  }
+
+  async getAdminLogs(): Promise<AdminActionLogDTO[]> {
+    return this.request<AdminActionLogDTO[]>('/admin/util/logs');
   }
 }
 

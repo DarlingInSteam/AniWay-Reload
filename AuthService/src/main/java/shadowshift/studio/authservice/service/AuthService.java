@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import shadowshift.studio.authservice.dto.*;
 import shadowshift.studio.authservice.entity.Role;
 import shadowshift.studio.authservice.entity.User;
+import shadowshift.studio.authservice.mapper.UserMapper;
 import shadowshift.studio.authservice.repository.UserRepository;
 
 import java.time.LocalDateTime;
@@ -64,9 +65,11 @@ public class AuthService {
         userRepository.save(user);
         
         log.info("User registered successfully: {}", user.getUsername());
+
+        UserDTO userDTO = UserMapper.toUserDTO(user);
         
         var jwtToken = jwtService.generateToken(user);
-        return AuthResponse.of(jwtToken, userService.convertToDTO(user));
+        return AuthResponse.of(jwtToken, userDTO);
     }
     
     /**
@@ -92,9 +95,11 @@ public class AuthService {
         userRepository.save(user);
         
         log.info("User authenticated successfully: {}", user.getUsername());
-        
+
+        UserDTO userDTO = UserMapper.toUserDTO(user);
+
         var jwtToken = jwtService.generateToken(user);
-        return AuthResponse.of(jwtToken, userService.convertToDTO(user));
+        return AuthResponse.of(jwtToken, userDTO);
     }
     
     /**
@@ -107,8 +112,8 @@ public class AuthService {
     public UserDTO getCurrentUser(String username) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
-        
-        return userService.convertToDTO(user);
+
+        return UserMapper.toUserDTO(user);
     }
     
     /**

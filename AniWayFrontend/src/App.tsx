@@ -4,6 +4,7 @@ import { CatalogPage } from './pages/CatalogPage'
 import { MangaPage } from './pages/MangaPage'
 import { ReaderPage } from './pages/ReaderPage'
 import { AdminMangaPage } from './pages/AdminMangaPage'
+import { AdminUsersPage } from './pages/AdminUsersPage'
 import { AuthPage } from './pages/AuthPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { LibraryPage } from './pages/LibraryPage'
@@ -46,14 +47,21 @@ function App() {
           {/* API Документация */}
           <Route path="/api-docs" element={<ApiDocsPage />} />
           
-          {/* Раздел управления - теперь доступен для всех пользователей */}
-          <Route path="/admin/manga" element={<AdminMangaPage />} />
-          <Route path="/admin" element={<AdminMangaPage />} />
+          {/* Раздел управления - доступен только для администраторов */}
+          <Route path="/admin/manga" element={
+            <ProtectedRoute requireAdmin>
+              <AdminMangaPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin" element={
+            <ProtectedRoute requireAdmin>
+              <AdminMangaPage />
+            </ProtectedRoute>
+          } />
           <Route path="/admin/users" element={
-            <div className="p-8 text-center">
-              <h1 className="text-2xl font-bold mb-4">Управление пользователями</h1>
-              <p className="text-gray-600">Функция в разработке</p>
-            </div>
+            <ProtectedRoute requireAdmin>
+              <AdminUsersPage />
+            </ProtectedRoute>
           } />
           
           {/* Маршруты переводчика */}
