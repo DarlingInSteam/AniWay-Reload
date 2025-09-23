@@ -97,7 +97,10 @@ public class AdminUtilityController {
     @GetMapping("/users-stats")
     public ResponseEntity<UserStatsDTO> getUserStats() {
         try {
-            return ResponseEntity.ok(adminUtilityService.getUserStats());
+            UserStatsDTO stats = adminUtilityService.getUserStats();
+            log.debug("Admin stats fetched: total={}, translators={}, admins={}, banned={}, active7d={}",
+                    stats.getTotalUsers(), stats.getTranslators(), stats.getAdmins(), stats.getBanned(), stats.getActiveLast7Days());
+            return ResponseEntity.ok(stats);
         } catch (Exception e) {
             log.error("Get users stats failed: {}", e.getMessage());
             return ResponseEntity.badRequest().build();
