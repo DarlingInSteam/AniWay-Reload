@@ -34,8 +34,8 @@ public class AdminActionLog {
     @Column(name = "target_user_id", nullable = false)
     private Long userId;
 
-    // Имя целевого пользователя (в исходной схеме колонка target_username)
-    @Column(name = "target_username", nullable = false)
+    // Имя целевого пользователя (в схеме колонка target_user_name)
+    @Column(name = "target_user_name", nullable = false)
     private String targetUserName;
 
     @Column(nullable = false)
