@@ -63,8 +63,6 @@ public class MangaService {
     // Кэш для rate limiting просмотров: ключ - "userId_mangaId", значение - timestamp последнего просмотра
     private final ConcurrentHashMap<String, Long> viewRateLimitCache = new ConcurrentHashMap<>();
 
-    // Кэш для rate limiting просмотров: ключ - "userId_mangaId", значение - timestamp последнего просмотра
-    private final ConcurrentHashMap<String, Long> viewRateLimitCache = new ConcurrentHashMap<>();
 
     @Value("${image.storage.service.url}")
     private String imageStorageServiceUrl;
