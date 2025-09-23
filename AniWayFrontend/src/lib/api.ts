@@ -84,32 +84,6 @@ class ApiClient {
     return response.json();
   }
 
-  
-  // Публичный запрос без авторизационных заголовков
-  private async publicRequest<T>(endpoint: string, options?: RequestInit): Promise<T> {
-    const url = `${API_BASE_URL}${endpoint}`;
-
-    console.log(`Public API Request: ${options?.method || 'GET'} ${url}`);
-
-    const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
-      ...options,
-    });
-
-    console.log(`Public API Response: ${response.status} ${response.statusText}`);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Public API Error Details: ${errorText}`);
-      throw new Error(`Public API Error: ${response.status} ${response.statusText} - ${errorText}`);
-    }
-
-    return response.json();
-  }
-
   // Manga API
   async getAllManga(): Promise<MangaResponseDTO[]> {
     return this.request<MangaResponseDTO[]>('/manga');

@@ -49,9 +49,6 @@ export function MangaPage() {
   // Удалили избыточную инвалидацию кэша при входе на страницу
   // Это было причиной постоянных перезапросов
 
-  const { user } = useAuth()
-  const queryClient = useQueryClient()
-
   // Инвалидируем кэш списка манг при входе на страницу манги
   useEffect(() => {
     console.log('MangaPage: Invalidating manga list cache on mount')

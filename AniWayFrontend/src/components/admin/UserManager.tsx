@@ -136,7 +136,7 @@ function UserRow({
 }) {
   const [banReason, setBanReason] = useState('')
   const [roleChangeReason, setRoleChangeReason] = useState('')
-  const [selectedRole, setSelectedRole] = useState(user.role)
+  const [selectedRole, setSelectedRole] = useState<"USER" | "ADMIN" | "TRANSLATOR">(user.role as any)
   
   const getRoleBadge = (role: string) => {
     const variants = {
@@ -299,7 +299,7 @@ function UserRow({
                   Текущая роль: {getRoleBadge(user.role)}
                 </div>
                 <div className="grid grid-cols-1 gap-2">
-                  {['USER', 'TRANSLATOR', 'ADMIN'].map((role) => (
+                  {(['USER', 'TRANSLATOR', 'ADMIN'] as const).map((role) => (
                     <Button
                       key={role}
                       variant={selectedRole === role ? "default" : "outline"}
