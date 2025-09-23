@@ -98,6 +98,16 @@ export function CommentSection({
     addReaction(commentId, reactionType)
   }
 
+  // After comments (or replies) load, attempt to scroll to hash target if present
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!comments.length) return;
+    if (window.location.hash.startsWith('#comment-')) {
+      // Defer to allow nested replies mount
+      setTimeout(() => { window.__rehighlightAnchor?.(); }, 80);
+    }
+  }, [comments]);
+
   const toggleSortDir = () => {
     setSortDir(prev => prev === 'asc' ? 'desc' : 'asc')
   }

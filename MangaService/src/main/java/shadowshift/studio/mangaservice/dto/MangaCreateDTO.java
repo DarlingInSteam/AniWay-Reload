@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import shadowshift.studio.mangaservice.entity.Manga;
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * DTO для создания новой манги в системе MangaService.
@@ -48,10 +49,20 @@ public class MangaCreateDTO {
     private Manga.MangaStatus status;
 
     /**
-     * Жанр манги.
+     * Жанр манги (строковое представление для обратной совместимости).
      */
     @Size(max = 500, message = "Genre must not exceed 500 characters")
     private String genre;
+
+    /**
+     * Список названий жанров манги.
+     */
+    private List<String> genreNames;
+
+    /**
+     * Список названий тегов манги.
+     */
+    private List<String> tagNames;
 
     /**
      * URL обложки манги.
@@ -175,4 +186,32 @@ public class MangaCreateDTO {
      * @param coverImageUrl URL обложки
      */
     public void setCoverImageUrl(String coverImageUrl) { this.coverImageUrl = coverImageUrl; }
+
+    /**
+     * Возвращает список названий жанров манги.
+     *
+     * @return список названий жанров
+     */
+    public List<String> getGenreNames() { return genreNames; }
+
+    /**
+     * Устанавливает список названий жанров манги.
+     *
+     * @param genreNames список названий жанров
+     */
+    public void setGenreNames(List<String> genreNames) { this.genreNames = genreNames; }
+
+    /**
+     * Возвращает список названий тегов манги.
+     *
+     * @return список названий тегов
+     */
+    public List<String> getTagNames() { return tagNames; }
+
+    /**
+     * Устанавливает список названий тегов манги.
+     *
+     * @param tagNames список названий тегов
+     */
+    public void setTagNames(List<String> tagNames) { this.tagNames = tagNames; }
 }

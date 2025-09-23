@@ -43,6 +43,13 @@
   }
 }
 
+  /* Highlight target for anchored navigation */
+  .anchor-highlight {
+    outline: 2px solid #6366f1;
+    box-shadow: 0 0 0 2px rgba(99,102,241,0.4), 0 0 8px 2px rgba(99,102,241,0.35);
+    transition: outline-color 0.6s ease, box-shadow 0.6s ease;
+  }
+
 @layer utilities {
   .line-clamp-1 {
     overflow: hidden;
@@ -134,6 +141,7 @@
   .text-responsive-base {
     @apply text-sm sm:text-base lg:text-lg;
   }
+
 }
 
 /* Кастомные стили для манга-ридера */
@@ -178,6 +186,43 @@
   animation: fade-in 0.3s ease-out;
 }
 
+/* Glass panel utility */
+.glass-panel {
+  /* Subtle glass panel: slightly darker than original (was rgba 0.10) */
+  background: rgba(255,255,255,0.12);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 0.75rem; /* matches rounded-xl */
+}
+
+/* Skeleton loading */
+@keyframes skeleton-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.skeleton-shimmer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0) 100%);
+  animation: skeleton-shimmer 1.4s infinite;
+}
+
+.skeleton-block { @apply bg-white/10 rounded-md; }
+
+/* Fade mask for scrollable areas (top & bottom subtle gradient) */
+.scroll-fade-mask {
+  mask-image: linear-gradient(to bottom, transparent, black 16px, black calc(100% - 16px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 16px, black calc(100% - 16px), transparent 100%);
+}
+
+
 /* Специальные стили для карточек манги */
 .manga-card {
   @apply relative overflow-hidden rounded-xl bg-card border-0;
@@ -197,4 +242,67 @@
 .rating-star {
   @apply text-accent;
   filter: drop-shadow(0 0 2px rgba(255, 215, 0, 0.5));
+}
+
+/* Кастомные стили для скроллбара в стиле сайта */
+.scrollbar-custom {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.scrollbar-custom::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-custom::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+
+.scrollbar-custom::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  transition: background 0.2s ease;
+}
+
+.scrollbar-custom::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Старые стили - оставляем для совместимости */
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+.scrollbar-track-white\/5::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.scrollbar-thumb-white\/20::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 0.25rem;
+}
+
+.hover\:scrollbar-thumb-white\/40:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+/* Анимации для фильтров */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
 }

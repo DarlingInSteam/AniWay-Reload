@@ -1,5 +1,6 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { Search, Bell, Bookmark, User, Menu, X, Settings } from 'lucide-react'
+import { Search, Bell, Bookmark, User, Menu, X, Settings, MessageSquare } from 'lucide-react'
+import { NotificationBell } from '@/notifications/NotificationBell'
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api'
@@ -9,6 +10,7 @@ import { useAuth } from '../../contexts/AuthContext'
 
 export function Header() {
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const navigate = useNavigate()
@@ -18,10 +20,16 @@ export function Header() {
   const { isAuthenticated, isAdmin, isTranslator } = useAuth()
 
   // Универсальный поиск манги
+  // Debounce input to limit network calls
+  useEffect(() => {
+    const h = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 250)
+    return () => clearTimeout(h)
+  }, [searchQuery])
+
   const { data: mangaSuggestions, isError: mangaError } = useQuery({
-    queryKey: ['search-manga-suggestions', searchQuery],
-    queryFn: () => apiClient.searchManga({ query: searchQuery }),
-    enabled: searchQuery.length >= 2,
+    queryKey: ['search-manga-suggestions', debouncedQuery],
+    queryFn: () => apiClient.searchManga({ query: debouncedQuery }),
+    enabled: debouncedQuery.length >= 2,
     staleTime: 30000,
     retry: 1,
     retryDelay: 1000,
@@ -29,9 +37,9 @@ export function Header() {
 
   // Универсальный поиск пользователей
   const { data: userSuggestions, isError: userError } = useQuery({
-    queryKey: ['search-user-suggestions', searchQuery],
-    queryFn: () => apiClient.searchUsers({ query: searchQuery, limit: 6 }),
-    enabled: searchQuery.length >= 2,
+    queryKey: ['search-user-suggestions', debouncedQuery],
+    queryFn: () => apiClient.searchUsers({ query: debouncedQuery, limit: 6 }),
+    enabled: debouncedQuery.length >= 2,
     staleTime: 30000,
     retry: 1,
     retryDelay: 1000,
@@ -85,8 +93,8 @@ export function Header() {
 
   // Показываем автодополнение при вводе
   useEffect(() => {
-    if (searchQuery.length >= 2) {
-      if ((mangaSuggestions && mangaSuggestions.length > 0 && !mangaError) || 
+    if (debouncedQuery.length >= 2) {
+      if ((mangaSuggestions && mangaSuggestions.length > 0 && !mangaError) ||
           (userSuggestions && userSuggestions.users && userSuggestions.users.length > 0 && !userError)) {
         setShowSuggestions(true)
       } else {
@@ -95,7 +103,7 @@ export function Header() {
     } else {
       setShowSuggestions(false)
     }
-  }, [searchQuery, mangaSuggestions, userSuggestions, mangaError, userError])
+  }, [debouncedQuery, mangaSuggestions, userSuggestions, mangaError, userError])
 
   return (
     <header className="sticky top-0 z-50 w-full bg-manga-black/95 backdrop-blur-md border-b border-border/20">
@@ -108,30 +116,28 @@ export function Header() {
 
           {/* Навигация - только на десктопе */}
           <nav className="hidden lg:flex items-center space-x-4 lg:space-x-6 ml-4">
-            <Link
-              to="/catalog"
-              className="text-sm font-medium text-muted-foreground hover:text-white transition-colors duration-200 whitespace-nowrap"
-            >
-              Каталог
-            </Link>
-            <Link
-              to="#"
-              className="text-sm font-medium text-muted-foreground hover:text-white transition-colors duration-200 whitespace-nowrap"
-            >
-              Топы
-            </Link>
-            <Link
-              to="#"
-              className="text-sm font-medium text-muted-foreground hover:text-white transition-colors duration-200 whitespace-nowrap"
-            >
-              Форум
-            </Link>
-            <Link
-              to="/api-docs"
-              className="text-sm font-medium text-muted-foreground hover:text-white transition-colors duration-200 whitespace-nowrap"
-            >
-              API Docs
-            </Link>
+            {[
+              { label: 'Каталог', to: '/catalog' },
+              { label: 'Топы', to: '/#tops' },
+              { label: 'Форум', to: '/forum' },
+              { label: 'API Docs', to: '/api-docs' }
+            ].map(item => (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={cn(
+                  'text-sm font-medium transition-colors duration-200 whitespace-nowrap',
+                  'text-muted-foreground hover:text-white',
+                  (() => {
+                    if (item.to === '/#tops') return false
+                    if (item.to === '/forum') return location.pathname.startsWith('/forum')
+                    return location.pathname.startsWith(item.to)
+                  })() && 'text-white'
+                )}
+              >
+                {item.label}
+              </Link>
+            ))}
           </nav>
         </div>
 
@@ -147,8 +153,8 @@ export function Header() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => {
-                  if (searchQuery.length >= 2) {
-                    if ((mangaSuggestions && mangaSuggestions.length > 0 && !mangaError) || 
+                  if (debouncedQuery.length >= 2) {
+                    if ((mangaSuggestions && mangaSuggestions.length > 0 && !mangaError) ||
                         (userSuggestions && userSuggestions.users && userSuggestions.users.length > 0 && !userError)) {
                       setShowSuggestions(true)
                     }
@@ -196,7 +202,7 @@ export function Header() {
                               {manga.title}
                             </h4>
                             <p className="text-xs md:text-sm text-muted-foreground truncate">
-                              {manga.genre.split(',')[0]} • {new Date(manga.releaseDate).getFullYear()}
+                              {manga.genre ? manga.genre.split(',')[0] : 'Без жанра'} • {manga.releaseDate ? new Date(manga.releaseDate).getFullYear() : '—'}
                             </p>
                           </div>
                         </button>
@@ -236,7 +242,7 @@ export function Header() {
                   )}
 
                   {/* Сообщение если ничего не найдено */}
-                  {searchQuery.length >= 2 && 
+                  {debouncedQuery.length >= 2 && 
                    (!mangaSuggestions || mangaSuggestions.length === 0) && 
                    (!userSuggestions || !userSuggestions.users || userSuggestions.users.length === 0) && 
                    !mangaError && !userError && (
@@ -248,7 +254,7 @@ export function Header() {
                   )}
 
                   {/* Ошибка загрузки */}
-                  {searchQuery.length >= 2 && (mangaError || userError) && (
+                  {debouncedQuery.length >= 2 && (mangaError || userError) && (
                     <div className="p-4 text-center text-sm text-muted-foreground">
                       <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
                       <p>Ошибка при поиске</p>
@@ -268,19 +274,14 @@ export function Header() {
               {/* Иконки действий - скрываем на мобилке */}
               <div className="hidden md:flex items-center gap-1 lg:gap-2">
                 <Link
-                  to="/library"
+                  to="/bookmarks"
                   className="p-2 lg:p-3 rounded-xl hover:bg-secondary/50 text-muted-foreground hover:text-white transition-colors duration-200"
-                  title="Библиотека"
+                  title="Закладки"
                 >
                   <Bookmark className="h-5 w-5" />
                 </Link>
                 
-                <button
-                  className="p-2 lg:p-3 rounded-xl hover:bg-secondary/50 text-muted-foreground hover:text-white transition-colors duration-200"
-                  title="Уведомления"
-                >
-                  <Bell className="h-5 w-5" />
-                </button>
+                <NotificationBell />
 
                 {/* Ссылка на управление доступна только для администраторов */}
                 {isAdmin && (
@@ -341,10 +342,11 @@ export function Header() {
                   Топы
                 </Link>
                 <Link
-                  to="#"
+                  to="/forum"
                   className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
                   onClick={() => setMobileMenuOpen(false)}
                 >
+                  <MessageSquare className="h-4 w-4 mr-3" />
                   Форум
                 </Link>
                 <Link
@@ -359,12 +361,12 @@ export function Header() {
                   <>
                     <hr className="my-2 border-border/30" />
                     <Link
-                      to="/library"
+                      to="/bookmarks"
                       className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       <Bookmark className="h-4 w-4 mr-3" />
-                      Библиотека
+                      Закладки
                     </Link>
                     <button
                       className="flex items-center w-full px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"

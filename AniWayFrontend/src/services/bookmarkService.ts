@@ -26,6 +26,26 @@ class BookmarkService {
     return response.json()
   }
 
+
+  // Поиск закладок с фильтрами/сортировкой на бэкенде
+  async searchBookmarks(params: {
+    query?: string
+    status?: string
+    favorite?: boolean
+    sortBy?: string
+    sortOrder?: 'asc' | 'desc'
+  }): Promise<Bookmark[]> {
+    const qp = new URLSearchParams()
+    if (params.query) qp.set('query', params.query)
+    if (params.status) qp.set('status', params.status)
+    if (typeof params.favorite === 'boolean') qp.set('favorite', String(params.favorite))
+    if (params.sortBy) qp.set('sortBy', params.sortBy)
+    if (params.sortOrder) qp.set('sortOrder', params.sortOrder)
+    const response = await fetch(`${this.baseUrl}/bookmarks/search?${qp.toString()}`, { headers: this.getAuthHeaders() })
+    if (!response.ok) throw new Error('Failed to search bookmarks')
+    return response.json()
+  }
+
   async getUserPublicBookmarks(username: string): Promise<Bookmark[]> {
       const response = await fetch(`${this.baseUrl}/bookmarks/user/${username}`, {
         headers: this.getAuthHeaders()

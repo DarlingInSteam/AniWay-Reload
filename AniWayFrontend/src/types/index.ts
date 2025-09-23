@@ -31,6 +31,7 @@ export interface ChapterDTO {
   originalChapterNumber?: number
   title: string
   pageCount: number
+  likeCount: number
   publishedDate: string
   createdAt: string
   updatedAt: string
@@ -56,12 +57,30 @@ export interface ChapterImageDTO {
 export interface SearchParams {
   query?: string
   genre?: string
+  genres?: string[] // Массив ID или имен жанров
+  tags?: string[] // Массив ID или имен тегов
   status?: string
   type?: string
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
   page?: number
   limit?: number
+  ageRating?: [number, number] // Диапазон возрастного рейтинга
+  rating?: [number, number] // Диапазон рейтинга
+  releaseYear?: [number, number] // Диапазон года выпуска
+  chapterRange?: [number, number] // Диапазон количества глав
+}
+
+// Пагинированный ответ
+export interface PageResponse<T> {
+  content: T[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+  first: boolean
+  last: boolean
+  numberOfElements: number
 }
 
 // Типы для прогресса парсинга
@@ -131,6 +150,7 @@ export interface RegisterRequest {
   email: string
   password: string
   displayName?: string
+  verificationToken?: string
 }
 
 export interface UpdateProfileRequest {
@@ -152,6 +172,7 @@ export interface Bookmark {
   // Поля для отображения информации о манге (из BookmarkDTO)
   mangaTitle?: string
   mangaCoverUrl?: string
+  mangaUpdatedAt?: string
   // Поля для прогресса чтения
   currentChapter?: number
   totalChapters?: number

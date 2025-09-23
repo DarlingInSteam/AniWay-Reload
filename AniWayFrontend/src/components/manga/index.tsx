@@ -16,6 +16,10 @@ export function MangaCardWithTooltip({
   showMetadata = true,
   enableTooltip = true
 }: MangaCardWithTooltipProps) {
+  if (!manga) {
+    return null;
+  }
+
   if (!enableTooltip) {
     return <MangaCard manga={manga} size={size} showMetadata={showMetadata} />
   }

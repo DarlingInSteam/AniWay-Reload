@@ -60,4 +60,16 @@ public class Bookmark {
     public void preUpdate() {
         updatedAt = LocalDateTime.now();
     }
+
+    /** Кэш: название манги для поиска/сортировки. */
+    @Column(name = "manga_title")
+    private String mangaTitle;
+
+    /** Кэш: дата обновления манги для сортировки. */
+    @Column(name = "manga_updated_at")
+    private LocalDateTime mangaUpdatedAt;
+
+    /** Кэш: общее количество глав для сортировки. */
+    @Column(name = "total_chapters")
+    private Integer totalChapters;
 }

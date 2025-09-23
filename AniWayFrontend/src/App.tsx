@@ -9,18 +9,35 @@ import { AuthPage } from './pages/AuthPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { LibraryPage } from './pages/LibraryPage'
 import ApiDocsPage from './pages/ApiDocsPage'
-import { AuthProvider, ProtectedRoute } from './contexts/AuthContext'
+import { ForumPage } from './pages/ForumPage'
+import { CreateCategoryPage } from './pages/CreateCategoryPage'
+import { ForumCategoryPage } from './pages/ForumCategoryPage'
+import { ForumThreadPage } from './pages/ForumThreadPage'
+import { CreateThreadPage } from './pages/CreateThreadPage'
+import { AuthProvider, ProtectedRoute, useAuth } from './contexts/AuthContext'
+import SettingsPage from './pages/SettingsPage'
+import { NotificationProvider } from './notifications/NotificationContext'
+import { NotificationsPage } from './notifications/NotificationsPage'
+import { authService } from './services/authService'
 import { Toaster } from 'sonner'
 
-function App() {
+function InnerApp() {
+  const { user } = useAuth();
+  const token = authService.getToken();
   return (
-    <AuthProvider>
+    <NotificationProvider userId={user?.id ?? null} token={token}>
       <Layout>
         <Routes>
           <Route path="/" element={<CatalogPage />} />
           <Route path="/catalog" element={<CatalogPage />} />
           <Route path="/manga/:id" element={<MangaPage />} />
           <Route path="/reader/:chapterId" element={<ReaderPage />} />
+          <Route path="/forum" element={<ForumPage />} />
+          <Route path="/forum/create-category" element={<CreateCategoryPage />} />
+          <Route path="/forum/category/:categoryId" element={<ForumCategoryPage />} />
+            <Route path="/forum/category/:categoryId/create-thread" element={<CreateThreadPage />} />
+          <Route path="/forum/thread/:threadId" element={<ForumThreadPage />} />
+          <Route path="/forum/create-thread" element={<CreateThreadPage />} />
           
           {/* Аутентификация */}
           <Route path="/login" element={<AuthPage />} />
@@ -33,6 +50,7 @@ function App() {
             </ProtectedRoute>
           } />
           <Route path="/profile/:userId" element={<ProfilePage />} />
+          <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
           <Route path="/bookmarks" element={
             <ProtectedRoute>
               <LibraryPage />
@@ -41,6 +59,11 @@ function App() {
           <Route path="/reading-history" element={
             <ProtectedRoute>
               <LibraryPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/notifications" element={
+            <ProtectedRoute>
+              <NotificationsPage />
             </ProtectedRoute>
           } />
           
@@ -76,6 +99,14 @@ function App() {
         </Routes>
         <Toaster position="top-right" theme="dark" />
       </Layout>
+    </NotificationProvider>
+  )
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <InnerApp />
     </AuthProvider>
   )
 }

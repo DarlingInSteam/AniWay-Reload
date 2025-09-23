@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import shadowshift.studio.imagestorageservice.dto.ChapterImageResponseDTO;
+import shadowshift.studio.imagestorageservice.dto.UserAvatarResponseDTO;
 import shadowshift.studio.imagestorageservice.service.ImageStorageService;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -321,5 +322,39 @@ public class ImageStorageController {
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Error getting cover: " + e.getMessage());
         }
+    }
+
+    /**
+     * Загружает аватар пользователя.
+     *
+     * @param userId идентификатор пользователя
+     * @param file файл аватара для загрузки
+     * @return загруженный аватар или сообщение об ошибке
+     */
+    @PostMapping("/avatars/{userId}")
+    public ResponseEntity<?> uploadAvatar(@PathVariable Long userId, @RequestParam("file") MultipartFile file) {
+        try {
+            UserAvatarResponseDTO avatar = imageStorageService.uploadUserAvatar(userId, file);
+            return ResponseEntity.status(HttpStatus.CREATED).body(avatar);
+        } catch (shadowshift.studio.imagestorageservice.exception.AvatarUploadRateLimitException e) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(Map.of("error", e.getMessage()));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Получает аватар пользователя по его идентификатору.
+     *
+     * @param userId идентификатор пользователя
+     * @return аватар пользователя или 404 если не найден
+     */
+    @GetMapping("/avatars/{userId}")
+    public ResponseEntity<?> getAvatar(@PathVariable Long userId) {
+        return imageStorageService.getUserAvatar(userId)
+                .map(a -> ResponseEntity.ok(new UserAvatarResponseDTO(a)))
+                .orElse(ResponseEntity.notFound().build());
     }
 }

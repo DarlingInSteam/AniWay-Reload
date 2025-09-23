@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   BookOpen, Play, Eye, Heart, Star, ChevronDown, ChevronUp, Send,
   Bookmark, Edit, AlertTriangle, Share, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Check
@@ -17,16 +17,37 @@ import { CommentSection } from '../components/comments/CommentSection'
 import MangaReviews from '../components/MangaReviews'
 import { useAuth } from '@/contexts/AuthContext'
 
+import { useSyncedSearchParam } from '@/hooks/useSyncedSearchParam'
+
 export function MangaPage() {
   const { id } = useParams<{ id: string }>()
-  const mangaId = parseInt(id!)
-  const [activeTab, setActiveTab] = useState<'main' | 'chapters' | 'reviews' | 'discussions' | 'moments' | 'cards' | 'characters' | 'similar'>('main')
+  const navigate = useNavigate()
+  const rawId = id || '0'
+  const numericId = (() => {
+    const primary = rawId.split('--')[0] // preferred pattern id--slug
+    if (/^\d+$/.test(primary)) return parseInt(primary, 10)
+    // fallback single dash legacy
+    const legacy = rawId.split('-')[0]
+    return parseInt(legacy, 10) || 0
+  })()
+  const mangaId = numericId
+  const [activeTabParam, setActiveTabParam] = useSyncedSearchParam<'main' | 'chapters' | 'reviews' | 'discussions' | 'moments' | 'cards' | 'characters' | 'similar'>('tab', 'main')
+  const activeTab = activeTabParam
   const [chapterSort, setChapterSort] = useState<'asc' | 'desc' | 'none'>('asc')
   const [showFullDescription, setShowFullDescription] = useState(false)
   const [showFullStats, setShowFullStats] = useState(false)
   const [commentText, setCommentText] = useState('')
   const [commentFilter, setCommentFilter] = useState<'new' | 'popular'>('new')
   const [isDesktop, setIsDesktop] = useState(false)
+  const [likedChapters, setLikedChapters] = useState<Set<number>>(new Set())
+  const [likingChapters, setLikingChapters] = useState<Set<number>>(new Set())
+
+  const { user } = useAuth()
+  const [searchParams] = useSearchParams()
+  const queryClient = useQueryClient()
+
+  // Удалили избыточную инвалидацию кэша при входе на страницу
+  // Это было причиной постоянных перезапросов
 
   const { user } = useAuth()
   const queryClient = useQueryClient()
@@ -60,29 +81,170 @@ export function MangaPage() {
   const { data: manga, isLoading: mangaLoading } = useQuery({
     queryKey: ['manga', mangaId, user?.id],
     queryFn: () => apiClient.getMangaById(mangaId, user?.id),
-    staleTime: 0, // Данные всегда считаются устаревшими
-    refetchOnWindowFocus: true, // Перезапрос при фокусе окна
-    refetchOnMount: true, // Перезапрос при монтировании компонента
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   })
 
-  // Инвалидируем кэш списка манг после загрузки данных о конкретной манге
+  // Slug handling: enhance URL to /manga/:id-:slug (client side only)
   useEffect(() => {
-    if (manga && !mangaLoading) {
-      // Инвалидируем кэш для всех запросов списка манг
-      queryClient.invalidateQueries({ queryKey: ['manga'] })
-      queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
-      queryClient.invalidateQueries({ queryKey: ['popular-manga'] })
-      queryClient.invalidateQueries({ queryKey: ['recent-manga'] })
+    if (!manga || !rawId) return
+    const hasSlug = rawId.includes('--')
+
+    // Collect candidate titles (primary + alternatives if present)
+    const altRaw: string[] = []
+    const possibleAlts: any = (manga as any)
+    ;['alternativeTitles','alternativeNames','altTitles','alt_names','altNames']
+      .forEach(k => { if (possibleAlts?.[k]) {
+        const v = possibleAlts[k]
+        if (Array.isArray(v)) altRaw.push(...v)
+        else if (typeof v === 'string') altRaw.push(...v.split(/,|;|\n/))
+      } })
+
+    const candidates = [manga.title, ...altRaw].filter(Boolean) as string[]
+
+    // Simple Cyrillic transliteration map (Russian)
+    const translitMap: Record<string,string> = {
+      а:'a', б:'b', в:'v', г:'g', д:'d', е:'e', ё:'e', ж:'zh', з:'z', и:'i', й:'y', к:'k', л:'l', м:'m', н:'n', о:'o', п:'p', р:'r', с:'s', т:'t', у:'u', ф:'f', х:'h', ц:'ts', ч:'ch', ш:'sh', щ:'sch', ъ:'', ы:'y', ь:'', э:'e', ю:'yu', я:'ya'
     }
-  }, [manga, mangaLoading, queryClient])
+    const transliterate = (s: string) => s.toLowerCase().split('').map(ch => translitMap[ch] ?? ch).join('')
+
+    const sanitize = (s: string) => s
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[^a-z0-9\s-]/g, ' ') // remove non-latin; keep digits & spaces
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g,'')
+
+    // Pick best ASCII/romanized candidate: most a-z characters
+    let best = candidates[0] || 'manga'
+    let bestScore = -1
+    for (const c of candidates) {
+      const base = /[a-z]/i.test(c) ? c : transliterate(c)
+      const ascii = base.replace(/[^a-z]/gi,'')
+      const score = ascii.length
+      if (score > bestScore) { bestScore = score; best = base }
+    }
+
+    const slug = sanitize(best) || 'manga'
+
+    if (!hasSlug || (hasSlug && !rawId.endsWith(`--${slug}`))) {
+      // Preserve existing search params (tab, etc.)
+      const query = searchParams.toString() ? `?${searchParams.toString()}` : ''
+      navigate(`/manga/${mangaId}--${slug}${query}` , { replace: true })
+    }
+  }, [manga, rawId, mangaId, navigate, searchParams])
+
+  // Удалили избыточную инвалидацию кэша после загрузки манги
+  // Это было причиной "танца" тегов и жанров
 
   const { data: chapters, isLoading: chaptersLoading } = useQuery({
     queryKey: ['chapters', mangaId],
     queryFn: () => apiClient.getMangaChapters(mangaId),
     enabled: !!mangaId,
+    staleTime: 10 * 60 * 1000, // Кеш глав на 10 минут
   })
 
   const { isChapterCompleted } = useReadingProgress()
+
+  // Оптимизированная загрузка статусов лайков глав
+  useEffect(() => {
+    const loadChapterLikeStatuses = async () => {
+      if (!chapters || !user || chapters.length === 0) {
+        console.log('Skipping like status load:', { chapters: !!chapters, user: !!user, length: chapters?.length })
+        return
+      }
+
+      console.log('Loading like statuses for', chapters.length, 'chapters')
+      try {
+        // Ограничиваем количество одновременных запросов и добавляем кеширование
+        const batchSize = 10
+        const likeStatuses = []
+        
+        for (let i = 0; i < chapters.length; i += batchSize) {
+          const batch = chapters.slice(i, i + batchSize)
+          const batchPromises = batch.map(async (chapter) => {
+            try {
+              // Добавляем задержку между запросами для снижения нагрузки
+              if (i > 0) await new Promise(resolve => setTimeout(resolve, 100))
+              const response = await apiClient.isChapterLiked(chapter.id)
+              return { chapterId: chapter.id, liked: response.liked }
+            } catch (error) {
+              console.error(`Failed to load like status for chapter ${chapter.id}:`, error)
+              return { chapterId: chapter.id, liked: false }
+            }
+          })
+          
+          const batchResults = await Promise.all(batchPromises)
+          likeStatuses.push(...batchResults)
+        }
+
+        const likedChapterIds = likeStatuses
+          .filter(status => status.liked)
+          .map(status => status.chapterId)
+
+        console.log('Loaded like statuses:', likedChapterIds.length, 'liked chapters')
+        setLikedChapters(new Set(likedChapterIds))
+      } catch (error) {
+        console.error('Failed to load chapter like statuses:', error)
+      }
+    }
+
+    // Добавляем debounce чтобы избежать множественных вызовов
+    const timeoutId = setTimeout(loadChapterLikeStatuses, 500)
+    return () => clearTimeout(timeoutId)
+  }, [chapters, user])
+
+  // Handle chapter like/unlike
+  const handleChapterLike = async (chapterId: number, e: React.MouseEvent) => {
+    e.preventDefault() // Prevent navigation to reader
+    e.stopPropagation()
+
+    if (likingChapters.has(chapterId)) return // Prevent double-clicks
+
+    setLikingChapters(prev => new Set(prev).add(chapterId))
+
+    try {
+      const response = await apiClient.toggleChapterLike(chapterId)
+      console.log('Toggle like response:', response)
+
+      // Update local state based on server response
+      if (response.liked) {
+        setLikedChapters(prev => new Set(prev).add(chapterId))
+      } else {
+        setLikedChapters(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(chapterId)
+          return newSet
+        })
+      }
+
+      // Оптимистично обновляем кеш без полной инвалидации
+      queryClient.setQueryData(['chapters', mangaId], (oldData: any) => {
+        if (!oldData) return oldData
+        return oldData.map((chapter: any) => {
+          if (chapter.id === chapterId) {
+            console.log(`Updating chapter ${chapterId} likeCount from ${chapter.likeCount} to ${response.likeCount}`)
+            return {
+              ...chapter,
+              likeCount: response.likeCount
+            }
+          }
+          return chapter
+        })
+      })
+
+    } catch (error) {
+      console.error('Failed to toggle chapter like:', error)
+    } finally {
+      setLikingChapters(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(chapterId)
+        return newSet
+      })
+    }
+  }
 
   if (mangaLoading) {
     return (
@@ -307,7 +469,7 @@ export function MangaPage() {
                     return (
                       <button
                         key={tab.id}
-                        onClick={() => setActiveTab(tab.id as any)}
+                        onClick={() => setActiveTabParam(tab.id as any)}
                         className={cn(
                           'px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex-shrink-0',
                           activeTab === tab.id
@@ -358,27 +520,39 @@ export function MangaPage() {
                       </div>
                     </div>
 
-                    {/* Genres - полная ширина */}
+                    {/* Genres - полная ширина (clickable -> catalog with filter) */}
                     <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
                       <h3 className="text-lg font-bold text-white mb-3">Жанры</h3>
                       <div className="flex flex-wrap gap-2">
                         {genres.map((genre, index) => (
-                          <span key={index} className="px-3 py-1 bg-white/10 backdrop-blur-sm text-white text-sm rounded-full border border-white/20 hover:bg-white/20 transition-colors cursor-pointer">
-                            {genre}
-                          </span>
+                          <button
+                            key={index}
+                            type="button"
+                            onClick={() => navigate(`/catalog?genres=${encodeURIComponent(genre)}`)}
+                            className="group px-3 py-1 bg-white/10 backdrop-blur-sm text-white text-sm rounded-full border border-white/20 hover:bg-primary/30 hover:border-primary/50 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                            aria-label={`Перейти в каталог по жанру ${genre}`}
+                          >
+                            <span className="pointer-events-none select-none">{genre}</span>
+                          </button>
                         ))}
                       </div>
                     </div>
 
-                    {/* Tags - только если есть теги */}
+                    {/* Tags - только если есть теги (clickable -> catalog with filter) */}
                     {tags.length > 0 && (
                       <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
                         <h3 className="text-lg font-bold text-white mb-3">Теги</h3>
                         <div className="flex flex-wrap gap-2">
                           {tags.map((tag, index) => (
-                            <span key={index} className="px-3 py-1 bg-primary/10 backdrop-blur-sm text-primary text-sm rounded-full border border-primary/30 hover:bg-primary/20 transition-colors cursor-pointer">
-                              {tag}
-                            </span>
+                            <button
+                              key={index}
+                              type="button"
+                              onClick={() => navigate(`/catalog?tags=${encodeURIComponent(tag)}`)}
+                              className="group px-3 py-1 bg-primary/10 backdrop-blur-sm text-primary text-sm rounded-full border border-primary/30 hover:bg-primary/30 hover:text-white hover:border-primary/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                              aria-label={`Перейти в каталог по тегу ${tag}`}
+                            >
+                              <span className="pointer-events-none select-none">{tag}</span>
+                            </button>
                           ))}
                         </div>
                       </div>
@@ -615,11 +789,27 @@ export function MangaPage() {
                               </div>
                             </div>
 
-                            {/* Likes */}
-                            <div className="flex items-center space-x-2 text-muted-foreground flex-shrink-0">
-                              <Heart className="h-3 w-3 md:h-4 md:w-4" />
-                              <span className="text-xs md:text-sm">{Math.floor(Math.random() * 100) + 10}</span>
-                              <ChevronRight className="h-4 w-4 md:h-5 md:w-5 group-hover:translate-x-1 transition-transform" />
+                            {/* Like Button & Count */}
+                            <div className="flex items-center space-x-2 flex-shrink-0">
+                              <button
+                                onClick={(e) => handleChapterLike(chapter.id, e)}
+                                disabled={likingChapters.has(chapter.id)}
+                                className={cn(
+                                  "flex items-center space-x-1 px-2 py-1 rounded-lg transition-all duration-200 border",
+                                  likedChapters.has(chapter.id)
+                                    ? "text-red-400 bg-red-500/20 border-red-500/30 hover:bg-red-500/30"
+                                    : "text-muted-foreground bg-white/5 border-white/10 hover:bg-white/10 hover:text-red-400"
+                                )}
+                              >
+                                <Heart
+                                  className={cn(
+                                    "h-3 w-3 md:h-4 md:w-4 transition-all",
+                                    likedChapters.has(chapter.id) && "fill-current"
+                                  )}
+                                />
+                                <span className="text-xs md:text-sm">{chapter.likeCount || 0}</span>
+                              </button>
+                              <ChevronRight className="h-4 w-4 md:h-5 md:w-5 group-hover:translate-x-1 transition-transform text-muted-foreground" />
                             </div>
                           </Link>
                         )

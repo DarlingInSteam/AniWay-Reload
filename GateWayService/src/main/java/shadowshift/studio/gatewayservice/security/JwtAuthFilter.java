@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -43,20 +44,18 @@ public class JwtAuthFilter implements WebFilter {
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         String path = exchange.getRequest().getURI().getPath();
 
-        // check public paths
+        // check public paths (fix handling of patterns ending with /** so /api/auth/** matches /api/auth/...)
         for (String p : authProperties.getPublicPaths()) {
             String trimmed = p.trim();
-            if (trimmed.endsWith("/**")) {
-                String prefix = trimmed.substring(0, trimmed.length() - 3);
-                if (path.startsWith(prefix)) {
-                    logger.debug("Path {} is public (matches {})", path, trimmed);
-                    return chain.filter(exchange);
-                }
-            } else {
-                if (path.equals(trimmed) || path.startsWith(trimmed)) {
-                    logger.debug("Path {} is public (matches {})", path, trimmed);
-                    return chain.filter(exchange);
-                }
+            if (trimmed.isEmpty()) continue;
+
+            boolean wildcard = trimmed.endsWith("/**");
+            String base = wildcard ? trimmed.substring(0, trimmed.length() - 3) : trimmed; // remove /**
+            if (base.endsWith("/")) base = base.substring(0, base.length() - 1); // normalize
+
+            if (path.equals(base) || path.startsWith(base + "/")) {
+                logger.debug("Path {} is public (matches pattern {})", path, trimmed);
+                return chain.filter(exchange);
             }
         }
 
@@ -71,8 +70,12 @@ public class JwtAuthFilter implements WebFilter {
         CachedIntrospect cached = cache.get(token);
         if (cached != null && cached.getExpiry().isAfter(Instant.now())) {
             // token cached and valid
-            exchange.getRequest().mutate().header("X-User-Id", String.valueOf(cached.getUserId())).header("X-User-Role", String.valueOf(cached.getRole())).build();
-            return chain.filter(exchange);
+            ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
+                .header("X-User-Id", String.valueOf(cached.getUserId()))
+                .header("X-User-Role", String.valueOf(cached.getRole()))
+                .build();
+            ServerWebExchange mutatedExchange = exchange.mutate().request(mutatedRequest).build();
+            return chain.filter(mutatedExchange);
         }
 
         // Call introspection endpoint
@@ -84,15 +87,21 @@ public class JwtAuthFilter implements WebFilter {
                 .onStatus(s -> s.value() == 401, resp -> Mono.error(new RuntimeException("Invalid token")))
                 .bodyToMono(Map.class)
                 .flatMap(map -> {
-                    Boolean valid = (Boolean) ((Map<String, Object>) map).getOrDefault("valid", false);
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> m = (Map<String, Object>) map;
+                    Boolean valid = (Boolean) m.getOrDefault("valid", false);
                     if (Boolean.TRUE.equals(valid)) {
                         Object uid = map.get("userId");
                         Object role = map.get("role");
                         long ttl = authProperties.getCacheTtlSeconds();
                         CachedIntrospect ci = new CachedIntrospect(true, uid, map.get("username"), role, Instant.now().plusSeconds(ttl));
                         cache.put(token, ci);
-                        exchange.getRequest().mutate().header("X-User-Id", String.valueOf(uid)).header("X-User-Role", String.valueOf(role)).build();
-                        return chain.filter(exchange);
+                        ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
+                            .header("X-User-Id", String.valueOf(uid))
+                            .header("X-User-Role", String.valueOf(role))
+                            .build();
+                        ServerWebExchange mutatedExchange = exchange.mutate().request(mutatedRequest).build();
+                        return chain.filter(mutatedExchange);
                     } else {
                         exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
                         return exchange.getResponse().setComplete();
@@ -106,6 +115,7 @@ public class JwtAuthFilter implements WebFilter {
                 });
     }
 
+    @SuppressWarnings("unused")
     private static class CachedIntrospect {
         private final boolean valid;
         private final Object userId;

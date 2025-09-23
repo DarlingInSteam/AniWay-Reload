@@ -9,8 +9,11 @@ import org.springframework.web.reactive.function.client.WebClient;
 import shadowshift.studio.chapterservice.dto.ChapterCreateDTO;
 import shadowshift.studio.chapterservice.dto.ChapterResponseDTO;
 import shadowshift.studio.chapterservice.entity.Chapter;
+import shadowshift.studio.chapterservice.entity.ChapterLike;
 import shadowshift.studio.chapterservice.repository.ChapterRepository;
+import shadowshift.studio.chapterservice.repository.ChapterLikeRepository;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -27,10 +30,22 @@ public class ChapterService {
     private ChapterRepository chapterRepository;
 
     @Autowired
+    private ChapterLikeRepository chapterLikeRepository;
+
+    @Autowired
     private WebClient.Builder webClientBuilder;
 
     @Value("${image.storage.service.url}")
     private String imageStorageServiceUrl;
+
+    @Value("${notification.service.base-url:http://notification-service:8095}")
+    private String notificationServiceBaseUrl;
+
+    @Value("${auth.service.internal-url:http://auth-service:8085}")
+    private String authServiceInternalUrl;
+
+    @Value("${manga.service.internal-url:http://manga-service:8081}")
+    private String mangaServiceInternalUrl;
 
     /**
      * Получить все главы для указанной манги.
@@ -124,11 +139,82 @@ public class ChapterService {
         chapter.setVolumeNumber(createDTO.getVolumeNumber());
         chapter.setOriginalChapterNumber(createDTO.getOriginalChapterNumber());
         chapter.setTitle(createDTO.getTitle());
+        // Ensure likeCount is initialized to 0
+        chapter.setLikeCount(0);
         if (createDTO.getPublishedDate() != null) {
             chapter.setPublishedDate(createDTO.getPublishedDate());
         }
 
         Chapter savedChapter = chapterRepository.save(chapter);
+
+        // Fan-out notifications for bookmarked users (best-effort, non-blocking failures)
+        try {
+            WebClient client = webClientBuilder.build();
+            // 1. Fetch subscribers from AuthService
+            String subscribersUrl = authServiceInternalUrl + "/internal/bookmarks/manga/" + createDTO.getMangaId() + "/subscribers";
+            List<Long> subscribers = java.util.Collections.emptyList();
+            int attempts = 0;
+            while (attempts < 2) { // simple retry once
+                attempts++;
+                try {
+                    subscribers = client.get()
+                            .uri(subscribersUrl)
+                            .retrieve()
+                            .bodyToFlux(Long.class)
+                            .collectList()
+                            .blockOptional(java.time.Duration.ofSeconds(4))
+                            .orElse(java.util.Collections.emptyList());
+                    break;
+                } catch (Exception fetchEx) {
+                    if (attempts >= 2) {
+                        System.err.println("Fan-out: failed to fetch subscribers after retries url=" + subscribersUrl + " error=" + fetchEx.getMessage());
+                    } else {
+                        System.out.println("Fan-out: retry fetching subscribers (attempt " + (attempts+1) + ") url=" + subscribersUrl);
+                    }
+                }
+            }
+            System.out.println("Fan-out: subscribers url=" + subscribersUrl + " count=" + subscribers.size());
+            if (!subscribers.isEmpty()) {
+                // 2. Send batch event to NotificationService
+                Map<String,Object> payload = Map.of(
+                        "targetUserIds", subscribers,
+                        "mangaId", createDTO.getMangaId(),
+                        "chapterId", savedChapter.getId(),
+                        "chapterNumber", String.valueOf(createDTO.getChapterNumber()),
+                        "mangaTitle", fetchMangaTitle(createDTO.getMangaId())
+                );
+        String notifyUrl = notificationServiceBaseUrl + "/internal/events/chapter-published-batch";
+        try {
+            var responseEntity = client.post()
+                .uri(notifyUrl)
+                            .bodyValue(payload)
+                            .exchangeToMono(res -> {
+                                var sc = res.statusCode();
+                                if (sc.is2xxSuccessful()) {
+                                    return res.releaseBody().thenReturn(sc);
+                                } else {
+                                    return res.bodyToMono(String.class)
+                                        .defaultIfEmpty("")
+                                        .map(body -> {
+                                            System.err.println("Fan-out: notification non-2xx status=" + sc + " body=" + body);
+                                            return sc;
+                                        });
+                                }
+                            })
+                            .block(java.time.Duration.ofSeconds(4));
+            if (responseEntity != null && responseEntity.is2xxSuccessful()) {
+                System.out.println("Fan-out: notification batch sent url=" + notifyUrl + " status=" + responseEntity);
+            } else if (responseEntity == null) {
+                System.err.println("Fan-out: notification batch POST returned null status url=" + notifyUrl);
+            }
+        } catch (Exception postEx) {
+            System.err.println("Fan-out: notification batch exception url=" + notifyUrl + " error=" + postEx.getClass().getSimpleName() + ":" + postEx.getMessage());
+        }
+            }
+        } catch (Exception ex) {
+            System.err.println("Fan-out chapter-published failed: " + ex.getClass().getSimpleName() + ":" + ex.getMessage());
+        }
+
         return new ChapterResponseDTO(savedChapter);
     }
 
@@ -248,5 +334,142 @@ public class ChapterService {
 
         System.out.println("Updated chapter " + chapterId + " pageCount to: " + pageCount);
         return new ChapterResponseDTO(savedChapter);
+    }
+
+    /**
+     * Поставить лайк к главе от имени пользователя.
+     *
+     * @param userId идентификатор пользователя
+     * @param chapterId идентификатор главы
+     * @throws RuntimeException если глава не найдена или пользователь уже лайкнул
+     */
+    @CacheEvict(value = {"chapterDetails"}, key = "#chapterId")
+    public void likeChapter(Long userId, Long chapterId) {
+        // Проверяем, существует ли глава
+        Chapter chapter = chapterRepository.findById(chapterId)
+                .orElseThrow(() -> new RuntimeException("Chapter not found with id: " + chapterId));
+
+        // Проверяем, не лайкнул ли уже пользователь
+        if (chapterLikeRepository.existsByUserIdAndChapterId(userId, chapterId)) {
+            throw new RuntimeException("User " + userId + " has already liked chapter " + chapterId);
+        }
+
+        // Создаем лайк
+        ChapterLike like = new ChapterLike(userId, chapterId);
+        chapterLikeRepository.save(like);
+
+        // Обновляем счетчик лайков (обрабатываем null значения)
+        Integer currentLikes = chapter.getLikeCount();
+        if (currentLikes == null) {
+            currentLikes = 0;
+        }
+        chapter.setLikeCount(currentLikes + 1);
+        chapterRepository.save(chapter);
+    }
+
+    /**
+     * Убрать лайк с главы от имени пользователя.
+     *
+     * @param userId идентификатор пользователя
+     * @param chapterId идентификатор главы
+     * @throws RuntimeException если глава не найдена или лайк не существует
+     */
+    @CacheEvict(value = {"chapterDetails"}, key = "#chapterId")
+    public void unlikeChapter(Long userId, Long chapterId) {
+        // Проверяем, существует ли глава
+        Chapter chapter = chapterRepository.findById(chapterId)
+                .orElseThrow(() -> new RuntimeException("Chapter not found with id: " + chapterId));
+
+        // Находим лайк
+        ChapterLike like = chapterLikeRepository.findByUserIdAndChapterId(userId, chapterId)
+                .orElseThrow(() -> new RuntimeException("User " + userId + " has not liked chapter " + chapterId));
+
+        // Удаляем лайк
+        chapterLikeRepository.delete(like);
+
+        // Обновляем счетчик лайков (обрабатываем null значения)
+        Integer currentLikes = chapter.getLikeCount();
+        if (currentLikes == null) {
+            currentLikes = 0;
+        }
+        chapter.setLikeCount(Math.max(0, currentLikes - 1));
+        chapterRepository.save(chapter);
+    }
+
+    /**
+     * Переключить лайк к главе от имени пользователя (поставить или убрать).
+     *
+     * @param userId идентификатор пользователя
+     * @param chapterId идентификатор главы
+     * @return Map с полями "liked" (boolean) и "likeCount" (Integer)
+     * @throws RuntimeException если глава не найдена
+     */
+    @CacheEvict(value = {"chapterDetails", "chaptersByManga"}, key = "#chapterId", allEntries = true)
+    public Map<String, Object> toggleLike(Long userId, Long chapterId) {
+        // Проверяем, существует ли глава
+        Chapter chapter = chapterRepository.findById(chapterId)
+                .orElseThrow(() -> new RuntimeException("Chapter not found with id: " + chapterId));
+
+        // Проверяем, лайкнул ли уже пользователь
+        boolean alreadyLiked = chapterLikeRepository.existsByUserIdAndChapterId(userId, chapterId);
+
+        if (alreadyLiked) {
+            // Убираем лайк
+            ChapterLike like = chapterLikeRepository.findByUserIdAndChapterId(userId, chapterId)
+                    .orElseThrow(() -> new RuntimeException("Like not found"));
+            chapterLikeRepository.delete(like);
+
+            // Обновляем счетчик лайков
+            Integer currentLikes = chapter.getLikeCount();
+            if (currentLikes == null) {
+                currentLikes = 0;
+            }
+            chapter.setLikeCount(Math.max(0, currentLikes - 1));
+            chapterRepository.save(chapter);
+            return Map.of("liked", false, "likeCount", chapter.getLikeCount()); // лайк убран
+        } else {
+            // Ставим лайк
+            ChapterLike like = new ChapterLike(userId, chapterId);
+            chapterLikeRepository.save(like);
+
+            // Обновляем счетчик лайков
+            Integer currentLikes = chapter.getLikeCount();
+            if (currentLikes == null) {
+                currentLikes = 0;
+            }
+            chapter.setLikeCount(currentLikes + 1);
+            chapterRepository.save(chapter);
+            return Map.of("liked", true, "likeCount", chapter.getLikeCount()); // лайк поставлен
+        }
+    }
+
+    /**
+     * Проверить, лайкнул ли пользователь главу.
+     *
+     * @param userId идентификатор пользователя
+     * @param chapterId идентификатор главы
+     * @return true, если пользователь лайкнул главу, иначе false
+     */
+    public boolean isLikedByUser(Long userId, Long chapterId) {
+        return chapterLikeRepository.existsByUserIdAndChapterId(userId, chapterId);
+    }
+
+    private String fetchMangaTitle(Long mangaId) {
+        String url = mangaServiceInternalUrl + "/api/manga/" + mangaId;
+        try {
+            WebClient client = webClientBuilder.build();
+            Map<?,?> map = client.get()
+                    .uri(url)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block(java.time.Duration.ofSeconds(3));
+            if (map != null) {
+                Object title = map.get("title");
+                if (title != null) return String.valueOf(title);
+            }
+        } catch (Exception ex) {
+            System.err.println("fetchMangaTitle failed url=" + url + " error=" + ex.getMessage());
+        }
+        return null;
     }
 }

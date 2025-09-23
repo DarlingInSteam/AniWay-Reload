@@ -5,6 +5,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Сущность, представляющая мангу в системе MangaService.
@@ -69,10 +71,10 @@ public class Manga {
     private String genre;
 
     /**
-     * Теги манги.
+     * Теги манги (строковое представление для обратной совместимости).
      */
     @Size(max = 1000, message = "Tags must not exceed 1000 characters")
-    private String tags;
+    private String tagsString;
 
     /**
      * Английское название манги.
@@ -122,6 +124,58 @@ public class Manga {
      */
     @Column(name = "views", nullable = false)
     private Long views = 0L;
+
+    /**
+     * Средний рейтинг манги (от 0.0 до 10.0).
+     */
+    @Column(name = "rating", columnDefinition = "DECIMAL(3,2)")
+    private Double rating = 0.0;
+
+    /**
+     * Количество оценок манги.
+     */
+    @Column(name = "rating_count")
+    private Integer ratingCount = 0;
+
+    /**
+     * Общее количество лайков к главам манги.
+     */
+    @Column(name = "likes", nullable = false)
+    private Long likes = 0L;
+
+    /**
+     * Количество отзывов о манге.
+     */
+    @Column(name = "reviews")
+    private Integer reviews = 0;
+
+    /**
+     * Количество комментариев к манге.
+     */
+    @Column(name = "comments")
+    private Integer comments = 0;
+
+    /**
+     * Связь Many-to-Many с жанрами.
+     */
+    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinTable(
+        name = "manga_genres",
+        joinColumns = @JoinColumn(name = "manga_id"),
+        inverseJoinColumns = @JoinColumn(name = "genre_id")
+    )
+    private Set<Genre> genres = new HashSet<>();
+
+    /**
+     * Связь Many-to-Many с тегами.
+     */
+    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinTable(
+        name = "manga_tags",
+        joinColumns = @JoinColumn(name = "manga_id"),
+        inverseJoinColumns = @JoinColumn(name = "tag_id")
+    )
+    private Set<Tag> tags = new HashSet<>();
 
     /**
      * Дата создания записи о манге.
@@ -327,6 +381,76 @@ public class Manga {
     public void setViews(Long views) { this.views = views; }
 
     /**
+     * Возвращает средний рейтинг манги.
+     *
+     * @return средний рейтинг
+     */
+    public Double getRating() { return rating; }
+
+    /**
+     * Устанавливает средний рейтинг манги.
+     *
+     * @param rating средний рейтинг
+     */
+    public void setRating(Double rating) { this.rating = rating; }
+
+    /**
+     * Возвращает количество оценок манги.
+     *
+     * @return количество оценок
+     */
+    public Integer getRatingCount() { return ratingCount; }
+
+    /**
+     * Устанавливает количество оценок манги.
+     *
+     * @param ratingCount количество оценок
+     */
+    public void setRatingCount(Integer ratingCount) { this.ratingCount = ratingCount; }
+
+    /**
+     * Возвращает общее количество лайков к главам манги.
+     *
+     * @return количество лайков
+     */
+    public Long getLikes() { return likes; }
+
+    /**
+     * Устанавливает общее количество лайков к главам манги.
+     *
+     * @param likes количество лайков
+     */
+    public void setLikes(Long likes) { this.likes = likes; }
+
+    /**
+     * Возвращает количество отзывов о манге.
+     *
+     * @return количество отзывов
+     */
+    public Integer getReviews() { return reviews; }
+
+    /**
+     * Устанавливает количество отзывов о манге.
+     *
+     * @param reviews количество отзывов
+     */
+    public void setReviews(Integer reviews) { this.reviews = reviews; }
+
+    /**
+     * Возвращает количество комментариев к манге.
+     *
+     * @return количество комментариев
+     */
+    public Integer getComments() { return comments; }
+
+    /**
+     * Устанавливает количество комментариев к манге.
+     *
+     * @param comments количество комментариев
+     */
+    public void setComments(Integer comments) { this.comments = comments; }
+
+    /**
      * Возвращает дату создания записи о манге.
      *
      * @return дата создания
@@ -355,18 +479,18 @@ public class Manga {
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 
     /**
-     * Возвращает теги манги.
+     * Возвращает теги манги (строковое представление).
      *
      * @return теги манги
      */
-    public String getTags() { return tags; }
+    public String getTagsString() { return tagsString; }
 
     /**
-     * Устанавливает теги манги.
+     * Устанавливает теги манги (строковое представление).
      *
-     * @param tags теги манги
+     * @param tagsString теги манги
      */
-    public void setTags(String tags) { this.tags = tags; }
+    public void setTagsString(String tagsString) { this.tagsString = tagsString; }
 
     /**
      * Возвращает английское название манги.
@@ -437,6 +561,79 @@ public class Manga {
      * @param isLicensed флаг лицензированности
      */
     public void setIsLicensed(Boolean isLicensed) { this.isLicensed = isLicensed; }
+
+    /**
+     * Возвращает набор жанров манги.
+     *
+     * @return набор жанров
+     */
+    public Set<Genre> getGenres() { return genres; }
+
+    /**
+     * Устанавливает набор жанров манги.
+     *
+     * @param genres набор жанров
+     */
+    public void setGenres(Set<Genre> genres) { this.genres = genres; }
+
+    /**
+     * Добавляет жанр к манге.
+     *
+     * @param genre жанр для добавления
+     */
+    public void addGenre(Genre genre) {
+        this.genres.add(genre);
+        genre.getMangas().add(this);
+        genre.incrementMangaCount();
+    }
+
+    /**
+     * Удаляет жанр из манги.
+     *
+     * @param genre жанр для удаления
+     */
+    public void removeGenre(Genre genre) {
+        this.genres.remove(genre);
+        genre.getMangas().remove(this);
+        genre.decrementMangaCount();
+    }
+
+    /**
+     * Возвращает набор тегов манги.
+     *
+     * @return набор тегов
+     */
+    public Set<Tag> getTags() { return tags; }
+
+    /**
+     * Устанавливает набор тегов манги.
+     *
+     * @param tags набор тегов
+     */
+    public void setTags(Set<Tag> tags) { this.tags = tags; }
+
+    /**
+     * Добавляет тег к манге.
+     *
+     * @param tag тег для добавления
+     */
+    public void addTag(Tag tag) {
+        this.tags.add(tag);
+        tag.getMangas().add(this);
+        tag.incrementMangaCount();
+        tag.incrementPopularity();
+    }
+
+    /**
+     * Удаляет тег из манги.
+     *
+     * @param tag тег для удаления
+     */
+    public void removeTag(Tag tag) {
+        this.tags.remove(tag);
+        tag.getMangas().remove(this);
+        tag.decrementMangaCount();
+    }
 
     /**
      * Перечисление статусов манги.

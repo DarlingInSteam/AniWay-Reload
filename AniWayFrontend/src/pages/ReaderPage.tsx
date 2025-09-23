@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -12,24 +12,177 @@ import {
   Eye,
   ZoomIn,
   ZoomOut,
-  MessageCircle
+  MessageCircle,
+  Heart,
+  X
 } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { cn } from '@/lib/utils'
-import { formatChapterTitle } from '@/lib/chapterUtils'
+import { formatChapterTitle, getDisplayChapterNumber } from '@/lib/chapterUtils'
+import { useAuth } from '@/contexts/AuthContext'
 import { useReadingProgress } from '@/hooks/useProgress'
 import { CommentSection } from '@/components/comments/CommentSection'
+import { useLocation } from 'react-router-dom'
+
+// Extracted component for chapter images list to keep main component compact
+function ChapterImageList({
+  images,
+  imageWidth,
+  showUI,
+  previousChapter,
+  setShowUI,
+  handleTapOrClick,
+  handleDoubleClickDesktop,
+  handleTouchStartSwipe,
+  handleTouchMoveSwipe,
+  handleTouchEndSwipe,
+  visibleIndexes,
+  setVisibleIndexes,
+  wrappersRef
+}: any) {
+  const getWidthClass = () => {
+    switch (imageWidth) {
+      case 'fit': return 'max-w-4xl'
+      case 'full': return 'max-w-full'
+      case 'wide': return 'max-w-6xl'
+      default: return 'max-w-4xl'
+    }
+  }
+  return (
+    <div className={cn("mx-auto px-2 sm:px-4 overflow-x-hidden", getWidthClass())}>
+      {images.map((image: any, index: number) => {
+        const isVisible = visibleIndexes.has(index)
+        return (
+          <div
+            key={image.id}
+            data-index={index}
+            ref={el => { wrappersRef.current[index] = el }}
+            className="relative mb-0 flex justify-center min-h-[40vh]"
+          >
+            {isVisible ? (
+              <img
+                src={image.imageUrl || apiClient.getImageUrl(image.imageKey)}
+                alt={`Страница ${image.pageNumber}`}
+                className={cn(
+                  "block w-full h-auto transition-all duration-200 will-change-transform",
+                  imageWidth === 'fit' && "max-w-4xl",
+                  imageWidth === 'full' && "max-w-none w-full sm:w-screen px-0",
+                  imageWidth === 'wide' && "max-w-6xl"
+                )}
+                loading={index === 0 ? 'eager' : 'lazy'}
+                decoding="async"
+                fetchPriority={index === 0 ? 'high' : index < 3 ? 'auto' : 'low'}
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement
+                  target.src = '/placeholder-page.jpg'
+                }}
+                onLoad={() => {
+                  if (!visibleIndexes.has(index + 1) && index + 1 < images.length) {
+                    setVisibleIndexes((prev: Set<number>) => new Set(prev).add(index + 1))
+                  }
+                }}
+                onClick={() => setShowUI((v: boolean) => !v)}
+                onDoubleClick={handleDoubleClickDesktop}
+                onTouchStart={(e) => { handleTapOrClick(e); handleTouchStartSwipe(e) }}
+                onTouchMove={handleTouchMoveSwipe}
+                onTouchEnd={handleTouchEndSwipe}
+              />
+            ) : (
+              <div className={cn(
+                "w-full animate-pulse bg-white/5 rounded-lg",
+                imageWidth === 'fit' && "max-w-4xl h-[60vh]",
+                imageWidth === 'full' && "max-w-none w-full sm:w-screen h-[65vh]",
+                imageWidth === 'wide' && "max-w-6xl h-[60vh]"
+              )} />
+            )}
+            <div className={cn(
+              'absolute top-2 right-2 sm:top-4 sm:right-4 bg-black/80 backdrop-blur-sm text-white px-2 py-1 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 border border-white/20',
+              showUI ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
+            )}>
+              {image.pageNumber} / {images.length}
+            </div>
+            {index === 0 && showUI && isVisible && (
+              <div className="absolute inset-0 pointer-events-none">
+                {previousChapter && (
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 p-2">
+                    <div className="bg-black/70 backdrop-blur-sm text-white px-3 py-2 rounded-r-lg text-sm border border-white/20 animate-pulse">
+                      ← Листать главы стрелками
+                    </div>
+                  </div>
+                )}
+                <div className="absolute top-20 right-2 sm:right-4">
+                  <div className="bg-black/70 backdrop-blur-sm text-white px-3 py-2 rounded-lg text-sm border border-white/20 animate-pulse">
+                    Настройки в правом углу
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 export function ReaderPage() {
   const { chapterId } = useParams<{ chapterId: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const [showUI, setShowUI] = useState(true)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [imageWidth, setImageWidth] = useState<'fit' | 'full' | 'wide'>('fit')
   const [readingMode, setReadingMode] = useState<'vertical' | 'horizontal'>('vertical')
   const [isAutoCompleted, setIsAutoCompleted] = useState(false)
-  const [showComments, setShowComments] = useState(false)
+  // showComments legacy removed; comments accessed via side panel
+  const [showChapterList, setShowChapterList] = useState(false)
+  const [isLiked, setIsLiked] = useState(false)
+  const [liking, setLiking] = useState(false)
+  const [lastTap, setLastTap] = useState(0)
+  const likeGestureCooldownRef = useRef<number>(0)
+  const gesturePosRef = useRef<{x:number,y:number}|null>(null)
+  const [gestureBursts, setGestureBursts] = useState<Array<{id:number,x:number,y:number}>>([])
+  const touchStartRef = useRef<{x:number,y:number,time:number}|null>(null)
+  const touchMovedRef = useRef<boolean>(false)
+  const [showSideComments, setShowSideComments] = useState(false)
+
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+
+  // Hydrate reading settings from localStorage once
+  useEffect(() => {
+    try {
+      const storedMode = localStorage.getItem('reader.mode')
+      if (storedMode === 'vertical' || storedMode === 'horizontal') {
+        setReadingMode(storedMode)
+      }
+      const storedWidth = localStorage.getItem('reader.imageWidth')
+      if (storedWidth === 'fit' || storedWidth === 'full' || storedWidth === 'wide') {
+        setImageWidth(storedWidth)
+      }
+    } catch (e) {
+      // ignore storage errors (e.g., privacy mode)
+    }
+  }, [])
+
+  // Auto-open side comments panel if navigating directly to a comment anchor (#comment-...)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (window.location.hash.startsWith('#comment-')) {
+      setShowSideComments(true)
+    }
+  // react to hash changes (navigation to another comment within reader)
+  }, [location?.hash])
+
+  // Persist when settings change
+  useEffect(() => {
+    try {
+      localStorage.setItem('reader.mode', readingMode)
+      localStorage.setItem('reader.imageWidth', imageWidth)
+    } catch (e) {
+      // ignore
+    }
+  }, [readingMode, imageWidth])
 
   // Reading progress tracking
   const { trackChapterViewed, markChapterCompleted, isChapterCompleted, clearTrackedChapters } = useReadingProgress()
@@ -46,9 +199,56 @@ export function ReaderPage() {
     enabled: !!chapterId,
   })
 
+  // Lazy visibility state for images (virtual-ish)
+  const [visibleIndexes, setVisibleIndexes] = useState<Set<number>>(() => new Set([0,1,2]))
+  const observerRef = useRef<IntersectionObserver | null>(null)
+  const wrappersRef = useRef<(HTMLDivElement | null)[]>([])
+
+  // Reset visibility when chapter changes
+  useEffect(() => {
+    setVisibleIndexes(new Set([0,1,2]))
+  }, [chapterId])
+
+  useEffect(() => {
+    if (!images || images.length === 0) return
+    if (observerRef.current) {
+      observerRef.current.disconnect()
+    }
+    observerRef.current = new IntersectionObserver((entries) => {
+      let changed = false
+      const next = new Set(visibleIndexes)
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          const idxAttr = entry.target.getAttribute('data-index')
+            
+          if (idxAttr) {
+            const idx = parseInt(idxAttr)
+            if (!next.has(idx)) {
+              next.add(idx)
+              // Prefetch next immediate page for smoother scroll
+              if (idx + 1 < images.length) next.add(idx + 1)
+              changed = true
+            }
+          }
+        }
+      }
+      if (changed) setVisibleIndexes(next)
+    }, { root: null, rootMargin: '800px 0px 800px 0px', threshold: 0.01 })
+
+    wrappersRef.current.forEach((el, idx) => {
+      if (el && !visibleIndexes.has(idx)) {
+        observerRef.current?.observe(el)
+      }
+    })
+
+    return () => {
+      observerRef.current?.disconnect()
+    }
+  }, [images, visibleIndexes])
+
   const { data: manga } = useQuery({
-    queryKey: ['manga', chapter?.mangaId],
-    queryFn: () => apiClient.getMangaById(chapter!.mangaId),
+    queryKey: ['manga', chapter?.mangaId, user?.id],
+    queryFn: () => apiClient.getMangaById(chapter!.mangaId, user?.id),
     enabled: !!chapter?.mangaId,
   })
 
@@ -57,6 +257,127 @@ export function ReaderPage() {
     queryFn: () => apiClient.getChaptersByManga(chapter!.mangaId),
     enabled: !!chapter?.mangaId,
   })
+
+  // Handle chapter like/unlike
+  const handleChapterLike = async () => {
+    if (!chapter || liking) return
+
+    setLiking(true)
+    try {
+      const response = await apiClient.toggleChapterLike(chapter.id)
+      setIsLiked(response.liked)
+
+      // Invalidate chapter query to refresh like count from server
+      queryClient.invalidateQueries({ queryKey: ['chapter', chapterId] })
+
+      // Optimistically update the local chapter data to show immediate count changes
+      queryClient.setQueryData(['chapter', chapterId], (oldData: any) => {
+        if (!oldData) return oldData
+        return {
+          ...oldData,
+          likeCount: response.likeCount
+        }
+      })
+    } catch (error) {
+      console.error('Failed to toggle chapter like:', error)
+    } finally {
+      setLiking(false)
+    }
+  }
+
+  // Handle double tap / double click for like with cooldown & visual feedback
+  const triggerHeartBurst = (clientX:number, clientY:number) => {
+    // store relative to viewport; container is full width so OK
+    setGestureBursts(prev => [...prev, { id: Date.now() + Math.random(), x: clientX, y: clientY }])
+    // prune after 1.2s
+    setTimeout(() => {
+      setGestureBursts(prev => prev.slice(1))
+    }, 1200)
+  }
+
+  const attemptLikeFromGesture = (clientX:number, clientY:number) => {
+    const now = Date.now()
+    if (now - likeGestureCooldownRef.current < 600) return // cooldown
+    likeGestureCooldownRef.current = now
+    triggerHeartBurst(clientX, clientY)
+    handleChapterLike()
+  }
+
+  const handleTapOrClick = (e: React.MouseEvent | React.TouchEvent) => {
+    let clientX: number
+    let clientY: number
+    if ('touches' in e && e.touches.length > 0) {
+      clientX = e.touches[0].clientX
+      clientY = e.touches[0].clientY
+    } else if ('changedTouches' in (e as any) && (e as any).changedTouches.length > 0) {
+      clientX = (e as any).changedTouches[0].clientX
+      clientY = (e as any).changedTouches[0].clientY
+    } else {
+      const mouseEvent = e as React.MouseEvent
+      clientX = mouseEvent.clientX
+      clientY = mouseEvent.clientY
+    }
+    const currentTime = Date.now()
+    const timeDiff = currentTime - lastTap
+    if (timeDiff < 320 && timeDiff > 0) {
+      attemptLikeFromGesture(clientX, clientY)
+    }
+    setLastTap(currentTime)
+  }
+
+  const handleDoubleClickDesktop = (e: React.MouseEvent) => {
+    attemptLikeFromGesture(e.clientX, e.clientY)
+  }
+
+  // Swipe handlers
+  const handleTouchStartSwipe = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return
+    const t = e.touches[0]
+    touchStartRef.current = { x: t.clientX, y: t.clientY, time: Date.now() }
+    touchMovedRef.current = false
+  }
+  const handleTouchMoveSwipe = (e: React.TouchEvent) => {
+    if (!touchStartRef.current) return
+    const t = e.touches[0]
+    const dx = t.clientX - touchStartRef.current.x
+    const dy = t.clientY - touchStartRef.current.y
+    if (Math.abs(dx) > 8 || Math.abs(dy) > 8) touchMovedRef.current = true
+  }
+  const handleTouchEndSwipe = (e: React.TouchEvent) => {
+    if (!touchStartRef.current) return
+    const start = touchStartRef.current
+    const endTime = Date.now()
+    const dt = endTime - start.time
+    const touch = e.changedTouches[0]
+    const dx = touch.clientX - start.x
+    const dy = touch.clientY - start.y
+    touchStartRef.current = null
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.2) return // horizontal intent
+    if (dt > 800) return // too slow
+    if (Math.abs(dy) > 120) return // large vertical movement
+    if (dx < 0) {
+      // swipe left -> next chapter
+      navigateToNextChapter()
+    } else {
+      navigateToPreviousChapter()
+    }
+  }
+
+  // Load chapter like status
+  useEffect(() => {
+    const loadLikeStatus = async () => {
+      if (!chapter) return
+
+      try {
+        const response = await apiClient.isChapterLiked(chapter.id)
+        setIsLiked(response.liked)
+      } catch (error) {
+        console.error('Failed to load chapter like status:', error)
+      }
+    }
+
+    loadLikeStatus()
+  }, [chapter])
 
   // Scroll to top when chapter changes
   useEffect(() => {
@@ -314,7 +635,32 @@ export function ReaderPage() {
 
   return (
     <div className="manga-reader min-h-screen bg-black relative">
-      {/* Top Navigation Bar - ИСПРАВЛЕНО центрирование */}
+      <style>{`
+        @keyframes heart-pop {
+          0% { transform: scale(0.3) translateY(0); opacity: 0; }
+          10% { transform: scale(1) translateY(0); opacity: 1; }
+          60% { transform: scale(1.05) translateY(-40px); opacity: 0.9; }
+          100% { transform: scale(0.6) translateY(-80px); opacity: 0; }
+        }
+      `}</style>
+      {/* Gesture Heart Bursts */}
+      {gestureBursts.map(burst => (
+        <div
+          key={burst.id}
+          style={{
+            position: 'fixed',
+            left: burst.x - 40,
+            top: burst.y - 40,
+            pointerEvents: 'none',
+            zIndex: 60,
+            animation: 'heart-pop 1.2s ease-out forwards'
+          }}
+          className="select-none"
+        >
+          <Heart className="w-20 h-20 text-red-500/80 fill-red-500/80 drop-shadow-[0_0_8px_rgba(239,68,68,0.6)]" />
+        </div>
+      ))}
+      {/* Top Navigation Bar - updated with prev/next buttons */}
       <div className={cn(
         'fixed top-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-sm border-b border-white/10 transition-all duration-300',
         showUI ? 'translate-y-0' : '-translate-y-full'
@@ -348,18 +694,55 @@ export function ReaderPage() {
               </div>
             </div>
 
-            {/* Center - идеально центрированная информация о главе */}
-            <div className="flex flex-col items-center justify-center text-center text-white">
-              <h1 className="font-semibold text-base">
-                {formatChapterTitle(chapter)}
-              </h1>
-              <p className="text-xs text-gray-400 mt-1">
-                {currentChapterIndex + 1} из {sortedChapters?.length || 0}
-              </p>
+            {/* Center - chapter navigation + clickable index */}
+            <div className="flex items-center justify-center text-white space-x-3">
+              <button
+                disabled={!previousChapter}
+                onClick={navigateToPreviousChapter}
+                className={cn('p-2 rounded-lg border border-white/10 hover:bg-white/10 transition disabled:opacity-30 disabled:cursor-not-allowed')}
+                title="Предыдущая глава"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <div className="flex flex-col items-center">
+                <button
+                  onClick={() => setShowChapterList(true)}
+                  className="font-semibold text-base hover:text-primary transition-colors"
+                  title="Открыть список глав"
+                >
+                  {formatChapterTitle(chapter)}
+                </button>
+                <button
+                  onClick={() => setShowChapterList(true)}
+                  className="text-xs text-gray-400 mt-1 hover:text-primary/80 transition"
+                  title="Открыть список глав"
+                >
+                  {currentChapterIndex + 1} из {sortedChapters?.length || 0}
+                </button>
+              </div>
+              <button
+                disabled={!nextChapter}
+                onClick={navigateToNextChapter}
+                className={cn('p-2 rounded-lg border border-white/10 hover:bg-white/10 transition disabled:opacity-30 disabled:cursor-not-allowed')}
+                title="Следующая глава"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
             </div>
 
             {/* Right side - фиксированная ширина */}
             <div className="flex items-center space-x-2 justify-end">
+              <button
+                onClick={handleChapterLike}
+                disabled={liking}
+                className={cn(
+                  "p-2 rounded-full hover:bg-white/10 text-white transition-colors flex items-center space-x-1",
+                  isLiked && "text-red-400"
+                )}
+              >
+                <Heart className={cn("h-5 w-5", isLiked && "fill-current")} />
+                <span className="text-sm">{chapter?.likeCount || 0}</span>
+              </button>
               <button
                 onClick={() => setIsSettingsOpen(!isSettingsOpen)}
                 className="p-2 rounded-full hover:bg-white/10 text-white transition-colors"
@@ -377,7 +760,7 @@ export function ReaderPage() {
         </div>
       </div>
 
-      {/* Settings Panel */}
+  {/* Settings Panel */}
       {isSettingsOpen && (
         <div className="fixed top-16 right-4 z-40 bg-card border border-border/30 rounded-xl p-4 min-w-[200px] animate-fade-in settings-panel">
           <h3 className="text-white font-semibold mb-3">Настройки чтения</h3>
@@ -396,16 +779,21 @@ export function ReaderPage() {
               </div>
             </button>
             <button
-              onClick={() => setImageWidth(width => width === 'fit' ? 'full' : 'fit')}
-              className="w-full text-left text-sm text-muted-foreground hover:text-white transition-colors p-2 rounded hover:bg-secondary"
+              onClick={() => setImageWidth(width => width === 'fit' ? 'full' : width === 'full' ? 'wide' : 'fit')}
+              className="w-full text-left text-sm text-muted-foreground hover:text-white transition-colors p-2 rounded hover:bg-secondary group"
             >
               <div className="flex items-center justify-between">
-                <span>Размер изображений</span>
-                {imageWidth === 'fit' ? (
-                  <ZoomIn className="h-5 w-5 text-primary" />
-                ) : (
-                  <ZoomOut className="h-5 w-5 text-muted-foreground" />
-                )}
+                <span className="flex flex-col">
+                  <span>Размер изображений</span>
+                  <span className="text-[10px] uppercase tracking-wide text-primary/70 mt-0.5">
+                    {imageWidth === 'fit' && 'FIT'}
+                    {imageWidth === 'full' && 'FULL'}
+                    {imageWidth === 'wide' && 'WIDE'}
+                  </span>
+                </span>
+                {imageWidth === 'fit' && <ZoomIn className="h-5 w-5 text-primary" />}
+                {imageWidth === 'full' && <ZoomOut className="h-5 w-5 text-primary" />}
+                {imageWidth === 'wide' && <ZoomOut className="h-5 w-5 text-red-400" />}
               </div>
             </button>
             <button
@@ -436,149 +824,82 @@ export function ReaderPage() {
         </div>
       )}
 
-      {/* Main Content - Vertical Scroll */}
+  {/* Main Content - Vertical Scroll */}
       <div className="pt-16">
         {/* Reading Area */}
-        <div className={cn(
-          "mx-auto px-2 sm:px-4",
-          getImageWidthClass()
-        )}>
-          {images.map((image, index) => (
-            <div key={image.id} className="relative mb-0 flex justify-center">
-              <img
-                src={image.imageUrl || apiClient.getImageUrl(image.imageKey)}
-                alt={`Страница ${image.pageNumber}`}
-                className={cn(
-                  "block w-full h-auto transition-all duration-200",
-                  imageWidth === 'fit' && "max-w-4xl",
-                  imageWidth === 'full' && "max-w-none w-screen px-0",
-                  imageWidth === 'wide' && "max-w-6xl"
-                )}
-                loading={index < 3 ? 'eager' : 'lazy'}
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement
-                  target.src = '/placeholder-page.jpg'
-                }}
-                onClick={() => setShowUI(!showUI)}
-              />
+        <ChapterImageList
+          images={images}
+          imageWidth={imageWidth}
+          showUI={showUI}
+          previousChapter={previousChapter}
+          setShowUI={setShowUI}
+          handleTapOrClick={handleTapOrClick}
+          handleDoubleClickDesktop={handleDoubleClickDesktop}
+          handleTouchStartSwipe={handleTouchStartSwipe}
+          handleTouchMoveSwipe={handleTouchMoveSwipe}
+          handleTouchEndSwipe={handleTouchEndSwipe}
+          visibleIndexes={visibleIndexes}
+          setVisibleIndexes={setVisibleIndexes}
+          wrappersRef={wrappersRef}
+        />
 
-              {/* Page Number Indicator */}
-              <div className={cn(
-                'absolute top-2 right-2 sm:top-4 sm:right-4 bg-black/80 backdrop-blur-sm text-white px-2 py-1 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 border border-white/20',
-                showUI ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
-              )}>
-                {image.pageNumber} / {images.length}
-              </div>
-
-              {/* Navigation hints on first page */}
-              {index === 0 && showUI && (
-                <div className="absolute inset-0 pointer-events-none">
-                  {/* Previous chapter hint */}
-                  {previousChapter && (
-                    <div className="absolute left-0 top-1/2 -translate-y-1/2 p-2">
-                      <div className="bg-black/70 backdrop-blur-sm text-white px-3 py-2 rounded-r-lg text-sm border border-white/20 animate-pulse">
-                        ← Листать главы стрелками
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Settings hint */}
-                  <div className="absolute top-20 right-2 sm:right-4">
-                    <div className="bg-black/70 backdrop-blur-sm text-white px-3 py-2 rounded-lg text-sm border border-white/20 animate-pulse">
-                      Настройки в правом углу
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* Chapter Navigation - улучшенный дизайн */}
-        <div className="bg-gradient-to-r from-card/30 via-card/50 to-card/30 backdrop-blur-sm border-t border-white/10 py-6 sm:py-8">
-          <div className="container mx-auto px-4">
-            <div className="flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0 gap-4">
-              {/* Previous Chapter */}
-              {previousChapter ? (
+        {/* End-of-chapter action panel */}
+        <div className="mt-12 mb-16">
+          <div className="max-w-6xl mx-auto px-4">
+            <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/5 via-white/5 to-white/[0.03] backdrop-blur-md shadow-xl shadow-black/30 p-6 space-y-6">
+              <div className="flex flex-wrap gap-3 justify-center">
                 <button
                   onClick={navigateToPreviousChapter}
-                  className="flex items-center space-x-3 p-3 sm:p-4 bg-white/5 backdrop-blur-sm rounded-xl hover:bg-white/10 transition-all duration-200 group w-full sm:w-auto border border-white/10 hover:border-white/20"
+                  disabled={!previousChapter}
+                  className={cn('px-4 py-3 rounded-xl text-sm md:text-base font-medium border transition flex items-center gap-2 min-w-[140px] justify-center',
+                    previousChapter ? 'bg-white/7 hover:bg-white/10 border-white/15 text-white' : 'bg-white/5 border-white/10 text-white/35 cursor-not-allowed')}
                 >
-                  <ChevronLeft className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
-                  <div className="text-left min-w-0 flex-1">
-                    <p className="text-muted-foreground text-xs sm:text-sm">Предыдущая глава</p>
-                    <p className="text-white font-medium text-sm sm:text-base line-clamp-1">
-                      {formatChapterTitle(previousChapter)}
-                    </p>
-                  </div>
+                  <ChevronLeft className="h-5 w-5" /> Предыдущая
                 </button>
-              ) : (
-                <div className="w-full sm:w-auto opacity-50 p-4">
-                  <p className="text-muted-foreground text-center text-sm">Это первая глава</p>
-                </div>
-              )}
-
-              {/* Back to Manga - центральная кнопка */}
-              {manga && (
-                <Link
-                  to={`/manga/${manga.id}`}
-                  className="flex items-center justify-center px-4 sm:px-6 py-3 bg-primary/90 backdrop-blur-sm text-white rounded-xl font-semibold hover:bg-primary transition-all duration-200 transform hover:scale-105 border border-primary/20 shadow-lg shadow-primary/20"
+                <button
+                  onClick={() => setShowChapterList(true)}
+                  className="px-5 py-3 rounded-xl text-sm md:text-base font-semibold border bg-primary/85 hover:bg-primary transition border-primary/40 text-white flex items-center gap-2 shadow-md shadow-primary/30"
                 >
-                  <BookOpen className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
-                  <span className="text-sm sm:text-base">К главам</span>
-                </Link>
-              )}
-
-              {/* Comments Toggle Button */}
-              <button
-                onClick={() => setShowComments(!showComments)}
-                className="flex items-center justify-center px-4 sm:px-6 py-3 bg-blue-600/90 backdrop-blur-sm text-white rounded-xl font-semibold hover:bg-blue-600 transition-all duration-200 transform hover:scale-105 border border-blue-500/20 shadow-lg shadow-blue-500/20"
-              >
-                <MessageCircle className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
-                <span className="text-sm sm:text-base">
-                  {showComments ? 'Скрыть комментарии' : 'Комментарии'}
-                </span>
-              </button>
-
-              {/* Next Chapter */}
-              {nextChapter ? (
+                  <BookOpen className="h-5 w-5" /> Список глав
+                </button>
                 <button
                   onClick={navigateToNextChapter}
-                  className="flex items-center space-x-3 p-3 sm:p-4 bg-white/5 backdrop-blur-sm rounded-xl hover:bg-white/10 transition-all duration-200 group w-full sm:w-auto border border-white/10 hover:border-white/20"
+                  disabled={!nextChapter}
+                  className={cn('px-4 py-3 rounded-xl text-sm md:text-base font-medium border transition flex items-center gap-2 min-w-[140px] justify-center',
+                    nextChapter ? 'bg-white/7 hover:bg-white/10 border-white/15 text-white' : 'bg-white/5 border-white/10 text-white/35 cursor-not-allowed')}
                 >
-                  <div className="text-right min-w-0 flex-1">
-                    <p className="text-muted-foreground text-xs sm:text-sm">Следующая глава</p>
-                    <p className="text-white font-medium text-sm sm:text-base line-clamp-1">
-                      {formatChapterTitle(nextChapter)}
-                    </p>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                  Следующая <ChevronRight className="h-5 w-5" />
                 </button>
-              ) : (
-                <div className="w-full sm:w-auto opacity-50 p-4">
-                  <p className="text-muted-foreground text-center text-sm">Это последняя глава</p>
-                </div>
-              )}
+              </div>
+              <div className="flex flex-wrap gap-3 justify-center">
+                {manga && (
+                  <Link
+                    to={`/manga/${manga.id}`}
+                    className="px-5 py-3 rounded-xl text-sm md:text-base font-medium border bg-white/6 hover:bg-white/10 border-white/15 text-white transition flex items-center gap-2"
+                  >
+                    <Home className="h-5 w-5" /> Страница манги
+                  </Link>
+                )}
+                <button
+                  onClick={() => setShowSideComments(true)}
+                  className="px-5 py-3 rounded-xl text-sm md:text-base font-medium border bg-blue-600/85 hover:bg-blue-600 border-blue-500/40 text-white transition flex items-center gap-2 shadow-md shadow-blue-600/30"
+                >
+                  <MessageCircle className="h-5 w-5" /> Комментарии
+                </button>
+                <button
+                  onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                  className="px-5 py-3 rounded-xl text-sm md:text-base font-medium border bg-white/6 hover:bg-white/10 border-white/15 text-white/90 transition flex items-center gap-2"
+                >
+                  <ArrowLeft className="h-5 w-5 rotate-90" /> Вверх
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Comments Section */}
-        {showComments && chapter && (
-          <div className="bg-gradient-to-r from-card/30 via-card/50 to-card/30 backdrop-blur-sm border-t border-white/10 py-6 sm:py-8">
-            <div className="container mx-auto px-4">
-              <CommentSection
-                targetId={chapter.id}
-                type="CHAPTER"
-                title={`Комментарии к главе ${chapter.chapterNumber}`}
-                maxLevel={3}
-              />
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Improved Keyboard Shortcuts Help */}
+      {/* Keyboard Shortcuts Help */}
       <div className={cn(
         'fixed bottom-4 left-4 bg-black/80 backdrop-blur-sm text-white text-xs p-3 rounded-lg transition-all duration-300 border border-white/20',
         showUI ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
@@ -587,15 +908,129 @@ export function ReaderPage() {
           <div>ESC - Назад</div>
           <div>H - Показать/скрыть UI</div>
           <div>← → - Смена глав</div>
+          <div>Двойной тап - Лайк</div>
         </div>
       </div>
+
+      {/* Right vertical action bar */}
+      {chapter && (
+        <div className={cn(
+          'fixed top-1/2 -translate-y-1/2 right-2 sm:right-4 z-40 flex flex-col space-y-3',
+          showUI ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        )}>
+          <button
+            onClick={() => setShowChapterList(true)}
+            className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white shadow-lg backdrop-blur-md transition group focus:outline-none focus:ring-2 focus:ring-primary/50 active:scale-95"
+            title="Список глав" aria-label="Список глав"
+          >
+            <BookOpen className="h-5 w-5 group-hover:text-primary transition-colors" />
+          </button>
+          <button
+            onClick={() => setShowSideComments(true)}
+            className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white shadow-lg backdrop-blur-md transition group focus:outline-none focus:ring-2 focus:ring-blue-500/40 active:scale-95"
+            title="Комментарии" aria-label="Комментарии"
+          >
+            <MessageCircle className="h-5 w-5 group-hover:text-blue-400 transition-colors" />
+          </button>
+          <button
+            onClick={handleChapterLike}
+            disabled={liking}
+            className={cn(
+              'p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white shadow-lg backdrop-blur-md transition group focus:outline-none focus:ring-2 focus:ring-red-500/40 active:scale-95',
+              isLiked && 'text-red-400'
+            )}
+            title={isLiked ? 'Убрать лайк' : 'Поставить лайк'}
+          >
+            <Heart className={cn('h-5 w-5', isLiked && 'fill-current')} />
+          </button>
+          <button
+            onClick={() => setIsSettingsOpen(v=>!v)}
+            className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white shadow-lg backdrop-blur-md transition group focus:outline-none focus:ring-2 focus:ring-amber-300/40 active:scale-95"
+            title="Настройки" aria-label="Настройки"
+          >
+            <Settings className="h-5 w-5 group-hover:text-amber-300 transition-colors" />
+          </button>
+          <button
+            onClick={() => navigate(-1)}
+            className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white shadow-lg backdrop-blur-md transition group focus:outline-none focus:ring-2 focus:ring-white/30 active:scale-95"
+            title="Назад" aria-label="Назад"
+          >
+            <ArrowLeft className="h-5 w-5 group-hover:text-gray-300" />
+          </button>
+        </div>
+      )}
+
+      {/* Chapter list side panel */}
+      {showChapterList && manga && allChapters && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={()=>setShowChapterList(false)} />
+          <div className="relative ml-auto h-full w-full sm:w-[420px] md:w-[460px] bg-[#0f1115]/95 backdrop-blur-xl border-l border-white/10 flex flex-col animate-in slide-in-from-right">
+            <div className="flex items-center justify-between p-4 border-b border-white/10">
+              <h3 className="text-white font-semibold text-sm sm:text-base">Главы • {manga.title}</h3>
+              <button onClick={()=>setShowChapterList(false)} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" aria-label="Закрыть">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-3 sm:px-4 pb-4 space-y-2" id="chapter-list-scroll">
+              {sortedChapters?.map(ch => {
+                const active = ch.id === chapter.id
+                return (
+                  <button
+                    key={ch.id}
+                    onClick={() => { navigate(`/reader/${ch.id}`); setShowChapterList(false) }}
+                    className={cn('w-full text-left px-3 py-2 rounded-lg border text-sm flex items-center justify-between transition',
+                      active ? 'bg-primary/20 border-primary/40 text-white' : 'bg-white/5 border-white/10 hover:bg-white/10 text-gray-300')}
+                    data-active={active || undefined}
+                  >
+                    <span className="truncate">{formatChapterTitle(ch)}</span>
+                    <span className="ml-3 text-xs opacity-70">#{getDisplayChapterNumber(ch.chapterNumber)}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Side comments panel */}
+      {showSideComments && chapter && (
+        <div className="fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowSideComments(false)}
+          />
+          {/* Panel */}
+            <div className="relative ml-auto h-full w-full sm:w-[480px] md:w-[520px] bg-[#0f1115]/95 backdrop-blur-xl border-l border-white/10 flex flex-col animate-in slide-in-from-right">
+              <div className="flex items-center justify-between p-4 border-b border-white/10">
+                <h3 className="text-white font-semibold text-sm sm:text-base">Комментарии к главе {getDisplayChapterNumber(chapter.chapterNumber)}</h3>
+                <button
+                  onClick={() => setShowSideComments(false)}
+                  className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                  aria-label="Закрыть"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto px-3 sm:px-4 pb-4">
+                <CommentSection
+                  targetId={chapter.id}
+                  type="CHAPTER"
+                  title=""
+                  maxLevel={3}
+                />
+              </div>
+            </div>
+        </div>
+      )}
 
       {/* Mobile navigation hints */}
       <div className={cn(
         'fixed bottom-4 right-4 sm:hidden bg-black/80 backdrop-blur-sm text-white text-xs p-3 rounded-lg transition-all duration-300 border border-white/20',
         showUI ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
       )}>
-        Тапните по изображению чтобы скрыть UI
+        Тапните по изображению чтобы скрыть UI<br/>
+        Двойной тап для лайка
       </div>
     </div>
   )

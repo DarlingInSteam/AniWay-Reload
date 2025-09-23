@@ -1,4 +1,5 @@
 import { CommentSection } from '@/components/comments/CommentSection';
+import { useEffect } from 'react';
 
 interface ProfileFooterProps {
   userId: number;
@@ -10,6 +11,14 @@ interface ProfileFooterProps {
 export function ProfileFooter({
   userId,
 }: ProfileFooterProps) {
+  // Re-run highlighter after profile comment section mounts if hash targets a comment
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.location.hash.startsWith('#comment-')) {
+      // small delay to ensure comments hook starts fetching
+      setTimeout(() => { (window as any).__rehighlightAnchor?.(); }, 120);
+    }
+  }, [userId]);
 
   return (
     <div className="space-y-6">

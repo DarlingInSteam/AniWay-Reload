@@ -31,6 +31,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final UserService userService;
+    private final EmailVerificationService emailVerificationService;
     
     /**
      * Регистрирует нового пользователя в системе.
@@ -42,6 +43,16 @@ public class AuthService {
      * @throws IllegalArgumentException если имя пользователя или email уже существуют
      */
     public AuthResponse register(RegisterRequest request) {
+        // Enforce email verification
+        if (request.getVerificationToken() == null || request.getVerificationToken().isBlank()) {
+            throw new IllegalArgumentException("EMAIL_NOT_VERIFIED");
+        }
+
+    String verifiedEmail = emailVerificationService.consumeVerificationToken(request.getVerificationToken(), shadowshift.studio.authservice.entity.EmailVerification.Purpose.REGISTRATION);
+        if (!verifiedEmail.equalsIgnoreCase(request.getEmail())) {
+            throw new IllegalArgumentException("EMAIL_MISMATCH");
+        }
+
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new IllegalArgumentException("Username already exists");
         }
@@ -63,13 +74,16 @@ public class AuthService {
                 .build();
         
         userRepository.save(user);
+
+    emailVerificationService.markEmailUsed(verifiedEmail);
         
         log.info("User registered successfully: {}", user.getUsername());
 
         UserDTO userDTO = UserMapper.toUserDTO(user);
         
         var jwtToken = jwtService.generateToken(user);
-        return AuthResponse.of(jwtToken, userDTO);
+
+        return AuthResponse.of(jwtToken, UserMapper.toFullUserDTO(user));
     }
     
     /**
@@ -99,7 +113,8 @@ public class AuthService {
         UserDTO userDTO = UserMapper.toUserDTO(user);
 
         var jwtToken = jwtService.generateToken(user);
-        return AuthResponse.of(jwtToken, userDTO);
+
+        return AuthResponse.of(jwtToken, UserMapper.toFullUserDTO(user));
     }
     
     /**
@@ -113,7 +128,8 @@ public class AuthService {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        return UserMapper.toUserDTO(user);
+        
+        return UserMapper.toFullUserDTO(user);
     }
     
     /**
@@ -139,5 +155,41 @@ public class AuthService {
             log.error("Token validation failed: {}", e.getMessage());
             return null;
         }
+    }
+
+    // Password reset using previously verified token (PASSWORD_RESET purpose)
+    public void resetPasswordWithToken(String verificationToken, String newPassword) {
+        String email = emailVerificationService.consumeVerificationToken(verificationToken, shadowshift.studio.authservice.entity.EmailVerification.Purpose.PASSWORD_RESET);
+        var userOpt = userRepository.findByEmail(email);
+        if (userOpt.isEmpty()) {
+            throw new IllegalArgumentException("USER_NOT_FOUND");
+        }
+        var user = userOpt.get();
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+        log.info("Password reset for user {}", user.getUsername());
+    }
+
+    // Authenticated password change
+    public void changePassword(String username, String currentPassword, String newPassword) {
+        var user = userRepository.findByUsername(username).orElseThrow(() -> new IllegalArgumentException("USER_NOT_FOUND"));
+        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+            throw new IllegalArgumentException("BAD_CREDENTIALS");
+        }
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+        log.info("Password changed for user {}", username);
+    }
+
+    // Account deletion after email confirmation token (ACCOUNT_DELETION purpose)
+    public void deleteAccountWithToken(String verificationToken) {
+        String email = emailVerificationService.consumeVerificationToken(verificationToken, shadowshift.studio.authservice.entity.EmailVerification.Purpose.ACCOUNT_DELETION);
+        var userOpt = userRepository.findByEmail(email);
+        if (userOpt.isEmpty()) {
+            throw new IllegalArgumentException("USER_NOT_FOUND");
+        }
+        var user = userOpt.get();
+        userRepository.delete(user);
+        log.info("Account deleted for user {}", user.getUsername());
     }
 }

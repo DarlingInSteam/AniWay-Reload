@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import { useResolvedAvatar } from '@/hooks/useResolvedAvatar'
 
 export const UserMenu: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false)
@@ -47,17 +48,25 @@ export const UserMenu: React.FC = () => {
     )
   }
 
+  const resolvedAvatar = useResolvedAvatar(user?.id, user?.avatar)
+
   return (
     <div className="relative" ref={menuRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center space-x-3 text-muted-foreground hover:text-white focus:outline-none"
       >
-        <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-          <span className="text-white text-sm font-medium">
-            {user.username.charAt(0).toUpperCase()}
-          </span>
-        </div>
+        {resolvedAvatar ? (
+          <div className="w-8 h-8 rounded-full overflow-hidden ring-1 ring-white/20 bg-white/10">
+            <img src={resolvedAvatar} alt={user.username} className="w-full h-full object-cover" />
+          </div>
+        ) : (
+          <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+            <span className="text-white text-sm font-medium">
+              {user.username.charAt(0).toUpperCase()}
+            </span>
+          </div>
+        )}
         <div className="hidden md:block text-left">
           <p className="text-sm font-medium text-white">{user.username}</p>
           {(isAdmin || isTranslator) && (
@@ -87,14 +96,6 @@ export const UserMenu: React.FC = () => {
           </Link>
 
           <Link
-            to="/library"
-            className="block px-4 py-2 text-sm text-white hover:bg-secondary transition-colors"
-            onClick={() => setIsOpen(false)}
-          >
-            Моя библиотека
-          </Link>
-
-          <Link
             to="/bookmarks"
             className="block px-4 py-2 text-sm text-white hover:bg-secondary transition-colors"
             onClick={() => setIsOpen(false)}
@@ -108,6 +109,13 @@ export const UserMenu: React.FC = () => {
             onClick={() => setIsOpen(false)}
           >
             История чтения
+          </Link>
+          <Link
+            to="/settings"
+            className="block px-4 py-2 text-sm text-white hover:bg-secondary transition-colors"
+            onClick={() => setIsOpen(false)}
+          >
+            Настройки
           </Link>
 
           {isTranslator && (

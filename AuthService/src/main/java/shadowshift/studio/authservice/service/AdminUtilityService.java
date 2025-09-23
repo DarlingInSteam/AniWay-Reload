@@ -13,6 +13,7 @@ import shadowshift.studio.authservice.repository.AdminActionLogRepository;
 import java.util.List;
 import java.util.stream.Collectors;
 
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -22,6 +23,7 @@ public class AdminUtilityService {
 
     public void banOrUnBanUserById(Long adminId, Long userId, String reason) {
         userService.banOrUnBanUser(adminId, userId, reason);
+
     }
 
     public List<UserDTO> getUsersPage(int page, int size) {
@@ -44,5 +46,6 @@ public class AdminUtilityService {
         return logs.stream()
                 .map(AdminActionLogMapper::toAdminActionLogDTO)
                 .collect(Collectors.toList());
+
     }
 }

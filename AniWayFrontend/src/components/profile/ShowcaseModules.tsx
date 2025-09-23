@@ -1,5 +1,6 @@
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+// Removed Card components in favor of unified ProfilePanel
 import { Button } from '@/components/ui/button';
+import { ProfilePanel } from './ProfilePanel';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -24,6 +25,8 @@ import {
   ThumbsUp,
   Reply
 } from 'lucide-react';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { useResolvedAvatar } from '@/hooks/useResolvedAvatar';
 
 interface ShowcaseModuleProps {
   title: string;
@@ -36,24 +39,17 @@ interface ShowcaseModuleProps {
 
 function ShowcaseModule({ title, icon, children, isEditable, onEdit, className }: ShowcaseModuleProps) {
   return (
-    <Card className={`bg-white/3 backdrop-blur-md border border-white/8 shadow-lg ${className}`}>
-      <CardHeader className="pb-4">
-        <CardTitle className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {icon}
-            <span>{title}</span>
-          </div>
-          {isEditable && (
-            <Button onClick={onEdit} variant="ghost" size="sm" className="p-1 h-auto hover:bg-white/8">
-              <MoreHorizontal className="w-4 h-4" />
-            </Button>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {children}
-      </CardContent>
-    </Card>
+    <ProfilePanel
+      title={<span className="flex items-center gap-2">{icon}<span>{title}</span></span>}
+      actions={isEditable ? (
+        <Button onClick={onEdit} variant="ghost" size="sm" className="p-1 h-auto hover:bg-white/10">
+          <MoreHorizontal className="w-4 h-4" />
+        </Button>
+      ) : undefined}
+      className={className}
+    >
+      {children}
+    </ProfilePanel>
   );
 }
 
@@ -78,7 +74,7 @@ export function FavoriteComics({ favorites, isOwnProfile }: FavoriteComicsProps)
               <div key={manga.id} className="group cursor-pointer flex-shrink-0 w-24">
                 <div className="relative aspect-[3/4] rounded-lg overflow-hidden mb-2 w-24 h-32">
                   <img
-                    src={manga.coverImage || '/placeholder-manga.png'}
+                    src={manga.coverImage || '/icon.png'}
                     alt={manga.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                   />
@@ -138,7 +134,7 @@ export function ReadingProgressModule({ progress, isOwnProfile }: ReadingProgres
             return (
               <div key={item.mangaId} className="flex gap-3">
                 <img
-                  src={item.coverImage || '/placeholder-manga.png'}
+                  src={item.coverImage || '/icon.png'}
                   alt={item.title}
                   className="w-12 h-16 object-cover rounded"
                 />
@@ -185,17 +181,25 @@ export function Collections({ collections, isOwnProfile }: CollectionsProps) {
   const displayedCollections = collections.slice(0, 8); // Показываем больше коллекций
 
   return (
-    <ShowcaseModule
-      title="Коллекции"
-      icon={<Folder className="w-5 h-5 text-purple-500" />}
-      isEditable={isOwnProfile}
-    >
+    <div className="glass-panel p-4 lg:p-5 shadow-lg">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2 text-white font-medium">
+          <Folder className="w-5 h-5 text-purple-400" />
+          <span>Коллекции</span>
+        </div>
+        {isOwnProfile && (
+          <Button variant="ghost" size="sm" className="p-1 h-auto hover:bg-white/10">
+            <MoreHorizontal className="w-4 h-4" />
+          </Button>
+        )}
+      </div>
       {displayedCollections.length > 0 ? (
-        <div className="overflow-x-auto pb-2">
+
+        <div className="overflow-x-auto pb-2 -mx-1 px-1">
           <div className="flex gap-4 min-w-max">
             {displayedCollections.map((collection) => (
               <div key={collection.id} className="group cursor-pointer flex-shrink-0 w-40">
-                <div className="relative aspect-[3/4] rounded-lg overflow-hidden mb-2 bg-gray-800 w-40 h-48">
+                <div className="relative aspect-[3/4] rounded-lg overflow-hidden mb-2 bg-white/5 border border-white/10 w-40 h-48">
                   {collection.coverImages.length > 0 ? (
                     <img
                       src={collection.coverImages[0]}
@@ -203,10 +207,12 @@ export function Collections({ collections, isOwnProfile }: CollectionsProps) {
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                     />
                   ) : (
-                    <div className="flex items-center justify-center h-full">
-                      <Folder className="w-6 h-6 text-gray-600" />
+
+                    <div className="flex items-center justify-center h-full text-white/40">
+                      <Folder className="w-6 h-6" />
                     </div>
                   )}
+                  <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
                 </div>
                 <h4 className="text-xs font-medium text-white truncate mb-1">
                   {collection.name}
@@ -232,7 +238,7 @@ export function Collections({ collections, isOwnProfile }: CollectionsProps) {
           )}
         </div>
       )}
-    </ShowcaseModule>
+    </div>
   );
 }
 
@@ -252,26 +258,47 @@ export function Reviews({ reviews, isOwnProfile }: ReviewsProps) {
     >
       {displayedReviews.length > 0 ? (
         <div className="space-y-4">
-          {displayedReviews.map((review) => (
-            <div key={review.id} className="border-b border-gray-700 last:border-b-0 pb-4 last:pb-0">
-              <div className="flex items-start justify-between mb-2">
-                <h4 className="text-sm font-medium text-white truncate">
-                  {review.mangaTitle}
-                </h4>
-                <div className="flex items-center gap-1 ml-2">
-                  <Star className="w-4 h-4 text-yellow-500 fill-current" />
-                  <span className="text-sm">{review.rating}</span>
-                </div>
-              </div>
-              <p className="text-sm text-gray-300 line-clamp-3 mb-2">
-                {review.text}
-              </p>
-              <div className="flex items-center justify-between text-xs text-gray-500">
-                <span>{new Date(review.createdAt).toLocaleDateString('ru-RU')}</span>
-                <span>{review.likes} лайков</span>
-              </div>
-            </div>
-          ))}
+                {displayedReviews.map((review) => {
+                  const uid = (review as any).userId || (review as any).authorId
+                  const provided = (review as any).userAvatar || (review as any).avatar || undefined
+                  const resolved = useResolvedAvatar(uid, provided)
+                  const avatarUrl = resolved || '/icon.png'
+                  const username = (review as any).username || (review as any).userName || 'User'
+                  return (
+                    <div key={review.id} className="border-b border-gray-700 last:border-b-0 pb-4 last:pb-0">
+                      <div className="flex items-start gap-3 mb-2">
+                        <div className="flex-shrink-0">
+                          <div className="w-10 h-10 rounded-full overflow-hidden bg-white/10 flex items-center justify-center text-white text-sm font-semibold border border-white/10">
+                            {avatarUrl ? (
+                              <img src={avatarUrl} alt={username} className="w-full h-full object-cover" />
+                            ) : (
+                              username.charAt(0).toUpperCase()
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between">
+                            <h4 className="text-sm font-medium text-white truncate">
+                              {review.mangaTitle}
+                            </h4>
+                            <div className="flex items-center gap-1 ml-2">
+                              <Star className="w-4 h-4 text-yellow-500 fill-current" />
+                              <span className="text-sm">{review.rating}</span>
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-400 mb-1">{username}</p>
+                          <p className="text-sm text-gray-300 line-clamp-3 mb-2">
+                            {review.text}
+                          </p>
+                          <div className="flex items-center justify-between text-xs text-gray-500">
+                            <span>{new Date(review.createdAt).toLocaleDateString('ru-RU')}</span>
+                            <span>{review.likes} лайков</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
         </div>
       ) : (
         <div className="text-center py-8 text-gray-400">
@@ -425,9 +452,18 @@ export function UserComments({ userId, isOwnProfile }: UserCommentsProps) {
             const rating = calculateRating(comment);
             const isReply = comment.parentCommentId !== null;
             const commentType = (comment as any).commentType || comment.type;
+            const avatarUrl = (comment as any).userAvatar || (comment as any).avatar || '/icon.png';
 
             return (
               <div key={comment.id} className="border-b border-gray-700 last:border-b-0 pb-4 last:pb-0">
+                <div className="flex items-start gap-3">
+                  <Avatar className="w-10 h-10 border border-white/10 bg-white/5">
+                    <AvatarImage src={avatarUrl} alt={comment.username} className="object-cover" />
+                    <AvatarFallback className="bg-white/10 text-white">
+                      {comment.username.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
                 {/* Заголовок комментария */}
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 min-w-0">
@@ -435,7 +471,6 @@ export function UserComments({ userId, isOwnProfile }: UserCommentsProps) {
                       <Badge variant="outline" className="text-xs border-gray-600 text-gray-300">
                         {getCommentTypeText(commentType || 'UNKNOWN')}
                       </Badge>
-                      
                       {comment.targetInfo && (
                         <div className={`text-xs flex items-center gap-1 ${getCommentTypeColor(commentType || 'UNKNOWN')}`}>
                           <span>{getCommentTypeIcon(commentType || 'UNKNOWN')}</span>
@@ -452,8 +487,6 @@ export function UserComments({ userId, isOwnProfile }: UserCommentsProps) {
                         </div>
                       )}
                     </div>
-
-                    {/* Информация об авторе */}
                     <div className="text-xs text-gray-500 mb-1">
                       от <span className="text-blue-400 font-medium">{comment.username}</span>
                       {isReply && comment.parentCommentAuthor && (
@@ -463,8 +496,6 @@ export function UserComments({ userId, isOwnProfile }: UserCommentsProps) {
                       )}
                     </div>
                   </div>
-
-                  {/* Рейтинг и статистика */}
                   <div className="flex items-center gap-3 text-xs flex-shrink-0 ml-2">
                     <div className={`flex items-center gap-1 font-medium ${
                       rating > 0 ? 'text-green-400' : 
@@ -517,19 +548,8 @@ export function UserComments({ userId, isOwnProfile }: UserCommentsProps) {
                       })}
                     </time>
                   </span>
-
-                  <div className="flex items-center gap-2">
-                    {comment.isEdited && (
-                      <span className="text-yellow-400 text-xs px-1.5 py-0.5 rounded bg-yellow-400/10">
-                        ред.
-                      </span>
-                    )}
-                    {comment.isDeleted && (
-                      <span className="text-red-400 text-xs px-1.5 py-0.5 rounded bg-red-400/10">
-                        удален
-                      </span>
-                    )}
-                  </div>
+                </div>
+                </div>
                 </div>
               </div>
             );

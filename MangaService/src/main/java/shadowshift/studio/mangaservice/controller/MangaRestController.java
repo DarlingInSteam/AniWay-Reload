@@ -14,6 +14,7 @@ import shadowshift.studio.mangaservice.dto.ChapterDTO;
 import shadowshift.studio.mangaservice.dto.ChapterImageDTO;
 import shadowshift.studio.mangaservice.dto.MangaCreateDTO;
 import shadowshift.studio.mangaservice.dto.MangaResponseDTO;
+import shadowshift.studio.mangaservice.dto.PageResponseDTO;
 import shadowshift.studio.mangaservice.service.MangaService;
 import shadowshift.studio.mangaservice.service.external.ChapterServiceClient;
 
@@ -95,17 +96,126 @@ public class MangaRestController {
     @GetMapping("/search")
     public ResponseEntity<List<MangaResponseDTO>> searchManga(
             @RequestParam(required = false) String title,
+            @RequestParam(required = false, name = "query") String queryAlias,
             @RequestParam(required = false) String author,
             @RequestParam(required = false) String genre,
             @RequestParam(required = false) String status) {
 
-        logger.debug("API запрос: поиск манги с параметрами - title: '{}', author: '{}', genre: '{}', status: '{}'",
-                title, author, genre, status);
+        if ((title == null || title.isBlank()) && queryAlias != null && !queryAlias.isBlank()) {
+            title = queryAlias;
+        }
+
+        logger.debug("API запрос: поиск манги (simple) - title: '{}', author: '{}', genre: '{}', status: '{}' (alias query='{}')",
+                title, author, genre, status, queryAlias);
 
         List<MangaResponseDTO> searchResults = mangaService.searchManga(title, author, genre, status);
 
-        logger.debug("API ответ: найдено {} манг по поисковому запросу", searchResults.size());
+        logger.debug("API ответ: найдено {} манг по поисковому запросу (simple)", searchResults.size());
         return ResponseEntity.ok(searchResults);
+    }
+
+    /**
+     * Получает пагинированный список всех манг в системе с возможностью фильтрации.
+     *
+     * @param page номер страницы (начиная с 0, по умолчанию 0)
+     * @param size размер страницы (по умолчанию 10)
+     * @param sortBy поле для сортировки (по умолчанию 'createdAt')
+     * @param sortOrder направление сортировки ('asc' или 'desc', по умолчанию 'desc')
+     * @param genres список жанров (может быть пустой)
+     * @param tags список тегов (может быть пустой)
+     * @param mangaType тип манги (может быть null)
+     * @param status статус манги (может быть null)
+     * @param ageRatingMin минимальный возрастной рейтинг (может быть null)
+     * @param ageRatingMax максимальный возрастной рейтинг (может быть null)
+     * @param ratingMin минимальный рейтинг (может быть null)
+     * @param ratingMax максимальный рейтинг (может быть null)
+     * @param releaseYearMin минимальный год выпуска (может быть null)
+     * @param releaseYearMax максимальный год выпуска (может быть null)
+     * @param chapterRangeMin минимальное количество глав (может быть null)
+     * @param chapterRangeMax максимальное количество глав (может быть null)
+     * @return ResponseEntity с пагинированными данными манг и HTTP статусом 200
+     */
+    @GetMapping("/paged")
+    public ResponseEntity<PageResponseDTO<MangaResponseDTO>> getAllMangaPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortOrder,
+            @RequestParam(required = false) List<String> genres,
+            @RequestParam(required = false) List<String> tags,
+            @RequestParam(required = false) String mangaType,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Integer ageRatingMin,
+            @RequestParam(required = false) Integer ageRatingMax,
+            @RequestParam(required = false) Double ratingMin,
+            @RequestParam(required = false) Double ratingMax,
+            @RequestParam(required = false) Integer releaseYearMin,
+            @RequestParam(required = false) Integer releaseYearMax,
+        @RequestParam(required = false) Integer chapterRangeMin,
+        @RequestParam(required = false) Integer chapterRangeMax,
+        @RequestParam(required = false, name = "strictMatch") Boolean strictMatch) {
+
+        logger.debug("API запрос: пагинированный список всех манг - page: {}, size: {}, sortBy: {}, sortOrder: {}, " +
+                "genres: {}, tags: {}, mangaType: {}, status: {}, ageRatingMin: {}, ageRatingMax: {}, " +
+                "ratingMin: {}, ratingMax: {}, releaseYearMin: {}, releaseYearMax: {}, chapterRangeMin: {}, chapterRangeMax: {}",
+                page, size, sortBy, sortOrder, genres, tags, mangaType, status, 
+                ageRatingMin, ageRatingMax, ratingMin, ratingMax, 
+                releaseYearMin, releaseYearMax, chapterRangeMin, chapterRangeMax);
+
+    PageResponseDTO<MangaResponseDTO> result = mangaService.getAllMangaPagedWithFilters(
+        page, size, sortBy, sortOrder, genres, tags, mangaType, status,
+        ageRatingMin, ageRatingMax, ratingMin, ratingMax,
+        releaseYearMin, releaseYearMax, chapterRangeMin, chapterRangeMax,
+        strictMatch);
+
+        logger.debug("API ответ: возвращается пагинированный список из {} манг на странице {} из {}",
+                result.getContent().size(), result.getPage(), result.getTotalPages());
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Поиск манги по различным критериям с пагинацией.
+     *
+     * @param title название манги (частичное совпадение, игнорируя регистр)
+     * @param author автор манги (частичное совпадение, игнорируя регистр)
+     * @param genre жанр манги (частичное совпадение, игнорируя регистр)
+     * @param status статус манги (точное совпадение)
+     * @param page номер страницы (начиная с 0, по умолчанию 0)
+     * @param size размер страницы (по умолчанию 10)
+     * @param sortBy поле для сортировки (по умолчанию 'createdAt')
+     * @param sortOrder направление сортировки ('asc' или 'desc', по умолчанию 'desc')
+     * @return ResponseEntity с пагинированными данными найденных манг и HTTP статусом 200
+     */
+    @GetMapping("/search/paged")
+    public ResponseEntity<PageResponseDTO<MangaResponseDTO>> searchMangaPaged(
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) String author,
+            @RequestParam(required = false) String genre,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false, name = "query") String queryAlias,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(required = false, name = "limit") Integer limitAlias,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortOrder) {
+
+        // Поддержка alias параметров от фронтенда: query -> title, limit -> size
+        if ((title == null || title.isBlank()) && queryAlias != null && !queryAlias.isBlank()) {
+            title = queryAlias;
+        }
+        if ((size == null || size <= 0) && limitAlias != null && limitAlias > 0) {
+            size = limitAlias;
+        }
+        if (size == null || size <= 0) size = 10; // гарантируем значение
+
+        logger.debug("API запрос: пагинированный поиск манги - title: '{}', author: '{}', genre: '{}', status: '{}', page: {}, size: {}, sortBy: {}, sortOrder: {} (alias query='{}', limit='{}')",
+                title, author, genre, status, page, size, sortBy, sortOrder, queryAlias, limitAlias);
+
+        PageResponseDTO<MangaResponseDTO> result = mangaService.searchMangaPaged(title, author, genre, status, page, size, sortBy, sortOrder);
+
+        logger.debug("API ответ: найдено {} манг по поисковому запросу на странице {} из {}",
+                result.getContent().size(), result.getPage(), result.getTotalPages());
+        return ResponseEntity.ok(result);
     }
 
     /**

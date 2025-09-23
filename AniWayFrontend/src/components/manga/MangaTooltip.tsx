@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Bookmark, ChevronDown, X } from 'lucide-react'
 import { MangaResponseDTO, BookmarkStatus } from '@/types'
 import { getStatusColor, getStatusText, cn } from '@/lib/utils'
@@ -10,19 +11,29 @@ interface MangaTooltipProps {
   children: React.ReactNode
 }
 
+type TooltipSide = 'right' | 'left'
+
 interface TooltipPosition {
   top: number
   left: number
   transform: string
+  side: TooltipSide
+  arrowX?: number
+  arrowY?: number
 }
 
 export function MangaTooltip({ manga, children }: MangaTooltipProps) {
+  if (!manga) {
+    return <>{children}</>
+  }
+
   const [isVisible, setIsVisible] = useState(false)
+  const [isRendered, setIsRendered] = useState(false) // Монтируем раньше для расчёта позиции
   const [showDropdown, setShowDropdown] = useState(false)
   const [showAllGenres, setShowAllGenres] = useState(false)
-  const [position, setPosition] = useState<TooltipPosition>({ top: 0, left: 0, transform: '' })
-  const [showTimeoutId, setShowTimeoutId] = useState<NodeJS.Timeout | null>(null)
-  const [hideTimeoutId, setHideTimeoutId] = useState<NodeJS.Timeout | null>(null)
+  const [position, setPosition] = useState<TooltipPosition>({ top: 0, left: 0, transform: '', side: 'right', arrowX: 0, arrowY: 0 })
+  const showTimeoutId = useRef<NodeJS.Timeout | null>(null)
+  const hideTimeoutId = useRef<NodeJS.Timeout | null>(null)
 
   const triggerRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
@@ -63,76 +74,97 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
   // Вычисление позиции tooltip
   const calculatePosition = () => {
     if (!triggerRef.current || !tooltipRef.current) return
-
-    const triggerRect = triggerRef.current.getBoundingClientRect()
+  // Используем внутреннюю карточку, а не обёртку w-full
+  const cardEl = triggerRef.current.querySelector('.manga-card') as HTMLElement | null
+  const triggerRect = (cardEl || triggerRef.current).getBoundingClientRect()
     const tooltipRect = tooltipRef.current.getBoundingClientRect()
-    const viewport = {
-      width: window.innerWidth,
-      height: window.innerHeight
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+  const margin = 8
+  // Базовый визуальный gap сокращаем чтобы стрелка "врезалась" ближе
+  const gap = 6
+
+    // Предпочитаем справа
+    let side: TooltipSide = 'right'
+    let top = triggerRect.top
+    let left = triggerRect.right + gap
+
+    const fitsRight = triggerRect.right + gap + tooltipRect.width <= vw - margin
+    const fitsLeft = triggerRect.left - gap - tooltipRect.width >= margin
+    if (!fitsRight && fitsLeft) side = 'left'
+
+    // Arrow size для дальнейшего учёта
+    const arrowOffset = 10 // расстояние от края tooltip до карточки с учётом стрелки
+    if (side === 'right') {
+      left = triggerRect.right + gap
+      top = triggerRect.top
+    } else {
+      left = triggerRect.left - tooltipRect.width - gap
+      top = triggerRect.top
     }
 
-    let top = triggerRect.top + triggerRect.height / 2 - tooltipRect.height / 2
-    let left = triggerRect.right + 16 // 16px gap
-    let transform = ''
+    // Горизонтальное ограничение для top/bottom
+    // (top/bottom больше не используются)
 
-    // Проверяем, помещается ли tooltip справа
-    if (left + tooltipRect.width > viewport.width - 20) {
-      // Показываем слева от карточки
-      left = triggerRect.left - tooltipRect.width - 16
+    // Вертикальные ограничения
+    if (top < margin) top = margin
+    if (top + tooltipRect.height > vh - margin) top = vh - margin - tooltipRect.height
+
+    // Вычисление координат стрелки внутри tooltip (для right/left — по вертикали, top/bottom — по горизонтали)
+    let arrowY = 0
+    let arrowX = 0
+    if (side === 'right' || side === 'left') {
+      // Центр стрелки по середине высоты карточки
+      arrowY = (triggerRect.top + triggerRect.height / 2) - top
+      if (arrowY < 16) arrowY = 16
+      if (arrowY > tooltipRect.height - 16) arrowY = tooltipRect.height - 16
+    } else {
+      arrowX = triggerRect.left - left + triggerRect.width / 2
+      if (arrowX < 16) arrowX = 16
+      if (arrowX > tooltipRect.width - 16) arrowX = tooltipRect.width - 16
     }
 
-    // Проверяем вертикальное позиционирование
-    if (top < 20) {
-      top = 20
-    } else if (top + tooltipRect.height > viewport.height - 20) {
-      top = viewport.height - tooltipRect.height - 20
-    }
-
-    setPosition({ top, left, transform })
+    setPosition({ top, left, transform: '', side, arrowX, arrowY })
   }
 
   // Обработчики событий мыши
   const handleMouseEnter = () => {
-    if (hideTimeoutId) {
-      clearTimeout(hideTimeoutId)
-      setHideTimeoutId(null)
+    if (hideTimeoutId.current) {
+      clearTimeout(hideTimeoutId.current)
+      hideTimeoutId.current = null
     }
-
-    if (!showTimeoutId) {
-      const id = setTimeout(() => {
+    if (!isRendered) setIsRendered(true)
+    if (!showTimeoutId.current) {
+      showTimeoutId.current = setTimeout(() => {
+        calculatePosition()
         setIsVisible(true)
-        setShowTimeoutId(null)
-      }, 500)
-      setShowTimeoutId(id)
+        showTimeoutId.current = null
+      }, 160)
     }
   }
 
   const handleMouseLeave = () => {
-    if (showTimeoutId) {
-      clearTimeout(showTimeoutId)
-      setShowTimeoutId(null)
+    if (showTimeoutId.current) {
+      clearTimeout(showTimeoutId.current)
+      showTimeoutId.current = null
     }
-
-    const id = setTimeout(() => {
+    hideTimeoutId.current = setTimeout(() => {
       setIsVisible(false)
       setShowDropdown(false)
-    }, 300)
-    setHideTimeoutId(id)
+    }, 160)
   }
 
   const handleTooltipMouseEnter = () => {
-    if (hideTimeoutId) {
-      clearTimeout(hideTimeoutId)
-      setHideTimeoutId(null)
+    if (hideTimeoutId.current) {
+      clearTimeout(hideTimeoutId.current)
+      hideTimeoutId.current = null
     }
   }
-
   const handleTooltipMouseLeave = () => {
-    const id = setTimeout(() => {
+    hideTimeoutId.current = setTimeout(() => {
       setIsVisible(false)
       setShowDropdown(false)
-    }, 300)
-    setHideTimeoutId(id)
+    }, 160)
   }
 
   // Обработчик изменения статуса закладки
@@ -180,53 +212,91 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
 
   // Пересчет позиции при изменении видимости
   useEffect(() => {
-    if (isVisible) {
-      calculatePosition()
-
-      const handleResize = () => calculatePosition()
-      window.addEventListener('resize', handleResize)
-      return () => window.removeEventListener('resize', handleResize)
+    if (!isRendered) return
+    calculatePosition()
+  }, [isRendered])
+  useEffect(() => {
+    if (!isVisible) return
+    const handleResize = () => calculatePosition()
+    const handleHide = () => {
+      setIsVisible(false)
+      setShowDropdown(false)
+    }
+    window.addEventListener('resize', handleResize)
+    window.addEventListener('scroll', handleHide, { passive: true, capture: true })
+    window.addEventListener('wheel', handleHide, { passive: true })
+    window.addEventListener('touchmove', handleHide, { passive: true })
+    // Повторно скорректируем позицию после первого кадра отображения (для точного tooltipRect)
+    const id = requestAnimationFrame(() => calculatePosition())
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      window.removeEventListener('scroll', handleHide, true as any)
+      window.removeEventListener('wheel', handleHide)
+      window.removeEventListener('touchmove', handleHide)
+      cancelAnimationFrame(id)
     }
   }, [isVisible])
 
+  // Пересчёт позиции после загрузки изображений в карточке (если видим)
+  useEffect(() => {
+    if (!triggerRef.current) return
+    const imgs = Array.from(triggerRef.current.querySelectorAll('img'))
+    if (!imgs.length) return
+    const onLoad = () => { if (isVisible) calculatePosition() }
+    imgs.forEach(img => img.addEventListener('load', onLoad))
+    return () => imgs.forEach(img => img.removeEventListener('load', onLoad))
+  }, [isVisible])
+
   // Парсинг жанров
-  const genres = manga.genre.split(',').map(g => g.trim()).filter(Boolean)
+  const genres = manga.genre ? manga.genre.split(',').map(g => g.trim()).filter(Boolean) : []
   const visibleGenres = showAllGenres ? genres : genres.slice(0, 6)
-  const hiddenGenresCount = genres.length - 6
+  const hiddenGenresCount = Math.max(0, genres.length - 6)
 
   // Парсинг альтернативных названий
   const alternativeNames = manga.alternativeNames?.split(',').map(n => n.trim()).filter(Boolean) || []
 
-  return (
-    <>
-      <div
-        ref={triggerRef}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        className="w-full"
-      >
-        {children}
-      </div>
-
-      {isVisible && (
-        <div
-          ref={tooltipRef}
-          style={{
-            position: 'fixed',
-            top: position.top,
-            left: position.left,
-            transform: position.transform,
-            zIndex: 9999
-          }}
-          className="hidden lg:block w-80 p-4 bg-gray-800/98 backdrop-blur-lg border border-gray-600/50 rounded-xl shadow-2xl shadow-black/50 animate-in fade-in duration-200"
-          onMouseEnter={handleTooltipMouseEnter}
-          onMouseLeave={handleTooltipMouseLeave}
-        >
-          {/* Стрелочка */}
-          <div className="absolute top-1/2 -left-2 transform -translate-y-1/2">
-            <div className="w-0 h-0 border-t-[8px] border-t-transparent border-b-[8px] border-b-transparent border-r-[8px] border-r-gray-600/50"></div>
-            <div className="absolute top-1/2 -left-[6px] transform -translate-y-1/2 w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-r-[6px] border-r-gray-800/98"></div>
-          </div>
+  try {
+    return (
+      <>
+        <div ref={triggerRef} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} className="w-full">
+          {children}
+        </div>
+        {(isRendered) && createPortal(
+          <div
+            ref={tooltipRef}
+            style={{
+              position: 'fixed',
+              top: position.top,
+              left: position.left,
+              zIndex: 999999,
+              pointerEvents: isVisible ? 'auto' : 'none',
+              opacity: isVisible ? 1 : 0,
+              transform: (() => {
+                const hiddenScale = '0.96'
+                if (position.side === 'right') {
+                  return isVisible ? 'translateX(0) scale(1)' : 'translateX(6px) scale(' + hiddenScale + ')'
+                }
+                return isVisible ? 'translateX(0) scale(1)' : 'translateX(-6px) scale(' + hiddenScale + ')'
+              })(),
+              transition: 'opacity 140ms ease, transform 140ms ease'
+            }}
+            className="hidden lg:block w-80 p-4 rounded-xl shadow-xl shadow-black/60 bg-black/80 backdrop-blur-md border border-white/15"
+            onMouseEnter={handleTooltipMouseEnter}
+            onMouseLeave={handleTooltipMouseLeave}
+          >
+          {/* Стрелочка динамическая */}
+          {position.side === 'right' && (
+            <div className="absolute -left-2" style={{ top: position.arrowY }}>
+              <div className="w-0 h-0 border-t-[8px] border-t-transparent border-b-[8px] border-b-transparent border-r-[8px] border-r-black/60"></div>
+              <div className="absolute top-1/2 -translate-y-1/2 -left-[6px] w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-r-[6px] border-r-black/80"></div>
+            </div>
+          )}
+          {position.side === 'left' && (
+            <div className="absolute -right-2" style={{ top: position.arrowY }}>
+              <div className="w-0 h-0 border-t-[8px] border-t-transparent border-b-[8px] border-b-transparent border-l-[8px] border-l-black/60"></div>
+              <div className="absolute top-1/2 -translate-y-1/2 -right-[6px] w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-l-[6px] border-l-black/80"></div>
+            </div>
+          )}
 
           {/* Заголовочная секция */}
           <div className="mb-3">
@@ -362,8 +432,12 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
               )}
             </div>
           )}
-        </div>
-      )}
-    </>
-  )
+          </div>, document.body)
+        }
+      </>
+    )
+  } catch (error) {
+    console.error('MangaTooltip error:', error, 'for manga:', manga?.id);
+    return <>{children}</>;
+  }
 }

@@ -74,6 +74,9 @@ public class BookmarkService {
                     .build();
         }
         
+        // Ленивое кэширование (агрессивно при создании/обновлении)
+        fetchAndCacheMangaInfo(bookmark, true);
+
         bookmarkRepository.save(bookmark);
         log.info("Bookmark saved for user: {} manga: {} status: {}", username, mangaId, status);
         
@@ -177,6 +180,26 @@ public class BookmarkService {
 
         return bookmarkRepository.countByUserIdAndStatus(user.getId(), status);
     }
+
+    /**
+     * Поиск закладок с фильтрацией и сортировкой на стороне сервера.
+     */
+    public List<BookmarkDTO> searchUserBookmarks(String username,
+                         String query,
+                         BookmarkStatus status,
+                         Boolean favorite,
+                         String sortBy,
+                         String sortOrder) {
+    var user = userRepository.findByUsername(username)
+        .orElseThrow(() -> new IllegalArgumentException("User not found"));
+    log.debug("Searching bookmarks user={} q='{}' status={} fav={} sortBy={} sortOrder={}", username, query, status, favorite, sortBy, sortOrder);
+    var list = bookmarkRepository.searchBookmarks(user.getId(), query, status, favorite, sortBy, sortOrder);
+    long missingCache = list.stream().filter(b -> b.getMangaTitle()==null).count();
+    if (missingCache>0) {
+        log.debug("{} bookmarks missing cached manga info (will attempt lazy fetch)", missingCache);
+    }
+    return list.stream().map(this::convertToDTOWithMangaInfo).collect(java.util.stream.Collectors.toList());
+    }
     
     /**
      * Удаляет все закладки для указанной манги.
@@ -264,59 +287,98 @@ public class BookmarkService {
                 .build();
     }
 
+    public List<Long> getUserIdsByManga(Long mangaId) {
+        return bookmarkRepository.findByMangaId(mangaId).stream().map(Bookmark::getUserId).distinct().collect(Collectors.toList());
+    }
+
     private BookmarkDTO convertToDTOWithMangaInfo(Bookmark bookmark) {
         BookmarkDTO dto = convertToDTO(bookmark);
-        
-        try {
-            String mangaUrl = mangaServiceUrl + "/api/manga/" + bookmark.getMangaId();
-            log.info("Fetching manga info from URL: {}", mangaUrl);
-            ResponseEntity<Map> response = restTemplate.getForEntity(mangaUrl, Map.class);
-            
-            log.info("Response status: {}, body exists: {}", response.getStatusCode(), response.getBody() != null);
-            
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                Map<String, Object> manga = response.getBody();
-                log.info("Manga data received: title={}, coverImageUrl={}", 
-                    manga.get("title"), manga.get("coverImageUrl"));
-                    
-                dto.setMangaTitle((String) manga.get("title"));
-                dto.setMangaCoverUrl((String) manga.get("coverImageUrl"));
-                
-                Object totalChaptersObj = manga.get("totalChapters");
-                if (totalChaptersObj instanceof Integer) {
-                    dto.setTotalChapters((Integer) totalChaptersObj);
-                }
-            } else {
-                log.warn("Failed to fetch manga info: status={}", response.getStatusCode());
-            }
-            
-            try {
-                var user = userRepository.findById(bookmark.getUserId());
-                if (user.isPresent()) {
-                    var latestProgress = readingProgressService.getLatestProgressForManga(
-                        user.get().getUsername(), bookmark.getMangaId()
-                    );
-                    if (latestProgress.isPresent()) {
-                        var progress = latestProgress.get();
-                        if (progress.getChapterNumber() != null) {
-                            // Извлекаем номер главы из формата XYYY (последние 3 цифры)
-                            int chapterNumber = extractChapterNumber(progress.getChapterNumber().intValue());
-                            dto.setCurrentChapter(chapterNumber);
-                        }
-                        dto.setCurrentPage(progress.getPageNumber());
-                        dto.setIsCompleted(progress.getIsCompleted());
-                    }
-                }
-            } catch (Exception progressException) {
-                log.debug("Failed to fetch reading progress for bookmark {}: {}", 
-                    bookmark.getId(), progressException.getMessage());
-            }
-            
-        } catch (Exception e) {
-            log.warn("Failed to fetch manga info for bookmark {}: {}", bookmark.getId(), e.getMessage());
+        // догружаем кэш если отсутствует (не агрессивно)
+        if (bookmark.getMangaTitle() == null || bookmark.getTotalChapters() == null || bookmark.getMangaUpdatedAt() == null) {
+            fetchAndCacheMangaInfo(bookmark, false);
         }
-        
+        dto.setMangaTitle(bookmark.getMangaTitle());
+        dto.setTotalChapters(bookmark.getTotalChapters());
+        dto.setMangaUpdatedAt(bookmark.getMangaUpdatedAt());
+        // прогресс чтения
+        try {
+            var user = userRepository.findById(bookmark.getUserId());
+            if (user.isPresent()) {
+                var latestProgress = readingProgressService.getLatestProgressForManga(
+                    user.get().getUsername(), bookmark.getMangaId()
+                );
+                latestProgress.ifPresent(progress -> {
+                    if (progress.getChapterNumber() != null) {
+                        int chapterNumber = extractChapterNumber(progress.getChapterNumber().intValue());
+                        dto.setCurrentChapter(chapterNumber);
+                    }
+                    dto.setCurrentPage(progress.getPageNumber());
+                    dto.setIsCompleted(progress.getIsCompleted());
+                });
+            }
+        } catch (Exception progressException) {
+            log.debug("Failed to fetch reading progress for bookmark {}: {}", bookmark.getId(), progressException.getMessage());
+        }
         return dto;
+    }
+
+    /**
+     * Пытается получить информацию о манге из основного и fallback URL.
+     * @param bookmark объект закладки
+     * @param aggressive если true — принудительно обновляем кэш
+     */
+    private void fetchAndCacheMangaInfo(Bookmark bookmark, boolean aggressive) {
+        if (!aggressive) {
+            if (bookmark.getMangaTitle() != null && bookmark.getTotalChapters() != null && bookmark.getMangaUpdatedAt() != null) {
+                return; // уже есть кэш
+            }
+        }
+        List<String> bases = new java.util.ArrayList<>();
+        bases.add(mangaServiceUrl);
+        // fallback варианты (часто dev окружение)
+        if (!mangaServiceUrl.contains("8081")) { // если уже правильный сервис внутри docker, добавим dev localhost
+            bases.add("http://localhost:8081");
+        } else {
+            bases.add("http://manga-service:8082");
+        }
+        for (String base : bases) {
+            try {
+                String url = base + "/api/manga/" + bookmark.getMangaId();
+                log.info("Fetching manga info from URL: {}", url);
+                ResponseEntity<?> response = restTemplate.getForEntity(url, Map.class);
+                if (response.getStatusCode().is2xxSuccessful() && response.getBody() instanceof Map) {
+                    @SuppressWarnings("unchecked") Map<String,Object> manga = (Map<String,Object>) response.getBody();
+                    Object titleObj = manga.get("title");
+                    if (titleObj instanceof String title) {
+                        if (bookmark.getMangaTitle()==null || !title.equals(bookmark.getMangaTitle())) {
+                            bookmark.setMangaTitle(title);
+                        }
+                    }
+                    Object totalChaptersObj = manga.get("totalChapters");
+                    if (totalChaptersObj instanceof Number n) {
+                        int chapters = n.intValue();
+                        if (bookmark.getTotalChapters()==null || bookmark.getTotalChapters()!=chapters) {
+                            bookmark.setTotalChapters(chapters);
+                        }
+                    }
+                    Object updatedAtObj = manga.get("updatedAt");
+                    if (updatedAtObj instanceof String s) {
+                        try {
+                            var lu = java.time.LocalDateTime.parse(s);
+                            if (bookmark.getMangaUpdatedAt()==null || !lu.equals(bookmark.getMangaUpdatedAt())) {
+                                bookmark.setMangaUpdatedAt(lu);
+                            }
+                        } catch (Exception ignore) {}
+                    }
+                    try { bookmarkRepository.save(bookmark); } catch (Exception ignore) {}
+                    return; // успех — прекращаем попытки
+                } else {
+                    log.debug("Manga info not successful from {} status={}", base, response.getStatusCode());
+                }
+            } catch (Exception ex) {
+                log.debug("Manga info fetch failed from {}: {}", base, ex.getMessage());
+            }
+        }
     }
     
     /**
@@ -332,5 +394,26 @@ public class BookmarkService {
             // Для чисел < 1000 возвращаем как есть
             return fullChapterNumber;
         }
+    }
+
+    /**
+     * Массовое обновление кэша манги для закладок, у которых отсутствует заголовок.
+     * Возвращает количество успешно обновлённых записей.
+     */
+    @Transactional
+    public Map<String,Object> backfillMangaCache() {
+        List<Bookmark> toUpdate = bookmarkRepository.findAll().stream()
+            .filter(b -> b.getMangaTitle()==null || b.getTotalChapters()==null || b.getMangaUpdatedAt()==null)
+            .collect(Collectors.toList());
+        int success = 0;
+        for (Bookmark b : toUpdate) {
+            fetchAndCacheMangaInfo(b, true);
+            if (b.getMangaTitle()!=null) success++; // простая эвристика
+        }
+        Map<String,Object> res = new java.util.HashMap<>();
+        res.put("attempted", toUpdate.size());
+        res.put("updated", success);
+        res.put("remaining", toUpdate.size()-success);
+        return res;
     }
 }

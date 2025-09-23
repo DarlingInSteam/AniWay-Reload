@@ -1,4 +1,4 @@
-import { MangaResponseDTO, ChapterDTO, ChapterImageDTO, SearchParams, UserSearchParams, UserSearchResult, User, UpdateProfileRequest, AdminUserData, AdminUserFilter, AdminUsersPageResponse, AdminUsersParams, AdminActionLogDTO } from '@/types';
+import {MangaResponseDTO, ChapterDTO, ChapterImageDTO, SearchParams, PageResponse, UserSearchParams, UserSearchResult, User, UpdateProfileRequest, AdminUserData, AdminUserFilter, AdminUsersPageResponse, AdminUsersParams, AdminActionLogDTO } from '@/types';
 
 const API_BASE_URL = '/api';
 
@@ -84,6 +84,32 @@ class ApiClient {
     return response.json();
   }
 
+  
+  // Публичный запрос без авторизационных заголовков
+  private async publicRequest<T>(endpoint: string, options?: RequestInit): Promise<T> {
+    const url = `${API_BASE_URL}${endpoint}`;
+
+    console.log(`Public API Request: ${options?.method || 'GET'} ${url}`);
+
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+      ...options,
+    });
+
+    console.log(`Public API Response: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Public API Error Details: ${errorText}`);
+      throw new Error(`Public API Error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return response.json();
+  }
+
   // Manga API
   async getAllManga(): Promise<MangaResponseDTO[]> {
     return this.request<MangaResponseDTO[]>('/manga');
@@ -108,6 +134,61 @@ class ApiClient {
     return this.request<MangaResponseDTO[]>(`/manga/search?${searchParams}`);
   }
 
+  async getAllMangaPaged(page: number = 0, size: number = 10, sortBy: string = 'createdAt', sortOrder: 'asc' | 'desc' = 'desc', filters?: any): Promise<PageResponse<MangaResponseDTO>> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      size: size.toString(),
+      sortBy,
+      sortOrder
+    });
+
+    // Добавляем фильтры если есть
+    if (filters) {
+      console.log('ApiClient: Processing filters:', filters)
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) {
+          console.log(`ApiClient: Processing filter ${key}:`, value)
+          if (Array.isArray(value) && !['ageRating', 'rating', 'releaseYear', 'chapterRange'].includes(key)) {
+            // Для массивов добавляем каждый элемент отдельно
+            console.log(`ApiClient: Adding array values for ${key}:`, value)
+            value.forEach(item => params.append(key, item.toString()));
+          } else if (Array.isArray(value) && ['ageRating', 'rating', 'releaseYear', 'chapterRange'].includes(key)) {
+            // Для диапазонов [min, max]
+            console.log(`ApiClient: Adding range for ${key}:`, value)
+            params.append(`${key}Min`, value[0].toString());
+            params.append(`${key}Max`, value[1].toString());
+          } else {
+            console.log(`ApiClient: Adding single value for ${key}:`, value)
+            params.append(key, value.toString());
+          }
+        }
+      });
+    }
+
+    console.log('ApiClient: Final URL parameters:', params.toString())
+    return this.request<PageResponse<MangaResponseDTO>>(`/manga/paged?${params}`);
+  }
+
+  async searchMangaPaged(params: SearchParams): Promise<PageResponse<MangaResponseDTO>> {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value) {
+        if (Array.isArray(value) && !['ageRating', 'rating', 'releaseYear', 'chapterRange'].includes(key)) {
+          // Для массивов добавляем каждый элемент отдельно
+          value.forEach(item => searchParams.append(key, item.toString()));
+        } else if (Array.isArray(value) && ['ageRating', 'rating', 'releaseYear', 'chapterRange'].includes(key)) {
+          // Для диапазонов [min, max]
+          searchParams.append(`${key}Min`, value[0].toString());
+          searchParams.append(`${key}Max`, value[1].toString());
+        } else {
+          searchParams.append(key, value.toString());
+        }
+      }
+    });
+
+    return this.request<PageResponse<MangaResponseDTO>>(`/manga/search/paged?${searchParams}`);
+  }
+
   async updateManga(id: number, data: any): Promise<MangaResponseDTO> {
     return this.request<MangaResponseDTO>(`/manga/${id}`, {
       method: 'PUT',
@@ -122,7 +203,16 @@ class ApiClient {
   }
 
   async getMangaChapters(mangaId: number): Promise<ChapterDTO[]> {
-    return this.request<ChapterDTO[]>(`/manga/${mangaId}/chapters`);
+    // Try direct ChapterService endpoint first
+    try {
+      const result = await this.request<ChapterDTO[]>(`/chapters/manga/${mangaId}`);
+      return result;
+    } catch (directError) {
+      console.warn('Direct ChapterService endpoint failed, trying MangaService proxy:', directError)
+      // Fallback to MangaService proxy
+      const result = await this.request<ChapterDTO[]>(`/manga/${mangaId}/chapters`);
+      return result;
+    }
   }
 
   // Chapter API
@@ -132,6 +222,29 @@ class ApiClient {
 
   async getChaptersByManga(mangaId: number): Promise<ChapterDTO[]> {
     return this.request<ChapterDTO[]>(`/chapters/manga/${mangaId}`);
+  }
+
+  // Chapter Likes API
+  async likeChapter(chapterId: number): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/chapters/${chapterId}/like`, {
+      method: 'POST',
+    });
+  }
+
+  async unlikeChapter(chapterId: number): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/chapters/${chapterId}/like`, {
+      method: 'DELETE',
+    });
+  }
+
+  async isChapterLiked(chapterId: number): Promise<{ liked: boolean }> {
+    return this.request<{ liked: boolean }>(`/chapters/${chapterId}/like`);
+  }
+
+  async toggleChapterLike(chapterId: number): Promise<{ message: string; liked: boolean; likeCount: number }> {
+    return this.request<{ message: string; liked: boolean; likeCount: number }>(`/chapters/${chapterId}/toggle-like`, {
+      method: 'POST',
+    });
   }
 
   // Image API
@@ -593,12 +706,43 @@ class ApiClient {
 
   // 6. Загрузка аватара - пока заглушка
   async uploadAvatar(file: File): Promise<{ success: boolean; avatarUrl: string; message: string }> {
-    console.warn('Загрузка аватара пока не реализована на бэкенде');
-    return {
-      success: true,
-      avatarUrl: '/placeholder-avatar.png',
-      message: 'Аватар загружен (заглушка)'
-    };
+    try {
+      const currentUser = await this.getCurrentUser();
+      const userId: any = (currentUser as any)?.id || (currentUser as any)?.userId;
+      if (!userId) {
+        return { success: false, avatarUrl: '', message: 'Не удалось определить пользователя' };
+      }
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await fetch(`${API_BASE_URL}/images/avatars/${userId}`, {
+        method: 'POST',
+        headers: {
+          ...this.getAuthHeaders()
+        },
+        body: formData
+      });
+      if (response.status === 429) {
+        return { success: false, avatarUrl: '', message: 'Аватар можно менять раз в 24 часа' };
+      }
+      if (!response.ok) {
+        return { success: false, avatarUrl: '', message: 'Ошибка загрузки аватара' };
+      }
+      const data = await response.json();
+      return { success: true, avatarUrl: data.url || data.imageUrl || data.avatarUrl, message: 'Аватар обновлён' };
+    } catch (e) {
+      return { success: false, avatarUrl: '', message: 'Сбой загрузки аватара' };
+    }
+  }
+
+  // Получить метаданные аватара пользователя (imageUrl) если есть
+  async getUserAvatar(userId: number): Promise<string | null> {
+    try {
+      const res = await this.request<any>(`/images/avatars/${userId}`)
+      const url = res?.imageUrl || res?.url || res?.avatarUrl
+      return url || null
+    } catch (e) {
+      return null
+    }
   }
 
   // 7. Статистика чтения (используем существующий API)

@@ -1,6 +1,6 @@
 plugins {
     java
-    id("org.springframework.boot") version "3.5.5"
+    id("org.springframework.boot") version "3.4.0"
     id("io.spring.dependency-management") version "1.1.7"
     id("io.freefair.lombok") version "8.4"
 }
@@ -27,6 +27,8 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-cache")
     implementation("com.github.ben-manes.caffeine:caffeine")
+    // Email
+    implementation("org.springframework.boot:spring-boot-starter-mail")
     
     // JWT
     implementation("io.jsonwebtoken:jjwt-api:0.12.3")

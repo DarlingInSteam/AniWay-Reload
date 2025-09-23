@@ -63,7 +63,7 @@ export const ReadingButton: React.FC<ReadingButtonProps> = ({
   let actionText = `Продолжить главу ${displayChapterNum}`
 
   // Если последняя глава завершена, найти следующую незавершенную
-  if (lastRead.isCompleted && allChapters.length > 0) {
+  if (lastRead.isCompleted && allChapters && Array.isArray(allChapters) && allChapters.length > 0) {
     const sortedChapters = allChapters.sort((a, b) => a.chapterNumber - b.chapterNumber)
     const currentIndex = sortedChapters.findIndex(ch => ch.id === lastRead.chapterId)
     

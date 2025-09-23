@@ -1,4 +1,7 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { buildProfileUrl } from '../lib/profileUrl';
+import { useResolvedAvatar } from '@/hooks/useResolvedAvatar';
 import { MessageCircle } from 'lucide-react';
 import RatingStars from './RatingStars';
 import { CommentSection } from './comments/CommentSection';
@@ -42,6 +45,7 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showComments, setShowComments] = useState(false);
+  const resolvedAvatar = useResolvedAvatar(review.userId, review.userAvatar);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -84,50 +88,66 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
     : review.comment;
 
   return (
-    <div className="bg-white/5 backdrop-blur-md rounded-3xl p-6 shadow-lg border border-white/10 transition-all duration-300 hover:shadow-xl hover:bg-white/10">
+    <div className="bg-white/5 backdrop-blur-md rounded-3xl p-5 md:p-6 shadow-lg border border-white/10 transition-all duration-300 hover:shadow-xl hover:bg-white/10">
       {/* Header */}
-      <div className="flex items-start justify-between mb-4">
+      <div className="flex flex-col gap-4 mb-4">
         <div className="flex items-start gap-3">
           {/* Avatar */}
-          <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-            {review.userAvatar ? (
-              <img 
-                src={review.userAvatar} 
+          <Link
+            to={buildProfileUrl(review.userId, review.userDisplayName, review.username)}
+            className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center ring-0 focus-visible:ring-2 focus-visible:ring-blue-400 transition-shadow"
+            aria-label={`Открыть профиль ${review.userDisplayName}`}
+          >
+            {resolvedAvatar ? (
+              <img
+                src={resolvedAvatar}
                 alt={review.userDisplayName}
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = 'none';
+                }}
               />
             ) : (
               <span className="text-white font-medium text-lg">
                 {review.userDisplayName.charAt(0).toUpperCase()}
               </span>
             )}
-          </div>
+          </Link>
 
           {/* User info */}
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1">
-              <h4 className="font-semibold text-white">{review.userDisplayName}</h4>
-              <span 
-                className="px-2 py-0.5 text-xs font-medium rounded-full text-white"
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <Link
+                to={buildProfileUrl(review.userId, review.userDisplayName, review.username)}
+                className="font-semibold text-white truncate max-w-[160px] sm:max-w-none hover:text-blue-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 rounded"
+              >
+                {review.userDisplayName}
+              </Link>
+              <span
+                className="px-2 py-0.5 text-xs font-medium rounded-full text-white whitespace-nowrap"
                 style={{ backgroundColor: review.trustFactorColor }}
               >
                 {getTrustFactorText(review.trustFactor)}
               </span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-gray-300">
-              <RatingStars rating={review.rating} maxRating={10} size="sm" />
-              <span>
-                {formatDate(review.createdAt)}
+              <div className="flex items-center gap-2 text-xs text-gray-400 ml-auto sm:ml-0">
+                <span className="hidden sm:inline">{formatDate(review.createdAt)}</span>
                 {review.isEdited && (
-                  <span className="ml-1 text-gray-400">(изменено)</span>
+                  <span className="text-gray-500">(изменено)</span>
                 )}
+              </div>
+            </div>
+            <div className="flex items-center gap-3 text-sm text-gray-300 flex-wrap">
+              <RatingStars rating={review.rating} maxRating={10} size="sm" />
+              <span className="sm:hidden text-xs text-gray-400">
+                {formatDate(review.createdAt)}
+                {review.isEdited && ' (изменено)'}
               </span>
             </div>
           </div>
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 self-end -mt-2 sm:mt-0">
           {review.canEdit && (
             <button
               onClick={handleEdit}
@@ -156,7 +176,7 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
       {/* Comment */}
       {review.comment && (
         <div className="mb-4">
-          <p className="text-gray-200 leading-relaxed">
+          <p className="text-gray-200 leading-relaxed text-sm md:text-base">
             {displayComment}
           </p>
           {shouldTruncate && (
@@ -171,8 +191,8 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
       )}
 
       {/* Footer with likes/dislikes */}
-      <div className="flex items-center justify-between pt-4 border-t border-white/20">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4 border-t border-white/20">
+        <div className="flex items-center flex-wrap gap-3 sm:gap-4">
           {/* Like button */}
           <button
             onClick={handleLike}
@@ -209,7 +229,7 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
             className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium text-gray-400 hover:bg-blue-500/10 hover:text-blue-400 transition-colors"
           >
             <MessageCircle className="w-4 h-4" />
-            <span>Комментарии</span>
+            <span className="hidden xs:inline">Комментарии</span>
             {review.commentsCount > 0 && (
               <span className="ml-1 px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded-full text-xs font-semibold">
                 {review.commentsCount}
@@ -219,8 +239,9 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
         </div>
 
         {/* Trust factor */}
-        <div className="text-xs text-gray-400">
-          Фактор доверия: <span className="font-medium">{review.trustFactor.toFixed(1)}</span>
+        <div className="text-xs text-gray-400 flex items-center gap-1">
+          <span className="hidden sm:inline">Фактор доверия:</span>
+          <span className="font-medium">{review.trustFactor.toFixed(1)}</span>
         </div>
       </div>
 

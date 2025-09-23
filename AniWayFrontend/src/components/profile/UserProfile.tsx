@@ -1,8 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
+import { useSyncedSearchParam } from '@/hooks/useSyncedSearchParam';
 import { ProfileBackground } from './ProfileBackground';
-import { ProfileHeader } from './ProfileHeader';
-import { ProfileSummary } from './ProfileSummary';
-import { ProfileSidebar } from './ProfileSidebar';
+// Legacy components (may be removed later)
+// import { ProfileHeader } from './ProfileHeader';
+// import { ProfileSummary } from './ProfileSummary';
+// import { ProfileSidebar } from './ProfileSidebar';
 import { ProfileFooter } from './ProfileFooter';
 import {
   FavoriteComics,
@@ -13,13 +16,19 @@ import {
   UserComments
 } from './ShowcaseModules';
 import { UserProfile as UserProfileType, UserProfileProps, UserReview } from '@/types/profile';
-import { CommentResponseDTO, CommentCreateDTO } from '@/types/comments';
+// New redesigned components
+import { ProfileHero } from './ProfileHero';
+import { ProfileStatsStrip } from './ProfileStatsStrip';
+import { ProfileAbout } from './ProfileAbout';
+import { ProfileGenres } from './ProfileGenres';
+import { ProfileShowcaseFavorites } from './ProfileShowcaseFavorites';
+import { ProfileActivity } from './ProfileActivity';
+import { ProfileBadgesPlaceholder } from './ProfileBadgesPlaceholder';
+import { ProfileReadingProgress } from './ProfileReadingProgress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { CommentSection } from '@/components/comments/CommentSection';
 import { profileService } from '@/services/profileService';
 import { apiClient } from '@/lib/api';
-import { commentService } from '@/services/commentService';
 import { useAuth } from '@/contexts/AuthContext';
 
 export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
@@ -29,10 +38,14 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTabParam] = useSyncedSearchParam<'overview' | 'library' | 'reviews' | 'comments' | 'achievements'>('tab', 'overview');
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
 
-  const { user: currentUser } = useAuth();
+  // Pull both user and avatar setter in a single hook call to avoid conditional hook order issues
+  const { user: currentUser, setUserAvatarLocal } = useAuth();
 
+  // MAIN LOAD EFFECT: depends only on userId / isOwnProfile to avoid loops on avatar changes
   useEffect(() => {
     const loadProfileData = async () => {
       setLoading(true);
@@ -61,7 +74,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
           username: data.user.username,
           email: data.user.email,
           displayName: data.user.displayName,
-          avatar: data.user.avatar,
+          avatar: data.user.avatar || (profile?.avatar || undefined),
           bio: data.user.bio,
           role: data.user.role,
           isOnline: true, // TODO: Реализовать систему онлайн статуса
@@ -132,7 +145,8 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
     };
 
     loadProfileData();
-  }, [userId, isOwnProfile, currentUser]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, isOwnProfile]);
 
   const handleProfileUpdate = async (updates: Partial<UserProfileType>) => {
     if (!profile || !isOwnProfile) return;
@@ -174,7 +188,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   };
 
   const handleShare = () => {
-    const profileUrl = `${window.location.origin}/profile/${userId}`;
+    const profileUrl = window.location.href;
     navigator.clipboard.writeText(profileUrl).then(() => {
       // TODO: Показать уведомление об успешном копировании
       console.log('Ссылка на профиль скопирована');
@@ -209,9 +223,61 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   const favoriteMangas = profileData ? profileService.getFavoriteMangas(profileData.bookmarks) : [];
   const readingProgress = profileData ? profileService.getReadingProgressData(profileData.readingProgress) : [];
   const collections = profileData ? profileService.getCollectionsFromBookmarks(profileData.bookmarks) : [];
-  const userActivities = profileData ? profileService.generateUserActivity(profileData.readingProgress, profileData.bookmarks) : [];
+  const [activity, setActivity] = useState<any[]>([])
+  const [activityLoaded, setActivityLoaded] = useState(false)
+  useEffect(()=>{
+    let cancelled = false
+    const load = async () => {
+      if (!profile) return
+      try {
+        const { extendedProfileService } = await import('@/services/extendedProfileService')
+        const [readA, reviewA] = await Promise.all([
+          extendedProfileService.getReadingActivity(parseInt(profile.id), 10).catch(()=>[]),
+          extendedProfileService.getReviewActivity(parseInt(profile.id), 5).catch(()=>[])
+        ])
+        const generated = profileData ? profileService.generateUserActivity(profileData.readingProgress, profileData.bookmarks) : []
+        const merged = [...readA, ...reviewA, ...generated]
+          .sort((a,b)=> b.timestamp.getTime()-a.timestamp.getTime())
+          .reduce((acc: any[], item)=>{ // deduplicate by id
+            if (!acc.find(x=>x.id===item.id)) acc.push(item); return acc
+          }, [])
+          .slice(0,15)
+        console.debug('[ProfileActivity] fetched counts', {read: readA.length, review: reviewA.length, generated: generated.length, merged: merged.length})
+        if (!cancelled) setActivity(merged)
+      } catch(e) {
+        console.debug('[ProfileActivity] error loading activity, fallback to generated', e)
+        // final fallback
+        if (!cancelled) {
+          const generated = profileData ? profileService.generateUserActivity(profileData.readingProgress, profileData.bookmarks) : []
+          setActivity(generated)
+        }
+      } finally { if (!cancelled) setActivityLoaded(true) }
+    }
+    load()
+    return ()=> { cancelled = true }
+  }, [profile?.id, profileData])
   const achievements = profileData?.readingStats ? profileService.generateAchievements(profileData.readingStats) : [];
-  
+
+  // Ensure slug enforcement effect is declared BEFORE any early returns to keep hook order stable.
+  useEffect(() => {
+    if (!profile) return;
+    const makeSlug = (name: string) => name
+      .toLowerCase()
+      .trim()
+      .replace(/[_\s]+/g,'-')
+      .replace(/[^a-z0-9-]/g,'')
+      .replace(/-+/g,'-')
+      .replace(/^-|-$/g,'');
+    const current = window.location.pathname.split('/').pop() || '';
+    const numericPart = current.split('--')[0].split('-')[0];
+    if (numericPart !== profile.id) return; // safety guard
+    const hasSlug = current.includes('--');
+    const slug = makeSlug(profile.displayName || profile.username);
+    if (!hasSlug || (hasSlug && !current.endsWith(`--${slug}`))) {
+      navigate(`/profile/${profile.id}--${slug}${params.toString()?`?${params.toString()}`:''}`, { replace: true });
+    }
+  }, [profile, navigate, params]);
+
   // Заглушки для данных, которые пока не реализованы
   const mockFriends: any[] = []; // TODO: Добавить систему друзей
   const mockCommunities: any[] = []; // TODO: Добавить систему сообществ
@@ -246,62 +312,85 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
     );
   }
 
+  // (Slug effect moved above early returns)
+
   return (
     <ProfileBackground
       profile={profile}
       isOwnProfile={isOwnProfile}
     >
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
-        {/* Заголовок профиля - по центру */}
-        <div className="mb-8">
-          <ProfileHeader
+  <div className="container mx-auto px-4 py-10 max-w-7xl">
+        {/* New Hero Section */}
+  <div className="mb-6 animate-fade-in">
+          <ProfileHero
             profile={profile}
-            isOwnProfile={isOwnProfile}
-            onProfileUpdate={handleProfileUpdate}
+            isOwn={isOwnProfile}
+            onEdit={() => console.log('Edit profile (modal TODO)')}
+            onShare={handleShare}
+            onMore={() => console.log('More actions TBD')}
+            onAvatarUpdated={async (newUrl) => {
+              if (!newUrl) return;
+              // Optimistic local update
+              setProfile(prev => prev ? { ...prev, avatar: newUrl } : prev);
+              if (isOwnProfile) {
+                setUserAvatarLocal(newUrl);
+              }
+              // Skip immediate refetch to avoid loop (backend doesn't yet return avatar). Can be re-enabled later.
+            }}
           />
+          <ProfileStatsStrip profile={profile} extra={{ favorites: favoriteMangas.length, achievements: achievements.length }} />
         </div>
 
         {/* Desktop Layout: Табы занимают всю ширину */}
-        <div className="hidden lg:block">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid grid-cols-5 bg-white/3 backdrop-blur-md border border-white/8 rounded-xl shadow-lg">
-              <TabsTrigger value="overview" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Обзор</TabsTrigger>
-              <TabsTrigger value="library" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Библиотека</TabsTrigger>
-              <TabsTrigger value="reviews" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Отзывы</TabsTrigger>
-              <TabsTrigger value="comments" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Комментарии</TabsTrigger>
-              <TabsTrigger value="achievements" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Достижения</TabsTrigger>
+        <div className="hidden lg:block animate-fade-in">
+          <Tabs value={activeTab} onValueChange={v => setActiveTabParam(v as any)} className="space-y-7">
+            <TabsList className="grid grid-cols-5 bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl shadow-xl p-1.5 overflow-hidden">
+              <TabsTrigger value="overview" className="relative group data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-4 py-2 font-medium">
+                <span className="relative z-10">Обзор</span>
+                <span className="pointer-events-none absolute inset-0 opacity-0 group-data-[state=active]:opacity-100 bg-gradient-to-br from-primary/30 to-primary/10 rounded-xl transition-opacity" />
+              </TabsTrigger>
+              <TabsTrigger value="library" className="relative group data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-4 py-2 font-medium">
+                <span className="relative z-10">Библиотека</span>
+                <span className="pointer-events-none absolute inset-0 opacity-0 group-data-[state=active]:opacity-100 bg-gradient-to-br from-primary/30 to-primary/10 rounded-xl transition-opacity" />
+              </TabsTrigger>
+              <TabsTrigger value="reviews" className="relative group data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-4 py-2 font-medium">
+                <span className="relative z-10">Отзывы</span>
+                <span className="pointer-events-none absolute inset-0 opacity-0 group-data-[state=active]:opacity-100 bg-gradient-to-br from-primary/30 to-primary/10 rounded-xl transition-opacity" />
+              </TabsTrigger>
+              <TabsTrigger value="comments" className="relative group data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-4 py-2 font-medium">
+                <span className="relative z-10">Комментарии</span>
+                <span className="pointer-events-none absolute inset-0 opacity-0 group-data-[state=active]:opacity-100 bg-gradient-to-br from-primary/30 to-primary/10 rounded-xl transition-opacity" />
+              </TabsTrigger>
+              <TabsTrigger value="achievements" className="relative group data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-4 py-2 font-medium">
+                <span className="relative z-10">Достижения</span>
+                <span className="pointer-events-none absolute inset-0 opacity-0 group-data-[state=active]:opacity-100 bg-gradient-to-br from-primary/30 to-primary/10 rounded-xl transition-opacity" />
+              </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview" className="space-y-6">
-              {/* О пользователе */}
-              <ProfileSummary
-                profile={profile}
-                isOwnProfile={isOwnProfile}
-                onProfileUpdate={handleProfileUpdate}
-              />
-
-              {/* Содержимое сайдбара */}
-              <ProfileSidebar
-                friends={mockFriends}
-                communities={mockCommunities}
-                activities={userActivities}
-                isOwnProfile={isOwnProfile}
-                userId={parseInt(profile.id)}
-                profileData={profileData}
-              />
-
-              {/* Основные компоненты профиля */}
-              <FavoriteComics favorites={favoriteMangas} isOwnProfile={isOwnProfile} />
-              <ReadingProgressModule progress={readingProgress} isOwnProfile={isOwnProfile} />
-              <Collections collections={collections} isOwnProfile={isOwnProfile} />
+            <TabsContent value="overview" className="space-y-7">
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+                {/* Left / Main column */}
+                <div className="space-y-7 xl:col-span-8">
+                  <ProfileShowcaseFavorites favorites={favoriteMangas} />
+                  <ProfileReadingProgress items={readingProgress} />
+                  <ProfileActivity activities={activity} />
+                  <Collections collections={collections} isOwnProfile={isOwnProfile} />
+                </div>
+                {/* Right / Side column */}
+                <div className="space-y-7 xl:col-span-4">
+                  <ProfileAbout profile={profile} isOwn={isOwnProfile} onUpdate={handleProfileUpdate} />
+                  <ProfileGenres profile={profile} />
+                  <ProfileBadgesPlaceholder />
+                </div>
+              </div>
             </TabsContent>
 
             <TabsContent value="library" className="space-y-6">
               <Collections collections={collections} isOwnProfile={isOwnProfile} />
-              <FavoriteComics favorites={favoriteMangas} isOwnProfile={isOwnProfile} />
+
             </TabsContent>
 
-            <TabsContent value="reviews" className="space-y-6">
+            <TabsContent value="reviews" className="space-y-6 max-h-96 overflow-y-auto">
               {reviewsLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <LoadingSpinner />
@@ -319,7 +408,8 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               )}
             </TabsContent>
 
-            <TabsContent value="comments" className="space-y-6">
+
+            <TabsContent value="comments" className="space-y-6 max-h-96 overflow-y-auto">
               <UserComments userId={parseInt(userId)} isOwnProfile={isOwnProfile} />
             </TabsContent>
 
@@ -330,45 +420,46 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
         </div>
 
         {/* Mobile/Tablet Layout: Одноколоночный стек */}
-        <div className="lg:hidden space-y-6">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid grid-cols-2 md:grid-cols-5 bg-white/3 backdrop-blur-md border border-white/8 rounded-xl shadow-lg">
-              <TabsTrigger value="overview" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Обзор</TabsTrigger>
-              <TabsTrigger value="library" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Библиотека</TabsTrigger>
-              <TabsTrigger value="reviews" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Отзывы</TabsTrigger>
-              <TabsTrigger value="comments" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Комментарии</TabsTrigger>
-              <TabsTrigger value="achievements" className="data-[state=active]:bg-white/15 data-[state=active]:backdrop-blur-sm data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-white/8 transition-all duration-200 text-gray-300">Достижения</TabsTrigger>
+
+        <div className="lg:hidden space-y-7 animate-fade-in">
+          <Tabs value={activeTab} onValueChange={v => setActiveTabParam(v as any)} className="space-y-7">
+            <TabsList className="grid grid-cols-2 md:grid-cols-5 bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl shadow-xl p-1.5">
+              <TabsTrigger value="overview" className="relative group data-[state=active]:bg-primary/25 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-3 py-2 text-sm font-medium">
+                <span className="relative z-10">Обзор</span>
+              </TabsTrigger>
+              <TabsTrigger value="library" className="relative group data-[state=active]:bg-primary/25 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-3 py-2 text-sm font-medium">
+                <span className="relative z-10">Библиотека</span>
+              </TabsTrigger>
+              <TabsTrigger value="reviews" className="relative group data-[state=active]:bg-primary/25 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-3 py-2 text-sm font-medium">
+                <span className="relative z-10">Отзывы</span>
+              </TabsTrigger>
+              <TabsTrigger value="comments" className="relative group data-[state=active]:bg-primary/25 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-3 py-2 text-sm font-medium">
+                <span className="relative z-10">Комментарии</span>
+              </TabsTrigger>
+              <TabsTrigger value="achievements" className="relative group data-[state=active]:bg-primary/25 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-3 py-2 text-sm font-medium">
+                <span className="relative z-10">Достижения</span>
+              </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview" className="space-y-6">
-              {/* О пользователе */}
-              <ProfileSummary
-                profile={profile}
-                isOwnProfile={isOwnProfile}
-                onProfileUpdate={handleProfileUpdate}
-              />
-
-              {/* Содержимое сайдбара */}
-              <ProfileSidebar
-                friends={mockFriends}
-                communities={mockCommunities}
-                activities={userActivities}
-                isOwnProfile={isOwnProfile}
-                userId={parseInt(profile.id)}
-                profileData={profileData}
-              />
-
-              {/* Основные компоненты профиля */}
-              <FavoriteComics favorites={favoriteMangas} isOwnProfile={isOwnProfile} />
-              <ReadingProgressModule progress={readingProgress} isOwnProfile={isOwnProfile} />
+            <TabsContent value="overview" className="space-y-7">
+              <div className="space-y-7">
+                <ProfileShowcaseFavorites favorites={favoriteMangas} />
+                <ProfileReadingProgress items={readingProgress} />
+                <ProfileActivity activities={activity} />
+                <ProfileAbout profile={profile} isOwn={isOwnProfile} onUpdate={handleProfileUpdate} />
+                <ProfileGenres profile={profile} />
+                <ProfileBadgesPlaceholder />
+                <Collections collections={collections} isOwnProfile={isOwnProfile} />
+              </div>
             </TabsContent>
 
             <TabsContent value="library" className="space-y-6">
               <Collections collections={collections} isOwnProfile={isOwnProfile} />
               <FavoriteComics favorites={favoriteMangas} isOwnProfile={isOwnProfile} />
+              <ReadingProgressModule progress={readingProgress} isOwnProfile={isOwnProfile} />
             </TabsContent>
 
-            <TabsContent value="reviews" className="space-y-6">
+            <TabsContent value="reviews" className="space-y-6 max-h-96 overflow-y-auto">
               {reviewsLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <LoadingSpinner />
@@ -378,7 +469,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               )}
             </TabsContent>
 
-            <TabsContent value="comments" className="space-y-6">
+            <TabsContent value="comments" className="space-y-6 max-h-96 overflow-y-auto">
               <UserComments userId={parseInt(userId)} isOwnProfile={isOwnProfile} />
             </TabsContent>
 

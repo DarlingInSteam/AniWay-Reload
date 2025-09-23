@@ -334,5 +334,13 @@ public class UserService implements UserDetailsService {
             log.error("Invalid role provided: {}", role);
             throw new IllegalArgumentException("Invalid role: " + role);
         }
+         Page<User> userPage = userRepository.findAll(pageRequest);
+         return userPage.stream()
+                 .map(UserMapper::toFullUserDTO)
+                 .collect(Collectors.toList());
+     }
+
+    public boolean existsByEmail(String email) {
+        return userRepository.existsByEmail(email.toLowerCase());
     }
 }

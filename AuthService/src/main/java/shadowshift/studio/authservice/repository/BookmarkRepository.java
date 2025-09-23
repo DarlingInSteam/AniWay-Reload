@@ -18,7 +18,7 @@ import java.util.Optional;
  * @version 1.0
  */
 @Repository
-public interface BookmarkRepository extends JpaRepository<Bookmark, Long> {
+public interface BookmarkRepository extends JpaRepository<Bookmark, Long>, BookmarkRepositoryCustom {
     
     /**
      * Находит все закладки пользователя.
@@ -88,4 +88,10 @@ public interface BookmarkRepository extends JpaRepository<Bookmark, Long> {
      * @return количество удаленных закладок
      */
     Long deleteByMangaId(Long mangaId);
+
+    /**
+     * Находит все закладки по идентификатору манги.
+     * @param mangaId идентификатор манги
+     */
+    List<Bookmark> findByMangaId(Long mangaId);
 }

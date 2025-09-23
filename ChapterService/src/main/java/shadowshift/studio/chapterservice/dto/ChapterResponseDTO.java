@@ -32,6 +32,9 @@ public class ChapterResponseDTO {
     /** Количество страниц в главе */
     private Integer pageCount;
 
+    /** Количество лайков к главе */
+    private Integer likeCount;
+
     /** Дата публикации главы */
     private LocalDateTime publishedDate;
 
@@ -60,6 +63,8 @@ public class ChapterResponseDTO {
         this.originalChapterNumber = chapter.getOriginalChapterNumber();
         this.title = chapter.getTitle();
         this.pageCount = chapter.getPageCount();
+        // Ensure likeCount is never null
+        this.likeCount = chapter.getLikeCount() != null ? chapter.getLikeCount() : 0;
         this.publishedDate = chapter.getPublishedDate();
         this.createdAt = chapter.getCreatedAt();
         this.updatedAt = chapter.getUpdatedAt();
@@ -204,4 +209,18 @@ public class ChapterResponseDTO {
      * @param updatedAt дата обновления
      */
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    /**
+     * Получить количество лайков к главе.
+     *
+     * @return количество лайков
+     */
+    public Integer getLikeCount() { return likeCount; }
+
+    /**
+     * Установить количество лайков к главе.
+     *
+     * @param likeCount количество лайков
+     */
+    public void setLikeCount(Integer likeCount) { this.likeCount = likeCount; }
 }

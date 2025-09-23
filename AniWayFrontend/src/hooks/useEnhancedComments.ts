@@ -133,11 +133,11 @@ export function useEnhancedComments(
 
         // Обрабатываем комментарии с полученными данными
         const enhanced = commentsToProcess.map((comment): EnhancedCommentResponseDTO => {
-          let targetInfo = {
-            text: `${getCommentTypeText(comment.type || 'UNKNOWN')} #${comment.targetId}`,
-            icon: getCommentTypeIcon(comment.type || 'UNKNOWN'),
-            color: getCommentTypeColor(comment.type || 'UNKNOWN')
-          };
+            let targetInfo = {
+                text: `${getCommentTypeText(comment.type)} #${comment.targetId}`,
+                icon: getCommentTypeIcon(comment.type),
+                color: getCommentTypeColor(comment.type)
+            };
 
           // Устанавливаем конкретную информацию на основе типа
           switch (comment.type) {
@@ -208,11 +208,11 @@ export function useEnhancedComments(
         // Fallback: используем базовую информацию
         const fallbackComments: EnhancedCommentResponseDTO[] = comments.slice(0, maxComments).map((comment: CommentResponseDTO) => ({
           ...comment,
-          targetInfo: {
-            text: `${getCommentTypeText(comment.type || 'UNKNOWN')} #${comment.targetId}`,
-            icon: getCommentTypeIcon(comment.type || 'UNKNOWN'),
-            color: getCommentTypeColor(comment.type || 'UNKNOWN')
-          }
+            targetInfo: {
+                text: `${getCommentTypeText(comment.type)} #${comment.targetId}`,
+                icon: getCommentTypeIcon(comment.type),
+                color: getCommentTypeColor(comment.type)
+            }
         }));
         setEnhancedComments(fallbackComments);
       } finally {

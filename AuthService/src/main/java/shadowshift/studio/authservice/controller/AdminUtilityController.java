@@ -17,7 +17,6 @@ import java.util.List;
 @Slf4j
 @CrossOrigin(origins = {"http://localhost:3000", "http://192.168.0.3:3000"})
 public class AdminUtilityController {
-
     private final AdminUtilityService adminUtilityService;
 
     @PutMapping("/ban-toggle")
@@ -104,5 +103,4 @@ public class AdminUtilityController {
             return ResponseEntity.badRequest().build();
         }
     }
-
 }
