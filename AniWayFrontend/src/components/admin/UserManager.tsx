@@ -596,12 +596,37 @@ export function UserManager() {
   })
 
   // Новая статистика
-  const { data: userStats } = useQuery({
+  const { data: userStats, isLoading: isStatsLoading, isError: isStatsError, error: statsError, refetch: refetchUserStats } = useQuery({
     queryKey: ['users-stats'],
-    queryFn: apiClient.getAdminUserStats,
+    queryFn: async () => {
+      console.log('[DEBUG] React Query invoking getAdminUserStats')
+      const d = await apiClient.getAdminUserStats()
+      console.log('[DEBUG] React Query users-stats result:', d)
+      return d
+    },
     retry: 1
   })
-  const totalUsers = userStats?.totalUsers
+
+  // Manual fallback one-shot (in case query function is skipped for any reason)
+  const [manualStats, setManualStats] = useState<null | { totalUsers:number; translators:number; admins:number; banned:number; activeLast7Days:number }>(null)
+  useEffect(() => {
+    if (!userStats) {
+      (async () => {
+        try {
+          console.log('[DEBUG] Manual fallback fetch for users-stats start')
+          const d = await apiClient.getAdminUserStats()
+          console.log('[DEBUG] Manual fallback users-stats result:', d)
+          setManualStats(d)
+        } catch (e) {
+          console.error('[DEBUG] Manual fallback users-stats error:', e)
+        }
+      })()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const effectiveStats = userStats || manualStats
+  const totalUsers = effectiveStats?.totalUsers
 
   // Мутация для переключения статуса бана
   const toggleBanMutation = useMutation({
@@ -769,20 +794,35 @@ export function UserManager() {
         {/* Modern Data Table */}
         <div className="glass-panel w-full rounded-xl border border-white/10 bg-white/5 backdrop-blur-xl p-4 grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
           {[
-            { key: 'totalUsers', label: 'Всего', value: userStats?.totalUsers },
-            { key: 'translators', label: 'Переводчики', value: userStats?.translators },
-            { key: 'admins', label: 'Админы', value: userStats?.admins },
-            { key: 'banned', label: 'Забаненные', value: userStats?.banned },
-            { key: 'activeLast7Days', label: 'Активные 7д', value: userStats?.activeLast7Days }
+            { key: 'totalUsers', label: 'Всего', value: effectiveStats?.totalUsers },
+            { key: 'translators', label: 'Переводчики', value: effectiveStats?.translators },
+            { key: 'admins', label: 'Админы', value: effectiveStats?.admins },
+            { key: 'banned', label: 'Забаненные', value: effectiveStats?.banned },
+            { key: 'activeLast7Days', label: 'Активные 7д', value: effectiveStats?.activeLast7Days }
           ].map(stat => (
             <div key={stat.key} className="flex flex-col gap-1">
               <div className="text-[10px] uppercase tracking-wide opacity-60">{stat.label}</div>
               <div className="text-xl font-semibold text-white">{stat.value ?? '—'}</div>
             </div>
           ))}
-          {!userStats && (
+          {(!effectiveStats && isStatsLoading) && (
             <div className="col-span-full flex justify-center py-2 text-slate-400 text-sm">
               <Loader2 className="h-4 w-4 animate-spin mr-2" /> Загрузка статистики...
+            </div>
+          )}
+          {(!effectiveStats && isStatsError) && (
+            <div className="col-span-full flex flex-col items-center gap-2 py-2 text-red-300 text-sm">
+              <div>Ошибка загрузки статистики</div>
+              <button
+                onClick={() => { setManualStats(null); refetchUserStats(); }}
+                className="px-3 py-1 rounded bg-white/10 hover:bg-white/20 border border-white/20"
+              >Повторить</button>
+              {statsError && <code className="text-[10px] opacity-60 max-w-full break-all">{String((statsError as any).message)}</code>}
+            </div>
+          )}
+          {(!effectiveStats && !isStatsLoading && !isStatsError) && (
+            <div className="col-span-full flex justify-center py-2 text-slate-400 text-xs">
+              (Диагностика: нет данных и нет ошибки — смотрим DEBUG логи в консоли)
             </div>
           )}
         </div>
