@@ -15,7 +15,9 @@ import { authService } from '@/services/authService'
 import { toast } from 'sonner'
 import { UserActionHistory, AdminActionLogger } from './AdminActionLogger'
 import { AdminUserData, AdminUserFilter } from '@/types'
-import { MOD_REASON_CATEGORIES, buildReason } from '@/constants/modReasons'
+import { MOD_REASON_CATEGORIES, buildReason, parseReason } from '@/constants/modReasons'
+import { useRemainingTime } from '@/hooks/useRemainingTime'
+import { BanTypeBadge } from './BanTypeBadge'
 import { isFeatureEnabled } from '@/constants/featureFlags'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -152,27 +154,7 @@ function UserRow({
   const [cooldownUntil, setCooldownUntil] = useState<number>(0)
   const [confirmElevate, setConfirmElevate] = useState('')
   const [selectedRole, setSelectedRole] = useState<"USER" | "ADMIN" | "TRANSLATOR">(user.role as any)
-  const [nowTs, setNowTs] = useState(Date.now())
-
-  useEffect(() => {
-    if (!isFeatureEnabled('TEMP_BAN_REMAINING_BADGE')) return
-    const id = setInterval(() => setNowTs(Date.now()), 30_000)
-    return () => clearInterval(id)
-  }, [])
-
-  const formatRemaining = (iso?: string | null) => {
-    if (!iso) return null
-    const end = new Date(iso).getTime()
-    if (isNaN(end)) return null
-    const diffMs = end - nowTs
-    if (diffMs <= 0) return 'истек'
-    const mins = Math.floor(diffMs / 60000)
-    if (mins < 60) return mins + 'м'
-    const hours = Math.floor(mins / 60)
-    if (hours < 24) return hours + 'ч'
-    const days = Math.floor(hours / 24)
-    return days + 'д'
-  }
+  const remaining = useRemainingTime((user as any).banExpiresAt)
   
   const getRoleBadge = (role: string) => {
     const variants = {
@@ -218,7 +200,7 @@ function UserRow({
   }
 
   return (
-  <TableRow className={(user as any).banType === 'SHADOW' && !user.isEnabled ? 'opacity-75 backdrop-blur-sm' : ''}>
+  <TableRow className={`transition-colors hover:bg-slate-800/40 ${ (user as any).banType === 'SHADOW' && !user.isEnabled ? 'opacity-70 bg-slate-900/30' : ''}` }>
       <TableCell>
         <div className="flex items-center gap-3">
           {user.avatar && (
@@ -231,9 +213,7 @@ function UserRow({
           <div>
             <div className="font-medium flex items-center gap-2">
               {user.displayName || user.username}
-              {(user as any).banType === 'SHADOW' && !user.isEnabled && (
-                <span className="text-[10px] uppercase tracking-wide text-slate-400 border border-slate-600 px-1 py-0.5 rounded">shadow</span>
-              )}
+              <BanTypeBadge banType={(user as any).banType} />
             </div>
             <div className="text-sm text-muted-foreground">@{user.username}</div>
           </div>
@@ -243,9 +223,9 @@ function UserRow({
       <TableCell>{getRoleBadge(user.role)}</TableCell>
       <TableCell className="space-y-1">
         {getStatusBadge(user.isEnabled)}
-        {(!user.isEnabled && (user as any).banType === 'TEMP' && (user as any).banExpiresAt && isFeatureEnabled('TEMP_BAN_REMAINING_BADGE')) && (
+        {(!user.isEnabled && (user as any).banType === 'TEMP' && (user as any).banExpiresAt && isFeatureEnabled('TEMP_BAN_REMAINING_BADGE')) && remaining.label && (
           <div className="text-[10px] uppercase tracking-wide text-amber-400 border border-amber-500/30 bg-amber-900/20 rounded px-1 py-0.5 inline-block">
-            Осталось: {formatRemaining((user as any).banExpiresAt)}
+            Осталось: {remaining.label}
           </div>
         )}
       </TableCell>
@@ -582,11 +562,24 @@ export function UserManager() {
 
   // Мутация для переключения статуса бана
   const toggleBanMutation = useMutation({
-    mutationFn: async ({ userId, reason }: { userId: number; reason: string }) => {
+    mutationFn: async ({ userId, reason, structured }: { userId: number; reason: string; structured?: {
+      banType: 'PERM' | 'TEMP' | 'SHADOW'; banExpiresAt?: string | null; reasonCode: string; reasonDetails: string; diff: any[]; meta: any;
+    } }) => {
       const adminId = await authService.getCurrentUserId()
-      
-      if (!adminId) {
-        throw new Error('Не удалось получить ID администратора')
+      if (!adminId) throw new Error('Не удалось получить ID администратора')
+      if (structured && isFeatureEnabled('STRUCTURED_ADMIN_REASON')) {
+        await apiClient.applyBan({
+          userId,
+            adminId,
+            banType: structured.banType,
+            banExpiresAt: structured.banExpiresAt,
+            reasonCode: structured.reasonCode,
+            reasonDetails: structured.reasonDetails,
+            diff: structured.diff,
+            meta: structured.meta,
+            legacyReason: reason
+        })
+        return
       }
       return apiClient.toggleUserBanStatus(userId, adminId, reason)
     },
@@ -660,7 +653,21 @@ export function UserManager() {
         })
       }
     })
-    toggleBanMutation.mutate({ userId, reason })
+    // Attempt to parse legacy reason back into structured for new endpoint usage
+    let structured: any = undefined
+    if (isFeatureEnabled('STRUCTURED_ADMIN_REASON')) {
+      const parsed = parseReason(reason)
+      const metaBanType = (parsed.meta?.banType as any) || 'PERM'
+      structured = {
+        banType: metaBanType,
+        banExpiresAt: parsed.meta?.banExpiresAt || null,
+        reasonCode: parsed.code,
+        reasonDetails: parsed.text,
+        diff: parsed.diff || [],
+        meta: parsed.meta || {}
+      }
+    }
+    toggleBanMutation.mutate({ userId, reason, structured })
     if (currentUser?.id === userId) {
       // Самостоятельная блокировка — сразу выходим локально
       setTimeout(() => {
@@ -719,6 +726,40 @@ export function UserManager() {
           <RefreshCw className="h-4 w-4" />
           Обновить
         </Button>
+      </div>
+
+      {/* Legend */}
+      <div className="grid md:grid-cols-3 gap-4">
+        <Card className="bg-card/40 border-border/60">
+          <CardHeader className="py-3">
+            <CardTitle className="text-sm">Легенда ролей</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs space-y-2">
+            <div className="flex items-center gap-2"><span className="w-20">Пользователь</span><span className="opacity-70">Базовый доступ</span></div>
+            <div className="flex items-center gap-2"><span className="w-20">Переводчик</span><span className="opacity-70">Доп. права контента</span></div>
+            <div className="flex items-center gap-2"><span className="w-20">Админ</span><span className="opacity-70">Полный контроль</span></div>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/40 border-border/60">
+          <CardHeader className="py-3">
+            <CardTitle className="text-sm">Типы блокировок</CardTitle>
+          </CardHeader>
+            <CardContent className="text-xs space-y-2">
+              <div className="flex items-center gap-2"><BanTypeBadge banType="PERM" /> <span className="opacity-70">Перманентная блокировка</span></div>
+              <div className="flex items-center gap-2"><BanTypeBadge banType="TEMP" /> <span className="opacity-70">Временная блокировка</span></div>
+              <div className="flex items-center gap-2"><BanTypeBadge banType="SHADOW" /> <span className="opacity-70">Пользователь не знает о блокировке</span></div>
+            </CardContent>
+        </Card>
+        <Card className="bg-card/40 border-border/60">
+          <CardHeader className="py-3">
+            <CardTitle className="text-sm">Подсказки</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs space-y-2">
+            <div>• Используйте категории причин для стандарта.</div>
+            <div>• TEMP требует дату истечения (UTC).</div>
+            <div>• SHADOW нуждается в подтверждении имени.</div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Фильтры */}

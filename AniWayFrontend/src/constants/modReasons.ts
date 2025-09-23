@@ -143,3 +143,23 @@ export function buildStructuredReasonPayload(parsed: ParsedReason) {
     meta: parsed.meta
   }
 }
+
+// Convenience builder used when creating a reason from discrete parts (code, text, diff, meta)
+// Returns both the legacy serialized string and structured pieces for dual-write / fallback.
+export function buildDualReason(
+  code: string,
+  human: string,
+  diff?: ModerationDiff[],
+  meta?: ModerationMeta
+) {
+  const legacy = buildReason(code, human, diff, meta)
+  return {
+    legacy,
+    structured: {
+      reasonCode: code,
+      reasonDetails: human,
+      diff: diff || [],
+      meta: meta || {}
+    }
+  }
+}

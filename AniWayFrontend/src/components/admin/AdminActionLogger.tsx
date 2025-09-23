@@ -10,9 +10,34 @@ import { apiClient } from '@/lib/api'
 import { AdminActionLogDTO } from '@/types'
 import { parseReason } from '@/constants/modReasons'
 
+// Helper to unify legacy serialized reason with new structured fields from backend
+function extractReason(log: AdminActionLogDTO) {
+  const hasStructured = !!(log.reasonCode || log.reasonDetails || (log as any).metaJson || (log as any).diffJson || log.diff)
+  if (hasStructured) {
+    let meta: any = (log as any).meta || (log as any).metaJson
+    if (typeof meta === 'string') {
+      try { meta = meta ? JSON.parse(meta) : {} } catch { meta = { raw: meta } }
+    }
+    if (!meta) meta = {}
+    let diff: any = (log as any).diff || (log as any).diffJson
+    if (typeof diff === 'string') {
+      try { diff = diff ? JSON.parse(diff) : [] } catch { diff = [] }
+    }
+    if (!Array.isArray(diff)) diff = []
+    return {
+      code: log.reasonCode || 'UNKNOWN',
+      text: log.reasonDetails || log.description || '',
+      meta,
+      diff,
+      raw: log.reason || ''
+    }
+  }
+  return parseReason(log.reason || '')
+}
+
 // Компонент для отображения деталей лога
 function LogDetailsDialog({ log }: { log: AdminActionLogDTO }) {
-  const parsed = parseReason(log.reason || '')
+  const parsed = extractReason(log)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const getActionColor = (action: string) => {
     const colors = {
@@ -156,7 +181,7 @@ function LogDetailsDialog({ log }: { log: AdminActionLogDTO }) {
                     <div>
                       <div className="text-xs font-semibold mb-1 opacity-70">Изменения</div>
                       <div className="space-y-1">
-                        {parsed.diff.map((d,i) => (
+                        {parsed.diff.map((d: any, i: number) => (
                           <div key={i} className="text-xs grid grid-cols-3 gap-2 bg-slate-800/40 px-2 py-1 rounded">
                             <span className="truncate text-slate-300">{d.field}</span>
                             <span className="truncate text-red-400">{d.old===null?'∅':String(d.old)}</span>

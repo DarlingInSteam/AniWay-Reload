@@ -848,6 +848,24 @@ class ApiClient {
     });
   }
 
+  // New structured ban endpoint supporting banType, expiry and structured reason fields
+  async applyBan(data: {
+    userId: number
+    adminId: number
+    banType: 'PERM' | 'TEMP' | 'SHADOW'
+    banExpiresAt?: string | null
+    reasonCode: string
+    reasonDetails: string
+    diff?: Array<{ field: string; old: any; new: any }>
+    meta?: Record<string, any>
+    legacyReason?: string // for backward compatibility logging
+  }): Promise<void> {
+    await this.request<void>('/admin/util/ban', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    })
+  }
+
   async changeUserRole(userId: number, adminId: number, role: string, reason: string): Promise<void> {
     const params = new URLSearchParams({
       adminId: adminId.toString(),
