@@ -6,6 +6,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import shadowshift.studio.authservice.entity.User;
+import shadowshift.studio.authservice.entity.Role;
+import shadowshift.studio.authservice.entity.BanType;
+import java.time.LocalDateTime;
 
 import java.util.List;
 import java.util.Optional;
@@ -44,6 +47,13 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
      * @return Optional с пользователем или пустой
      */
     Optional<User> findByUsernameOrEmail(String username, String email);
+
+    // Aggregation helpers
+    long countByRole(Role role);
+    long countByBanTypeNot(BanType banType);
+
+    @Query("SELECT COUNT(u) FROM User u WHERE (u.lastLogin IS NOT NULL AND u.lastLogin >= :cutoff) OR (u.lastLogin IS NULL AND u.createdAt >= :cutoff)")
+    long countActiveSince(@Param("cutoff") LocalDateTime cutoff);
     
     /**
      * Проверяет существование пользователя по имени.

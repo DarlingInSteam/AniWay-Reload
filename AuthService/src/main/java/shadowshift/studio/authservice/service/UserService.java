@@ -21,6 +21,7 @@ import shadowshift.studio.authservice.mapper.UserMapper;
 import shadowshift.studio.authservice.repository.AdminActionLogRepository;
 import shadowshift.studio.authservice.repository.ReadingProgressRepository;
 import shadowshift.studio.authservice.repository.UserRepository;
+import shadowshift.studio.authservice.dto.UserStatsDTO;
 
 import jakarta.persistence.criteria.Predicate;
 
@@ -338,6 +339,21 @@ public class UserService implements UserDetailsService {
 
     public long getTotalUsersCount() {
         return userRepository.count();
+    }
+
+    public UserStatsDTO getUserStats() {
+        long total = userRepository.count();
+        long translators = userRepository.countByRole(Role.TRANSLATOR);
+        long admins = userRepository.countByRole(Role.ADMIN);
+        long banned = userRepository.countByBanTypeNot(BanType.NONE);
+        long active7 = userRepository.countActiveSince(LocalDateTime.now().minusDays(7));
+        return UserStatsDTO.builder()
+                .totalUsers(total)
+                .translators(translators)
+                .admins(admins)
+                .banned(banned)
+                .activeLast7Days(active7)
+                .build();
     }
 
     public List<UserDTO> getUsersPage(int page, int size) {

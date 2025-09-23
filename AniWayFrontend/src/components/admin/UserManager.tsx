@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Users, Search, RefreshCw, UserCheck, Ban, Shield, HelpCircle, ChevronDown, ChevronUp, Activity } from 'lucide-react'
+import { Users, Search, RefreshCw, UserCheck, Ban, Shield, HelpCircle, ChevronDown, ChevronUp, Activity, Loader2 } from 'lucide-react'
 import { ModerationDrawer } from './ModerationDrawer'
 import { apiClient } from '@/lib/api'
 import { authService } from '@/services/authService'
@@ -595,19 +595,13 @@ export function UserManager() {
     placeholderData: (previousData) => previousData
   })
 
-  // Получение общего количества пользователей (отдельный endpoint) — может вернуть ошибку => fallback на usersData.totalElements
-  const { data: totalUsersCount } = useQuery({
-    queryKey: ['users-count'],
-    queryFn: apiClient.getAdminUsersCount,
+  // Новая статистика
+  const { data: userStats } = useQuery({
+    queryKey: ['users-stats'],
+    queryFn: apiClient.getAdminUserStats,
     retry: 1
   })
-
-  // Единственный авторитетный показатель: общее количество (только с backend или fallback)
-  const totalUsers = useMemo(() => {
-    const list: AdminUserData[] = usersData?.content || []
-    if (typeof totalUsersCount === 'number' && totalUsersCount > 0) return totalUsersCount
-    return (usersData as any)?.totalElements ?? list.length
-  }, [usersData, totalUsersCount])
+  const totalUsers = userStats?.totalUsers
 
   // Мутация для переключения статуса бана
   const toggleBanMutation = useMutation({
@@ -762,22 +756,8 @@ export function UserManager() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start justify-end">
-        <div className="flex items-center gap-4">
-          <div className="glass-panel p-3 rounded border border-white/10 flex flex-col gap-1 text-xs min-w-[120px]">
-            <div className="uppercase tracking-wide opacity-60">Всего пользователей</div>
-            <div className="text-xl font-semibold">{totalUsers}</div>
-          </div>
-          <Button 
-            onClick={() => { refetch(); }} 
-            variant="outline"
-            className="flex items-center gap-2 bg-white/10 border-white/20 hover:bg-white/20 text-white"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Обновить
-          </Button>
-        </div>
-      </div>
+      {/* Статистика пользователей (новая панель будет подключена после запроса stats) */}
+      {/* Placeholder removed old single-card layout */}
 
         {/* Enhanced Filters */}
         <UserFilters 
@@ -787,6 +767,26 @@ export function UserManager() {
         />
 
         {/* Modern Data Table */}
+        <div className="glass-panel w-full rounded-xl border border-white/10 bg-white/5 backdrop-blur-xl p-4 grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
+          {[
+            { key: 'totalUsers', label: 'Всего', value: userStats?.totalUsers },
+            { key: 'translators', label: 'Переводчики', value: userStats?.translators },
+            { key: 'admins', label: 'Админы', value: userStats?.admins },
+            { key: 'banned', label: 'Забаненные', value: userStats?.banned },
+            { key: 'activeLast7Days', label: 'Активные 7д', value: userStats?.activeLast7Days }
+          ].map(stat => (
+            <div key={stat.key} className="flex flex-col gap-1">
+              <div className="text-[10px] uppercase tracking-wide opacity-60">{stat.label}</div>
+              <div className="text-xl font-semibold text-white">{stat.value ?? '—'}</div>
+            </div>
+          ))}
+          {!userStats && (
+            <div className="col-span-full flex justify-center py-2 text-slate-400 text-sm">
+              <Loader2 className="h-4 w-4 animate-spin mr-2" /> Загрузка статистики...
+            </div>
+          )}
+        </div>
+
         <div className="glass-panel rounded-xl border border-white/10 bg-white/5 backdrop-blur-xl overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-white/5">
             <div className="flex items-center gap-4 text-sm text-slate-400">

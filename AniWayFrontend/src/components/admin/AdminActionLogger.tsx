@@ -350,10 +350,19 @@ export function AdminActionLogger() {
   })
 
   // Получение логов
-  const { data: allLogs, isLoading, refetch } = useQuery({
-    queryKey: ['admin-logs'],
-    queryFn: () => apiClient.getAdminLogs()
+  const [page, setPage] = useState(0)
+  const [pageSize] = useState(20)
+  const [sortBy, setSortBy] = useState('timestamp')
+  const [sortOrder, setSortOrder] = useState<'asc'|'desc'>('desc')
+
+  const { data: logsPage, isLoading, refetch } = useQuery({
+    queryKey: ['admin-logs-paged', page, pageSize, sortBy, sortOrder, filters],
+    queryFn: () => apiClient.getAdminLogsPaged({
+      page, size: pageSize, sortBy, sortOrder, admin: filters.adminUsername || undefined, target: filters.targetUsername || undefined, action: filters.action === 'all' ? undefined : filters.action
+    })
   })
+
+  const allLogs = logsPage?.content
 
   // Вспомогательные функции (определяем ДО использования в фильтре, чтобы избежать ReferenceError)
   const getTargetUsername = (log: AdminActionLogDTO) => log.targetUsername || log.targetUserName || 'Неизвестен'
@@ -367,22 +376,7 @@ export function AdminActionLogger() {
   }, [allLogs])
 
   // Мемоизированная фильтрация
-  const filteredLogs = useMemo(() => {
-    if (!allLogs) return []
-    return allLogs.filter(log => {
-      if (filters.adminUsername) {
-        if (!log.adminName?.toLowerCase().includes(filters.adminUsername.toLowerCase())) return false
-      }
-      if (filters.targetUsername) {
-        const uname = getTargetUsername(log)
-        if (!uname.toLowerCase().includes(filters.targetUsername.toLowerCase())) return false
-      }
-      if (filters.action !== 'all') {
-        if (getActionType(log) !== filters.action) return false
-      }
-      return true
-    })
-  }, [allLogs, filters])
+  const filteredLogs = allLogs || [] // server already filtered
 
   const formatDate = (dateString: string) => {
     // Проверяем наличие индикатора временной зоны в конце строки
@@ -512,10 +506,8 @@ export function AdminActionLogger() {
         <div className="flex flex-col gap-1">
           <span className="uppercase tracking-wide text-[10px] opacity-60">Статистика</span>
           <div className="px-3 py-2 rounded bg-white/5 border border-white/10 text-slate-300 flex items-center gap-2 text-xs">
-            <span>Показано {filteredLogs.length}</span>
-            {allLogs && allLogs.length !== filteredLogs.length && (
-              <span className="opacity-60">/ {allLogs.length}</span>
-            )}
+            <span>Страница {page + 1} из {logsPage?.totalPages || 1}</span>
+            <span className="opacity-60">• всего {logsPage?.totalElements || 0}</span>
           </div>
         </div>
       </div>
@@ -530,11 +522,23 @@ export function AdminActionLogger() {
           <Table className="text-sm">
             <TableHeader>
               <TableRow className="border-b border-white/10">
-                <TableHead className="text-slate-300 font-medium">Дата</TableHead>
-                <TableHead className="text-slate-300 font-medium">Администратор</TableHead>
-                <TableHead className="text-slate-300 font-medium">Пользователь</TableHead>
-                <TableHead className="text-slate-300 font-medium">Действие</TableHead>
-                <TableHead className="text-slate-300 font-medium">Описание</TableHead>
+                {[
+                  {key:'timestamp', label:'Дата'},
+                  {key:'adminName', label:'Администратор'},
+                  {key:'targetUserName', label:'Пользователь'},
+                  {key:'actionType', label:'Действие'},
+                  {key:'description', label:'Описание'}
+                ].map(col => (
+                  <TableHead
+                    key={col.key}
+                    onClick={()=>{
+                      if (sortBy === col.key) setSortOrder(o=>o==='asc'?'desc':'asc'); else { setSortBy(col.key); setSortOrder('asc'); }
+                    }}
+                    className={`text-slate-300 font-medium cursor-pointer select-none ${sortBy===col.key?'text-white':''}`}
+                  >
+                    <span className="inline-flex items-center gap-1">{col.label}{sortBy===col.key ? (sortOrder==='asc'?'↑':'↓') : ''}</span>
+                  </TableHead>
+                ))}
                 <TableHead className="text-slate-300 font-medium">Подробнее</TableHead>
               </TableRow>
             </TableHeader>
@@ -573,7 +577,7 @@ export function AdminActionLogger() {
                   </TableCell>
                 </TableRow>
               ))}
-              {filteredLogs.length === 0 && (
+              {filteredLogs.length === 0 && !isLoading && (
                 <TableRow>
                   <TableCell colSpan={6} className="py-10 text-center text-slate-400">
                     Записи не найдены
@@ -582,6 +586,13 @@ export function AdminActionLogger() {
               )}
             </TableBody>
           </Table>
+          <div className="flex items-center justify-between px-2 py-3 border-t border-white/10 text-xs text-slate-400">
+            <div>Всего: {logsPage?.totalElements || 0}</div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" disabled={page===0} onClick={()=>setPage(p=>Math.max(0,p-1))} className="bg-white/10 border-white/20 hover:bg-white/20 text-white">Назад</Button>
+              <Button variant="outline" size="sm" disabled={(logsPage?.totalPages||1)-1===page} onClick={()=>setPage(p=>p+1)} className="bg-white/10 border-white/20 hover:bg-white/20 text-white">Далее</Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

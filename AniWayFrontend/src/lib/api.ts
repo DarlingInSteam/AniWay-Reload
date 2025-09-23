@@ -836,6 +836,27 @@ class ApiClient {
     return this.request<number>('/admin/util/users-count');
   }
 
+  async getAdminUserStats(): Promise<{
+    totalUsers: number; translators: number; admins: number; banned: number; activeLast7Days: number;
+  }> {
+    return this.request('/admin/util/users-stats')
+  }
+
+  async getAdminLogsPaged(params: { page:number; size:number; sortBy:string; sortOrder:string; admin?:string; target?:string; action?:string }): Promise<{
+    content: AdminActionLogDTO[]; totalElements:number; totalPages:number; number:number; size:number;
+  }> {
+    const sp = new URLSearchParams({
+      page: String(params.page),
+      size: String(params.size),
+      sortBy: params.sortBy,
+      sortOrder: params.sortOrder
+    })
+    if (params.admin) sp.set('admin', params.admin)
+    if (params.target) sp.set('target', params.target)
+    if (params.action) sp.set('action', params.action)
+    return this.request(`/admin/util/logs/paged?${sp.toString()}`)
+  }
+
   async toggleUserBanStatus(userId: number, adminId: number, reason: string): Promise<void> {
     const params = new URLSearchParams({
       userId: userId.toString(),

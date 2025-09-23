@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import shadowshift.studio.authservice.dto.AdminActionLogDTO;
 import shadowshift.studio.authservice.dto.UserDTO;
 import shadowshift.studio.authservice.service.AdminUtilityService;
+import shadowshift.studio.authservice.dto.UserStatsDTO;
 import shadowshift.studio.authservice.entity.BanType;
 
 import java.time.LocalDateTime;
@@ -93,6 +94,16 @@ public class AdminUtilityController {
         }
     }
 
+    @GetMapping("/users-stats")
+    public ResponseEntity<UserStatsDTO> getUserStats() {
+        try {
+            return ResponseEntity.ok(adminUtilityService.getUserStats());
+        } catch (Exception e) {
+            log.error("Get users stats failed: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
     @GetMapping("/users/sortable")
     public ResponseEntity<Page<UserDTO>> getAllUsersSorted(
             @RequestParam(defaultValue = "0") int page,
@@ -147,6 +158,24 @@ public class AdminUtilityController {
             return ResponseEntity.ok(logs);
         } catch (Exception e) {
             log.error("Get admin logs failed: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @GetMapping("/logs/paged")
+    public ResponseEntity<Page<AdminActionLogDTO>> getLogsPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "timestamp") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortOrder,
+            @RequestParam(required = false) String admin,
+            @RequestParam(required = false) String target,
+            @RequestParam(required = false) String action
+    ) {
+        try {
+            return ResponseEntity.ok(adminUtilityService.getLogsPaged(page,size,sortBy,sortOrder,admin,target,action));
+        } catch (Exception e) {
+            log.error("Get admin logs paged failed: {}", e.getMessage());
             return ResponseEntity.badRequest().build();
         }
     }
