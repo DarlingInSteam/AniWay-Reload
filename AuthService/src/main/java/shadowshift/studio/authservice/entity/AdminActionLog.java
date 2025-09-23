@@ -31,11 +31,11 @@ public class AdminActionLog {
     private ActionType actionType;
 
     // ID целевого пользователя (в исходной схеме колонка target_user_id)
-    @Column(name = "target_user_id", nullable = false)
+    @Column(name = "target_user_id")
     private Long userId;
 
     // Имя целевого пользователя (в схеме колонка target_user_name)
-    @Column(name = "target_user_name", nullable = false)
+    @Column(name = "target_user_name")
     private String targetUserName;
 
     @Column(nullable = false)
