@@ -19,55 +19,52 @@ BEGIN
         RETURN;
     END IF;
 
-    -- Already varchar & no numeric remnants
-    IF col_type = 'character varying' AND NOT EXISTS (SELECT 1 FROM admin_action_logs WHERE action_type ~ '^[0-9]+$') THEN
-        RAISE NOTICE 'action_type already textual with no numeric remnants.';
-        RETURN;
-    END IF;
+    IF col_type IN ('smallint','integer') THEN
+        RAISE NOTICE 'Converting numeric action_type to textual enum names...';
 
-    -- Clean any leftover temp columns from previous failed attempts
-    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='admin_action_logs' AND column_name='action_type_text_shadow') THEN
-        ALTER TABLE admin_action_logs DROP COLUMN action_type_text_shadow;
-    END IF;
-    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='admin_action_logs' AND column_name='action_type_new') THEN
-        ALTER TABLE admin_action_logs DROP COLUMN action_type_new;
-    END IF;
+        -- Cleanup any previous temp columns
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='admin_action_logs' AND column_name='action_type_new') THEN
+            ALTER TABLE admin_action_logs DROP COLUMN action_type_new;
+        END IF;
 
-    -- Create new column
-    ALTER TABLE admin_action_logs ADD COLUMN action_type_new varchar(50);
+        ALTER TABLE admin_action_logs ADD COLUMN action_type_new varchar(50);
 
-    -- Populate mapping (cast to text uniformly)
-    UPDATE admin_action_logs
-    SET action_type_new = CASE (action_type::text)
-        WHEN '0' THEN 'CHANGE_ROLE'
-        WHEN '1' THEN 'BAN_USER'
-        WHEN '2' THEN 'UNBAN_USER'
-        WHEN 'CHANGE_ROLE' THEN 'CHANGE_ROLE'
-        WHEN 'BAN_USER' THEN 'BAN_USER'
-        WHEN 'UNBAN_USER' THEN 'UNBAN_USER'
-        ELSE 'CHANGE_ROLE' -- fallback default
-    END;
+        UPDATE admin_action_logs
+        SET action_type_new = CASE action_type
+            WHEN 0 THEN 'CHANGE_ROLE'
+            WHEN 1 THEN 'BAN_USER'
+            WHEN 2 THEN 'UNBAN_USER'
+            ELSE 'CHANGE_ROLE' -- fallback for unexpected
+        END;
 
-    -- Drop indexes referencing old column (simple pattern search)
-    PERFORM 1 FROM pg_indexes WHERE tablename='admin_action_logs' AND indexdef ILIKE '%(action_type)%';
-    IF FOUND THEN
+        -- Drop indexes referencing old column if any
         FOR col_type IN SELECT indexname FROM pg_indexes WHERE tablename='admin_action_logs' AND indexdef ILIKE '%(action_type)%' LOOP
             EXECUTE format('DROP INDEX IF EXISTS %I', col_type);
         END LOOP;
+
+        ALTER TABLE admin_action_logs RENAME COLUMN action_type TO action_type_old_num;
+        ALTER TABLE admin_action_logs RENAME COLUMN action_type_new TO action_type;
+        ALTER TABLE admin_action_logs ALTER COLUMN action_type SET NOT NULL;
+        ALTER TABLE admin_action_logs DROP COLUMN action_type_old_num;
+
+        RAISE NOTICE 'Numeric -> textual conversion finished.';
+
+    ELSIF col_type = 'character varying' THEN
+        -- Replace any lingering numeric strings '0','1','2'
+        IF EXISTS (SELECT 1 FROM admin_action_logs WHERE action_type IN ('0','1','2')) THEN
+            RAISE NOTICE 'Normalizing textual column containing numeric remnants...';
+            UPDATE admin_action_logs
+            SET action_type = CASE action_type
+                WHEN '0' THEN 'CHANGE_ROLE'
+                WHEN '1' THEN 'BAN_USER'
+                WHEN '2' THEN 'UNBAN_USER'
+                ELSE action_type
+            END
+            WHERE action_type IN ('0','1','2');
+        ELSE
+            RAISE NOTICE 'action_type already clean textual.';
+        END IF;
+    ELSE
+        RAISE NOTICE 'Unhandled action_type data type: %', col_type;
     END IF;
-
-    -- Swap columns
-    ALTER TABLE admin_action_logs RENAME COLUMN action_type TO action_type_old;
-    ALTER TABLE admin_action_logs RENAME COLUMN action_type_new TO action_type;
-
-    -- Ensure new column not null
-    ALTER TABLE admin_action_logs ALTER COLUMN action_type SET NOT NULL;
-
-    -- Remove old column
-    ALTER TABLE admin_action_logs DROP COLUMN action_type_old;
-
-    -- Optional recreate index
-    -- CREATE INDEX IF NOT EXISTS idx_admin_action_logs_action_type ON admin_action_logs(action_type);
-
-    RAISE NOTICE 'action_type migration completed successfully.';
 END $$;
