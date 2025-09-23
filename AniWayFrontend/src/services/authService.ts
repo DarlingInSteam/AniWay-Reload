@@ -253,7 +253,9 @@ class AuthService {
     
     try {
       const payload = JSON.parse(atob(token.split('.')[1]))
-      return payload.role || null
+      const raw = payload.role || payload.authorities?.[0] || null
+      if (!raw) return null
+      return String(raw).toUpperCase().replace(/^ROLE_/, '')
     } catch {
       return null
     }

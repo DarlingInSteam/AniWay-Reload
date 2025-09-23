@@ -95,8 +95,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     updateProfile,
     setUserAvatarLocal,
     isAuthenticated: !!user,
-    isAdmin: authService.isAdmin(),
-    isTranslator: authService.isTranslator()
+    // Определяем роль сперва из загруженного пользователя, затем из токена
+    isAdmin: (() => {
+      const role = user?.role || authService.getUserRole()
+      if (!role) return false
+      const norm = role.toString().toUpperCase().replace(/^ROLE_/, '')
+      return norm === 'ADMIN'
+    })(),
+    isTranslator: (() => {
+      const role = user?.role || authService.getUserRole()
+      if (!role) return false
+      const norm = role.toString().toUpperCase().replace(/^ROLE_/, '')
+      return norm === 'TRANSLATOR' || norm === 'ADMIN'
+    })()
   }
 
   return (

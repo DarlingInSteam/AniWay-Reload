@@ -5,10 +5,19 @@ import { MangaImporter } from '@/components/admin/MangaImporter'
 import { MangaManager } from '@/components/admin/MangaManager'
 import { Settings, Download, Upload, BookOpen } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 
 export function AdminMangaPage() {
   const [activeTab, setActiveTab] = useState('parser')
-  const { isAdmin } = useAuth()
+  const { isAdmin, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
+  }
 
   // Redirect or show unauthorized message if not admin
   if (!isAdmin) {

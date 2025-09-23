@@ -1,9 +1,18 @@
 import { UserManager } from '@/components/admin/UserManager'
 import { useAuth } from '@/contexts/AuthContext'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { Settings } from 'lucide-react'
 
 export function AdminUsersPage() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
+  }
 
   // Redirect or show unauthorized message if not admin
   if (!isAdmin) {
