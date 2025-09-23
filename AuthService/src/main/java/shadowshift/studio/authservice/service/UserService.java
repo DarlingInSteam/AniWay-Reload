@@ -402,7 +402,7 @@ public class UserService implements UserDetailsService {
                     .targetUserName(user.getUsername())
                     .description("Changed role of user " + user.getUsername() + " to " + role)
                     .reason(reason)
-                    .timestamp(LocalDateTime.now())
+                    .timestamp(LocalDateTime.now(ZoneOffset.UTC))
                     .build();
             adminActionLogRepository.save(logEntry);
 
