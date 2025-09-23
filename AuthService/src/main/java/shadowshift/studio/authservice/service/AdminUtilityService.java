@@ -6,10 +6,14 @@ import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import shadowshift.studio.authservice.dto.AdminActionLogDTO;
 import shadowshift.studio.authservice.dto.UserDTO;
+import shadowshift.studio.authservice.dto.UserStatsDTO;
 import shadowshift.studio.authservice.entity.AdminActionLog;
 import shadowshift.studio.authservice.mapper.AdminActionLogMapper;
 import shadowshift.studio.authservice.repository.AdminActionLogRepository;
 import shadowshift.studio.authservice.entity.BanType;
+import shadowshift.studio.authservice.entity.ActionType;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 import java.time.LocalDateTime;
 
@@ -37,6 +41,8 @@ public class AdminUtilityService {
         return userService.getTotalUsersCount();
     }
 
+    public UserStatsDTO getUserStats() { return userService.getUserStats(); }
+
     public Page<UserDTO> getUsersSortablePage(int page, int size, String sortBy, String sortOrder, String query, String role) {
         return userService.getUsersSortablePage(page, size, sortBy, sortOrder, query, role);
     }
@@ -54,5 +60,25 @@ public class AdminUtilityService {
                 .map(AdminActionLogMapper::toAdminActionLogDTO)
                 .collect(Collectors.toList());
 
+    }
+
+    public Page<AdminActionLogDTO> getLogsPaged(int page, int size, String sortBy, String sortOrder, String admin, String target, String action) {
+        if (sortBy == null || sortBy.isBlank()) sortBy = "timestamp";
+        if (sortOrder == null || sortOrder.isBlank()) sortOrder = "desc";
+        Sort.Direction dir = Sort.Direction.fromString(sortOrder);
+        PageRequest pr = PageRequest.of(page, size, Sort.by(dir, sortBy));
+        ActionType at = null;
+        if (action != null && !action.isBlank() && !action.equalsIgnoreCase("all")) {
+            try { at = ActionType.valueOf(action); } catch (Exception ignored) {}
+        }
+    String adminPattern = (admin==null||admin.isBlank())?null:("%"+admin+"%");
+    String targetPattern = (target==null||target.isBlank())?null:("%"+target+"%");
+    var result = adminActionLogRepository.searchLogs(
+        adminPattern,
+        targetPattern,
+        at,
+        pr
+    );
+        return result.map(AdminActionLogMapper::toAdminActionLogDTO);
     }
 }

@@ -27,13 +27,16 @@ public class AdminActionLog {
     @Column(nullable = false)
     private String adminName;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ActionType actionType;
 
-    @Column(nullable = false)
+    // ID целевого пользователя (в исходной схеме колонка target_user_id)
+    @Column(name = "target_user_id")
     private Long userId;
 
-    @Column(nullable = false)
+    // Имя целевого пользователя (в схеме колонка target_user_name)
+    @Column(name = "target_user_name")
     private String targetUserName;
 
     @Column(nullable = false)
@@ -58,7 +61,15 @@ public class AdminActionLog {
     @Column(name = "diff_json", columnDefinition = "TEXT")
     private String diffJson;
 
-    @Column(nullable = false)
+    // Дата создания записи (в схеме колонка created_at)
+    @Column(name = "created_at", nullable = false)
     private LocalDateTime timestamp;
+
+    @PrePersist
+    public void prePersist() {
+        if (timestamp == null) {
+            timestamp = LocalDateTime.now();
+        }
+    }
 
 }

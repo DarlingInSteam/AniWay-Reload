@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS admin_action_logs (
     admin_name VARCHAR(50) NOT NULL,
     action_type VARCHAR(100) NOT NULL,
     target_user_id BIGINT,
-    target_username VARCHAR(50),
+    target_user_name VARCHAR(50),
     description TEXT,
     reason TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

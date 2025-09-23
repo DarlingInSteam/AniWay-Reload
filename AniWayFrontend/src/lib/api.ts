@@ -836,6 +836,27 @@ class ApiClient {
     return this.request<number>('/admin/util/users-count');
   }
 
+  async getAdminUserStats(): Promise<{
+    totalUsers: number; translators: number; admins: number; banned: number; activeLast7Days: number;
+  }> {
+    return this.request('/admin/util/users-stats')
+  }
+
+  async getAdminLogsPaged(params: { page:number; size:number; sortBy:string; sortOrder:string; admin?:string; target?:string; action?:string }): Promise<{
+    content: AdminActionLogDTO[]; totalElements:number; totalPages:number; number:number; size:number;
+  }> {
+    const sp = new URLSearchParams({
+      page: String(params.page),
+      size: String(params.size),
+      sortBy: params.sortBy,
+      sortOrder: params.sortOrder
+    })
+    if (params.admin) sp.set('admin', params.admin)
+    if (params.target) sp.set('target', params.target)
+    if (params.action) sp.set('action', params.action)
+    return this.request(`/admin/util/logs/paged?${sp.toString()}`)
+  }
+
   async toggleUserBanStatus(userId: number, adminId: number, reason: string): Promise<void> {
     const params = new URLSearchParams({
       userId: userId.toString(),
@@ -846,6 +867,24 @@ class ApiClient {
     await this.request<void>(`/admin/util/ban-toggle?${params}`, {
       method: 'PUT',
     });
+  }
+
+  // New structured ban endpoint supporting banType, expiry and structured reason fields
+  async applyBan(data: {
+    userId: number
+    adminId: number
+    banType: 'PERM' | 'TEMP' | 'SHADOW'
+    banExpiresAt?: string | null
+    reasonCode: string
+    reasonDetails: string
+    diff?: Array<{ field: string; old: any; new: any }>
+    meta?: Record<string, any>
+    legacyReason?: string // for backward compatibility logging
+  }): Promise<void> {
+    await this.request<void>('/admin/util/ban', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    })
   }
 
   async changeUserRole(userId: number, adminId: number, role: string, reason: string): Promise<void> {

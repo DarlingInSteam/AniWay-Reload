@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,121 +9,68 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Users, Search, RefreshCw, UserCheck, Ban, Shield } from 'lucide-react'
+import { Users, Search, RefreshCw, UserCheck, Ban, Shield, HelpCircle, ChevronDown, ChevronUp, Activity, Loader2 } from 'lucide-react'
+import { ModerationDrawer } from './ModerationDrawer'
 import { apiClient } from '@/lib/api'
 import { authService } from '@/services/authService'
 import { toast } from 'sonner'
 import { UserActionHistory, AdminActionLogger } from './AdminActionLogger'
 import { AdminUserData, AdminUserFilter } from '@/types'
-import { MOD_REASON_CATEGORIES, buildReason } from '@/constants/modReasons'
+import { MOD_REASON_CATEGORIES, buildReason, parseReason } from '@/constants/modReasons'
+import { useRemainingTime } from '@/hooks/useRemainingTime'
+import { BanTypeBadge } from './BanTypeBadge'
 import { isFeatureEnabled } from '@/constants/featureFlags'
 import { useAuth } from '@/contexts/AuthContext'
 
 // Компонент фильтров пользователей
-function UserFilters({ 
-  filters, 
-  onFiltersChange 
-}: { 
-  filters: AdminUserFilter
-  onFiltersChange: (filters: AdminUserFilter) => void 
-}) {
+function UserFilters({ filters, onFiltersChange, onImmediateSearchChange }: { filters: AdminUserFilter; onFiltersChange: (f: AdminUserFilter)=>void; onImmediateSearchChange: (value: string)=>void }) {
   return (
-    <Card className="mb-6">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Search className="h-5 w-5" />
-          Фильтры и поиск
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          <div>
-            <Label htmlFor="search">Поиск по имени</Label>
-            <Input
-              id="search"
-              placeholder="Введите имя пользователя"
-              value={filters.search}
-              onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
-            />
-          </div>
-          
-          <div>
-            <Label htmlFor="status">Статус</Label>
-            <Select 
-              value={filters.status} 
-              onValueChange={(value: 'all' | 'active' | 'banned') => 
-                onFiltersChange({ ...filters, status: value })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Все</SelectItem>
-                <SelectItem value="active">Активные</SelectItem>
-                <SelectItem value="banned">Заблокированные</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label htmlFor="role">Роль</Label>
-            <Select 
-              value={filters.role} 
-              onValueChange={(value: 'all' | 'USER' | 'ADMIN' | 'TRANSLATOR') => 
-                onFiltersChange({ ...filters, role: value })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Все роли</SelectItem>
-                <SelectItem value="USER">Пользователь</SelectItem>
-                <SelectItem value="ADMIN">Администратор</SelectItem>
-                <SelectItem value="TRANSLATOR">Переводчик</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label htmlFor="sortBy">Сортировка</Label>
-            <Select 
-              value={filters.sortBy} 
-              onValueChange={(value) => onFiltersChange({ ...filters, sortBy: value })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="username">По имени</SelectItem>
-                <SelectItem value="createdAt">По дате регистрации</SelectItem>
-                <SelectItem value="lastLogin">По последнему входу</SelectItem>
-                <SelectItem value="role">По роли</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label htmlFor="sortOrder">Порядок</Label>
-            <Select 
-              value={filters.sortOrder} 
-              onValueChange={(value: 'asc' | 'desc') => 
-                onFiltersChange({ ...filters, sortOrder: value })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="asc">По возрастанию</SelectItem>
-                <SelectItem value="desc">По убыванию</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="glass-panel p-4 flex flex-wrap gap-3 items-center rounded-lg border border-white/10">
+      <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+        <Search className="h-4 w-4 opacity-60" />
+        <Input
+          placeholder="Поиск пользователя..."
+          value={filters.search}
+          onChange={(e)=>onImmediateSearchChange(e.target.value)}
+          className="h-8 text-sm bg-transparent"
+          aria-label="Поиск пользователя"
+        />
+      </div>
+      <Select value={filters.status} onValueChange={(v:any)=>onFiltersChange({...filters, status: v})}>
+        <SelectTrigger className="h-8 w-[130px] text-xs bg-transparent"><SelectValue placeholder="Статус" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Все</SelectItem>
+          <SelectItem value="active">Активные</SelectItem>
+          <SelectItem value="banned">Заблок.</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select value={filters.role} onValueChange={(v:any)=>onFiltersChange({...filters, role: v})}>
+        <SelectTrigger className="h-8 w-[150px] text-xs bg-transparent"><SelectValue placeholder="Роль" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Все роли</SelectItem>
+          <SelectItem value="USER">Пользователь</SelectItem>
+          <SelectItem value="TRANSLATOR">Переводчик</SelectItem>
+          <SelectItem value="ADMIN">Админ</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select value={filters.sortBy} onValueChange={(v:any)=>onFiltersChange({...filters, sortBy: v})}>
+        <SelectTrigger className="h-8 w-[150px] text-xs bg-transparent"><SelectValue placeholder="Сортировка" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="username">Имя</SelectItem>
+          <SelectItem value="createdAt">Регистрация</SelectItem>
+          <SelectItem value="lastLogin">Вход</SelectItem>
+          <SelectItem value="role">Роль</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select value={filters.sortOrder} onValueChange={(v:any)=>onFiltersChange({...filters, sortOrder: v})}>
+        <SelectTrigger className="h-8 w-[110px] text-xs bg-transparent"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="asc">ASC</SelectItem>
+          <SelectItem value="desc">DESC</SelectItem>
+        </SelectContent>
+      </Select>
+      <Button variant="outline" size="sm" onClick={()=>onFiltersChange({ search: '', status: 'all', role: 'all', sortBy: 'username', sortOrder: 'asc'})} className="h-8 text-xs">Сброс</Button>
+    </div>
   )
 }
 
@@ -141,6 +88,7 @@ function UserRow({
   currentAdminUsername: string | undefined
   mutationBusy: boolean
 }) {
+  const [expanded, setExpanded] = useState(false)
   const [banReason, setBanReason] = useState('')
   const [roleChangeReason, setRoleChangeReason] = useState('')
   const [banReasonCode, setBanReasonCode] = useState('ABUSE')
@@ -152,27 +100,7 @@ function UserRow({
   const [cooldownUntil, setCooldownUntil] = useState<number>(0)
   const [confirmElevate, setConfirmElevate] = useState('')
   const [selectedRole, setSelectedRole] = useState<"USER" | "ADMIN" | "TRANSLATOR">(user.role as any)
-  const [nowTs, setNowTs] = useState(Date.now())
-
-  useEffect(() => {
-    if (!isFeatureEnabled('TEMP_BAN_REMAINING_BADGE')) return
-    const id = setInterval(() => setNowTs(Date.now()), 30_000)
-    return () => clearInterval(id)
-  }, [])
-
-  const formatRemaining = (iso?: string | null) => {
-    if (!iso) return null
-    const end = new Date(iso).getTime()
-    if (isNaN(end)) return null
-    const diffMs = end - nowTs
-    if (diffMs <= 0) return 'истек'
-    const mins = Math.floor(diffMs / 60000)
-    if (mins < 60) return mins + 'м'
-    const hours = Math.floor(mins / 60)
-    if (hours < 24) return hours + 'ч'
-    const days = Math.floor(hours / 24)
-    return days + 'д'
-  }
+  const remaining = useRemainingTime((user as any).banExpiresAt)
   
   const getRoleBadge = (role: string) => {
     const variants = {
@@ -218,64 +146,121 @@ function UserRow({
   }
 
   return (
-  <TableRow className={(user as any).banType === 'SHADOW' && !user.isEnabled ? 'opacity-75 backdrop-blur-sm' : ''}>
-      <TableCell>
+  <>
+  <TableRow className={`group border-b border-white/5 hover:bg-white/5 transition-all duration-200 ${ (user as any).banType === 'SHADOW' && !user.isEnabled ? 'opacity-70 bg-slate-900/20' : ''}`}>
+      <TableCell className="py-4 px-6">
         <div className="flex items-center gap-3">
-          {user.avatar && (
-            <img 
-              src={user.avatar} 
-              alt={user.username}
-              className="w-8 h-8 rounded-full object-cover"
-            />
-          )}
-          <div>
-            <div className="font-medium flex items-center gap-2">
-              {user.displayName || user.username}
-              {(user as any).banType === 'SHADOW' && !user.isEnabled && (
-                <span className="text-[10px] uppercase tracking-wide text-slate-400 border border-slate-600 px-1 py-0.5 rounded">shadow</span>
+          <button
+            onClick={()=>setExpanded(e=>!e)}
+            aria-label={expanded ? 'Свернуть' : 'Развернуть'}
+            aria-expanded={expanded}
+            className="h-8 w-8 flex items-center justify-center rounded-lg border border-white/10 hover:border-white/30 hover:bg-white/10 transition-all duration-200 text-slate-400 hover:text-white"
+          >
+            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+          
+          <div className="relative">
+            {user.avatar ? (
+              <img 
+                src={user.avatar} 
+                alt={user.username}
+                className="w-10 h-10 rounded-full object-cover border-2 border-white/20"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-lg">
+                {(user.displayName || user.username).charAt(0).toUpperCase()}
+              </div>
+            )}
+            
+            {user.isEnabled && (
+              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-slate-900 flex items-center justify-center">
+                <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+              </div>
+            )}
+          </div>
+          
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-3">
+              <div className="font-semibold text-white group-hover:text-blue-300 transition-colors">
+                {user.displayName || user.username}
+              </div>
+              <BanTypeBadge banType={(user as any).banType} />
+            </div>
+            <div className="text-sm text-slate-400 flex items-center gap-2">
+              @{user.username}
+              {currentAdminUsername === user.username && (
+                <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs rounded-full font-medium">
+                  Это вы
+                </span>
               )}
             </div>
-            <div className="text-sm text-muted-foreground">@{user.username}</div>
           </div>
         </div>
       </TableCell>
-      <TableCell>{user.email}</TableCell>
-      <TableCell>{getRoleBadge(user.role)}</TableCell>
-      <TableCell className="space-y-1">
-        {getStatusBadge(user.isEnabled)}
-        {(!user.isEnabled && (user as any).banType === 'TEMP' && (user as any).banExpiresAt && isFeatureEnabled('TEMP_BAN_REMAINING_BADGE')) && (
-          <div className="text-[10px] uppercase tracking-wide text-amber-400 border border-amber-500/30 bg-amber-900/20 rounded px-1 py-0.5 inline-block">
-            Осталось: {formatRemaining((user as any).banExpiresAt)}
-          </div>
-        )}
-      </TableCell>
-      <TableCell>{formatDate(user.registrationDate || user.createdAt)}</TableCell>
-      <TableCell>{formatDate(user.lastLoginDate || user.lastLogin)}</TableCell>
-      <TableCell>
-        <div className="text-sm">
-          <div>Главы: {user.chaptersReadCount || 0}</div>
-          <div>Лайки: {user.likesGivenCount || 0}</div>
-          <div>Комментарии: {user.commentsCount || 0}</div>
+      
+      <TableCell className="hidden xl:table-cell py-4 px-6">
+        <div className="text-slate-300 truncate max-w-48">
+          {user.email}
         </div>
       </TableCell>
-      <TableCell>
+      
+      <TableCell className="py-4 px-6">{getRoleBadge(user.role)}</TableCell>
+      
+      <TableCell className="py-4 px-6">
+        <div className="space-y-2">
+          {getStatusBadge(user.isEnabled)}
+          {(!user.isEnabled && (user as any).banType === 'TEMP' && (user as any).banExpiresAt && isFeatureEnabled('TEMP_BAN_REMAINING_BADGE')) && remaining.label && (
+            <div className="text-xs uppercase tracking-wide text-amber-400 border border-amber-500/30 bg-amber-900/20 rounded-md px-2 py-1 inline-block">
+              Осталось: {remaining.label}
+            </div>
+          )}
+        </div>
+      </TableCell>
+      
+      <TableCell className="py-4 px-6">
+        <div className="text-sm text-slate-300">
+          <div className="font-medium">Регистрация:</div>
+          <div className="text-slate-400">{formatDate(user.registrationDate || user.createdAt)}</div>
+          <div className="font-medium mt-2">Последний вход:</div>
+          <div className="text-slate-400">{formatDate(user.lastLoginDate || user.lastLogin)}</div>
+        </div>
+      </TableCell>
+      
+      <TableCell className="py-4 px-6">
+        <div className="grid grid-cols-1 gap-1 text-sm">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-blue-500 rounded-full" />
+            <span className="text-slate-400">Главы:</span>
+            <span className="text-white font-medium">{user.chaptersReadCount || 0}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-emerald-500 rounded-full" />
+            <span className="text-slate-400">Лайки:</span>
+            <span className="text-white font-medium">{user.likesGivenCount || 0}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-purple-500 rounded-full" />
+            <span className="text-slate-400">Комменты:</span>
+            <span className="text-white font-medium">{user.commentsCount || 0}</span>
+          </div>
+        </div>
+      </TableCell>
+      
+      <TableCell className="py-4 px-6">
         <div className="flex gap-2">
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button
                 variant={user.isEnabled ? 'destructive' : 'default'}
-                size="sm"
+                size="icon"
+                className="h-8 w-8"
+                title={user.isEnabled ? 'Заблокировать' : 'Разблокировать'}
+                aria-label={user.isEnabled ? 'Заблокировать пользователя' : 'Разблокировать пользователя'}
               >
                 {user.isEnabled ? (
-                  <>
-                    <Ban className="h-4 w-4 mr-1" />
-                    Заблокировать
-                  </>
+                  <Ban className="h-4 w-4" />
                 ) : (
-                  <>
-                    <UserCheck className="h-4 w-4 mr-1" />
-                    Разблокировать
-                  </>
+                  <UserCheck className="h-4 w-4" />
                 )}
               </Button>
             </AlertDialogTrigger>
@@ -417,9 +402,8 @@ function UserRow({
           {/* Диалог смены роли */}
           <Dialog>
             <DialogTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Shield className="h-4 w-4 mr-1" />
-                Роль
+              <Button variant="outline" size="icon" className="h-8 w-8" title="Изменить роль" aria-label="Изменить роль">
+                <Shield className="h-4 w-4" />
               </Button>
             </DialogTrigger>
             <DialogContent>
@@ -538,10 +522,39 @@ function UserRow({
             </DialogContent>
           </Dialog>
           
-          <UserActionHistory username={user.username} />
+          <div title="История действий" aria-label="История действий">
+            <UserActionHistory username={user.username} />
+          </div>
         </div>
       </TableCell>
     </TableRow>
+    {expanded && (
+      <TableRow className="bg-white/5">
+        <TableCell colSpan={7} className="p-4 text-xs space-y-3">
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="space-y-1">
+              <div className="font-semibold text-[11px] uppercase tracking-wide opacity-70">Аккаунт</div>
+              <div>Создан: {formatDate(user.registrationDate || user.createdAt)}</div>
+              <div>Последний вход: {formatDate(user.lastLoginDate || user.lastLogin)}</div>
+              {(user as any).banType && <div>Тип блокировки: {(user as any).banType}</div>}
+            </div>
+            <div className="space-y-1">
+              <div className="font-semibold text-[11px] uppercase tracking-wide opacity-70">Статистика</div>
+              <div>Главы: {user.chaptersReadCount || 0}</div>
+              <div>Лайки: {user.likesGivenCount || 0}</div>
+              <div>Комментарии: {user.commentsCount || 0}</div>
+            </div>
+            <div className="space-y-1">
+              <div className="font-semibold text-[11px] uppercase tracking-wide opacity-70">Действия</div>
+              <div className="flex gap-2 flex-wrap">
+                <Button size="sm" variant="outline" onClick={()=>setExpanded(false)} className="h-7 px-2 text-[11px]">Скрыть</Button>
+              </div>
+            </div>
+          </div>
+        </TableCell>
+      </TableRow>
+    )}
+  </>
   )
 }
 
@@ -558,6 +571,14 @@ export function UserManager() {
     sortBy: 'username',
     sortOrder: 'asc'
   })
+  // Debounce search typing
+  const [rawSearch, setRawSearch] = useState('')
+  useEffect(() => {
+    const h = setTimeout(() => {
+      setFilters(f => f.search === rawSearch ? f : { ...f, search: rawSearch })
+    }, 400)
+    return () => clearTimeout(h)
+  }, [rawSearch])
   const [busy, setBusy] = useState(false)
 
   // Получение пользователей
@@ -574,19 +595,59 @@ export function UserManager() {
     placeholderData: (previousData) => previousData
   })
 
-  // Получение общего количества пользователей
-  const { data: totalUsersCount } = useQuery({
-    queryKey: ['users-count'],
-    queryFn: apiClient.getAdminUsersCount
+  // Новая статистика
+  const { data: userStats, isLoading: isStatsLoading, isError: isStatsError, error: statsError, refetch: refetchUserStats } = useQuery({
+    queryKey: ['users-stats'],
+    queryFn: async () => {
+      console.log('[DEBUG] React Query invoking getAdminUserStats')
+      const d = await apiClient.getAdminUserStats()
+      console.log('[DEBUG] React Query users-stats result:', d)
+      return d
+    },
+    retry: 1
   })
+
+  // Manual fallback one-shot (in case query function is skipped for any reason)
+  const [manualStats, setManualStats] = useState<null | { totalUsers:number; translators:number; admins:number; banned:number; activeLast7Days:number }>(null)
+  useEffect(() => {
+    if (!userStats) {
+      (async () => {
+        try {
+          console.log('[DEBUG] Manual fallback fetch for users-stats start')
+          const d = await apiClient.getAdminUserStats()
+          console.log('[DEBUG] Manual fallback users-stats result:', d)
+          setManualStats(d)
+        } catch (e) {
+          console.error('[DEBUG] Manual fallback users-stats error:', e)
+        }
+      })()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const effectiveStats = userStats || manualStats
+  const totalUsers = effectiveStats?.totalUsers
 
   // Мутация для переключения статуса бана
   const toggleBanMutation = useMutation({
-    mutationFn: async ({ userId, reason }: { userId: number; reason: string }) => {
+    mutationFn: async ({ userId, reason, structured }: { userId: number; reason: string; structured?: {
+      banType: 'PERM' | 'TEMP' | 'SHADOW'; banExpiresAt?: string | null; reasonCode: string; reasonDetails: string; diff: any[]; meta: any;
+    } }) => {
       const adminId = await authService.getCurrentUserId()
-      
-      if (!adminId) {
-        throw new Error('Не удалось получить ID администратора')
+      if (!adminId) throw new Error('Не удалось получить ID администратора')
+      if (structured && isFeatureEnabled('STRUCTURED_ADMIN_REASON')) {
+        await apiClient.applyBan({
+          userId,
+            adminId,
+            banType: structured.banType,
+            banExpiresAt: structured.banExpiresAt,
+            reasonCode: structured.reasonCode,
+            reasonDetails: structured.reasonDetails,
+            diff: structured.diff,
+            meta: structured.meta,
+            legacyReason: reason
+        })
+        return
       }
       return apiClient.toggleUserBanStatus(userId, adminId, reason)
     },
@@ -660,7 +721,21 @@ export function UserManager() {
         })
       }
     })
-    toggleBanMutation.mutate({ userId, reason })
+    // Attempt to parse legacy reason back into structured for new endpoint usage
+    let structured: any = undefined
+    if (isFeatureEnabled('STRUCTURED_ADMIN_REASON')) {
+      const parsed = parseReason(reason)
+      const metaBanType = (parsed.meta?.banType as any) || 'PERM'
+      structured = {
+        banType: metaBanType,
+        banExpiresAt: parsed.meta?.banExpiresAt || null,
+        reasonCode: parsed.code,
+        reasonDetails: parsed.text,
+        diff: parsed.diff || [],
+        meta: parsed.meta || {}
+      }
+    }
+    toggleBanMutation.mutate({ userId, reason, structured })
     if (currentUser?.id === userId) {
       // Самостоятельная блокировка — сразу выходим локально
       setTimeout(() => {
@@ -691,6 +766,12 @@ export function UserManager() {
     }
   }
 
+  // Drawer state (moderation side panel)
+  const [drawerUser, setDrawerUser] = useState<AdminUserData | null>(null)
+  const [drawerMode, setDrawerMode] = useState<'BAN' | 'ROLE' | null>(null)
+  const openDrawer = (user: AdminUserData, mode: 'BAN' | 'ROLE') => { setDrawerUser(user); setDrawerMode(mode) }
+  const closeDrawer = () => { setDrawerUser(null); setDrawerMode(null) }
+
   // Фильтрация данных по статусу
   const filteredUsers = (usersData?.content || []).filter((user: AdminUserData) => {
     if (filters.status === 'active') return user.isEnabled
@@ -699,113 +780,212 @@ export function UserManager() {
   })
 
   return (
-    <div className="space-y-6">
-      {/* Заголовок */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Users className="h-6 w-6" />
-            Управление пользователями
-          </h2>
-          <p className="text-muted-foreground mt-1">
-            Всего пользователей в системе: {totalUsersCount || 0}
-          </p>
+    <div className="space-y-5">
+      {/* Статистика пользователей (новая панель будет подключена после запроса stats) */}
+      {/* Placeholder removed old single-card layout */}
+
+        {/* Enhanced Filters */}
+        <UserFilters 
+          filters={filters} 
+          onFiltersChange={setFilters} 
+          onImmediateSearchChange={setRawSearch}
+        />
+
+        {/* Modern Data Table */}
+        <div className="glass-panel w-full rounded-xl border border-white/10 bg-white/5 backdrop-blur-xl p-4 grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
+          {[
+            { key: 'totalUsers', label: 'Всего', value: effectiveStats?.totalUsers },
+            { key: 'translators', label: 'Переводчики', value: effectiveStats?.translators },
+            { key: 'admins', label: 'Админы', value: effectiveStats?.admins },
+            { key: 'banned', label: 'Забаненные', value: effectiveStats?.banned },
+            { key: 'activeLast7Days', label: 'Активные 7д', value: effectiveStats?.activeLast7Days }
+          ].map(stat => (
+            <div key={stat.key} className="flex flex-col gap-1">
+              <div className="text-[10px] uppercase tracking-wide opacity-60">{stat.label}</div>
+              <div className="text-xl font-semibold text-white">{stat.value ?? '—'}</div>
+            </div>
+          ))}
+          {(!effectiveStats && isStatsLoading) && (
+            <div className="col-span-full flex justify-center py-2 text-slate-400 text-sm">
+              <Loader2 className="h-4 w-4 animate-spin mr-2" /> Загрузка статистики...
+            </div>
+          )}
+          {(!effectiveStats && isStatsError) && (
+            <div className="col-span-full flex flex-col items-center gap-2 py-2 text-red-300 text-sm">
+              <div>Ошибка загрузки статистики</div>
+              <button
+                onClick={() => { setManualStats(null); refetchUserStats(); }}
+                className="px-3 py-1 rounded bg-white/10 hover:bg-white/20 border border-white/20"
+              >Повторить</button>
+              {statsError && <code className="text-[10px] opacity-60 max-w-full break-all">{String((statsError as any).message)}</code>}
+            </div>
+          )}
+          {(!effectiveStats && !isStatsLoading && !isStatsError) && (
+            <div className="col-span-full flex justify-center py-2 text-slate-400 text-xs">
+              (Диагностика: нет данных и нет ошибки — смотрим DEBUG логи в консоли)
+            </div>
+          )}
         </div>
-        <Button 
-          onClick={() => refetch()} 
-          variant="outline"
-          className="flex items-center gap-2"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Обновить
-        </Button>
-      </div>
 
-      {/* Фильтры */}
-      <UserFilters filters={filters} onFiltersChange={setFilters} />
-
-      {/* Таблица пользователей */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Список пользователей</CardTitle>
-          <CardDescription>
-            Отображается {filteredUsers.length} из {(usersData as any)?.totalElements || 0} пользователей
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center py-8">
-              <RefreshCw className="h-6 w-6 animate-spin" />
+        <div className="glass-panel rounded-xl border border-white/10 bg-white/5 backdrop-blur-xl overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-white/5">
+            <div className="flex items-center gap-4 text-sm text-slate-400">
+              <span>Показано {filteredUsers.length} из {(usersData as any)?.totalElements || 0}</span>
+              <div className="w-px h-4 bg-white/20" />
+              <span>Страница {currentPage + 1} из {(usersData as any)?.totalPages || 1}</span>
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Пользователь</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Роль</TableHead>
-                    <TableHead>Статус</TableHead>
-                    <TableHead>Дата регистрации</TableHead>
-                    <TableHead>Последний вход</TableHead>
-                    <TableHead>Активность</TableHead>
-                    <TableHead>Действия</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredUsers.map((user: AdminUserData) => (
-                    <UserRow
-                      key={user.id}
-                      user={user}
-                      onToggleBan={handleToggleBan}
-                      onChangeRole={handleChangeRole}
-                      currentAdminUsername={currentUser?.username}
-                      mutationBusy={busy}
-                    />
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage === 0}
+                onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+                className="bg-white/10 border-white/20 hover:bg-white/20 text-white"
+              >
+                Назад
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage >= ((usersData as any)?.totalPages || 1) - 1}
+                onClick={() => setCurrentPage(p => p + 1)}
+                className="bg-white/10 border-white/20 hover:bg-white/20 text-white"
+              >
+                Далее
+              </Button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">{isLoading ? (
+            <Table className="text-sm">
+              <TableHeader>
+                <TableRow className="border-b border-white/10 hover:bg-transparent">
+                  {['Пользователь','Email','Роль','Статус','Активность','Статистика','Действия'].map(h => (
+                    <TableHead key={h} className="text-slate-300 font-semibold py-4 px-6">
+                      <div className="h-4 bg-white/10 rounded w-24 animate-pulse" />
+                    </TableHead>
                   ))}
-                  {filteredUsers.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                        Пользователи не найдены
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {Array.from({ length: 6 }).map((_,i)=> (
+                  <TableRow key={i} className="border-b border-white/5">
+                    {Array.from({ length: 7 }).map((__,c)=>(
+                      <TableCell key={c} className="py-4 px-6">
+                        <div className="h-4 bg-white/10 rounded animate-pulse" style={{width: `${60 + Math.random() * 40}%`}} />
                       </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-
-          {/* Пагинация */}
-          {usersData && (usersData as any).totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4">
-              <div className="text-sm text-muted-foreground">
-                Страница {currentPage + 1} из {(usersData as any).totalPages}
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage === 0}
-                  onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
-                >
-                  Предыдущая
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage >= (usersData as any).totalPages - 1}
-                  onClick={() => setCurrentPage(prev => Math.min((usersData as any).totalPages - 1, prev + 1))}
-                >
-                  Следующая
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <Table className="text-sm">
+              <TableHeader>
+                <TableRow className="border-b border-white/10 hover:bg-transparent">
+                  {[
+                    { key: 'username', label: 'Пользователь', sortable: true },
+                    { key: 'email', label: 'Email', className: 'hidden xl:table-cell', sortable: true },
+                    { key: 'role', label: 'Роль', sortable: true },
+                    { key: 'isEnabled', label: 'Статус', sortable: false },
+                    { key: 'createdAt', label: 'Активность', sortable: true },
+                    { key: 'activity', label: 'Статистика', sortable: false },
+                    { key: 'actions', label: 'Действия', sortable: false }
+                  ].map(col => {
+                    const active = filters.sortBy === col.key
+                    const sortable = col.sortable !== false
+                    const direction = active ? filters.sortOrder : undefined
+                    return (
+                      <TableHead
+                        key={col.key}
+                        className={`text-slate-300 font-semibold py-4 px-6 ${col.className||''} ${sortable ? 'cursor-pointer select-none hover:text-white' : ''}`}
+                        onClick={() => {
+                          if (!sortable) return
+                          setFilters(f => {
+                            if (f.sortBy === col.key) {
+                              return { ...f, sortOrder: f.sortOrder === 'asc' ? 'desc' : 'asc' }
+                            }
+                            return { ...f, sortBy: col.key, sortOrder: 'asc' }
+                          })
+                        }}
+                      >
+                        <div className="flex items-center gap-2">
+                          {col.label}
+                          {sortable && (
+                            <div className={`transition-all duration-200 ${active ? 'opacity-100' : 'opacity-40'}`}>
+                              {active ? (direction==='asc' ? '↗️' : '↘️') : '↕️'}
+                            </div>
+                          )}
+                        </div>
+                      </TableHead>
+                    )
+                  })}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+              {filteredUsers.map((user: AdminUserData) => (
+                <UserRow
+                  key={user.id}
+                  user={user}
+                  onToggleBan={handleToggleBan}
+                  onChangeRole={handleChangeRole}
+                  currentAdminUsername={currentUser?.username}
+                  mutationBusy={busy}
+                  // Provide handlers for drawer activation via context substitution later if needed
+                />
+              ))}
+              {filteredUsers.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="py-16">
+                    <div className="flex flex-col items-center justify-center text-center space-y-4">
+                      <div className="p-4 rounded-full bg-white/10">
+                        <Users className="h-12 w-12 text-slate-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-white mb-2">Пользователи не найдены</h3>
+                        <p className="text-slate-400 max-w-md">
+                          {filters.search ? 
+                            `Нет пользователей, соответствующих запросу "${filters.search}"` :
+                            'Попробуйте изменить фильтры или добавить нового пользователя'
+                          }
+                        </p>
+                      </div>
+                      {filters.search && (
+                        <Button 
+                          variant="outline"
+                          onClick={() => setFilters(f => ({ ...f, search: '' }))}
+                          className="bg-white/10 border-white/20 hover:bg-white/20 text-white"
+                        >
+                          Очистить поиск
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        )}
+        </div>
+      </div>
       {/* Журнал действий администраторов */}
       <AdminActionLogger />
+      <ModerationDrawer
+        open={!!drawerUser}
+        onClose={closeDrawer}
+        title={drawerMode === 'ROLE' ? 'Изменение роли' : 'Управление блокировкой'}
+      >
+        {/* Placeholder: existing dialogs still in row; next step could migrate forms here */}
+        {drawerUser && (
+          <div className="text-sm space-y-4">
+            <div>
+              <div className="font-semibold mb-1">Пользователь</div>
+              {drawerUser.username}
+            </div>
+            <div className="opacity-70 text-xs">(Форма будет перенесена сюда на следующем шаге)</div>
+          </div>
+        )}
+      </ModerationDrawer>
     </div>
   )
 }
