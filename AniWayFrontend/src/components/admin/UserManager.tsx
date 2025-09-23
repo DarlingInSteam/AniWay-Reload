@@ -9,12 +9,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Users, Search, RefreshCw, UserX, UserCheck, Ban, Shield, Calendar, Activity, History } from 'lucide-react'
+import { Users, Search, RefreshCw, UserCheck, Ban, Shield } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { authService } from '@/services/authService'
 import { toast } from 'sonner'
 import { UserActionHistory, AdminActionLogger } from './AdminActionLogger'
-import { AdminUserData, AdminUserFilter, AdminUsersPageResponse } from '@/types'
+import { AdminUserData, AdminUserFilter } from '@/types'
+import { MOD_REASON_CATEGORIES, buildReason } from '@/constants/modReasons'
+import { isFeatureEnabled } from '@/constants/featureFlags'
+import { useAuth } from '@/contexts/AuthContext'
 
 // Компонент фильтров пользователей
 function UserFilters({ 
@@ -128,15 +131,48 @@ function UserFilters({
 function UserRow({ 
   user, 
   onToggleBan,
-  onChangeRole
+  onChangeRole,
+  currentAdminUsername,
+  mutationBusy
 }: { 
   user: AdminUserData
   onToggleBan: (userId: number, reason: string) => void
   onChangeRole: (userId: number, role: string, reason: string) => void
+  currentAdminUsername: string | undefined
+  mutationBusy: boolean
 }) {
   const [banReason, setBanReason] = useState('')
   const [roleChangeReason, setRoleChangeReason] = useState('')
+  const [banReasonCode, setBanReasonCode] = useState('ABUSE')
+  const [banTemplate, setBanTemplate] = useState('')
+  const [banType, setBanType] = useState<'PERM' | 'TEMP' | 'SHADOW'>('PERM')
+  const [banExpiresAt, setBanExpiresAt] = useState<string>('')
+  const [confirmShadow, setConfirmShadow] = useState('')
+  const [roleReasonCode, setRoleReasonCode] = useState('OTHER')
+  const [cooldownUntil, setCooldownUntil] = useState<number>(0)
+  const [confirmElevate, setConfirmElevate] = useState('')
   const [selectedRole, setSelectedRole] = useState<"USER" | "ADMIN" | "TRANSLATOR">(user.role as any)
+  const [nowTs, setNowTs] = useState(Date.now())
+
+  useEffect(() => {
+    if (!isFeatureEnabled('TEMP_BAN_REMAINING_BADGE')) return
+    const id = setInterval(() => setNowTs(Date.now()), 30_000)
+    return () => clearInterval(id)
+  }, [])
+
+  const formatRemaining = (iso?: string | null) => {
+    if (!iso) return null
+    const end = new Date(iso).getTime()
+    if (isNaN(end)) return null
+    const diffMs = end - nowTs
+    if (diffMs <= 0) return 'истек'
+    const mins = Math.floor(diffMs / 60000)
+    if (mins < 60) return mins + 'м'
+    const hours = Math.floor(mins / 60)
+    if (hours < 24) return hours + 'ч'
+    const days = Math.floor(hours / 24)
+    return days + 'д'
+  }
   
   const getRoleBadge = (role: string) => {
     const variants = {
@@ -155,6 +191,14 @@ function UserRow({
   }
 
   const getStatusBadge = (isEnabled: boolean) => {
+    const shadow = (user as any).banType === 'SHADOW' && !isEnabled
+    if (shadow) {
+      return (
+        <Badge variant="secondary" className="bg-gradient-to-r from-slate-700 to-slate-800 border border-dashed border-slate-500 animate-pulse">
+          Теневая
+        </Badge>
+      )
+    }
     return (
       <Badge variant={isEnabled ? 'default' : 'destructive'}>
         {isEnabled ? 'Активен' : 'Заблокирован'}
@@ -174,7 +218,7 @@ function UserRow({
   }
 
   return (
-    <TableRow>
+  <TableRow className={(user as any).banType === 'SHADOW' && !user.isEnabled ? 'opacity-75 backdrop-blur-sm' : ''}>
       <TableCell>
         <div className="flex items-center gap-3">
           {user.avatar && (
@@ -185,14 +229,26 @@ function UserRow({
             />
           )}
           <div>
-            <div className="font-medium">{user.displayName || user.username}</div>
+            <div className="font-medium flex items-center gap-2">
+              {user.displayName || user.username}
+              {(user as any).banType === 'SHADOW' && !user.isEnabled && (
+                <span className="text-[10px] uppercase tracking-wide text-slate-400 border border-slate-600 px-1 py-0.5 rounded">shadow</span>
+              )}
+            </div>
             <div className="text-sm text-muted-foreground">@{user.username}</div>
           </div>
         </div>
       </TableCell>
       <TableCell>{user.email}</TableCell>
       <TableCell>{getRoleBadge(user.role)}</TableCell>
-      <TableCell>{getStatusBadge(user.isEnabled)}</TableCell>
+      <TableCell className="space-y-1">
+        {getStatusBadge(user.isEnabled)}
+        {(!user.isEnabled && (user as any).banType === 'TEMP' && (user as any).banExpiresAt && isFeatureEnabled('TEMP_BAN_REMAINING_BADGE')) && (
+          <div className="text-[10px] uppercase tracking-wide text-amber-400 border border-amber-500/30 bg-amber-900/20 rounded px-1 py-0.5 inline-block">
+            Осталось: {formatRemaining((user as any).banExpiresAt)}
+          </div>
+        )}
+      </TableCell>
       <TableCell>{formatDate(user.registrationDate || user.createdAt)}</TableCell>
       <TableCell>{formatDate(user.lastLoginDate || user.lastLogin)}</TableCell>
       <TableCell>
@@ -235,6 +291,72 @@ function UserRow({
               </AlertDialogHeader>
               
               <div className="space-y-4">
+                {/* Ban type & expiry */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <Label className="text-xs uppercase tracking-wide">Тип блокировки</Label>
+                    <select
+                      className="mt-1 w-full bg-background border border-border rounded px-2 py-1 text-sm"
+                      value={banType}
+                      onChange={e => { const v = e.target.value as any; setBanType(v); if (v !== 'TEMP') setBanExpiresAt(''); }}
+                    >
+                      <option value="PERM">Перманентная</option>
+                      <option value="TEMP">Временная</option>
+                      <option value="SHADOW">Теневая</option>
+                    </select>
+                  </div>
+                  {banType === 'TEMP' && (
+                    <div className="md:col-span-2">
+                      <Label className="text-xs uppercase tracking-wide">Истекает (UTC)</Label>
+                      <input
+                        type="datetime-local"
+                        className="mt-1 w-full bg-background border border-border rounded px-2 py-1 text-sm"
+                        value={banExpiresAt}
+                        onChange={e => setBanExpiresAt(e.target.value)}
+                      />
+                    </div>
+                  )}
+                  {banType === 'SHADOW' && (
+                    <div className="md:col-span-2">
+                      <Label className="text-xs uppercase tracking-wide text-amber-400">Подтверждение теневой блокировки — введите имя пользователя</Label>
+                      <input
+                        type="text"
+                        className="mt-1 w-full bg-background border border-border rounded px-2 py-1 text-sm"
+                        placeholder={user.username}
+                        value={confirmShadow}
+                        onChange={e => setConfirmShadow(e.target.value)}
+                      />
+                    </div>
+                  )}
+                </div>
+                {/* Reason category & template */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <Label className="text-xs uppercase tracking-wide">Категория</Label>
+                    <select
+                      className="mt-1 w-full bg-background border border-border rounded px-2 py-1 text-sm"
+                      value={banReasonCode}
+                      onChange={e => { setBanReasonCode(e.target.value); setBanTemplate(''); }}
+                    >
+                      {MOD_REASON_CATEGORIES.map(c => (
+                        <option key={c.code} value={c.code}>{c.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label className="text-xs uppercase tracking-wide">Шаблон (опционально)</Label>
+                    <select
+                      className="mt-1 w-full bg-background border border-border rounded px-2 py-1 text-sm"
+                      value={banTemplate}
+                      onChange={e => setBanTemplate(e.target.value)}
+                    >
+                      <option value="">—</option>
+                      {MOD_REASON_CATEGORIES.find(c => c.code === banReasonCode)?.templates.map(t => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
                 <div>
                   <Label htmlFor="banReason">
                     Причина {user.isEnabled ? 'блокировки' : 'разблокировки'}
@@ -264,13 +386,26 @@ function UserRow({
                 </AlertDialogCancel>
                 <AlertDialogAction
                   onClick={() => {
-                    if (banReason.trim().length === 0) {
-                      return; // Не разрешаем действие без причины
-                    }
-                    onToggleBan(user.id, banReason.trim())
+                    if (banReason.trim().length === 0 || mutationBusy || Date.now() < cooldownUntil) return
+                    if (banType === 'TEMP' && !banExpiresAt) return
+                    if (banType === 'SHADOW' && confirmShadow !== user.username) return
+                      const diff = [{ field: 'isEnabled', old: user.isEnabled, new: !user.isEnabled }]
+                      const meta: any = { banType }
+                    if (banType === 'TEMP') meta.banExpiresAt = banExpiresAt
+                    const combined = buildReason(
+                      banReasonCode,
+                      banTemplate ? `${banTemplate}. ${banReason.trim()}` : banReason.trim(),
+                      diff,
+                      meta
+                    )
+                    onToggleBan(user.id, combined)
                     setBanReason('')
+                    setBanTemplate('')
+                    setBanExpiresAt('')
+                    setConfirmShadow('')
+                    setCooldownUntil(Date.now() + 3000)
                   }}
-                  disabled={banReason.trim().length === 0}
+                  disabled={banReason.trim().length === 0 || mutationBusy || Date.now() < cooldownUntil || (banType==='TEMP' && !banExpiresAt) || (banType==='SHADOW' && confirmShadow !== user.username)}
                   className={user.isEnabled ? 'bg-destructive hover:bg-destructive/90' : ''}
                 >
                   {user.isEnabled ? 'Заблокировать' : 'Разблокировать'}
@@ -295,15 +430,18 @@ function UserRow({
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
-                <div className="text-sm">
+                <div className="text-sm flex items-center gap-2">
                   Текущая роль: {getRoleBadge(user.role)}
+                  {currentAdminUsername === user.username && (
+                    <span className="text-xs text-amber-400">(Вы)</span>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 gap-2">
                   {(['USER', 'TRANSLATOR', 'ADMIN'] as const).map((role) => (
                     <Button
                       key={role}
                       variant={selectedRole === role ? "default" : "outline"}
-                      disabled={user.role === role}
+                      disabled={user.role === role || mutationBusy || (role !== 'ADMIN' && currentAdminUsername === user.username && user.role === 'ADMIN' && selectedRole !== 'ADMIN' && !roleChangeReason)}
                       onClick={() => setSelectedRole(role)}
                       className="justify-start"
                     >
@@ -319,16 +457,49 @@ function UserRow({
                     <Label htmlFor="roleChangeReason">
                       Причина изменения роли <span className="text-red-500">*</span>
                     </Label>
-                    <Input
-                      id="roleChangeReason"
-                      placeholder="Укажите причину изменения роли..."
-                      value={roleChangeReason}
-                      onChange={(e) => setRoleChangeReason(e.target.value)}
-                      className="mt-2"
-                    />
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
+                      <div>
+                        <Label className="text-xs uppercase tracking-wide">Категория</Label>
+                        <select
+                          className="mt-1 w-full bg-background border border-border rounded px-2 py-1 text-sm"
+                          value={roleReasonCode}
+                          onChange={e => setRoleReasonCode(e.target.value)}
+                        >
+                          {MOD_REASON_CATEGORIES.map(c => (
+                            <option key={c.code} value={c.code}>{c.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="md:col-span-2">
+                        <Label className="text-xs uppercase tracking-wide">Текст причины</Label>
+                        <Input
+                          id="roleChangeReason"
+                          placeholder="Укажите причину изменения роли..."
+                          value={roleChangeReason}
+                          onChange={(e) => setRoleChangeReason(e.target.value)}
+                        />
+                      </div>
+                      {selectedRole === 'ADMIN' && user.role !== 'ADMIN' && (
+                        <div className="md:col-span-3">
+                          <Label className="text-xs uppercase tracking-wide text-amber-400">Подтверждение повышения — введите имя пользователя</Label>
+                          <input
+                            type="text"
+                            className="mt-1 w-full bg-background border border-border rounded px-2 py-1 text-sm"
+                            placeholder={user.username}
+                            value={confirmElevate}
+                            onChange={e => setConfirmElevate(e.target.value)}
+                          />
+                        </div>
+                      )}
+                    </div>
                     {roleChangeReason.trim().length === 0 && (
                       <p className="text-sm text-red-500 mt-1">
                         Причина изменения роли обязательна для заполнения
+                      </p>
+                    )}
+                    {selectedRole === 'ADMIN' && user.role !== 'ADMIN' && confirmElevate !== user.username && (
+                      <p className="text-sm text-red-500 mt-1">
+                        Для подтверждения повышения введите точное имя пользователя.
                       </p>
                     )}
                   </div>
@@ -348,13 +519,17 @@ function UserRow({
                 {selectedRole !== user.role && (
                   <Button
                     onClick={() => {
-                      if (roleChangeReason.trim().length > 0) {
-                        onChangeRole(user.id, selectedRole, roleChangeReason.trim())
+                      const elevateNeedsConfirm = selectedRole === 'ADMIN' && user.role !== 'ADMIN'
+                      if (roleChangeReason.trim().length > 0 && !mutationBusy && (!elevateNeedsConfirm || confirmElevate === user.username)) {
+                        const diff = [{ field: 'role', old: user.role, new: selectedRole }]
+                        const reason = buildReason(roleReasonCode, roleChangeReason.trim(), diff, { elevated: elevateNeedsConfirm ? '1' : '0' })
+                        onChangeRole(user.id, selectedRole, reason)
                         setRoleChangeReason('')
                         setSelectedRole(user.role)
+                        setConfirmElevate('')
                       }
                     }}
-                    disabled={roleChangeReason.trim().length === 0}
+                    disabled={roleChangeReason.trim().length === 0 || mutationBusy || (selectedRole === 'ADMIN' && user.role !== 'ADMIN' && confirmElevate !== user.username)}
                   >
                     Изменить роль
                   </Button>
@@ -373,6 +548,7 @@ function UserRow({
 // Основной компонент управления пользователями
 export function UserManager() {
   const queryClient = useQueryClient()
+  const { user: currentUser } = useAuth()
   const [currentPage, setCurrentPage] = useState(0)
   const [pageSize] = useState(20)
   const [filters, setFilters] = useState<AdminUserFilter>({
@@ -382,6 +558,7 @@ export function UserManager() {
     sortBy: 'username',
     sortOrder: 'asc'
   })
+  const [busy, setBusy] = useState(false)
 
   // Получение пользователей
   const { data: usersData, isLoading, refetch } = useQuery({
@@ -413,14 +590,21 @@ export function UserManager() {
       }
       return apiClient.toggleUserBanStatus(userId, adminId, reason)
     },
-    onSuccess: () => {
+    onSuccess: async (_data, variables) => {
       toast.success('Статус пользователя успешно изменен')
+      // Пытаемся инвалидировать активные сессии (если бан произошел)
+      try {
+        await apiClient.invalidateUserSessions(variables.userId)
+      } catch {}
+      // Optimistic refresh already applied; still schedule background refetch
       queryClient.invalidateQueries({ queryKey: ['users'] })
       queryClient.invalidateQueries({ queryKey: ['users-count'] })
+      setBusy(false)
     },
     onError: (error) => {
       console.error('Error toggling ban status:', error)
       toast.error('Ошибка при изменении статуса пользователя')
+      setBusy(false)
     }
   })
 
@@ -433,24 +617,78 @@ export function UserManager() {
       }
       return apiClient.changeUserRole(userId, adminId, role, reason)
     },
-    onSuccess: () => {
+    onSuccess: async (_data, variables) => {
       toast.success('Роль пользователя успешно изменена')
+      // Инвалидация сессий если роль понижена или пользователь лишён доступа
+      try {
+        if (variables.role !== 'ADMIN') {
+          await apiClient.invalidateUserSessions(variables.userId)
+        }
+      } catch {}
       queryClient.invalidateQueries({ queryKey: ['users'] })
       queryClient.invalidateQueries({ queryKey: ['users-count'] })
+      setBusy(false)
     },
     onError: (error) => {
       console.error('Error changing user role:', error)
       toast.error('Ошибка при изменении роли пользователя')
+      setBusy(false)
     }
   })
 
   // Обработчики событий
   const handleToggleBan = (userId: number, reason: string) => {
+    setBusy(true)
+    // Optimistic: patch cached list
+    queryClient.setQueryData(['users', currentPage, pageSize, filters], (old: any) => {
+      if (!old) return old
+      return {
+        ...old,
+        content: old.content.map((u: AdminUserData) => {
+          if (u.id !== userId) return u
+          // Пытаемся извлечь banType из reason строки (meta(banType=...)) для немедленного UI
+          let banType: any = (u as any).banType
+          const m = reason.match(/meta\(([^)]*)\)/)
+          if (m) {
+            const pairs = m[1].split(';')
+            pairs.forEach(p => {
+              const [k,v] = p.split('=')
+              if (k === 'banType') banType = v
+            })
+          }
+          return { ...u, isEnabled: !u.isEnabled, banType }
+        })
+      }
+    })
     toggleBanMutation.mutate({ userId, reason })
+    if (currentUser?.id === userId) {
+      // Самостоятельная блокировка — сразу выходим локально
+      setTimeout(() => {
+        authService.logout()
+        toast.warning('Ваша сессия завершена из-за изменения статуса аккаунта.')
+        try { window.location.href = '/' } catch {}
+      }, 300)
+    }
   }
 
   const handleChangeRole = (userId: number, role: string, reason: string) => {
+    setBusy(true)
+    queryClient.setQueryData(['users', currentPage, pageSize, filters], (old: any) => {
+      if (!old) return old
+      return {
+        ...old,
+        content: old.content.map((u: AdminUserData) => u.id === userId ? { ...u, role } : u)
+      }
+    })
     changeRoleMutation.mutate({ userId, role, reason })
+    // If self demote from ADMIN -> force logout strategy placeholder (frontend only for now)
+    if (currentUser?.id === userId && role !== 'ADMIN') {
+      toast.info('Ваша роль снижена. Сессия будет завершена.')
+      setTimeout(() => {
+        authService.logout()
+        try { window.location.href = '/' } catch {}
+      }, 500)
+    }
   }
 
   // Фильтрация данных по статусу
@@ -521,6 +759,8 @@ export function UserManager() {
                       user={user}
                       onToggleBan={handleToggleBan}
                       onChangeRole={handleChangeRole}
+                      currentAdminUsername={currentUser?.username}
+                      mutationBusy={busy}
                     />
                   ))}
                   {filteredUsers.length === 0 && (

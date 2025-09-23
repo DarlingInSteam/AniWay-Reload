@@ -26,6 +26,8 @@ public class UserMapper {
                 .avatar(user.getAvatar())
                 .bio(user.getBio())
                 .role(user.getRole())
+        .banType(user.getBanType())
+        .banExpiresAt(user.getBanExpiresAt())
                 .registrationDate(user.getCreatedAt())
                 .lastLoginDate(user.getLastLogin())
                 .createdAt(user.getCreatedAt())
@@ -50,6 +52,8 @@ public class UserMapper {
                 .chaptersReadCount(user.getChaptersReadCount())
                 .likesGivenCount(user.getLikesGivenCount())
                 .commentsCount(user.getCommentsCount())
+        .banType(user.getBanType())
+        .banExpiresAt(user.getBanExpiresAt())
                 .build();
     }
 

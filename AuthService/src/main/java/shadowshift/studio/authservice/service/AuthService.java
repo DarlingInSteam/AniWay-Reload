@@ -81,7 +81,7 @@ public class AuthService {
 
         UserDTO userDTO = UserMapper.toUserDTO(user);
         
-        var jwtToken = jwtService.generateToken(user);
+    var jwtToken = jwtService.generateToken(user);
 
         return AuthResponse.of(jwtToken, UserMapper.toFullUserDTO(user));
     }
@@ -112,7 +112,7 @@ public class AuthService {
 
         UserDTO userDTO = UserMapper.toUserDTO(user);
 
-        var jwtToken = jwtService.generateToken(user);
+    var jwtToken = jwtService.generateToken(user);
 
         return AuthResponse.of(jwtToken, UserMapper.toFullUserDTO(user));
     }

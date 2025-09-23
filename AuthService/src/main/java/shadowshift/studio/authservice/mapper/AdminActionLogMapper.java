@@ -20,6 +20,10 @@ public class AdminActionLogMapper {
                 .actionType(adminActionLog.getActionType())
                 .description(adminActionLog.getDescription())
                 .reason(adminActionLog.getReason())
+        .reasonCode(adminActionLog.getReasonCode())
+        .reasonDetails(adminActionLog.getReasonDetails())
+        .metaJson(adminActionLog.getMetaJson())
+        .diffJson(adminActionLog.getDiffJson())
                 .timestamp(adminActionLog.getTimestamp())
                 .build();
     }
@@ -36,6 +40,10 @@ public class AdminActionLogMapper {
                 .targetUserName(adminActionLog.getTargetUserName())
                 .description(adminActionLog.getDescription())
                 .reason(adminActionLog.getReason())
+        .reasonCode(adminActionLog.getReasonCode())
+        .reasonDetails(adminActionLog.getReasonDetails())
+        .metaJson(adminActionLog.getMetaJson())
+        .diffJson(adminActionLog.getDiffJson())
                 .timestamp(adminActionLog.getTimestamp())
                 .build();
     }

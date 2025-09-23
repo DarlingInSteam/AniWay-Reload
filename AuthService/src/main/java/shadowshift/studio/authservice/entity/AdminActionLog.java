@@ -42,6 +42,22 @@ public class AdminActionLog {
     @Column(nullable = false)
     private String reason;
 
+    /** Код стандартизированной причины (если используется структурированный режим). */
+    @Column(name = "reason_code")
+    private String reasonCode;
+
+    /** Детализированное текстовое объяснение / шаблон после подстановки. */
+    @Column(name = "reason_details", columnDefinition = "TEXT")
+    private String reasonDetails;
+
+    /** Сериализованный JSON с метаданными (k/v). */
+    @Column(name = "meta_json", columnDefinition = "TEXT")
+    private String metaJson;
+
+    /** Сериализованный JSON с diff (массив объектов). */
+    @Column(name = "diff_json", columnDefinition = "TEXT")
+    private String diffJson;
+
     @Column(nullable = false)
     private LocalDateTime timestamp;
 

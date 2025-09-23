@@ -9,6 +9,9 @@ import shadowshift.studio.authservice.dto.UserDTO;
 import shadowshift.studio.authservice.entity.AdminActionLog;
 import shadowshift.studio.authservice.mapper.AdminActionLogMapper;
 import shadowshift.studio.authservice.repository.AdminActionLogRepository;
+import shadowshift.studio.authservice.entity.BanType;
+
+import java.time.LocalDateTime;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -39,6 +42,10 @@ public class AdminUtilityService {
     }
 
     public void updateUserRole(Long adminId, Long userId, String reason, String role) { userService.updateUserRole(adminId, userId, role, reason); }
+
+    public void applyBan(Long adminId, Long userId, BanType banType, LocalDateTime expiresAt, String reason, String reasonCode, String reasonDetails, String metaJson, String diffJson) {
+        userService.applyBanAction(adminId, userId, banType, expiresAt, reason, reasonCode, reasonDetails, metaJson, diffJson);
+    }
 
     public List<AdminActionLogDTO> getLogs(){
 

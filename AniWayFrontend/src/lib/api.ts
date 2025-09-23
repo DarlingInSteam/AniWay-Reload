@@ -865,6 +865,25 @@ class ApiClient {
   async getAdminLogs(): Promise<AdminActionLogDTO[]> {
     return this.request<AdminActionLogDTO[]>('/admin/util/logs');
   }
+
+  // Инвалидация активных сессий пользователя (требуется backend endpoint). Пытаемся несколько путей.
+  async invalidateUserSessions(userId: number): Promise<boolean> {
+    // Primary (предполагаемый) endpoint
+    const candidates = [
+      `/admin/util/users/${userId}/sessions/invalidate`,
+      `/admin/util/sessions/invalidate?userId=${userId}`,
+      `/admin/sessions/invalidate?userId=${userId}`
+    ]
+    for (const ep of candidates) {
+      try {
+        await this.request<void>(ep, { method: 'POST' })
+        return true
+      } catch (e) {
+        // silent continue
+      }
+    }
+    return false
+  }
 }
 
 export const apiClient = new ApiClient();

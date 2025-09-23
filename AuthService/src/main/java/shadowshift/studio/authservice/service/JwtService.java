@@ -7,6 +7,7 @@ import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
+import shadowshift.studio.authservice.entity.User;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
@@ -60,7 +61,13 @@ public class JwtService {
      * @return сгенерированный JWT токен
      */
     public String generateToken(UserDetails userDetails) {
-        return generateToken(new HashMap<>(), userDetails);
+        Map<String, Object> claims = new HashMap<>();
+        if (userDetails instanceof User u) {
+            claims.put("tv", u.getTokenVersion());
+            claims.put("role", u.getRole().name());
+            claims.put("ban", u.getBanType().name());
+        }
+        return generateToken(claims, userDetails);
     }
     
     /**
@@ -107,7 +114,14 @@ public class JwtService {
      */
     public boolean isTokenValid(String token, UserDetails userDetails) {
         final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
+        if (!username.equals(userDetails.getUsername()) || isTokenExpired(token)) return false;
+        if (userDetails instanceof User u) {
+            Integer tokenVersion = extractClaim(token, c -> c.get("tv", Integer.class));
+            if (tokenVersion != null && !tokenVersion.equals(u.getTokenVersion())) {
+                return false; // invalidated
+            }
+        }
+        return true;
     }
     
     private boolean isTokenExpired(String token) {

@@ -21,5 +21,9 @@ public class AdminActionLogDTO {
     private ActionType actionType;
     private String description;
     private String reason;
+    private String reasonCode;
+    private String reasonDetails;
+    private String metaJson;
+    private String diffJson;
     private LocalDateTime timestamp;
 }

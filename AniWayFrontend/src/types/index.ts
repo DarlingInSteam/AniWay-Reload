@@ -265,6 +265,12 @@ export interface AdminUserData {
   chaptersReadCount: number
   likesGivenCount: number
   commentsCount: number
+  // --- Optional security extensions (frontend tentative) ---
+  banType?: 'PERM' | 'TEMP' | 'SHADOW'
+  banExpiresAt?: string | null
+  emailVerified?: boolean
+  mfaEnabled?: boolean
+  engagementScore?: number
 }
 
 export interface AdminUserFilter {
@@ -304,6 +310,10 @@ export interface AdminActionLogDTO {
   description: string
   reason: string
   timestamp: string
+  // --- Optional new fields (may be absent until backend support) ---
+  reasonCode?: string
+  reasonDetails?: string
+  diff?: Array<{ field: string; old: any; new: any }>
 }
 
 // Типы для комментариев

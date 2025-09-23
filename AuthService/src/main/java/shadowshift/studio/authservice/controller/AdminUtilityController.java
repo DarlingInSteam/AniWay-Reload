@@ -8,6 +8,10 @@ import org.springframework.web.bind.annotation.*;
 import shadowshift.studio.authservice.dto.AdminActionLogDTO;
 import shadowshift.studio.authservice.dto.UserDTO;
 import shadowshift.studio.authservice.service.AdminUtilityService;
+import shadowshift.studio.authservice.entity.BanType;
+
+import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 
 import java.util.List;
 
@@ -32,6 +36,49 @@ public class AdminUtilityController {
         } catch (Exception e) {
             log.error("Admin ban/unban user failed: {}", e.getMessage());
             return ResponseEntity.badRequest().build();
+        }
+    }
+
+    /**
+     * Новый расширенный endpoint для применения конкретного типа бана.
+     * Принимает JSON:
+     * {
+     *   "adminId": 1,
+     *   "userId": 2,
+     *   "banType": "PERM|TEMP|SHADOW|NONE",
+     *   "expiresAt": "2025-12-31T23:59:59", // опционально для TEMP
+     *   "reason": "LEGACY_STRING",
+     *   "reasonCode": "CODE123",
+     *   "reasonDetails": "Expanded human text",
+     *   "metaJson": "{...}",
+     *   "diffJson": "[ ... ]"
+     * }
+     */
+    @PostMapping("/ban")
+    public ResponseEntity<?> applyBan(@RequestBody java.util.Map<String, Object> body) {
+        try {
+            Long adminId = ((Number) body.get("adminId")).longValue();
+            Long userId = ((Number) body.get("userId")).longValue();
+            String banTypeStr = (String) body.getOrDefault("banType", "NONE");
+            BanType banType = BanType.valueOf(banTypeStr.toUpperCase());
+            String expiresAtStr = (String) body.get("expiresAt");
+            LocalDateTime expiresAt = null;
+            if (expiresAtStr != null && !expiresAtStr.isBlank()) {
+                try { expiresAt = LocalDateTime.parse(expiresAtStr); } catch (DateTimeParseException ex) { return ResponseEntity.badRequest().body("Invalid expiresAt format"); }
+            }
+            String reason = (String) body.getOrDefault("reason", "");
+            String reasonCode = (String) body.get("reasonCode");
+            String reasonDetails = (String) body.get("reasonDetails");
+            String metaJson = (String) body.get("metaJson");
+            String diffJson = (String) body.get("diffJson");
+
+            adminUtilityService.applyBan(adminId, userId, banType, expiresAt, reason, reasonCode, reasonDetails, metaJson, diffJson);
+            return ResponseEntity.ok().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            log.error("applyBan failed: {}", e.getMessage());
+            return ResponseEntity.internalServerError().body("Internal error");
         }
     }
 

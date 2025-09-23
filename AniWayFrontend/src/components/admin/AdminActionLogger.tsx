@@ -8,9 +8,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { History, User, Calendar, Shield, Activity } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { AdminActionLogDTO } from '@/types'
+import { parseReason } from '@/constants/modReasons'
 
 // Компонент для отображения деталей лога
 function LogDetailsDialog({ log }: { log: AdminActionLogDTO }) {
+  const parsed = parseReason(log.reason || '')
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const getActionColor = (action: string) => {
     const colors = {
       BAN_USER: 'destructive',
@@ -114,9 +117,58 @@ function LogDetailsDialog({ log }: { log: AdminActionLogDTO }) {
             <p className="mt-1 text-sm">{log.description}</p>
           </div>
           
-          <div>
+          <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground">Причина</label>
-            <p className="mt-1 text-sm">{log.reason}</p>
+            <div className="mt-1 text-sm">
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <Badge variant="secondary">{parsed.code}</Badge>
+                <span>{parsed.text}</span>
+                {(parsed.meta && Object.keys(parsed.meta).length > 0) && (
+                  <Badge variant="outline" className="text-xs">meta:{Object.keys(parsed.meta).length}</Badge>
+                )}
+                {parsed.diff.length > 0 && (
+                  <Badge variant="outline" className="text-xs">diff:{parsed.diff.length}</Badge>
+                )}
+              </div>
+              {(parsed.meta && Object.keys(parsed.meta).length > 0 || parsed.diff.length > 0) && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowAdvanced(v => !v)}
+                  className="h-6 px-2 text-xs"
+                >
+                  {showAdvanced ? 'Скрыть детали' : 'Показать детали'}
+                </Button>
+              )}
+              {showAdvanced && (
+                <div className="mt-3 space-y-3 border border-border rounded p-3 bg-muted/20">
+                  {parsed.meta && Object.keys(parsed.meta).length > 0 && (
+                    <div>
+                      <div className="text-xs font-semibold mb-1 opacity-70">Meta</div>
+                      <div className="flex flex-wrap gap-1">
+                        {Object.entries(parsed.meta).map(([k,v]) => (
+                          <span key={k} className="text-[10px] bg-slate-700/50 px-2 py-1 rounded border border-slate-600">{k}=<strong>{String(v)}</strong></span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {parsed.diff.length > 0 && (
+                    <div>
+                      <div className="text-xs font-semibold mb-1 opacity-70">Изменения</div>
+                      <div className="space-y-1">
+                        {parsed.diff.map((d,i) => (
+                          <div key={i} className="text-xs grid grid-cols-3 gap-2 bg-slate-800/40 px-2 py-1 rounded">
+                            <span className="truncate text-slate-300">{d.field}</span>
+                            <span className="truncate text-red-400">{d.old===null?'∅':String(d.old)}</span>
+                            <span className="truncate text-green-400">{d.new===null?'∅':String(d.new)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           
           <div>

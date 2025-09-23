@@ -16,6 +16,7 @@ import shadowshift.studio.authservice.entity.ActionType;
 import shadowshift.studio.authservice.entity.AdminActionLog;
 import shadowshift.studio.authservice.entity.Role;
 import shadowshift.studio.authservice.entity.User;
+import shadowshift.studio.authservice.entity.BanType;
 import shadowshift.studio.authservice.mapper.UserMapper;
 import shadowshift.studio.authservice.repository.AdminActionLogRepository;
 import shadowshift.studio.authservice.repository.ReadingProgressRepository;
@@ -235,16 +236,20 @@ public class UserService implements UserDetailsService {
     }
 
     public void banOrUnBanUser(Long adminId, Long userId, String reason) {
+        // Legacy toggle kept for backward compatibility: if user currently NONE => PERM ban, otherwise UNBAN
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
-
         User admin = userRepository.findById(adminId)
                 .orElseThrow(() -> new IllegalArgumentException("Admin not found"));
 
-        user.setIsEnabled(!user.getIsEnabled());
-
+        boolean currentlyBanned = user.getBanType() != null && user.getBanType() != BanType.NONE;
         AdminActionLog logEntry;
-        if (user.getIsEnabled()) {
+        if (currentlyBanned) {
+            // Unban
+            user.setBanType(BanType.NONE);
+            user.setBanExpiresAt(null);
+            user.setIsEnabled(true);
+            user.setTokenVersion(user.getTokenVersion() + 1); // invalidate sessions
             logEntry = AdminActionLog.builder()
                     .adminId(adminId)
                     .userId(userId)
@@ -256,6 +261,11 @@ public class UserService implements UserDetailsService {
                     .timestamp(LocalDateTime.now(ZoneOffset.UTC))
                     .build();
         } else {
+            // Apply PERM ban by default (legacy behavior)
+            user.setBanType(BanType.PERM);
+            user.setBanExpiresAt(null);
+            user.setIsEnabled(false);
+            user.setTokenVersion(user.getTokenVersion() + 1);
             logEntry = AdminActionLog.builder()
                     .adminId(adminId)
                     .userId(userId)
@@ -270,8 +280,60 @@ public class UserService implements UserDetailsService {
 
         adminActionLogRepository.save(logEntry);
         userRepository.save(user);
+        log.info("Legacy ban toggle applied for user {} -> banType {} tokenVersion {}", user.getUsername(), user.getBanType(), user.getTokenVersion());
+    }
 
-        log.info("Changed ban status for user: {} and now his {}", user.getUsername(), user.getIsEnabled() ? "unbanned" : "banned");
+    public void applyBanAction(Long adminId, Long userId, BanType banType, LocalDateTime expiresAt, String reason, String reasonCode, String reasonDetails, String metaJson, String diffJson) {
+        User user = userRepository.findById(userId).orElseThrow(() -> new IllegalArgumentException("User not found"));
+        User admin = userRepository.findById(adminId).orElseThrow(() -> new IllegalArgumentException("Admin not found"));
+
+        if (banType == null) banType = BanType.NONE;
+
+        if (banType == BanType.TEMP) {
+            if (expiresAt == null || expiresAt.isBefore(LocalDateTime.now())) {
+                throw new IllegalArgumentException("TEMP ban requires future expiry");
+            }
+        } else {
+            expiresAt = null; // only TEMP uses expiry
+        }
+
+        // Determine account enabled status: PERM disables, TEMP disables until expiry, SHADOW stays enabled, NONE enabled
+        boolean enableAccount;
+        if (banType == BanType.PERM) {
+            enableAccount = false;
+        } else if (banType == BanType.TEMP) {
+            enableAccount = false; // treated as disabled for auth
+        } else if (banType == BanType.SHADOW) {
+            enableAccount = true; // user believes active
+        } else { // NONE
+            enableAccount = true;
+        }
+
+        user.setBanType(banType);
+        user.setBanExpiresAt(expiresAt);
+        user.setIsEnabled(enableAccount);
+        user.setTokenVersion(user.getTokenVersion() + 1); // force reauth after moderation action
+
+        ActionType at = (banType == BanType.NONE) ? ActionType.UNBAN_USER : ActionType.BAN_USER;
+
+        AdminActionLog logEntry = AdminActionLog.builder()
+                .adminId(adminId)
+                .userId(userId)
+                .adminName(admin.getUsername())
+                .targetUserName(user.getUsername())
+                .actionType(at)
+                .description("Ban action set to " + banType + " by admin " + admin.getUsername())
+                .reason(reason)
+                .reasonCode(reasonCode)
+                .reasonDetails(reasonDetails)
+                .metaJson(metaJson)
+                .diffJson(diffJson)
+                .timestamp(LocalDateTime.now(ZoneOffset.UTC))
+                .build();
+
+        adminActionLogRepository.save(logEntry);
+        userRepository.save(user);
+        log.info("Applied ban action {} to user {} (expiresAt={}, tokenVersion={})", banType, user.getUsername(), expiresAt, user.getTokenVersion());
     }
 
     public long getTotalUsersCount() {
