@@ -27,6 +27,7 @@ public class AdminActionLog {
     @Column(nullable = false)
     private String adminName;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ActionType actionType;
 

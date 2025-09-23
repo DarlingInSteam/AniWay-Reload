@@ -71,12 +71,14 @@ public class AdminUtilityService {
         if (action != null && !action.isBlank() && !action.equalsIgnoreCase("all")) {
             try { at = ActionType.valueOf(action); } catch (Exception ignored) {}
         }
-        var result = adminActionLogRepository.searchLogs(
-                (admin==null||admin.isBlank())?null:admin,
-                (target==null||target.isBlank())?null:target,
-                at,
-                pr
-        );
+    String adminPattern = (admin==null||admin.isBlank())?null:("%"+admin+"%");
+    String targetPattern = (target==null||target.isBlank())?null:("%"+target+"%");
+    var result = adminActionLogRepository.searchLogs(
+        adminPattern,
+        targetPattern,
+        at,
+        pr
+    );
         return result.map(AdminActionLogMapper::toAdminActionLogDTO);
     }
 }
