@@ -19,66 +19,55 @@ BEGIN
         RETURN;
     END IF;
 
-    -- If already varchar and no numeric remnants -> nothing
+    -- Already varchar & no numeric remnants
     IF col_type = 'character varying' AND NOT EXISTS (SELECT 1 FROM admin_action_logs WHERE action_type ~ '^[0-9]+$') THEN
-        RAISE NOTICE 'action_type already textual without numeric remnants. Skipping.';
+        RAISE NOTICE 'action_type already textual with no numeric remnants.';
         RETURN;
     END IF;
 
-    -- Strategy: create shadow column, populate mapped values, swap.
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'admin_action_logs' AND column_name = 'action_type_text_shadow'
-    ) THEN
-        ALTER TABLE admin_action_logs ADD COLUMN action_type_text_shadow varchar(50);
+    -- Clean any leftover temp columns from previous failed attempts
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='admin_action_logs' AND column_name='action_type_text_shadow') THEN
+        ALTER TABLE admin_action_logs DROP COLUMN action_type_text_shadow;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='admin_action_logs' AND column_name='action_type_new') THEN
+        ALTER TABLE admin_action_logs DROP COLUMN action_type_new;
     END IF;
 
+    -- Create new column
+    ALTER TABLE admin_action_logs ADD COLUMN action_type_new varchar(50);
+
+    -- Populate mapping (cast to text uniformly)
     UPDATE admin_action_logs
-    SET action_type_text_shadow = CASE
-        WHEN col_type IN ('smallint','integer') THEN (
-            CASE action_type::text
-                WHEN '0' THEN 'CHANGE_ROLE'
-                WHEN '1' THEN 'BAN_USER'
-                WHEN '2' THEN 'UNBAN_USER'
-                ELSE action_type::text
-            END)
-        ELSE (
-            CASE action_type
-                WHEN '0' THEN 'CHANGE_ROLE'
-                WHEN '1' THEN 'BAN_USER'
-                WHEN '2' THEN 'UNBAN_USER'
-                WHEN 'CHANGE_ROLE' THEN 'CHANGE_ROLE'
-                WHEN 'BAN_USER' THEN 'BAN_USER'
-                WHEN 'UNBAN_USER' THEN 'UNBAN_USER'
-                ELSE action_type
-            END)
-    END
-    WHERE action_type_text_shadow IS NULL
-          OR action_type_text_shadow <> CASE
-                WHEN col_type IN ('smallint','integer') THEN action_type::text
-                ELSE action_type END; -- minimal update set
+    SET action_type_new = CASE (action_type::text)
+        WHEN '0' THEN 'CHANGE_ROLE'
+        WHEN '1' THEN 'BAN_USER'
+        WHEN '2' THEN 'UNBAN_USER'
+        WHEN 'CHANGE_ROLE' THEN 'CHANGE_ROLE'
+        WHEN 'BAN_USER' THEN 'BAN_USER'
+        WHEN 'UNBAN_USER' THEN 'UNBAN_USER'
+        ELSE 'CHANGE_ROLE' -- fallback default
+    END;
 
-    -- Ensure no NULLs remain
-    UPDATE admin_action_logs SET action_type_text_shadow = 'CHANGE_ROLE' WHERE action_type_text_shadow IS NULL;
+    -- Drop indexes referencing old column (simple pattern search)
+    PERFORM 1 FROM pg_indexes WHERE tablename='admin_action_logs' AND indexdef ILIKE '%(action_type)%';
+    IF FOUND THEN
+        FOR col_type IN SELECT indexname FROM pg_indexes WHERE tablename='admin_action_logs' AND indexdef ILIKE '%(action_type)%' LOOP
+            EXECUTE format('DROP INDEX IF EXISTS %I', col_type);
+        END LOOP;
+    END IF;
 
-    -- Drop dependent indexes / constraints referencing action_type (if any) dynamically
-    -- (We only look for simple indexes here)
-    FOR col_type IN
-        SELECT indexname FROM pg_indexes
-        WHERE tablename='admin_action_logs' AND indexdef ILIKE '%(action_type)%'
-    LOOP
-        EXECUTE format('DROP INDEX IF EXISTS %I', col_type);
-    END LOOP;
+    -- Swap columns
+    ALTER TABLE admin_action_logs RENAME COLUMN action_type TO action_type_old;
+    ALTER TABLE admin_action_logs RENAME COLUMN action_type_new TO action_type;
 
-    -- Rename original column
-    ALTER TABLE admin_action_logs RENAME COLUMN action_type TO action_type_old_backup;
-    ALTER TABLE admin_action_logs RENAME COLUMN action_type_text_shadow TO action_type;
+    -- Ensure new column not null
+    ALTER TABLE admin_action_logs ALTER COLUMN action_type SET NOT NULL;
 
-    -- Set type already varchar; cleanup old column
-    ALTER TABLE admin_action_logs DROP COLUMN action_type_old_backup;
+    -- Remove old column
+    ALTER TABLE admin_action_logs DROP COLUMN action_type_old;
 
-    -- Optional: add index back (uncomment if needed)
+    -- Optional recreate index
     -- CREATE INDEX IF NOT EXISTS idx_admin_action_logs_action_type ON admin_action_logs(action_type);
 
-    RAISE NOTICE 'action_type migration via shadow column complete.';
+    RAISE NOTICE 'action_type migration completed successfully.';
 END $$;
