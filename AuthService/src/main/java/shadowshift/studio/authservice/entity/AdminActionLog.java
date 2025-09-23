@@ -30,10 +30,12 @@ public class AdminActionLog {
     @Column(nullable = false)
     private ActionType actionType;
 
-    @Column(nullable = false)
+    // ID целевого пользователя (в исходной схеме колонка target_user_id)
+    @Column(name = "target_user_id", nullable = false)
     private Long userId;
 
-    @Column(nullable = false)
+    // Имя целевого пользователя (в исходной схеме колонка target_username)
+    @Column(name = "target_username", nullable = false)
     private String targetUserName;
 
     @Column(nullable = false)
@@ -58,7 +60,8 @@ public class AdminActionLog {
     @Column(name = "diff_json", columnDefinition = "TEXT")
     private String diffJson;
 
-    @Column(nullable = false)
+    // Дата создания записи (в схеме колонка created_at)
+    @Column(name = "created_at", nullable = false)
     private LocalDateTime timestamp;
 
 }

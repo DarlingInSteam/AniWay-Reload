@@ -14,8 +14,8 @@ public interface AdminActionLogRepository extends JpaRepository<AdminActionLog, 
     @Query("SELECT a FROM AdminActionLog a")
     List<AdminActionLog> findAllLogs();
 
-    @Query("SELECT a FROM AdminActionLog a WHERE (:adminName IS NULL OR LOWER(a.adminName) LIKE LOWER(CONCAT('%',:adminName,'%'))) " +
-        "AND (:targetName IS NULL OR LOWER(a.targetUserName) LIKE LOWER(CONCAT('%',:targetName,'%'))) " +
+    @Query("SELECT a FROM AdminActionLog a WHERE (:adminName IS NULL OR a.adminName LIKE CONCAT('%',:adminName,'%')) " +
+        "AND (:targetName IS NULL OR a.targetUserName LIKE CONCAT('%',:targetName,'%')) " +
         "AND (:actionType IS NULL OR a.actionType = :actionType)")
     Page<AdminActionLog> searchLogs(String adminName, String targetName, ActionType actionType, Pageable pageable);
 }
