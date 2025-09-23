@@ -64,4 +64,11 @@ public class AdminActionLog {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime timestamp;
 
+    @PrePersist
+    public void prePersist() {
+        if (timestamp == null) {
+            timestamp = LocalDateTime.now();
+        }
+    }
+
 }
