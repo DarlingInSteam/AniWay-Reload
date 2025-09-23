@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,7 +23,7 @@ import { isFeatureEnabled } from '@/constants/featureFlags'
 import { useAuth } from '@/contexts/AuthContext'
 
 // Компонент фильтров пользователей
-function UserFilters({ filters, onFiltersChange }: { filters: AdminUserFilter; onFiltersChange: (f: AdminUserFilter)=>void }) {
+function UserFilters({ filters, onFiltersChange, onImmediateSearchChange }: { filters: AdminUserFilter; onFiltersChange: (f: AdminUserFilter)=>void; onImmediateSearchChange: (value: string)=>void }) {
   return (
     <div className="glass-panel p-3 lg:p-4 flex flex-wrap gap-3 items-center">
       <div className="flex items-center gap-2 flex-1 min-w-[160px]">
@@ -31,7 +31,7 @@ function UserFilters({ filters, onFiltersChange }: { filters: AdminUserFilter; o
         <Input
           placeholder="Поиск пользователя..."
           value={filters.search}
-          onChange={(e)=>onFiltersChange({...filters, search: e.target.value})}
+          onChange={(e)=>onImmediateSearchChange(e.target.value)}
           className="h-8 text-sm"
           aria-label="Поиск пользователя"
         />
@@ -516,6 +516,14 @@ export function UserManager() {
     sortBy: 'username',
     sortOrder: 'asc'
   })
+  // Debounce search typing
+  const [rawSearch, setRawSearch] = useState('')
+  useEffect(() => {
+    const h = setTimeout(() => {
+      setFilters(f => f.search === rawSearch ? f : { ...f, search: rawSearch })
+    }, 400)
+    return () => clearTimeout(h)
+  }, [rawSearch])
   const [busy, setBusy] = useState(false)
 
   // Получение пользователей
@@ -532,11 +540,23 @@ export function UserManager() {
     placeholderData: (previousData) => previousData
   })
 
-  // Получение общего количества пользователей
+  // Получение общего количества пользователей (отдельный endpoint) — может вернуть ошибку => fallback на usersData.totalElements
   const { data: totalUsersCount } = useQuery({
     queryKey: ['users-count'],
-    queryFn: apiClient.getAdminUsersCount
+    queryFn: apiClient.getAdminUsersCount,
+    retry: 1
   })
+
+  // Derived statistics (активные / заблокированные) из первой страницы + totalElements если доступно
+  const stats = useMemo(() => {
+    const list: AdminUserData[] = usersData?.content || []
+    const active = list.filter(u => u.isEnabled).length
+    const banned = list.filter(u => !u.isEnabled).length
+    const total = typeof totalUsersCount === 'number' && totalUsersCount > 0
+      ? totalUsersCount
+      : (usersData as any)?.totalElements ?? list.length
+    return { total, active, banned }
+  }, [usersData, totalUsersCount])
 
   // Мутация для переключения статуса бана
   const toggleBanMutation = useMutation({
@@ -698,9 +718,20 @@ export function UserManager() {
             <Users className="h-6 w-6" />
             Управление пользователями
           </h2>
-          <p className="text-muted-foreground mt-1">
-            Всего пользователей в системе: {totalUsersCount || 0}
-          </p>
+          <div className="mt-3 grid grid-cols-3 gap-3 text-xs max-w-md">
+            <div className="glass-panel p-2 rounded border border-white/10 flex flex-col gap-1">
+              <div className="uppercase tracking-wide opacity-60">Всего</div>
+              <div className="text-lg font-semibold">{stats.total}</div>
+            </div>
+            <div className="glass-panel p-2 rounded border border-white/10 flex flex-col gap-1">
+              <div className="uppercase tracking-wide opacity-60">Активные</div>
+              <div className="text-lg font-semibold text-emerald-400">{stats.active}</div>
+            </div>
+            <div className="glass-panel p-2 rounded border border-white/10 flex flex-col gap-1">
+              <div className="uppercase tracking-wide opacity-60">Заблок.</div>
+              <div className="text-lg font-semibold text-red-400">{stats.banned}</div>
+            </div>
+          </div>
         </div>
         <Button 
           onClick={() => refetch()} 
@@ -713,7 +744,11 @@ export function UserManager() {
       </div>
 
       {/* Filters */}
-      <UserFilters filters={filters} onFiltersChange={setFilters} />
+      <UserFilters 
+        filters={filters} 
+        onFiltersChange={setFilters} 
+        onImmediateSearchChange={setRawSearch}
+      />
 
       {/* Tabs for quick segmentation */}
       <div className="flex flex-wrap gap-2 text-xs">
@@ -790,7 +825,26 @@ export function UserManager() {
       </div>
       <div className="glass-panel p-2 lg:p-3 overflow-x-auto">
         {isLoading ? (
-          <div className="flex justify-center py-12"><Activity className="h-6 w-6 animate-spin opacity-60" /></div>
+          <Table className="text-sm animate-pulse">
+            <TableHeader>
+              <TableRow>
+                {['Пользователь','Email','Роль','Статус','Даты','Статистика','Действия'].map(h => (
+                  <TableHead key={h}>{h}</TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Array.from({ length: 6 }).map((_,i)=> (
+                <TableRow key={i}>
+                  {Array.from({ length: 7 }).map((__,c)=>(
+                    <TableCell key={c}>
+                      <div className="h-4 bg-white/10 rounded w-full" />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         ) : (
           <Table className="text-sm">
             <TableHeader>
