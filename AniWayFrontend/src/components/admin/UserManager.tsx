@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Users, Search, RefreshCw, UserCheck, Ban, Shield, HelpCircle, ChevronDown, ChevronUp, Activity, History } from 'lucide-react'
+import { Users, Search, RefreshCw, UserCheck, Ban, Shield, HelpCircle, ChevronDown, ChevronUp, Activity, History, Home, ChevronRight, TrendingUp, Eye, UserX, Filter, MoreHorizontal } from 'lucide-react'
 import { ModerationDrawer } from './ModerationDrawer'
 import { apiClient } from '@/lib/api'
 import { authService } from '@/services/authService'
@@ -24,52 +24,143 @@ import { useAuth } from '@/contexts/AuthContext'
 
 // Компонент фильтров пользователей
 function UserFilters({ filters, onFiltersChange, onImmediateSearchChange }: { filters: AdminUserFilter; onFiltersChange: (f: AdminUserFilter)=>void; onImmediateSearchChange: (value: string)=>void }) {
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  
   return (
-    <div className="glass-panel p-3 lg:p-4 flex flex-wrap gap-3 items-center">
-      <div className="flex items-center gap-2 flex-1 min-w-[160px]">
-        <Search className="h-4 w-4 opacity-70" />
-        <Input
-          placeholder="Поиск пользователя..."
-          value={filters.search}
-          onChange={(e)=>onImmediateSearchChange(e.target.value)}
-          className="h-8 text-sm"
-          aria-label="Поиск пользователя"
-        />
+    <div className="glass-panel rounded-xl border border-white/10 bg-white/5 backdrop-blur-xl overflow-hidden">
+      <div className="p-6">
+        {/* Primary Search */}
+        <div className="relative mb-6">
+          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" />
+          <input
+            placeholder="Найти пользователя по имени или email..."
+            value={filters.search}
+            onChange={(e)=>onImmediateSearchChange(e.target.value)}
+            className="w-full pl-12 pr-4 py-4 text-lg bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all duration-200"
+          />
+        </div>
+
+        {/* Quick Filter Pills */}
+        <div className="flex flex-wrap gap-3 mb-6">
+          <div className="flex items-center gap-2 text-sm text-slate-300">
+            <Filter className="h-4 w-4" />
+            <span className="font-medium">Быстрые фильтры:</span>
+          </div>
+          {[
+            { id: 'all', label: 'Все пользователи', icon: Users },
+            { id: 'active', label: 'Активные', icon: Eye, color: 'emerald' },
+            { id: 'banned', label: 'Заблокированные', icon: UserX, color: 'red' },
+            { id: 'admins', label: 'Администраторы', role: 'ADMIN', icon: Shield, color: 'purple' },
+            { id: 'translators', label: 'Переводчики', role: 'TRANSLATOR', icon: Users, color: 'blue' }
+          ].map(pill => {
+            const active = (pill.id==='all' && filters.status==='all' && filters.role==='all') ||
+              (pill.id==='active' && filters.status==='active') ||
+              (pill.id==='banned' && filters.status==='banned') ||
+              (pill.role==='ADMIN' && filters.role==='ADMIN') ||
+              (pill.role==='TRANSLATOR' && filters.role==='TRANSLATOR')
+              
+            const colorClasses = {
+              emerald: active ? 'bg-emerald-600/30 border-emerald-500/50 text-emerald-300' : 'hover:bg-emerald-600/10 hover:border-emerald-500/30',
+              red: active ? 'bg-red-600/30 border-red-500/50 text-red-300' : 'hover:bg-red-600/10 hover:border-red-500/30',
+              purple: active ? 'bg-purple-600/30 border-purple-500/50 text-purple-300' : 'hover:bg-purple-600/10 hover:border-purple-500/30',
+              blue: active ? 'bg-blue-600/30 border-blue-500/50 text-blue-300' : 'hover:bg-blue-600/10 hover:border-blue-500/30'
+            }
+            
+            const Icon = pill.icon
+            
+            return (
+              <button
+                key={pill.id}
+                onClick={() => {
+                  if (pill.id==='all') onFiltersChange({...filters,status:'all',role:'all'})
+                  else if (pill.id==='active') onFiltersChange({...filters,status:'active'})
+                  else if (pill.id==='banned') onFiltersChange({...filters,status:'banned'})
+                  else if (pill.role==='ADMIN') onFiltersChange({...filters,role:'ADMIN'})
+                  else if (pill.role==='TRANSLATOR') onFiltersChange({...filters,role:'TRANSLATOR'})
+                }}
+                className={`
+                  flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-all duration-200 
+                  ${active 
+                    ? `${colorClasses[pill.color as keyof typeof colorClasses] || 'bg-white/20 border-white/30 text-white'}` 
+                    : `border-white/20 text-slate-300 hover:border-white/30 hover:text-white ${colorClasses[pill.color as keyof typeof colorClasses] || 'hover:bg-white/10'}`
+                  }
+                `}
+              >
+                <Icon className="h-4 w-4" />
+                {pill.label}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Advanced Filters Toggle */}
+        <button
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-300 transition-colors duration-200 mb-4"
+        >
+          <Filter className="h-4 w-4" />
+          Расширенные фильтры
+          <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${showAdvanced ? 'rotate-180' : ''}`} />
+        </button>
+
+        {/* Advanced Filters */}
+        {showAdvanced && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t border-white/10">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Роль</label>
+              <Select value={filters.role} onValueChange={(v:any)=>onFiltersChange({...filters, role: v})}>
+                <SelectTrigger className="bg-white/10 border-white/20 text-white">
+                  <SelectValue placeholder="Выбрать роль" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Все роли</SelectItem>
+                  <SelectItem value="USER">Пользователь</SelectItem>
+                  <SelectItem value="TRANSLATOR">Переводчик</SelectItem>
+                  <SelectItem value="ADMIN">Администратор</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Сортировка</label>
+              <Select value={filters.sortBy} onValueChange={(v:any)=>onFiltersChange({...filters, sortBy: v})}>
+                <SelectTrigger className="bg-white/10 border-white/20 text-white">
+                  <SelectValue placeholder="Сортировать по" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="username">По имени</SelectItem>
+                  <SelectItem value="createdAt">По дате регистрации</SelectItem>
+                  <SelectItem value="lastLogin">По последнему входу</SelectItem>
+                  <SelectItem value="role">По роли</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Порядок</label>
+              <Select value={filters.sortOrder} onValueChange={(v:any)=>onFiltersChange({...filters, sortOrder: v})}>
+                <SelectTrigger className="bg-white/10 border-white/20 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="asc">По возрастанию</SelectItem>
+                  <SelectItem value="desc">По убыванию</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex items-end">
+              <Button 
+                variant="outline" 
+                onClick={()=>onFiltersChange({ search: '', status: 'all', role: 'all', sortBy: 'username', sortOrder: 'asc'})} 
+                className="w-full bg-white/10 border-white/20 hover:bg-white/20 text-white"
+              >
+                Сбросить все
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
-      <Select value={filters.status} onValueChange={(v:any)=>onFiltersChange({...filters, status: v})}>
-        <SelectTrigger className="h-8 w-[130px] text-xs"><SelectValue placeholder="Статус" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Все</SelectItem>
-            <SelectItem value="active">Активные</SelectItem>
-            <SelectItem value="banned">Заблок.</SelectItem>
-        </SelectContent>
-      </Select>
-      <Select value={filters.role} onValueChange={(v:any)=>onFiltersChange({...filters, role: v})}>
-        <SelectTrigger className="h-8 w-[150px] text-xs"><SelectValue placeholder="Роль" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Все роли</SelectItem>
-          <SelectItem value="USER">Пользователь</SelectItem>
-          <SelectItem value="TRANSLATOR">Переводчик</SelectItem>
-          <SelectItem value="ADMIN">Админ</SelectItem>
-        </SelectContent>
-      </Select>
-      <Select value={filters.sortBy} onValueChange={(v:any)=>onFiltersChange({...filters, sortBy: v})}>
-        <SelectTrigger className="h-8 w-[150px] text-xs"><SelectValue placeholder="Сортировка" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="username">Имя</SelectItem>
-          <SelectItem value="createdAt">Регистрация</SelectItem>
-          <SelectItem value="lastLogin">Вход</SelectItem>
-          <SelectItem value="role">Роль</SelectItem>
-        </SelectContent>
-      </Select>
-      <Select value={filters.sortOrder} onValueChange={(v:any)=>onFiltersChange({...filters, sortOrder: v})}>
-        <SelectTrigger className="h-8 w-[110px] text-xs"><SelectValue /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="asc">ASC</SelectItem>
-          <SelectItem value="desc">DESC</SelectItem>
-        </SelectContent>
-      </Select>
-      <Button variant="outline" size="sm" onClick={()=>onFiltersChange({ ...filters, search: '', status: 'all', role: 'all', sortBy: 'username', sortOrder: 'asc'})} className="h-8 text-xs">Сброс</Button>
     </div>
   )
 }
@@ -147,51 +238,106 @@ function UserRow({
 
   return (
   <>
-  <TableRow className={`transition-colors hover:bg-slate-800/40 ${ (user as any).banType === 'SHADOW' && !user.isEnabled ? 'opacity-70 bg-slate-900/30' : ''}`}>
-      <TableCell>
-        <div className="flex items-center gap-2">
+  <TableRow className={`group border-b border-white/5 hover:bg-white/5 transition-all duration-200 ${ (user as any).banType === 'SHADOW' && !user.isEnabled ? 'opacity-70 bg-slate-900/20' : ''}`}>
+      <TableCell className="py-4 px-6">
+        <div className="flex items-center gap-3">
           <button
             onClick={()=>setExpanded(e=>!e)}
             aria-label={expanded ? 'Свернуть' : 'Развернуть'}
             aria-expanded={expanded}
-            className="h-6 w-6 flex items-center justify-center rounded-md border border-white/10 hover:border-white/30 text-xs"
-          >{expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}</button>
-          {user.avatar && (
-            <img 
-              src={user.avatar} 
-              alt={user.username}
-              className="w-8 h-8 rounded-full object-cover"
-            />
-          )}
-          <div>
-            <div className="font-medium flex items-center gap-2">
-              {user.displayName || user.username}
+            className="h-8 w-8 flex items-center justify-center rounded-lg border border-white/10 hover:border-white/30 hover:bg-white/10 transition-all duration-200 text-slate-400 hover:text-white"
+          >
+            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+          
+          <div className="relative">
+            {user.avatar ? (
+              <img 
+                src={user.avatar} 
+                alt={user.username}
+                className="w-10 h-10 rounded-full object-cover border-2 border-white/20"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-lg">
+                {(user.displayName || user.username).charAt(0).toUpperCase()}
+              </div>
+            )}
+            
+            {user.isEnabled && (
+              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-slate-900 flex items-center justify-center">
+                <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+              </div>
+            )}
+          </div>
+          
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-3">
+              <div className="font-semibold text-white group-hover:text-blue-300 transition-colors">
+                {user.displayName || user.username}
+              </div>
               <BanTypeBadge banType={(user as any).banType} />
             </div>
-            <div className="text-sm text-muted-foreground">@{user.username}</div>
+            <div className="text-sm text-slate-400 flex items-center gap-2">
+              @{user.username}
+              {currentAdminUsername === user.username && (
+                <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs rounded-full font-medium">
+                  Это вы
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </TableCell>
-  <TableCell className="hidden xl:table-cell">{user.email}</TableCell>
-      <TableCell>{getRoleBadge(user.role)}</TableCell>
-      <TableCell className="space-y-1">
-        {getStatusBadge(user.isEnabled)}
-        {(!user.isEnabled && (user as any).banType === 'TEMP' && (user as any).banExpiresAt && isFeatureEnabled('TEMP_BAN_REMAINING_BADGE')) && remaining.label && (
-          <div className="text-[10px] uppercase tracking-wide text-amber-400 border border-amber-500/30 bg-amber-900/20 rounded px-1 py-0.5 inline-block">
-            Осталось: {remaining.label}
-          </div>
-        )}
-      </TableCell>
-      <TableCell>{formatDate(user.registrationDate || user.createdAt)}</TableCell>
-      <TableCell>{formatDate(user.lastLoginDate || user.lastLogin)}</TableCell>
-      <TableCell>
-        <div className="text-sm">
-          <div>Главы: {user.chaptersReadCount || 0}</div>
-          <div>Лайки: {user.likesGivenCount || 0}</div>
-          <div>Комментарии: {user.commentsCount || 0}</div>
+      
+      <TableCell className="hidden xl:table-cell py-4 px-6">
+        <div className="text-slate-300 truncate max-w-48">
+          {user.email}
         </div>
       </TableCell>
-      <TableCell>
+      
+      <TableCell className="py-4 px-6">{getRoleBadge(user.role)}</TableCell>
+      
+      <TableCell className="py-4 px-6">
+        <div className="space-y-2">
+          {getStatusBadge(user.isEnabled)}
+          {(!user.isEnabled && (user as any).banType === 'TEMP' && (user as any).banExpiresAt && isFeatureEnabled('TEMP_BAN_REMAINING_BADGE')) && remaining.label && (
+            <div className="text-xs uppercase tracking-wide text-amber-400 border border-amber-500/30 bg-amber-900/20 rounded-md px-2 py-1 inline-block">
+              Осталось: {remaining.label}
+            </div>
+          )}
+        </div>
+      </TableCell>
+      
+      <TableCell className="py-4 px-6">
+        <div className="text-sm text-slate-300">
+          <div className="font-medium">Регистрация:</div>
+          <div className="text-slate-400">{formatDate(user.registrationDate || user.createdAt)}</div>
+          <div className="font-medium mt-2">Последний вход:</div>
+          <div className="text-slate-400">{formatDate(user.lastLoginDate || user.lastLogin)}</div>
+        </div>
+      </TableCell>
+      
+      <TableCell className="py-4 px-6">
+        <div className="grid grid-cols-1 gap-1 text-sm">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-blue-500 rounded-full" />
+            <span className="text-slate-400">Главы:</span>
+            <span className="text-white font-medium">{user.chaptersReadCount || 0}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-emerald-500 rounded-full" />
+            <span className="text-slate-400">Лайки:</span>
+            <span className="text-white font-medium">{user.likesGivenCount || 0}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-purple-500 rounded-full" />
+            <span className="text-slate-400">Комменты:</span>
+            <span className="text-white font-medium">{user.commentsCount || 0}</span>
+          </div>
+        </div>
+      </TableCell>
+      
+      <TableCell className="py-4 px-6">
         <div className="flex gap-2">
           <AlertDialog>
             <AlertDialogTrigger asChild>
@@ -710,186 +856,226 @@ export function UserManager() {
   })
 
   return (
-    <div className="space-y-6">
-      {/* Заголовок */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Users className="h-6 w-6" />
-            Управление пользователями
-          </h2>
-          <div className="mt-3 grid grid-cols-3 gap-3 text-xs max-w-md">
-            <div className="glass-panel p-2 rounded border border-white/10 flex flex-col gap-1">
-              <div className="uppercase tracking-wide opacity-60">Всего</div>
-              <div className="text-lg font-semibold">{stats.total}</div>
-            </div>
-            <div className="glass-panel p-2 rounded border border-white/10 flex flex-col gap-1">
-              <div className="uppercase tracking-wide opacity-60">Активные</div>
-              <div className="text-lg font-semibold text-emerald-400">{stats.active}</div>
-            </div>
-            <div className="glass-panel p-2 rounded border border-white/10 flex flex-col gap-1">
-              <div className="uppercase tracking-wide opacity-60">Заблок.</div>
-              <div className="text-lg font-semibold text-red-400">{stats.banned}</div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        
+        {/* Breadcrumb Navigation */}
+        <nav className="flex items-center space-x-1 text-sm text-slate-400">
+          <Home className="h-4 w-4" />
+          <ChevronRight className="h-4 w-4" />
+          <span>Админ-панель</span>
+          <ChevronRight className="h-4 w-4" />
+          <span className="text-slate-200 font-medium">Управление пользователями</span>
+        </nav>
+
+        {/* Enhanced Header */}
+        <div className="relative">
+          {/* Background gradient overlay */}
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 via-purple-600/5 to-pink-600/10 rounded-2xl blur-3xl" />
+          
+          <div className="relative glass-panel p-8 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 rounded-lg bg-blue-600/20 text-blue-400">
+                    <Users className="h-6 w-6" />
+                  </div>
+                  <h1 className="text-3xl font-bold text-white tracking-tight">
+                    Управление пользователями
+                  </h1>
+                </div>
+                <p className="text-slate-400 text-lg">
+                  Управляйте аккаунтами пользователей, ролями и правами доступа
+                </p>
+                
+                {/* Enhanced Stats Cards */}
+                <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl">
+                  <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-600/20 to-blue-700/10 border border-blue-500/20 p-4 hover:from-blue-600/30 hover:to-blue-700/20 transition-all duration-300">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-blue-300 text-sm font-medium uppercase tracking-wider">
+                          Всего пользователей
+                        </div>
+                        <div className="text-2xl font-bold text-white mt-1 flex items-center gap-2">
+                          {stats.total}
+                          <TrendingUp className="h-4 w-4 text-green-400 opacity-75" />
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-lg bg-blue-600/30">
+                        <Users className="h-6 w-6 text-blue-300" />
+                      </div>
+                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 transform -skew-x-12" />
+                  </div>
+
+                  <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-emerald-600/20 to-emerald-700/10 border border-emerald-500/20 p-4 hover:from-emerald-600/30 hover:to-emerald-700/20 transition-all duration-300">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-emerald-300 text-sm font-medium uppercase tracking-wider">
+                          Активные
+                        </div>
+                        <div className="text-2xl font-bold text-white mt-1 flex items-center gap-2">
+                          {stats.active}
+                          <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-lg bg-emerald-600/30">
+                        <Eye className="h-6 w-6 text-emerald-300" />
+                      </div>
+                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 transform -skew-x-12" />
+                  </div>
+
+                  <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-red-600/20 to-red-700/10 border border-red-500/20 p-4 hover:from-red-600/30 hover:to-red-700/20 transition-all duration-300">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-red-300 text-sm font-medium uppercase tracking-wider">
+                          Заблокированы
+                        </div>
+                        <div className="text-2xl font-bold text-white mt-1 flex items-center gap-2">
+                          {stats.banned}
+                          <UserX className="h-4 w-4 text-red-400 opacity-75" />
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-lg bg-red-600/30">
+                        <Ban className="h-6 w-6 text-red-300" />
+                      </div>
+                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 transform -skew-x-12" />
+                  </div>
+                </div>
+              </div>
+              
+              {/* Action buttons */}
+              <div className="flex items-center gap-3">
+                <Button 
+                  onClick={() => refetch()} 
+                  variant="outline"
+                  className="flex items-center gap-2 bg-white/10 border-white/20 hover:bg-white/20 hover:border-white/30 text-white backdrop-blur-sm transition-all duration-200"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Обновить
+                </Button>
+                <Button 
+                  variant="default"
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg shadow-blue-600/25 transition-all duration-200"
+                >
+                  <MoreHorizontal className="h-4 w-4 mr-2" />
+                  Действия
+                </Button>
+              </div>
             </div>
           </div>
         </div>
-        <Button 
-          onClick={() => refetch()} 
-          variant="outline"
-          className="flex items-center gap-2"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Обновить
-        </Button>
-      </div>
 
-      {/* Filters */}
-      <UserFilters 
-        filters={filters} 
-        onFiltersChange={setFilters} 
-        onImmediateSearchChange={setRawSearch}
-      />
+        {/* Enhanced Filters */}
+        <UserFilters 
+          filters={filters} 
+          onFiltersChange={setFilters} 
+          onImmediateSearchChange={setRawSearch}
+        />
 
-      {/* Tabs for quick segmentation */}
-      <div className="flex flex-wrap gap-2 text-xs">
-        {[
-          { id: 'all', label: 'Все' },
-          { id: 'active', label: 'Активные' },
-          { id: 'banned', label: 'Заблок.' },
-          { id: 'admins', label: 'Админы', role: 'ADMIN' },
-          { id: 'translators', label: 'Переводчики', role: 'TRANSLATOR' }
-        ].map(t => {
-          const active = (t.id==='all' && filters.status==='all' && filters.role==='all') ||
-            (t.id==='active' && filters.status==='active') ||
-            (t.id==='banned' && filters.status==='banned') ||
-            (t.role==='ADMIN' && filters.role==='ADMIN') ||
-            (t.role==='TRANSLATOR' && filters.role==='TRANSLATOR')
-          return (
-            <button
-              key={t.id}
-              onClick={() => {
-                if (t.id==='all') setFilters(f=>({...f,status:'all',role:'all'}))
-                else if (t.id==='active') setFilters(f=>({...f,status:'active'}))
-                else if (t.id==='banned') setFilters(f=>({...f,status:'banned'}))
-                else if (t.role==='ADMIN') setFilters(f=>({...f,role:'ADMIN'}))
-                else if (t.role==='TRANSLATOR') setFilters(f=>({...f,role:'TRANSLATOR'}))
-              }}
-              className={`px-3 h-7 rounded-full border text-[11px] transition ${active ? 'bg-white/15 border-white/30' : 'border-white/10 hover:border-white/25'} focus:outline-none focus:ring-2 focus:ring-primary/50`}
-              aria-pressed={active}
-            >{t.label}</button>
-          )
-        })}
-      </div>
-
-      {/* Help popover icon */}
-      <div className="flex items-center gap-2 text-xs">
-        <div className="flex items-center gap-1 opacity-70">
-          <HelpCircle className="h-4 w-4" />
-          <span>Наведите для легенды</span>
-        </div>
-        <div className="relative group">
-          <div className="h-5 w-5 flex items-center justify-center rounded-full bg-white/10 border border-white/20 text-[10px] cursor-help">?</div>
-          <div className="absolute z-10 hidden group-hover:block top-full mt-2 w-72 glass-panel p-3 text-[11px] leading-relaxed">
-            <div className="font-semibold mb-1">Роли</div>
-            Пользователь — базовый доступ<br/>Переводчик — расширенные права контента<br/>Админ — полный контроль
-            <div className="font-semibold mt-2 mb-1">Блокировки</div>
-            <div className="flex gap-1 items-center"><BanTypeBadge banType="PERM" /> перманентная</div>
-            <div className="flex gap-1 items-center"><BanTypeBadge banType="TEMP" /> временная (с истечением)</div>
-            <div className="flex gap-1 items-center"><BanTypeBadge banType="SHADOW" /> пользователь не уведомлён</div>
-            <div className="font-semibold mt-2 mb-1">Подсказки</div>
-            Используйте категории причин; TEMP требует дату; SHADOW требует подтверждение имени.
+        {/* Modern Data Table */}
+        <div className="glass-panel rounded-xl border border-white/10 bg-white/5 backdrop-blur-xl overflow-hidden">
+          {/* Table Header with Stats */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-white/5">
+            <div className="flex items-center gap-4">
+              <h3 className="text-lg font-semibold text-white">Пользователи</h3>
+              <div className="flex items-center gap-4 text-sm text-slate-400">
+                <span>Показано {filteredUsers.length} из {(usersData as any)?.totalElements || 0}</span>
+                <div className="w-px h-4 bg-white/20" />
+                <span>Страница {currentPage + 1} из {(usersData as any)?.totalPages || 1}</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage === 0}
+                onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+                className="bg-white/10 border-white/20 hover:bg-white/20 text-white"
+              >
+                Назад
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage >= ((usersData as any)?.totalPages || 1) - 1}
+                onClick={() => setCurrentPage(p => p + 1)}
+                className="bg-white/10 border-white/20 hover:bg-white/20 text-white"
+              >
+                Далее
+              </Button>
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* Минималистичная таблица */}
-      <div className="flex items-center justify-between text-xs opacity-70 px-1">
-        <span>Показано {filteredUsers.length} / {(usersData as any)?.totalElements || 0}</span>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={currentPage === 0}
-            onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
-            className="h-7 px-2 text-[11px]"
-          >Prev</Button>
-          <span className="px-1">{currentPage + 1}/{(usersData as any)?.totalPages || 1}</span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={currentPage >= ((usersData as any)?.totalPages || 1) - 1}
-            onClick={() => setCurrentPage(p => p + 1)}
-            className="h-7 px-2 text-[11px]"
-          >Next</Button>
-        </div>
-      </div>
-      <div className="glass-panel p-2 lg:p-3 overflow-x-auto">
-        {isLoading ? (
-          <Table className="text-sm animate-pulse">
-            <TableHeader>
-              <TableRow>
-                {['Пользователь','Email','Роль','Статус','Даты','Статистика','Действия'].map(h => (
-                  <TableHead key={h}>{h}</TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {Array.from({ length: 6 }).map((_,i)=> (
-                <TableRow key={i}>
-                  {Array.from({ length: 7 }).map((__,c)=>(
-                    <TableCell key={c}>
-                      <div className="h-4 bg-white/10 rounded w-full" />
-                    </TableCell>
+          <div className="overflow-x-auto">{isLoading ? (
+            <Table className="text-sm">
+              <TableHeader>
+                <TableRow className="border-b border-white/10 hover:bg-transparent">
+                  {['Пользователь','Email','Роль','Статус','Активность','Статистика','Действия'].map(h => (
+                    <TableHead key={h} className="text-slate-300 font-semibold py-4 px-6">
+                      <div className="h-4 bg-white/10 rounded w-24 animate-pulse" />
+                    </TableHead>
                   ))}
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : (
-          <Table className="text-sm">
-            <TableHeader>
-              <TableRow>
-                {[
-                  { key: 'username', label: 'Пользователь' },
-                  { key: 'email', label: 'Email', className: 'hidden xl:table-cell' },
-                  { key: 'role', label: 'Роль' },
-                  { key: 'isEnabled', label: 'Статус' },
-                  { key: 'createdAt', label: 'Даты' },
-                  { key: 'activity', label: 'Статистика', sortable: false },
-                  { key: 'actions', label: 'Действия', sortable: false }
-                ].map(col => {
-                  const active = filters.sortBy === col.key
-                  const sortable = col.sortable !== false
-                  const direction = active ? filters.sortOrder : undefined
-                  return (
-                    <TableHead
-                      key={col.key}
-                      className={`font-semibold ${col.className||''} ${sortable ? 'cursor-pointer select-none' : ''}`}
-                      onClick={() => {
-                        if (!sortable) return
-                        setFilters(f => {
-                          if (f.sortBy === col.key) {
-                            return { ...f, sortOrder: f.sortOrder === 'asc' ? 'desc' : 'asc' }
-                          }
-                          return { ...f, sortBy: col.key, sortOrder: 'asc' }
-                        })
-                      }}
-                      aria-sort={active ? (direction==='asc' ? 'ascending' : 'descending') : 'none'}
-                    >
-                      <span className="inline-flex items-center gap-1">
-                        {col.label}
-                        {sortable && (
-                          <span className={`transition text-[10px] opacity-60 ${active ? 'opacity-90' : ''}`}>
-                            {active ? (direction==='asc' ? '▲' : '▼') : '↕'}
-                          </span>
-                        )}
-                      </span>
-                    </TableHead>
-                  )
-                })}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+              </TableHeader>
+              <TableBody>
+                {Array.from({ length: 6 }).map((_,i)=> (
+                  <TableRow key={i} className="border-b border-white/5">
+                    {Array.from({ length: 7 }).map((__,c)=>(
+                      <TableCell key={c} className="py-4 px-6">
+                        <div className="h-4 bg-white/10 rounded animate-pulse" style={{width: `${60 + Math.random() * 40}%`}} />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <Table className="text-sm">
+              <TableHeader>
+                <TableRow className="border-b border-white/10 hover:bg-transparent">
+                  {[
+                    { key: 'username', label: 'Пользователь', sortable: true },
+                    { key: 'email', label: 'Email', className: 'hidden xl:table-cell', sortable: true },
+                    { key: 'role', label: 'Роль', sortable: true },
+                    { key: 'isEnabled', label: 'Статус', sortable: false },
+                    { key: 'createdAt', label: 'Активность', sortable: true },
+                    { key: 'activity', label: 'Статистика', sortable: false },
+                    { key: 'actions', label: 'Действия', sortable: false }
+                  ].map(col => {
+                    const active = filters.sortBy === col.key
+                    const sortable = col.sortable !== false
+                    const direction = active ? filters.sortOrder : undefined
+                    return (
+                      <TableHead
+                        key={col.key}
+                        className={`text-slate-300 font-semibold py-4 px-6 ${col.className||''} ${sortable ? 'cursor-pointer select-none hover:text-white' : ''}`}
+                        onClick={() => {
+                          if (!sortable) return
+                          setFilters(f => {
+                            if (f.sortBy === col.key) {
+                              return { ...f, sortOrder: f.sortOrder === 'asc' ? 'desc' : 'asc' }
+                            }
+                            return { ...f, sortBy: col.key, sortOrder: 'asc' }
+                          })
+                        }}
+                      >
+                        <div className="flex items-center gap-2">
+                          {col.label}
+                          {sortable && (
+                            <div className={`transition-all duration-200 ${active ? 'opacity-100' : 'opacity-40'}`}>
+                              {active ? (direction==='asc' ? '↗️' : '↘️') : '↕️'}
+                            </div>
+                          )}
+                        </div>
+                      </TableHead>
+                    )
+                  })}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
               {filteredUsers.map((user: AdminUserData) => (
                 <UserRow
                   key={user.id}
@@ -903,12 +1089,37 @@ export function UserManager() {
               ))}
               {filteredUsers.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">Нет пользователей</TableCell>
+                  <TableCell colSpan={7} className="py-16">
+                    <div className="flex flex-col items-center justify-center text-center space-y-4">
+                      <div className="p-4 rounded-full bg-white/10">
+                        <Users className="h-12 w-12 text-slate-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-white mb-2">Пользователи не найдены</h3>
+                        <p className="text-slate-400 max-w-md">
+                          {filters.search ? 
+                            `Нет пользователей, соответствующих запросу "${filters.search}"` :
+                            'Попробуйте изменить фильтры или добавить нового пользователя'
+                          }
+                        </p>
+                      </div>
+                      {filters.search && (
+                        <Button 
+                          variant="outline"
+                          onClick={() => setFilters(f => ({ ...f, search: '' }))}
+                          className="bg-white/10 border-white/20 hover:bg-white/20 text-white"
+                        >
+                          Очистить поиск
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
         )}
+        </div>
       </div>
       {/* Журнал действий администраторов */}
       <AdminActionLogger />
@@ -928,6 +1139,8 @@ export function UserManager() {
           </div>
         )}
       </ModerationDrawer>
+      
+      </div>
     </div>
   )
 }
