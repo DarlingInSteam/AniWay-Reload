@@ -602,15 +602,11 @@ export function UserManager() {
     retry: 1
   })
 
-  // Derived statistics (активные / заблокированные) из первой страницы + totalElements если доступно
-  const stats = useMemo(() => {
+  // Единственный авторитетный показатель: общее количество (только с backend или fallback)
+  const totalUsers = useMemo(() => {
     const list: AdminUserData[] = usersData?.content || []
-    const active = list.filter(u => u.isEnabled).length
-    const banned = list.filter(u => !u.isEnabled).length
-    const total = typeof totalUsersCount === 'number' && totalUsersCount > 0
-      ? totalUsersCount
-      : (usersData as any)?.totalElements ?? list.length
-    return { total, active, banned }
+    if (typeof totalUsersCount === 'number' && totalUsersCount > 0) return totalUsersCount
+    return (usersData as any)?.totalElements ?? list.length
   }, [usersData, totalUsersCount])
 
   // Мутация для переключения статуса бана
@@ -766,35 +762,25 @@ export function UserManager() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Users className="h-6 w-6" />
-            Управление пользователями
-          </h2>
-          <div className="mt-3 grid grid-cols-3 gap-3 text-xs max-w-md">
-            <div className="glass-panel p-2 rounded border border-white/10 flex flex-col gap-1">
-              <div className="uppercase tracking-wide opacity-60">Всего</div>
-              <div className="text-lg font-semibold">{stats.total}</div>
-            </div>
-            <div className="glass-panel p-2 rounded border border-white/10 flex flex-col gap-1">
-              <div className="uppercase tracking-wide opacity-60">Активные</div>
-              <div className="text-lg font-semibold text-emerald-400">{stats.active}</div>
-            </div>
-            <div className="glass-panel p-2 rounded border border-white/10 flex flex-col gap-1">
-              <div className="uppercase tracking-wide opacity-60">Заблок.</div>
-              <div className="text-lg font-semibold text-red-400">{stats.banned}</div>
-            </div>
+      <div className="flex items-start justify-between">
+        <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+          <Users className="h-6 w-6" />
+          Управление пользователями
+        </h2>
+        <div className="flex items-center gap-4">
+          <div className="glass-panel p-3 rounded border border-white/10 flex flex-col gap-1 text-xs min-w-[120px]">
+            <div className="uppercase tracking-wide opacity-60">Всего пользователей</div>
+            <div className="text-xl font-semibold">{totalUsers}</div>
           </div>
+          <Button 
+            onClick={() => { refetch(); }} 
+            variant="outline"
+            className="flex items-center gap-2 bg-white/10 border-white/20 hover:bg-white/20 text-white"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Обновить
+          </Button>
         </div>
-        <Button 
-          onClick={() => refetch()} 
-          variant="outline"
-          className="flex items-center gap-2"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Обновить
-        </Button>
       </div>
 
         {/* Enhanced Filters */}

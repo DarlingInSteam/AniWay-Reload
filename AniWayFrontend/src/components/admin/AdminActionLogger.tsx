@@ -1,11 +1,10 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { History, User, Calendar, Shield, Activity } from 'lucide-react'
+import { History, User, Calendar, Shield, Activity, RefreshCw } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { AdminActionLogDTO } from '@/types'
 import { parseReason } from '@/constants/modReasons'
@@ -343,55 +342,47 @@ function UserActionHistory({ username }: { username: string }) {
 
 // Основной компонент логирования действий админов
 export function AdminActionLogger() {
-  const [currentPage, setCurrentPage] = useState(0)
-  const [pageSize] = useState(20)
+  // Фильтры
   const [filters, setFilters] = useState({
     adminUsername: '',
     targetUsername: '',
     action: 'all'
   })
 
+  // Получение логов
   const { data: allLogs, isLoading, refetch } = useQuery({
     queryKey: ['admin-logs'],
     queryFn: () => apiClient.getAdminLogs()
   })
 
-  // Клиентская фильтрация данных
-  const filteredLogs = allLogs?.filter(log => {
-    // Фильтр по имени администратора
-    if (filters.adminUsername && filters.adminUsername.trim() !== '') {
-      if (!log.adminName?.toLowerCase().includes(filters.adminUsername.toLowerCase())) {
-        return false
-      }
-    }
-    
-    // Фильтр по имени пользователя
-    if (filters.targetUsername && filters.targetUsername.trim() !== '') {
-      const targetUsername = getTargetUsername(log)
-      if (!targetUsername.toLowerCase().includes(filters.targetUsername.toLowerCase())) {
-        return false
-      }
-    }
-    
-    // Фильтр по типу действия
-    if (filters.action !== 'all') {
-      const actionType = getActionType(log)
-      if (actionType !== filters.action) {
-        return false
-      }
-    }
-    
-    return true
-  }) || []
+  // Вспомогательные функции (определяем ДО использования в фильтре, чтобы избежать ReferenceError)
+  const getTargetUsername = (log: AdminActionLogDTO) => log.targetUsername || log.targetUserName || 'Неизвестен'
+  const getActionType = (log: AdminActionLogDTO) => log.actionType || 'UNKNOWN'
 
-  // Вспомогательные функции для работы с данными
-  const getTargetUsername = (log: AdminActionLogDTO) => {
-    return log.targetUsername || log.targetUserName || 'Неизвестен'
-  }
+  // Уникальные типы действий (для динамического списка если в будущем появятся новые)
+  const actionTypes = useMemo(() => {
+    const set = new Set<string>()
+    ;(allLogs||[]).forEach(l => set.add(getActionType(l)))
+    return Array.from(set)
+  }, [allLogs])
 
-  const getActionType = (log: AdminActionLogDTO) => {
-    return log.actionType || 'UNKNOWN'
-  }
+  // Мемоизированная фильтрация
+  const filteredLogs = useMemo(() => {
+    if (!allLogs) return []
+    return allLogs.filter(log => {
+      if (filters.adminUsername) {
+        if (!log.adminName?.toLowerCase().includes(filters.adminUsername.toLowerCase())) return false
+      }
+      if (filters.targetUsername) {
+        const uname = getTargetUsername(log)
+        if (!uname.toLowerCase().includes(filters.targetUsername.toLowerCase())) return false
+      }
+      if (filters.action !== 'all') {
+        if (getActionType(log) !== filters.action) return false
+      }
+      return true
+    })
+  }, [allLogs, filters])
 
   const formatDate = (dateString: string) => {
     // Проверяем наличие индикатора временной зоны в конце строки
@@ -458,146 +449,142 @@ export function AdminActionLogger() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+    <div className="glass-panel rounded-xl border border-white/10 bg-white/5 backdrop-blur-xl p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-white flex items-center gap-2">
           <History className="h-5 w-5" />
           Журнал действий администраторов
-        </CardTitle>
-        <CardDescription>
-          История всех действий администраторов в системе
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {/* Фильтры */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div>
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Администратор</label>
-            <input
-              type="text"
-              placeholder="Имя администратора"
-              className="w-full mt-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              value={filters.adminUsername}
-              onChange={(e) => setFilters(prev => ({ ...prev, adminUsername: e.target.value }))}
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Пользователь</label>
-            <input
-              type="text"
-              placeholder="Имя пользователя"
-              className="w-full mt-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              value={filters.targetUsername}
-              onChange={(e) => setFilters(prev => ({ ...prev, targetUsername: e.target.value }))}
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Действие</label>
-            <select
-              className="w-full mt-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              value={filters.action}
-              onChange={(e) => setFilters(prev => ({ ...prev, action: e.target.value }))}
-            >
-              <option value="all">Все действия</option>
-              <option value="BAN_USER">Блокировка</option>
-              <option value="UNBAN_USER">Разблокировка</option>
-              <option value="CHANGE_ROLE">Изменение роли</option>
-              <option value="UNKNOWN">Неизвестно</option>
-            </select>
-          </div>
-          <div className="flex items-end gap-2">
-            <Button onClick={() => refetch()} variant="outline" className="flex-1">
-              Обновить
-            </Button>
-            <Button 
-              onClick={() => setFilters({ adminUsername: '', targetUsername: '', action: 'all' })} 
-              variant="secondary" 
-              className="flex-1"
-            >
-              Очистить
-            </Button>
+        </h3>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            className="bg-white/10 border-white/20 hover:bg-white/20 text-white flex items-center gap-2"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Обновить
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setFilters({ adminUsername: '', targetUsername: '', action: 'all' })}
+            className="bg-white/10 border-white/20 hover:bg-white/20 text-white"
+          >
+            Сброс
+          </Button>
+        </div>
+      </div>
+
+      {/* Панель фильтров */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
+        <div className="flex flex-col gap-1">
+          <span className="uppercase tracking-wide text-[10px] opacity-60">Администратор</span>
+          <input
+            className="px-3 py-2 rounded bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 text-white placeholder:text-slate-400"
+            placeholder="Имя администратора"
+            value={filters.adminUsername}
+            onChange={e => setFilters(f => ({ ...f, adminUsername: e.target.value }))}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="uppercase tracking-wide text-[10px] opacity-60">Пользователь</span>
+          <input
+            className="px-3 py-2 rounded bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 text-white placeholder:text-slate-400"
+            placeholder="Имя пользователя"
+            value={filters.targetUsername}
+            onChange={e => setFilters(f => ({ ...f, targetUsername: e.target.value }))}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="uppercase tracking-wide text-[10px] opacity-60">Действие</span>
+          <select
+            className="px-3 py-2 rounded bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 text-white"
+            value={filters.action}
+            onChange={e => setFilters(f => ({ ...f, action: e.target.value }))}
+          >
+            <option className="bg-slate-900" value="all">Все</option>
+            {actionTypes.sort().map(a => (
+              <option className="bg-slate-900" key={a} value={a}>{getActionName(a)}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="uppercase tracking-wide text-[10px] opacity-60">Статистика</span>
+          <div className="px-3 py-2 rounded bg-white/5 border border-white/10 text-slate-300 flex items-center gap-2 text-xs">
+            <span>Показано {filteredLogs.length}</span>
+            {allLogs && allLogs.length !== filteredLogs.length && (
+              <span className="opacity-60">/ {allLogs.length}</span>
+            )}
           </div>
         </div>
+      </div>
 
-        {/* Таблица логов */}
-        {isLoading ? (
-          <div className="flex justify-center py-8">
-            <Activity className="h-6 w-6 animate-spin" />
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {/* Счетчик записей */}
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              Показано записей: <span className="font-semibold">{filteredLogs.length}</span> 
-              {allLogs && allLogs.length !== filteredLogs.length && (
-                <span> из <span className="font-semibold">{allLogs.length}</span></span>
-              )}
-            </div>
-            
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-gray-900 dark:text-gray-100 font-semibold">Дата</TableHead>
-                  <TableHead className="text-gray-900 dark:text-gray-100 font-semibold">Администратор</TableHead>
-                  <TableHead className="text-gray-900 dark:text-gray-100 font-semibold">Пользователь</TableHead>
-                  <TableHead className="text-gray-900 dark:text-gray-100 font-semibold">Действие</TableHead>
-                  <TableHead className="text-gray-900 dark:text-gray-100 font-semibold">Описание</TableHead>
-                  <TableHead className="text-gray-900 dark:text-gray-100 font-semibold">Действия</TableHead>
+      {/* Таблица */}
+      {isLoading ? (
+        <div className="flex justify-center py-10">
+          <Activity className="h-6 w-6 animate-spin text-slate-300" />
+        </div>
+      ) : (
+        <div className="rounded border border-white/10 overflow-x-auto">
+          <Table className="text-sm">
+            <TableHeader>
+              <TableRow className="border-b border-white/10">
+                <TableHead className="text-slate-300 font-medium">Дата</TableHead>
+                <TableHead className="text-slate-300 font-medium">Администратор</TableHead>
+                <TableHead className="text-slate-300 font-medium">Пользователь</TableHead>
+                <TableHead className="text-slate-300 font-medium">Действие</TableHead>
+                <TableHead className="text-slate-300 font-medium">Описание</TableHead>
+                <TableHead className="text-slate-300 font-medium">Подробнее</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredLogs.map(log => (
+                <TableRow key={log.id} className="hover:bg-white/5">
+                  <TableCell className="text-white whitespace-nowrap">{formatDate(log.timestamp)}</TableCell>
+                  <TableCell className="text-white">
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-4 w-4 opacity-60" />
+                      {log.adminName}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-white">
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4 opacity-60" />
+                      {getTargetUsername(log)}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {(() => {
+                      const actionType = getActionType(log)
+                      return (
+                        <Badge variant={getActionBadgeVariant(actionType)}>
+                          {getActionName(actionType)}
+                        </Badge>
+                      )
+                    })()}
+                  </TableCell>
+                  <TableCell className="max-w-xs truncate text-slate-300">{log.description}</TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <LogDetailsDialog log={log} />
+                      <UserActionHistory username={getTargetUsername(log)} />
+                    </div>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredLogs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell className="text-gray-900 dark:text-gray-100 font-medium">{formatDate(log.timestamp)}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2 text-foreground">
-                        <Shield className="h-4 w-4 text-blue-600" />
-                        <span className="font-medium text-gray-900 dark:text-gray-100">{log.adminName}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2 text-foreground">
-                        <User className="h-4 w-4 text-green-600" />
-                        <span className="font-medium text-gray-900 dark:text-gray-100">{getTargetUsername(log)}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {(() => {
-                        const actionType = getActionType(log)
-                        return (
-                          <Badge variant={getActionBadgeVariant(actionType)}>
-                            {getActionName(actionType)}
-                          </Badge>
-                        )
-                      })()}
-                    </TableCell>
-                    <TableCell className="max-w-xs truncate text-gray-700 dark:text-gray-300">
-                      {log.description}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <LogDetailsDialog log={log} />
-                        <UserActionHistory username={getTargetUsername(log)} />
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )) || []}
-                {(filteredLogs.length === 0) && (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                      Записи не найдены
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-
-            {/* Пагинация */}
-            {/* Pagination logic is not implemented for filteredLogs; implement if needed */}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              ))}
+              {filteredLogs.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-10 text-center text-slate-400">
+                    Записи не найдены
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </div>
   )
 }
 
