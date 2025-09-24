@@ -35,4 +35,19 @@ public class PostDtos {
             List<AttachmentDto> attachments,
             List<ReferenceDto> references
     ) {}
+
+    // Frontend-aligned flattened shape
+    public record FrontendPost(
+            Long id,
+            Long userId,
+            String content,
+            Instant createdAt,
+            Instant updatedAt,
+            Instant editedUntil,
+            List<AttachmentDto> attachments,
+            List<ReferenceDto> references,
+            Stats stats
+    ) {
+        public record Stats(int score, int up, int down, Integer userVote) {}
+    }
 }

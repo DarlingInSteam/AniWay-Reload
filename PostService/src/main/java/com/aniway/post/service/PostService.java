@@ -46,6 +46,12 @@ public class PostService {
         return PostMapper.toResponse(post, authorId);
     }
 
+    public PostDtos.FrontendPost createFrontend(Long authorId, PostDtos.CreatePostRequest req) {
+        PostDtos.PostResponse base = create(authorId, req); // ensures same logic
+        Post post = getPostOrThrow(base.id());
+        return PostMapper.toFrontend(post, authorId);
+    }
+
     public PostDtos.PostResponse update(Long postId, Long authorId, PostDtos.UpdatePostRequest req) {
         Post post = getPostOrThrow(postId);
         if (!post.getAuthorId().equals(authorId)) {
@@ -59,6 +65,12 @@ public class PostService {
         post.getReferences().clear();
         applyReferences(post);
         return PostMapper.toResponse(post, authorId);
+    }
+
+    public PostDtos.FrontendPost updateFrontend(Long postId, Long authorId, PostDtos.UpdatePostRequest req) {
+        PostDtos.PostResponse base = update(postId, authorId, req);
+        Post post = getPostOrThrow(base.id());
+        return PostMapper.toFrontend(post, authorId);
     }
 
     public void delete(Long postId, Long authorId) {
@@ -75,10 +87,20 @@ public class PostService {
         return PostMapper.toResponse(post, currentUserId);
     }
 
+    public PostDtos.FrontendPost getFrontend(Long postId, Long currentUserId) {
+        Post post = getPostOrThrow(postId);
+        return PostMapper.toFrontend(post, currentUserId);
+    }
+
     @Transactional(readOnly = true)
     public Page<PostDtos.PostResponse> listByAuthor(Long authorId, Pageable pageable, Long currentUserId) {
         return postRepository.findByAuthorIdOrderByCreatedAtDesc(authorId, pageable)
                 .map(p -> PostMapper.toResponse(p, currentUserId));
+    }
+
+    public Page<PostDtos.FrontendPost> listByAuthorFrontend(Long authorId, Pageable pageable, Long currentUserId) {
+        return postRepository.findByAuthorIdOrderByCreatedAtDesc(authorId, pageable)
+                .map(p -> PostMapper.toFrontend(p, currentUserId));
     }
 
     public PostDtos.PostResponse vote(Long postId, Long userId, int value) {
@@ -102,6 +124,12 @@ public class PostService {
         }
         voteRepository.save(vote);
         return PostMapper.toResponse(post, userId);
+    }
+
+    public PostDtos.FrontendPost voteFrontend(Long postId, Long userId, int value) {
+        PostDtos.PostResponse base = vote(postId, userId, value);
+        Post post = getPostOrThrow(base.id());
+        return PostMapper.toFrontend(post, userId);
     }
 
     private void applyReferences(Post post) {

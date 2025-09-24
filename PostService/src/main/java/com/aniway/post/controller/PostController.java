@@ -38,20 +38,20 @@ public class PostController {
     }
 
     @PostMapping
-    public PostDtos.PostResponse create(@RequestHeader("X-User-Id") String userHeader,
+    public PostDtos.FrontendPost create(@RequestHeader("X-User-Id") String userHeader,
                                         @Valid @RequestBody PostDtos.CreatePostRequest req) {
         Long userId = currentUserId(userHeader);
         if (userId == null) throw new IllegalStateException("Unauthenticated");
-        return postService.create(userId, req);
+        return postService.createFrontend(userId, req);
     }
 
     @PutMapping("/{id}")
-    public PostDtos.PostResponse update(@RequestHeader("X-User-Id") String userHeader,
+    public PostDtos.FrontendPost update(@RequestHeader("X-User-Id") String userHeader,
                                         @PathVariable Long id,
                                         @Valid @RequestBody PostDtos.UpdatePostRequest req) {
         Long userId = currentUserId(userHeader);
         if (userId == null) throw new IllegalStateException("Unauthenticated");
-        return postService.update(id, userId, req);
+        return postService.updateFrontend(id, userId, req);
     }
 
     @DeleteMapping("/{id}")
@@ -64,29 +64,36 @@ public class PostController {
     }
 
     @GetMapping("/{id}")
-    public PostDtos.PostResponse get(@RequestHeader(value = "X-User-Id", required = false) String userHeader,
+    public PostDtos.FrontendPost get(@RequestHeader(value = "X-User-Id", required = false) String userHeader,
                                      @PathVariable Long id) {
-        return postService.get(id, currentUserId(userHeader));
+        return postService.getFrontend(id, currentUserId(userHeader));
     }
 
     @GetMapping
-    public Page<PostDtos.PostResponse> list(@RequestHeader(value = "X-User-Id", required = false) String userHeader,
-                                            @RequestParam Long userId,
-                                            @RequestParam(defaultValue = "0") int page,
-                                            @RequestParam(defaultValue = "10") int size) {
+    public Map<String,Object> list(@RequestHeader(value = "X-User-Id", required = false) String userHeader,
+                                   @RequestParam Long userId,
+                                   @RequestParam(defaultValue = "0") int page,
+                                   @RequestParam(defaultValue = "10") int size) {
         Pageable pageable = PageRequest.of(page, size);
-        return postService.listByAuthor(userId, pageable, currentUserId(userHeader));
+        Page<PostDtos.FrontendPost> p = postService.listByAuthorFrontend(userId, pageable, currentUserId(userHeader));
+        return Map.of(
+                "items", p.getContent(),
+                "page", p.getNumber(),
+                "size", p.getSize(),
+                "total", p.getTotalElements(),
+                "hasNext", p.hasNext()
+        );
     }
 
     public record VoteRequest(int value) {}
 
     @PostMapping("/{id}/vote")
-    public PostDtos.PostResponse vote(@RequestHeader("X-User-Id") String userHeader,
+    public PostDtos.FrontendPost vote(@RequestHeader("X-User-Id") String userHeader,
                                       @PathVariable Long id,
                                       @RequestBody VoteRequest vote) {
         Long userId = currentUserId(userHeader);
         if (userId == null) throw new IllegalStateException("Unauthenticated");
-        return postService.vote(id, userId, vote.value());
+        return postService.voteFrontend(id, userId, vote.value());
     }
 
     @PostMapping(value = "/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
