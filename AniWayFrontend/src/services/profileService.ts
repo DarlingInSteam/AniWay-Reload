@@ -37,7 +37,12 @@ class ProfileService {
       // Получаем данные для профиля (и своего, и чужого)
       bookmarks = await this.getUserBookmarks(userId);
       readingProgress = await this.getUserReadingProgress(userId);
-  readingStats = this.calculateReadingStats(bookmarks, readingProgress, user as any);
+      // Если публичный прогресс недоступен (401) мы получим пустой массив.
+      // В этом случае используем chaptersReadCount из публичного профиля, если он есть.
+      readingStats = this.calculateReadingStats(bookmarks, readingProgress, user as any);
+      if ((readingProgress.length === 0 || readingStats.totalChaptersRead === 0) && (user as any)?.chaptersReadCount) {
+        readingStats.totalChaptersRead = (user as any).chaptersReadCount;
+      }
 
       return {
         user,
