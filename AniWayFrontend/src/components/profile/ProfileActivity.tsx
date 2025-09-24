@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useMemo } from 'react'
 import { UserActivity } from '@/types/profile'
 import { Clock, BookOpen, Bookmark as BookmarkIcon, Star, Award } from 'lucide-react'
 import { ProfilePanel } from './ProfilePanel'
@@ -30,17 +30,27 @@ const iconByType: Record<string, JSX.Element> = {
 }
 
 export const ProfileActivity: React.FC<ProfileActivityProps> = ({ activities }) => {
-  if (activities.length === 0) {
+  const INITIAL = 4
+  const [expanded, setExpanded] = useState(false)
+  const safeActivities = Array.isArray(activities) ? activities : []
+
+  const visible = useMemo(() => {
+    if (expanded) return safeActivities
+    return safeActivities.slice(0, INITIAL)
+  }, [expanded, safeActivities])
+
+  if (safeActivities.length === 0) {
     return (
       <ProfilePanel title="Активность">
         <div className="text-sm text-slate-400">Пока нет активности</div>
       </ProfilePanel>
     )
   }
+
   return (
-  <ProfilePanel title="Активность">
+    <ProfilePanel title="Активность">
       <ul className="space-y-3">
-        {activities.slice(0,12).map(a => {
+        {visible.map(a => {
           const Icon = iconByType[a.type] || <Clock className="w-3.5 h-3.5" />
           return (
             <li key={a.id} className="flex items-start gap-3 text-sm">
@@ -55,6 +65,15 @@ export const ProfileActivity: React.FC<ProfileActivityProps> = ({ activities }) 
           )
         })}
       </ul>
+      {safeActivities.length > INITIAL && (
+        <button
+          type="button"
+          onClick={() => setExpanded(e => !e)}
+          className="mt-4 w-full text-center text-xs font-medium tracking-wide text-slate-300 hover:text-white px-3 py-2 rounded-md bg-white/5 border border-white/10 transition"
+        >
+          {expanded ? 'Свернуть' : `Показать ещё (${safeActivities.length - INITIAL})`}
+        </button>
+      )}
     </ProfilePanel>
   )
 }
