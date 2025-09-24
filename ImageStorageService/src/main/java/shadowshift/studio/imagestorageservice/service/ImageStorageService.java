@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -405,6 +406,40 @@ public class ImageStorageService {
         }
 
         return uploadedImages;
+    }
+
+    // === Post Images (generic storage) ===
+    public List<Map<String, Object>> uploadPostImages(List<MultipartFile> files, Long userId) {
+        try {
+            createBucketIfNotExists();
+            List<Map<String,Object>> result = new ArrayList<>();
+            int index = 0;
+            for (MultipartFile file : files) {
+                String safeName = file.getOriginalFilename() == null ? "image" : file.getOriginalFilename();
+                String objectKey = "posts/" + (userId != null ? ("u" + userId + "/") : "") + System.currentTimeMillis() + "_" + index + "_" + UUID.randomUUID().toString().substring(0,8) + "_" + safeName.replaceAll("[^a-zA-Z0-9._-]","_");
+                try (InputStream in = file.getInputStream()) {
+                    minioClient.putObject(
+                            PutObjectArgs.builder()
+                                    .bucket(yandexProperties.getBucketName())
+                                    .object(objectKey)
+                                    .stream(in, file.getSize(), -1)
+                                    .contentType(file.getContentType())
+                                    .build()
+                    );
+                }
+                String url = generateImageUrl(objectKey);
+                result.add(Map.of(
+                        "filename", safeName,
+                        "url", url,
+                        "sizeBytes", file.getSize(),
+                        "objectKey", objectKey
+                ));
+                index++;
+            }
+            return result;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to upload post images", e);
+        }
     }
 
     /**

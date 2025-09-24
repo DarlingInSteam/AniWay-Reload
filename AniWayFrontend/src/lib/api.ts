@@ -58,32 +58,6 @@ class ApiClient {
     }
   }
 
-  
-  // Публичный запрос без авторизационных заголовков
-  private async publicRequest<T>(endpoint: string, options?: RequestInit): Promise<T> {
-    const url = `${API_BASE_URL}${endpoint}`;
-
-    console.log(`Public API Request: ${options?.method || 'GET'} ${url}`);
-
-    const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
-      ...options,
-    });
-
-    console.log(`Public API Response: ${response.status} ${response.statusText}`);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Public API Error Details: ${errorText}`);
-      throw new Error(`Public API Error: ${response.status} ${response.statusText} - ${errorText}`);
-    }
-
-    return response.json();
-  }
-
   // Manga API
   async getAllManga(): Promise<MangaResponseDTO[]> {
     return this.request<MangaResponseDTO[]>('/manga');
@@ -91,9 +65,7 @@ class ApiClient {
 
   async getMangaById(id: number, userId?: number): Promise<MangaResponseDTO> {
     const params = new URLSearchParams();
-    if (userId) {
-      params.append('userId', userId.toString());
-    }
+    if (userId) params.append('userId', userId.toString());
     const queryString = params.toString();
     const endpoint = queryString ? `/manga/${id}?${queryString}` : `/manga/${id}`;
     return this.request<MangaResponseDTO>(endpoint);
@@ -101,13 +73,9 @@ class ApiClient {
 
   async searchManga(params: SearchParams): Promise<MangaResponseDTO[]> {
     const searchParams = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value) searchParams.append(key, value);
-    });
-
+    Object.entries(params).forEach(([key, value]) => { if (value) searchParams.append(key, value as any); });
     return this.request<MangaResponseDTO[]>(`/manga/search?${searchParams}`);
   }
-
   async getAllMangaPaged(page: number = 0, size: number = 10, sortBy: string = 'createdAt', sortOrder: 'asc' | 'desc' = 'desc', filters?: any): Promise<PageResponse<MangaResponseDTO>> {
     const params = new URLSearchParams({
       page: page.toString(),
@@ -115,31 +83,20 @@ class ApiClient {
       sortBy,
       sortOrder
     });
-
-    // Добавляем фильтры если есть
     if (filters) {
-      console.log('ApiClient: Processing filters:', filters)
       Object.entries(filters).forEach(([key, value]) => {
         if (value) {
-          console.log(`ApiClient: Processing filter ${key}:`, value)
           if (Array.isArray(value) && !['ageRating', 'rating', 'releaseYear', 'chapterRange'].includes(key)) {
-            // Для массивов добавляем каждый элемент отдельно
-            console.log(`ApiClient: Adding array values for ${key}:`, value)
             value.forEach(item => params.append(key, item.toString()));
           } else if (Array.isArray(value) && ['ageRating', 'rating', 'releaseYear', 'chapterRange'].includes(key)) {
-            // Для диапазонов [min, max]
-            console.log(`ApiClient: Adding range for ${key}:`, value)
             params.append(`${key}Min`, value[0].toString());
             params.append(`${key}Max`, value[1].toString());
           } else {
-            console.log(`ApiClient: Adding single value for ${key}:`, value)
             params.append(key, value.toString());
           }
         }
       });
     }
-
-    console.log('ApiClient: Final URL parameters:', params.toString())
     return this.request<PageResponse<MangaResponseDTO>>(`/manga/paged?${params}`);
   }
 
@@ -321,7 +278,7 @@ class ApiClient {
 
     const promise = (async () => {
       try {
-        return await this.publicRequest<any[]>(`/auth/users/${userId}/public/progress`);
+  return await this.request<any[]>(`/auth/users/${userId}/public/progress`);
       } catch (error: any) {
         const msg = String(error?.message || '');
         if (/401|403/.test(msg)) {
@@ -802,6 +759,40 @@ class ApiClient {
     }
   }
 
+  // Posts API (frontend scaffold – backend must implement corresponding endpoints)
+  async getUserPosts(userId: number, page = 0, size = 10) {
+    return this.request<any>(`/posts?userId=${userId}&page=${page}&size=${size}`);
+  }
+
+  async getPostById(postId: string) {
+    return this.request<any>(`/posts/${postId}`);
+  }
+
+  async createPost(data: { content: string; attachmentIds?: string[] }) {
+    return this.request<any>(`/posts`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async updatePost(postId: string, data: { content: string }) {
+    return this.request<any>(`/posts/${postId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async deletePost(postId: string) {
+    return this.request<void>(`/posts/${postId}`, { method: 'DELETE' });
+  }
+
+  async votePost(postId: string, value: 1 | -1 | 0) {
+    return this.request<any>(`/posts/${postId}/vote`, {
+      method: 'POST',
+      body: JSON.stringify({ value })
+    });
+  }
+
   // 8. Лента активности - пока заглушка
   async getProfileActivity(userId?: number, limit?: number): Promise<any[]> {
     console.warn('Лента активности пока не реализована на бэкенде');
@@ -837,7 +828,7 @@ class ApiClient {
 
   async createComment(data: {
     content: string;
-    commentType: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW';
+    commentType: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST';
     targetId: number;
     parentCommentId?: number;
   }): Promise<any> {

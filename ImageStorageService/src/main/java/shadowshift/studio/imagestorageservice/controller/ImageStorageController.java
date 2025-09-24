@@ -357,4 +357,18 @@ public class ImageStorageController {
                 .map(a -> ResponseEntity.ok(new UserAvatarResponseDTO(a)))
                 .orElse(ResponseEntity.notFound().build());
     }
+
+    // === Post Images Upload ===
+    @PostMapping(value = "/posts", consumes = {"multipart/form-data"})
+    public ResponseEntity<?> uploadPostImages(@RequestParam("files") List<MultipartFile> files,
+                                              @RequestParam(value = "userId", required = false) Long userId) {
+        try {
+            var uploaded = imageStorageService.uploadPostImages(files, userId);
+            return ResponseEntity.status(HttpStatus.CREATED).body(uploaded);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
 }

@@ -23,6 +23,8 @@ import { ProfileStatsStrip } from './ProfileStatsStrip';
 import { ProfileGenres } from './ProfileGenres';
 import { ProfileShowcaseFavorites } from './ProfileShowcaseFavorites';
 import { ProfileActivity } from './ProfileActivity';
+import { PostComposer } from '@/components/posts/PostComposer';
+import { PostList } from '@/components/posts/PostList';
 import { ProfileBadgesPlaceholder } from './ProfileBadgesPlaceholder';
 import { ProfileReadingProgress } from './ProfileReadingProgress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -364,15 +366,12 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
 
             <TabsContent value="overview" className="space-y-7">
               <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-                {/* Left / Main column */}
                 <div className="space-y-7 xl:col-span-8">
-                  <ProfileShowcaseFavorites favorites={favoriteMangas} />
-                  <ProfileReadingProgress items={readingProgress} />
-                  <ProfileActivity activities={activity} />
-                  <Collections collections={collections} isOwnProfile={isOwnProfile} />
+                  {isOwnProfile && <PostComposer userId={parseInt(profile.id)} onCreated={()=>{/* reload posts list via key change */}} />}
+                  <PostList userId={parseInt(profile.id)} currentUserId={currentUser?.id} />
                 </div>
-                {/* Right / Side column */}
                 <div className="space-y-7 xl:col-span-4">
+                  <ProfileActivity activities={activity} />
                   <ProfileGenres profile={profile} />
                   <ProfileBadgesPlaceholder />
                 </div>
@@ -437,12 +436,11 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
 
             <TabsContent value="overview" className="space-y-7">
               <div className="space-y-7">
-                <ProfileShowcaseFavorites favorites={favoriteMangas} />
-                <ProfileReadingProgress items={readingProgress} />
+                {isOwnProfile && <PostComposer userId={parseInt(profile.id)} onCreated={()=>{/* reload posts list via key change */}} />}
+                <PostList userId={parseInt(profile.id)} currentUserId={currentUser?.id} />
                 <ProfileActivity activities={activity} />
                 <ProfileGenres profile={profile} />
                 <ProfileBadgesPlaceholder />
-                <Collections collections={collections} isOwnProfile={isOwnProfile} />
               </div>
             </TabsContent>
 

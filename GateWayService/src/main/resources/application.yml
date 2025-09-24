@@ -118,6 +118,15 @@ spring:
             - StripPrefix=0
           order: 6
 
+        # PostService - Posts API
+        - id: posts-api
+          uri: http://post-service:8097
+          predicates:
+            - Path=/api/posts/**
+          filters:
+            - StripPrefix=0
+          order: 6
+
         # ForumService - Forum API
         - id: forum-api
           uri: http://forum-service:8087

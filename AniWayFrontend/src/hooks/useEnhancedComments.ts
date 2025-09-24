@@ -227,32 +227,35 @@ export function useEnhancedComments(
 }
 
 // Вспомогательные функции
-function getCommentTypeText(type: "MANGA" | "CHAPTER" | "PROFILE" | "REVIEW" | undefined): string | undefined {
+function getCommentTypeText(type: "MANGA" | "CHAPTER" | "PROFILE" | "REVIEW" | "POST" | undefined): string | undefined {
   switch (type) {
     case 'MANGA': return 'Манга';
     case 'CHAPTER': return 'Глава';
     case 'PROFILE': return 'Профиль';
     case 'REVIEW': return 'Отзыв';
+    case 'POST': return 'Пост';
     default: return type;
   }
 }
 
-function getCommentTypeIcon(type: "MANGA" | "CHAPTER" | "PROFILE" | "REVIEW" | undefined): string {
+function getCommentTypeIcon(type: "MANGA" | "CHAPTER" | "PROFILE" | "REVIEW" | "POST" | undefined): string {
   switch (type) {
     case 'MANGA': return '📖';
     case 'CHAPTER': return '📄';
     case 'PROFILE': return '👤';
     case 'REVIEW': return '⭐';
+    case 'POST': return '📝';
     default: return '❓';
   }
 }
 
-function getCommentTypeColor(type: "MANGA" | "CHAPTER" | "PROFILE" | "REVIEW" | undefined): string {
+function getCommentTypeColor(type: "MANGA" | "CHAPTER" | "PROFILE" | "REVIEW" | "POST" | undefined): string {
   switch (type) {
     case 'MANGA': return 'text-purple-400';
     case 'CHAPTER': return 'text-blue-400';
     case 'PROFILE': return 'text-green-400';
     case 'REVIEW': return 'text-yellow-400';
+    case 'POST': return 'text-pink-400';
     default: return 'text-gray-400';
   }
 }

@@ -109,6 +109,26 @@ services:
       timeout: 5s
       retries: 5
 
+  post-postgres:
+    image: postgres:16
+    container_name: post-postgres
+    environment:
+      POSTGRES_DB: post_db
+      POSTGRES_USER: post_user
+      POSTGRES_PASSWORD: post_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5438:5432"
+    volumes:
+      - post_postgres_data:/var/lib/postgresql/data
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U post_user -d post_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # Image Storage Service
   image-storage-service:
     build:
@@ -191,6 +211,7 @@ services:
       - MANGA_SERVICE_URL=http://manga-service:8081
       - CHAPTER_SERVICE_URL=http://chapter-service:8082
       - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
+      - POST_SERVICE_URL=http://post-service:8097
     ports:
       - "8080:8080"
     depends_on:
@@ -198,6 +219,7 @@ services:
       - chapter-service
       - image-storage-service
       - auth-service
+      - post-service
     networks:
       - aniway-network
     restart: unless-stopped
@@ -279,6 +301,25 @@ services:
       timeout: 10s
       retries: 3
 
+  post-service:
+    build:
+      context: ./PostService
+      dockerfile: Dockerfile
+    container_name: post-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://post-postgres:5432/post_db
+      - SPRING_DATASOURCE_USERNAME=post_user
+      - SPRING_DATASOURCE_PASSWORD=post_password
+    ports:
+      - "8097:8097"
+    depends_on:
+      post-postgres:
+        condition: service_healthy
+    networks:
+      - aniway-network
+    restart: unless-stopped
+
   # Frontend
   frontend:
     build:
@@ -299,6 +340,7 @@ volumes:
   image_storage_postgres_data:
   auth_postgres_data:
   comment_postgres_data:
+  post_postgres_data:
   melon_data:
   melon_logs:
   melon_temp:

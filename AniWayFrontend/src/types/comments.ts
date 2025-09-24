@@ -3,6 +3,7 @@ export interface CommentType {
   CHAPTER: 'CHAPTER'
   PROFILE: 'PROFILE'
   REVIEW: 'REVIEW'
+  POST?: 'POST'
 }
 
 export interface ReactionType {
@@ -13,7 +14,7 @@ export interface ReactionType {
 export interface CommentCreateDTO {
   content: string
   targetId: number
-  commentType: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW'
+  commentType: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST'
   parentCommentId?: number
 }
 
@@ -28,8 +29,8 @@ export interface CommentResponseDTO {
   username: string
   userAvatar?: string
   targetId: number
-  type?: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' // Опциональное для обратной совместимости
-  commentType?: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' // Реальное поле с бэкенда
+  type?: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST' // Опциональное для обратной совместимости
+  commentType?: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST' // Реальное поле с бэкенда
   parentCommentId?: number
   createdAt: string
   updatedAt: string

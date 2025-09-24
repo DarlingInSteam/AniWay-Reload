@@ -3,6 +3,8 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/AniWay-Reload.iml" filepath="$PROJECT_DIR$/.idea/AniWay-Reload.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/AuthService.main.iml" filepath="$PROJECT_DIR$/.idea/modules/AuthService.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/CommentService.main.iml" filepath="$PROJECT_DIR$/.idea/modules/CommentService.main.iml" />
     </modules>
   </component>
 </project>
