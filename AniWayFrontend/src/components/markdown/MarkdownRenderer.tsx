@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
@@ -45,19 +45,15 @@ function remarkSpoilers(){
 }
 
 export const MarkdownRenderer: React.FC<{ value: string }> = ({ value }) => {
-  useEffect(()=> {
-    const handler = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      const el = target?.closest('[data-spoiler]') as HTMLElement | null
-      if(el && el.dataset.spoiler !== 'revealed'){
-        el.dataset.spoiler = 'revealed'
-        el.classList.add('spoiler-revealed')
-      }
+  const onClick: React.MouseEventHandler<HTMLDivElement> = (e) => {
+    const el = (e.target as HTMLElement).closest('[data-spoiler]') as HTMLElement | null
+    if(el && el.dataset.spoiler !== 'revealed'){
+      el.dataset.spoiler = 'revealed'
+      el.classList.add('spoiler-revealed')
     }
-    document.addEventListener('click', handler)
-    return ()=> document.removeEventListener('click', handler)
-  }, [])
+  }
   return (
+    <div onClick={onClick} className="markdown-body">
     <ReactMarkdown
   remarkPlugins={[remarkGfm, remarkSpoilers]}
       rehypePlugins={[[rehypeRaw], [rehypeSanitize, schema]]}
@@ -76,5 +72,6 @@ export const MarkdownRenderer: React.FC<{ value: string }> = ({ value }) => {
         blockquote(props: any){ return <blockquote {...props} className="border-l-2 border-primary/40 pl-3 italic text-white/80" /> }
       }}
     >{value}</ReactMarkdown>
+    </div>
   )
 }

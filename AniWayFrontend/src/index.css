@@ -202,6 +202,7 @@
 .spoiler:not([data-spoiler="revealed"]) {
   color: transparent !important;
   text-shadow: 0 0 6px rgba(255,255,255,0.5);
+  transition: color .25s ease, text-shadow .25s ease;
 }
 /* Dotted overlay using pseudo element */
 .spoiler[data-spoiler="hidden"]::after,
@@ -221,8 +222,8 @@
   filter: blur(0.3px) contrast(1.2);
 }
 /* Revealed state */
-.spoiler[data-spoiler="revealed"], .spoiler-revealed { color: inherit !important; text-shadow: none; }
-.spoiler[data-spoiler="revealed"]::after { opacity: 0; display: none; }
+.spoiler[data-spoiler="revealed"], .spoiler-revealed { color: inherit !important; text-shadow: none; transition: color .25s ease, text-shadow .25s ease; }
+.spoiler[data-spoiler="revealed"]::after { opacity: 0; transition: opacity .25s ease; }
 
 /* Glass panel utility */
 .glass-panel {
