@@ -98,7 +98,12 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
   <div className="p-4 rounded-xl glass-panel space-y-3">
       <div className="flex items-center justify-between text-xs text-neutral-400">
         <span>ID: {localPost.id}</span>
-        <span>{new Date(localPost.createdAt).toLocaleString()}</span>
+        <span>
+          {new Date(localPost.createdAt).toLocaleString()}
+          {localPost.updatedAt && localPost.updatedAt !== localPost.createdAt && (
+            <span className="ml-1 text-[10px] text-purple-300">(ред.)</span>
+          )}
+        </span>
       </div>
       {editing ? (
         <form onSubmit={handleSave} className="space-y-2">
