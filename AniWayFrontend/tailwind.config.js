@@ -12,6 +12,23 @@ export default {
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        panel: {
+          DEFAULT: "rgba(255,255,255,0.05)",
+          subtle: "rgba(255,255,255,0.03)",
+          accent: "rgba(59,130,246,0.15)",
+          stroke: "rgba(255,255,255,0.10)",
+        },
+        glass: {
+          DEFAULT: "rgba(255,255,255,0.12)",
+          soft: "rgba(255,255,255,0.08)",
+          strong: "rgba(255,255,255,0.18)",
+        },
+        status: {
+          success: '#16a34a',
+          warning: '#d97706',
+          danger: '#dc2626',
+          info: '#0ea5e9'
+        },
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",

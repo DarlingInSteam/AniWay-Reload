@@ -196,6 +196,27 @@
   border-radius: 0.75rem; /* matches rounded-xl */
 }
 
+@layer components {
+  .glass-inline {
+    background: rgba(255,255,255,0.08);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 0.5rem;
+  }
+  .glass-accent {
+    position: relative;
+  }
+  .glass-accent::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(59,130,246,0.35), rgba(59,130,246,0) 55%);
+    pointer-events: none;
+    border-radius: inherit;
+  }
+}
+
 /* Skeleton loading */
 @keyframes skeleton-shimmer {
   0% { transform: translateX(-100%); }
