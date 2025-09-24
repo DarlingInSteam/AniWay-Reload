@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { UserActivity } from '@/types/profile'
 import { Clock, BookOpen, Bookmark as BookmarkIcon, Star, Award } from 'lucide-react'
 import { ProfilePanel } from './ProfilePanel'
+import { apiClient } from '@/lib/api'
 
 interface ProfileActivityProps { activities: UserActivity[] }
 
@@ -34,6 +35,37 @@ export const ProfileActivity: React.FC<ProfileActivityProps> = ({ activities }) 
   const INITIAL = 4
   const [expanded, setExpanded] = useState(false)
   const safeActivities = Array.isArray(activities) ? activities : []
+
+  // Кэш названий манги (mangaId -> title)
+  const [titleCache, setTitleCache] = useState<Record<number, string>>({})
+  const pending = useRef<Set<number>>(new Set())
+
+  // Ленивая подгрузка названий манги, если они отсутствуют
+  useEffect(() => {
+    const neededIds = safeActivities
+      .filter(a => (a.type === 'read' || a.type === 'review') && a.relatedMangaId && !a.mangaTitle && !titleCache[a.relatedMangaId])
+      .map(a => a.relatedMangaId!)
+    const unique = Array.from(new Set(neededIds)).filter(id => !pending.current.has(id))
+    if (unique.length === 0) return
+
+    unique.forEach(id => pending.current.add(id))
+    let cancelled = false
+    ;(async () => {
+      for (const id of unique) {
+        try {
+          const manga = await apiClient.getMangaById(id)
+          if (!cancelled && manga?.title) {
+            setTitleCache(prev => ({ ...prev, [id]: manga.title }))
+          }
+        } catch (e) {
+          if (!cancelled) setTitleCache(prev => ({ ...prev, [id]: '' })) // предотвратить повторные запросы
+        } finally {
+          pending.current.delete(id)
+        }
+      }
+    })()
+    return () => { cancelled = true }
+  }, [safeActivities, titleCache])
 
   const visible = useMemo(() => {
     if (expanded) return safeActivities
@@ -74,7 +106,8 @@ export const ProfileActivity: React.FC<ProfileActivityProps> = ({ activities }) 
           }
 
           const formattedChapter = formatChapterCode(a.chapterNumber)
-          const mangaTitle = a.mangaTitle
+          const resolvedTitle = a.mangaTitle || (a.relatedMangaId ? titleCache[a.relatedMangaId] : undefined)
+          const mangaTitle = resolvedTitle && resolvedTitle.length > 0 ? resolvedTitle : undefined
 
           const renderDescription = () => {
             if (a.type === 'read') {
@@ -85,6 +118,9 @@ export const ProfileActivity: React.FC<ProfileActivityProps> = ({ activities }) 
                     <Link to={a.relatedMangaId ? `/manga/${a.relatedMangaId}` : '#'} className="text-blue-400 hover:text-blue-300 font-medium transition-colors">
                       {mangaTitle}
                     </Link>
+                  )}
+                  {!mangaTitle && a.relatedMangaId && (
+                    <span className="text-slate-500 animate-pulse">Загрузка...</span>
                   )}
                   {formattedChapter && (
                     <>
@@ -111,6 +147,9 @@ export const ProfileActivity: React.FC<ProfileActivityProps> = ({ activities }) 
                         {mangaTitle}
                       </Link>
                     </>
+                  )}
+                  {!mangaTitle && a.relatedMangaId && (
+                    <span className="text-slate-500 animate-pulse">Загрузка...</span>
                   )}
                 </div>
               )
