@@ -5,7 +5,7 @@ import { CategorySidebar } from '@/components/forum/CategorySidebar'
 import { ForumToolbar } from '@/components/forum/ForumToolbar'
 import { PinnedThreads } from '@/components/forum/PinnedThreads'
 import { ForumThreadList } from '@/components/forum/ForumThreadList'
-import { ForumStatsPanel } from '@/components/forum/ForumStatsPanel'
+// removed ForumStatsPanel per redesign
 
 export function ForumPage(){
   useEffect(()=> { document.title = 'Форум | AniWay' },[])
@@ -16,8 +16,12 @@ export function ForumPage(){
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState('latest')
   const [density, setDensity] = useState<'comfortable'|'compact'>('comfortable')
+  const [selectedCategory, setSelectedCategory] = useState<number|undefined>(undefined)
   const filtered = useMemo(()=> {
     let arr = allThreads
+    if(selectedCategory){
+      arr = arr.filter(t=> t.categoryId === selectedCategory)
+    }
     if(query.trim()){
       const q = query.trim().toLowerCase()
       arr = arr.filter(t=> t.title.toLowerCase().includes(q) || (t.content||'').toLowerCase().includes(q))
@@ -35,10 +39,7 @@ export function ForumPage(){
 
   return (
     <ForumLayout
-      sidebar={<>
-        <CategorySidebar categories={categories} loading={catLoading} />
-        <ForumStatsPanel threads={allThreads} />
-      </>}
+      sidebar={<CategorySidebar categories={categories} loading={catLoading} onSelectCategory={id=> setSelectedCategory(id)} selectedCategory={selectedCategory} />}
     >
       <div className="space-y-6">
         <ForumToolbar value={query} onChange={setQuery} sort={sort} onSortChange={setSort} density={density} onDensityChange={setDensity} />

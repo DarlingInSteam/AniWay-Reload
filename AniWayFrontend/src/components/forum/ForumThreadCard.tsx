@@ -1,15 +1,15 @@
 import { ForumThread } from '@/types/forum'
 import { Link } from 'react-router-dom'
-import { MessageSquare, Eye, Heart, Pin, Lock } from 'lucide-react'
+import { MessageSquare, Eye, Heart, Pin, Lock, Trash2 } from 'lucide-react'
 import { AvatarMini } from './AvatarMini'
 import { Badge } from '@/components/ui/badge'
 import { ThreadHoverPreview } from './ThreadHoverPreview'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRef, useState, useCallback, useEffect } from 'react'
 
-interface Props { thread: ForumThread; users?: Record<number, any>; density?: 'comfortable' | 'compact'; isNew?: boolean; isUpdated?: boolean }
+interface Props { thread: ForumThread; users?: Record<number, any>; density?: 'comfortable' | 'compact'; isNew?: boolean; isUpdated?: boolean; isAdmin?: boolean; onPinToggle?: (id:number, next:boolean)=>void; onDelete?: (id:number)=>void }
 
-export function ForumThreadCard({ thread, users, density = 'comfortable', isNew, isUpdated }: Props) {
+export function ForumThreadCard({ thread, users, density = 'comfortable', isNew, isUpdated, isAdmin, onPinToggle, onDelete }: Props) {
   const qc = useQueryClient()
   const hoverTimer = useRef<any>(null)
   const [open, setOpen] = useState(false)
@@ -50,33 +50,35 @@ export function ForumThreadCard({ thread, users, density = 'comfortable', isNew,
   const highlight = isNew || isUpdated
   const ring = isNew ? 'ring-2 ring-emerald-500/40' : isUpdated ? 'ring-2 ring-sky-500/40' : ''
   return (
-  <Link ref={rootRef} to={`/forum/thread/${thread.id}`} onMouseEnter={handleEnter} onMouseLeave={handleLeave} aria-label={highlight ? (isNew ? 'Новая тема' : 'Обновлённая тема') : undefined} role="article" className={`group relative block rounded-xl border border-white/10 bg-white/5 ${padding} hover:bg-white/10 transition-colors ${ring} focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2 focus:ring-offset-manga-black sm:pr-6`}> 
-      <div className="flex flex-col gap-3">
-        <div className="flex items-start gap-3">
-          <div className="flex flex-col items-start gap-1 w-16 pt-0.5">
-            <div className="flex flex-wrap gap-1">
-              {thread.isPinned && <Badge variant="pinned" size="xs" className="flex items-center gap-1"><Pin className="h-3 w-3" /> PIN</Badge>}
-              {thread.isLocked && <Badge variant="locked" size="xs" className="flex items-center gap-1"><Lock className="h-3 w-3" /> LOCK</Badge>}
-              {isNew && <Badge variant="new" size="xs">NEW</Badge>}
-              {!isNew && isUpdated && <Badge variant="updated" size="xs">UPD</Badge>}
-            </div>
-          </div>
-          <div className="min-w-0 flex-1 space-y-2">
-            <h4 className={`${titleClamp} font-medium text-white tracking-tight`}>{thread.title}</h4>
-            {snippet && <p className={`${snippetClamp} text-xs text-white/70 leading-snug`}>{snippet}</p>}
-            <div className={`flex flex-wrap items-center gap-4 ${metricsText} text-muted-foreground`}>
-              <span className="inline-flex items-center gap-1"><MessageSquare className="h-3 w-3" />{thread.repliesCount}</span>
-              <span className="inline-flex items-center gap-1"><Eye className="h-3 w-3" />{thread.viewsCount}</span>
-              <span className="inline-flex items-center gap-1"><Heart className="h-3 w-3" />{thread.likesCount}</span>
-              <span className="inline-flex items-center gap-2">
-                <AvatarMini avatar={avatar} name={name} size={22} />
-                <span className="truncate max-w-[140px]">{name}</span>
-              </span>
-            </div>
-          </div>
+    <div className={`group relative flex rounded-xl border border-white/10 bg-white/5 ${padding} hover:bg-white/10 transition-colors ${ring} focus-within:outline-none focus-within:ring-2 focus-within:ring-primary/40`}> 
+      <div className="flex flex-col items-center justify-start pr-4 mr-4 border-r border-white/10 gap-2 w-12 text-[11px] text-white/60">
+        <span className="inline-flex items-center gap-1"><MessageSquare className="h-3 w-3" />{thread.repliesCount}</span>
+        <span className="inline-flex items-center gap-1"><Eye className="h-3 w-3" />{thread.viewsCount}</span>
+        <span className="inline-flex items-center gap-1"><Heart className="h-3 w-3" />{thread.likesCount}</span>
+        {thread.isPinned && <Pin className="h-3 w-3 text-amber-400" />}
+        {thread.isLocked && <Lock className="h-3 w-3 text-red-400" />}
+      </div>
+      <div className="min-w-0 flex-1 space-y-2">
+        <Link ref={rootRef} to={`/forum/thread/${thread.id}`} onMouseEnter={handleEnter} onMouseLeave={handleLeave} aria-label={highlight ? (isNew ? 'Новая тема' : 'Обновлённая тема') : undefined} role="article" className="block focus:outline-none">
+          <h4 className={`${titleClamp} font-medium text-white tracking-tight`}>{thread.title}</h4>
+          {snippet && <p className={`${snippetClamp} text-xs text-white/70 leading-snug mt-1`}>{snippet}</p>}
+        </Link>
+        <div className={`flex flex-wrap items-center gap-3 ${metricsText} text-white/60`}>
+          <span className="inline-flex items-center gap-2">
+            <AvatarMini avatar={avatar} name={name} size={22} />
+            <span className="truncate max-w-[180px] text-white/80 group-hover:text-white">{name}</span>
+          </span>
+          {isNew && <Badge variant="new" size="xs">NEW</Badge>}
+          {!isNew && isUpdated && <Badge variant="updated" size="xs">UPD</Badge>}
         </div>
+        {isAdmin && (
+          <div className="flex flex-wrap items-center gap-2 pt-1"> 
+            <button onClick={()=> onPinToggle?.(thread.id, !thread.isPinned)} className="text-[10px] rounded bg-white/5 px-2 py-1 text-white/70 hover:bg-white/10">{thread.isPinned ? 'Открепить' : 'Закрепить'}</button>
+            {thread.canDelete && <button onClick={()=> onDelete?.(thread.id)} className="text-[10px] rounded bg-red-600/70 px-2 py-1 text-white hover:bg-red-600 flex items-center gap-1"><Trash2 className="h-3 w-3"/>Удалить</button>}
+          </div>
+        )}
       </div>
       <ThreadHoverPreview threadId={thread.id} open={open} placement={placement} />
-    </Link>
+    </div>
   )
 }
