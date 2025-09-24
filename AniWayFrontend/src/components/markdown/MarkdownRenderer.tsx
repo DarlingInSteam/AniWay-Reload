@@ -58,6 +58,20 @@ export const MarkdownRenderer: React.FC<{ value: string }> = ({ value }) => {
   remarkPlugins={[remarkGfm, remarkSpoilers]}
       rehypePlugins={[[rehypeRaw], [rehypeSanitize, schema]]}
       components={{
+        span(props: any){
+          const { className, children, ...rest } = props
+          if(className && className.split(/\s+/).includes('spoiler')){
+            const handleClick: React.MouseEventHandler<HTMLSpanElement> = (e) => {
+              const el = e.currentTarget
+              if(el.dataset.spoiler !== 'revealed'){
+                el.dataset.spoiler = 'revealed'
+                el.classList.add('spoiler-revealed')
+              }
+            }
+            return <span {...rest} className={className} onClick={handleClick}>{children}</span>
+          }
+          return <span {...rest} className={className}>{children}</span>
+        },
         code(props: any){
           const { children, className } = props as any
           const inline = !/language-/.test(className||'')

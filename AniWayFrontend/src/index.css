@@ -223,7 +223,9 @@
 }
 /* Revealed state */
 .spoiler[data-spoiler="revealed"], .spoiler-revealed { color: inherit !important; text-shadow: none; transition: color .25s ease, text-shadow .25s ease; }
-.spoiler[data-spoiler="revealed"]::after { opacity: 0; transition: opacity .25s ease; }
+.spoiler[data-spoiler="revealed"]::after { opacity: 0; transition: opacity .25s ease; pointer-events:none; }
+/* Hard kill after transition (optional immediate hide) */
+.spoiler-revealed::after { content:none !important; display:none !important; }
 
 /* Glass panel utility */
 .glass-panel {
