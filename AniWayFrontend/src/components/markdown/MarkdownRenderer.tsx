@@ -28,7 +28,7 @@ function remarkSpoilers(){
           const before = remaining.slice(0, m.index)
           if(before) segments.push({ type: 'text', value: before })
           const inner = m[1].replace(/</g,'&lt;').replace(/>/g,'&gt;')
-          segments.push({ type: 'html', value: `<span class="spoiler blur-[4px] brightness-50 cursor-pointer inline-flex" data-spoiler="true">${inner}</span>` })
+          segments.push({ type: 'html', value: `<span class="spoiler" data-spoiler="hidden">${inner}</span>` })
           remaining = remaining.slice((m.index||0) + m[0].length)
         }
         parent.children.splice(index, 1, ...segments)
@@ -48,10 +48,10 @@ export const MarkdownRenderer: React.FC<{ value: string }> = ({ value }) => {
   useEffect(()=> {
     const handler = (e: MouseEvent) => {
       const target = e.target as HTMLElement
-      const el = target?.closest('[data-spoiler="true"]') as HTMLElement | null
-      if(el){
-        el.classList.remove('blur-[4px]','brightness-50')
+      const el = target?.closest('[data-spoiler]') as HTMLElement | null
+      if(el && el.dataset.spoiler !== 'revealed'){
         el.dataset.spoiler = 'revealed'
+        el.classList.add('spoiler-revealed')
       }
     }
     document.addEventListener('click', handler)

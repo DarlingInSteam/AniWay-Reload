@@ -193,8 +193,28 @@
 .markdown-body table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .markdown-body th, .markdown-body td { border: 1px solid rgba(255,255,255,0.1); padding: 4px 8px; }
 .markdown-body tr:nth-child(even){ background: rgba(255,255,255,0.04); }
-.spoiler { position: relative; }
-.spoiler.revealed { filter: none !important; }
+.spoiler { position: relative; cursor: pointer; }
+/* Hidden state */
+.spoiler[data-spoiler="hidden"] {
+  color: transparent !important;
+  text-shadow: 0 0 6px rgba(255,255,255,0.5);
+}
+/* Dotted overlay using pseudo element */
+.spoiler[data-spoiler="hidden"]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(45deg, rgba(255,255,255,0.25) 0 2px, transparent 2px 6px),
+    repeating-linear-gradient(135deg, rgba(255,255,255,0.18) 0 2px, transparent 2px 6px),
+    rgba(0,0,0,0.35);
+  border-radius: 4px;
+  filter: blur(0.3px) contrast(1.2);
+}
+/* Revealed state */
+.spoiler[data-spoiler="revealed"], .spoiler-revealed { color: inherit !important; text-shadow: none; }
+.spoiler[data-spoiler="revealed"]::after { opacity: 0; display: none; }
 
 /* Glass panel utility */
 .glass-panel {
