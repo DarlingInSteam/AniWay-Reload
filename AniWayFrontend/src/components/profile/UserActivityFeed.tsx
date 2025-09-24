@@ -10,7 +10,8 @@ import {
   MessageSquare,
   ChevronRight
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { activityStatsApi, ProcessedActivityDTO, ActivityType } from '@/services/activityStatsApi';
 
 interface ActivityItem {
@@ -137,6 +138,113 @@ export function UserActivityFeed({
     return iconMap[type] || <Activity className="w-4 h-4 text-gray-400" />;
   };
 
+  // Форматирование единичного числового кода главы в Том + Глава
+  const formatChapterCode = (raw?: number): string | null => {
+    if (!raw) return null;
+    const n = Math.floor(raw);
+    if (Number.isNaN(n) || n <= 0) return null;
+    const digits = String(n);
+    if (digits.length > 3) {
+      const volStr = digits.slice(0, -3);
+      const chapStrRaw = digits.slice(-3);
+      const chapterNumber = chapStrRaw.replace(/^0+/, '') || '0';
+      const volumeNumber = parseInt(volStr, 10);
+      return `Том ${volumeNumber} Глава ${chapterNumber}`;
+    }
+    return `Глава ${n}`;
+  };
+
+  // Извлечение рейтинга из текстового сообщения при отсутствии отдельного поля
+  const extractRating = (text?: string): string | null => {
+    if (!text) return null;
+    const match = text.match(/(\d+(?:[.,]\d+)?)\s*\/\s*10/);
+    if (match) {
+      return match[1].replace(',', '.');
+    }
+    return null;
+  };
+
+  // Построение JSX содержимого строки активности
+  const renderActivityContent = (activity: ActivityItem): ReactNode => {
+    switch (activity.activityType) {
+      case 'CHAPTER_COMPLETED': {
+        const formatted = formatChapterCode(activity.chapterNumber);
+        const hasManga = activity.mangaId && activity.mangaTitle;
+        return (
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="text-gray-300">Прочитал</span>
+            {hasManga && (
+              <Link
+                to={`/manga/${activity.mangaId}`}
+                className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
+              >
+                {activity.mangaTitle}
+              </Link>
+            )}
+            {formatted && activity.chapterId && (
+              <>
+                <span className="text-gray-500">•</span>
+                <Link
+                  to={`/reader/${activity.chapterId}`}
+                  className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
+                >
+                  {formatted}
+                </Link>
+              </>
+            )}
+            {!formatted && activity.chapterNumber && !activity.chapterId && (
+              <span className="text-gray-400">Глава {activity.chapterNumber}</span>
+            )}
+          </div>
+        );
+      }
+      case 'REVIEW_CREATED': {
+        const rating = extractRating(activity.message || activity.description);
+        const hasManga = activity.mangaId && activity.mangaTitle;
+        return (
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="text-gray-300">Отзыв</span>
+            {rating && (
+              <span className="text-yellow-400 font-semibold">{rating}/10</span>
+            )}
+            {hasManga && (
+              <>
+                <span className="text-gray-500">на</span>
+                <Link
+                  to={`/manga/${activity.mangaId}`}
+                  className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
+                >
+                  {activity.mangaTitle}
+                </Link>
+              </>
+            )}
+          </div>
+        );
+      }
+      case 'COMMENT_CREATED': {
+        const hasManga = activity.mangaId && activity.mangaTitle;
+        return (
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="text-gray-300">Комментарий</span>
+            {hasManga && (
+              <>
+                <span className="text-gray-500">к</span>
+                <Link
+                  to={`/manga/${activity.mangaId}`}
+                  className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
+                >
+                  {activity.mangaTitle}
+                </Link>
+              </>
+            )}
+          </div>
+        );
+      }
+      default:
+        return <span>{activity.description}</span>;
+    }
+  };
+
   const INITIAL_VISIBLE = 4; // жестко фиксируем 4
   const displayedActivities = showAll ? allActivities : allActivities.slice(0, INITIAL_VISIBLE);
   const total = allActivities.length;
@@ -198,7 +306,7 @@ export function UserActivityFeed({
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-gray-200 leading-relaxed group-hover:text-white transition-colors">
-                    {activity.description}
+                    {renderActivityContent(activity)}
                   </div>
                   <div className="flex items-center justify-between mt-1">
                     <div className="text-xs text-gray-400">
