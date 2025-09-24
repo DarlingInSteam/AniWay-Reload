@@ -45,15 +45,25 @@ function remarkSpoilers(){
 }
 
 export const MarkdownRenderer: React.FC<{ value: string }> = ({ value }) => {
-  const onClick: React.MouseEventHandler<HTMLDivElement> = (e) => {
+  const containerClick: React.MouseEventHandler<HTMLDivElement> = (e) => {
     const el = (e.target as HTMLElement).closest('[data-spoiler]') as HTMLElement | null
-    if(el && el.dataset.spoiler !== 'revealed'){
+    if(!el) return
+    // Ignore if user is selecting text
+    const selection = window.getSelection()
+    if(selection && selection.toString().length > 0) return
+    const current = el.dataset.spoiler
+    if(current === 'revealed'){
+      el.dataset.spoiler = 'hidden'
+      el.classList.remove('spoiler-revealed')
+      el.setAttribute('aria-expanded','false')
+    } else {
       el.dataset.spoiler = 'revealed'
       el.classList.add('spoiler-revealed')
+      el.setAttribute('aria-expanded','true')
     }
   }
   return (
-    <div onClick={onClick} className="markdown-body">
+    <div onClick={containerClick} className="markdown-body">
     <ReactMarkdown
   remarkPlugins={[remarkGfm, remarkSpoilers]}
       rehypePlugins={[[rehypeRaw], [rehypeSanitize, schema]]}
@@ -62,13 +72,22 @@ export const MarkdownRenderer: React.FC<{ value: string }> = ({ value }) => {
           const { className, children, ...rest } = props
           if(className && className.split(/\s+/).includes('spoiler')){
             const handleClick: React.MouseEventHandler<HTMLSpanElement> = (e) => {
+              e.stopPropagation()
               const el = e.currentTarget
-              if(el.dataset.spoiler !== 'revealed'){
+              const selection = window.getSelection()
+              if(selection && selection.toString().length > 0) return
+              const current = el.dataset.spoiler
+              if(current === 'revealed'){
+                el.dataset.spoiler = 'hidden'
+                el.classList.remove('spoiler-revealed')
+                el.setAttribute('aria-expanded','false')
+              } else {
                 el.dataset.spoiler = 'revealed'
                 el.classList.add('spoiler-revealed')
+                el.setAttribute('aria-expanded','true')
               }
             }
-            return <span {...rest} className={className} onClick={handleClick}>{children}</span>
+            return <span {...rest} role="button" aria-expanded="false" tabIndex={0} className={className} onClick={handleClick}>{children}</span>
           }
           return <span {...rest} className={className}>{children}</span>
         },
