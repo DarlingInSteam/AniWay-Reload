@@ -39,9 +39,9 @@ export function ForumPage(){
       case 'latest': default: arr = [...arr].sort((a,b)=> Date.parse(b.createdAt) - Date.parse(a.createdAt)); break
     }
     return arr
-  }, [allThreads, query, sort])
+  }, [allThreads, query, sort, selectedCategory])
   const pinned = useMemo(()=> filtered.filter(t=> t.isPinned && (!selectedCategory || t.categoryId === selectedCategory)).slice(0,6), [filtered, selectedCategory])
-  const visible = useMemo(()=> filtered.filter(t=> !t.isPinned), [filtered])
+  const visible = useMemo(()=> filtered.filter(t=> !t.isPinned), [filtered, selectedCategory])
   const authorUsers = useThreadAuthors(filtered)
   const handlePinToggle = (id:number, next:boolean) => { pinMutation.mutate({ id, pinned: next }) }
   const handleDelete = (id:number) => { if(confirm('Удалить тему?')) deleteMutation.mutate(id) }
