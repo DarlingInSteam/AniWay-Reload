@@ -338,9 +338,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               // Skip immediate refetch to avoid loop (backend doesn't yet return avatar). Can be re-enabled later.
             }}
           />
-          <div className="glass-panel rounded-2xl px-4 py-3">
-            <ProfileStatsStrip profile={profile} extra={{ favorites: favoriteMangas.length, achievements: achievements.length }} />
-          </div>
+          <ProfileStatsStrip profile={profile} extra={{ favorites: favoriteMangas.length, achievements: achievements.length }} />
         </div>
 
         {/* Desktop Layout: Табы занимают всю ширину */}
@@ -368,28 +366,16 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
                 {/* Left / Main column */}
                 <div className="space-y-7 xl:col-span-8">
-                  <div className="glass-panel rounded-2xl p-4 space-y-7">
-                    <ProfileShowcaseFavorites favorites={favoriteMangas} />
-                    <ProfileReadingProgress items={readingProgress} />
-                  </div>
-                  <div className="glass-panel rounded-2xl p-4">
-                    <ProfileActivity activities={activity} />
-                  </div>
-                  <div className="glass-panel rounded-2xl p-4">
-                    <Collections collections={collections} isOwnProfile={isOwnProfile} />
-                  </div>
+                  <ProfileShowcaseFavorites favorites={favoriteMangas} />
+                  <ProfileReadingProgress items={readingProgress} />
+                  <ProfileActivity activities={activity} />
+                  <Collections collections={collections} isOwnProfile={isOwnProfile} />
                 </div>
                 {/* Right / Side column */}
                 <div className="space-y-7 xl:col-span-4">
-                  <div className="glass-panel rounded-2xl p-4">
-                    <ProfileAbout profile={profile} isOwn={isOwnProfile} onUpdate={handleProfileUpdate} />
-                  </div>
-                  <div className="glass-panel rounded-2xl p-4">
-                    <ProfileGenres profile={profile} />
-                  </div>
-                  <div className="glass-panel rounded-2xl p-4">
-                    <ProfileBadgesPlaceholder />
-                  </div>
+                  <ProfileAbout profile={profile} isOwn={isOwnProfile} onUpdate={handleProfileUpdate} />
+                  <ProfileGenres profile={profile} />
+                  <ProfileBadgesPlaceholder />
                 </div>
               </div>
             </TabsContent>
@@ -419,9 +405,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
 
 
             <TabsContent value="comments" className="space-y-6 max-h-96 overflow-y-auto">
-              <div className="glass-panel rounded-2xl p-4">
-                <UserComments userId={parseInt(userId)} isOwnProfile={isOwnProfile} />
-              </div>
+              <UserComments userId={parseInt(userId)} isOwnProfile={isOwnProfile} />
             </TabsContent>
 
             <TabsContent value="achievements" className="space-y-6">
@@ -454,25 +438,13 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
 
             <TabsContent value="overview" className="space-y-7">
               <div className="space-y-7">
-                <div className="glass-panel rounded-2xl p-4 space-y-7">
-                  <ProfileShowcaseFavorites favorites={favoriteMangas} />
-                  <ProfileReadingProgress items={readingProgress} />
-                </div>
-                <div className="glass-panel rounded-2xl p-4">
-                  <ProfileActivity activities={activity} />
-                </div>
-                <div className="glass-panel rounded-2xl p-4">
-                  <ProfileAbout profile={profile} isOwn={isOwnProfile} onUpdate={handleProfileUpdate} />
-                </div>
-                <div className="glass-panel rounded-2xl p-4">
-                  <ProfileGenres profile={profile} />
-                </div>
-                <div className="glass-panel rounded-2xl p-4">
-                  <ProfileBadgesPlaceholder />
-                </div>
-                <div className="glass-panel rounded-2xl p-4">
-                  <Collections collections={collections} isOwnProfile={isOwnProfile} />
-                </div>
+                <ProfileShowcaseFavorites favorites={favoriteMangas} />
+                <ProfileReadingProgress items={readingProgress} />
+                <ProfileActivity activities={activity} />
+                <ProfileAbout profile={profile} isOwn={isOwnProfile} onUpdate={handleProfileUpdate} />
+                <ProfileGenres profile={profile} />
+                <ProfileBadgesPlaceholder />
+                <Collections collections={collections} isOwnProfile={isOwnProfile} />
               </div>
             </TabsContent>
 
@@ -493,9 +465,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
             </TabsContent>
 
             <TabsContent value="comments" className="space-y-6 max-h-96 overflow-y-auto">
-              <div className="glass-panel rounded-2xl p-4">
-                <UserComments userId={parseInt(userId)} isOwnProfile={isOwnProfile} />
-              </div>
+              <UserComments userId={parseInt(userId)} isOwnProfile={isOwnProfile} />
             </TabsContent>
 
             <TabsContent value="achievements" className="space-y-6">
