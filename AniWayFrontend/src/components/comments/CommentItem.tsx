@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { CommentForm } from './CommentForm'
 import { cn } from '@/lib/utils'
+import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
 
 interface CommentItemProps {
   comment: CommentResponseDTO
@@ -190,10 +191,8 @@ export function CommentItem({
           submitText="Сохранить"
         />
       ) : (
-        <div className="mb-3">
-          <p className="text-white whitespace-pre-wrap leading-relaxed group-hover:text-primary/90 transition-colors">
-            {comment.content}
-          </p>
+        <div className="mb-3 text-white leading-relaxed markdown-body">
+          <MarkdownRenderer value={comment.content} />
         </div>
       )}
 

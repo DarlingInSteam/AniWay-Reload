@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
+import { MarkdownEditor } from '@/components/markdown/MarkdownEditor';
+import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer';
 import { Badge } from '@/components/ui/badge';
 import { UserProfile } from '@/types/profile';
 import { Edit, Save, X, ExternalLink } from 'lucide-react';
@@ -61,28 +63,16 @@ export function ProfileSummary({ profile, isOwnProfile, onProfileUpdate }: Profi
           <h4 className="text-sm font-medium text-gray-300 mb-2">Биография</h4>
           {isEditingBio ? (
             <div className="space-y-3">
-              <Textarea
-                value={newBio}
-                onChange={(e) => setNewBio(e.target.value)}
-                placeholder="Расскажите о себе..."
-                className="min-h-[100px] bg-gray-800/50 border-gray-600 resize-none text-gray-100 placeholder:text-gray-400 focus:border-gray-400 focus:ring-2 focus:ring-gray-400/20"
-                maxLength={1000}
-              />
+              <MarkdownEditor value={newBio} onChange={setNewBio} placeholder="Расскажите о себе... (поддерживается Markdown)" minRows={6} maxRows={14} />
               <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-400">
-                  {newBio.length}/1000 символов
-                </span>
+                <span className="text-xs text-gray-400">{newBio.length}/1000 символов</span>
                 <div className="flex gap-2">
-                  {/* TODO реализовать сохраниение биографии при нажатии кнопки*/}
                   <Button onClick={handleBioSubmit} size="sm" className="bg-blue-500/15 hover:bg-blue-500/25 border-blue-400/25">
                     <Save className="w-4 h-4 mr-1" />
                     Сохранить
                   </Button>
                   <Button
-                    onClick={() => {
-                      setIsEditingBio(false);
-                      setNewBio(profile.bio || '');
-                    }}
+                    onClick={() => { setIsEditingBio(false); setNewBio(profile.bio || ''); }}
                     variant="outline"
                     size="sm"
                     className="border-white/15 bg-white/3 hover:bg-white/8"
@@ -94,16 +84,8 @@ export function ProfileSummary({ profile, isOwnProfile, onProfileUpdate }: Profi
               </div>
             </div>
           ) : (
-            <div className="text-gray-200 whitespace-pre-wrap p-3 rounded-lg bg-white/3">
-              {profile.bio ? (
-                profile.bio 
-              ) : isOwnProfile ? (
-                'Добавьте описание о себе'
-              ) : (
-                <div>
-                  <p className="text-gray-400">Пользователь не добавил описание</p>
-                </div>
-              )}
+            <div className="text-gray-200 p-3 rounded-lg bg-white/3 markdown-body">
+              {profile.bio ? <MarkdownRenderer value={profile.bio} /> : isOwnProfile ? 'Добавьте описание о себе' : <div><p className="text-gray-400">Пользователь не добавил описание</p></div>}
             </div>
           )}
         </div>

@@ -3,6 +3,8 @@ import { UserProfile } from '@/types/profile'
 import { Button } from '@/components/ui/button'
 import { Edit2, Save, X } from 'lucide-react'
 import { ProfilePanel } from './ProfilePanel'
+import { MarkdownEditor } from '@/components/markdown/MarkdownEditor'
+import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
 
 interface ProfileAboutProps {
   profile: UserProfile
@@ -21,7 +23,7 @@ export const ProfileAbout: React.FC<ProfileAboutProps> = ({ profile, isOwn, onUp
   ) : undefined}>
       {editing ? (
         <div className="space-y-3">
-          <textarea value={bio} onChange={e=>setBio(e.target.value)} className="w-full min-h-[120px] rounded-md bg-black/30 border border-white/10 text-sm text-white p-3 resize-y focus:outline-none focus:ring-2 focus:ring-primary/40" maxLength={1000} />
+          <MarkdownEditor value={bio} onChange={setBio} placeholder="Добавьте описание о себе (Markdown поддерживается)" minRows={6} maxRows={14} />
           <div className="flex justify-between text-xs text-slate-400">
             <span>{bio.length}/1000</span>
             <div className="flex gap-2">
@@ -35,7 +37,9 @@ export const ProfileAbout: React.FC<ProfileAboutProps> = ({ profile, isOwn, onUp
           </div>
         </div>
       ) : (
-        <p className="text-sm leading-relaxed text-slate-200 whitespace-pre-wrap min-h-[60px]">{bio || (isOwn ? 'Добавьте описание о себе' : 'Нет описания')}</p>
+        <div className="text-sm leading-relaxed text-slate-200 markdown-body min-h-[60px]">
+          {bio ? <MarkdownRenderer value={bio} /> : (isOwn ? 'Добавьте описание о себе' : 'Нет описания')}
+        </div>
       )}
     </ProfilePanel>
   )

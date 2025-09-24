@@ -6,6 +6,8 @@ import { useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { buildProfileSlug } from '@/utils/profileSlug'
 import { ForumPostEditor } from './ForumPostEditor'
+import { MarkdownEditor } from '@/components/markdown/MarkdownEditor'
+import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
 
 interface PostNodeProps { post: ForumPost; depth: number; threadId: number; users?: Record<number, any>; onQuote: (content: string, author?: string) => void }
 
@@ -41,14 +43,14 @@ function PostNode({ post, depth, threadId, users, onQuote }: PostNodeProps) {
             </div>
             {editing ? (
               <div className="space-y-2">
-                <textarea className="w-full rounded bg-black/40 border border-white/10 px-2 py-1 text-xs text-white" value={draft} onChange={e=> setDraft(e.target.value)} />
+                <MarkdownEditor value={draft} onChange={setDraft} compact placeholder="Редактируйте сообщение..." />
                 <div className="flex gap-2">
                   <button disabled={update.isPending} onClick={()=> update.mutate({ content: draft }, { onSuccess: ()=> setEditing(false) })} className="rounded bg-emerald-600/80 px-2 py-1 text-[11px] text-white disabled:opacity-50">Сохранить</button>
                   <button onClick={()=> { setEditing(false); setDraft(post.content) }} className="rounded bg-white/10 px-2 py-1 text-[11px] text-white/80 hover:bg-white/20">Отмена</button>
                 </div>
               </div>
             ) : (
-              <div className="whitespace-pre-wrap text-sm leading-relaxed text-white/90">{post.content}</div>
+              <div className="text-sm leading-relaxed text-white/90 markdown-body"><MarkdownRenderer value={post.content} /></div>
             )}
             <div className="mt-2 flex items-center gap-3 flex-wrap">
               <ReactionButtons userReaction={post.userReaction} likes={post.likesCount} dislikes={post.dislikesCount} busy={reaction.isPending} onChange={(n)=> reaction.mutate(n)} />

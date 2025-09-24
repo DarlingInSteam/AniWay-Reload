@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { MarkdownEditor } from '@/components/markdown/MarkdownEditor'
 import { Send, X } from 'lucide-react'
 
 interface CommentFormProps {
@@ -49,18 +50,9 @@ export function CommentForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      <div className="relative">
-        <Textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          className="min-h-[80px] resize-none bg-white/10 backdrop-blur-sm border-white/20 text-white placeholder:text-gray-400 focus:border-primary rounded-2xl"
-          maxLength={maxLength}
-        />
-        <div className="absolute bottom-2 right-2 text-xs text-gray-500">
-          {content.length}/{maxLength}
-        </div>
+      <div className="space-y-1">
+        <MarkdownEditor value={content} onChange={setContent} placeholder={placeholder + ' (Markdown поддерживается)'} minRows={4} maxRows={14} compact />
+        <div className="flex justify-end text-xs text-gray-500">{content.length}/{maxLength}</div>
       </div>
 
       <div className="flex items-center justify-between">
