@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { Search, SlidersHorizontal } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react'
+import { Search, SlidersHorizontal, ChevronDown, Check } from 'lucide-react'
 
 interface ForumToolbarProps {
   value: string
@@ -19,8 +19,17 @@ const SORTS = [
 
 export function ForumToolbar({ value, onChange, sort, onSortChange, density, onDensityChange }: ForumToolbarProps){
   const [internal, setInternal] = useState(value)
+  const [open, setOpen] = useState(false)
+  const ddRef = useRef<HTMLDivElement|null>(null)
   useEffect(()=> setInternal(value), [value])
   useEffect(()=> { const id = setTimeout(()=> { if(internal!==value) onChange(internal) }, 300); return ()=> clearTimeout(id) }, [internal])
+  useEffect(()=> {
+    if(!open) return
+    const handler = (e: MouseEvent) => { if(ddRef.current && !ddRef.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return ()=> document.removeEventListener('mousedown', handler)
+  }, [open])
+  const current = SORTS.find(s=> s.value===sort)
   return (
     <div className="glass-panel rounded-2xl p-3 md:p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <div className="flex flex-1 items-center gap-2">
@@ -29,10 +38,26 @@ export function ForumToolbar({ value, onChange, sort, onSortChange, density, onD
           <input value={internal} onChange={e=> setInternal(e.target.value)} placeholder="Поиск тем..." className="w-full rounded-xl bg-white/5 pl-9 pr-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-primary/40" />
         </div>
         <div className="flex items-center gap-2">
-          <select value={sort} onChange={e=> onSortChange(e.target.value)} className="rounded-xl bg-white/5 px-3 py-2 text-sm text-white/80 focus:outline-none focus:ring-2 focus:ring-primary/40">
-            {SORTS.map(s=> <option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
-          <button onClick={()=> onDensityChange(density==='comfortable'?'compact':'comfortable')} className="rounded-xl bg-white/5 px-3 py-2 text-sm text-white/70 hover:bg-white/10">
+          <div className="relative" ref={ddRef}>
+            <button type="button" onClick={()=> setOpen(o=> !o)} aria-haspopup="listbox" aria-expanded={open} className="flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-primary/40">
+              <span>{current?.label || '—'}</span>
+              <ChevronDown className={`h-4 w-4 transition-transform ${open?'rotate-180':''}`} />
+            </button>
+            {open && (
+              <div role="listbox" tabIndex={-1} className="absolute right-0 mt-2 w-40 rounded-xl border border-white/10 bg-zinc-900/90 backdrop-blur-xl shadow-xl p-1 z-50 animate-fade-in">
+                {SORTS.map(s=> {
+                  const active = s.value===sort
+                  return (
+                    <button key={s.value} role="option" aria-selected={active} onClick={()=> { onSortChange(s.value); setOpen(false) }} className={`w-full flex items-center gap-2 text-left px-3 py-2 rounded-lg text-xs transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 ${active? 'bg-primary/20 text-primary':'text-white/70 hover:bg-white/10 hover:text-white'}`}> 
+                      {active && <Check className="h-3 w-3" />}
+                      <span className="truncate">{s.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+          <button onClick={()=> onDensityChange(density==='comfortable'?'compact':'comfortable')} className="rounded-xl bg-white/5 px-3 py-2 text-sm text-white/70 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-primary/40">
             <SlidersHorizontal className="h-4 w-4" />
           </button>
         </div>

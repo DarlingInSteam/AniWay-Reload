@@ -13,13 +13,21 @@ async function fetchOne(id: number): Promise<UserMini | null> {
   if (c && now - c.ts < TTL) return c.data
   try {
     const profile = await apiClient.getUserProfile(id)
-    const u: UserMini = { id: profile.id, username: profile.username, displayName: profile.displayName || profile.username, avatar: profile.avatar }
+    let avatar = profile.avatar
+    if(!avatar){
+      try { avatar = await apiClient.getUserAvatar(id) || undefined } catch {/* ignore */}
+    }
+    const u: UserMini = { id: profile.id, username: profile.username, displayName: profile.displayName || profile.username, avatar }
     cache.set(id, { data: u, ts: now })
     return u
   } catch {
     try {
       const pub = await apiClient.getUserPublicProfile(id)
-      const u: UserMini = { id: pub.id, username: pub.username, displayName: pub.displayName || pub.username, avatar: pub.avatar }
+      let avatar = pub.avatar
+      if(!avatar){
+        try { avatar = await apiClient.getUserAvatar(id) || undefined } catch {/* ignore */}
+      }
+      const u: UserMini = { id: pub.id, username: pub.username, displayName: pub.displayName || pub.username, avatar }
       cache.set(id, { data: u, ts: now })
       return u
     } catch { return null }
