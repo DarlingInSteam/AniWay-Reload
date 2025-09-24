@@ -41,6 +41,7 @@ interface UserActivityFeedProps {
   userId: number;
   isOwnProfile: boolean;
   className?: string;
+  // limit prop kept for backward compatibility but ignored: always 4 initial items per new requirement
   limit?: number;
 }
 
@@ -48,7 +49,7 @@ export function UserActivityFeed({
   userId, 
   isOwnProfile, 
   className = '',
-  limit = 4
+  limit = 4 // legacy external value (ignored for initial slice)
 }: UserActivityFeedProps) {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,7 +62,9 @@ export function UserActivityFeed({
       setError(null);
       
       // Используем новый API активности
-      const activityData = await activityStatsApi.getUserActivity(userId, limit * 2);
+  // Fetch a generous pool so "Показать ещё" reveals enough without refetch
+  const FETCH_BATCH = 40;
+  const activityData = await activityStatsApi.getUserActivity(userId, FETCH_BATCH);
       
       // Преобразуем данные для совместимости с существующим UI
       const transformedActivities: ActivityItem[] = activityData.map((activity, index) => ({
@@ -133,7 +136,8 @@ export function UserActivityFeed({
     return iconMap[type] || <Activity className="w-4 h-4 text-gray-400" />;
   };
 
-  const displayedActivities = showAll ? activities : activities.slice(0, limit);
+  const INITIAL_VISIBLE = 4; // enforced initial item count per new UX requirement
+  const displayedActivities = showAll ? activities : activities.slice(0, INITIAL_VISIBLE);
 
   if (loading) {
     return (
@@ -206,18 +210,18 @@ export function UserActivityFeed({
               </div>
             ))}
             
-            {activities.length > limit && !showAll && (
+            {activities.length > INITIAL_VISIBLE && !showAll && (
               <Button 
                 variant="outline" 
                 size="sm" 
                 className="w-full border-white/15 bg-white/3 text-gray-300 hover:bg-white/8 mt-4"
                 onClick={() => setShowAll(true)}
               >
-                Показать больше ({activities.length - limit})
+                Показать ещё ({activities.length - INITIAL_VISIBLE})
               </Button>
             )}
             
-            {showAll && activities.length > limit && (
+            {showAll && activities.length > INITIAL_VISIBLE && (
               <Button 
                 variant="outline" 
                 size="sm" 
