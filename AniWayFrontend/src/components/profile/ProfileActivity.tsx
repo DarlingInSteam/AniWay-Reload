@@ -36,36 +36,42 @@ export const ProfileActivity: React.FC<ProfileActivityProps> = ({ activities }) 
   const [expanded, setExpanded] = useState(false)
   const safeActivities = Array.isArray(activities) ? activities : []
 
-  // Кэш названий манги (mangaId -> title)
-  const [titleCache, setTitleCache] = useState<Record<number, string>>({})
+  // Глобальный кэш (живёт между рендерами и экземплярами)
+  const staticCacheRef = useRef<{titles: Record<number,string>, misses: Set<number>}>({ titles: {}, misses: new Set() })
+  const [, forceRender] = useState(0) // для обновления после загрузки
   const pending = useRef<Set<number>>(new Set())
 
   // Ленивая подгрузка названий манги, если они отсутствуют
   useEffect(() => {
-    const neededIds = safeActivities
-      .filter(a => (a.type === 'read' || a.type === 'review') && a.relatedMangaId && !a.mangaTitle && !titleCache[a.relatedMangaId])
+    const cache = staticCacheRef.current
+    const needed = safeActivities
+      .filter(a => (a.type === 'read' || a.type === 'review') && a.relatedMangaId && !a.mangaTitle)
       .map(a => a.relatedMangaId!)
-    const unique = Array.from(new Set(neededIds)).filter(id => !pending.current.has(id))
+      .filter(id => !cache.titles[id] && !cache.misses.has(id))
+    const unique = Array.from(new Set(needed)).filter(id => !pending.current.has(id))
     if (unique.length === 0) return
-
     unique.forEach(id => pending.current.add(id))
     let cancelled = false
     ;(async () => {
       for (const id of unique) {
         try {
           const manga = await apiClient.getMangaById(id)
-          if (!cancelled && manga?.title) {
-            setTitleCache(prev => ({ ...prev, [id]: manga.title }))
+          if (cancelled) break
+          if (manga?.title) {
+            cache.titles[id] = manga.title
+          } else {
+            cache.misses.add(id)
           }
-        } catch (e) {
-          if (!cancelled) setTitleCache(prev => ({ ...prev, [id]: '' })) // предотвратить повторные запросы
+        } catch (e:any) {
+          cache.misses.add(id) // 404 или другая ошибка -> отмечаем как miss чтобы не циклило
         } finally {
           pending.current.delete(id)
+          forceRender(x => x + 1)
         }
       }
     })()
     return () => { cancelled = true }
-  }, [safeActivities, titleCache])
+  }, [safeActivities])
 
   const visible = useMemo(() => {
     if (expanded) return safeActivities
@@ -106,7 +112,8 @@ export const ProfileActivity: React.FC<ProfileActivityProps> = ({ activities }) 
           }
 
           const formattedChapter = formatChapterCode(a.chapterNumber)
-          const resolvedTitle = a.mangaTitle || (a.relatedMangaId ? titleCache[a.relatedMangaId] : undefined)
+          const cache = staticCacheRef.current
+          const resolvedTitle = a.mangaTitle || (a.relatedMangaId ? cache.titles[a.relatedMangaId] : undefined)
           const mangaTitle = resolvedTitle && resolvedTitle.length > 0 ? resolvedTitle : undefined
 
           const renderDescription = () => {
@@ -119,8 +126,11 @@ export const ProfileActivity: React.FC<ProfileActivityProps> = ({ activities }) 
                       {mangaTitle}
                     </Link>
                   )}
-                  {!mangaTitle && a.relatedMangaId && (
+                  {!mangaTitle && a.relatedMangaId && !staticCacheRef.current.misses.has(a.relatedMangaId) && (
                     <span className="text-slate-500 animate-pulse">Загрузка...</span>
+                  )}
+                  {!mangaTitle && a.relatedMangaId && staticCacheRef.current.misses.has(a.relatedMangaId) && (
+                    <span className="text-slate-600 italic">Нет названия</span>
                   )}
                   {formattedChapter && (
                     <>
@@ -148,8 +158,11 @@ export const ProfileActivity: React.FC<ProfileActivityProps> = ({ activities }) 
                       </Link>
                     </>
                   )}
-                  {!mangaTitle && a.relatedMangaId && (
+                  {!mangaTitle && a.relatedMangaId && !staticCacheRef.current.misses.has(a.relatedMangaId) && (
                     <span className="text-slate-500 animate-pulse">Загрузка...</span>
+                  )}
+                  {!mangaTitle && a.relatedMangaId && staticCacheRef.current.misses.has(a.relatedMangaId) && (
+                    <span className="text-slate-600 italic">Нет названия</span>
                   )}
                 </div>
               )
