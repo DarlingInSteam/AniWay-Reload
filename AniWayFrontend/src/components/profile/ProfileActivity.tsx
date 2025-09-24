@@ -54,21 +54,13 @@ export const ProfileActivity: React.FC<ProfileActivityProps> = ({ activities }) 
         {visible.map(a => {
           const Icon = iconByType[a.type] || <Clock className="w-3.5 h-3.5" />
 
-          // Basic parsing for backend message variants
           const desc = a.description || ''
-
           const ratingMatch = desc.match(/(\d+(?:[.,]\d+)?)\s*\/\s*10/)
           const rating = ratingMatch ? ratingMatch[1].replace(',', '.') : null
 
-          // Chapter number normalization: handles patterns like "Прочитана глава 1006.0" or "Прочитал главу 1006.0"
-          let rawChapter: number | null = null
-          const chapterMatch = desc.match(/глава\s+(\d+(?:\.\d+)?)/i)
-          if (chapterMatch) {
-            rawChapter = parseFloat(chapterMatch[1])
-          }
           const formatChapterCode = (raw?: number | null): string | null => {
-            if (!raw && raw !== 0) return null
-            const intPart = Math.floor(raw as number)
+            if (raw == null) return null
+            const intPart = Math.floor(raw)
             if (Number.isNaN(intPart) || intPart <= 0) return null
             const digits = String(intPart)
             if (digits.length > 3) {
@@ -80,34 +72,29 @@ export const ProfileActivity: React.FC<ProfileActivityProps> = ({ activities }) 
             }
             return `Глава ${intPart}`
           }
-          const formattedChapter = formatChapterCode(rawChapter || undefined)
 
-          // Attempt to extract quoted manga title from message e.g. ...манги 'Title' or "Title"
-          let extractedTitle: string | null = null
-            ;(() => {
-              const q = desc.match(/манги?\s+["'“”«»]?([^"'“”«»]+)["'“”«»]?/i)
-              if (q && q[1]) extractedTitle = q[1].trim()
-            })()
+          const formattedChapter = formatChapterCode(a.chapterNumber)
+          const mangaTitle = a.mangaTitle
 
-          // Decide rendering per type
           const renderDescription = () => {
             if (a.type === 'read') {
               return (
                 <div className="flex flex-wrap items-center gap-1">
                   <span className="text-slate-300">Прочитал</span>
-                  {extractedTitle && (
+                  {mangaTitle && (
                     <Link to={a.relatedMangaId ? `/manga/${a.relatedMangaId}` : '#'} className="text-blue-400 hover:text-blue-300 font-medium transition-colors">
-                      {extractedTitle}
+                      {mangaTitle}
                     </Link>
                   )}
                   {formattedChapter && (
                     <>
                       <span className="text-slate-500">•</span>
-                      <span className="text-blue-400 font-medium">{formattedChapter}</span>
+                      {a.chapterId ? (
+                        <Link to={`/reader/${a.chapterId}`} className="text-blue-400 hover:text-blue-300 font-medium transition-colors">{formattedChapter}</Link>
+                      ) : (
+                        <span className="text-blue-400 font-medium">{formattedChapter}</span>
+                      )}
                     </>
-                  )}
-                  {!formattedChapter && rawChapter && (
-                    <span className="text-slate-400">Глава {rawChapter}</span>
                   )}
                 </div>
               )
@@ -117,11 +104,11 @@ export const ProfileActivity: React.FC<ProfileActivityProps> = ({ activities }) 
                 <div className="flex flex-wrap items-center gap-1">
                   <span className="text-slate-300">Отзыв</span>
                   {rating && <span className="text-yellow-400 font-semibold">{rating}/10</span>}
-                  {extractedTitle && (
+                  {mangaTitle && (
                     <>
                       <span className="text-slate-500">на</span>
                       <Link to={a.relatedMangaId ? `/manga/${a.relatedMangaId}` : '#'} className="text-blue-400 hover:text-blue-300 font-medium transition-colors">
-                        {extractedTitle}
+                        {mangaTitle}
                       </Link>
                     </>
                   )}

@@ -258,7 +258,10 @@ class ProfileService {
             type: 'read',
             description: `Прочитал главу ${progress.chapterNumber || 1} "${title}"`,
             timestamp: new Date(progress.updatedAt),
-            relatedMangaId: progress.mangaId
+            relatedMangaId: progress.mangaId,
+            mangaTitle: title !== 'манги' ? title : undefined,
+            chapterNumber: progress.chapterNumber ? Number(progress.chapterNumber) : undefined,
+            chapterId: progress.chapterId
           });
         }
       });
