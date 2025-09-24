@@ -5,6 +5,7 @@ import { useForumUsers } from '@/hooks/useForumUsers'
 import { AvatarMini } from '@/components/forum/AvatarMini'
 import { PostTree } from '@/components/forum/PostTree'
 import { ReactionButtons } from '@/components/forum/ReactionButtons'
+import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
 import { ForumPostEditor } from '@/components/forum/ForumPostEditor'
 import { ArrowLeft } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -160,7 +161,7 @@ export function ForumThreadPage() {
           {editingThread ? (
             <textarea className="w-full min-h-40 rounded bg-black/40 border border-white/10 px-3 py-2 text-sm text-white" value={threadDraft.content} onChange={e=> setThreadDraft(d=> ({...d,content:e.target.value}))} />
           ) : (
-            <div className="prose prose-invert max-w-none text-sm leading-relaxed mt-2">{thread?.content}</div>
+            <div className="prose prose-invert max-w-none text-sm leading-relaxed mt-2 markdown-body"><MarkdownRenderer value={thread?.content || ''} /></div>
           )}
         </div>
         <section className="space-y-4">

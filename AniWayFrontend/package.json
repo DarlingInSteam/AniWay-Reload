@@ -36,6 +36,11 @@
     "redoc": "^2.5.0",
     "sonner": "^1.7.4",
     "tailwind-merge": "^2.6.0",
+    "react-markdown": "^9.0.1",
+    "remark-gfm": "^4.0.0",
+    "rehype-raw": "^7.0.0",
+    "rehype-sanitize": "^6.0.0",
+  "hast-util-sanitize": "^5.0.1",
     "zod": "^3.23.8",
     "zustand": "^4.5.5"
   },

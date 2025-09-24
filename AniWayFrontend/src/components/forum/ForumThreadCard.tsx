@@ -42,7 +42,17 @@ export function ForumThreadCard({ thread, users, density = 'comfortable', isNew,
   const u = users?.[thread.authorId]
   const name = u?.displayName || thread.authorName || `Пользователь ${thread.authorId}`
   const avatar = u?.avatar || thread.authorAvatar
-  const snippet = (thread.content || '').replace(/\s+/g,' ').slice(0, 160) + ((thread.content||'').length > 160 ? '…' : '')
+  const raw = thread.content || ''
+  const plain = raw
+    .replace(/```[\s\S]*?```/g,' ') // code blocks
+    .replace(/`[^`]*`/g,' ') // inline code
+    .replace(/\|\|([^|]+)\|\|/g,' $1 ') // spoilers -> reveal in snippet
+    .replace(/\!\[[^\]]*\]\([^)]*\)/g,' ') // images
+    .replace(/\[[^\]]*\]\([^)]*\)/g,' ') // links text removed; or keep text inside []
+    .replace(/[*_~`>#-]/g,' ') // markdown symbols
+    .replace(/\s+/g,' ')
+    .trim()
+  const snippet = plain.slice(0,160) + (plain.length>160 ? '…' : '')
   const padding = density === 'compact' ? 'p-3' : 'p-4'
   const titleClamp = density === 'compact' ? 'line-clamp-1' : 'line-clamp-2'
   const snippetClamp = density === 'compact' ? 'line-clamp-1' : 'line-clamp-2'

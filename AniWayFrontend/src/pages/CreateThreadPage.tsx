@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { MarkdownEditor } from '@/components/markdown/MarkdownEditor'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useCreateThread, useForumCategories } from '@/hooks/useForum'
 import { ArrowLeft } from 'lucide-react'
@@ -48,7 +49,7 @@ export function CreateThreadPage() {
             </div>
             <div className="space-y-2">
               <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Содержимое</label>
-              <textarea value={content} onChange={e=> setContent(e.target.value)} rows={8} className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/40" placeholder="Поделитесь своими мыслями" />
+              <MarkdownEditor value={content} onChange={setContent} placeholder="Поддерживается Markdown + спойлеры (||текст||)" />
             </div>
             <div className="flex justify-end gap-3 pt-2">
               <Link to={selectedCategory ? `/forum/category/${selectedCategory}` : '/forum'} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-muted-foreground hover:text-white hover:bg-white/5">Отмена</Link>
