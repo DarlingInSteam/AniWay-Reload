@@ -18,8 +18,8 @@ import {
 import { UserProfile as UserProfileType, UserProfileProps, UserReview } from '@/types/profile';
 // New redesigned components
 import { ProfileHero } from './ProfileHero';
+import { ProfileEditModal } from './ProfileEditModal';
 import { ProfileStatsStrip } from './ProfileStatsStrip';
-import { ProfileAbout } from './ProfileAbout';
 import { ProfileGenres } from './ProfileGenres';
 import { ProfileShowcaseFavorites } from './ProfileShowcaseFavorites';
 import { ProfileActivity } from './ProfileActivity';
@@ -41,6 +41,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   const [activeTab, setActiveTabParam] = useSyncedSearchParam<'overview' | 'library' | 'reviews' | 'comments' | 'achievements'>('tab', 'overview');
   const navigate = useNavigate();
   const [params] = useSearchParams();
+  const [editOpen, setEditOpen] = useState(false);
 
   // Pull both user and avatar setter in a single hook call to avoid conditional hook order issues
   const { user: currentUser, setUserAvatarLocal } = useAuth();
@@ -322,12 +323,11 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   <div className="container mx-auto px-4 py-10 max-w-7xl">
         {/* New Hero Section */}
   <div className="mb-6 animate-fade-in">
+          <ProfileEditModal profile={profile} open={editOpen} onOpenChange={setEditOpen} onUpdated={(data)=> { handleProfileUpdate(data as any); if(data.avatar){ setUserAvatarLocal(data.avatar) } }} />
           <ProfileHero
             profile={profile}
             isOwn={isOwnProfile}
-            onEdit={() => console.log('Edit profile (modal TODO)')}
-            onShare={handleShare}
-            onMore={() => console.log('More actions TBD')}
+            onEdit={() => setEditOpen(true)}
             onAvatarUpdated={async (newUrl) => {
               if (!newUrl) return;
               // Optimistic local update
@@ -373,7 +373,6 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
                 </div>
                 {/* Right / Side column */}
                 <div className="space-y-7 xl:col-span-4">
-                  <ProfileAbout profile={profile} isOwn={isOwnProfile} onUpdate={handleProfileUpdate} />
                   <ProfileGenres profile={profile} />
                   <ProfileBadgesPlaceholder />
                 </div>
@@ -441,7 +440,6 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
                 <ProfileShowcaseFavorites favorites={favoriteMangas} />
                 <ProfileReadingProgress items={readingProgress} />
                 <ProfileActivity activities={activity} />
-                <ProfileAbout profile={profile} isOwn={isOwnProfile} onUpdate={handleProfileUpdate} />
                 <ProfileGenres profile={profile} />
                 <ProfileBadgesPlaceholder />
                 <Collections collections={collections} isOwnProfile={isOwnProfile} />

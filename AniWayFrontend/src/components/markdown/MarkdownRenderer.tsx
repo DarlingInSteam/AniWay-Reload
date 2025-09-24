@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
@@ -7,29 +7,40 @@ import rehypeSanitize from 'rehype-sanitize'
 // Minimal allow list extension (can be adjusted later)
 // Using default schema from rehype-sanitize with additions for span + className
 import { defaultSchema } from 'hast-util-sanitize'
+// Extend sanitize schema to allow span with data-spoiler and class
 // @ts-ignore
-const schema = { ...defaultSchema, attributes: { ...defaultSchema.attributes, span: ['className'] } }
+const schema = { ...defaultSchema, attributes: { ...defaultSchema.attributes, span: ['className', 'data-spoiler'] } }
 
-// Simple plugin to transform ||spoiler|| into <Spoiler>spoiler</Spoiler>
-function spoilerPlugin(){
-  const tokenize = function(this: any, eat: any, value: string, silent: boolean){
-    const match = /^\|\|([^\n]+?)\|\|/.exec(value)
-    if(match){
-      if(silent) return true
-      const add = eat(match[0])
-      const inner = match[1].replace(/</g,'&lt;').replace(/>/g,'&gt;')
-      return add({ type: 'html', value: `<span class="spoiler blur-[4px] brightness-50 cursor-pointer relative inline-flex" data-spoiler="true">${inner}</span>` })
+// Remark plugin: walk text nodes and replace ||text|| with raw HTML spans
+function remarkSpoilers(){
+  return (tree: any) => {
+    const visit = (node: any, index: number, parent: any) => {
+      if(!node || !parent) return
+      if(node.type === 'text' && /\|\|.+?\|\|/.test(node.value)){
+        const segments: any[] = []
+        let remaining = node.value as string
+        while(remaining.length){
+          const m = remaining.match(/\|\|([^|\n][^\n]*?)\|\|/)
+            if(!m){
+              segments.push({ type: 'text', value: remaining })
+              break
+            }
+          const before = remaining.slice(0, m.index)
+          if(before) segments.push({ type: 'text', value: before })
+          const inner = m[1].replace(/</g,'&lt;').replace(/>/g,'&gt;')
+          segments.push({ type: 'html', value: `<span class="spoiler blur-[4px] brightness-50 cursor-pointer inline-flex" data-spoiler="true">${inner}</span>` })
+          remaining = remaining.slice((m.index||0) + m[0].length)
+        }
+        parent.children.splice(index, 1, ...segments)
+        return index + segments.length
+      }
+      if(node.children){
+        for(let i=0;i<node.children.length;i++){
+          i = (visit(node.children[i], i, node) as any) ?? i
+        }
+      }
     }
-  }
-  // @ts-ignore legacy parser attach
-  tokenize.locator = (value: string, from: number) => value.indexOf('||', from)
-  // @ts-ignore
-  const Parser = this.Parser
-  if(Parser && Parser.prototype && Parser.prototype.inlineTokenizers){
-    // @ts-ignore
-    Parser.prototype.inlineTokenizers.spoiler = tokenize
-    // @ts-ignore
-    Parser.prototype.inlineMethods.splice(Parser.prototype.inlineMethods.indexOf('text'), 0, 'spoiler')
+    visit(tree, 0, { children: [tree] })
   }
 }
 
@@ -48,7 +59,7 @@ export const MarkdownRenderer: React.FC<{ value: string }> = ({ value }) => {
   }, [])
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm, spoilerPlugin]}
+  remarkPlugins={[remarkGfm, remarkSpoilers]}
       rehypePlugins={[[rehypeRaw], [rehypeSanitize, schema]]}
       components={{
         code(props: any){

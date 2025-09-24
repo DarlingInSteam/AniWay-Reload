@@ -3,7 +3,8 @@ import { apiClient } from '@/lib/api'
 import { UserProfile } from '@/types/profile'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
-import { Camera, Edit, Share2, MoreHorizontal } from 'lucide-react'
+import { Camera, Edit } from 'lucide-react'
+import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
 import { profileService } from '@/services/profileService'
 import { Progress } from '@/components/ui/progress'
 import GlassPanel from '@/components/ui/GlassPanel'
@@ -12,8 +13,6 @@ interface ProfileHeroProps {
   profile: UserProfile
   isOwn: boolean
   onEdit?: () => void
-  onShare?: () => void
-  onMore?: () => void
   onAvatarUpdated?: (newUrl: string) => void
 }
 
@@ -87,7 +86,7 @@ const LevelPanel: React.FC<{ userLevel: number; gained: number; xpNext: number; 
   </div>
 )
 
-export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit, onShare, onMore, onAvatarUpdated }) => {
+export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit, onAvatarUpdated }) => {
   // Avatar upload logic (build tag removed per design cleanup)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -214,21 +213,17 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit
             </div>
             <div className="flex flex-wrap gap-2">
               {isOwn && (
-                <Button size="sm" variant="outline" className="bg-white/10 hover:bg-white/15 border-white/15" onClick={onEdit}>
-                  <Edit className="w-4 h-4 mr-1" /> Редактировать
+                <Button size="sm" variant="outline" className="bg-primary/25 hover:bg-primary/35 border-primary/40 text-white shadow-sm hover:shadow transition" onClick={onEdit}>
+                  <Edit className="w-4 h-4 mr-1" /> Редактировать профиль
                 </Button>
               )}
-              <Button size="sm" variant="outline" className="bg-white/10 hover:bg-white/15 border-white/15" onClick={onShare}>
-                <Share2 className="w-4 h-4 mr-1" /> Поделиться
-              </Button>
-              <Button size="sm" variant="outline" className="bg-white/10 hover:bg-white/15 border-white/15" onClick={onMore}>
-                <MoreHorizontal className="w-4 h-4" />
-              </Button>
             </div>
           </div>
           {/* Optional quick note / short bio line */}
           {profile.bio && (
-            <p className="mt-4 max-w-2xl text-slate-300 text-sm leading-relaxed line-clamp-3">{profile.bio}</p>
+            <div className="mt-4 max-w-2xl text-slate-300 text-sm leading-relaxed markdown-body">
+              <MarkdownRenderer value={profile.bio} />
+            </div>
           )}
         </div>
         <LevelPanel userLevel={userLevel} gained={gained} xpNext={xpNext} totalActivity={totalActivity} pct={pct} profile={profile} />
