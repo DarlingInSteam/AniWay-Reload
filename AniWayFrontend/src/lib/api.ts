@@ -253,7 +253,34 @@ class ApiClient {
   }
 
   async getUserPublicProfile(userId: number): Promise<User> {
-    return this.request<User>(`/auth/users/${userId}/public`);
+    // Simple in-memory caches to avoid duplicate requests & log noise
+    if (!(globalThis as any).__publicProfileCache) {
+      (globalThis as any).__publicProfileCache = new Map<number, Promise<User>>();
+    }
+    const cache: Map<number, Promise<User>> = (globalThis as any).__publicProfileCache;
+
+    if (cache.has(userId)) {
+      return cache.get(userId)!;
+    }
+
+    const promise = (async () => {
+      try {
+        return await this.request<User>(`/auth/users/${userId}/public`);
+      } catch (error: any) {
+        // For public profile 401/403/404 just throw a normalized error once
+        const msg = String(error?.message || '');
+        if (/401|403|404/.test(msg)) {
+          console.warn(`Public profile not available for user ${userId}: ${msg}`);
+          // Rethrow to keep existing upstream behavior (caller decides fallback)
+        }
+        throw error;
+      }
+    })();
+
+    cache.set(userId, promise);
+    // If it rejects, remove from cache to allow retry later
+    promise.catch(() => cache.delete(userId));
+    return promise;
   }
 
   // Обновить профиль текущего пользователя (deprecated - используйте updateUserProfile)
@@ -283,12 +310,37 @@ class ApiClient {
   }
 
   async getUserPublicProgress(userId: number): Promise<any[]> {
-    try {
-      return this.publicRequest<any[]>(`/auth/users/${userId}/public/progress`);
-    } catch (error) {
-      console.log(`Публичный прогресс недоступен для пользователя ${userId}`);
-      return [];
+    if (!(globalThis as any).__publicProgressCache) {
+      (globalThis as any).__publicProgressCache = new Map<number, Promise<any[]>>();
     }
+    const cache: Map<number, Promise<any[]>> = (globalThis as any).__publicProgressCache;
+
+    if (cache.has(userId)) {
+      return cache.get(userId)!;
+    }
+
+    const promise = (async () => {
+      try {
+        return await this.publicRequest<any[]>(`/auth/users/${userId}/public/progress`);
+      } catch (error: any) {
+        const msg = String(error?.message || '');
+        if (/401|403/.test(msg)) {
+          // Silent fallback: no permission to view public progress
+          console.info(`Public progress unauthorized for user ${userId}`);
+          return [];
+        }
+        if (/404/.test(msg)) {
+          console.info(`Public progress not found for user ${userId}`);
+          return [];
+        }
+        console.warn(`Public progress fetch error for user ${userId}:`, error);
+        return [];
+      }
+    })();
+
+    cache.set(userId, promise);
+    promise.catch(() => cache.delete(userId));
+    return promise;
   }
 
   async getUserBookmarksByStatus(status: string): Promise<any[]> {
