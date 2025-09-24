@@ -13,6 +13,9 @@ import shadowshift.studio.forumservice.entity.ForumReaction;
 import shadowshift.studio.forumservice.entity.ForumThread;
 import shadowshift.studio.forumservice.entity.ForumThreadView;
 import shadowshift.studio.forumservice.repository.*;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.LocalDateTime;
 import java.time.Duration;
@@ -106,8 +109,7 @@ public class ForumThreadService {
                 .orElseThrow(() -> new RuntimeException("Тема не найдена: " + threadId));
         
         // Проверяем права доступа (автор или модератор)
-        if (!thread.getAuthorId().equals(currentUserId)) {
-            // TODO: добавить проверку роли модератора
+        if (!thread.getAuthorId().equals(currentUserId) && !hasModRights()) {
             throw new RuntimeException("Нет прав для редактирования темы");
         }
         
@@ -132,8 +134,7 @@ public class ForumThreadService {
                 .orElseThrow(() -> new RuntimeException("Тема не найдена: " + threadId));
         
         // Проверяем права доступа (автор или модератор)
-        if (!thread.getAuthorId().equals(currentUserId)) {
-            // TODO: добавить проверку роли модератора
+        if (!thread.getAuthorId().equals(currentUserId) && !hasModRights()) {
             throw new RuntimeException("Нет прав для удаления темы");
         }
         
@@ -150,7 +151,9 @@ public class ForumThreadService {
     public ForumThreadResponse pinThread(Long threadId, boolean pinned, Long currentUserId) {
         log.info("Изменение закрепления темы ID: {} на: {} пользователем: {}", threadId, pinned, currentUserId);
         
-        // TODO: проверить права модератора
+        if (!hasModRights()) {
+            throw new RuntimeException("Нет прав для изменения закрепления темы");
+        }
         
         ForumThread thread = threadRepository.findByIdAndNotDeleted(threadId)
                 .orElseThrow(() -> new RuntimeException("Тема не найдена: " + threadId));
@@ -170,7 +173,9 @@ public class ForumThreadService {
     public ForumThreadResponse lockThread(Long threadId, boolean locked, Long currentUserId) {
         log.info("Изменение блокировки темы ID: {} на: {} пользователем: {}", threadId, locked, currentUserId);
         
-        // TODO: проверить права модератора
+        if (!hasModRights()) {
+            throw new RuntimeException("Нет прав для изменения блокировки темы");
+        }
         
         ForumThread thread = threadRepository.findByIdAndNotDeleted(threadId)
                 .orElseThrow(() -> new RuntimeException("Тема не найдена: " + threadId));
@@ -267,6 +272,7 @@ public class ForumThreadService {
     String authorName = "Пользователь " + thread.getAuthorId();
     // Редактирование разрешено автору в течение 7 дней
     boolean isAuthor = currentUserId != null && currentUserId.equals(thread.getAuthorId());
+    boolean isModerator = hasModRights();
     boolean withinEditWindow = Duration.between(thread.getCreatedAt(), LocalDateTime.now()).toDays() < 7;
 
     return ForumThreadResponse.builder()
@@ -296,7 +302,17 @@ public class ForumThreadService {
                 .isSubscribed(isSubscribed)
         .userReaction(userReaction)
         .canEdit(isAuthor && withinEditWindow)
-        .canDelete(isAuthor)
+        .canDelete(isAuthor || isModerator)
                 .build();
+    }
+
+    private boolean hasModRights() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) return false;
+        for (GrantedAuthority ga : auth.getAuthorities()) {
+            String a = ga.getAuthority();
+            if ("ROLE_ADMIN".equals(a) || "ROLE_MODERATOR".equals(a)) return true;
+        }
+        return false;
     }
 }

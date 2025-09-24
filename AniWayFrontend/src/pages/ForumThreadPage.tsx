@@ -8,7 +8,8 @@ import { ReactionButtons } from '@/components/forum/ReactionButtons'
 import { ForumPostEditor } from '@/components/forum/ForumPostEditor'
 import { ArrowLeft } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { useUpdateThread, useDeleteThread, useUpdatePost, useDeletePost } from '@/hooks/useForum'
+import { useUpdateThread, useDeleteThread, useUpdatePost, useDeletePost, usePinThread, useLockThread, useSubscribeThread, useUnsubscribeThread } from '@/hooks/useForum'
+import { useAuth } from '@/contexts/AuthContext'
 
 export function ForumThreadPage() {
   const { threadId } = useParams()
@@ -21,6 +22,11 @@ export function ForumThreadPage() {
   const createPost = useCreatePost()
   const updateThread = useUpdateThread(id || 0)
   const deleteThread = useDeleteThread()
+  const pinThread = usePinThread()
+  const lockThread = useLockThread()
+  const subscribeThread = useSubscribeThread()
+  const unsubscribeThread = useUnsubscribeThread()
+  const { isAdmin, user } = useAuth()
   const navigate = useNavigate()
   const [editingThread, setEditingThread] = useState(false)
   const [threadDraft, setThreadDraft] = useState<{title:string; content:string}>({ title: thread?.title || '', content: thread?.content || '' })
@@ -116,11 +122,12 @@ export function ForumThreadPage() {
               updateThread.mutate(threadDraft, { onSuccess: ()=> { setEditingThread(false); try { localStorage.removeItem(`forum.threadEditDraft.${thread.id}`) } catch {} } })
             }} disabled={updateThread.isPending} className="rounded bg-emerald-600/80 px-2 py-1 text-white text-[11px] disabled:opacity-50">Сохранить</button>}
             {editingThread && <button onClick={()=> { setEditingThread(false); setThreadDraft({ title: thread?.title||'', content: thread?.content||'' }); if(thread?.id) try { localStorage.removeItem(`forum.threadEditDraft.${thread.id}`) } catch {} }} className="rounded bg-white/5 px-2 py-1 text-white/70 text-[11px] hover:bg-white/10">Отмена</button>}
-            {thread?.canDelete && (
+            {(thread?.canDelete || isAdmin) && (
               <button
                 onClick={() => {
                   if (deleteThread.isPending) return
                   if (confirm('Удалить тему?')) {
+                    if(!thread) return;
                     deleteThread.mutate(thread.id, {
                       onSuccess: () => {
                         // После оптимистичного удаления перейти на категорию или общий форум
@@ -135,6 +142,19 @@ export function ForumThreadPage() {
               >
                 {deleteThread.isPending ? 'Удаление...' : 'Удалить'}
               </button>
+            )}
+            {isAdmin && thread && (
+              <>
+                <button onClick={()=> pinThread.mutate({ id: thread.id, pinned: !thread.isPinned })} className="rounded bg-white/10 px-2 py-1 text-white/80 text-[11px] hover:bg-white/20">{pinThread.isPending ? '...' : (thread.isPinned? 'Открепить' : 'Закрепить')}</button>
+                <button onClick={()=> lockThread.mutate({ id: thread.id, locked: !thread.isLocked })} className="rounded bg-white/10 px-2 py-1 text-white/80 text-[11px] hover:bg-white/20">{lockThread.isPending ? '...' : (thread.isLocked? 'Разблок.' : 'Заблок.')}</button>
+              </>
+            )}
+            {thread && user && user.id !== thread.authorId && (
+              thread.isSubscribed ? (
+                <button onClick={()=> unsubscribeThread.mutate(thread.id)} disabled={unsubscribeThread.isPending} className="rounded bg-white/10 px-2 py-1 text-white/70 text-[11px] hover:bg-white/20 disabled:opacity-50">{unsubscribeThread.isPending? '...' : 'Отписаться'}</button>
+              ) : (
+                <button onClick={()=> subscribeThread.mutate(thread.id)} disabled={subscribeThread.isPending} className="rounded bg-primary/80 px-2 py-1 text-white text-[11px] hover:bg-primary disabled:opacity-50">{subscribeThread.isPending? '...' : 'Подписаться'}</button>
+              )
             )}
           </div>
           {editingThread ? (

@@ -63,6 +63,22 @@ class ForumService {
     await (apiClient as any).request(`/forum/threads/${id}`, { method: 'DELETE' })
   }
 
+  async pinThread(id: number, pinned: boolean): Promise<void> {
+    await (apiClient as any).request(`/forum/threads/${id}/pin?pinned=${pinned}`, { method: 'POST' })
+  }
+
+  async lockThread(id: number, locked: boolean): Promise<void> {
+    await (apiClient as any).request(`/forum/threads/${id}/lock?locked=${locked}`, { method: 'POST' })
+  }
+
+  async subscribeThread(id: number): Promise<void> {
+    await (apiClient as any).request(`/forum/threads/${id}/subscribe`, { method: 'POST' })
+  }
+
+  async unsubscribeThread(id: number): Promise<void> {
+    await (apiClient as any).request(`/forum/threads/${id}/subscribe`, { method: 'DELETE' })
+  }
+
   async searchThreads(q: string, page = 0, size = 20): Promise<PaginatedResponse<ForumThread>> {
     const sp = new URLSearchParams({ q, page: page.toString(), size: size.toString() })
     return (apiClient as any).request(`/forum/threads/search?${sp.toString()}`)
