@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api';
-import { Post, PostsPage, CreatePostRequest, UpdatePostRequest, VoteRequest, PostAttachment, extractMangaReferenceRawTokens } from '@/types/posts';
+import { Post, PostsPage, CreatePostRequest, UpdatePostRequest, VoteRequest, PostAttachment, extractMangaReferenceRawTokens, PostAttachmentInput } from '@/types/posts';
 import { MangaResponseDTO } from '@/types';
 
 // Temporary in-memory cache & mock fallback
@@ -44,7 +44,7 @@ export class PostService {
     // Extract references client-side (IDs only). Backend will validate.
     const tokens = extractMangaReferenceRawTokens(data.content);
     try {
-      const created = await apiClient.createPost({ content: data.content, attachmentIds: data.attachmentIds });
+  const created = await apiClient.createPost({ content: data.content, attachments: data.attachments });
       _postCache.set(created.id, created);
       return created;
     } catch {
@@ -68,7 +68,7 @@ export class PostService {
 
   async updatePost(id: string, data: UpdatePostRequest): Promise<Post | null> {
     try {
-      const updated = await apiClient.updatePost(id, { content: data.content });
+  const updated = await apiClient.updatePost(id, { content: data.content, attachments: data.attachments });
       _postCache.set(updated.id, updated);
       return updated;
     } catch {
@@ -117,17 +117,16 @@ export class PostService {
     }
   }
 
-  async uploadImage(file: File): Promise<PostAttachment | null> {
+  async uploadImages(files: File[]): Promise<PostAttachmentInput[]> {
+    if(files.length===0) return [];
     const formData = new FormData();
-    formData.append('file', file);
+    for(const f of files){ formData.append('files', f); }
     try {
       const res = await fetch('/api/posts/attachments', { method: 'POST', body: formData });
-      if (!res.ok) return null;
-      const data = await res.json();
-      return { id: data.id, type: 'IMAGE', url: data.url, width: data.width, height: data.height, createdAt: data.createdAt };
-    } catch {
-      return null;
-    }
+      if(!res.ok) return [];
+      const arr = await res.json();
+      return Array.isArray(arr) ? arr.map((o:any)=>({ filename: o.originalFilename || o.filename || 'image', url: o.url || o.objectUrl || o.path, sizeBytes: o.size || o.sizeBytes || 0 })) : [];
+    } catch { return []; }
   }
 }
 

@@ -37,13 +37,20 @@ export interface Post {
   deleted?: boolean;
 }
 
+export interface PostAttachmentInput {
+  filename: string;
+  url: string;
+  sizeBytes: number;
+}
+
 export interface CreatePostRequest {
   content: string;
-  attachmentIds?: string[]; // optional if uploading separately
+  attachments?: PostAttachmentInput[];
 }
 
 export interface UpdatePostRequest {
   content: string;
+  attachments?: PostAttachmentInput[];
 }
 
 export interface VoteRequest {

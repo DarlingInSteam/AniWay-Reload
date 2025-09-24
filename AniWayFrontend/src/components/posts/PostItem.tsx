@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Post } from '@/types/posts';
 import { postService } from '@/services/postService';
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer';
+import { MangaMiniCard } from './MangaMiniCard';
 
 interface PostItemProps {
   post: Post;
@@ -48,6 +49,7 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
 
   // Transform content: replace [[manga:ID]] with markdown link using cached or placeholder title
   const [resolvedContent, setResolvedContent] = useState<string>(localPost.content);
+  const [referencedManga, setReferencedManga] = useState<Array<{id:number; title:string; coverUrl?: string}>>([]);
   useEffect(()=>{
     let cancelled = false;
     async function resolve(){
@@ -55,23 +57,45 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
       const ids = Array.from(new Set([...localPost.content.matchAll(pattern)].map(m=>parseInt(m[1]))));
       if(ids.length===0){ setResolvedContent(localPost.content); return; }
       const titleMap: Record<number,string> = {};
+      const coverMap: Record<number,string|undefined> = {};
       await Promise.all(ids.map(async id => {
-        try { const m = await apiFetchMangaTitle(id); titleMap[id] = m || `Манга #${id}` } catch { titleMap[id] = `Манга #${id}` }
+        try {
+          const m = await apiFetchManga(id);
+          if(m){
+            titleMap[id] = m.title || `Манга #${id}`;
+            coverMap[id] = m.coverUrl;
+          } else {
+            titleMap[id] = `Манга #${id}`;
+          }
+        } catch {
+          titleMap[id] = `Манга #${id}`;
+        }
       }));
       if(cancelled) return;
-      const replaced = localPost.content.replace(pattern, (_,id)=>`[${titleMap[parseInt(id)]}](#/manga/${id})`);
+      const slugCache: Record<number,string> = {};
+      // fetch slug along with title if API returns it
+      const replaced = localPost.content.replace(pattern, (_,id)=>{
+        const num = parseInt(id);
+        const title = titleMap[num];
+        const slug = slugCache[num] || title.toLowerCase().replace(/[^a-z0-9\s-]/gi,'').replace(/\s+/g,'-').replace(/-+/g,'-');
+        return `[${title}](/manga/${num}--${slug})`;
+      });
       setResolvedContent(replaced);
+      setReferencedManga(ids.map(id=>({ id, title: titleMap[id], coverUrl: coverMap[id] })));
     }
     resolve();
     return ()=>{ cancelled = true };
   }, [localPost.content]);
 
-  async function apiFetchMangaTitle(id:number): Promise<string|undefined> {
-    try { const m = await (await import('@/lib/api')).apiClient.getMangaById(id); return m.title } catch { return undefined }
+  async function apiFetchManga(id:number): Promise<{title:string; coverUrl?:string}|undefined> {
+    try {
+      const m = await (await import('@/lib/api')).apiClient.getMangaById(id);
+      return { title: m.title, coverUrl: (m as any).coverImageUrl }; // fallback to known field
+    } catch { return undefined }
   }
 
   return (
-    <div className="p-3 border border-neutral-700 rounded bg-neutral-800/40 space-y-2">
+  <div className="p-4 rounded-xl glass-panel space-y-3">
       <div className="flex items-center justify-between text-xs text-neutral-400">
         <span>ID: {localPost.id}</span>
         <span>{new Date(localPost.createdAt).toLocaleString()}</span>
@@ -94,7 +118,14 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
           <MarkdownRenderer value={resolvedContent} />
         </div>
       )}
-      <div className="flex items-center gap-3 text-sm">
+      {referencedManga.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-1">
+          {referencedManga.map(m => (
+            <MangaMiniCard key={m.id} id={m.id} title={m.title} coverUrl={m.coverUrl} />
+          ))}
+        </div>
+      )}
+      <div className="flex items-center gap-3 text-sm pt-1">
         <div className="flex items-center gap-1">
           <button onClick={() => handleVote(1)} className={"px-2 py-1 rounded text-xs " + (localPost.stats.userVote === 1 ? 'bg-green-600' : 'bg-neutral-700')}>+{localPost.stats.up}</button>
           <button onClick={() => handleVote(-1)} className={"px-2 py-1 rounded text-xs " + (localPost.stats.userVote === -1 ? 'bg-red-600' : 'bg-neutral-700')}>-{localPost.stats.down}</button>

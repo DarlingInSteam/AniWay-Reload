@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { postService } from '@/services/postService';
-import { extractMangaReferenceRawTokens } from '@/types/posts';
+import { extractMangaReferenceRawTokens, PostAttachmentInput } from '@/types/posts';
 
 interface PostComposerProps {
   userId: number;
@@ -15,21 +15,21 @@ export const PostComposer: React.FC<PostComposerProps> = ({ userId, onCreated })
   const refs = extractMangaReferenceRawTokens(content);
   const fileInputRef = useRef<HTMLInputElement|null>(null);
   const [uploading, setUploading] = useState(false);
-  const [attachments, setAttachments] = useState<string[]>([]);
+  const [attachments, setAttachments] = useState<PostAttachmentInput[]>([]);
 
   async function handleImagePick(){
     fileInputRef.current?.click();
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>){
-    const file = e.target.files?.[0];
-    if(!file) return;
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if(files.length===0) return;
     setUploading(true);
     try {
-      const att = await postService.uploadImage(file);
-      if(att && att.id){
-        setAttachments(a => [...a, att.id!]);
-        setContent(c => c + `\n\n![image](${att.url})`);
+      const uploaded = await postService.uploadImages(files);
+      if(uploaded.length){
+        setAttachments(a => [...a, ...uploaded]);
+        setContent(c => c + uploaded.map(u=>`\n\n![${u.filename}](${u.url})`).join(''));
       }
     } finally { setUploading(false); e.target.value=''; }
   }
@@ -40,7 +40,7 @@ export const PostComposer: React.FC<PostComposerProps> = ({ userId, onCreated })
     setSubmitting(true);
     setError(null);
     try {
-  await postService.createPost(userId, { content, attachmentIds: attachments });
+  await postService.createPost(userId, { content, attachments });
       setContent('');
   setAttachments([]);
       onCreated?.();
@@ -68,9 +68,9 @@ export const PostComposer: React.FC<PostComposerProps> = ({ userId, onCreated })
       {error && <div className="text-xs text-red-400">{error}</div>}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
-          <button type="button" onClick={handleImagePick} disabled={uploading || submitting} className="px-2 py-1 text-xs rounded bg-neutral-700 hover:bg-neutral-600 disabled:opacity-50">{uploading? 'Загрузка...' : 'Изображение'}</button>
-          {attachments.length>0 && <span className="text-xs text-neutral-400">Прикреплено: {attachments.length}</span>}
+          <input ref={fileInputRef} type="file" className="hidden" accept="image/*" multiple onChange={handleFileChange} />
+          <button type="button" onClick={handleImagePick} disabled={uploading || submitting} className="px-2 py-1 text-xs rounded bg-neutral-700 hover:bg-neutral-600 disabled:opacity-50">{uploading? 'Загрузка...' : 'Изображения'}</button>
+          {attachments.length>0 && <span className="text-xs text-neutral-400">Изображений: {attachments.length}</span>}
         </div>
         <div>
         <button

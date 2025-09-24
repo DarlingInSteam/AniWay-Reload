@@ -768,14 +768,14 @@ class ApiClient {
     return this.request<any>(`/posts/${postId}`);
   }
 
-  async createPost(data: { content: string; attachmentIds?: string[] }) {
+  async createPost(data: { content: string; attachments?: { filename: string; url: string; sizeBytes: number; }[] }) {
     return this.request<any>(`/posts`, {
       method: 'POST',
       body: JSON.stringify(data)
     });
   }
 
-  async updatePost(postId: string, data: { content: string }) {
+  async updatePost(postId: string, data: { content: string; attachments?: { filename: string; url: string; sizeBytes: number; }[] }) {
     return this.request<any>(`/posts/${postId}`, {
       method: 'PUT',
       body: JSON.stringify(data)
