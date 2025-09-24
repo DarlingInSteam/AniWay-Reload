@@ -338,32 +338,29 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               // Skip immediate refetch to avoid loop (backend doesn't yet return avatar). Can be re-enabled later.
             }}
           />
-          <ProfileStatsStrip profile={profile} extra={{ favorites: favoriteMangas.length, achievements: achievements.length }} />
+          <div className="glass-panel rounded-2xl px-4 py-3">
+            <ProfileStatsStrip profile={profile} extra={{ favorites: favoriteMangas.length, achievements: achievements.length }} />
+          </div>
         </div>
 
         {/* Desktop Layout: Табы занимают всю ширину */}
         <div className="hidden lg:block animate-fade-in">
           <Tabs value={activeTab} onValueChange={v => setActiveTabParam(v as any)} className="space-y-7">
-            <TabsList className="grid grid-cols-5 bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl shadow-xl p-1.5 overflow-hidden">
-              <TabsTrigger value="overview" className="relative group data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-4 py-2 font-medium">
+            <TabsList className="grid grid-cols-5 glass-panel p-1.5 rounded-2xl gap-1.5">
+              <TabsTrigger value="overview" className="relative group rounded-xl px-4 py-2 font-medium text-xs tracking-wide uppercase text-slate-400 hover:text-white transition focus-visible:outline-none data-[state=active]:text-white data-[state=active]:shadow-inner data-[state=active]:bg-white/10">
                 <span className="relative z-10">Обзор</span>
-                <span className="pointer-events-none absolute inset-0 opacity-0 group-data-[state=active]:opacity-100 bg-gradient-to-br from-primary/30 to-primary/10 rounded-xl transition-opacity" />
               </TabsTrigger>
-              <TabsTrigger value="library" className="relative group data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-4 py-2 font-medium">
+              <TabsTrigger value="library" className="relative group rounded-xl px-4 py-2 font-medium text-xs tracking-wide uppercase text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
                 <span className="relative z-10">Библиотека</span>
-                <span className="pointer-events-none absolute inset-0 opacity-0 group-data-[state=active]:opacity-100 bg-gradient-to-br from-primary/30 to-primary/10 rounded-xl transition-opacity" />
               </TabsTrigger>
-              <TabsTrigger value="reviews" className="relative group data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-4 py-2 font-medium">
+              <TabsTrigger value="reviews" className="relative group rounded-xl px-4 py-2 font-medium text-xs tracking-wide uppercase text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
                 <span className="relative z-10">Отзывы</span>
-                <span className="pointer-events-none absolute inset-0 opacity-0 group-data-[state=active]:opacity-100 bg-gradient-to-br from-primary/30 to-primary/10 rounded-xl transition-opacity" />
               </TabsTrigger>
-              <TabsTrigger value="comments" className="relative group data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-4 py-2 font-medium">
+              <TabsTrigger value="comments" className="relative group rounded-xl px-4 py-2 font-medium text-xs tracking-wide uppercase text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
                 <span className="relative z-10">Комментарии</span>
-                <span className="pointer-events-none absolute inset-0 opacity-0 group-data-[state=active]:opacity-100 bg-gradient-to-br from-primary/30 to-primary/10 rounded-xl transition-opacity" />
               </TabsTrigger>
-              <TabsTrigger value="achievements" className="relative group data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-4 py-2 font-medium">
+              <TabsTrigger value="achievements" className="relative group rounded-xl px-4 py-2 font-medium text-xs tracking-wide uppercase text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
                 <span className="relative z-10">Достижения</span>
-                <span className="pointer-events-none absolute inset-0 opacity-0 group-data-[state=active]:opacity-100 bg-gradient-to-br from-primary/30 to-primary/10 rounded-xl transition-opacity" />
               </TabsTrigger>
             </TabsList>
 
@@ -371,16 +368,28 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
                 {/* Left / Main column */}
                 <div className="space-y-7 xl:col-span-8">
-                  <ProfileShowcaseFavorites favorites={favoriteMangas} />
-                  <ProfileReadingProgress items={readingProgress} />
-                  <ProfileActivity activities={activity} />
-                  <Collections collections={collections} isOwnProfile={isOwnProfile} />
+                  <div className="glass-panel rounded-2xl p-4 space-y-7">
+                    <ProfileShowcaseFavorites favorites={favoriteMangas} />
+                    <ProfileReadingProgress items={readingProgress} />
+                  </div>
+                  <div className="glass-panel rounded-2xl p-4">
+                    <ProfileActivity activities={activity} />
+                  </div>
+                  <div className="glass-panel rounded-2xl p-4">
+                    <Collections collections={collections} isOwnProfile={isOwnProfile} />
+                  </div>
                 </div>
                 {/* Right / Side column */}
                 <div className="space-y-7 xl:col-span-4">
-                  <ProfileAbout profile={profile} isOwn={isOwnProfile} onUpdate={handleProfileUpdate} />
-                  <ProfileGenres profile={profile} />
-                  <ProfileBadgesPlaceholder />
+                  <div className="glass-panel rounded-2xl p-4">
+                    <ProfileAbout profile={profile} isOwn={isOwnProfile} onUpdate={handleProfileUpdate} />
+                  </div>
+                  <div className="glass-panel rounded-2xl p-4">
+                    <ProfileGenres profile={profile} />
+                  </div>
+                  <div className="glass-panel rounded-2xl p-4">
+                    <ProfileBadgesPlaceholder />
+                  </div>
                 </div>
               </div>
             </TabsContent>
@@ -410,7 +419,9 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
 
 
             <TabsContent value="comments" className="space-y-6 max-h-96 overflow-y-auto">
-              <UserComments userId={parseInt(userId)} isOwnProfile={isOwnProfile} />
+              <div className="glass-panel rounded-2xl p-4">
+                <UserComments userId={parseInt(userId)} isOwnProfile={isOwnProfile} />
+              </div>
             </TabsContent>
 
             <TabsContent value="achievements" className="space-y-6">
@@ -423,33 +434,45 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
 
         <div className="lg:hidden space-y-7 animate-fade-in">
           <Tabs value={activeTab} onValueChange={v => setActiveTabParam(v as any)} className="space-y-7">
-            <TabsList className="grid grid-cols-2 md:grid-cols-5 bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl shadow-xl p-1.5">
-              <TabsTrigger value="overview" className="relative group data-[state=active]:bg-primary/25 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-3 py-2 text-sm font-medium">
+            <TabsList className="grid grid-cols-2 md:grid-cols-5 glass-panel p-1.5 gap-1.5">
+              <TabsTrigger value="overview" className="relative group rounded-xl px-3 py-2 text-[13px] font-medium text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
                 <span className="relative z-10">Обзор</span>
               </TabsTrigger>
-              <TabsTrigger value="library" className="relative group data-[state=active]:bg-primary/25 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-3 py-2 text-sm font-medium">
+              <TabsTrigger value="library" className="relative group rounded-xl px-3 py-2 text-[13px] font-medium text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
                 <span className="relative z-10">Библиотека</span>
               </TabsTrigger>
-              <TabsTrigger value="reviews" className="relative group data-[state=active]:bg-primary/25 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-3 py-2 text-sm font-medium">
+              <TabsTrigger value="reviews" className="relative group rounded-xl px-3 py-2 text-[13px] font-medium text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
                 <span className="relative z-10">Отзывы</span>
               </TabsTrigger>
-              <TabsTrigger value="comments" className="relative group data-[state=active]:bg-primary/25 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-3 py-2 text-sm font-medium">
+              <TabsTrigger value="comments" className="relative group rounded-xl px-3 py-2 text-[13px] font-medium text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
                 <span className="relative z-10">Комментарии</span>
               </TabsTrigger>
-              <TabsTrigger value="achievements" className="relative group data-[state=active]:bg-primary/25 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-3 py-2 text-sm font-medium">
+              <TabsTrigger value="achievements" className="relative group rounded-xl px-3 py-2 text-[13px] font-medium text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
                 <span className="relative z-10">Достижения</span>
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="space-y-7">
               <div className="space-y-7">
-                <ProfileShowcaseFavorites favorites={favoriteMangas} />
-                <ProfileReadingProgress items={readingProgress} />
-                <ProfileActivity activities={activity} />
-                <ProfileAbout profile={profile} isOwn={isOwnProfile} onUpdate={handleProfileUpdate} />
-                <ProfileGenres profile={profile} />
-                <ProfileBadgesPlaceholder />
-                <Collections collections={collections} isOwnProfile={isOwnProfile} />
+                <div className="glass-panel rounded-2xl p-4 space-y-7">
+                  <ProfileShowcaseFavorites favorites={favoriteMangas} />
+                  <ProfileReadingProgress items={readingProgress} />
+                </div>
+                <div className="glass-panel rounded-2xl p-4">
+                  <ProfileActivity activities={activity} />
+                </div>
+                <div className="glass-panel rounded-2xl p-4">
+                  <ProfileAbout profile={profile} isOwn={isOwnProfile} onUpdate={handleProfileUpdate} />
+                </div>
+                <div className="glass-panel rounded-2xl p-4">
+                  <ProfileGenres profile={profile} />
+                </div>
+                <div className="glass-panel rounded-2xl p-4">
+                  <ProfileBadgesPlaceholder />
+                </div>
+                <div className="glass-panel rounded-2xl p-4">
+                  <Collections collections={collections} isOwnProfile={isOwnProfile} />
+                </div>
               </div>
             </TabsContent>
 
@@ -470,7 +493,9 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
             </TabsContent>
 
             <TabsContent value="comments" className="space-y-6 max-h-96 overflow-y-auto">
-              <UserComments userId={parseInt(userId)} isOwnProfile={isOwnProfile} />
+              <div className="glass-panel rounded-2xl p-4">
+                <UserComments userId={parseInt(userId)} isOwnProfile={isOwnProfile} />
+              </div>
             </TabsContent>
 
             <TabsContent value="achievements" className="space-y-6">
