@@ -16,18 +16,15 @@ export function ForumPage(){
   const { isAdmin } = useAuth()
   const pinMutation = usePinThread()
   const deleteMutation = useDeleteThreadMutation()
-  // threads infinite for "all" (no category) page 0..n
-  const { data: pages, fetchNextPage, hasNextPage, isLoading: threadsLoading, isFetchingNextPage } = useInfiniteForumThreads({})
+  const [selectedCategory, setSelectedCategory] = useState<number|undefined>(undefined)
+  // серверная пагинация зависит от выбранной категории (react-query сбрасывает pages при смене key)
+  const { data: pages, fetchNextPage, hasNextPage, isLoading: threadsLoading, isFetchingNextPage } = useInfiniteForumThreads({ categoryId: selectedCategory })
   const allThreads = useMemo(()=> pages?.pages.flatMap(p=> p.content) || [], [pages])
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState('latest')
   const [density, setDensity] = useState<'comfortable'|'compact'>('comfortable')
-  const [selectedCategory, setSelectedCategory] = useState<number|undefined>(undefined)
   const filtered = useMemo(()=> {
     let arr = allThreads
-    if(selectedCategory){
-      arr = arr.filter(t=> t.categoryId === selectedCategory)
-    }
     if(query.trim()){
       const q = query.trim().toLowerCase()
       arr = arr.filter(t=> t.title.toLowerCase().includes(q) || (t.content||'').toLowerCase().includes(q))
@@ -39,9 +36,9 @@ export function ForumPage(){
       case 'latest': default: arr = [...arr].sort((a,b)=> Date.parse(b.createdAt) - Date.parse(a.createdAt)); break
     }
     return arr
-  }, [allThreads, query, sort, selectedCategory])
-  const pinned = useMemo(()=> filtered.filter(t=> t.isPinned && (!selectedCategory || t.categoryId === selectedCategory)).slice(0,6), [filtered, selectedCategory])
-  const visible = useMemo(()=> filtered.filter(t=> !t.isPinned), [filtered, selectedCategory])
+  }, [allThreads, query, sort])
+  const pinned = useMemo(()=> filtered.filter(t=> t.isPinned).slice(0,6), [filtered])
+  const visible = useMemo(()=> filtered.filter(t=> !t.isPinned), [filtered])
   const authorUsers = useThreadAuthors(filtered)
   const handlePinToggle = (id:number, next:boolean) => { pinMutation.mutate({ id, pinned: next }) }
   const handleDelete = (id:number) => { if(confirm('Удалить тему?')) deleteMutation.mutate(id) }
