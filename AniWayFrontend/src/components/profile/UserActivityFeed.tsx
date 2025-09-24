@@ -51,7 +51,8 @@ export function UserActivityFeed({
   className = '',
   limit = 4 // legacy external value (ignored for initial slice)
 }: UserActivityFeedProps) {
-  const [activities, setActivities] = useState<ActivityItem[]>([]);
+  // allActivities: полный набор, visibleActivities вычисляется
+  const [allActivities, setAllActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
@@ -77,14 +78,14 @@ export function UserActivityFeed({
         relatedMangaId: activity.mangaId
       }));
       
-      setActivities(transformedActivities);
+  setAllActivities(transformedActivities);
     } catch (err) {
       console.error('Ошибка загрузки активности:', err);
       const errorMessage = err instanceof Error ? err.message : 'Не удалось загрузить активность';
       setError(errorMessage);
       
       // Очищаем активности при ошибке
-      setActivities([]);
+  setAllActivities([]);
     } finally {
       setLoading(false);
     }
@@ -136,8 +137,9 @@ export function UserActivityFeed({
     return iconMap[type] || <Activity className="w-4 h-4 text-gray-400" />;
   };
 
-  const INITIAL_VISIBLE = 4; // enforced initial item count per new UX requirement
-  const displayedActivities = showAll ? activities : activities.slice(0, INITIAL_VISIBLE);
+  const INITIAL_VISIBLE = 4; // жестко фиксируем 4
+  const displayedActivities = showAll ? allActivities : allActivities.slice(0, INITIAL_VISIBLE);
+  const total = allActivities.length;
 
   if (loading) {
     return (
@@ -210,18 +212,18 @@ export function UserActivityFeed({
               </div>
             ))}
             
-            {activities.length > INITIAL_VISIBLE && !showAll && (
+            {total > INITIAL_VISIBLE && !showAll && (
               <Button 
                 variant="outline" 
                 size="sm" 
                 className="w-full border-white/15 bg-white/3 text-gray-300 hover:bg-white/8 mt-4"
                 onClick={() => setShowAll(true)}
               >
-                Показать ещё ({activities.length - INITIAL_VISIBLE})
+                Показать ещё ({total - INITIAL_VISIBLE})
               </Button>
             )}
             
-            {showAll && activities.length > INITIAL_VISIBLE && (
+            {showAll && total > INITIAL_VISIBLE && (
               <Button 
                 variant="outline" 
                 size="sm" 
