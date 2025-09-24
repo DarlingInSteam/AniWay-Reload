@@ -37,7 +37,7 @@ class ProfileService {
       // Получаем данные для профиля (и своего, и чужого)
       bookmarks = await this.getUserBookmarks(userId);
       readingProgress = await this.getUserReadingProgress(userId);
-      readingStats = this.calculateReadingStats(bookmarks, readingProgress);
+  readingStats = this.calculateReadingStats(bookmarks, readingProgress, user as any);
 
       return {
         user,
@@ -134,10 +134,27 @@ class ProfileService {
   }
 
   // Вычислить статистику чтения
-  private calculateReadingStats(bookmarks: Bookmark[], readingProgress: ReadingProgress[]) {
+  private calculateReadingStats(bookmarks: Bookmark[], readingProgress: ReadingProgress[], user?: { chaptersReadCount?: number }) {
     const totalMangaRead = bookmarks.filter(b => b.status === 'COMPLETED').length;
-    const totalChaptersRead = readingProgress.filter(p => p.isCompleted).length;
-    const totalPagesRead = readingProgress.reduce((sum, p) => sum + p.pageNumber, 0);
+
+    // Расширенная логика подсчета прочитанных глав:
+    // 1. Пробуем явный флаг isCompleted / completed / status === 'COMPLETED'
+    let totalChaptersRead = readingProgress.filter(p => {
+      const anyP: any = p as any;
+      return p.isCompleted === true || anyP.completed === true || anyP.status === 'COMPLETED';
+    }).length;
+
+    // 2. Если ничего не нашли, но прогресс есть – используем количество записей как приближение
+    if (totalChaptersRead === 0 && readingProgress.length > 0) {
+      totalChaptersRead = readingProgress.length;
+    }
+
+    // 3. Если всё ещё 0 – fallback на публичное поле профиля (если бэкенд его прислал)
+    if (totalChaptersRead === 0 && user?.chaptersReadCount && user.chaptersReadCount > 0) {
+      totalChaptersRead = user.chaptersReadCount;
+    }
+
+    const totalPagesRead = readingProgress.reduce((sum, p) => sum + (p.pageNumber || 0), 0);
 
     // Вычисляем любимые жанры на основе закладок
     const genreCount: { [key: string]: number } = {};
