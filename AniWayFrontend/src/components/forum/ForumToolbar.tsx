@@ -43,20 +43,20 @@ export function ForumToolbar({ value, onChange, sort, onSortChange, density, onD
   const handleSelect = useCallback((value:string)=> { onSortChange(value); setOpen(false) }, [onSortChange])
   const current = SORTS.find(s=> s.value===sort)
   return (
-    <div className="glass-panel rounded-2xl p-3 md:p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+  <div className="glass-panel rounded-2xl p-3 md:p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between relative z-30">
       <div className="flex flex-1 items-center gap-2">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
           <input value={internal} onChange={e=> setInternal(e.target.value)} placeholder="Поиск тем..." className="w-full rounded-xl bg-white/5 pl-9 pr-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-primary/40" />
         </div>
         <div className="flex items-center gap-2">
-          <div className="relative" ref={ddRef}>
+          <div className="relative z-30" ref={ddRef}>
             <button data-trigger="true" type="button" onClick={()=> setOpen(o=> !o)} aria-haspopup="listbox" aria-expanded={open} className="flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-primary/40">
               <span>{current?.label || '—'}</span>
               <ChevronDown className={`h-4 w-4 transition-transform ${open?'rotate-180':''}`} />
             </button>
             {open && (
-              <div ref={listRef} role="listbox" aria-activedescendant={`sort-opt-${activeIdx}`} className="absolute right-0 top-full mt-2 min-w-[8rem] rounded-xl border border-white/15 bg-background/95 backdrop-blur-xl shadow-2xl p-1 z-50 animate-fade-in max-h-72 overflow-auto focus:outline-none">
+              <div ref={listRef} role="listbox" aria-activedescendant={`sort-opt-${activeIdx}`} className="absolute right-0 top-full mt-2 min-w-[8rem] rounded-xl border border-white/15 bg-background/95 backdrop-blur-xl shadow-2xl p-1 z-[999] animate-fade-in max-h-72 overflow-auto focus:outline-none">
                 {SORTS.map((s, idx)=> {
                   const selected = s.value===sort
                   const active = idx===activeIdx
