@@ -19,9 +19,9 @@ export const BadgeList: React.FC<BadgeListProps> = ({ userId }) => {
   return (
     <ProfilePanel title="Бейджи" actions={<span className="text-xs text-slate-400">{data?.length || 0}</span>}>
       {isLoading && <div className="text-sm text-slate-400">Загрузка...</div>}
-      {error && <div className="text-sm text-red-400">Ошибка загрузки бейджей</div>}
+      {error && <div className="text-sm text-amber-400">Бейджи временно недоступны</div>}
       {!isLoading && !error && (!data || data.length === 0) && (
-        <div className="text-sm text-slate-400">Пока нет бейджей</div>
+        <div className="text-sm text-slate-400">Пока нет бейджей (или скрыто)</div>
       )}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {data?.map(b => {
