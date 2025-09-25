@@ -1,15 +1,35 @@
-export interface CommentType {
-  MANGA: 'MANGA'
-  CHAPTER: 'CHAPTER'
-  PROFILE: 'PROFILE'
-  REVIEW: 'REVIEW'
-  POST?: 'POST'
+export type ReactionValue = 'LIKE' | 'DISLIKE' | null;
+
+export interface CommentDTO {
+  id: number;
+  content: string;
+  commentType: string; // 'POST'
+  targetId: number;
+  userId: number;
+  username?: string;
+  userAvatarUrl?: string;
+  parentCommentId?: number | null;
+  parentCommentAuthor?: string | null;
+  likesCount?: number;
+  dislikesCount?: number;
+  userReaction?: ReactionValue;
+  isEdited?: boolean;
+  isDeleted?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  depthLevel?: number;
+  createdAt: string;
+  updatedAt: string;
+  replies?: CommentDTO[]; // backend может прислать дерево
+  repliesCount?: number;
 }
 
-export interface ReactionType {
-  LIKE: 'LIKE'
-  DISLIKE: 'DISLIKE'
+export interface CreateCommentRequest {
+  content: string;
+  targetId: number;
+  parentCommentId?: number;
 }
+// Legacy broad DTOs kept minimal; extended interfaces trimmed for first integration
 
 export interface CommentCreateDTO {
   content: string
@@ -44,34 +64,4 @@ export interface CommentResponseDTO {
 }
 
 // Расширенная версия комментария с дополнительной информацией
-export interface EnhancedCommentResponseDTO extends CommentResponseDTO {
-  targetInfo?: {
-    text: string
-    icon: string
-    color: string
-  }
-  parentCommentInfo?: {
-    username: string
-    content: string
-  }
-}
-
-export interface CommentReactionDTO {
-  commentId: number
-  likesCount: number
-  dislikesCount: number
-}
-
-export interface UserInfoDTO {
-  id: number
-  username: string
-  email: string
-  avatar?: string
-  role: string
-}
-
-export interface ErrorResponseDTO {
-  message: string
-  status: number
-  timestamp: number
-}
+// Additional DTOs (reactions, error, user info) omitted for initial comment UI scope

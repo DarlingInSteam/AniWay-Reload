@@ -16,6 +16,7 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(post.content);
   const [saving, setSaving] = useState(false);
+  const [actionError, setActionError] = useState<string|null>(null);
 
   async function handleVote(value: 1 | -1) {
     const newValue = localPost.stats.userVote === value ? 0 : value;
@@ -29,19 +30,30 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    const updated = await postService.updatePost(localPost.id, { content: editContent });
-    setSaving(false);
-    if (updated) {
-      setLocalPost(updated);
-      setEditing(false);
-      onUpdated?.(updated);
-    }
+    setActionError(null);
+    try {
+      const updated = await postService.updatePost(localPost.id, { content: editContent });
+      if (updated) {
+        setLocalPost(updated);
+        setEditing(false);
+        onUpdated?.(updated);
+      } else {
+        setActionError('Не удалось сохранить (нет ответа)');
+      }
+    } catch (e:any) {
+      setActionError(e?.message || 'Ошибка сохранения');
+    } finally { setSaving(false); }
   }
 
   async function handleDelete() {
     if (!confirm('Удалить пост?')) return;
-    const ok = await postService.deletePost(localPost.id);
-    if (ok) onDeleted?.(localPost.id);
+    setActionError(null);
+    try {
+      const ok = await postService.deletePost(localPost.id);
+      if (ok) onDeleted?.(localPost.id); else setActionError('Удаление не удалось');
+    } catch (e:any) {
+      setActionError(e?.message || 'Ошибка удаления');
+    }
   }
 
   const withinWindow = localPost.editedUntil ? new Date(localPost.editedUntil).getTime() > Date.now() : true;
@@ -113,6 +125,7 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
             className="w-full min-h-[100px] p-2 bg-neutral-900 border border-neutral-600 rounded text-sm"
             disabled={saving}
           />
+          {actionError && <div className="text-xs text-red-400">{actionError}</div>}
           <div className="flex gap-2 justify-end text-sm">
             <button type="button" onClick={() => setEditing(false)} className="px-2 py-1 bg-neutral-700 rounded">Отмена</button>
             <button type="submit" disabled={saving} className="px-3 py-1 bg-purple-600 rounded disabled:opacity-50">{saving ? 'Сохранение...' : 'Сохранить'}</button>
@@ -141,6 +154,9 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
             <button onClick={() => setEditing(true)} className="text-xs text-purple-300 hover:text-purple-200">Редактировать</button>
             <button onClick={handleDelete} className="text-xs text-red-400 hover:text-red-300">Удалить</button>
           </>
+        )}
+        {actionError && !editing && (
+          <span className="text-[10px] text-red-400">{actionError}</span>
         )}
         {!withinWindow && (
           <span className="text-[10px] text-neutral-500">Окно редактирования истекло</span>

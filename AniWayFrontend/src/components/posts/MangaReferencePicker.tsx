@@ -12,6 +12,7 @@ export const MangaReferencePicker: React.FC<MangaReferencePickerProps> = ({ open
   const [q, setQ] = useState('');
   const [results, setResults] = useState<MangaResponseDTO[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string|null>(null);
 
   useEffect(()=>{
     if(!open){
@@ -23,11 +24,36 @@ export const MangaReferencePicker: React.FC<MangaReferencePickerProps> = ({ open
 
   async function handleSearch(e: React.FormEvent){
     e.preventDefault();
-    if(!q.trim()) return;
+    const query = q.trim();
+    if(!query) return;
     setLoading(true);
+    setError(null);
     try {
-  const res = await apiClient.searchManga({ query: q });
-      setResults(res.slice(0,30));
+      // Primary simple search
+      let res: MangaResponseDTO[] = [];
+      try {
+        res = await apiClient.searchManga({ query });
+      } catch (err) {
+        // swallow to attempt fallback
+      }
+      // Fallback if empty or failed: paged search with limit alias
+      if(!res || res.length===0){
+        try {
+          const paged = await apiClient.searchMangaPaged({ query, limit: 30 });
+          // Some implementations wrap in content
+          // @ts-ignore
+          res = (paged?.content || paged?.items || paged) as MangaResponseDTO[];
+        } catch (e2){
+          if(!res || res.length===0){
+            throw e2;
+          }
+        }
+      }
+      setResults(Array.isArray(res) ? res.slice(0,30) : []);
+      if(res.length===0) setError('Ничего не найдено');
+    } catch (e:any) {
+      setError(e?.message || 'Ошибка поиска');
+      setResults([]);
     } finally { setLoading(false); }
   }
 
@@ -51,7 +77,8 @@ export const MangaReferencePicker: React.FC<MangaReferencePickerProps> = ({ open
           <button type="submit" disabled={loading} className="px-3 py-1 rounded bg-purple-600 text-sm disabled:opacity-50">{loading? '...' : 'Поиск'}</button>
         </form>
         <div className="max-h-80 overflow-auto space-y-2 pr-1 custom-scroll">
-          {results.length===0 && !loading && <div className="text-xs text-neutral-500">Нет результатов</div>}
+          {error && <div className="text-xs text-red-400">{error}</div>}
+          {results.length===0 && !loading && !error && <div className="text-xs text-neutral-500">Нет результатов</div>}
           {results.map(m => {
             const slug = m.title.toLowerCase().replace(/[^a-z0-9\s-]/gi,'').replace(/\s+/g,'-').replace(/-+/g,'-');
             return (

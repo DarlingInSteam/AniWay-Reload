@@ -44,10 +44,11 @@ public class PostDtos {
             Instant createdAt,
             Instant updatedAt,
             Instant editedUntil,
+                        boolean canEdit,
             List<AttachmentDto> attachments,
             List<ReferenceDto> references,
             Stats stats
     ) {
-        public record Stats(int score, int up, int down, Integer userVote) {}
+                public record Stats(int score, int up, int down, Integer userVote, Long commentsCount) {}
     }
 }

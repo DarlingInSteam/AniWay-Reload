@@ -58,16 +58,19 @@ public class PostMapper {
         .map(r -> new PostDtos.ReferenceDto(r.getId(), r.getType(), r.getRefId()))
         .collect(Collectors.toList());
     int score = up - down;
+    boolean canEdit = post.getEditedUntil() == null || post.getEditedUntil().isAfter(java.time.Instant.now());
+    long commentsCount = 0L; // placeholder until integrated with CommentService aggregation
     return new PostDtos.FrontendPost(
-        post.getId(),
-        post.getAuthorId(),
-        post.getContent(),
-        post.getCreatedAt(),
-        post.getUpdatedAt(),
-        post.getEditedUntil(),
-        attachments,
-        refs,
-        new PostDtos.FrontendPost.Stats(score, up, down, userVote)
+            post.getId(),
+            post.getAuthorId(),
+            post.getContent(),
+            post.getCreatedAt(),
+            post.getUpdatedAt(),
+            post.getEditedUntil(),
+            canEdit,
+            attachments,
+            refs,
+            new PostDtos.FrontendPost.Stats(score, up, down, userVote, commentsCount)
     );
     }
 
