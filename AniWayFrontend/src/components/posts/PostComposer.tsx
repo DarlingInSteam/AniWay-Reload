@@ -56,27 +56,31 @@ export const PostComposer: React.FC<PostComposerProps> = ({ userId, onCreated })
     finally { setSubmitting(false); }
   }
   return (
-    <form onSubmit={handleSubmit} className="space-y-2 p-3 border border-neutral-700 rounded bg-neutral-800/50 relative">
-      <div className="flex flex-wrap gap-1 text-[11px] mb-1">
+    <form onSubmit={handleSubmit} className="relative p-4 rounded-2xl glass-panel space-y-3 shadow-lg border border-white/10">
+      <div className="flex flex-wrap gap-1.5 text-[11px] mb-1">
         {[
           ['B','bold'],['I','italic'],['S','strike'],['Code','code'],['Spoil','spoiler'],['Quote','quote'],['UL','ul'],['OL','ol'],['H1','h1'],['H2','h2'],['Link','link']
         ].map(([label,act])=> (
-          <button key={act} type="button" onClick={()=>applyFormat(act)} className="px-1.5 py-0.5 bg-neutral-700 hover:bg-neutral-600 rounded">
-            {label}
-          </button>
+          <button
+            key={act}
+            type="button"
+            onClick={()=>applyFormat(act)}
+            className="px-2 py-1 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-medium tracking-wide text-slate-200 backdrop-blur-sm transition active:scale-[.96]"
+            title={act}
+          >{label}</button>
         ))}
       </div>
       <div className="relative">
         <textarea
           ref={textareaRef}
-          className="w-full resize-y min-h-[140px] p-2 bg-neutral-900 border border-neutral-600 rounded text-sm font-mono relative z-10"
+          className="w-full resize-y min-h-[160px] leading-relaxed p-3 bg-white/5 focus:bg-white/7 transition border border-white/10 focus:border-purple-500/60 rounded-xl text-sm font-mono relative z-10 outline-none placeholder:text-slate-500"
           placeholder="Напишите пост... Поддерживается markdown. Ссылки на мангу: [[manga:123]]"
           value={content}
           onChange={e=>setContent(e.target.value)}
           disabled={submitting}
         />
         {content && (
-          <div className="pointer-events-none absolute inset-0 p-2 whitespace-pre-wrap font-mono text-sm text-transparent selection:bg-purple-500/40 z-0" aria-hidden>
+          <div className="pointer-events-none absolute inset-0 p-3 whitespace-pre-wrap font-mono text-sm text-transparent selection:bg-purple-500/40 z-0" aria-hidden>
             {content.split(/(\[\[manga:\d+\]\])/g).map((part,i)=>{
               const match = part.match(/\[\[manga:(\d+)\]\]/);
               if(match){ return <span key={i} className="text-sky-300/90 underline decoration-dotted">{part}</span>; }
@@ -86,19 +90,33 @@ export const PostComposer: React.FC<PostComposerProps> = ({ userId, onCreated })
         )}
       </div>
       {refs.length>0 && (
-        <div className="flex flex-wrap gap-1 text-xs text-purple-300">
-          {refs.map(r=> <span key={r} className="px-1.5 py-0.5 bg-purple-700/30 rounded">manga:{r}</span>)}
+        <div className="flex flex-wrap gap-1.5 text-[10px] font-medium text-purple-200/90">
+          {refs.map(r=> <span key={r} className="px-2 py-0.5 rounded-full bg-purple-500/15 border border-purple-400/30 backdrop-blur-sm">manga:{r}</span>)}
         </div>
       )}
       {error && <div className="text-xs text-red-400">{error}</div>}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between pt-1">
+        <div className="flex items-center gap-2 flex-wrap">
           <input ref={fileInputRef} type="file" className="hidden" accept="image/*" multiple onChange={handleFileChange} />
-          <button type="button" onClick={handleImagePick} disabled={uploading||submitting} className="px-2 py-1 text-xs rounded bg-neutral-700 hover:bg-neutral-600 disabled:opacity-50">{uploading? 'Загрузка...' : 'Изображения'}</button>
-          <button type="button" onClick={()=>setPickerOpen(true)} disabled={submitting} className="px-2 py-1 text-xs rounded bg-neutral-700 hover:bg-neutral-600 disabled:opacity-50">Манга</button>
-          {attachments.length>0 && <span className="text-xs text-neutral-400">Изображений: {attachments.length}</span>}
+          <button
+            type="button"
+            onClick={handleImagePick}
+            disabled={uploading||submitting}
+            className="px-3 py-1.5 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-medium text-slate-200 disabled:opacity-50 transition"
+          >{uploading? 'Загрузка...' : 'Изображения'}</button>
+          <button
+            type="button"
+            onClick={()=>setPickerOpen(true)}
+            disabled={submitting}
+            className="px-3 py-1.5 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-medium text-slate-200 disabled:opacity-50 transition"
+          >Манга</button>
+          {attachments.length>0 && <span className="text-[11px] text-slate-400">Изображений: {attachments.length}</span>}
         </div>
-        <button type="submit" disabled={submitting || !content.trim()} className="px-3 py-1.5 text-sm rounded bg-purple-600 hover:bg-purple-500 disabled:opacity-50">{submitting ? 'Публикация...' : 'Опубликовать'}</button>
+        <button
+          type="submit"
+          disabled={submitting || !content.trim()}
+          className="px-4 py-1.5 rounded-md bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-sm font-medium text-white shadow disabled:opacity-50 transition"
+        >{submitting ? 'Публикация...' : 'Опубликовать'}</button>
       </div>
       <MangaReferencePicker open={pickerOpen} onClose={()=>setPickerOpen(false)} onPick={id=> setContent(c=> c + (c.endsWith(' ')||c===''? '' : ' ') + `[[manga:${id}]] `)} />
     </form>

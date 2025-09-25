@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { apiClient } from '@/lib/api';
 import { MangaResponseDTO } from '@/types';
 
@@ -22,40 +22,41 @@ export const MangaReferencePicker: React.FC<MangaReferencePickerProps> = ({ open
     }
   },[open]);
 
-  async function handleSearch(e: React.FormEvent){
-    e.preventDefault();
-    e.stopPropagation();
-    const query = q.trim();
-    if(!query) return;
-    setLoading(true);
-    setError(null);
+  async function performSearch(query: string){
+    if(!query){ setResults([]); setError(null); return; }
+    setLoading(true); setError(null);
     try {
-      // Primary simple search
       let res: MangaResponseDTO[] = [];
-      try {
-        res = await apiClient.searchManga({ query });
-      } catch (err) {
-        // swallow to attempt fallback
-      }
-      // Fallback if empty or failed: paged search with limit alias
+      try { res = await apiClient.searchManga({ query }); } catch {}
       if(!res || res.length===0){
         try {
           const paged = await apiClient.searchMangaPaged({ query, limit: 30 });
-          // Some implementations wrap in content
           // @ts-ignore
           res = (paged?.content || paged?.items || paged) as MangaResponseDTO[];
-        } catch (e2){
-          if(!res || res.length===0){
-            throw e2;
-          }
-        }
+        } catch {}
       }
-      setResults(Array.isArray(res) ? res.slice(0,30) : []);
-      if(res.length===0) setError('Ничего не найдено');
-    } catch (e:any) {
-      setError(e?.message || 'Ошибка поиска');
-      setResults([]);
+      setResults(Array.isArray(res)? res.slice(0,30): []);
+      if(!res || res.length===0) setError('Ничего не найдено');
+    } catch(e:any){
+      setError(e?.message || 'Ошибка поиска'); setResults([]);
     } finally { setLoading(false); }
+  }
+
+  const debounceRef = useRef<number|undefined>(undefined);
+  useEffect(()=>{
+    if(q.trim().length < 3){
+      setResults([]); setError(null); return;
+    }
+    // debounce
+    window.clearTimeout(debounceRef.current);
+    debounceRef.current = window.setTimeout(()=>{
+      performSearch(q.trim());
+    }, 350);
+  }, [q]);
+
+  function handleSearch(e: React.FormEvent){
+    e.preventDefault(); e.stopPropagation();
+    performSearch(q.trim());
   }
 
   function pick(m: MangaResponseDTO){
@@ -73,9 +74,12 @@ export const MangaReferencePicker: React.FC<MangaReferencePickerProps> = ({ open
           <h3 className="text-sm font-medium">Выбор манги</h3>
           <button onClick={onClose} className="text-neutral-400 hover:text-neutral-200 text-xs">✕</button>
         </div>
-        <form onSubmit={handleSearch} className="flex gap-2">
+        <form onSubmit={handleSearch} className="flex gap-2 relative">
           <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Название..." className="flex-1 px-2 py-1 rounded bg-neutral-800 border border-neutral-600 text-sm" />
-          <button type="submit" disabled={loading} className="px-3 py-1 rounded bg-purple-600 text-sm disabled:opacity-50">{loading? '...' : 'Поиск'}</button>
+          <button type="submit" disabled={loading} className="px-3 py-1 rounded bg-purple-600 text-sm disabled:opacity-50 min-w-[70px]">{loading? '...' : 'Поиск'}</button>
+          {q.trim().length>0 && q.trim().length<3 && (
+            <div className="absolute -bottom-5 left-0 text-[10px] text-neutral-400">Введите минимум 3 символа</div>
+          )}
         </form>
         <div className="max-h-80 overflow-auto space-y-2 pr-1 custom-scroll">
           {error && <div className="text-xs text-red-400">{error}</div>}
