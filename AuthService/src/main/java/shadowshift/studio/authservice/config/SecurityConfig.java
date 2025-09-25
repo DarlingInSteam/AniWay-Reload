@@ -66,6 +66,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/auth/reviews/user/*/count").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/users/search").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/users/*/public").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/auth/users/*/public/progress").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/auth/users/*/public/manga/*/progress").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/bookmarks/user/*").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()

@@ -124,7 +124,10 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
           joinedDate: new Date(data.user.createdAt),
           totalReadingTime: 0, // TODO: Добавить отслеживание времени чтения
           mangaRead: data.readingStats?.totalMangaRead || 0,
-          chaptersRead: data.readingStats?.totalChaptersRead || 0,
+          // Если статистика чтения отсутствует (публичный просмотр), используем счетчик из userDTO
+          chaptersRead: (data.readingStats?.totalChaptersRead != null)
+            ? data.readingStats.totalChaptersRead
+            : (data.user.chaptersReadCount || 0),
           
           // Новые поля из публичного API
           likesGivenCount: data.user.likesGivenCount || 0,

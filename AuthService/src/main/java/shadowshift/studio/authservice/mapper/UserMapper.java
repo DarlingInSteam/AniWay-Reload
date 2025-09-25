@@ -32,6 +32,10 @@ public class UserMapper {
                 .lastLoginDate(user.getLastLogin())
                 .createdAt(user.getCreatedAt())
                 .lastLogin(user.getLastLogin())
+        // Добавляем публично отображаемые счетчики активности
+        .chaptersReadCount(user.getChaptersReadCount())
+        .likesGivenCount(user.getLikesGivenCount())
+        .commentsCount(user.getCommentsCount())
                 .build();
     }
 
