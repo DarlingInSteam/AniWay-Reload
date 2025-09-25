@@ -36,6 +36,9 @@ public class UserMapper {
         .chaptersReadCount(user.getChaptersReadCount())
         .likesGivenCount(user.getLikesGivenCount())
         .commentsCount(user.getCommentsCount())
+    // Временная логика уровня/XP (упрощённо): 50 глав = +1 уровень, XP = прочитанные главы * 10
+    .level(calculateLevel(user.getChaptersReadCount()))
+    .xp(user.getChaptersReadCount() != null ? user.getChaptersReadCount() * 10 : 0)
                 .build();
     }
 
@@ -58,6 +61,8 @@ public class UserMapper {
                 .commentsCount(user.getCommentsCount())
         .banType(user.getBanType())
         .banExpiresAt(user.getBanExpiresAt())
+    .level(calculateLevel(user.getChaptersReadCount()))
+    .xp(user.getChaptersReadCount() != null ? user.getChaptersReadCount() * 10 : 0)
                 .build();
     }
 
@@ -75,5 +80,9 @@ public class UserMapper {
 
         return userDTOS;
     }
+        private static Integer calculateLevel(Integer chapters) {
+            if (chapters == null) return 1;
+            return Math.max(1, Math.min(100, (chapters / 50) + 1));
+        }
 }
 

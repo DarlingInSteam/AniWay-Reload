@@ -7,7 +7,7 @@ import { LeaderboardRow } from '@/components/tops/LeaderboardRow'
 import { LeaderboardError } from '@/components/tops/LeaderboardError'
 import { Link, useNavigate } from 'react-router-dom'
 
-type UserMetric = 'readers' | 'likes' | 'comments'
+type UserMetric = 'readers' | 'likes' | 'comments' | 'level'
 type Range = 'all' | '7' | '30'
 
 const RANGE_OPTIONS: { label: string; value: Range }[] = [
@@ -19,7 +19,8 @@ const RANGE_OPTIONS: { label: string; value: Range }[] = [
 const USER_METRICS: { label: string; value: UserMetric; desc: string }[] = [
   { label: 'Читатели', value: 'readers', desc: 'По количеству прочитанных глав' },
   { label: 'Лайки', value: 'likes', desc: 'По количеству поставленных лайков' },
-  { label: 'Комментарии', value: 'comments', desc: 'По количеству комментариев' }
+  { label: 'Комментарии', value: 'comments', desc: 'По количеству комментариев' },
+  { label: 'Уровень', value: 'level', desc: 'По уровню (XP)' }
 ]
 
 export function TopsPage() {
@@ -107,15 +108,26 @@ export function TopsPage() {
           <LeaderboardRow
             key={u.id || idx}
             rank={idx + 1}
-            primary={<span className="truncate">{u.username || u.name || 'Без имени'}</span>}
-            secondary={
-              userMetric === 'readers' ? `${u.chaptersReadCount ?? 0} глав` :
-              userMetric === 'likes' ? `${u.likesGivenCount ?? 0} лайков` :
-              `${u.commentsCount ?? 0} комм.`
-            }
-            metricValue={
-              userMetric === 'readers' ? u.chaptersReadCount : userMetric === 'likes' ? u.likesGivenCount : u.commentsCount
-            }
+            primary={<span className="truncate flex items-center gap-2">
+              {u.avatar && <img src={u.avatar} className="w-6 h-6 rounded-full object-cover" alt="avatar" />}
+              {u.username || u.name || 'Без имени'}
+            </span>}
+            secondary={(() => {
+              switch (userMetric) {
+                case 'readers': return `${u.chaptersReadCount ?? 0} глав`
+                case 'likes': return `${u.likesGivenCount ?? 0} лайков`
+                case 'comments': return `${u.commentsCount ?? 0} комм.`
+                case 'level': return `LVL ${u.level ?? 1} • XP ${u.xp ?? (u.chaptersReadCount ?? 0)*10}`
+              }
+            })()}
+            metricValue={(() => {
+              switch (userMetric) {
+                case 'readers': return u.chaptersReadCount
+                case 'likes': return u.likesGivenCount
+                case 'comments': return u.commentsCount
+                case 'level': return u.level ?? 0
+              }
+            })()}
             onClick={() => u.id && navigate(`/profile/${u.id}`)}
           />
         ))}

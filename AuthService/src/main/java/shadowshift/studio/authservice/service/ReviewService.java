@@ -343,6 +343,8 @@ public class ReviewService {
                 .comment(review.getComment())
                 .likesCount(review.getLikesCount())
                 .dislikesCount(review.getDislikesCount())
+        .likeCount(review.getLikesCount())
+        .dislikeCount(review.getDislikesCount())
                 .trustFactor(review.getTrustFactor())
                 .trustFactorColor(review.getTrustFactorColor())
                 .createdAt(review.getCreatedAt())

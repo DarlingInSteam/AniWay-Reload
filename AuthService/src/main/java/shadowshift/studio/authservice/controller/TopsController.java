@@ -45,13 +45,18 @@ public class TopsController {
         int capped = Math.min(Math.max(limit, 1), 100);
         PageRequest pr = PageRequest.of(0, capped);
         List<User> users;
-        switch (metric) {
-            case "likes" -> users = userRepository.findTopByLikes(pr).getContent();
-            case "comments" -> users = userRepository.findTopByComments(pr).getContent();
-            case "readers" -> users = userRepository.findTopReaders().stream().limit(capped).collect(Collectors.toList());
-            // placeholder for future level metric
-            default -> users = userRepository.findTopReaders().stream().limit(capped).collect(Collectors.toList());
-        }
+    switch (metric) {
+        case "likes" -> users = userRepository.findTopByLikes(pr).getContent();
+        case "comments" -> users = userRepository.findTopByComments(pr).getContent();
+        case "level" -> users = userRepository.findTopReaders().stream() // proxy: readers imply xp
+            .sorted((a,b) -> Integer.compare(
+                b.getChaptersReadCount() == null ? 0 : b.getChaptersReadCount(),
+                a.getChaptersReadCount() == null ? 0 : a.getChaptersReadCount()))
+            .limit(capped)
+            .collect(Collectors.toList());
+        case "readers" -> users = userRepository.findTopReaders().stream().limit(capped).collect(Collectors.toList());
+        default -> users = userRepository.findTopReaders().stream().limit(capped).collect(Collectors.toList());
+    }
         return ResponseEntity.ok(UserMapper.toUserListDTO(users));
     }
 

@@ -128,6 +128,8 @@ export interface User {
   chaptersReadCount?: number
   likesGivenCount?: number
   commentsCount?: number
+  level?: number // derived level from backend (tops)
+  xp?: number    // derived xp
   
   // Deprecated fields for backward compatibility
   profilePicture?: string
@@ -318,3 +320,78 @@ export interface AdminActionLogDTO {
 
 // Типы для комментариев
 export * from './comments'
+
+// =============================
+// Leaderboard DTOs (Топы)
+// =============================
+export interface TopUserDTO {
+  id: number
+  username: string
+  displayName?: string
+  avatar?: string
+  chaptersReadCount?: number
+  likesGivenCount?: number
+  commentsCount?: number
+  level?: number
+  xp?: number
+}
+
+export interface TopReviewDTO {
+  id: number
+  userId: number
+  username: string
+  userDisplayName?: string
+  userAvatar?: string
+  mangaId?: number
+  rating?: number
+  comment?: string
+  likesCount?: number
+  dislikesCount?: number
+  likeCount?: number
+  dislikeCount?: number
+  trustFactor?: number
+  createdAt?: string
+}
+
+export interface TopForumThreadDTO {
+  id: number
+  title: string
+  contentExcerpt?: string
+  authorId: number
+  authorName?: string
+  authorAvatar?: string
+  repliesCount?: number
+  likesCount?: number
+  likeCount?: number
+  viewsCount?: number
+  createdAt?: string
+}
+
+export interface TopForumPostDTO {
+  id: number
+  threadId: number
+  contentExcerpt?: string
+  authorId: number
+  authorName?: string
+  authorAvatar?: string
+  likesCount?: number
+  dislikesCount?: number
+  likeCount?: number
+  dislikeCount?: number
+  trustFactor?: number
+  createdAt?: string
+}
+
+export interface TopCommentDTO {
+  id: number
+  contentExcerpt?: string
+  userId: number
+  likesCount?: number
+  dislikesCount?: number
+  likeCount?: number
+  dislikeCount?: number
+  trustFactor?: number
+  commentType?: string
+  targetId?: number
+  createdAt?: string
+}
