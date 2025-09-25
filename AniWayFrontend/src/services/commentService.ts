@@ -146,6 +146,16 @@ class CommentService {
   }
 
   // (Reactions API omitted in minimal integration)
+  // Backwards compatibility stubs for legacy reaction UI. They return updated counts shape-like objects
+  // or the raw comment if backend adds reactions later. For now they no-op to avoid build/runtime errors.
+  async addReaction(commentId: number, reactionType: 'LIKE' | 'DISLIKE'): Promise<{ commentId: number; reactionType: string }> {
+    console.warn('[commentService] addReaction stub invoked (no backend wiring). commentId=', commentId, 'reactionType=', reactionType)
+    return { commentId, reactionType }
+  }
+  async removeReaction(commentId: number): Promise<{ commentId: number }> {
+    console.warn('[commentService] removeReaction stub invoked (no backend wiring). commentId=', commentId)
+    return { commentId }
+  }
 
   // Convenience wrappers for posts
   async listForPost(postId: number, page=0, size=20) {

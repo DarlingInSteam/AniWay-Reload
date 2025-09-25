@@ -11,14 +11,24 @@ class ApiClient {
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
     const token = localStorage.getItem('authToken');
+    const userId = localStorage.getItem('userId') || localStorage.getItem('userID') || localStorage.getItem('currentUserId');
 
     console.log(`API Request: ${options?.method || 'GET'} ${url}`);
     console.log(`Auth token present: ${!!token}`);
+
+    // Heuristic: add X-User-Id for mutating post endpoints (backend expects it) and for comments
+    const method = (options?.method || 'GET').toUpperCase();
+    const needsUserHeader = !!userId && (
+      (/^\/posts\b/.test(endpoint) && ['POST','PUT','DELETE'].includes(method)) ||
+      (/^\/posts\/.*\/vote$/.test(endpoint)) ||
+      (/^\/comments\b/.test(endpoint) && ['POST','PUT','DELETE'].includes(method))
+    );
 
     const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
         ...this.getAuthHeaders(),
+        ...(needsUserHeader ? { 'X-User-Id': userId! } : {}),
         ...options?.headers,
       },
       ...options,

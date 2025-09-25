@@ -65,3 +65,27 @@ export interface CommentResponseDTO {
 
 // Расширенная версия комментария с дополнительной информацией
 // Additional DTOs (reactions, error, user info) omitted for initial comment UI scope
+
+// Minimal enhanced comment interface kept for backwards compatibility with legacy hooks/components
+// that expected an EnhancedCommentResponseDTO export. We intentionally make all extra fields optional
+// so existing simplified CommentResponseDTO objects remain assignable.
+export interface EnhancedCommentResponseDTO extends CommentResponseDTO {
+  // Parent comment quick info (legacy fields)
+  parentCommentAuthor?: string;
+  parentCommentContent?: string;
+  // Alternative parent info grouping used in some hooks
+  parentCommentInfo?: {
+    username?: string;
+    content?: string;
+  };
+  // Target info enrichment (different hooks use either title/subtitle or text/icon/color)
+  targetInfo?: {
+    // Basic descriptive fields
+    title?: string;
+    subtitle?: string;
+    // Legacy visual descriptor variant
+    text?: string;
+    icon?: string;
+    color?: string;
+  };
+}
