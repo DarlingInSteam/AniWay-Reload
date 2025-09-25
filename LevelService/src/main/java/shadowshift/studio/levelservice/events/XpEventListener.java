@@ -60,6 +60,7 @@ public class XpEventListener {
             switch (type) {
                 case "LIKE_RECEIVED" -> handleLikeReceived(message, eventId);
                 case "CHAPTER_READ" -> handleChapterRead(message, eventId);
+                case "chapter_read" -> handleChapterRead(message, eventId); // lowercase variant safeguard
                 case "CHAPTER_COMPLETED", "CHAPTER_FINISHED", "CHAPTER_VIEWED" -> {
                     // Accept legacy/alternative producer event names and treat uniformly.
                     handleChapterRead(message, eventId);

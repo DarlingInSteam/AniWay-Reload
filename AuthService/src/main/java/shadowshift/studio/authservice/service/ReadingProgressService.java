@@ -1,6 +1,7 @@
 package shadowshift.studio.authservice.service;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.CacheEvict;
@@ -29,7 +30,12 @@ public class ReadingProgressService {
     
     private final ReadingProgressRepository readingProgressRepository;
     private final UserRepository userRepository;
-    private final UserService userService;
+        private final UserService userService;
+        private final RabbitTemplate rabbitTemplate;
+
+        // XP event routing (must match LevelService listener binding)
+        private static final String XP_EXCHANGE = "xp.events.exchange";
+        private static final String CHAPTER_ROUTING_KEY = "xp.events.chapter"; // assumed existing binding like ChapterService
     
     /**
      * Обновляет прогресс чтения для пользователя.
@@ -46,8 +52,8 @@ public class ReadingProgressService {
      * @throws IllegalArgumentException если пользователь не найден
      */
     @CacheEvict(value = {"userProgress", "mangaProgress", "chapterProgress", "readingStats"}, key = "#username")
-    public ReadingProgressDTO updateProgress(String username, Long mangaId, Long chapterId,
-                                           Double chapterNumber, Integer pageNumber, Boolean isCompleted) {
+        public ReadingProgressDTO updateProgress(String username, Long mangaId, Long chapterId,
+                                                                                   Double chapterNumber, Integer pageNumber, Boolean isCompleted) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
         
@@ -55,7 +61,8 @@ public class ReadingProgressService {
                 .findByUserIdAndChapterId(user.getId(), chapterId);
         
         ReadingProgress progress;
-        if (existingProgress.isPresent()) {
+                boolean isNew = false;
+                if (existingProgress.isPresent()) {
             progress = existingProgress.get();
             progress.setPageNumber(pageNumber);
             progress.setIsCompleted(isCompleted);
@@ -68,21 +75,39 @@ public class ReadingProgressService {
                     .pageNumber(pageNumber)
                     .isCompleted(isCompleted)
                     .build();
+                        isNew = true;
         }
         
         readingProgressRepository.save(progress);
         
-        if (isCompleted) {
-            boolean wasAlreadyCompleted = existingProgress.isPresent() && existingProgress.get().getIsCompleted();
-            if (!wasAlreadyCompleted) {
-                userService.incrementChapterCount(username);
-            }
-        }
+                boolean wasAlreadyCompleted = existingProgress.isPresent() && existingProgress.get().getIsCompleted();
+                if (isCompleted && !wasAlreadyCompleted) {
+                        userService.incrementChapterCount(username);
+                        publishChapterReadEvent(user.getId(), chapterId);
+                } else if (isNew) {
+                        // Even if not completed yet, we can choose to award XP only on completion; so skip here.
+                }
         
         log.info("Reading progress updated for user: {} chapter: {} page: {}", username, chapterId, pageNumber);
         
         return convertToDTO(progress);
     }
+
+        private void publishChapterReadEvent(Long userId, Long chapterId) {
+                if (rabbitTemplate == null) return; // safety
+                try {
+                        java.util.Map<String,Object> event = new java.util.HashMap<>();
+                        event.put("type", "CHAPTER_READ");
+                        event.put("eventId", "CHAPTER_READ:" + userId + ":" + chapterId);
+                        event.put("userId", userId);
+                        event.put("chapterId", chapterId);
+                        event.put("occurredAt", java.time.Instant.now().toString());
+                        rabbitTemplate.convertAndSend(XP_EXCHANGE, CHAPTER_ROUTING_KEY, event);
+                        log.debug("Published CHAPTER_READ XP event for user {} chapter {}", userId, chapterId);
+                } catch (Exception ex) {
+                        log.warn("Failed to publish CHAPTER_READ event user={} chapter={} error={}", userId, chapterId, ex.getMessage());
+                }
+        }
     
     /**
      * Получает последний прогресс чтения для указанной манги.
