@@ -27,6 +27,7 @@ public class BadgeEvaluationService {
     private final XpTransactionRepository xpTransactionRepository;
 
     private static final String BADGE_FIRST_LIKE = "FIRST_LIKE_RECEIVED";
+    private static final String BADGE_FIRST_COMMENT = "FIRST_COMMENT";
     private static final String BADGE_TEN_COMMENTS = "TEN_COMMENTS";
     private static final String BADGE_HUNDRED_CHAPTERS = "HUNDRED_CHAPTERS";
 
@@ -44,6 +45,17 @@ public class BadgeEvaluationService {
                     .anyMatch(tx -> LIKE_SOURCES.contains(tx.getSourceType()));
             if (hasAnyLike) {
                 newlyAwarded.add(saveBadge(userId, BADGE_FIRST_LIKE));
+            }
+        }
+
+        // FIRST_COMMENT
+        if (!userBadgeRepository.existsByUserIdAndBadgeCode(userId, BADGE_FIRST_COMMENT)) {
+            boolean hasFirstComment = xpTransactionRepository
+                    .findByUserIdOrderByCreatedAtDesc(userId, org.springframework.data.domain.PageRequest.of(0, 200))
+                    .stream()
+                    .anyMatch(tx -> "COMMENT_CREATED".equals(tx.getSourceType()));
+            if (hasFirstComment) {
+                newlyAwarded.add(saveBadge(userId, BADGE_FIRST_COMMENT));
             }
         }
 

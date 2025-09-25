@@ -199,7 +199,7 @@ spring:
           predicates:
             - Path=/api/levels/**
           filters:
-            - StripPrefix=0
+              - StripPrefix=1
 
         # MangaService - Parser API endpoints (через MangaService для правильной интеграции)
         - id: manga-parser

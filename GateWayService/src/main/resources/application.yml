@@ -235,7 +235,7 @@ spring:
           predicates:
             - Path=/api/levels/**
           filters:
-            - StripPrefix=0
+            - StripPrefix=1
 
         # Статические ресурсы MangaService (favicon, CSS, JS)
         - id: manga-static

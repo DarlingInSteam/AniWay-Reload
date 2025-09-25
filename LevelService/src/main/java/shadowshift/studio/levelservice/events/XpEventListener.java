@@ -38,6 +38,9 @@ public class XpEventListener {
     @Value("${leveling.xp.chapterLikeReceived:2}")
     private long chapterLikeReceivedXp;
 
+    @Value("${leveling.xp.commentCreated:5}")
+    private long commentCreatedXp;
+
     // Simple dynamic routing: messages contain a type field
     @RabbitListener(queues = "xp.events.queue")
     public void handle(@Payload Map<String, Object> message) {
@@ -107,9 +110,9 @@ public class XpEventListener {
         Long authorUserId = asLong(msg.get("userId"));
         Long commentId = asLong(msg.get("commentId"));
         if (authorUserId == null || commentId == null) return;
-        // 0 XP transaction still recorded for badge counting; using sourceType COMMENT_CREATED
-        UserXp updated = levelServiceDomain.addXp(authorUserId, 0, "COMMENT_CREATED", String.valueOf(commentId), eventId);
-        log.info("Recorded COMMENT_CREATED (0 XP) for user {} => total {}", authorUserId, updated.getTotalXp());
+        // Award configurable XP for creating a comment
+        UserXp updated = levelServiceDomain.addXp(authorUserId, commentCreatedXp, "COMMENT_CREATED", String.valueOf(commentId), eventId);
+        log.info("Applied COMMENT_CREATED ({} XP) for user {} => total {}", commentCreatedXp, authorUserId, updated.getTotalXp());
         evaluateBadgesAsync(authorUserId);
     }
 
