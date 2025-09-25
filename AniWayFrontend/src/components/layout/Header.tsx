@@ -118,7 +118,7 @@ export function Header() {
           <nav className="hidden lg:flex items-center space-x-4 lg:space-x-6 ml-4">
             {[
               { label: 'Каталог', to: '/catalog' },
-              { label: 'Топы', to: '/#tops' },
+              { label: 'Топы', to: '/tops' },
               { label: 'Форум', to: '/forum' },
               { label: 'API Docs', to: '/api-docs' }
             ].map(item => (
@@ -129,7 +129,7 @@ export function Header() {
                   'text-sm font-medium transition-colors duration-200 whitespace-nowrap',
                   'text-muted-foreground hover:text-white',
                   (() => {
-                    if (item.to === '/#tops') return false
+                    if (item.to === '/tops') return location.pathname.startsWith('/tops')
                     if (item.to === '/forum') return location.pathname.startsWith('/forum')
                     return location.pathname.startsWith(item.to)
                   })() && 'text-white'

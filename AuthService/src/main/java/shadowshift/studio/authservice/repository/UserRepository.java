@@ -89,4 +89,22 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
      */
     @Query("SELECT u FROM User u ORDER BY u.chaptersReadCount DESC")
     List<User> findTopReaders();
+
+    /**
+     * Возвращает пользователей, отсортированных по количеству поставленных лайков.
+     * Используйте Pageable для ограничения количества результатов.
+     *
+     * @param pageable параметры пагинации (номер страницы всегда 0, размер = лимит)
+     * @return страница пользователей
+     */
+    @Query("SELECT u FROM User u ORDER BY u.likesGivenCount DESC")
+    org.springframework.data.domain.Page<User> findTopByLikes(org.springframework.data.domain.Pageable pageable);
+
+    /**
+     * Возвращает пользователей, отсортированных по количеству комментариев.
+     * @param pageable параметры пагинации
+     * @return страница пользователей
+     */
+    @Query("SELECT u FROM User u ORDER BY u.commentsCount DESC")
+    org.springframework.data.domain.Page<User> findTopByComments(org.springframework.data.domain.Pageable pageable);
 }

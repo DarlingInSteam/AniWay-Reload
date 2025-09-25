@@ -38,6 +38,7 @@ public class SecurityConfig {
                         // Публичные эндпоинты
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/api/comments/public/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/comments/tops").permitAll()
                         // Чтение комментариев доступно всем (GET запросы)
                         .requestMatchers(HttpMethod.GET, "/api/comments/**").permitAll()
                         // Все остальные запросы требуют аутентификации

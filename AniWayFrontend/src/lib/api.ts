@@ -261,9 +261,9 @@ class ApiClient {
     return promise;
   }
 
-  // Обновить профиль текущего пользователя (deprecated - используйте updateUserProfile)
+  // Обновить профиль текущего пользователя (использует существующий backend endpoint /api/users/me)
   async updateCurrentUserProfile(data: any): Promise<User> {
-    return this.request<User>(`/auth/me`, {
+    return this.request<User>(`/users/me`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
@@ -285,6 +285,48 @@ class ApiClient {
       console.error(`Ошибка при загрузке публичных закладок для пользователя ${username}:`, error);
       return [];
     }
+  }
+
+  // =============================
+  // Leaderboards (Топы)
+  // =============================
+  // Users leaderboard
+  async getTopUsers(params: { metric: 'readers' | 'likes' | 'comments'; limit?: number }): Promise<any[]> {
+    const limit = Math.min(Math.max(params.limit ?? 10, 1), 100);
+    const searchParams = new URLSearchParams({ metric: params.metric, limit: String(limit) });
+    return this.request<any[]>(`/auth/tops/users?${searchParams.toString()}`);
+  }
+
+  // Reviews leaderboard
+  async getTopReviews(params: { days?: number; limit?: number }): Promise<any[]> {
+    const limit = Math.min(Math.max(params.limit ?? 10, 1), 100);
+    const searchParams = new URLSearchParams({ limit: String(limit) });
+    if (params.days) searchParams.append('days', String(params.days));
+    return this.request<any[]>(`/auth/tops/reviews?${searchParams.toString()}`);
+  }
+
+  // Forum threads leaderboard (range: all | 7 | 30)
+  async getTopThreads(params: { range?: 'all' | '7' | '30'; limit?: number }): Promise<any[]> {
+    const limit = Math.min(Math.max(params.limit ?? 10, 1), 100);
+    const searchParams = new URLSearchParams({ limit: String(limit) });
+    if (params.range && params.range !== 'all') searchParams.append('range', params.range);
+    return this.request<any[]>(`/forum/tops/threads?${searchParams.toString()}`);
+  }
+
+  // Forum posts leaderboard (range: all | 7 | 30)
+  async getTopPosts(params: { range?: 'all' | '7' | '30'; limit?: number }): Promise<any[]> {
+    const limit = Math.min(Math.max(params.limit ?? 10, 1), 100);
+    const searchParams = new URLSearchParams({ limit: String(limit) });
+    if (params.range && params.range !== 'all') searchParams.append('range', params.range);
+    return this.request<any[]>(`/forum/tops/posts?${searchParams.toString()}`);
+  }
+
+  // Comments leaderboard (range: all | 7 | 30)
+  async getTopComments(params: { range?: 'all' | '7' | '30'; limit?: number }): Promise<any[]> {
+    const limit = Math.min(Math.max(params.limit ?? 10, 1), 100);
+    const searchParams = new URLSearchParams({ limit: String(limit) });
+    if (params.range && params.range !== 'all') searchParams.append('range', params.range);
+    return this.request<any[]>(`/comments/tops?${searchParams.toString()}`);
   }
 
   async getUserPublicProgress(userId: number): Promise<any[]> {

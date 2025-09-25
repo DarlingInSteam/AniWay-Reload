@@ -95,4 +95,16 @@ public interface ForumThreadRepository extends JpaRepository<ForumThread, Long> 
      */
     @Query("SELECT t FROM ForumThread t WHERE t.authorId = :authorId AND t.categoryId = :categoryId AND t.isDeleted = false ORDER BY t.createdAt DESC")
     Page<ForumThread> findByAuthorIdAndCategoryIdAndNotDeleted(@Param("authorId") Long authorId, @Param("categoryId") Long categoryId, Pageable pageable);
+
+        /**
+         * Топ тем (all-time) по количеству ответов, затем лайков, затем просмотров.
+         */
+        @Query("SELECT t FROM ForumThread t WHERE t.isDeleted = false ORDER BY t.repliesCount DESC, t.likesCount DESC, t.viewsCount DESC, t.createdAt DESC")
+        org.springframework.data.domain.Page<ForumThread> findTopThreadsAllTime(org.springframework.data.domain.Pageable pageable);
+
+        /**
+         * Топ тем за период (activity window) по repliesCount.
+         */
+        @Query("SELECT t FROM ForumThread t WHERE t.isDeleted = false AND t.createdAt >= :fromDate ORDER BY t.repliesCount DESC, t.likesCount DESC, t.createdAt DESC")
+        org.springframework.data.domain.Page<ForumThread> findTopThreadsSince(@Param("fromDate") java.time.LocalDateTime fromDate, org.springframework.data.domain.Pageable pageable);
 }

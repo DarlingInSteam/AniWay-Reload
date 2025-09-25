@@ -64,6 +64,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/auth/reviews/manga/*/rating").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/reviews/manga/*").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/reviews/user/*/count").permitAll()
+                        // Public leaderboards
+                        .requestMatchers(HttpMethod.GET, "/api/auth/tops/users").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/auth/tops/reviews").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/users/search").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/users/*/public").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/users/*/public/progress").permitAll()

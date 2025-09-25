@@ -95,4 +95,15 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
      * @return количество отзывов пользователя
      */
     Long countByUserId(Long userId);
+
+    /**
+     * Находит топ отзывов за указанный период (по дате создания >= :fromDate),
+     * сортируя по фактору доверия (лайки - дизлайки), затем по количеству лайков и дате.
+     * @param fromDate нижняя граница даты
+     * @param pageable пагинация для ограничения количества результатов
+     * @return страница отзывов
+     */
+    @Query("SELECT r FROM Review r WHERE r.createdAt >= :fromDate ORDER BY (r.likesCount - r.dislikesCount) DESC, r.likesCount DESC, r.createdAt DESC")
+    org.springframework.data.domain.Page<Review> findTopReviewsSince(@Param("fromDate") java.time.LocalDateTime fromDate,
+                                                                    org.springframework.data.domain.Pageable pageable);
 }

@@ -20,6 +20,7 @@ import { NotificationProvider } from './notifications/NotificationContext'
 import { NotificationsPage } from './notifications/NotificationsPage'
 import { authService } from './services/authService'
 import { Toaster } from 'sonner'
+import { TopsPage } from './pages/TopsPage'
 
 function InnerApp() {
   const { user } = useAuth();
@@ -38,6 +39,8 @@ function InnerApp() {
             <Route path="/forum/category/:categoryId/create-thread" element={<CreateThreadPage />} />
           <Route path="/forum/thread/:threadId" element={<ForumThreadPage />} />
           <Route path="/forum/create-thread" element={<CreateThreadPage />} />
+          {/* Топы / Лидеры */}
+          <Route path="/tops" element={<TopsPage />} />
           
           {/* Аутентификация */}
           <Route path="/login" element={<AuthPage />} />
