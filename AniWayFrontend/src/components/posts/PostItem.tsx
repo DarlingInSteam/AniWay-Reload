@@ -6,7 +6,7 @@ import { MangaMiniCard } from './MangaMiniCard';
 import { MarkdownMiniToolbar } from '@/components/markdown/MarkdownMiniToolbar';
 import { MessageCircle } from 'lucide-react';
 import { apiClient } from '@/lib/api';
-import { extractAvatar, avatarFallbackLetter } from '@/lib/avatar';
+import { useResolvedAvatar } from '@/hooks/useResolvedAvatar';
 import { PostCommentsModal } from './PostCommentsModal';
 
 interface PostItemProps {
@@ -139,7 +139,8 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
   }
 
   const [authorName,setAuthorName] = useState<string|undefined>(undefined);
-  const [authorAvatar,setAuthorAvatar] = useState<string|undefined>(undefined);
+  const [profileAvatar,setProfileAvatar] = useState<string|undefined>(undefined);
+  const computedAvatar = useResolvedAvatar(localPost.userId, profileAvatar);
   const [commentsOpen,setCommentsOpen] = useState(false);
   // Ensure initial comments count reflects backend real count
   useEffect(()=>{
@@ -160,7 +161,7 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
       try {
         const profile = await apiClient.getUserPublicProfile(localPost.userId);
         setAuthorName((profile as any).username || (profile as any).displayName || `User #${localPost.userId}`);
-        setAuthorAvatar(extractAvatar(profile));
+        // Avatar intentionally not stored: useResolvedAvatar will fetch through dedicated endpoint
       } catch {
         setAuthorName(`User #${localPost.userId}`);
       }
@@ -172,7 +173,7 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
   <div className="p-4 rounded-xl glass-panel space-y-3 relative">
       <div className="flex items-start gap-3">
         <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-purple-600/40 to-fuchsia-600/40 border border-white/15 overflow-hidden flex items-center justify-center text-xs text-slate-300 font-semibold">
-          {authorAvatar ? <img src={authorAvatar} alt={authorName} className="w-full h-full object-cover"/> : avatarFallbackLetter(authorName)}
+          {computedAvatar ? <img src={computedAvatar} alt={authorName} className="w-full h-full object-cover"/> : (authorName? authorName[0]?.toUpperCase(): '?')}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">

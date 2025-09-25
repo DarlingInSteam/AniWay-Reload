@@ -5,7 +5,7 @@ import { Post } from '@/types/posts';
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer';
 import { MangaMiniCard } from './MangaMiniCard';
 import { apiClient } from '@/lib/api';
-import { extractAvatar, avatarFallbackLetter } from '@/lib/avatar';
+import { useResolvedAvatar } from '@/hooks/useResolvedAvatar';
 
 interface PostCommentsModalProps {
   open: boolean;
@@ -19,14 +19,14 @@ interface PostCommentsModalProps {
 export const PostCommentsModal: React.FC<PostCommentsModalProps> = ({ open, onClose, post, onPostUpdated, onCommentsCountChange }) => {
   // Author profile (avatar + nick)
   const [authorName,setAuthorName] = useState<string|undefined>();
-  const [authorAvatar,setAuthorAvatar] = useState<string|undefined>();
+  const [profileAvatar,setProfileAvatar] = useState<string|undefined>();
+  const computedAvatar = useResolvedAvatar(post.userId, profileAvatar);
   useEffect(()=>{
     if(!open) return;
     (async()=>{
       try {
         const profile = await apiClient.getUserPublicProfile(post.userId);
         setAuthorName((profile as any).username || (profile as any).displayName || `User #${post.userId}`);
-        setAuthorAvatar(extractAvatar(profile));
       } catch { setAuthorName(`User #${post.userId}`); }
     })();
   }, [open, post.userId]);
@@ -119,7 +119,7 @@ export const PostCommentsModal: React.FC<PostCommentsModalProps> = ({ open, onCl
         <div className="flex items-center justify-between p-4 border-b border-white/10">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600/40 to-fuchsia-600/40 border border-white/15 overflow-hidden flex items-center justify-center text-xs text-slate-300 font-semibold">
-              {authorAvatar ? <img src={authorAvatar} alt={authorName} className="w-full h-full object-cover"/> : avatarFallbackLetter(authorName)}
+              {computedAvatar ? <img src={computedAvatar} alt={authorName} className="w-full h-full object-cover"/> : (authorName? authorName[0]?.toUpperCase(): '?')}
             </div>
             <div className="flex flex-col leading-tight min-w-0">
               <span className="text-sm font-medium text-slate-200 truncate">{authorName || '...'}</span>
