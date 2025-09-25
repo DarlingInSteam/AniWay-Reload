@@ -8,6 +8,8 @@ import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
 import { profileService } from '@/services/profileService'
 import { Progress } from '@/components/ui/progress'
 import GlassPanel from '@/components/ui/GlassPanel'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import XpHistoryList from '@/components/profile/XpHistoryList'
 import { useUserLevel } from '@/hooks/useUserLevel'
 
 interface ProfileHeroProps {
@@ -67,6 +69,7 @@ const AvatarSection: React.FC<{ profile: UserProfile; isOwn: boolean; uploading:
 const LevelPanel: React.FC<{ profile: UserProfile; }> = ({ profile }) => {
   const userId = parseInt(profile.id)
   const { data: levelData, isLoading, isError } = useUserLevel(userId)
+  const [open, setOpen] = useState(false)
 
   // Fallback to simple derived activity if backend not yet responding
   const totalActivity = (profile.mangaRead || 0) * 10 + (profile.chaptersRead || 0)
@@ -79,7 +82,7 @@ const LevelPanel: React.FC<{ profile: UserProfile; }> = ({ profile }) => {
 
   return (
     <div className="hidden lg:flex flex-col w-72">
-      <GlassPanel className="p-4 flex flex-col gap-4" padding="none">
+      <GlassPanel onClick={() => setOpen(true)} className="p-4 flex flex-col gap-4 cursor-pointer hover:shadow-lg transition-shadow" padding="none">
         <div className="flex items-center justify-between">
           <span className="text-xs tracking-wide text-slate-400 uppercase">Уровень</span>
           <span className="text-sm font-semibold text-white">{isLoading ? '…' : level}</span>
@@ -100,6 +103,15 @@ const LevelPanel: React.FC<{ profile: UserProfile; }> = ({ profile }) => {
           <div className="text-[10px] text-amber-400">Нет данных уровня (fallback)</div>
         )}
       </GlassPanel>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-lg bg-neutral-900/95 border border-white/10">
+          <DialogHeader>
+            <DialogTitle className="text-white">История опыта</DialogTitle>
+          </DialogHeader>
+          <div className="text-xs text-slate-400 mb-3">Недавние действия и начисления XP</div>
+          <XpHistoryList userId={userId} />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
