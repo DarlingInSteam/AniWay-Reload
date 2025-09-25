@@ -26,7 +26,7 @@ public class XpEventListener {
     @Value("${leveling.xp.likeReceived:2}")
     private long likeReceivedXp;
 
-    @Value("${leveling.xp.chapterRead:5}")
+    @Value("${leveling.xp.chapterRead:1}")
     private long chapterReadXp;
 
     @Value("${leveling.xp.badgeAwarded:25}")
@@ -38,8 +38,9 @@ public class XpEventListener {
     @Value("${leveling.xp.chapterLikeReceived:2}")
     private long chapterLikeReceivedXp;
 
-    @Value("${leveling.xp.commentCreated:5}")
-    private long commentCreatedXp;
+    // Comment creation no longer grants XP (abuse prevention). Keep config for clarity but ignore value (force 0).
+    @Value("${leveling.xp.commentCreated:0}")
+    private long commentCreatedXp; // retained only so existing property doesn't cause confusion if set; we won't use this value
 
     @Value("${leveling.xp.forumThreadLikeReceived:2}")
     private long forumThreadLikeReceivedXp;
@@ -59,6 +60,10 @@ public class XpEventListener {
             switch (type) {
                 case "LIKE_RECEIVED" -> handleLikeReceived(message, eventId);
                 case "CHAPTER_READ" -> handleChapterRead(message, eventId);
+                case "CHAPTER_COMPLETED", "CHAPTER_FINISHED", "CHAPTER_VIEWED" -> {
+                    // Accept legacy/alternative producer event names and treat uniformly.
+                    handleChapterRead(message, eventId);
+                }
                 case "BADGE_AWARDED" -> handleBadgeAwarded(message, eventId);
                 case "POST_UPVOTED" -> handlePostUpvoted(message, eventId);
                 case "CHAPTER_LIKE_RECEIVED" -> handleChapterLikeReceived(message, eventId);
@@ -128,9 +133,11 @@ public class XpEventListener {
         Long authorUserId = asLong(msg.get("userId"));
         Long commentId = asLong(msg.get("commentId"));
         if (authorUserId == null || commentId == null) return;
-        // Award configurable XP for creating a comment
-        UserXp updated = levelServiceDomain.addXp(authorUserId, commentCreatedXp, "COMMENT_CREATED", String.valueOf(commentId), eventId);
-        log.info("Applied COMMENT_CREATED ({} XP) for user {} => total {}", commentCreatedXp, authorUserId, updated.getTotalXp());
+        // Business rule: do NOT award XP for creating a comment (anti-abuse). We still persist a zero-XP transaction so that
+        // badge logic (FIRST_COMMENT / TEN_COMMENTS) can continue to function without redesign.
+        long awarded = 0L; // force zero regardless of configured property
+        UserXp updated = levelServiceDomain.addXp(authorUserId, awarded, "COMMENT_CREATED", String.valueOf(commentId), eventId);
+        log.info("Recorded COMMENT_CREATED with {} XP (comment XP disabled) for user {} => total {}", awarded, authorUserId, updated.getTotalXp());
         evaluateBadgesAsync(authorUserId);
     }
 

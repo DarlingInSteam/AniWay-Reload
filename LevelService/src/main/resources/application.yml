@@ -29,11 +29,13 @@ management:
 leveling:
   xp:
     likeReceived: 2
-    chapterRead: 5
+    # Lowered: anti-inflation adjustment (was 5)
+    chapterRead: 1
     badgeAwarded: 25
     postUpvoted: 2
     chapterLikeReceived: 2
-    commentCreated: 5
+    # Comment creation XP disabled (anti-abuse)
+    commentCreated: 0
     forumThreadLikeReceived: 2
     forumPostLikeReceived: 2
     reviewLikeReceived: 2
