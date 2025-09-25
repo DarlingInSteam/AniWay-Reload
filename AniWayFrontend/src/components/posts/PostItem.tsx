@@ -6,6 +6,7 @@ import { MangaMiniCard } from './MangaMiniCard';
 import { MarkdownMiniToolbar } from '@/components/markdown/MarkdownMiniToolbar';
 import { MessageCircle } from 'lucide-react';
 import { apiClient } from '@/lib/api';
+import { PostCommentsModal } from './PostCommentsModal';
 
 interface PostItemProps {
   post: Post;
@@ -138,6 +139,7 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
 
   const [authorName,setAuthorName] = useState<string|undefined>(undefined);
   const [authorAvatar,setAuthorAvatar] = useState<string|undefined>(undefined);
+  const [commentsOpen,setCommentsOpen] = useState(false);
   useEffect(()=>{
     // attempt load public profile
     (async()=>{
@@ -154,6 +156,7 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
   }, [localPost.userId]);
 
   return (
+  <>
   <div className="p-4 rounded-xl glass-panel space-y-3 relative">
       <div className="flex items-start gap-3">
         <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-purple-600/40 to-fuchsia-600/40 border border-white/15 overflow-hidden flex items-center justify-center text-xs text-slate-300 font-semibold">
@@ -208,7 +211,7 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
           <button onClick={() => handleVote(-1)} className={"px-2 py-1 rounded text-xs " + (localPost.stats.userVote === -1 ? 'bg-red-600' : 'bg-neutral-700')}>-{localPost.stats.down}</button>
           <span className="text-xs text-neutral-400">Score {localPost.stats.score}</span>
         </div>
-        <button type="button" className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 px-2 py-1 rounded-md border border-white/10 transition">
+        <button type="button" onClick={()=>setCommentsOpen(true)} className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 px-2 py-1 rounded-md border border-white/10 transition">
           <MessageCircle size={14} />
           <span>Комментарии</span>
           {(localPost.stats.commentsCount ?? 0) > 0 && <span className="text-[10px] text-purple-300">{localPost.stats.commentsCount}</span>}
@@ -227,5 +230,7 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
         )}
       </div>
     </div>
+    <PostCommentsModal open={commentsOpen} onClose={()=>setCommentsOpen(false)} post={localPost} onPostUpdated={(p)=>{ setLocalPost(p); onUpdated?.(p); }} />
+  </>
   );
 };
