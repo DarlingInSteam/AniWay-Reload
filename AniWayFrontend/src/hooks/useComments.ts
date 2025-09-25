@@ -66,7 +66,14 @@ export function useComments(
   const reactionMutation = useMutation({
     mutationFn: ({ commentId, reactionType }: { commentId: number; reactionType: 'LIKE' | 'DISLIKE' }) =>
       commentService.addReaction(commentId, reactionType),
-    onSuccess: () => {
+    onSuccess: (stats) => {
+      // Optimistically update counts in cache
+      queryClient.setQueryData<CommentResponseDTO[]>(queryKey, (old)=>{
+        if(!old) return old;
+        return old.map(c=> c.id === stats.commentId ? { ...c, likesCount: stats.likesCount, dislikesCount: stats.dislikesCount } : c);
+      });
+      // Also update replies if any (deep walk)
+      // For simplicity, just invalidate afterwards to refresh full tree
       queryClient.invalidateQueries({ queryKey })
     },
     onError: (error) => {

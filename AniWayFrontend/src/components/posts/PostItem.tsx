@@ -140,6 +140,20 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
   const [authorName,setAuthorName] = useState<string|undefined>(undefined);
   const [authorAvatar,setAuthorAvatar] = useState<string|undefined>(undefined);
   const [commentsOpen,setCommentsOpen] = useState(false);
+  // Ensure initial comments count reflects backend real count
+  useEffect(()=>{
+    if((localPost.stats.commentsCount||0) === 0){
+      const numericId = parseInt(localPost.id as any,10);
+      if(!Number.isFinite(numericId)) return;
+      import('@/services/commentService').then(({commentService})=>{
+        commentService.getCommentsCount(numericId,'POST').then(count=>{
+          if(count>0){
+            setLocalPost(lp=>({...lp, stats:{...lp.stats, commentsCount: count}}));
+          }
+        }).catch(()=>{});
+      });
+    }
+  }, [localPost.id]);
   useEffect(()=>{
     // attempt load public profile
     (async()=>{
@@ -147,8 +161,8 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
         const profile = await apiClient.getUserPublicProfile(localPost.userId);
         setAuthorName(profile.username || profile.displayName || `User #${localPost.userId}`);
         // heuristic avatar field names
-        // @ts-ignore
-        setAuthorAvatar(profile.avatarUrl || profile.profileImageUrl || profile.imageUrl);
+        // @ts-ignore collect possible avatar keys
+        setAuthorAvatar(profile.avatarUrl || profile.profileImageUrl || profile.imageUrl || profile.avatar || profile.avatarURL || profile.profileAvatar || profile.avatarPath);
       } catch {
         setAuthorName(`User #${localPost.userId}`);
       }

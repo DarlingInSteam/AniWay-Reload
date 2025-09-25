@@ -16,6 +16,20 @@ interface PostCommentsModalProps {
 }
 
 export const PostCommentsModal: React.FC<PostCommentsModalProps> = ({ open, onClose, post, onPostUpdated, onCommentsCountChange }) => {
+  // Author profile (avatar + nick)
+  const [authorName,setAuthorName] = useState<string|undefined>();
+  const [authorAvatar,setAuthorAvatar] = useState<string|undefined>();
+  useEffect(()=>{
+    if(!open) return;
+    (async()=>{
+      try {
+        const profile = await apiClient.getUserPublicProfile(post.userId);
+        setAuthorName((profile as any).username || (profile as any).displayName || `User #${post.userId}`);
+        // @ts-ignore gather potential avatar fields
+        setAuthorAvatar(profile.avatarUrl || profile.profileImageUrl || profile.imageUrl || profile.avatar || profile.avatarURL || profile.profileAvatar || profile.avatarPath);
+      } catch { setAuthorName(`User #${post.userId}`); }
+    })();
+  }, [open, post.userId]);
   useEffect(()=>{
     if(open){
       const prev = document.body.style.overflow;
@@ -87,10 +101,18 @@ export const PostCommentsModal: React.FC<PostCommentsModalProps> = ({ open, onCl
       <div className="relative w-full max-w-4xl mx-auto h-[85vh] glass-panel rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-white/10">
-          <div className="flex items-center gap-2 text-sm font-medium text-slate-200">
-            <MessageCircle size={16} /> Комментарии к посту {commentsCount !== undefined && (
-              <span className="text-xs text-purple-300">({commentsCount})</span>
-            )}
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600/40 to-fuchsia-600/40 border border-white/15 overflow-hidden flex items-center justify-center text-xs text-slate-300 font-semibold">
+              {authorAvatar ? <img src={authorAvatar} alt={authorName} className="w-full h-full object-cover"/> : (authorName? authorName[0]?.toUpperCase(): '?')}
+            </div>
+            <div className="flex flex-col leading-tight min-w-0">
+              <span className="text-sm font-medium text-slate-200 truncate">{authorName || '...'}</span>
+              <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                <MessageCircle size={12} /> Комментарии {commentsCount !== undefined && (
+                  <span className="text-purple-300">({commentsCount})</span>
+                )}
+              </span>
+            </div>
           </div>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-md bg-white/5 hover:bg-white/10 text-slate-300" aria-label="Закрыть">
             <X size={16} />
