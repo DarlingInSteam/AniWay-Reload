@@ -3,6 +3,7 @@ import { Users, MessageSquare, Hash, Quote } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api'
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
+import { useUserLevelsBatch } from '@/hooks/useUserLevelsBatch'
 import { useUserMiniBatch } from '@/hooks/useUserMiniBatch'
 import { useMangaMiniBatch } from '@/hooks/useMangaMiniBatch'
 import { LeaderboardSkeleton } from '@/components/tops/LeaderboardSkeleton'
@@ -121,20 +122,13 @@ export function TopsPage() {
     if (usersQuery.isLoading) return <LeaderboardSkeleton rows={10} />
     if (usersQuery.isError) return <LeaderboardError onRetry={() => usersQuery.refetch()} />
     const users = usersQuery.data || []
+    const userLevelMap = useUserLevelsBatch(users.map((u:any)=> u.id))
     return (
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {users.map((u: any, idx: number) => {
-          // Derive level consistently if mismatch: fallback formula from total activity if xp present
-          const derivedLevel = (() => {
-            // Simple progressive thresholds similar to profile fallback (0,50,150,300,500,...)
-            const thresholds = [0,50,150,300,500,750,1000,1500,2000,3000]
-            const xpVal = u.xp ?? 0
-            for(let i=thresholds.length-1;i>=0;i--){
-              if(xpVal >= thresholds[i]) return i+1
-            }
-            return 1
-          })()
-          const levelToShow = u.level && u.xp!=null ? (Math.abs(derivedLevel - u.level) > 1 ? derivedLevel : u.level) : (u.level ?? derivedLevel)
+          const lvlData = userLevelMap[u.id]
+          const levelToShow = lvlData?.level ?? u.level ?? 1
+          const xpToShow = lvlData?.totalXp ?? u.xp
           const statLabel = (() => {
             switch (userMetric) {
               case 'readers': return `${u.chaptersReadCount ?? 0} глав`
@@ -165,7 +159,7 @@ export function TopsPage() {
                   </div>
                   <div className="mt-1 flex flex-wrap gap-1.5 text-[10px]">
                     {levelToShow != null && <span className="px-2 py-0.5 rounded bg-purple-600/25 text-purple-200 border border-white/10">LVL {levelToShow}</span>}
-                    {u.xp != null && <span className="px-2 py-0.5 rounded bg-fuchsia-600/25 text-fuchsia-200 border border-white/10">XP {u.xp}</span>}
+                    {xpToShow != null && <span className="px-2 py-0.5 rounded bg-fuchsia-600/25 text-fuchsia-200 border border-white/10">XP {xpToShow}</span>}
                   </div>
                 </div>
               </div>
@@ -294,12 +288,11 @@ export function TopsPage() {
     return (
       <div className="flex flex-col gap-5">
         {comments.map((c: any, idx: number) => {
-          // Wider fallback scanning for like/dislike values
-          const likeCandidates = [c.likeCount, c.likesCount, c.upVotes, c.positive, c.up]
-          const dislikeCandidates = [c.dislikeCount, c.dislikesCount, c.downVotes, c.negative, c.down]
-          const likeVal = likeCandidates.find(v=> typeof v === 'number') ?? (typeof c.trustFactor==='number' && c.trustFactor>0 ? c.trustFactor : 0)
-          const dislikeVal = dislikeCandidates.find(v=> typeof v === 'number') ?? (typeof c.trustFactor==='number' && c.trustFactor<0 ? Math.abs(c.trustFactor) : 0)
-          const trust = typeof c.trustFactor === 'number' ? c.trustFactor : (likeVal - dislikeVal)
+          // Backend already sends likesCount / dislikesCount + aliases likeCount / dislikeCount + trustFactor.
+          // Prefer explicit counts; compute trust only if missing.
+          const likeVal = (typeof c.likesCount === 'number' ? c.likesCount : (typeof c.likeCount === 'number' ? c.likeCount : 0))
+          const dislikeVal = (typeof c.dislikesCount === 'number' ? c.dislikesCount : (typeof c.dislikeCount === 'number' ? c.dislikeCount : 0))
+          const trust = (typeof c.trustFactor === 'number') ? c.trustFactor : (likeVal - dislikeVal)
           const targetLink = (() => {
             const type = (c.commentType || c.type || '').toUpperCase()
             switch(type){
