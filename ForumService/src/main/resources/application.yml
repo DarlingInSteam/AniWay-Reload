@@ -4,8 +4,8 @@ spring:
   rabbitmq:
     host: ${RABBITMQ_HOST:rabbitmq}
     port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USERNAME:guest}
-    password: ${RABBITMQ_PASSWORD:guest}
+    username: ${RABBITMQ_USERNAME:aniway}
+    password: ${RABBITMQ_PASSWORD:aniway_pass}
 
 xp:
   events:

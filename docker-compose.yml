@@ -150,6 +150,27 @@ services:
       timeout: 5s
       retries: 5
 
+  # Forum Service PostgreSQL
+  forum-postgres:
+    image: postgres:16
+    container_name: forum-postgres
+    environment:
+      POSTGRES_DB: forumdb
+      POSTGRES_USER: forum_user
+      POSTGRES_PASSWORD: forum_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5440:5432"
+    volumes:
+      - forum_postgres_data:/var/lib/postgresql/data
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U forum_user -d forumdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # RabbitMQ broker
   rabbitmq:
     image: rabbitmq:3.13-management
@@ -261,6 +282,7 @@ services:
       - auth-service
       - post-service
       - level-service
+      - forum-service
       - rabbitmq
     networks:
       - aniway-network
@@ -400,6 +422,36 @@ services:
     networks:
       - aniway-network
     restart: unless-stopped
+
+  # Forum Service
+  forum-service:
+    build:
+      context: ./ForumService
+      dockerfile: Dockerfile
+    container_name: forum-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://forum-postgres:5432/forumdb
+      - SPRING_DATASOURCE_USERNAME=forum_user
+      - SPRING_DATASOURCE_PASSWORD=forum_password
+      - JWT_SECRET=mySecretKey12345678901234567890123456789012345678901234567890
+      - JWT_EXPIRATION=86400000
+      - AUTH_SERVICE_URL=http://auth-service:8085
+      - MANGA_SERVICE_URL=http://manga-service:8081
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USERNAME=aniway
+      - RABBITMQ_PASSWORD=aniway_pass
+    ports:
+      - "8087:8087"
+    depends_on:
+      forum-postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - aniway-network
+    restart: unless-stopped
   frontend:
     build:
       context: ./AniWayFrontend
@@ -423,3 +475,4 @@ volumes:
   melon_data:
   melon_logs:
   melon_temp:
+  forum_postgres_data:
