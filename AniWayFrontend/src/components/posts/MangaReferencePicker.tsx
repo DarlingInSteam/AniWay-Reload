@@ -24,6 +24,7 @@ export const MangaReferencePicker: React.FC<MangaReferencePickerProps> = ({ open
 
   async function handleSearch(e: React.FormEvent){
     e.preventDefault();
+    e.stopPropagation();
     const query = q.trim();
     if(!query) return;
     setLoading(true);

@@ -9,6 +9,11 @@ interface PostListProps {
 }
 
 export const PostList: React.FC<PostListProps> = ({ userId, currentUserId }) => {
+  // Fallback: attempt to read persisted user id if not passed
+  if(currentUserId == null){
+    const stored = localStorage.getItem('userId') || localStorage.getItem('userID') || localStorage.getItem('currentUserId');
+    if(stored) currentUserId = parseInt(stored);
+  }
   const [posts, setPosts] = useState<Post[]>([]);
   const [page, setPage] = useState(0);
   const [hasNext, setHasNext] = useState(false);

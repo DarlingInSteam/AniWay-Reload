@@ -19,9 +19,9 @@ class ApiClient {
     // Heuristic: add X-User-Id for mutating post endpoints (backend expects it) and for comments
     const method = (options?.method || 'GET').toUpperCase();
     const needsUserHeader = !!userId && (
-      (/^\/posts\b/.test(endpoint) && ['POST','PUT','DELETE'].includes(method)) ||
+      (/^\/posts\b/.test(endpoint) && ['POST','PUT','DELETE','GET'].includes(method)) ||
       (/^\/posts\/.*\/vote$/.test(endpoint)) ||
-      (/^\/comments\b/.test(endpoint) && ['POST','PUT','DELETE'].includes(method))
+      (/^\/comments\b/.test(endpoint) && ['POST','PUT','DELETE','GET'].includes(method))
     );
 
     const response = await fetch(url, {

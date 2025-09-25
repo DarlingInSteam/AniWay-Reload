@@ -122,7 +122,12 @@ export class PostService {
     const formData = new FormData();
     for(const f of files){ formData.append('files', f); }
     try {
-      const res = await fetch('/api/posts/attachments', { method: 'POST', body: formData });
+      const token = localStorage.getItem('authToken');
+      const userId = localStorage.getItem('userId') || localStorage.getItem('userID') || localStorage.getItem('currentUserId');
+      const headers: Record<string,string> = { };
+      if(token) headers['Authorization'] = `Bearer ${token}`;
+      if(userId) headers['X-User-Id'] = userId;
+      const res = await fetch('/api/posts/attachments', { method: 'POST', body: formData, headers });
       if(!res.ok) return [];
       const arr = await res.json();
       return Array.isArray(arr) ? arr.map((o:any)=>({ filename: o.originalFilename || o.filename || 'image', url: o.url || o.objectUrl || o.path, sizeBytes: o.size || o.sizeBytes || 0 })) : [];
