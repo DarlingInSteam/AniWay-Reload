@@ -4,6 +4,15 @@ server:
 spring:
   application:
     name: comment-service
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    connection-timeout: 5000
+    template:
+      mandatory: true
+    publisher-confirm-type: correlated
   
   # Database configuration
   datasource:

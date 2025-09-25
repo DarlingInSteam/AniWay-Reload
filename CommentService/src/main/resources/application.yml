@@ -4,6 +4,15 @@ server:
 spring:
   application:
     name: comment-service
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    connection-timeout: 5000
+    template:
+      mandatory: true
+    publisher-confirm-type: correlated
   
   # Database configuration
   datasource:
@@ -73,6 +82,11 @@ spring:
   
   datasource:
     url: jdbc:postgresql://comment-postgres:5432/comment_db
+  rabbitmq:
+    host: ${RABBITMQ_HOST:rabbitmq}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:aniway}
+    password: ${RABBITMQ_PASSWORD:aniway_pass}
     
   jpa:
     show-sql: true
@@ -91,6 +105,11 @@ spring:
       
   datasource:
     url: jdbc:postgresql://comment-postgres:5432/comment_db
+  rabbitmq:
+    host: ${RABBITMQ_HOST:rabbitmq}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:aniway}
+    password: ${RABBITMQ_PASSWORD:aniway_pass}
     
   jpa:
     show-sql: false
