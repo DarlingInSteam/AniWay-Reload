@@ -23,11 +23,15 @@ export function ProfileSummary({ profile, isOwnProfile, onProfileUpdate }: Profi
     setIsEditingBio(false);
   };
 
-  const formatJoinDate = (date: Date) => {
+  const formatJoinDate = (date: Date | string) => {
+    if (!date) return '—';
+    const d = typeof date === 'string' ? new Date(date) : date;
+    if (isNaN(d.getTime())) return '—';
     return new Intl.DateTimeFormat('ru-RU', {
       year: 'numeric',
-      month: 'long'
-    }).format(date);
+      month: 'long',
+      day: '2-digit'
+    }).format(d);
   };
 
   const socialIcons = {
