@@ -103,7 +103,7 @@ public class ReadingProgressService {
                         event.put("chapterId", chapterId);
                         event.put("occurredAt", java.time.Instant.now().toString());
                         rabbitTemplate.convertAndSend(XP_EXCHANGE, CHAPTER_ROUTING_KEY, event);
-                        log.debug("Published CHAPTER_READ XP event for user {} chapter {}", userId, chapterId);
+                        log.info("[XP-PUBLISH] CHAPTER_READ user={} chapter={} routingKey={} exchange={}", userId, chapterId, CHAPTER_ROUTING_KEY, XP_EXCHANGE);
                 } catch (Exception ex) {
                         log.warn("Failed to publish CHAPTER_READ event user={} chapter={} error={}", userId, chapterId, ex.getMessage());
                 }

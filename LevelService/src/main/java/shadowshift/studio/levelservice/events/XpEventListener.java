@@ -94,10 +94,17 @@ public class XpEventListener {
         evaluateBadgesAsync(receiverUserId);
     }
 
-    private void handleChapterRead(Map<String, Object> msg, String eventId) {
-        Long userId = asLong(msg.get("userId"));
-        Long chapterId = asLong(msg.get("chapterId"));
-        if (userId == null || chapterId == null) return;
+    private void handleChapterRead(Map<String, Object> message, String eventId) {
+        Long userId = asLong(message.get("userId"));
+        if (userId == null) {
+            log.warn("CHAPTER_READ event missing userId eventId={}", eventId);
+            return;
+        }
+        Long chapterId = asLong(message.get("chapterId"));
+        log.info("[XP-CONSUME] CHAPTER_READ received user={} chapter={} eventId={}", userId, chapterId, eventId);
+        if (chapterId == null) {
+            log.warn("CHAPTER_READ event missing chapterId user={} eventId={}", userId, eventId);
+        }
         UserXp updated = levelServiceDomain.addXp(userId, chapterReadXp, "CHAPTER_READ", String.valueOf(chapterId), eventId);
         log.info("Applied CHAPTER_READ XP to user {} => total {}", userId, updated.getTotalXp());
         evaluateBadgesAsync(userId);
