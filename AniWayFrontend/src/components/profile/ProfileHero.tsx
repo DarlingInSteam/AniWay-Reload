@@ -82,26 +82,56 @@ const LevelPanel: React.FC<{ profile: UserProfile; }> = ({ profile }) => {
 
   return (
     <div className="hidden lg:flex flex-col w-72">
-      <GlassPanel onClick={() => setOpen(true)} className="p-4 flex flex-col gap-4 cursor-pointer hover:shadow-lg transition-shadow" padding="none">
-        <div className="flex items-center justify-between">
-          <span className="text-xs tracking-wide text-slate-400 uppercase">Уровень</span>
-          <span className="text-sm font-semibold text-white">{isLoading ? '…' : level}</span>
+      <GlassPanel
+        onClick={() => setOpen(true)}
+        padding="none"
+        className="relative p-4 flex flex-col gap-4 cursor-pointer transition-shadow group overflow-hidden
+        before:absolute before:inset-0 before:pointer-events-none before:rounded-[inherit]
+        before:bg-gradient-to-br before:from-slate-900/50 before:via-slate-800/40 before:to-slate-900/20
+        hover:shadow-lg hover:shadow-black/40">
+        {/* Subtle top accent line */}
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+        <div className="flex items-start justify-between">
+          <div className="flex flex-col">
+            <span className="text-[10px] tracking-wide text-slate-300/80 uppercase">Уровень</span>
+            <span className="text-2xl font-semibold text-white/90 drop-shadow-sm leading-snug">{isLoading ? '…' : level}</span>
+          </div>
+          <div className="flex flex-col items-end gap-1 text-[10px] text-slate-400">
+            <span className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-[9px] tracking-wide uppercase">XP</span>
+            <span className="font-medium text-slate-300/90">{xpInto}/{xpForNext}</span>
+          </div>
         </div>
-        <div>
-          <div className="flex justify-between text-[11px] text-slate-500 mb-1">
+        <div className="mt-1">
+          <div className="flex justify-between text-[10px] text-slate-500 mb-1">
             <span>{xpInto} XP</span>
             <span>{xpForNext} XP</span>
           </div>
-            <Progress value={pct} className="h-2" />
-            <div className="mt-1 text-[11px] text-slate-500">{level>=10? 'MAX' : `До след.: ${remaining} XP`}</div>
+          <Progress
+            value={pct}
+            className="h-2 bg-slate-800/70 border border-white/10 relative overflow-hidden after:absolute after:inset-0 after:bg-[linear-gradient(120deg,transparent,rgba(255,255,255,0.08),transparent)] after:opacity-0 group-hover:after:opacity-100 after:transition-opacity" />
+          <div className="mt-1 text-[10px] text-slate-400/80 tracking-wide">
+            {level >= 10 ? 'MAX' : `До след.: ${remaining} XP`}
+          </div>
         </div>
-        <div className="flex flex-col gap-1 text-[11px] text-slate-500">
-          <div><span className="text-slate-300">Манги:</span> {profile.mangaRead}</div>
-          <div><span className="text-slate-300">Глав:</span> {profile.chaptersRead}</div>
+        <div className="flex items-center justify-between gap-4 text-[11px] text-slate-400/80 mt-1">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-slate-300/90">Манги</span>
+            <span className="text-white/90 font-medium">{profile.mangaRead}</span>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-slate-300/90">Глав</span>
+            <span className="text-white/90 font-medium">{profile.chaptersRead}</span>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-slate-300/90">Ост.</span>
+            <span className="text-primary/90 font-medium">{level >= 10 ? 0 : remaining}</span>
+          </div>
         </div>
         {isError && (
-          <div className="text-[10px] text-amber-400">Нет данных уровня (fallback)</div>
+          <div className="text-[10px] text-amber-400 mt-1">Нет данных уровня (fallback)</div>
         )}
+        {/* Soft corner glow */}
+        <div className="pointer-events-none absolute -bottom-10 -right-10 w-40 h-40 rounded-full bg-primary/10 blur-2xl opacity-0 group-hover:opacity-70 transition-opacity" />
       </GlassPanel>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-xl bg-neutral-900/95 border border-white/10 max-h-[80vh] p-0 flex flex-col">
