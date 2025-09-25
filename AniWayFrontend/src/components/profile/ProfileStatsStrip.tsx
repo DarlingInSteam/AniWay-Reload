@@ -9,7 +9,8 @@ interface StatItem {
 
 interface ProfileStatsStripProps {
   profile: UserProfile
-  extra?: { favorites?: number; achievements?: number }
+  // favorites retained temporarily for backward compatibility though not displayed now
+  extra?: { favorites?: number; achievements?: number; reviewsCount?: number }
 }
 
 export const ProfileStatsStrip: React.FC<ProfileStatsStripProps> = ({ profile, extra }) => {
@@ -26,7 +27,8 @@ export const ProfileStatsStrip: React.FC<ProfileStatsStripProps> = ({ profile, e
   const stats: StatItem[] = [
     { label: 'Манги', value: profile.mangaRead ?? 0 },
     { label: 'Глав', value: profile.chaptersRead ?? 0 },
-    { label: 'Избранное', value: extra?.favorites ?? 0 },
+    // Replaced Избранное with Обзоры (reviews authored by user)
+    { label: 'Обзоры', value: extra?.reviewsCount ?? 0 },
     { label: 'Достижений', value: extra?.achievements ?? 0 },
     { label: 'Комментарии', value: profile.commentsCount ?? 0 },
     { label: 'Лайки', value: profile.likesGivenCount ?? 0 },

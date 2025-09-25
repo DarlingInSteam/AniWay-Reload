@@ -73,6 +73,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   const [profileData, setProfileData] = useState<any>(null);
   const [userReviews, setUserReviews] = useState<UserReview[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewsCount, setReviewsCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTabParam] = useSyncedSearchParam<'overview' | 'library' | 'reviews' | 'comments' | 'achievements'>('tab', 'overview');
@@ -99,9 +100,9 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
         try {
           const reviews = await profileService.getUserReviews(parseInt(userId));
           setUserReviews(reviews);
+          setReviewsCount(reviews.length); // initial count
         } catch (reviewError) {
           console.error('Ошибка при загрузке отзывов:', reviewError);
-          // Не считаем это критической ошибкой, просто оставляем пустой массив
         } finally {
           setReviewsLoading(false);
         }
@@ -185,6 +186,15 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
     loadProfileData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, isOwnProfile]);
+
+  // Lightweight async fetch for reviews count (can use optimized endpoint later)
+  useEffect(()=>{
+    let cancelled = false;
+    import('@/services/reviewsService').then(({ reviewsService })=>{
+      reviewsService.getUserReviewsCountFast(parseInt(userId)).then(c=>{ if(!cancelled) setReviewsCount(c); });
+    });
+    return ()=> { cancelled = true };
+  }, [userId]);
 
   const handleProfileUpdate = async (updates: Partial<UserProfileType>) => {
     if (!profile || !isOwnProfile) return;
@@ -375,7 +385,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               // Skip immediate refetch to avoid loop (backend doesn't yet return avatar). Can be re-enabled later.
             }}
           />
-          <ProfileStatsStrip profile={profile} extra={{ favorites: favoriteMangas.length, achievements: achievements.length }} />
+          <ProfileStatsStrip profile={profile} extra={{ favorites: undefined, achievements: achievements.length, reviewsCount }} />
         </div>
 
         {/* Desktop Layout: Табы занимают всю ширину */}

@@ -88,4 +88,11 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
      * @return true, если отзыв существует
      */
     boolean existsByUserIdAndMangaId(Long userId, Long mangaId);
+
+    /**
+     * Подсчитывает количество отзывов, созданных пользователем.
+     * @param userId идентификатор пользователя
+     * @return количество отзывов пользователя
+     */
+    Long countByUserId(Long userId);
 }

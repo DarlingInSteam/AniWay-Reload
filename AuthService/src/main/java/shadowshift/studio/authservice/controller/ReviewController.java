@@ -209,6 +209,17 @@ public class ReviewController {
             return ResponseEntity.badRequest().build();
         }
     }
+
+    /**
+     * Возвращает количество отзывов пользователя (легковесная альтернатива выборке всех отзывов).
+     * @param userId идентификатор пользователя
+     * @return количество отзывов
+     */
+    @GetMapping("/user/{userId}/count")
+    public ResponseEntity<Long> getUserReviewsCount(@PathVariable Long userId) {
+        Long count = reviewService.countUserReviews(userId);
+        return ResponseEntity.ok(count);
+    }
     /**
      * Получает отзыв по идентификатору.
      *

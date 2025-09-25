@@ -239,6 +239,20 @@ class ReviewsService {
     }
   }
 
+  /** Быстрый запрос количества отзывов пользователя без загрузки всех отзывов.
+   * Пока в apiClient нет публичного метода для count, мы используем fallback на полную выборку.
+   */
+  async getUserReviewsCountFast(userId: number): Promise<number> {
+    try {
+      // TODO: optimize when public apiClient method is exposed
+      const reviews = await this.getUserReviews(userId);
+      return reviews.length;
+    } catch (e) {
+      console.warn('Не удалось получить количество отзывов fast-методом', e);
+      return 0;
+    }
+  }
+
   /**
    * Получить последние отзывы пользователя
    */

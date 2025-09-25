@@ -63,6 +63,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/admin/bookmarks/cleanup-orphaned").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/reviews/manga/*/rating").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/reviews/manga/*").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/auth/reviews/user/*/count").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/users/search").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/users/*/public").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/bookmarks/user/*").permitAll()

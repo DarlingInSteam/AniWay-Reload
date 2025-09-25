@@ -353,4 +353,18 @@ public class ReviewService {
                 .userLiked(userLiked)
                 .build();
     }
+
+    /**
+     * Возвращает количество обзоров (отзывов) созданных пользователем.
+     * @param userId идентификатор пользователя
+     * @return число отзывов
+     */
+    public Long countUserReviews(Long userId) {
+        try {
+            return reviewRepository.countByUserId(userId);
+        } catch (Exception ex) {
+            log.error("Failed to count reviews for user {}: {}", userId, ex.getMessage());
+            return 0L;
+        }
+    }
 }
