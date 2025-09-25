@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Post } from '@/types/posts';
 import { postService } from '@/services/postService';
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer';
 import { MangaMiniCard } from './MangaMiniCard';
+import { MarkdownMiniToolbar } from '@/components/markdown/MarkdownMiniToolbar';
+import { MessageCircle } from 'lucide-react';
+import { apiClient } from '@/lib/api';
 
 interface PostItemProps {
   post: Post;
@@ -24,6 +27,33 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
     if (updated) {
       setLocalPost({ ...updated });
       onUpdated?.(updated);
+    }
+  }
+
+  const editAreaRef = useRef<HTMLTextAreaElement|null>(null);
+
+  function wrapEdit(before:string, after:string=before){
+    const ta = editAreaRef.current; if(!ta) return;
+    const start = ta.selectionStart; const end = ta.selectionEnd; const sel = editContent.substring(start,end);
+    const next = editContent.slice(0,start)+before+sel+after+editContent.slice(end);
+    setEditContent(next);
+    requestAnimationFrame(()=>{ if(!ta) return; ta.focus(); ta.selectionStart = start + before.length; ta.selectionEnd = start + before.length + sel.length; });
+  }
+  function applyFormat(cmd:string){
+    switch(cmd){
+      case 'bold': return wrapEdit('**','**');
+      case 'italic': return wrapEdit('*','*');
+      case 'strike': return wrapEdit('~~','~~');
+      case 'code': return wrapEdit('`','`');
+      case 'spoiler': return wrapEdit('>!','!<');
+      case 'quote': return wrapEdit('\n> ','');
+      case 'ul': return wrapEdit('\n- ','');
+      case 'ol': return wrapEdit('\n1. ','');
+      case 'h1': return wrapEdit('\n# ','');
+      case 'h2': return wrapEdit('\n## ','');
+      case 'link': return wrapEdit('[',' ](url)');
+      case 'hr': return setEditContent(c=> c + (c.endsWith('\n')?'':'\n') + '\n---\n');
+      case 'spark': return wrapEdit('**✨','✨**');
     }
   }
 
@@ -106,29 +136,58 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
     } catch { return undefined }
   }
 
+  const [authorName,setAuthorName] = useState<string|undefined>(undefined);
+  const [authorAvatar,setAuthorAvatar] = useState<string|undefined>(undefined);
+  useEffect(()=>{
+    // attempt load public profile
+    (async()=>{
+      try {
+        const profile = await apiClient.getUserPublicProfile(localPost.userId);
+        setAuthorName(profile.username || profile.displayName || `User #${localPost.userId}`);
+        // heuristic avatar field names
+        // @ts-ignore
+        setAuthorAvatar(profile.avatarUrl || profile.profileImageUrl || profile.imageUrl);
+      } catch {
+        setAuthorName(`User #${localPost.userId}`);
+      }
+    })();
+  }, [localPost.userId]);
+
   return (
-  <div className="p-4 rounded-xl glass-panel space-y-3">
-      <div className="flex items-center justify-between text-xs text-neutral-400">
-        <span>ID: {localPost.id}</span>
-        <span>
-          {new Date(localPost.createdAt).toLocaleString()}
-          {localPost.updatedAt && localPost.updatedAt !== localPost.createdAt && (
-            <span className="ml-1 text-[10px] text-purple-300">(ред.)</span>
-          )}
-        </span>
+  <div className="p-4 rounded-xl glass-panel space-y-3 relative">
+      <div className="flex items-start gap-3">
+        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-purple-600/40 to-fuchsia-600/40 border border-white/15 overflow-hidden flex items-center justify-center text-xs text-slate-300 font-semibold">
+          {authorAvatar ? <img src={authorAvatar} alt={authorName} className="w-full h-full object-cover"/> : (authorName? authorName[0]?.toUpperCase(): '?')}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col leading-tight">
+              <span className="text-sm font-medium text-slate-200">{authorName || '...'}</span>
+              <span className="text-[10px] text-slate-400">ID: {localPost.id}</span>
+            </div>
+            <div className="text-[10px] text-slate-400 text-right">
+              {new Date(localPost.createdAt).toLocaleString()}<br/>
+              {localPost.updatedAt && localPost.updatedAt !== localPost.createdAt && (
+                <span className="text-purple-300">(ред.)</span>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
       {editing ? (
         <form onSubmit={handleSave} className="space-y-2">
+          <MarkdownMiniToolbar onCommand={applyFormat} />
           <textarea
+            ref={editAreaRef}
             value={editContent}
             onChange={e => setEditContent(e.target.value)}
-            className="w-full min-h-[100px] p-2 bg-neutral-900 border border-neutral-600 rounded text-sm"
+            className="w-full min-h-[140px] p-3 bg-white/5 border border-white/10 rounded-lg text-sm font-mono focus:outline-none focus:border-purple-500/60"
             disabled={saving}
           />
           {actionError && <div className="text-xs text-red-400">{actionError}</div>}
           <div className="flex gap-2 justify-end text-sm">
-            <button type="button" onClick={() => setEditing(false)} className="px-2 py-1 bg-neutral-700 rounded">Отмена</button>
-            <button type="submit" disabled={saving} className="px-3 py-1 bg-purple-600 rounded disabled:opacity-50">{saving ? 'Сохранение...' : 'Сохранить'}</button>
+            <button type="button" onClick={() => setEditing(false)} className="px-3 py-1.5 rounded-md bg-white/5 hover:bg-white/10 border border-white/10">Отмена</button>
+            <button type="submit" disabled={saving} className="px-4 py-1.5 rounded-md bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50">{saving ? 'Сохранение...' : 'Сохранить'}</button>
           </div>
         </form>
       ) : (
@@ -143,12 +202,17 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
           ))}
         </div>
       )}
-      <div className="flex items-center gap-3 text-sm pt-1">
+      <div className="flex items-center gap-4 text-sm pt-1 flex-wrap">
         <div className="flex items-center gap-1">
           <button onClick={() => handleVote(1)} className={"px-2 py-1 rounded text-xs " + (localPost.stats.userVote === 1 ? 'bg-green-600' : 'bg-neutral-700')}>+{localPost.stats.up}</button>
           <button onClick={() => handleVote(-1)} className={"px-2 py-1 rounded text-xs " + (localPost.stats.userVote === -1 ? 'bg-red-600' : 'bg-neutral-700')}>-{localPost.stats.down}</button>
           <span className="text-xs text-neutral-400">Score {localPost.stats.score}</span>
         </div>
+        <button type="button" className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 px-2 py-1 rounded-md border border-white/10 transition">
+          <MessageCircle size={14} />
+          <span>Комментарии</span>
+          {(localPost.stats.commentsCount ?? 0) > 0 && <span className="text-[10px] text-purple-300">{localPost.stats.commentsCount}</span>}
+        </button>
         {canEdit && !editing && (
           <>
             <button onClick={() => setEditing(true)} className="text-xs text-purple-300 hover:text-purple-200">Редактировать</button>

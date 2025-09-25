@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { postService } from '@/services/postService';
 import { extractMangaReferenceRawTokens, PostAttachmentInput } from '@/types/posts';
 import { MangaReferencePicker } from './MangaReferencePicker';
+import { MarkdownMiniToolbar } from '@/components/markdown/MarkdownMiniToolbar';
 
 interface PostComposerProps {
   userId: number;
@@ -39,6 +40,8 @@ export const PostComposer: React.FC<PostComposerProps> = ({ userId, onCreated })
       case 'h1': return wrapSelection('\n# ','');
       case 'h2': return wrapSelection('\n## ','');
       case 'link': return wrapSelection('[',' ](url)');
+      case 'hr': return setContent(c => c + (c.endsWith('\n')? '' : '\n') + '\n---\n');
+      case 'spark': return wrapSelection('**✨','✨**');
     }
   }
   async function handleImagePick(){ fileInputRef.current?.click(); }
@@ -57,19 +60,7 @@ export const PostComposer: React.FC<PostComposerProps> = ({ userId, onCreated })
   }
   return (
     <form onSubmit={handleSubmit} className="relative p-4 rounded-2xl glass-panel space-y-3 shadow-lg border border-white/10">
-      <div className="flex flex-wrap gap-1.5 text-[11px] mb-1">
-        {[
-          ['B','bold'],['I','italic'],['S','strike'],['Code','code'],['Spoil','spoiler'],['Quote','quote'],['UL','ul'],['OL','ol'],['H1','h1'],['H2','h2'],['Link','link']
-        ].map(([label,act])=> (
-          <button
-            key={act}
-            type="button"
-            onClick={()=>applyFormat(act)}
-            className="px-2 py-1 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-medium tracking-wide text-slate-200 backdrop-blur-sm transition active:scale-[.96]"
-            title={act}
-          >{label}</button>
-        ))}
-      </div>
+      <MarkdownMiniToolbar onCommand={applyFormat} />
       <div className="relative">
         <textarea
           ref={textareaRef}
