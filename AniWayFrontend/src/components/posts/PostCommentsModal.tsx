@@ -5,6 +5,7 @@ import { Post } from '@/types/posts';
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer';
 import { MangaMiniCard } from './MangaMiniCard';
 import { apiClient } from '@/lib/api';
+import { extractAvatar, avatarFallbackLetter } from '@/lib/avatar';
 
 interface PostCommentsModalProps {
   open: boolean;
@@ -25,8 +26,7 @@ export const PostCommentsModal: React.FC<PostCommentsModalProps> = ({ open, onCl
       try {
         const profile = await apiClient.getUserPublicProfile(post.userId);
         setAuthorName((profile as any).username || (profile as any).displayName || `User #${post.userId}`);
-        // @ts-ignore gather potential avatar fields
-        setAuthorAvatar(profile.avatarUrl || profile.profileImageUrl || profile.imageUrl || profile.avatar || profile.avatarURL || profile.profileAvatar || profile.avatarPath);
+        setAuthorAvatar(extractAvatar(profile));
       } catch { setAuthorName(`User #${post.userId}`); }
     })();
   }, [open, post.userId]);
@@ -93,6 +93,22 @@ export const PostCommentsModal: React.FC<PostCommentsModalProps> = ({ open, onCl
     });
   };
 
+  // Listen for global optimistic delta events (creation / deletion) so we can adjust faster than refetch
+  useEffect(()=>{
+    if(!open) return;
+    const handler = (e: Event)=>{
+      const detail = (e as CustomEvent).detail as { targetId: number; type: string; delta: number } | undefined;
+      if(!detail) return;
+  const numericPostId = typeof post.id === 'number' ? post.id : parseInt(String(post.id),10);
+  if(detail.targetId === numericPostId && detail.type === 'POST'){
+        setCommentsCount(c => (c ?? 0) + detail.delta);
+        onCommentsCountChange?.(detail.delta);
+      }
+    };
+    document.addEventListener('comment-count-delta', handler as any);
+    return ()=> document.removeEventListener('comment-count-delta', handler as any);
+  }, [open, post.id, onCommentsCountChange]);
+
   if(!open) return null;
 
   return (
@@ -103,7 +119,7 @@ export const PostCommentsModal: React.FC<PostCommentsModalProps> = ({ open, onCl
         <div className="flex items-center justify-between p-4 border-b border-white/10">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600/40 to-fuchsia-600/40 border border-white/15 overflow-hidden flex items-center justify-center text-xs text-slate-300 font-semibold">
-              {authorAvatar ? <img src={authorAvatar} alt={authorName} className="w-full h-full object-cover"/> : (authorName? authorName[0]?.toUpperCase(): '?')}
+              {authorAvatar ? <img src={authorAvatar} alt={authorName} className="w-full h-full object-cover"/> : avatarFallbackLetter(authorName)}
             </div>
             <div className="flex flex-col leading-tight min-w-0">
               <span className="text-sm font-medium text-slate-200 truncate">{authorName || '...'}</span>

@@ -30,6 +30,8 @@ export function useComments(
     mutationFn: (data: CommentCreateDTO) => commentService.createComment(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey })
+      // Emit custom event so parent components (e.g., PostCommentsModal -> PostItem) can adjust counts without refetch
+      document.dispatchEvent(new CustomEvent('comment-count-delta', { detail: { targetId, type, delta: 1 } }))
       toast.success('Комментарий добавлен')
     },
     onError: (error) => {
@@ -55,6 +57,7 @@ export function useComments(
     mutationFn: (commentId: number) => commentService.deleteComment(commentId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey })
+      document.dispatchEvent(new CustomEvent('comment-count-delta', { detail: { targetId, type, delta: -1 } }))
       toast.success('Комментарий удален')
     },
     onError: (error) => {

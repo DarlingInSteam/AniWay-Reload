@@ -414,6 +414,28 @@ public class CommentService {
 
         CommentReactionDTO reactionStats = getReactionStats(comment.getId());
 
+        // Определяем реакцию текущего пользователя (если аутентифицирован)
+        ReactionType currentUserReaction = null;
+        try {
+            var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (authentication != null && authentication.getDetails() instanceof shadowshift.studio.commentservice.security.UserPrincipal userPrincipal) {
+                Long currentUserId = userPrincipal.getUserId();
+                if (currentUserId != null) {
+                    commentReactionRepository.findByCommentIdAndUserId(comment.getId(), currentUserId)
+                            .ifPresent(reaction -> {
+                                // capture outer variable via array workaround if needed
+                            });
+                    // Более прямой способ: получить Optional и извлечь reactionType
+                    currentUserReaction = commentReactionRepository.findByCommentIdAndUserId(comment.getId(), currentUserId)
+                            .map(CommentReaction::getReactionType)
+                            .orElse(null);
+                }
+            }
+        } catch (Exception ex) {
+            // Логируем как debug чтобы не засорять ошибки – отсутствие аутентификации не критично
+            log.debug("Could not resolve current user reaction for comment {}: {}", comment.getId(), ex.getMessage());
+        }
+
         return CommentResponseDTO.builder()
                 .id(comment.getId())
                 .content(comment.getContent())
@@ -429,6 +451,7 @@ public class CommentService {
                 .isDeleted(comment.getIsDeleted())
                 .likesCount(reactionStats.getLikesCount())
                 .dislikesCount(reactionStats.getDislikesCount())
+                .userReaction(currentUserReaction)
                 .build();
     }
 
@@ -443,8 +466,22 @@ public class CommentService {
         UserInfoDTO userInfo = authService.getUserInfo(comment.getUserId());
 
         CommentReactionDTO reactionStats = getReactionStats(comment.getId());
-
         int repliesCount = commentRepository.findByParentCommentIdAndIsDeleted(comment.getId(), false).size();
+
+        ReactionType currentUserReaction = null;
+        try {
+            var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (authentication != null && authentication.getDetails() instanceof shadowshift.studio.commentservice.security.UserPrincipal userPrincipal) {
+                Long currentUserId = userPrincipal.getUserId();
+                if (currentUserId != null) {
+                    currentUserReaction = commentReactionRepository.findByCommentIdAndUserId(comment.getId(), currentUserId)
+                            .map(CommentReaction::getReactionType)
+                            .orElse(null);
+                }
+            }
+        } catch (Exception ex) {
+            log.debug("Could not resolve current user reaction for comment {}: {}", comment.getId(), ex.getMessage());
+        }
 
         return CommentResponseDTO.builder()
                 .id(comment.getId())
@@ -462,6 +499,7 @@ public class CommentService {
                 .likesCount(reactionStats.getLikesCount())
                 .dislikesCount(reactionStats.getDislikesCount())
                 .repliesCount(repliesCount)
+                .userReaction(currentUserReaction)
                 .build();
     }
 }

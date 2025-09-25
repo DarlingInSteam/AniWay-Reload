@@ -206,25 +206,30 @@ export function CommentItem({
             onClick={handleLike}
             disabled={!isAuthenticated}
             className={cn(
-              "h-8 px-2 text-gray-400 hover:text-green-400",
-              !isAuthenticated && "cursor-not-allowed"
+              "h-8 px-2 flex items-center gap-1",
+              comment.userReaction === 'LIKE' ? 'text-green-400 bg-green-500/10 hover:text-green-300' : 'text-gray-400 hover:text-green-400',
+              !isAuthenticated && 'cursor-not-allowed'
             )}
+            aria-pressed={comment.userReaction === 'LIKE'}
+            aria-label="Поставить лайк"
           >
-            <Heart className="h-4 w-4 mr-1" />
+            <Heart className={cn("h-4 w-4", comment.userReaction === 'LIKE' && 'fill-green-400')} />
             <span>{comment.likesCount}</span>
           </Button>
-          
           <Button
             variant="ghost"
             size="sm"
             onClick={handleDislike}
             disabled={!isAuthenticated}
             className={cn(
-              "h-8 px-2 text-gray-400 hover:text-red-400",
-              !isAuthenticated && "cursor-not-allowed"
+              "h-8 px-2 flex items-center gap-1",
+              comment.userReaction === 'DISLIKE' ? 'text-red-400 bg-red-500/10 hover:text-red-300' : 'text-gray-400 hover:text-red-400',
+              !isAuthenticated && 'cursor-not-allowed'
             )}
+            aria-pressed={comment.userReaction === 'DISLIKE'}
+            aria-label="Поставить дизлайк"
           >
-            <HeartOff className="h-4 w-4 mr-1" />
+            <HeartOff className={cn("h-4 w-4", comment.userReaction === 'DISLIKE' && 'fill-red-400')} />
             <span>{comment.dislikesCount}</span>
           </Button>
         </div>

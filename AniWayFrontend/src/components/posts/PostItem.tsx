@@ -6,6 +6,7 @@ import { MangaMiniCard } from './MangaMiniCard';
 import { MarkdownMiniToolbar } from '@/components/markdown/MarkdownMiniToolbar';
 import { MessageCircle } from 'lucide-react';
 import { apiClient } from '@/lib/api';
+import { extractAvatar, avatarFallbackLetter } from '@/lib/avatar';
 import { PostCommentsModal } from './PostCommentsModal';
 
 interface PostItemProps {
@@ -155,14 +156,11 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
     }
   }, [localPost.id]);
   useEffect(()=>{
-    // attempt load public profile
     (async()=>{
       try {
         const profile = await apiClient.getUserPublicProfile(localPost.userId);
-        setAuthorName(profile.username || profile.displayName || `User #${localPost.userId}`);
-        // heuristic avatar field names
-        // @ts-ignore collect possible avatar keys
-        setAuthorAvatar(profile.avatarUrl || profile.profileImageUrl || profile.imageUrl || profile.avatar || profile.avatarURL || profile.profileAvatar || profile.avatarPath);
+        setAuthorName((profile as any).username || (profile as any).displayName || `User #${localPost.userId}`);
+        setAuthorAvatar(extractAvatar(profile));
       } catch {
         setAuthorName(`User #${localPost.userId}`);
       }
@@ -174,7 +172,7 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
   <div className="p-4 rounded-xl glass-panel space-y-3 relative">
       <div className="flex items-start gap-3">
         <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-purple-600/40 to-fuchsia-600/40 border border-white/15 overflow-hidden flex items-center justify-center text-xs text-slate-300 font-semibold">
-          {authorAvatar ? <img src={authorAvatar} alt={authorName} className="w-full h-full object-cover"/> : (authorName? authorName[0]?.toUpperCase(): '?')}
+          {authorAvatar ? <img src={authorAvatar} alt={authorName} className="w-full h-full object-cover"/> : avatarFallbackLetter(authorName)}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">

@@ -11,7 +11,18 @@ class ApiClient {
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
     const token = localStorage.getItem('authToken');
-    const userId = localStorage.getItem('userId') || localStorage.getItem('userID') || localStorage.getItem('currentUserId');
+    let userId = localStorage.getItem('userId') || localStorage.getItem('userID') || localStorage.getItem('currentUserId');
+    // Fallback: try decode JWT payload (assuming standard 'sub' or 'userId' claim) if userId absent
+    if(!userId && token){
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1] || ''));
+        const extracted = payload.userId || payload.userID || payload.sub || payload.id;
+        if(extracted){
+          userId = String(extracted);
+          localStorage.setItem('userId', userId);
+        }
+      } catch { /* silent */ }
+    }
 
     console.log(`API Request: ${options?.method || 'GET'} ${url}`);
     console.log(`Auth token present: ${!!token}`);
