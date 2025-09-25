@@ -13,6 +13,14 @@ RUN chmod +x gradlew \
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-COPY --from=build /workspace/build/libs/*SNAPSHOT.jar app.jar
+# Copy only the Spring Boot fat jar (exclude *-plain.jar if present). We first copy all then move the right one.
+COPY --from=build /workspace/build/libs/ /tmp/libs/
+RUN set -eux; \
+	ls -l /tmp/libs; \
+	FAT_JAR=$(ls /tmp/libs/LevelService-*.jar | grep -v '\-plain\.jar' | head -n1); \
+	test -n "$FAT_JAR"; \
+	mv "$FAT_JAR" /app/app.jar; \
+	rm -f /tmp/libs/*.jar; \
+	ls -l /app/app.jar
 EXPOSE 8098
 ENTRYPOINT ["java","-jar","/app/app.jar"]
