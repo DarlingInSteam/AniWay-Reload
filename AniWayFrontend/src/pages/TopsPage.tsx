@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { Users, MessageSquare, Hash, Quote } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api'
+import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
 import { useUserMiniBatch } from '@/hooks/useUserMiniBatch'
 import { useMangaMiniBatch } from '@/hooks/useMangaMiniBatch'
 import { LeaderboardSkeleton } from '@/components/tops/LeaderboardSkeleton'
@@ -158,6 +159,14 @@ export function TopsPage() {
   const threadAuthorMap = useUserMiniBatch((threadsQuery.data||[]).map((t:any)=> t.authorId))
   // Removed forum posts author enrichment
   const wallAuthorMap = useUserMiniBatch((wallPostsQuery.data||[]).map((p:any)=> p.userId))
+  // Collect manga references from wall posts for mini-cards (type === 'MANGA')
+  const wallMangaRefIds = useMemo(()=> {
+    return Array.from(new Set((wallPostsQuery.data||[])
+      .flatMap((p:any)=> (p.references||[])
+        .filter((r:any)=> (r.type||'').toUpperCase()==='MANGA')
+        .map((r:any)=> r.refId))))
+  }, [wallPostsQuery.data])
+  const wallMangaMap = useMangaMiniBatch(wallMangaRefIds)
   const commentAuthorMap = useUserMiniBatch((commentsQuery.data||[]).map((c:any)=> c.userId))
 
   const renderReviews = () => {
@@ -167,7 +176,9 @@ export function TopsPage() {
     return (
       <div className="flex flex-col gap-5">
         {reviews.map((r: any, idx: number) => {
-          const trust = (r.likeCount ?? 0) - (r.dislikeCount ?? 0)
+          const likeVal = r.likeCount ?? r.likesCount ?? 0
+          const dislikeVal = r.dislikeCount ?? r.dislikesCount ?? 0
+          const trust = likeVal - dislikeVal
           const author = reviewUserMap[r.userId]
           return (
             <div key={r.id || idx} id={`review-${r.id}`} className="glass-panel p-5 space-y-3">
@@ -183,8 +194,8 @@ export function TopsPage() {
                     <span className="px-2 py-0.5 rounded bg-pink-600/30 text-pink-200">👍 {r.likeCount ?? r.likesCount ?? 0}</span>
                     <span className="px-2 py-0.5 rounded bg-rose-600/30 text-rose-200">👎 {r.dislikeCount ?? r.dislikesCount ?? 0}</span>
                   </div>
-                  <div className="mt-2 prose prose-invert text-sm max-w-none whitespace-pre-wrap leading-relaxed">
-                    {r.comment || '—'}
+                  <div className="mt-2 prose prose-invert text-sm max-w-none leading-relaxed markdown-body">
+                    <MarkdownRenderer value={r.comment || ''} />
                   </div>
                 </div>
               </div>
@@ -229,7 +240,9 @@ export function TopsPage() {
                       {author.avatar && <img src={author.avatar} className="w-4 h-4 rounded-full object-cover" alt={author.username}/>} {author.displayName || author.username}
                     </span>
                   </div>}
-                  <div className="prose prose-invert text-sm max-w-none line-clamp-none whitespace-pre-wrap">{t.content}</div>
+                  <div className="prose prose-invert text-sm max-w-none line-clamp-none markdown-body">
+                    <MarkdownRenderer value={t.content || ''} />
+                  </div>
                   <div className="mt-3 flex flex-wrap gap-2 text-[10px] text-white/50">
                     <span>Ответы: {t.repliesCount ?? 0}</span>
                     <span>Лайки: {t.likesCount ?? 0}</span>
@@ -254,12 +267,18 @@ export function TopsPage() {
     return (
       <div className="flex flex-col gap-5">
         {comments.map((c: any, idx: number) => {
-          const trust = (c.likeCount ?? 0) - (c.dislikeCount ?? 0)
+          const likeVal = c.likeCount ?? c.likesCount ?? 0
+          const dislikeVal = c.dislikeCount ?? c.dislikesCount ?? 0
+          const trust = likeVal - dislikeVal
           const targetLink = (() => {
-            const type = (c.commentType || '').toUpperCase()
+            const type = (c.commentType || c.type || '').toUpperCase()
             switch(type){
               case 'MANGA': return `/manga/${c.targetId}#comment-${c.id}`
               case 'CHAPTER': return `/reader/${c.targetId}#comment-${c.id}`
+              case 'REVIEW': return `/reviews/${c.targetId}#comment-${c.id}`
+              case 'POST': return `/forum/post/${c.targetId}#comment-${c.id}`
+              case 'PROFILE':
+              case 'PROFILE_POST': return `/profile/${c.targetUserId || c.targetId || c.userId}#comment-${c.id}`
               default: return `/comments/${c.id}`
             }
           })()
@@ -275,11 +294,13 @@ export function TopsPage() {
                   </div>}
                   <div className="flex flex-wrap gap-2 text-[10px] text-white/60 mb-2">
                     <span className={`px-2 py-0.5 rounded ${trust>0 ? 'bg-emerald-600/30 text-emerald-200' : trust<0 ? 'bg-rose-700/40 text-rose-200' : 'bg-purple-600/30'}`}>Trust {trust}</span>
-                    <span className="px-2 py-0.5 rounded bg-pink-600/30">👍 {c.likeCount ?? c.likesCount ?? 0}</span>
-                    <span className="px-2 py-0.5 rounded bg-rose-600/30">👎 {c.dislikeCount ?? c.dislikesCount ?? 0}</span>
+                    <span className="px-2 py-0.5 rounded bg-pink-600/30">👍 {likeVal}</span>
+                    <span className="px-2 py-0.5 rounded bg-rose-600/30">👎 {dislikeVal}</span>
                     <span className="px-2 py-0.5 rounded bg-slate-600/30">{c.commentType}</span>
                   </div>
-                  <div className="prose prose-invert text-sm whitespace-pre-wrap">{c.content || c.contentExcerpt}</div>
+                  <div className="prose prose-invert text-sm markdown-body">
+                    <MarkdownRenderer value={(c.content || c.contentExcerpt || '')} />
+                  </div>
                   <div className="mt-3 flex gap-3 text-[10px] text-white/50">
                     <button onClick={()=> navigate(targetLink)} className="underline decoration-dotted hover:text-white/80">Перейти к источнику</button>
                   </div>
@@ -301,6 +322,7 @@ export function TopsPage() {
         {wallPosts.map((p: any, idx: number) => {
           const stats = p.stats || {}
           const author = wallAuthorMap[p.userId]
+          const mangaRefs = (p.references||[]).filter((r:any)=> (r.type||'').toUpperCase()==='MANGA')
           return (
             <div key={p.id || idx} id={`wall-post-${p.id}`} className="glass-panel p-5 space-y-3">
               <div className="flex items-start gap-3">
@@ -315,7 +337,28 @@ export function TopsPage() {
                     <span className="px-2 py-0.5 rounded bg-pink-600/30">👍 {stats.up ?? 0}</span>
                     <span className="px-2 py-0.5 rounded bg-rose-600/30">👎 {stats.down ?? 0}</span>
                   </div>
-                  <div className="prose prose-invert text-sm whitespace-pre-wrap">{p.content}</div>
+                  <div className="prose prose-invert text-sm markdown-body">
+                    <MarkdownRenderer value={p.content || ''} />
+                  </div>
+                  {mangaRefs.length>0 && (
+                    <div className="mt-3 flex flex-col gap-2">
+                      {mangaRefs.map((r:any)=> {
+                        const mini = wallMangaMap[r.refId]
+                        if(!mini) return null
+                        return (
+                          <div key={r.id} onClick={()=> navigate(`/manga/${mini.id}#wall-post-${p.id}`)} className="group flex items-center gap-3 p-2 rounded-lg bg-blue-600/10 border border-blue-400/20 hover:bg-blue-600/15 cursor-pointer transition">
+                            <div className="w-10 h-14 rounded bg-white/10 overflow-hidden flex items-center justify-center text-[10px] text-white/40">
+                              {mini.cover ? <img src={mini.cover} alt={mini.title} className="w-full h-full object-cover"/> : '—'}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-semibold text-sky-300 truncate group-hover:text-sky-200">{mini.title}</div>
+                              <div className="text-[10px] text-white/40">Манга</div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                   {p.attachments?.length > 0 && (
                     <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-2">
                       {p.attachments.slice(0,6).map((a: any) => (
