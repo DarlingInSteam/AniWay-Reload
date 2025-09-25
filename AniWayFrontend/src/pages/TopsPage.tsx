@@ -8,7 +8,7 @@ import { useMangaMiniBatch } from '@/hooks/useMangaMiniBatch'
 import { LeaderboardSkeleton } from '@/components/tops/LeaderboardSkeleton'
 import { LeaderboardRow } from '@/components/tops/LeaderboardRow'
 import { LeaderboardError } from '@/components/tops/LeaderboardError'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 type UserMetric = 'readers' | 'likes' | 'comments' | 'level'
 type Range = 'all' | '7' | '30'
@@ -34,6 +34,7 @@ export function TopsPage() {
   const [wallRange, setWallRange] = useState<'all' | '7' | '30' | 'today'>('all')
   const [reviewsDays, setReviewsDays] = useState<number>(7)
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   // Users
   const usersQuery = useQuery({
@@ -74,7 +75,22 @@ export function TopsPage() {
 
   // Tabs
   type TabKey = 'users' | 'reviews' | 'threads' | 'comments' | 'wall'
-  const [activeTab, setActiveTab] = useState<TabKey>('users')
+  const initialTab = (() => {
+    const qp = (searchParams.get('tab') || '').toLowerCase()
+    const allowed: TabKey[] = ['users','reviews','threads','comments','wall']
+    return (allowed.includes(qp as TabKey) ? qp : 'users') as TabKey
+  })()
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTab)
+
+  // Update URL when tab changes (preserve other params)
+  useEffect(()=> {
+    const current = searchParams.get('tab')
+    if(current !== activeTab){
+      const sp = new URLSearchParams(searchParams.toString())
+      sp.set('tab', activeTab)
+      setSearchParams(sp, { replace: true })
+    }
+  }, [activeTab])
   const tabs: { key: TabKey; label: string }[] = [
     { key: 'users', label: 'Пользователи' },
     { key: 'reviews', label: 'Обзоры' },
@@ -108,12 +124,23 @@ export function TopsPage() {
     return (
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {users.map((u: any, idx: number) => {
+          // Derive level consistently if mismatch: fallback formula from total activity if xp present
+          const derivedLevel = (() => {
+            // Simple progressive thresholds similar to profile fallback (0,50,150,300,500,...)
+            const thresholds = [0,50,150,300,500,750,1000,1500,2000,3000]
+            const xpVal = u.xp ?? 0
+            for(let i=thresholds.length-1;i>=0;i--){
+              if(xpVal >= thresholds[i]) return i+1
+            }
+            return 1
+          })()
+          const levelToShow = u.level && u.xp!=null ? (Math.abs(derivedLevel - u.level) > 1 ? derivedLevel : u.level) : (u.level ?? derivedLevel)
           const statLabel = (() => {
             switch (userMetric) {
               case 'readers': return `${u.chaptersReadCount ?? 0} глав`
               case 'likes': return `${u.likesGivenCount ?? 0} лайков`
               case 'comments': return `${u.commentsCount ?? 0} комм.`
-              case 'level': return `LVL ${u.level ?? 1}`
+              case 'level': return `LVL ${levelToShow}`
             }
           })()
           const metric = (() => {
@@ -121,7 +148,7 @@ export function TopsPage() {
               case 'readers': return u.chaptersReadCount ?? 0
               case 'likes': return u.likesGivenCount ?? 0
               case 'comments': return u.commentsCount ?? 0
-              case 'level': return u.level ?? 0
+              case 'level': return levelToShow ?? 0
             }
           })()
           return (
@@ -137,7 +164,7 @@ export function TopsPage() {
                     <span className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-600/25 text-indigo-200/90 backdrop-blur-sm border border-white/10 shadow-sm">{statLabel}</span>
                   </div>
                   <div className="mt-1 flex flex-wrap gap-1.5 text-[10px]">
-                    {u.level != null && <span className="px-2 py-0.5 rounded bg-purple-600/25 text-purple-200 border border-white/10">LVL {u.level}</span>}
+                    {levelToShow != null && <span className="px-2 py-0.5 rounded bg-purple-600/25 text-purple-200 border border-white/10">LVL {levelToShow}</span>}
                     {u.xp != null && <span className="px-2 py-0.5 rounded bg-fuchsia-600/25 text-fuchsia-200 border border-white/10">XP {u.xp}</span>}
                   </div>
                 </div>
@@ -267,9 +294,12 @@ export function TopsPage() {
     return (
       <div className="flex flex-col gap-5">
         {comments.map((c: any, idx: number) => {
-          const likeVal = c.likeCount ?? c.likesCount ?? 0
-          const dislikeVal = c.dislikeCount ?? c.dislikesCount ?? 0
-          const trust = likeVal - dislikeVal
+          // Wider fallback scanning for like/dislike values
+          const likeCandidates = [c.likeCount, c.likesCount, c.upVotes, c.positive, c.up]
+          const dislikeCandidates = [c.dislikeCount, c.dislikesCount, c.downVotes, c.negative, c.down]
+          const likeVal = likeCandidates.find(v=> typeof v === 'number') ?? (typeof c.trustFactor==='number' && c.trustFactor>0 ? c.trustFactor : 0)
+          const dislikeVal = dislikeCandidates.find(v=> typeof v === 'number') ?? (typeof c.trustFactor==='number' && c.trustFactor<0 ? Math.abs(c.trustFactor) : 0)
+          const trust = typeof c.trustFactor === 'number' ? c.trustFactor : (likeVal - dislikeVal)
           const targetLink = (() => {
             const type = (c.commentType || c.type || '').toUpperCase()
             switch(type){
