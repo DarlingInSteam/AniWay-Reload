@@ -36,7 +36,8 @@ public class BadgeEvaluationService {
         "POST_UPVOTED",
         "CHAPTER_LIKE_RECEIVED",
         "FORUM_THREAD_LIKE_RECEIVED",
-        "FORUM_POST_LIKE_RECEIVED"
+        "FORUM_POST_LIKE_RECEIVED",
+        "REVIEW_LIKE_RECEIVED"
     );
 
     @Transactional

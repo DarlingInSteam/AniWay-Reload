@@ -30,6 +30,12 @@ leveling:
     likeReceived: 2
     chapterRead: 5
     badgeAwarded: 25
+    postUpvoted: 2
+    chapterLikeReceived: 2
+    commentCreated: 5
+    forumThreadLikeReceived: 2
+    forumPostLikeReceived: 2
+    reviewLikeReceived: 2
   # Base formula: total XP required to reach level n = base * n^exp
   formula:
     base: 50

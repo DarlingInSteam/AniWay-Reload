@@ -380,6 +380,24 @@ public class ChapterService {
         }
         chapter.setLikeCount(currentLikes + 1);
         chapterRepository.save(chapter);
+
+    // Publish CHAPTER_LIKE_RECEIVED XP event awarding XP to the liker (as per new semantics)
+    if (rabbitTemplate != null) {
+            try {
+                Map<String,Object> event = new java.util.HashMap<>();
+                event.put("type", "CHAPTER_LIKE_RECEIVED");
+        event.put("userId", userId); // XP receiver = liker
+                event.put("chapterId", chapterId);
+                event.put("mangaId", chapter.getMangaId());
+                String eventId = "CHAPTER_LIKE_RECEIVED:" + chapterId + ":" + userId;
+                event.put("eventId", eventId);
+                event.put("likerUserId", userId);
+                event.put("occurredAt", java.time.Instant.now().toString());
+                rabbitTemplate.convertAndSend(xpExchange, chapterRoutingKey, event);
+            } catch (Exception ex) {
+                System.err.println("Failed to publish CHAPTER_LIKE_RECEIVED event: " + ex.getMessage());
+            }
+        }
     }
 
     /**
@@ -454,6 +472,23 @@ public class ChapterService {
             }
             chapter.setLikeCount(currentLikes + 1);
             chapterRepository.save(chapter);
+            // Publish event only when like added
+            if (rabbitTemplate != null) {
+                try {
+                    Map<String,Object> event = new java.util.HashMap<>();
+                    event.put("type", "CHAPTER_LIKE_RECEIVED");
+                    event.put("userId", userId); // XP receiver = liker
+                    event.put("chapterId", chapterId);
+                    event.put("mangaId", chapter.getMangaId());
+                    String eventId = "CHAPTER_LIKE_RECEIVED:" + chapterId + ":" + userId;
+                    event.put("eventId", eventId);
+                    event.put("likerUserId", userId);
+                    event.put("occurredAt", java.time.Instant.now().toString());
+                    rabbitTemplate.convertAndSend(xpExchange, chapterRoutingKey, event);
+                } catch (Exception ex) {
+                    System.err.println("Failed to publish CHAPTER_LIKE_RECEIVED event: " + ex.getMessage());
+                }
+            }
             return Map.of("liked", true, "likeCount", chapter.getLikeCount()); // лайк поставлен
         }
     }

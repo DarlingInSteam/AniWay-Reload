@@ -3,6 +3,8 @@ package shadowshift.studio.authservice.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 import shadowshift.studio.authservice.dto.MangaRatingDTO;
 import shadowshift.studio.authservice.dto.ReviewDTO;
@@ -33,6 +35,13 @@ public class ReviewService {
     private final ReviewRepository reviewRepository;
     private final ReviewLikeRepository reviewLikeRepository;
     private final UserRepository userRepository;
+    private final RabbitTemplate rabbitTemplate; // injected via config
+
+    @Value("${xp.events.exchange:xp.events.exchange}")
+    private String xpExchange;
+
+    @Value("${xp.events.reviewRoutingKey:xp.events.review}")
+    private String reviewRoutingKey;
     
     /**
      * Создает новый отзыв пользователя на мангу.
@@ -157,16 +166,20 @@ public class ReviewService {
                 .orElseThrow(() -> new IllegalArgumentException("Review not found"));
         
         Optional<ReviewLike> existingLike = reviewLikeRepository.findByUserIdAndReviewId(user.getId(), reviewId);
-        
+        boolean publishLikeReceived = false; // only true when a new positive like is applied (not removal)
         if (existingLike.isPresent()) {
             ReviewLike like = existingLike.get();
             if (like.getIsLike().equals(isLike)) {
+                // same action again => remove vote
                 reviewLikeRepository.delete(like);
                 log.info("Removed {} from review {} by user {}", isLike ? "like" : "dislike", reviewId, username);
             } else {
+                // changing vote
+                boolean wasDislike = !like.getIsLike() && isLike; // moving from dislike -> like triggers XP
                 like.setIsLike(isLike);
                 reviewLikeRepository.save(like);
                 log.info("Changed vote to {} on review {} by user {}", isLike ? "like" : "dislike", reviewId, username);
+                if (wasDislike) publishLikeReceived = true;
             }
         } else {
             ReviewLike like = ReviewLike.builder()
@@ -176,9 +189,27 @@ public class ReviewService {
                     .build();
             reviewLikeRepository.save(like);
             log.info("Added {} to review {} by user {}", isLike ? "like" : "dislike", reviewId, username);
+            if (isLike) publishLikeReceived = true;
         }
         
         updateReviewCounts(review);
+
+        // Publish REVIEW_LIKE_RECEIVED if a new like exists and liker isn't the author
+        if (publishLikeReceived && isLike && !review.getUserId().equals(user.getId())) {
+            try {
+                java.util.Map<String,Object> event = new java.util.HashMap<>();
+                event.put("type", "REVIEW_LIKE_RECEIVED");
+                event.put("userId", review.getUserId()); // receiver of XP (review author)
+                event.put("reviewId", reviewId);
+                event.put("likerUserId", user.getId());
+                String eventId = "REVIEW_LIKE_RECEIVED:" + reviewId + ":" + user.getId();
+                event.put("eventId", eventId);
+                event.put("occurredAt", java.time.Instant.now().toString());
+                rabbitTemplate.convertAndSend(xpExchange, reviewRoutingKey, event);
+            } catch (Exception ex) {
+                log.error("Failed to publish REVIEW_LIKE_RECEIVED event reviewId={} user={} error={}", reviewId, username, ex.getMessage());
+            }
+        }
         
         return convertToDTO(review, username);
     }

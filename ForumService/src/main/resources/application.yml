@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: forum-service
+  rabbitmq:
+    host: ${RABBITMQ_HOST:rabbitmq}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+
+xp:
+  events:
+    exchange: xp.events.exchange
+    forumThreadLikeRoutingKey: xp.events.forum-thread-like
+    forumPostLikeRoutingKey: xp.events.forum-post-like

@@ -14,6 +14,7 @@ const typeLabels: Record<string,string> = {
   COMMENT_CREATED: 'Комментарий',
   FORUM_THREAD_LIKE_RECEIVED: 'Лайк темы форума',
   FORUM_POST_LIKE_RECEIVED: 'Лайк поста форума',
+  REVIEW_LIKE_RECEIVED: 'Лайк отзыва',
   BADGE_AWARDED: 'Бейдж'
 };
 

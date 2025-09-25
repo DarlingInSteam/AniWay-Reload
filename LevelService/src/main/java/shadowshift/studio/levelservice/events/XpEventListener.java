@@ -47,6 +47,9 @@ public class XpEventListener {
     @Value("${leveling.xp.forumPostLikeReceived:2}")
     private long forumPostLikeReceivedXp;
 
+    @Value("${leveling.xp.reviewLikeReceived:2}")
+    private long reviewLikeReceivedXp;
+
     // Simple dynamic routing: messages contain a type field
     @RabbitListener(queues = "xp.events.queue")
     public void handle(@Payload Map<String, Object> message) {
@@ -62,7 +65,14 @@ public class XpEventListener {
                 case "COMMENT_CREATED" -> handleCommentCreated(message, eventId);
                 case "FORUM_THREAD_LIKE_RECEIVED" -> handleForumThreadLike(message, eventId);
                 case "FORUM_POST_LIKE_RECEIVED" -> handleForumPostLike(message, eventId);
-                default -> log.warn("Unknown XP event type: {}", type);
+                case "REVIEW_LIKE_RECEIVED" -> handleReviewLike(message, eventId);
+                default -> {
+                    if (type == null) {
+                        log.warn("XP event without 'type' field received keys={} raw={}", message.keySet(), message);
+                    } else {
+                        log.warn("Unknown XP event type '{}' keys={} raw={} -- ensure producer uses JSON and correct 'type' field.", type, message.keySet(), message);
+                    }
+                }
             }
         } catch (Exception e) {
             log.error("Failed to process XP event: {}", message, e);
@@ -139,6 +149,15 @@ public class XpEventListener {
         if (receiverUserId == null || postId == null) return;
         UserXp updated = levelServiceDomain.addXp(receiverUserId, forumPostLikeReceivedXp, "FORUM_POST_LIKE_RECEIVED", String.valueOf(postId), eventId);
         log.info("Applied FORUM_POST_LIKE_RECEIVED XP to user {} => total {}", receiverUserId, updated.getTotalXp());
+        evaluateBadgesAsync(receiverUserId);
+    }
+
+    private void handleReviewLike(Map<String, Object> msg, String eventId) {
+        Long receiverUserId = asLong(msg.get("userId")); // review author in producer payload
+        Long reviewId = asLong(msg.get("reviewId"));
+        if (receiverUserId == null || reviewId == null) return;
+        UserXp updated = levelServiceDomain.addXp(receiverUserId, reviewLikeReceivedXp, "REVIEW_LIKE_RECEIVED", String.valueOf(reviewId), eventId);
+        log.info("Applied REVIEW_LIKE_RECEIVED XP to user {} => total {}", receiverUserId, updated.getTotalXp());
         evaluateBadgesAsync(receiverUserId);
     }
 
