@@ -43,6 +43,10 @@ export function TopsPage() {
     queryFn: () => apiClient.getTopUsers({ metric: userMetric, limit: 20 }),
     staleTime: 60_000
   })
+  // Always derive ids & fetch levels via hook at top-level (hooks must not be inside conditional render functions)
+  const usersData = usersQuery.data || []
+  const userIds = useMemo(()=> usersData.map((u:any)=> u.id), [usersData])
+  const userLevelMap = useUserLevelsBatch(userIds)
 
   // Reviews
   const reviewsQuery = useQuery({
@@ -122,7 +126,6 @@ export function TopsPage() {
     if (usersQuery.isLoading) return <LeaderboardSkeleton rows={10} />
     if (usersQuery.isError) return <LeaderboardError onRetry={() => usersQuery.refetch()} />
     const users = usersQuery.data || []
-    const userLevelMap = useUserLevelsBatch(users.map((u:any)=> u.id))
     return (
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {users.map((u: any, idx: number) => {
