@@ -9,9 +9,11 @@ interface PostCommentsModalProps {
   onClose: () => void;
   post: Post;
   onPostUpdated?: (post: Post) => void;
+  // notify parent about comments count delta (+1 on create, -1 on delete)
+  onCommentsCountChange?: (delta: number) => void;
 }
 
-export const PostCommentsModal: React.FC<PostCommentsModalProps> = ({ open, onClose, post, onPostUpdated }) => {
+export const PostCommentsModal: React.FC<PostCommentsModalProps> = ({ open, onClose, post, onPostUpdated, onCommentsCountChange }) => {
   useEffect(()=>{
     if(open){
       const prev = document.body.style.overflow;
@@ -27,7 +29,8 @@ export const PostCommentsModal: React.FC<PostCommentsModalProps> = ({ open, onCl
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-5xl mx-auto h-[80vh] glass-panel rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-hidden">
+      <div className="relative w-full max-w-4xl mx-auto h-[85vh] glass-panel rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-hidden">
+        {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-white/10">
           <div className="flex items-center gap-2 text-sm font-medium text-slate-200">
             <MessageCircle size={16} /> Комментарии к посту
@@ -36,15 +39,20 @@ export const PostCommentsModal: React.FC<PostCommentsModalProps> = ({ open, onCl
             <X size={16} />
           </button>
         </div>
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-0 md:divide-x md:divide-white/10 overflow-hidden">
-          <div className="p-4 overflow-y-auto custom-scroll space-y-4">
-            <div className="text-[11px] uppercase tracking-wide text-slate-400 font-semibold">Пост</div>
+        {/* Scrollable Body (vertical stack) */}
+        <div className="flex-1 overflow-y-auto custom-scroll p-4 space-y-6">
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-slate-400 font-semibold mb-2">Пост</div>
             <div className="prose prose-invert max-w-none text-sm">
               <MarkdownRenderer value={post.content} />
             </div>
           </div>
-          <div className="flex flex-col h-full p-4 overflow-y-auto custom-scroll">
-            <CommentSection targetId={post.id as any} type={'POST' as any} title="Комментарии" />
+          <div>
+            <CommentSection 
+              targetId={post.id as any} 
+              type={'POST' as any} 
+              title="Комментарии" 
+            />
           </div>
         </div>
       </div>

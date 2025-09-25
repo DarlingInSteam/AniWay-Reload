@@ -31,7 +31,7 @@ import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
 interface CommentItemProps {
   comment: CommentResponseDTO
   targetId: number
-  type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW'
+  type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST'
   onReply: (parentId: number, content: string) => void
   onEdit: (commentId: number, content: string) => void
   onDelete: (commentId: number) => void

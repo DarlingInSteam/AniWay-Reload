@@ -11,7 +11,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 
 interface CommentSectionProps {
   targetId: number
-  type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW'
+  type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST'
   title?: string
   maxLevel?: number
 }

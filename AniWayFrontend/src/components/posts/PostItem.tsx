@@ -214,7 +214,9 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
         <button type="button" onClick={()=>setCommentsOpen(true)} className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 px-2 py-1 rounded-md border border-white/10 transition">
           <MessageCircle size={14} />
           <span>Комментарии</span>
-          {(localPost.stats.commentsCount ?? 0) > 0 && <span className="text-[10px] text-purple-300">{localPost.stats.commentsCount}</span>}
+          <span className="text-[10px] px-1 rounded bg-purple-600/20 text-purple-300">
+            {localPost.stats.commentsCount ?? 0}
+          </span>
         </button>
         {canEdit && !editing && (
           <>
@@ -230,7 +232,18 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
         )}
       </div>
     </div>
-    <PostCommentsModal open={commentsOpen} onClose={()=>setCommentsOpen(false)} post={localPost} onPostUpdated={(p)=>{ setLocalPost(p); onUpdated?.(p); }} />
+    <PostCommentsModal 
+      open={commentsOpen} 
+      onClose={()=>setCommentsOpen(false)} 
+      post={localPost} 
+      onPostUpdated={(p)=>{ setLocalPost(p); onUpdated?.(p); }}
+      onCommentsCountChange={(delta)=>{
+        setLocalPost(lp=>({
+          ...lp,
+          stats: { ...lp.stats, commentsCount: Math.max(0, (lp.stats.commentsCount||0) + delta) }
+        }));
+      }}
+    />
   </>
   );
 };

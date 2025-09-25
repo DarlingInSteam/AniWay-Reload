@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 
 export function useComments(
   targetId: number, 
-  type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW'
+  type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST'
 ) {
   const queryClient = useQueryClient()
   const queryKey = ['comments', targetId, type]
