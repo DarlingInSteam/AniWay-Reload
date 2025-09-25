@@ -24,3 +24,8 @@ management:
     web:
       exposure:
         include: health,info
+
+xp:
+  events:
+    exchange: xp.events.exchange
+    postUpvoteRoutingKey: xp.events.post-upvote

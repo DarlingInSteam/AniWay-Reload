@@ -5,6 +5,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.UUID;
 import org.springframework.transaction.annotation.Transactional;
 import shadowshift.studio.commentservice.dto.*;
 import shadowshift.studio.commentservice.entity.Comment;
@@ -18,8 +27,6 @@ import shadowshift.studio.commentservice.review.ReviewAuthorClient;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -38,6 +45,16 @@ public class CommentService {
 
     private final CommentRepository commentRepository;
     private final CommentReactionRepository commentReactionRepository;
+    private final RabbitTemplate rabbitTemplate;
+
+    @Value("${xp.events.exchange:xp.events.exchange}")
+    private String xpExchange;
+
+    @Value("${xp.events.likeRoutingKey:xp.events.like}")
+    private String likeRoutingKey;
+    
+    @Value("${xp.events.commentCreatedRoutingKey:xp.events.comment-created}")
+    private String commentCreatedRoutingKey;
     private final AuthService authService;
     private final NotificationEventPublisher notificationEventPublisher;
     private final ReviewAuthorClient reviewAuthorClient;
@@ -85,8 +102,23 @@ public class CommentService {
             comment.setParentComment(parentComment);
         }
 
-        Comment savedComment = commentRepository.save(comment);
-        log.info("Comment created with ID: {}", savedComment.getId());
+    Comment savedComment = commentRepository.save(comment);
+
+        // Publish COMMENT_CREATED event (0 XP tracking) immediately after persistence
+        try {
+            Map<String, Object> event = new HashMap<>();
+            event.put("type", "COMMENT_CREATED");
+            event.put("eventId", "COMMENT_CREATED:" + savedComment.getId()); // deterministic per comment
+            event.put("userId", userId); // author receives badge tracking
+            event.put("commentId", savedComment.getId());
+            event.put("targetId", savedComment.getTargetId());
+            event.put("commentType", savedComment.getType().name());
+            event.put("occurredAt", Instant.now().toString());
+            rabbitTemplate.convertAndSend(xpExchange, commentCreatedRoutingKey, event);
+            log.info("Published COMMENT_CREATED event for comment {} by user {}", savedComment.getId(), userId);
+        } catch (Exception ex) {
+            log.error("Failed to publish COMMENT_CREATED event: {}", ex.getMessage());
+        }
 
         try {
             Long targetUserId = null;
@@ -322,6 +354,9 @@ public class CommentService {
         Optional<CommentReaction> existingReaction =
                 commentReactionRepository.findByCommentIdAndUserId(commentId, userId);
 
+        boolean publishLike = false;
+        Long receiverUserId = comment.getUserId();
+
         if (existingReaction.isPresent()) {
             CommentReaction reaction = existingReaction.get();
             if (reaction.getReactionType() == reactionType) {
@@ -331,6 +366,9 @@ public class CommentService {
                 reaction.setReactionType(reactionType);
                 commentReactionRepository.save(reaction);
                 log.info("Changed reaction to {} for comment {}", reactionType, commentId);
+                if (reactionType == ReactionType.LIKE) {
+                    publishLike = true; // switched to LIKE
+                }
             }
         } else {
             CommentReaction reaction = CommentReaction.builder()
@@ -342,6 +380,27 @@ public class CommentService {
 
             commentReactionRepository.save(reaction);
             log.info("Added new reaction {} to comment {}", reactionType, commentId);
+            if (reactionType == ReactionType.LIKE) {
+                publishLike = true;
+            }
+        }
+
+        if (publishLike && !Objects.equals(receiverUserId, userId)) {
+            try {
+                Map<String, Object> event = new HashMap<>();
+                event.put("type", "LIKE_RECEIVED");
+                event.put("eventId", UUID.randomUUID().toString());
+                event.put("receiverUserId", receiverUserId);
+                event.put("actorUserId", userId);
+                event.put("commentId", commentId);
+                event.put("sourceType", "COMMENT");
+                event.put("reactionType", "LIKE");
+                event.put("occurredAt", Instant.now().toString());
+                rabbitTemplate.convertAndSend(xpExchange, likeRoutingKey, event);
+                log.info("Published LIKE_RECEIVED XP event for comment {} to user {}", commentId, receiverUserId);
+            } catch (Exception ex) {
+                log.error("Failed to publish LIKE_RECEIVED event", ex);
+            }
         }
     }
 

@@ -12,6 +12,10 @@ import jakarta.persistence.EntityNotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import java.util.HashMap;
+import java.util.Map;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -26,13 +30,21 @@ public class PostService {
     private final PostRepository postRepository;
     private final PostVoteRepository voteRepository;
     private final PostReferenceRepository referenceRepository;
+    private final RabbitTemplate rabbitTemplate;
+
+    @Value("${xp.events.exchange:xp.events.exchange}")
+    private String xpExchange;
+
+    @Value("${xp.events.postUpvoteRoutingKey:xp.events.post-upvote}")
+    private String postUpvoteRoutingKey;
 
     private static final Pattern MANGA_REF_PATTERN = Pattern.compile("\\[\\[manga:(\\d+)]]");
 
-    public PostService(PostRepository postRepository, PostVoteRepository voteRepository, PostReferenceRepository referenceRepository) {
+    public PostService(PostRepository postRepository, PostVoteRepository voteRepository, PostReferenceRepository referenceRepository, RabbitTemplate rabbitTemplate) {
         this.postRepository = postRepository;
         this.voteRepository = voteRepository;
         this.referenceRepository = referenceRepository;
+        this.rabbitTemplate = rabbitTemplate;
     }
 
     public PostDtos.PostResponse create(Long authorId, PostDtos.CreatePostRequest req) {
@@ -117,12 +129,33 @@ public class PostService {
         if (vote.getId() == null) {
             post.getVotes().add(vote);
         }
-        if (vote.getValue() == value) {
+        int previous = vote.getValue();
+        if (previous == value) {
             vote.setValue(0); // toggle off
         } else {
             vote.setValue(value);
         }
         voteRepository.save(vote);
+
+        // Publish POST_UPVOTED XP event only when transition ends with +1 and was not +1 before
+        if (post.getAuthorId() != null && !post.getAuthorId().equals(userId)) {
+            if (vote.getValue() == 1 && previous != 1) {
+                try {
+                    Map<String, Object> event = new HashMap<>();
+                    event.put("type", "POST_UPVOTED");
+                    // Deterministic eventId prevents multiple XP grants per user per post upvote
+                    event.put("eventId", "POST_UPVOTED:" + postId + ":" + userId);
+                    event.put("userId", post.getAuthorId()); // XP receiver (post author)
+                    event.put("actorUserId", userId); // who upvoted
+                    event.put("postId", postId);
+                    event.put("occurredAt", Instant.now().toString());
+                    rabbitTemplate.convertAndSend(xpExchange, postUpvoteRoutingKey, event);
+                } catch (Exception ex) {
+                    // Log but do not fail user action
+                    System.err.println("Failed to publish POST_UPVOTED event: " + ex.getMessage());
+                }
+            }
+        }
         return PostMapper.toResponse(post, userId);
     }
 

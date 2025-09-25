@@ -193,6 +193,14 @@ spring:
           filters:
             - StripPrefix=0
 
+        # LevelService - Levels & Badges API endpoints
+        - id: levels-api
+          uri: http://level-service:8089
+          predicates:
+            - Path=/api/levels/**
+          filters:
+            - StripPrefix=0
+
         # MangaService - Parser API endpoints (через MangaService для правильной интеграции)
         - id: manga-parser
           uri: http://manga-service:8081

@@ -23,6 +23,7 @@ services:
       - SPRING_PROFILES_ACTIVE=prod
       - EUREKA_CLIENT_ENABLED=false
       - POST_SERVICE_URL=http://post-service:8097
+      - LEVEL_SERVICE_URL=http://level-service:8098
     restart: unless-stopped
     depends_on:
       - auth-service
@@ -33,6 +34,8 @@ services:
       - forum-service
       - melon-service
       - post-service
+      - level-service
+      - rabbitmq
     networks:
       - aniway-network
 
@@ -95,9 +98,14 @@ services:
       - JWT_SECRET=${JWT_SECRET:-mySecretKey12345678901234567890123456789012345678901234567890}
       - JWT_EXPIRATION=86400000
       - AUTH_SERVICE_URL=http://auth-service:8085
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-aniway}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-aniway_pass}
     restart: unless-stopped
     depends_on:
       - comment-postgres
+      - rabbitmq
     networks:
       - aniway-network
 
@@ -303,10 +311,61 @@ services:
       - SPRING_DATASOURCE_USERNAME=postuser
       - SPRING_DATASOURCE_PASSWORD=postpass123
       - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-aniway}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-aniway_pass}
     restart: unless-stopped
     depends_on:
       - post-postgres
       - image-storage-service
+      - rabbitmq
+    networks:
+      - aniway-network
+
+  # Level Service
+  level-service:
+    build:
+      context: ./LevelService
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://level-postgres:5432/leveldb
+      - SPRING_DATASOURCE_USERNAME=leveluser
+      - SPRING_DATASOURCE_PASSWORD=levelpass123
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-aniway}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-aniway_pass}
+    restart: unless-stopped
+    depends_on:
+      - level-postgres
+      - rabbitmq
+    networks:
+      - aniway-network
+
+  level-postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: leveldb
+      POSTGRES_USER: leveluser
+      POSTGRES_PASSWORD: levelpass123
+    volumes:
+      - level_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - aniway-network
+
+  # RabbitMQ broker
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-aniway}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-aniway_pass}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    restart: unless-stopped
     networks:
       - aniway-network
 
@@ -322,6 +381,7 @@ volumes:
   melon_temp:
   notification_data:
   post_data:
+  level_data:
 
 networks:
   aniway-network:

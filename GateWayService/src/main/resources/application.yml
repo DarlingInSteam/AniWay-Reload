@@ -229,6 +229,14 @@ spring:
           filters:
             - StripPrefix=0
 
+        # LevelService - XP & Level endpoints
+        - id: level-api
+          uri: http://level-service:8098
+          predicates:
+            - Path=/levels/**
+          filters:
+            - StripPrefix=0
+
         # Статические ресурсы MangaService (favicon, CSS, JS)
         - id: manga-static
           uri: http://manga-service:8081

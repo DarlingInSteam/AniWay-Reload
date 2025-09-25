@@ -262,4 +262,20 @@ public class ChapterRestController {
         boolean isLiked = chapterService.isLikedByUser(userId, id);
         return ResponseEntity.ok(Map.of("liked", isLiked));
     }
+
+    /**
+     * Record that the user has read the chapter and award XP (idempotency is handled downstream by LevelService event id uniqueness heuristic if needed).
+     */
+    @PostMapping("/{id}/read")
+    public ResponseEntity<?> recordRead(@PathVariable Long id, @RequestHeader("X-User-Id") Long userId) {
+        try {
+            chapterService.recordChapterRead(userId, id);
+            return ResponseEntity.ok(Map.of("status", "recorded"));
+        } catch (Exception ex) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                    "error", "Failed to record read",
+                    "message", ex.getMessage()
+            ));
+        }
+    }
 }

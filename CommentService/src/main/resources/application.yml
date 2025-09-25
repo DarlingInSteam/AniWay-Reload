@@ -58,6 +58,12 @@ logging:
   pattern:
     console: "%d{HH:mm:ss.SSS} [%thread] %-5level [%logger{36}] - %msg%n"
 
+xp:
+  events:
+    exchange: xp.events.exchange
+    likeRoutingKey: xp.events.like
+    commentCreatedRoutingKey: xp.events.comment-created
+
 ---
 # Development profile
 spring:

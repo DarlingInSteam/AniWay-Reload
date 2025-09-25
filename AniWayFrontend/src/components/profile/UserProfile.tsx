@@ -25,13 +25,73 @@ import { ProfileShowcaseFavorites } from './ProfileShowcaseFavorites';
 import { ProfileActivity } from './ProfileActivity';
 import { PostComposer } from '@/components/posts/PostComposer';
 import { PostList } from '@/components/posts/PostList';
+import { useUserLevel } from '@/hooks/useUserLevel';
+import { LevelIndicator, getMockLevelData } from './LevelIndicator';
 import { ProfileBadgesPlaceholder } from './ProfileBadgesPlaceholder';
+import { BadgeList } from './BadgeList';
 import { ProfileReadingProgress } from './ProfileReadingProgress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { profileService } from '@/services/profileService';
 import { apiClient } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+// Added level overview section component dependencies
+import React from 'react';
+
+function LevelOverviewSection({ profile, isOwnProfile, currentUserId, activity, mobile }: any) {
+  const userIdNum = parseInt(profile.id);
+  const { data: levelDataResp, isLoading: levelLoading } = useUserLevel(userIdNum);
+
+  let levelBlock: React.ReactNode = null;
+  if (levelLoading) {
+    levelBlock = <div className="glass-panel p-4 rounded-xl text-sm text-gray-400">Загрузка уровня...</div>;
+  } else if (levelDataResp) {
+    const converted = {
+      currentLevel: levelDataResp.level,
+      currentXP: levelDataResp.xpIntoCurrentLevel,
+      xpToNextLevel: Math.max(0, levelDataResp.xpForNextLevel - levelDataResp.xpIntoCurrentLevel),
+      totalXPForNextLevel: levelDataResp.xpForNextLevel,
+      levelName: `Уровень ${levelDataResp.level}`,
+      levelIcon: '⭐',
+      levelColor: 'from-purple-500 to-indigo-600',
+      achievements: [] as string[]
+    };
+    levelBlock = <LevelIndicator levelData={converted} />;
+  } else {
+    // fallback to mock if no data
+    const mock = getMockLevelData(profile.mangaRead || 0, profile.chaptersRead || 0);
+    levelBlock = <LevelIndicator levelData={mock} />;
+  }
+
+  if (mobile) {
+    return (
+      <div className="space-y-7">
+        {isOwnProfile && <PostComposer userId={userIdNum} onCreated={() => {}} />}
+        {levelBlock}
+        <PostList userId={userIdNum} currentUserId={currentUserId} />
+        <ProfileActivity activities={activity} />
+        <ProfileGenres profile={profile} />
+  {/* Badges */}
+  <BadgeList userId={userIdNum} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+      <div className="space-y-7 xl:col-span-8">
+        {isOwnProfile && <PostComposer userId={userIdNum} onCreated={() => {}} />}
+        <PostList userId={userIdNum} currentUserId={currentUserId} />
+      </div>
+      <div className="space-y-7 xl:col-span-4">
+        {levelBlock}
+        <ProfileActivity activities={activity} />
+        <ProfileGenres profile={profile} />
+  <BadgeList userId={userIdNum} />
+      </div>
+    </div>
+  );
+}
 
 export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   const [profile, setProfile] = useState<UserProfileType | null>(null);
@@ -365,17 +425,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
             </TabsList>
 
             <TabsContent value="overview" className="space-y-7">
-              <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-                <div className="space-y-7 xl:col-span-8">
-                  {isOwnProfile && <PostComposer userId={parseInt(profile.id)} onCreated={()=>{/* reload posts list via key change */}} />}
-                  <PostList userId={parseInt(profile.id)} currentUserId={currentUser?.id} />
-                </div>
-                <div className="space-y-7 xl:col-span-4">
-                  <ProfileActivity activities={activity} />
-                  <ProfileGenres profile={profile} />
-                  <ProfileBadgesPlaceholder />
-                </div>
-              </div>
+              <LevelOverviewSection profile={profile} isOwnProfile={isOwnProfile} currentUserId={currentUser?.id} activity={activity} />
             </TabsContent>
 
             <TabsContent value="library" className="space-y-6">
@@ -435,13 +485,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
             </TabsList>
 
             <TabsContent value="overview" className="space-y-7">
-              <div className="space-y-7">
-                {isOwnProfile && <PostComposer userId={parseInt(profile.id)} onCreated={()=>{/* reload posts list via key change */}} />}
-                <PostList userId={parseInt(profile.id)} currentUserId={currentUser?.id} />
-                <ProfileActivity activities={activity} />
-                <ProfileGenres profile={profile} />
-                <ProfileBadgesPlaceholder />
-              </div>
+              <LevelOverviewSection profile={profile} isOwnProfile={isOwnProfile} currentUserId={currentUser?.id} activity={activity} mobile />
             </TabsContent>
 
             <TabsContent value="library" className="space-y-6">

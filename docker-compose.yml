@@ -129,6 +129,45 @@ services:
       timeout: 5s
       retries: 5
 
+  # Level Service PostgreSQL
+  level-postgres:
+    image: postgres:16
+    container_name: level-postgres
+    environment:
+      POSTGRES_DB: level_db
+      POSTGRES_USER: level_user
+      POSTGRES_PASSWORD: level_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5439:5432"
+    volumes:
+      - level_postgres_data:/var/lib/postgresql/data
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U level_user -d level_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # RabbitMQ broker
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: aniway
+      RABBITMQ_DEFAULT_PASS: aniway_pass
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
   # Image Storage Service
   image-storage-service:
     build:
@@ -212,6 +251,7 @@ services:
       - CHAPTER_SERVICE_URL=http://chapter-service:8082
       - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
       - POST_SERVICE_URL=http://post-service:8097
+      - LEVEL_SERVICE_URL=http://level-service:8098
     ports:
       - "8080:8080"
     depends_on:
@@ -220,6 +260,8 @@ services:
       - image-storage-service
       - auth-service
       - post-service
+      - level-service
+      - rabbitmq
     networks:
       - aniway-network
     restart: unless-stopped
@@ -287,10 +329,16 @@ services:
       - JWT_SECRET=mySecretKey12345678901234567890123456789012345678901234567890
       - JWT_EXPIRATION=86400000
       - AUTH_SERVICE_URL=http://auth-service:8085
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USERNAME=aniway
+      - RABBITMQ_PASSWORD=aniway_pass
     ports:
       - "8086:8086"
     depends_on:
       comment-postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     networks:
       - aniway-network
@@ -311,16 +359,47 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://post-postgres:5432/post_db
       - SPRING_DATASOURCE_USERNAME=post_user
       - SPRING_DATASOURCE_PASSWORD=post_password
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USERNAME=aniway
+      - RABBITMQ_PASSWORD=aniway_pass
     ports:
       - "8097:8097"
     depends_on:
       post-postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     networks:
       - aniway-network
     restart: unless-stopped
 
   # Frontend
+  # Level Service
+  level-service:
+    build:
+      context: ./LevelService
+      dockerfile: Dockerfile
+    container_name: level-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://level-postgres:5432/level_db
+      - SPRING_DATASOURCE_USERNAME=level_user
+      - SPRING_DATASOURCE_PASSWORD=level_password
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USERNAME=aniway
+      - RABBITMQ_PASSWORD=aniway_pass
+    ports:
+      - "8098:8098"
+    depends_on:
+      level-postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - aniway-network
+    restart: unless-stopped
   frontend:
     build:
       context: ./AniWayFrontend
