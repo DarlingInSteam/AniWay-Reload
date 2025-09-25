@@ -30,18 +30,27 @@ export const XpHistoryList: React.FC<Props> = ({ userId, compact }) => {
 
   return (
     <div className="space-y-2">
+      {!compact && (
+        <div className="grid grid-cols-[1fr_auto_auto] gap-3 px-2 text-[11px] uppercase tracking-wide text-slate-500">
+          <div>Действие</div>
+          <div className="text-right">XP</div>
+          <div className="text-right">Когда</div>
+        </div>
+      )}
       {rows.map(tx => {
         const label = typeLabels[tx.sourceType] || tx.sourceType;
         const created = tx.createdAt ? new Date(tx.createdAt).toLocaleString() : '';
+        const xp = typeof tx.xpAmount === 'number' ? tx.xpAmount : (typeof tx.delta === 'number' ? tx.delta : 0);
         return (
-          <div key={tx.id} className="flex items-center justify-between rounded border border-border px-3 py-1.5 text-sm">
-            <div className="flex flex-col">
-              <span className="font-medium">{label}</span>
-              <span className="text-xs text-muted-foreground">{created}</span>
+          <div key={tx.id} className="grid grid-cols-[1fr_auto_auto] gap-3 items-center rounded border border-border/60 bg-white/5 hover:bg-white/10 transition px-3 py-1.5 text-sm">
+            <div className="flex flex-col min-w-0">
+              <span className="font-medium truncate" title={label}>{label}</span>
+              <span className="text-[11px] text-muted-foreground truncate" title={created}>{created}</span>
             </div>
-            <div className={"font-semibold " + (tx.delta > 0 ? 'text-emerald-500' : tx.delta < 0 ? 'text-red-500' : 'text-muted-foreground')}>
-              {tx.delta > 0 ? '+' + tx.delta : tx.delta}
+            <div className={"text-right font-semibold " + (xp > 0 ? 'text-emerald-500' : xp < 0 ? 'text-red-500' : 'text-slate-400')}>
+              {xp > 0 ? '+' + xp : xp}
             </div>
+            <div className="text-right text-[11px] text-slate-400 hidden sm:block">{created}</div>
           </div>
         );
       })}

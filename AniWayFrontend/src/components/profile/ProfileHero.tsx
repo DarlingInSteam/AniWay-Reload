@@ -104,12 +104,16 @@ const LevelPanel: React.FC<{ profile: UserProfile; }> = ({ profile }) => {
         )}
       </GlassPanel>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg bg-neutral-900/95 border border-white/10">
+        <DialogContent className="max-w-xl bg-neutral-900/95 border border-white/10 max-h-[80vh] p-0 flex flex-col">
           <DialogHeader>
             <DialogTitle className="text-white">История опыта</DialogTitle>
           </DialogHeader>
-          <div className="text-xs text-slate-400 mb-3">Недавние действия и начисления XP</div>
-          <XpHistoryList userId={userId} />
+          <div className="px-6 pb-4">
+            <div className="text-xs text-slate-400 mb-3">Недавние действия и начисления XP</div>
+            <div className="overflow-y-auto pr-1 custom-scrollbar" style={{maxHeight:'60vh'}}>
+              <XpHistoryList userId={userId} />
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
