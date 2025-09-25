@@ -195,7 +195,7 @@ spring:
 
         # LevelService - Levels & Badges API endpoints
         - id: levels-api
-          uri: http://level-service:8089
+          uri: http://level-service:8098
           predicates:
             - Path=/api/levels/**
           filters:
