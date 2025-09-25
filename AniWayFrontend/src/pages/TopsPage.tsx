@@ -125,25 +125,25 @@ export function TopsPage() {
           })()
           return (
             <div key={u.id || idx} id={`user-${u.id}`} onClick={() => u.id && navigate(`/profile/${u.id}#from-tops`)}
-              className="group cursor-pointer relative overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-slate-800/40 to-slate-900/40 hover:from-indigo-700/30 hover:to-fuchsia-800/30 transition-colors p-4 flex flex-col gap-3">
+              className="glass-panel group cursor-pointer relative overflow-hidden rounded-xl p-4 flex flex-col gap-3 hover:bg-white/10 transition-colors">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full overflow-hidden bg-white/10 flex items-center justify-center text-sm font-semibold text-white/70 border border-white/10">
+                <div className="w-12 h-12 rounded-full overflow-hidden bg-white/10 flex items-center justify-center text-sm font-semibold text-white/70 border border-white/10 ring-1 ring-white/10">
                   {u.avatar ? <img src={u.avatar} alt={u.username} className="w-full h-full object-cover"/> : (u.username||'?')[0]}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-medium text-sm truncate text-white/90">{idx+1}. {u.username || 'Без имени'}</h3>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white/60">{statLabel}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="font-semibold text-sm truncate text-white/90 flex-1">{idx+1}. {u.username || 'Без имени'}</h3>
+                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-600/25 text-indigo-200/90 backdrop-blur-sm border border-white/10 shadow-sm">{statLabel}</span>
                   </div>
-                  <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-white/40">
-                    {u.level != null && <span className="rounded bg-purple-600/30 px-1.5 py-0.5">LVL {u.level}</span>}
-                    {u.xp != null && <span className="rounded bg-indigo-600/30 px-1.5 py-0.5">XP {u.xp}</span>}
+                  <div className="mt-1 flex flex-wrap gap-1.5 text-[10px]">
+                    {u.level != null && <span className="px-2 py-0.5 rounded bg-purple-600/25 text-purple-200 border border-white/10">LVL {u.level}</span>}
+                    {u.xp != null && <span className="px-2 py-0.5 rounded bg-fuchsia-600/25 text-fuchsia-200 border border-white/10">XP {u.xp}</span>}
                   </div>
                 </div>
               </div>
-              <div className="flex items-center justify-between text-xs text-white/40 pt-1">
-                <span>Метрика: {metric}</span>
-                <span>ID: {u.id}</span>
+              <div className="flex items-center justify-between text-[11px] text-white/45 pt-1">
+                <span className="font-medium tracking-tight">Метрика: <span className="text-white/70">{metric}</span></span>
+                <span className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10">ID {u.id}</span>
               </div>
             </div>
           )
@@ -342,12 +342,20 @@ export function TopsPage() {
       <div className="flex flex-col gap-4">
         <div>
           <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-indigo-300 via-fuchsia-300 to-pink-300 bg-clip-text text-transparent">Топы сообщества</h1>
-          <p className="text-muted-foreground text-sm max-w-2xl">Пятисекционные рейтинги активности: пользователи, обзоры, темы, посты и комментарии. Клик ведёт к исходному контенту с якорями.</p>
+          <p className="text-muted-foreground text-sm max-w-2xl">Рейтинги активности: пользователи, обзоры, темы форума, комментарии и посты на стене. Клик ведёт к исходному контенту с якорями.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {tabs.map(t => (
-            <button key={t.key} onClick={()=> setActiveTab(t.key)}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${activeTab===t.key ? 'bg-primary text-white shadow-inner' : 'bg-white/5 text-white/60 hover:text-white/90'}`}>{t.label}</button>
+            <button
+              key={t.key}
+              onClick={()=> setActiveTab(t.key)}
+              className={`relative px-4 py-1.5 rounded-full text-sm font-medium transition backdrop-blur-sm border ${(activeTab===t.key)
+                ? 'bg-white/15 border-white/30 text-white shadow-sm'
+                : 'bg-white/5 border-white/10 text-white/60 hover:text-white/85 hover:bg-white/10'} overflow-hidden`}
+            >
+              <span className="relative z-10">{t.label}</span>
+              {activeTab===t.key && <span className="absolute inset-0 bg-gradient-to-r from-indigo-500/10 via-fuchsia-500/10 to-pink-500/10" />}
+            </button>
           ))}
           {activeTab==='users' && (
             <div className="ml-auto"><Segmented value={userMetric} onChange={setUserMetric} options={USER_METRICS} /></div>
