@@ -6,7 +6,8 @@ export interface UserBadgeResponse {
 }
 
 async function fetchUserBadges(userId: number): Promise<UserBadgeResponse[]> {
-  const res = await fetch(`/levels/${userId}/badges`);
+  // Gateway exposes LevelService under /api/levels
+  const res = await fetch(`/api/levels/${userId}/badges`);
   if (!res.ok) throw new Error('Failed to fetch user badges');
   return res.json();
 }

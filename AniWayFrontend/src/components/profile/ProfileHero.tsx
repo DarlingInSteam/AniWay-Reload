@@ -8,6 +8,7 @@ import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
 import { profileService } from '@/services/profileService'
 import { Progress } from '@/components/ui/progress'
 import GlassPanel from '@/components/ui/GlassPanel'
+import { useUserLevel } from '@/hooks/useUserLevel'
 
 interface ProfileHeroProps {
   profile: UserProfile
@@ -63,28 +64,45 @@ const AvatarSection: React.FC<{ profile: UserProfile; isOwn: boolean; uploading:
   </div>
 )
 
-const LevelPanel: React.FC<{ userLevel: number; gained: number; xpNext: number; totalActivity: number; pct: number; profile: UserProfile; }> = ({ userLevel, gained, xpNext, totalActivity, pct, profile }) => (
-  <div className="hidden lg:flex flex-col w-72">
-    <GlassPanel className="p-4 flex flex-col gap-4" padding="none">
-      <div className="flex items-center justify-between">
-        <span className="text-xs tracking-wide text-slate-400 uppercase">Уровень</span>
-        <span className="text-sm font-semibold text-white">{userLevel}</span>
-      </div>
-      <div>
-        <div className="flex justify-between text-[11px] text-slate-500 mb-1">
-          <span>{gained} XP</span>
-          <span>{xpNext} XP</span>
+const LevelPanel: React.FC<{ profile: UserProfile; }> = ({ profile }) => {
+  const userId = parseInt(profile.id)
+  const { data: levelData, isLoading, isError } = useUserLevel(userId)
+
+  // Fallback to simple derived activity if backend not yet responding
+  const totalActivity = (profile.mangaRead || 0) * 10 + (profile.chaptersRead || 0)
+  const derivedLevel = Math.max(1, Math.min(10, Math.floor(totalActivity / 50) + 1))
+  const level = levelData?.level ?? derivedLevel
+  const xpInto = levelData?.xpIntoCurrentLevel ?? 0
+  const xpForNext = levelData?.xpForNextLevel ?? 50
+  const pct = levelData ? Math.min(100, (levelData.progress * 100)) : Math.min(100, (xpInto / xpForNext) * 100)
+  const remaining = levelData ? Math.max(0, levelData.xpForNextLevel - levelData.xpIntoCurrentLevel) : Math.max(0, xpForNext - xpInto)
+
+  return (
+    <div className="hidden lg:flex flex-col w-72">
+      <GlassPanel className="p-4 flex flex-col gap-4" padding="none">
+        <div className="flex items-center justify-between">
+          <span className="text-xs tracking-wide text-slate-400 uppercase">Уровень</span>
+          <span className="text-sm font-semibold text-white">{isLoading ? '…' : level}</span>
         </div>
-        <Progress value={pct} className="h-2" />
-        <div className="mt-1 text-[11px] text-slate-500">{userLevel>=10? 'MAX' : `До след.: ${Math.max(0, xpNext-totalActivity)} XP`}</div>
-      </div>
-      <div className="flex flex-col gap-1 text-[11px] text-slate-500">
-        <div><span className="text-slate-300">Манги:</span> {profile.mangaRead}</div>
-        <div><span className="text-slate-300">Глав:</span> {profile.chaptersRead}</div>
-      </div>
-    </GlassPanel>
-  </div>
-)
+        <div>
+          <div className="flex justify-between text-[11px] text-slate-500 mb-1">
+            <span>{xpInto} XP</span>
+            <span>{xpForNext} XP</span>
+          </div>
+            <Progress value={pct} className="h-2" />
+            <div className="mt-1 text-[11px] text-slate-500">{level>=10? 'MAX' : `До след.: ${remaining} XP`}</div>
+        </div>
+        <div className="flex flex-col gap-1 text-[11px] text-slate-500">
+          <div><span className="text-slate-300">Манги:</span> {profile.mangaRead}</div>
+          <div><span className="text-slate-300">Глав:</span> {profile.chaptersRead}</div>
+        </div>
+        {isError && (
+          <div className="text-[10px] text-amber-400">Нет данных уровня (fallback)</div>
+        )}
+      </GlassPanel>
+    </div>
+  )
+}
 
 export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit, onAvatarUpdated }) => {
   // Avatar upload logic (build tag removed per design cleanup)
@@ -160,31 +178,6 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile.avatar, (profile as any).id])
 
-  // Level logic (extracted from legacy header)
-  const levels = [
-    { level: 1, xpRequired: 0 },
-    { level: 2, xpRequired: 50 },
-    { level: 3, xpRequired: 150 },
-    { level: 4, xpRequired: 300 },
-    { level: 5, xpRequired: 500 },
-    { level: 6, xpRequired: 750 },
-    { level: 7, xpRequired: 1000 },
-    { level: 8, xpRequired: 1500 },
-    { level: 9, xpRequired: 2000 },
-    { level: 10, xpRequired: 3000 },
-  ]
-  const totalActivity = (profile.mangaRead || 0) * 10 + (profile.chaptersRead || 0)
-  let userLevel = 1
-  for (let i = levels.length - 1; i >= 0; i--) {
-    if (totalActivity >= levels[i].xpRequired) { userLevel = levels[i].level; break }
-  }
-  const current = levels[userLevel - 1]
-  const next = levels[userLevel] || levels[levels.length - 1]
-  const xpCurrent = current.xpRequired
-  const xpNext = next.xpRequired
-  const gained = totalActivity - xpCurrent
-  const need = xpNext - xpCurrent
-  const pct = userLevel >= 10 ? 100 : (need>0? Math.min(100, (gained/need)*100): 0)
 
   return (
     <GlassPanel className="w-full">
@@ -226,7 +219,7 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit
             </div>
           )}
         </div>
-        <LevelPanel userLevel={userLevel} gained={gained} xpNext={xpNext} totalActivity={totalActivity} pct={pct} profile={profile} />
+        <LevelPanel profile={profile} />
       </div>
     </GlassPanel>
   )

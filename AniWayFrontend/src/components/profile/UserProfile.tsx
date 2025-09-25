@@ -26,7 +26,8 @@ import { ProfileActivity } from './ProfileActivity';
 import { PostComposer } from '@/components/posts/PostComposer';
 import { PostList } from '@/components/posts/PostList';
 import { useUserLevel } from '@/hooks/useUserLevel';
-import { LevelIndicator, getMockLevelData } from './LevelIndicator';
+// LevelIndicator removed from overview to avoid duplication; header now shows minimal level block fed by backend
+// import { LevelIndicator, getMockLevelData } from './LevelIndicator';
 import { ProfileBadgesPlaceholder } from './ProfileBadgesPlaceholder';
 import { BadgeList } from './BadgeList';
 import { ProfileReadingProgress } from './ProfileReadingProgress';
@@ -40,43 +41,18 @@ import React from 'react';
 
 function LevelOverviewSection({ profile, isOwnProfile, currentUserId, activity, mobile }: any) {
   const userIdNum = parseInt(profile.id);
-  const { data: levelDataResp, isLoading: levelLoading } = useUserLevel(userIdNum);
-
-  let levelBlock: React.ReactNode = null;
-  if (levelLoading) {
-    levelBlock = <div className="glass-panel p-4 rounded-xl text-sm text-gray-400">Загрузка уровня...</div>;
-  } else if (levelDataResp) {
-    const converted = {
-      currentLevel: levelDataResp.level,
-      currentXP: levelDataResp.xpIntoCurrentLevel,
-      xpToNextLevel: Math.max(0, levelDataResp.xpForNextLevel - levelDataResp.xpIntoCurrentLevel),
-      totalXPForNextLevel: levelDataResp.xpForNextLevel,
-      levelName: `Уровень ${levelDataResp.level}`,
-      levelIcon: '⭐',
-      levelColor: 'from-purple-500 to-indigo-600',
-      achievements: [] as string[]
-    };
-    levelBlock = <LevelIndicator levelData={converted} />;
-  } else {
-    // fallback to mock if no data
-    const mock = getMockLevelData(profile.mangaRead || 0, profile.chaptersRead || 0);
-    levelBlock = <LevelIndicator levelData={mock} />;
-  }
-
+  // No level block here anymore to prevent duplication; header (ProfileHero) shows level.
   if (mobile) {
     return (
       <div className="space-y-7">
         {isOwnProfile && <PostComposer userId={userIdNum} onCreated={() => {}} />}
-        {levelBlock}
         <PostList userId={userIdNum} currentUserId={currentUserId} />
         <ProfileActivity activities={activity} />
         <ProfileGenres profile={profile} />
-  {/* Badges */}
-  <BadgeList userId={userIdNum} />
+        <BadgeList userId={userIdNum} />
       </div>
     );
   }
-
   return (
     <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
       <div className="space-y-7 xl:col-span-8">
@@ -84,10 +60,9 @@ function LevelOverviewSection({ profile, isOwnProfile, currentUserId, activity, 
         <PostList userId={userIdNum} currentUserId={currentUserId} />
       </div>
       <div className="space-y-7 xl:col-span-4">
-        {levelBlock}
         <ProfileActivity activities={activity} />
         <ProfileGenres profile={profile} />
-  <BadgeList userId={userIdNum} />
+        <BadgeList userId={userIdNum} />
       </div>
     </div>
   );

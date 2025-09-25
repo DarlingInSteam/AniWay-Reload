@@ -10,7 +10,8 @@ export interface UserLevelResponse {
 }
 
 async function fetchUserLevel(userId: number): Promise<UserLevelResponse> {
-  const res = await fetch(`/levels/${userId}`);
+  // Gateway exposes LevelService under /api/levels
+  const res = await fetch(`/api/levels/${userId}`);
   if (!res.ok) throw new Error('Failed to fetch user level');
   return res.json();
 }
