@@ -1,4 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
+import XpHistoryList from '@/components/profile/XpHistoryList';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Star, BookOpen, Trophy, Target } from 'lucide-react';
@@ -79,6 +82,8 @@ export const getMockLevelData = (mangaRead: number, chaptersRead: number): Level
 };
 
 export function LevelIndicator({ levelData, className = "" }: LevelIndicatorProps) {
+  const [open, setOpen] = useState(false);
+  const { user } = useAuth();
   const progressPercentage = levelData.totalXPForNextLevel > 0 
     ? Math.min(100, (levelData.currentXP / levelData.totalXPForNextLevel) * 100)
     : 100;
@@ -86,7 +91,8 @@ export function LevelIndicator({ levelData, className = "" }: LevelIndicatorProp
   const isMaxLevel = levelData.currentLevel >= 10;
   
   return (
-    <Card className={`bg-white/3 backdrop-blur-md border border-white/8 shadow-lg overflow-hidden ${className}`}>
+    <>
+    <Card onClick={() => setOpen(true)} className={`cursor-pointer hover:shadow-xl transition-shadow bg-white/3 backdrop-blur-md border border-white/8 shadow-lg overflow-hidden ${className}`}>
       <CardContent className="p-6">
         {/* Заголовок с уровнем */}
         <div className="flex items-center justify-between mb-4">
@@ -195,5 +201,15 @@ export function LevelIndicator({ levelData, className = "" }: LevelIndicatorProp
         </div>
       </CardContent>
     </Card>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent className="max-w-lg bg-neutral-900/95 border border-white/10">
+        <DialogHeader>
+          <DialogTitle className="text-white">История опыта</DialogTitle>
+        </DialogHeader>
+        <div className="text-xs text-gray-400 mb-3">Последние действия, дающие вам XP</div>
+        <XpHistoryList userId={user?.id} />
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

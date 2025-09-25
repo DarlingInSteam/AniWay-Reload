@@ -4,6 +4,7 @@ import { buildProfileUrl } from '../lib/profileUrl';
 import { useResolvedAvatar } from '@/hooks/useResolvedAvatar';
 import { MessageCircle } from 'lucide-react';
 import RatingStars from './RatingStars';
+import { MarkdownRenderer } from './markdown/MarkdownRenderer';
 import { CommentSection } from './comments/CommentSection';
 
 export interface ReviewData {
@@ -83,9 +84,6 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
   };
 
   const shouldTruncate = review.comment.length > 300;
-  const displayComment = shouldTruncate && !isExpanded 
-    ? review.comment.slice(0, 300) + '...' 
-    : review.comment;
 
   return (
     <div className="bg-white/5 backdrop-blur-md rounded-3xl p-5 md:p-6 shadow-lg border border-white/10 transition-all duration-300 hover:shadow-xl hover:bg-white/10">
@@ -176,9 +174,15 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
       {/* Comment */}
       {review.comment && (
         <div className="mb-4">
-          <p className="text-gray-200 leading-relaxed text-sm md:text-base">
-            {displayComment}
-          </p>
+          {isExpanded || !shouldTruncate ? (
+            <div className="markdown-body text-gray-200 leading-relaxed text-sm md:text-base">
+              <MarkdownRenderer value={review.comment} />
+            </div>
+          ) : (
+            <div className="text-gray-200 leading-relaxed text-sm md:text-base whitespace-pre-wrap">
+              {review.comment.slice(0,300)}...
+            </div>
+          )}
           {shouldTruncate && (
             <button
               onClick={() => setIsExpanded(!isExpanded)}

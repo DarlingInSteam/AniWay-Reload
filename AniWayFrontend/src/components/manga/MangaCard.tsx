@@ -26,12 +26,8 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
   const { rating } = useRating(manga.id)
   const queryClient = useQueryClient()
   
-  // Инвалидируем кэш для этого манга при монтировании компонента
-  useEffect(() => {
-    console.log(`MangaCard ${manga.id}: Invalidating cache for manga ${manga.id}`)
-    queryClient.invalidateQueries({ queryKey: ['manga', manga.id] })
-    queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
-  }, [queryClient, manga.id])
+  // Удалено массовое инвалидирование кэша на монтировании, чтобы не вызывать шторм запросов.
+  // Если потребуется обновление конкретной манги после мутаций, делать invalidate в месте мутации.
   
   // Проверяем корректность данных манги
   if (!manga || !manga.id) {

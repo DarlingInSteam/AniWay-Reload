@@ -25,6 +25,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-webflux") // Добавляем WebFlux для WebClient
     implementation("org.springframework.boot:spring-boot-starter-cache")
     implementation("org.springframework:spring-tx") // Добавляем для @Transactional
+    implementation("org.springframework.boot:spring-boot-starter-amqp")
     implementation("com.github.ben-manes.caffeine:caffeine")
     implementation("org.postgresql:postgresql")
     developmentOnly("org.springframework.boot:spring-boot-devtools")

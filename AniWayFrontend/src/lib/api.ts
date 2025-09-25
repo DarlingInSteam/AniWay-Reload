@@ -11,14 +11,35 @@ class ApiClient {
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
     const token = localStorage.getItem('authToken');
+    let userId = localStorage.getItem('userId') || localStorage.getItem('userID') || localStorage.getItem('currentUserId');
+    // Fallback: try decode JWT payload (assuming standard 'sub' or 'userId' claim) if userId absent
+    if(!userId && token){
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1] || ''));
+        const extracted = payload.userId || payload.userID || payload.sub || payload.id;
+        if(extracted){
+          userId = String(extracted);
+          localStorage.setItem('userId', userId);
+        }
+      } catch { /* silent */ }
+    }
 
     console.log(`API Request: ${options?.method || 'GET'} ${url}`);
     console.log(`Auth token present: ${!!token}`);
+
+    // Heuristic: add X-User-Id for mutating post endpoints (backend expects it) and for comments
+    const method = (options?.method || 'GET').toUpperCase();
+    const needsUserHeader = !!userId && (
+      (/^\/posts\b/.test(endpoint) && ['POST','PUT','DELETE','GET'].includes(method)) ||
+      (/^\/posts\/.*\/vote$/.test(endpoint)) ||
+      (/^\/comments\b/.test(endpoint) && ['POST','PUT','DELETE','GET'].includes(method))
+    );
 
     const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
         ...this.getAuthHeaders(),
+        ...(needsUserHeader ? { 'X-User-Id': userId! } : {}),
         ...options?.headers,
       },
       ...options,
@@ -58,32 +79,6 @@ class ApiClient {
     }
   }
 
-  
-  // Публичный запрос без авторизационных заголовков
-  private async publicRequest<T>(endpoint: string, options?: RequestInit): Promise<T> {
-    const url = `${API_BASE_URL}${endpoint}`;
-
-    console.log(`Public API Request: ${options?.method || 'GET'} ${url}`);
-
-    const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
-      ...options,
-    });
-
-    console.log(`Public API Response: ${response.status} ${response.statusText}`);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Public API Error Details: ${errorText}`);
-      throw new Error(`Public API Error: ${response.status} ${response.statusText} - ${errorText}`);
-    }
-
-    return response.json();
-  }
-
   // Manga API
   async getAllManga(): Promise<MangaResponseDTO[]> {
     return this.request<MangaResponseDTO[]>('/manga');
@@ -91,9 +86,7 @@ class ApiClient {
 
   async getMangaById(id: number, userId?: number): Promise<MangaResponseDTO> {
     const params = new URLSearchParams();
-    if (userId) {
-      params.append('userId', userId.toString());
-    }
+    if (userId) params.append('userId', userId.toString());
     const queryString = params.toString();
     const endpoint = queryString ? `/manga/${id}?${queryString}` : `/manga/${id}`;
     return this.request<MangaResponseDTO>(endpoint);
@@ -101,13 +94,9 @@ class ApiClient {
 
   async searchManga(params: SearchParams): Promise<MangaResponseDTO[]> {
     const searchParams = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value) searchParams.append(key, value);
-    });
-
+    Object.entries(params).forEach(([key, value]) => { if (value) searchParams.append(key, value as any); });
     return this.request<MangaResponseDTO[]>(`/manga/search?${searchParams}`);
   }
-
   async getAllMangaPaged(page: number = 0, size: number = 10, sortBy: string = 'createdAt', sortOrder: 'asc' | 'desc' = 'desc', filters?: any): Promise<PageResponse<MangaResponseDTO>> {
     const params = new URLSearchParams({
       page: page.toString(),
@@ -115,31 +104,20 @@ class ApiClient {
       sortBy,
       sortOrder
     });
-
-    // Добавляем фильтры если есть
     if (filters) {
-      console.log('ApiClient: Processing filters:', filters)
       Object.entries(filters).forEach(([key, value]) => {
         if (value) {
-          console.log(`ApiClient: Processing filter ${key}:`, value)
           if (Array.isArray(value) && !['ageRating', 'rating', 'releaseYear', 'chapterRange'].includes(key)) {
-            // Для массивов добавляем каждый элемент отдельно
-            console.log(`ApiClient: Adding array values for ${key}:`, value)
             value.forEach(item => params.append(key, item.toString()));
           } else if (Array.isArray(value) && ['ageRating', 'rating', 'releaseYear', 'chapterRange'].includes(key)) {
-            // Для диапазонов [min, max]
-            console.log(`ApiClient: Adding range for ${key}:`, value)
             params.append(`${key}Min`, value[0].toString());
             params.append(`${key}Max`, value[1].toString());
           } else {
-            console.log(`ApiClient: Adding single value for ${key}:`, value)
             params.append(key, value.toString());
           }
         }
       });
     }
-
-    console.log('ApiClient: Final URL parameters:', params.toString())
     return this.request<PageResponse<MangaResponseDTO>>(`/manga/paged?${params}`);
   }
 
@@ -253,12 +231,39 @@ class ApiClient {
   }
 
   async getUserPublicProfile(userId: number): Promise<User> {
-    return this.request<User>(`/auth/users/${userId}/public`);
+    // Simple in-memory caches to avoid duplicate requests & log noise
+    if (!(globalThis as any).__publicProfileCache) {
+      (globalThis as any).__publicProfileCache = new Map<number, Promise<User>>();
+    }
+    const cache: Map<number, Promise<User>> = (globalThis as any).__publicProfileCache;
+
+    if (cache.has(userId)) {
+      return cache.get(userId)!;
+    }
+
+    const promise = (async () => {
+      try {
+        return await this.request<User>(`/auth/users/${userId}/public`);
+      } catch (error: any) {
+        // For public profile 401/403/404 just throw a normalized error once
+        const msg = String(error?.message || '');
+        if (/401|403|404/.test(msg)) {
+          console.warn(`Public profile not available for user ${userId}: ${msg}`);
+          // Rethrow to keep existing upstream behavior (caller decides fallback)
+        }
+        throw error;
+      }
+    })();
+
+    cache.set(userId, promise);
+    // If it rejects, remove from cache to allow retry later
+    promise.catch(() => cache.delete(userId));
+    return promise;
   }
 
-  // Обновить профиль текущего пользователя (deprecated - используйте updateUserProfile)
+  // Обновить профиль текущего пользователя (использует существующий backend endpoint /api/users/me)
   async updateCurrentUserProfile(data: any): Promise<User> {
-    return this.request<User>(`/auth/me`, {
+    return this.request<User>(`/users/me`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
@@ -282,13 +287,88 @@ class ApiClient {
     }
   }
 
+  // =============================
+  // Leaderboards (Топы)
+  // =============================
+  // Users leaderboard
+  async getTopUsers(params: { metric: 'readers' | 'likes' | 'comments' | 'level'; limit?: number }): Promise<import('@/types').TopUserDTO[]> {
+    const limit = Math.min(Math.max(params.limit ?? 10, 1), 100);
+    const searchParams = new URLSearchParams({ metric: params.metric, limit: String(limit) });
+    return this.request<import('@/types').TopUserDTO[]>(`/auth/tops/users?${searchParams.toString()}`);
+  }
+
+  // Reviews leaderboard
+  async getTopReviews(params: { days?: number; limit?: number }): Promise<import('@/types').TopReviewDTO[]> {
+    const limit = Math.min(Math.max(params.limit ?? 10, 1), 100);
+    const searchParams = new URLSearchParams({ limit: String(limit) });
+    if (params.days) searchParams.append('days', String(params.days));
+    return this.request<import('@/types').TopReviewDTO[]>(`/auth/tops/reviews?${searchParams.toString()}`);
+  }
+
+  // Forum threads leaderboard (range: all | 7 | 30)
+  async getTopThreads(params: { range?: 'all' | '7' | '30'; limit?: number }): Promise<import('@/types').TopForumThreadDTO[]> {
+    const limit = Math.min(Math.max(params.limit ?? 10, 1), 100);
+    const searchParams = new URLSearchParams({ limit: String(limit) });
+    if (params.range && params.range !== 'all') searchParams.append('range', params.range);
+    return this.request<import('@/types').TopForumThreadDTO[]>(`/forum/tops/threads?${searchParams.toString()}`);
+  }
+
+  // Forum posts leaderboard (range: all | 7 | 30)
+  async getTopPosts(params: { range?: 'all' | '7' | '30'; limit?: number }): Promise<import('@/types').TopForumPostDTO[]> {
+    const limit = Math.min(Math.max(params.limit ?? 10, 1), 100);
+    const searchParams = new URLSearchParams({ limit: String(limit) });
+    if (params.range && params.range !== 'all') searchParams.append('range', params.range);
+    return this.request<import('@/types').TopForumPostDTO[]>(`/forum/tops/posts?${searchParams.toString()}`);
+  }
+
+  // Comments leaderboard (range: all | 7 | 30)
+  async getTopComments(params: { range?: 'all' | '7' | '30'; limit?: number }): Promise<import('@/types').TopCommentDTO[]> {
+    const limit = Math.min(Math.max(params.limit ?? 10, 1), 100);
+    const searchParams = new URLSearchParams({ limit: String(limit) });
+    if (params.range && params.range !== 'all') searchParams.append('range', params.range);
+    return this.request<import('@/types').TopCommentDTO[]>(`/comments/tops?${searchParams.toString()}`);
+  }
+
+  // Wall posts (user profile posts) leaderboard (range: all | 7 | 30 | today)
+  async getTopWallPosts(params: { range?: 'all' | '7' | '30' | 'today'; limit?: number }): Promise<import('@/types').TopWallPostDTO[]> {
+    const limit = Math.min(Math.max(params.limit ?? 10, 1), 100);
+    const searchParams = new URLSearchParams({ limit: String(limit) });
+    if (params.range && params.range !== 'all') searchParams.append('range', params.range);
+    return this.request<import('@/types').TopWallPostDTO[]>(`/posts/tops?${searchParams.toString()}`);
+  }
+
   async getUserPublicProgress(userId: number): Promise<any[]> {
-    try {
-      return this.publicRequest<any[]>(`/auth/users/${userId}/public/progress`);
-    } catch (error) {
-      console.log(`Публичный прогресс недоступен для пользователя ${userId}`);
-      return [];
+    if (!(globalThis as any).__publicProgressCache) {
+      (globalThis as any).__publicProgressCache = new Map<number, Promise<any[]>>();
     }
+    const cache: Map<number, Promise<any[]>> = (globalThis as any).__publicProgressCache;
+
+    if (cache.has(userId)) {
+      return cache.get(userId)!;
+    }
+
+    const promise = (async () => {
+      try {
+  return await this.request<any[]>(`/auth/users/${userId}/public/progress`);
+      } catch (error: any) {
+        const msg = String(error?.message || '');
+        if (/401|403/.test(msg)) {
+          // Silent fallback: no permission to view public progress
+          console.info(`Public progress unauthorized for user ${userId}`);
+          return [];
+        }
+        if (/404/.test(msg)) {
+          console.info(`Public progress not found for user ${userId}`);
+          return [];
+        }
+        console.warn(`Public progress fetch error for user ${userId}:`, error);
+        return [];
+      }
+    })();
+
+    cache.set(userId, promise);
+    promise.catch(() => cache.delete(userId));
+    return promise;
   }
 
   async getUserBookmarksByStatus(status: string): Promise<any[]> {
@@ -750,6 +830,40 @@ class ApiClient {
     }
   }
 
+  // Posts API (frontend scaffold – backend must implement corresponding endpoints)
+  async getUserPosts(userId: number, page = 0, size = 10) {
+    return this.request<any>(`/posts?userId=${userId}&page=${page}&size=${size}`);
+  }
+
+  async getPostById(postId: string) {
+    return this.request<any>(`/posts/${postId}`);
+  }
+
+  async createPost(data: { content: string; attachments?: { filename: string; url: string; sizeBytes: number; }[] }) {
+    return this.request<any>(`/posts`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async updatePost(postId: string, data: { content: string; attachments?: { filename: string; url: string; sizeBytes: number; }[] }) {
+    return this.request<any>(`/posts/${postId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async deletePost(postId: string) {
+    return this.request<void>(`/posts/${postId}`, { method: 'DELETE' });
+  }
+
+  async votePost(postId: string, value: 1 | -1 | 0) {
+    return this.request<any>(`/posts/${postId}/vote`, {
+      method: 'POST',
+      body: JSON.stringify({ value })
+    });
+  }
+
   // 8. Лента активности - пока заглушка
   async getProfileActivity(userId?: number, limit?: number): Promise<any[]> {
     console.warn('Лента активности пока не реализована на бэкенде');
@@ -785,7 +899,7 @@ class ApiClient {
 
   async createComment(data: {
     content: string;
-    commentType: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW';
+    commentType: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST';
     targetId: number;
     parentCommentId?: number;
   }): Promise<any> {

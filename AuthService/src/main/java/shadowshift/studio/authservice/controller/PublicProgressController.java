@@ -10,7 +10,7 @@ import shadowshift.studio.authservice.service.ReadingProgressService;
 import java.util.List;
 
 @RestController
-@RequestMapping("/auth/users")
+@RequestMapping("/api/auth/users")
 @RequiredArgsConstructor
 @Slf4j
 @CrossOrigin(origins = {"http://localhost:3000", "http://192.168.0.3:3000"})

@@ -186,6 +186,47 @@
   animation: fade-in 0.3s ease-out;
 }
 
+/* Markdown & Spoilers */
+.markdown-body p { margin-top: 0.5rem; margin-bottom: 0.75rem; }
+.markdown-body pre { background: rgba(0,0,0,0.4); padding: 0.75rem 1rem; border-radius: 0.75rem; overflow-x: auto; font-size: 12px; }
+.markdown-body code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+.markdown-body table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.markdown-body th, .markdown-body td { border: 1px solid rgba(255,255,255,0.1); padding: 4px 8px; }
+.markdown-body tr:nth-child(even){ background: rgba(255,255,255,0.04); }
+.spoiler { position: relative; cursor: pointer; }
+/* Hidden state */
+.spoiler[data-spoiler="hidden"],
+.spoiler:not([data-spoiler]),
+.spoiler[data-spoiler="true"],
+.spoiler[data-spoiler="pending"],
+.spoiler:not([data-spoiler="revealed"]) {
+  color: transparent !important;
+  text-shadow: 0 0 6px rgba(255,255,255,0.5);
+  transition: color .25s ease, text-shadow .25s ease;
+}
+/* Dotted overlay using pseudo element */
+.spoiler[data-spoiler="hidden"]::after,
+.spoiler:not([data-spoiler])::after,
+.spoiler[data-spoiler="true"]::after,
+.spoiler[data-spoiler="pending"]::after,
+.spoiler:not([data-spoiler="revealed"])::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(45deg, rgba(255,255,255,0.25) 0 2px, transparent 2px 6px),
+    repeating-linear-gradient(135deg, rgba(255,255,255,0.18) 0 2px, transparent 2px 6px),
+    rgba(0,0,0,0.35);
+  border-radius: 4px;
+  filter: blur(0.3px) contrast(1.2);
+}
+/* Revealed state */
+.spoiler[data-spoiler="revealed"], .spoiler-revealed { color: inherit !important; text-shadow: none; transition: color .25s ease, text-shadow .25s ease; }
+.spoiler[data-spoiler="revealed"]::after { opacity: 0; transition: opacity .25s ease; pointer-events:none; }
+/* Hard kill after transition (optional immediate hide) */
+.spoiler-revealed::after { content:none !important; display:none !important; }
+
 /* Glass panel utility */
 .glass-panel {
   /* Subtle glass panel: slightly darker than original (was rgba 0.10) */
@@ -194,6 +235,27 @@
   -webkit-backdrop-filter: blur(4px);
   border: 1px solid rgba(255,255,255,0.15);
   border-radius: 0.75rem; /* matches rounded-xl */
+}
+
+@layer components {
+  .glass-inline {
+    background: rgba(255,255,255,0.08);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 0.5rem;
+  }
+  .glass-accent {
+    position: relative;
+  }
+  .glass-accent::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(59,130,246,0.35), rgba(59,130,246,0) 55%);
+    pointer-events: none;
+    border-radius: inherit;
+  }
 }
 
 /* Skeleton loading */

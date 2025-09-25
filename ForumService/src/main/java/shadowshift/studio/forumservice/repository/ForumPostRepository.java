@@ -88,4 +88,16 @@ public interface ForumPostRepository extends JpaRepository<ForumPost, Long> {
      */
     @Query("SELECT COUNT(p) FROM ForumPost p WHERE p.threadId IN (SELECT t.id FROM ForumThread t WHERE t.categoryId = :categoryId AND t.isDeleted = false) AND p.isDeleted = false")
     Long countPostsByCategoryId(@Param("categoryId") Long categoryId);
+
+    /**
+     * Топ постов (all-time) по (likesCount - dislikesCount) затем likesCount.
+     */
+    @Query("SELECT p FROM ForumPost p WHERE p.isDeleted = false ORDER BY (p.likesCount - p.dislikesCount) DESC, p.likesCount DESC, p.createdAt DESC")
+    org.springframework.data.domain.Page<ForumPost> findTopPostsAllTime(org.springframework.data.domain.Pageable pageable);
+
+    /**
+     * Топ постов за период по фактору доверия.
+     */
+    @Query("SELECT p FROM ForumPost p WHERE p.isDeleted = false AND p.createdAt >= :fromDate ORDER BY (p.likesCount - p.dislikesCount) DESC, p.likesCount DESC, p.createdAt DESC")
+    org.springframework.data.domain.Page<ForumPost> findTopPostsSince(@Param("fromDate") java.time.LocalDateTime fromDate, org.springframework.data.domain.Pageable pageable);
 }

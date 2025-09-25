@@ -210,4 +210,16 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
      * @return количество комментариев
      */
     long countByTargetIdAndCommentTypeAndIsDeleted(Long targetId, CommentType commentType, boolean isDeleted);
+
+       /**
+        * Топ комментариев (all-time) по (likesCount - dislikesCount) затем likesCount.
+        */
+       @Query("SELECT c FROM Comment c WHERE c.isDeleted = false ORDER BY (c.likesCount - c.dislikesCount) DESC, c.likesCount DESC, c.createdAt DESC")
+       org.springframework.data.domain.Page<Comment> findTopCommentsAllTime(org.springframework.data.domain.Pageable pageable);
+
+       /**
+        * Топ комментариев за период.
+        */
+       @Query("SELECT c FROM Comment c WHERE c.isDeleted = false AND c.createdAt >= :fromDate ORDER BY (c.likesCount - c.dislikesCount) DESC, c.likesCount DESC, c.createdAt DESC")
+       org.springframework.data.domain.Page<Comment> findTopCommentsSince(@Param("fromDate") java.time.LocalDateTime fromDate, org.springframework.data.domain.Pageable pageable);
 }

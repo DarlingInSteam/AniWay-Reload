@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: post-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/postdb
+    username: postgres
+    password: postgres
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+  jackson:
+    serialization:
+      WRITE_DATES_AS_TIMESTAMPS: false
+  rabbitmq:
+    host: ${RABBITMQ_HOST:rabbitmq}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:aniway}
+    password: ${RABBITMQ_PASSWORD:aniway_pass}
+    connection-timeout: 5000
+    template:
+      mandatory: true
+    publisher-confirm-type: correlated
+
+server:
+  port: 8097
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+xp:
+  events:
+    exchange: xp.events.exchange
+    postUpvoteRoutingKey: xp.events.post-upvote

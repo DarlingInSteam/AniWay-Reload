@@ -1,0 +1,45 @@
+server:
+  port: 8098
+spring:
+  application:
+    name: level-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/level_db}
+    username: ${SPRING_DATASOURCE_USERNAME:level_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:level_password}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:aniway}
+    password: ${RABBITMQ_PASSWORD:aniway_pass}
+    virtual-host: ${RABBITMQ_VHOST:/}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+leveling:
+  xp:
+    likeReceived: 2
+    # Lowered: anti-inflation adjustment (was 5)
+    chapterRead: 1
+    badgeAwarded: 25
+    postUpvoted: 2
+    chapterLikeReceived: 2
+    # Comment creation XP disabled (anti-abuse)
+    commentCreated: 0
+    forumThreadLikeReceived: 2
+    forumPostLikeReceived: 2
+    reviewLikeReceived: 2
+  # Base formula: total XP required to reach level n = base * n^exp
+  formula:
+    base: 50
+    exponent: 1.6

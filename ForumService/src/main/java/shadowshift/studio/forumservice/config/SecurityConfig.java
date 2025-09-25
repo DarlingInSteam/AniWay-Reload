@@ -40,6 +40,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/forum/threads/author/*").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/forum/threads/*/posts").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/forum/threads/*/posts/tree").permitAll()
+                // Лидеры
+                .requestMatchers(HttpMethod.GET, "/api/forum/tops/threads").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/forum/tops/posts").permitAll()
                 
                 // Административные endpoint'ы
                 .requestMatchers("/api/forum/categories/admin/**").hasRole("ADMIN")

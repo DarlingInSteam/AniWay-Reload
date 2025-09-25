@@ -111,7 +111,10 @@ class ExtendedProfileService {
         type: this.mapActivityType(activity.activityType),
         description: activity.message,
         timestamp: new Date(activity.timestamp),
-        relatedMangaId: activity.mangaId
+        relatedMangaId: activity.mangaId,
+        mangaTitle: activity.mangaTitle && activity.mangaTitle !== 'манги' ? activity.mangaTitle : undefined,
+        chapterId: activity.chapterId,
+        chapterNumber: activity.chapterNumber
       }));
     } catch (error) {
       console.error('Ошибка при получении активности профиля:', error);
@@ -132,7 +135,10 @@ class ExtendedProfileService {
         type: 'read',
         description: activity.message,
         timestamp: new Date(activity.timestamp),
-        relatedMangaId: activity.mangaId
+        relatedMangaId: activity.mangaId,
+        mangaTitle: activity.mangaTitle && activity.mangaTitle !== 'манги' ? activity.mangaTitle : undefined,
+        chapterId: activity.chapterId,
+        chapterNumber: activity.chapterNumber
       }));
     } catch (error) {
       console.error('Ошибка при получении активности чтения:', error);
@@ -154,7 +160,9 @@ class ExtendedProfileService {
         description: activity.message,
         timestamp: new Date(activity.timestamp),
         relatedMangaId: activity.mangaId,
-        relatedMangaName: activity.mangaTitle,
+        mangaTitle: activity.mangaTitle && activity.mangaTitle !== 'манги' ? activity.mangaTitle : undefined,
+        chapterId: activity.chapterId,
+        chapterNumber: activity.chapterNumber
       }));
     } catch (error) {
       console.error('Ошибка при получении активности отзывов:', error);

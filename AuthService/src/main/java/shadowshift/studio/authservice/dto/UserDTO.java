@@ -68,6 +68,12 @@ public class UserDTO {
     /** Количество комментариев. */
     private Integer commentsCount;
 
+    /** Текущий уровень пользователя (placeholder вычисляется на бэкенде или фронтенде). */
+    private Integer level;
+
+    /** Общий опыт (XP) пользователя (может быть null если не инициализирован). */
+    private Integer xp;
+
     /** Тип бана. */
     private BanType banType;
 

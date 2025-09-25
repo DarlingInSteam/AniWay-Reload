@@ -122,6 +122,9 @@ export interface UserActivity {
   description: string;
   timestamp: Date;
   relatedMangaId?: number;
+  mangaTitle?: string; // добавлено для отображения названия
+  chapterNumber?: number; // сырое числовое значение главы
+  chapterId?: number; // идентификатор главы
 }
 
 export interface Friend {

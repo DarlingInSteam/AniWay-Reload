@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 
 export function useComments(
   targetId: number, 
-  type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW'
+  type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST'
 ) {
   const queryClient = useQueryClient()
   const queryKey = ['comments', targetId, type]
@@ -30,6 +30,8 @@ export function useComments(
     mutationFn: (data: CommentCreateDTO) => commentService.createComment(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey })
+      // Emit custom event so parent components (e.g., PostCommentsModal -> PostItem) can adjust counts without refetch
+      document.dispatchEvent(new CustomEvent('comment-count-delta', { detail: { targetId, type, delta: 1 } }))
       toast.success('Комментарий добавлен')
     },
     onError: (error) => {
@@ -55,6 +57,7 @@ export function useComments(
     mutationFn: (commentId: number) => commentService.deleteComment(commentId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey })
+      document.dispatchEvent(new CustomEvent('comment-count-delta', { detail: { targetId, type, delta: -1 } }))
       toast.success('Комментарий удален')
     },
     onError: (error) => {
@@ -66,7 +69,14 @@ export function useComments(
   const reactionMutation = useMutation({
     mutationFn: ({ commentId, reactionType }: { commentId: number; reactionType: 'LIKE' | 'DISLIKE' }) =>
       commentService.addReaction(commentId, reactionType),
-    onSuccess: () => {
+    onSuccess: (stats) => {
+      // Optimistically update counts in cache
+      queryClient.setQueryData<CommentResponseDTO[]>(queryKey, (old)=>{
+        if(!old) return old;
+        return old.map(c=> c.id === stats.commentId ? { ...c, likesCount: stats.likesCount, dislikesCount: stats.dislikesCount } : c);
+      });
+      // Also update replies if any (deep walk)
+      // For simplicity, just invalidate afterwards to refresh full tree
       queryClient.invalidateQueries({ queryKey })
     },
     onError: (error) => {

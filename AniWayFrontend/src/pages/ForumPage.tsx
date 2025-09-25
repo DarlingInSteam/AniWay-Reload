@@ -1,31 +1,67 @@
-import { useEffect } from 'react'
-import { useForumCategories } from '@/hooks/useForum'
-import { ForumCategoryList } from '@/components/forum/ForumCategoryList'
-import { Link } from 'react-router-dom'
-import { Plus } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { useForumCategories, useInfiniteForumThreads } from '@/hooks/useForum'
+import { usePinThread, useDeleteThread as useDeleteThreadMutation } from '@/hooks/useForum'
+import { useAuth } from '@/contexts/AuthContext'
+import { ForumLayout } from '@/components/forum/ForumLayout'
+import { CategorySidebar } from '@/components/forum/CategorySidebar'
+import { ForumToolbar } from '@/components/forum/ForumToolbar'
+import { PinnedThreads } from '@/components/forum/PinnedThreads'
+import { ForumThreadList } from '@/components/forum/ForumThreadList'
+import { useThreadAuthors } from '@/hooks/useThreadAuthors'
+// removed ForumStatsPanel per redesign
 
-export function ForumPage() {
-  useEffect(()=>{ document.title = 'Форум | AniWay'},[])
-  const { data, isLoading, error } = useForumCategories()
+export function ForumPage(){
+  useEffect(()=> { document.title = 'Форум | AniWay' },[])
+  const { data: categories, isLoading: catLoading } = useForumCategories()
+  const { isAdmin } = useAuth()
+  const pinMutation = usePinThread()
+  const deleteMutation = useDeleteThreadMutation()
+  const [selectedCategory, setSelectedCategory] = useState<number|undefined>(undefined)
+  // серверная пагинация зависит от выбранной категории (react-query сбрасывает pages при смене key)
+  const { data: pages, fetchNextPage, hasNextPage, isLoading: threadsLoading, isFetchingNextPage } = useInfiniteForumThreads({ categoryId: selectedCategory })
+  const allThreads = useMemo(()=> pages?.pages.flatMap(p=> p.content) || [], [pages])
+  const [query, setQuery] = useState('')
+  const [sort, setSort] = useState('latest')
+  const [density, setDensity] = useState<'comfortable'|'compact'>('comfortable')
+  const filtered = useMemo(()=> {
+    let arr = allThreads
+    if(query.trim()){
+      const q = query.trim().toLowerCase()
+      arr = arr.filter(t=> t.title.toLowerCase().includes(q) || (t.content||'').toLowerCase().includes(q))
+    }
+    switch(sort){
+      case 'pinned': arr = [...arr].sort((a,b)=> Number(b.isPinned)-Number(a.isPinned) || Date.parse(b.createdAt)-Date.parse(a.createdAt)); break
+      case 'popular': arr = [...arr].sort((a,b)=> (b.likesCount + b.viewsCount*0.01) - (a.likesCount + a.viewsCount*0.01)); break
+      case 'active': arr = [...arr].sort((a,b)=> Date.parse(b.lastActivityAt) - Date.parse(a.lastActivityAt)); break
+      case 'latest': default: arr = [...arr].sort((a,b)=> Date.parse(b.createdAt) - Date.parse(a.createdAt)); break
+    }
+    return arr
+  }, [allThreads, query, sort])
+  const pinned = useMemo(()=> filtered.filter(t=> t.isPinned).slice(0,6), [filtered])
+  const visible = useMemo(()=> filtered.filter(t=> !t.isPinned), [filtered])
+  const authorUsers = useThreadAuthors(filtered)
+  const handlePinToggle = (id:number, next:boolean) => { pinMutation.mutate({ id, pinned: next }) }
+  const handleDelete = (id:number) => { if(confirm('Удалить тему?')) deleteMutation.mutate(id) }
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-manga-black via-manga-black/95 to-manga-black px-4 pb-24 pt-8 md:pt-10">
-      <div className="mx-auto w-full max-w-7xl">
-        <header className="mb-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="bg-gradient-to-r from-white to-white/70 bg-clip-text text-3xl font-bold tracking-tight text-transparent md:text-4xl">Форум</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">Обсуждения манги и платформы. Выберите категорию чтобы посмотреть темы.</p>
-          </div>
-          <Link to="/forum/create-thread" className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-medium text-white shadow hover:bg-primary/90 transition">
-            <Plus className="h-4 w-4" /> Новая тема
-          </Link>
-        </header>
-
-        {isLoading && <div className="text-sm text-muted-foreground">Загрузка категорий...</div>}
-        {error && <div className="text-sm text-red-400">Ошибка загрузки категорий</div>}
-        {data && <ForumCategoryList categories={data} />}
+    <ForumLayout
+      sidebar={<CategorySidebar categories={categories} loading={catLoading} onSelectCategory={id=> setSelectedCategory(id)} selectedCategory={selectedCategory} />}
+    >
+      <div className="space-y-6">
+        <ForumToolbar value={query} onChange={setQuery} sort={sort} onSortChange={setSort} density={density} onDensityChange={setDensity} />
+        <PinnedThreads threads={pinned} />
+        <div className="space-y-4">
+          {threadsLoading && !allThreads.length && <div className="text-sm text-muted-foreground">Загрузка тем...</div>}
+          <ForumThreadList threads={visible} users={authorUsers} density={density} isAdmin={isAdmin} onPinToggle={handlePinToggle} onDelete={handleDelete} />
+          {hasNextPage && (
+            <div className="pt-2">
+              <button disabled={isFetchingNextPage} onClick={()=> fetchNextPage()} className="w-full rounded-xl bg-white/5 py-3 text-sm font-medium text-white/80 hover:bg-white/10 disabled:opacity-50">{isFetchingNextPage? 'Загрузка...' : 'Загрузить ещё'}</button>
+            </div>
+          )}
+          {!threadsLoading && !filtered.length && <div className="text-sm text-muted-foreground">Ничего не найдено</div>}
+        </div>
       </div>
-    </div>
+    </ForumLayout>
   )
 }
 

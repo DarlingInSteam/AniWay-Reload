@@ -18,29 +18,68 @@ import {
 import { UserProfile as UserProfileType, UserProfileProps, UserReview } from '@/types/profile';
 // New redesigned components
 import { ProfileHero } from './ProfileHero';
+import { ProfileEditModal } from './ProfileEditModal';
 import { ProfileStatsStrip } from './ProfileStatsStrip';
-import { ProfileAbout } from './ProfileAbout';
 import { ProfileGenres } from './ProfileGenres';
 import { ProfileShowcaseFavorites } from './ProfileShowcaseFavorites';
 import { ProfileActivity } from './ProfileActivity';
+import { PostComposer } from '@/components/posts/PostComposer';
+import { PostList } from '@/components/posts/PostList';
+import { useUserLevel } from '@/hooks/useUserLevel';
+// LevelIndicator removed from overview to avoid duplication; header now shows minimal level block fed by backend
+// import { LevelIndicator, getMockLevelData } from './LevelIndicator';
 import { ProfileBadgesPlaceholder } from './ProfileBadgesPlaceholder';
+import { BadgeList } from './BadgeList';
 import { ProfileReadingProgress } from './ProfileReadingProgress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { profileService } from '@/services/profileService';
 import { apiClient } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+// Added level overview section component dependencies
+import React from 'react';
+
+function LevelOverviewSection({ profile, isOwnProfile, currentUserId, activity, mobile }: any) {
+  const userIdNum = parseInt(profile.id);
+  // No level block here anymore to prevent duplication; header (ProfileHero) shows level.
+  if (mobile) {
+    return (
+      <div className="space-y-7">
+        {isOwnProfile && <PostComposer userId={userIdNum} onCreated={() => {}} />}
+        <PostList userId={userIdNum} currentUserId={currentUserId} />
+        <ProfileActivity activities={activity} />
+        <ProfileGenres profile={profile} />
+        <BadgeList userId={userIdNum} />
+      </div>
+    );
+  }
+  return (
+    <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+      <div className="space-y-7 xl:col-span-8">
+        {isOwnProfile && <PostComposer userId={userIdNum} onCreated={() => {}} />}
+        <PostList userId={userIdNum} currentUserId={currentUserId} />
+      </div>
+      <div className="space-y-7 xl:col-span-4">
+        <ProfileActivity activities={activity} />
+        <ProfileGenres profile={profile} />
+        <BadgeList userId={userIdNum} />
+      </div>
+    </div>
+  );
+}
 
 export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   const [profile, setProfile] = useState<UserProfileType | null>(null);
   const [profileData, setProfileData] = useState<any>(null);
   const [userReviews, setUserReviews] = useState<UserReview[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewsCount, setReviewsCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTabParam] = useSyncedSearchParam<'overview' | 'library' | 'reviews' | 'comments' | 'achievements'>('tab', 'overview');
   const navigate = useNavigate();
   const [params] = useSearchParams();
+  const [editOpen, setEditOpen] = useState(false);
 
   // Pull both user and avatar setter in a single hook call to avoid conditional hook order issues
   const { user: currentUser, setUserAvatarLocal } = useAuth();
@@ -61,9 +100,9 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
         try {
           const reviews = await profileService.getUserReviews(parseInt(userId));
           setUserReviews(reviews);
+          setReviewsCount(reviews.length); // initial count
         } catch (reviewError) {
           console.error('Ошибка при загрузке отзывов:', reviewError);
-          // Не считаем это критической ошибкой, просто оставляем пустой массив
         } finally {
           setReviewsLoading(false);
         }
@@ -85,7 +124,10 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
           joinedDate: new Date(data.user.createdAt),
           totalReadingTime: 0, // TODO: Добавить отслеживание времени чтения
           mangaRead: data.readingStats?.totalMangaRead || 0,
-          chaptersRead: data.readingStats?.totalChaptersRead || 0,
+          // Если статистика чтения отсутствует (публичный просмотр), используем счетчик из userDTO
+          chaptersRead: (data.readingStats?.totalChaptersRead != null)
+            ? data.readingStats.totalChaptersRead
+            : (data.user.chaptersReadCount || 0),
           
           // Новые поля из публичного API
           likesGivenCount: data.user.likesGivenCount || 0,
@@ -147,6 +189,15 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
     loadProfileData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, isOwnProfile]);
+
+  // Lightweight async fetch for reviews count (can use optimized endpoint later)
+  useEffect(()=>{
+    let cancelled = false;
+    import('@/services/reviewsService').then(({ reviewsService })=>{
+      reviewsService.getUserReviewsCountFast(parseInt(userId)).then(c=>{ if(!cancelled) setReviewsCount(c); });
+    });
+    return ()=> { cancelled = true };
+  }, [userId]);
 
   const handleProfileUpdate = async (updates: Partial<UserProfileType>) => {
     if (!profile || !isOwnProfile) return;
@@ -322,12 +373,11 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   <div className="container mx-auto px-4 py-10 max-w-7xl">
         {/* New Hero Section */}
   <div className="mb-6 animate-fade-in">
+          <ProfileEditModal profile={profile} open={editOpen} onOpenChange={setEditOpen} onUpdated={(data)=> { handleProfileUpdate(data as any); if(data.avatar){ setUserAvatarLocal(data.avatar) } }} />
           <ProfileHero
             profile={profile}
             isOwn={isOwnProfile}
-            onEdit={() => console.log('Edit profile (modal TODO)')}
-            onShare={handleShare}
-            onMore={() => console.log('More actions TBD')}
+            onEdit={() => setEditOpen(true)}
             onAvatarUpdated={async (newUrl) => {
               if (!newUrl) return;
               // Optimistic local update
@@ -338,51 +388,32 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               // Skip immediate refetch to avoid loop (backend doesn't yet return avatar). Can be re-enabled later.
             }}
           />
-          <ProfileStatsStrip profile={profile} extra={{ favorites: favoriteMangas.length, achievements: achievements.length }} />
+          <ProfileStatsStrip profile={profile} extra={{ favorites: undefined, achievements: achievements.length, reviewsCount }} />
         </div>
 
         {/* Desktop Layout: Табы занимают всю ширину */}
         <div className="hidden lg:block animate-fade-in">
           <Tabs value={activeTab} onValueChange={v => setActiveTabParam(v as any)} className="space-y-7">
-            <TabsList className="grid grid-cols-5 bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl shadow-xl p-1.5 overflow-hidden">
-              <TabsTrigger value="overview" className="relative group data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-4 py-2 font-medium">
+            <TabsList className="grid grid-cols-5 glass-panel p-1.5 rounded-2xl gap-1.5">
+              <TabsTrigger value="overview" className="relative group rounded-xl px-4 py-2 font-medium text-xs tracking-wide uppercase text-slate-400 hover:text-white transition focus-visible:outline-none data-[state=active]:text-white data-[state=active]:shadow-inner data-[state=active]:bg-white/10">
                 <span className="relative z-10">Обзор</span>
-                <span className="pointer-events-none absolute inset-0 opacity-0 group-data-[state=active]:opacity-100 bg-gradient-to-br from-primary/30 to-primary/10 rounded-xl transition-opacity" />
               </TabsTrigger>
-              <TabsTrigger value="library" className="relative group data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-4 py-2 font-medium">
+              <TabsTrigger value="library" className="relative group rounded-xl px-4 py-2 font-medium text-xs tracking-wide uppercase text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
                 <span className="relative z-10">Библиотека</span>
-                <span className="pointer-events-none absolute inset-0 opacity-0 group-data-[state=active]:opacity-100 bg-gradient-to-br from-primary/30 to-primary/10 rounded-xl transition-opacity" />
               </TabsTrigger>
-              <TabsTrigger value="reviews" className="relative group data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-4 py-2 font-medium">
+              <TabsTrigger value="reviews" className="relative group rounded-xl px-4 py-2 font-medium text-xs tracking-wide uppercase text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
                 <span className="relative z-10">Отзывы</span>
-                <span className="pointer-events-none absolute inset-0 opacity-0 group-data-[state=active]:opacity-100 bg-gradient-to-br from-primary/30 to-primary/10 rounded-xl transition-opacity" />
               </TabsTrigger>
-              <TabsTrigger value="comments" className="relative group data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-4 py-2 font-medium">
+              <TabsTrigger value="comments" className="relative group rounded-xl px-4 py-2 font-medium text-xs tracking-wide uppercase text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
                 <span className="relative z-10">Комментарии</span>
-                <span className="pointer-events-none absolute inset-0 opacity-0 group-data-[state=active]:opacity-100 bg-gradient-to-br from-primary/30 to-primary/10 rounded-xl transition-opacity" />
               </TabsTrigger>
-              <TabsTrigger value="achievements" className="relative group data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-4 py-2 font-medium">
+              <TabsTrigger value="achievements" className="relative group rounded-xl px-4 py-2 font-medium text-xs tracking-wide uppercase text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
                 <span className="relative z-10">Достижения</span>
-                <span className="pointer-events-none absolute inset-0 opacity-0 group-data-[state=active]:opacity-100 bg-gradient-to-br from-primary/30 to-primary/10 rounded-xl transition-opacity" />
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="space-y-7">
-              <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-                {/* Left / Main column */}
-                <div className="space-y-7 xl:col-span-8">
-                  <ProfileShowcaseFavorites favorites={favoriteMangas} />
-                  <ProfileReadingProgress items={readingProgress} />
-                  <ProfileActivity activities={activity} />
-                  <Collections collections={collections} isOwnProfile={isOwnProfile} />
-                </div>
-                {/* Right / Side column */}
-                <div className="space-y-7 xl:col-span-4">
-                  <ProfileAbout profile={profile} isOwn={isOwnProfile} onUpdate={handleProfileUpdate} />
-                  <ProfileGenres profile={profile} />
-                  <ProfileBadgesPlaceholder />
-                </div>
-              </div>
+              <LevelOverviewSection profile={profile} isOwnProfile={isOwnProfile} currentUserId={currentUser?.id} activity={activity} />
             </TabsContent>
 
             <TabsContent value="library" className="space-y-6">
@@ -423,34 +454,26 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
 
         <div className="lg:hidden space-y-7 animate-fade-in">
           <Tabs value={activeTab} onValueChange={v => setActiveTabParam(v as any)} className="space-y-7">
-            <TabsList className="grid grid-cols-2 md:grid-cols-5 bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl shadow-xl p-1.5">
-              <TabsTrigger value="overview" className="relative group data-[state=active]:bg-primary/25 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-3 py-2 text-sm font-medium">
+            <TabsList className="grid grid-cols-2 md:grid-cols-5 glass-panel p-1.5 gap-1.5">
+              <TabsTrigger value="overview" className="relative group rounded-xl px-3 py-2 text-[13px] font-medium text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
                 <span className="relative z-10">Обзор</span>
               </TabsTrigger>
-              <TabsTrigger value="library" className="relative group data-[state=active]:bg-primary/25 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-3 py-2 text-sm font-medium">
+              <TabsTrigger value="library" className="relative group rounded-xl px-3 py-2 text-[13px] font-medium text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
                 <span className="relative z-10">Библиотека</span>
               </TabsTrigger>
-              <TabsTrigger value="reviews" className="relative group data-[state=active]:bg-primary/25 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-3 py-2 text-sm font-medium">
+              <TabsTrigger value="reviews" className="relative group rounded-xl px-3 py-2 text-[13px] font-medium text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
                 <span className="relative z-10">Отзывы</span>
               </TabsTrigger>
-              <TabsTrigger value="comments" className="relative group data-[state=active]:bg-primary/25 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-3 py-2 text-sm font-medium">
+              <TabsTrigger value="comments" className="relative group rounded-xl px-3 py-2 text-[13px] font-medium text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
                 <span className="relative z-10">Комментарии</span>
               </TabsTrigger>
-              <TabsTrigger value="achievements" className="relative group data-[state=active]:bg-primary/25 data-[state=active]:text-primary data-[state=active]:shadow-inner hover:bg-white/10 hover:text-white transition-all duration-200 text-muted-foreground rounded-xl px-3 py-2 text-sm font-medium">
+              <TabsTrigger value="achievements" className="relative group rounded-xl px-3 py-2 text-[13px] font-medium text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
                 <span className="relative z-10">Достижения</span>
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="space-y-7">
-              <div className="space-y-7">
-                <ProfileShowcaseFavorites favorites={favoriteMangas} />
-                <ProfileReadingProgress items={readingProgress} />
-                <ProfileActivity activities={activity} />
-                <ProfileAbout profile={profile} isOwn={isOwnProfile} onUpdate={handleProfileUpdate} />
-                <ProfileGenres profile={profile} />
-                <ProfileBadgesPlaceholder />
-                <Collections collections={collections} isOwnProfile={isOwnProfile} />
-              </div>
+              <LevelOverviewSection profile={profile} isOwnProfile={isOwnProfile} currentUserId={currentUser?.id} activity={activity} mobile />
             </TabsContent>
 
             <TabsContent value="library" className="space-y-6">

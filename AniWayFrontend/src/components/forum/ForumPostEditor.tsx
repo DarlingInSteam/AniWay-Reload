@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { MarkdownEditor } from '@/components/markdown/MarkdownEditor'
 
 interface Props {
   value?: string;
@@ -35,24 +36,5 @@ export function ForumPostEditor({ value = '', onSubmit, placeholder = 'Ваш о
     if(draftKey) saveDraft(draftKey, '')
     setText('')
   }
-  return (
-    <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-      <textarea
-        value={text}
-        onChange={e => setText(e.target.value)}
-        placeholder={placeholder}
-        className="h-32 w-full resize-none rounded-md bg-black/30 p-3 text-sm text-white placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-        autoFocus={autoFocus}
-      />
-      <div className="mt-3 flex justify-end">
-        <button
-          disabled={!text.trim() || submitting}
-          onClick={handleSubmit}
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50 hover:bg-primary/90 transition"
-        >
-          {submitting ? 'Отправка...' : 'Отправить'}
-        </button>
-      </div>
-    </div>
-  )
+  return <MarkdownEditor value={text} onChange={v=> setText(v)} onSubmit={handleSubmit} compact placeholder={placeholder} autoFocus={autoFocus} submitting={submitting} />
 }

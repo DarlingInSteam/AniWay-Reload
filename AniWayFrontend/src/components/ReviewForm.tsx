@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import RatingStars from './RatingStars';
 import { ReviewData } from './ReviewCard';
+import { MarkdownEditor } from '@/components/markdown/MarkdownEditor';
+import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer';
 
 interface ReviewFormProps {
   mangaId: number;
@@ -106,25 +108,11 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
 
         {/* Comment Section */}
         <div>
-          <label htmlFor="comment" className="block text-sm font-medium text-gray-200 mb-2">
-            Комментарий
-          </label>
-          <textarea
-            id="comment"
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            rows={6}
-            className="w-full px-4 py-3 border border-white/20 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-vertical min-h-[120px] bg-white/10 backdrop-blur-sm text-white placeholder:text-gray-400"
-            placeholder="Поделитесь своими впечатлениями о манге..."
-            maxLength={2000}
-          />
+          <label className="block text-sm font-medium text-gray-200 mb-2">Комментарий</label>
+          <MarkdownEditor value={comment} onChange={setComment} placeholder="Поделитесь своими впечатлениями о манге... Используйте Markdown (жирный, курсив, спойлеры)." minRows={6} maxRows={18} />
           <div className="flex justify-between items-center mt-2">
-            <p className="text-xs text-gray-400">
-              Расскажите о сюжете, персонажах, рисовке...
-            </p>
-            <span className="text-xs text-gray-400">
-              {comment.length}/2000
-            </span>
+            <p className="text-xs text-gray-400">Расскажите о сюжете, персонажах, рисовке...</p>
+            <span className="text-xs text-gray-400">{comment.length}/2000</span>
           </div>
         </div>
 
@@ -136,9 +124,9 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
               <RatingStars rating={rating} maxRating={10} size="sm" showValue={false} />
               <span className="text-sm font-medium text-white">{rating}/10</span>
             </div>
-            <p className="text-gray-200 text-sm leading-relaxed">
-              {comment.trim()}
-            </p>
+            <div className="text-gray-200 text-sm leading-relaxed markdown-body">
+              <MarkdownRenderer value={comment.trim()} />
+            </div>
           </div>
         )}
 

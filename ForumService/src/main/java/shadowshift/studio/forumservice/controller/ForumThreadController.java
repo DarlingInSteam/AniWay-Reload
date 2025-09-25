@@ -17,6 +17,7 @@ import shadowshift.studio.forumservice.dto.request.CreateThreadRequest;
 import shadowshift.studio.forumservice.dto.request.UpdateThreadRequest;
 import shadowshift.studio.forumservice.dto.response.ForumThreadResponse;
 import shadowshift.studio.forumservice.service.ForumThreadService;
+import shadowshift.studio.forumservice.service.ForumSubscriptionService;
 
 @RestController
 @RequestMapping("/api/forum/threads")
@@ -25,6 +26,7 @@ import shadowshift.studio.forumservice.service.ForumThreadService;
 public class ForumThreadController {
 
     private final ForumThreadService threadService;
+    private final ForumSubscriptionService subscriptionService;
 
     /**
      * Получить все темы с пагинацией
@@ -203,7 +205,7 @@ public class ForumThreadController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         
-        // TODO: вызвать subscriptionService.subscribeToThread(threadId, currentUserId);
+        subscriptionService.subscribe(threadId, currentUserId);
         return ResponseEntity.ok().build();
     }
 
@@ -221,7 +223,7 @@ public class ForumThreadController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         
-        // TODO: вызвать subscriptionService.unsubscribeFromThread(threadId, currentUserId);
+        subscriptionService.unsubscribe(threadId, currentUserId);
         return ResponseEntity.ok().build();
     }
 

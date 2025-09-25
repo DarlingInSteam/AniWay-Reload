@@ -54,7 +54,11 @@ public class JwtAuthFilter implements WebFilter {
             if (base.endsWith("/")) base = base.substring(0, base.length() - 1); // normalize
 
             if (path.equals(base) || path.startsWith(base + "/")) {
-                logger.debug("Path {} is public (matches pattern {})", path, trimmed);
+                if (path.contains("/api/levels")) {
+                    logger.info("[JwtAuthFilter] Public match for levels path {} via pattern {}", path, trimmed);
+                } else {
+                    logger.debug("Path {} is public (matches pattern {})", path, trimmed);
+                }
                 return chain.filter(exchange);
             }
         }

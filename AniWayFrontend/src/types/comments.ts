@@ -1,19 +1,40 @@
-export interface CommentType {
-  MANGA: 'MANGA'
-  CHAPTER: 'CHAPTER'
-  PROFILE: 'PROFILE'
-  REVIEW: 'REVIEW'
+export type ReactionValue = 'LIKE' | 'DISLIKE' | null;
+
+export interface CommentDTO {
+  id: number;
+  content: string;
+  commentType: string; // 'POST'
+  targetId: number;
+  userId: number;
+  username?: string;
+  userAvatarUrl?: string;
+  parentCommentId?: number | null;
+  parentCommentAuthor?: string | null;
+  likesCount?: number;
+  dislikesCount?: number;
+  userReaction?: ReactionValue;
+  isEdited?: boolean;
+  isDeleted?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  depthLevel?: number;
+  createdAt: string;
+  updatedAt: string;
+  replies?: CommentDTO[]; // backend может прислать дерево
+  repliesCount?: number;
 }
 
-export interface ReactionType {
-  LIKE: 'LIKE'
-  DISLIKE: 'DISLIKE'
+export interface CreateCommentRequest {
+  content: string;
+  targetId: number;
+  parentCommentId?: number;
 }
+// Legacy broad DTOs kept minimal; extended interfaces trimmed for first integration
 
 export interface CommentCreateDTO {
   content: string
   targetId: number
-  commentType: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW'
+  commentType: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST'
   parentCommentId?: number
 }
 
@@ -28,8 +49,8 @@ export interface CommentResponseDTO {
   username: string
   userAvatar?: string
   targetId: number
-  type?: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' // Опциональное для обратной совместимости
-  commentType?: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' // Реальное поле с бэкенда
+  type?: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST' // Опциональное для обратной совместимости
+  commentType?: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST' // Реальное поле с бэкенда
   parentCommentId?: number
   createdAt: string
   updatedAt: string
@@ -43,34 +64,28 @@ export interface CommentResponseDTO {
 }
 
 // Расширенная версия комментария с дополнительной информацией
+// Additional DTOs (reactions, error, user info) omitted for initial comment UI scope
+
+// Minimal enhanced comment interface kept for backwards compatibility with legacy hooks/components
+// that expected an EnhancedCommentResponseDTO export. We intentionally make all extra fields optional
+// so existing simplified CommentResponseDTO objects remain assignable.
 export interface EnhancedCommentResponseDTO extends CommentResponseDTO {
-  targetInfo?: {
-    text: string
-    icon: string
-    color: string
-  }
+  // Parent comment quick info (legacy fields)
+  parentCommentAuthor?: string;
+  parentCommentContent?: string;
+  // Alternative parent info grouping used in some hooks
   parentCommentInfo?: {
-    username: string
-    content: string
-  }
-}
-
-export interface CommentReactionDTO {
-  commentId: number
-  likesCount: number
-  dislikesCount: number
-}
-
-export interface UserInfoDTO {
-  id: number
-  username: string
-  email: string
-  avatar?: string
-  role: string
-}
-
-export interface ErrorResponseDTO {
-  message: string
-  status: number
-  timestamp: number
+    username?: string;
+    content?: string;
+  };
+  // Target info enrichment (different hooks use either title/subtitle or text/icon/color)
+  targetInfo?: {
+    // Basic descriptive fields
+    title?: string;
+    subtitle?: string;
+    // Legacy visual descriptor variant
+    text?: string;
+    icon?: string;
+    color?: string;
+  };
 }

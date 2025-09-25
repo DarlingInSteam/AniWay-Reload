@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
 import shadowshift.studio.chapterservice.dto.ChapterCreateDTO;
 import shadowshift.studio.chapterservice.dto.ChapterResponseDTO;
@@ -12,10 +13,13 @@ import shadowshift.studio.chapterservice.entity.Chapter;
 import shadowshift.studio.chapterservice.entity.ChapterLike;
 import shadowshift.studio.chapterservice.repository.ChapterRepository;
 import shadowshift.studio.chapterservice.repository.ChapterLikeRepository;
+import shadowshift.studio.chapterservice.repository.ChapterReadRepository;
+import shadowshift.studio.chapterservice.entity.ChapterRead;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.springframework.web.client.RestTemplate;
 
 /**
  * Сервис для управления главами манги.
@@ -33,7 +37,19 @@ public class ChapterService {
     private ChapterLikeRepository chapterLikeRepository;
 
     @Autowired
+    private ChapterReadRepository chapterReadRepository;
+
+    @Autowired
     private WebClient.Builder webClientBuilder;
+
+    @Autowired(required = false)
+    private RabbitTemplate rabbitTemplate; // optional if AMQP not configured in some environments
+
+    @Value("${xp.events.exchange:xp.events.exchange}")
+    private String xpExchange;
+
+    @Value("${xp.events.chapterRoutingKey:xp.events.chapter}")
+    private String chapterRoutingKey;
 
     @Value("${image.storage.service.url}")
     private String imageStorageServiceUrl;
@@ -365,6 +381,32 @@ public class ChapterService {
         }
         chapter.setLikeCount(currentLikes + 1);
         chapterRepository.save(chapter);
+
+        // Increment user's likesGivenCount (only chapter likes are counted per business rule)
+        try {
+            RestTemplate rt = new RestTemplate();
+            rt.postForEntity(authServiceInternalUrl + "/internal/metrics/users/" + userId + "/likes-given/increment", null, Void.class);
+        } catch (Exception ex) {
+            System.out.println("[ChapterService] Failed to increment likesGivenCount for user " + userId + ": " + ex.getMessage());
+        }
+
+    // Publish CHAPTER_LIKE_RECEIVED XP event awarding XP to the liker (as per new semantics)
+    if (rabbitTemplate != null) {
+            try {
+                Map<String,Object> event = new java.util.HashMap<>();
+                event.put("type", "CHAPTER_LIKE_RECEIVED");
+        event.put("userId", userId); // XP receiver = liker
+                event.put("chapterId", chapterId);
+                event.put("mangaId", chapter.getMangaId());
+                String eventId = "CHAPTER_LIKE_RECEIVED:" + chapterId + ":" + userId;
+                event.put("eventId", eventId);
+                event.put("likerUserId", userId);
+                event.put("occurredAt", java.time.Instant.now().toString());
+                rabbitTemplate.convertAndSend(xpExchange, chapterRoutingKey, event);
+            } catch (Exception ex) {
+                System.err.println("Failed to publish CHAPTER_LIKE_RECEIVED event: " + ex.getMessage());
+            }
+        }
     }
 
     /**
@@ -439,6 +481,30 @@ public class ChapterService {
             }
             chapter.setLikeCount(currentLikes + 1);
             chapterRepository.save(chapter);
+            // Publish event only when like added
+            if (rabbitTemplate != null) {
+                try {
+                    Map<String,Object> event = new java.util.HashMap<>();
+                    event.put("type", "CHAPTER_LIKE_RECEIVED");
+                    event.put("userId", userId); // XP receiver = liker
+                    event.put("chapterId", chapterId);
+                    event.put("mangaId", chapter.getMangaId());
+                    String eventId = "CHAPTER_LIKE_RECEIVED:" + chapterId + ":" + userId;
+                    event.put("eventId", eventId);
+                    event.put("likerUserId", userId);
+                    event.put("occurredAt", java.time.Instant.now().toString());
+                    rabbitTemplate.convertAndSend(xpExchange, chapterRoutingKey, event);
+                } catch (Exception ex) {
+                    System.err.println("Failed to publish CHAPTER_LIKE_RECEIVED event: " + ex.getMessage());
+                }
+            }
+            // Increment likesGivenCount only for chapter likes (new like path)
+            try {
+                RestTemplate rt = new RestTemplate();
+                rt.postForEntity(authServiceInternalUrl + "/internal/metrics/users/" + userId + "/likes-given/increment", null, Void.class);
+            } catch (Exception ex) {
+                System.out.println("[ChapterService] Failed to increment likesGivenCount (toggle) for user " + userId + ": " + ex.getMessage());
+            }
             return Map.of("liked", true, "likeCount", chapter.getLikeCount()); // лайк поставлен
         }
     }
@@ -452,6 +518,47 @@ public class ChapterService {
      */
     public boolean isLikedByUser(Long userId, Long chapterId) {
         return chapterLikeRepository.existsByUserIdAndChapterId(userId, chapterId);
+    }
+
+    /**
+     * Record that a user has read a chapter (idempotent best-effort for XP; caller ensures uniqueness).
+     * Publishes a CHAPTER_READ XP event if RabbitTemplate is available.
+     */
+    public void recordChapterRead(Long userId, Long chapterId) {
+        // Fast path: if already recorded, do nothing (deduplicates repeated calls / refresh spam)
+        if (chapterReadRepository.existsByUserIdAndChapterId(userId, chapterId)) {
+            return;
+        }
+
+        // Persist unique read (handles race via unique constraint)
+        boolean created = false;
+        try {
+            ChapterRead cr = new ChapterRead(userId, chapterId);
+            chapterReadRepository.save(cr);
+            created = true;
+        } catch (org.springframework.dao.DataIntegrityViolationException dupEx) {
+            // Another concurrent request inserted it first; ignore silently
+            created = false;
+        } catch (Exception ex) {
+            System.err.println("Failed to persist ChapterRead user=" + userId + " chapter=" + chapterId + " error=" + ex.getMessage());
+        }
+
+        // Only publish XP event if this is the first successful read record
+        if (created && rabbitTemplate != null) {
+            try {
+                Map<String,Object> event = new java.util.HashMap<>();
+                event.put("type", "CHAPTER_READ");
+                String eventId = "CHAPTER_READ:" + userId + ":" + chapterId;
+                event.put("eventId", eventId);
+                event.put("userId", userId);
+                event.put("chapterId", chapterId);
+                chapterRepository.findById(chapterId).ifPresent(ch -> event.put("mangaId", ch.getMangaId()));
+                event.put("occurredAt", java.time.Instant.now().toString());
+                rabbitTemplate.convertAndSend(xpExchange, chapterRoutingKey, event);
+            } catch (Exception ex) {
+                System.err.println("Failed to publish CHAPTER_READ event: " + ex.getMessage());
+            }
+        }
     }
 
     private String fetchMangaTitle(Long mangaId) {

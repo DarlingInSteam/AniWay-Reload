@@ -4,7 +4,7 @@ server:
 auth:
   introspect-url: "http://auth-service:8085/api/auth/validate"
   # Added explicit base paths /parser and /manga so that base URLs without trailing slash are public
-  public-paths: "/api/auth/**,/api/health/**,/api/public/**,/parser,/parser/**,/manga,/manga/**,/api/genres/**,/api/tags/**,/api/notifications/stream"
+  public-paths: "/api/auth/**,/api/health/**,/api/public/**,/parser,/parser/**,/manga,/manga/**,/api/genres/**,/api/tags/**,/api/notifications/stream,/api/levels/**"
   cache-ttl-seconds: 300
 
 spring:
@@ -118,6 +118,15 @@ spring:
             - StripPrefix=0
           order: 6
 
+        # PostService - Posts API
+        - id: posts-api
+          uri: http://post-service:8097
+          predicates:
+            - Path=/api/posts/**
+          filters:
+            - StripPrefix=0
+          order: 6
+
         # ForumService - Forum API
         - id: forum-api
           uri: http://forum-service:8087
@@ -219,6 +228,14 @@ spring:
             - Path=/api/notifications/**
           filters:
             - StripPrefix=0
+
+        # LevelService - XP & Level endpoints (add /api prefix for consistency)
+        - id: level-api
+          uri: http://level-service:8098
+          predicates:
+            - Path=/api/levels/**
+          filters:
+            - StripPrefix=1
 
         # Статические ресурсы MangaService (favicon, CSS, JS)
         - id: manga-static

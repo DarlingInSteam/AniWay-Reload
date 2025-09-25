@@ -109,6 +109,86 @@ services:
       timeout: 5s
       retries: 5
 
+  post-postgres:
+    image: postgres:16
+    container_name: post-postgres
+    environment:
+      POSTGRES_DB: post_db
+      POSTGRES_USER: post_user
+      POSTGRES_PASSWORD: post_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5438:5432"
+    volumes:
+      - post_postgres_data:/var/lib/postgresql/data
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U post_user -d post_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Level Service PostgreSQL
+  level-postgres:
+    image: postgres:16
+    container_name: level-postgres
+    environment:
+      POSTGRES_DB: level_db
+      POSTGRES_USER: level_user
+      POSTGRES_PASSWORD: level_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5439:5432"
+    volumes:
+      - level_postgres_data:/var/lib/postgresql/data
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U level_user -d level_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Forum Service PostgreSQL
+  forum-postgres:
+    image: postgres:16
+    container_name: forum-postgres
+    environment:
+      POSTGRES_DB: forumdb
+      POSTGRES_USER: forum_user
+      POSTGRES_PASSWORD: forum_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5440:5432"
+    volumes:
+      - forum_postgres_data:/var/lib/postgresql/data
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U forum_user -d forumdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # RabbitMQ broker
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: aniway
+      RABBITMQ_DEFAULT_PASS: aniway_pass
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
   # Image Storage Service
   image-storage-service:
     build:
@@ -191,6 +271,8 @@ services:
       - MANGA_SERVICE_URL=http://manga-service:8081
       - CHAPTER_SERVICE_URL=http://chapter-service:8082
       - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
+      - POST_SERVICE_URL=http://post-service:8097
+      - LEVEL_SERVICE_URL=http://level-service:8098
     ports:
       - "8080:8080"
     depends_on:
@@ -198,6 +280,10 @@ services:
       - chapter-service
       - image-storage-service
       - auth-service
+      - post-service
+      - level-service
+      - forum-service
+      - rabbitmq
     networks:
       - aniway-network
     restart: unless-stopped
@@ -265,10 +351,16 @@ services:
       - JWT_SECRET=mySecretKey12345678901234567890123456789012345678901234567890
       - JWT_EXPIRATION=86400000
       - AUTH_SERVICE_URL=http://auth-service:8085
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USERNAME=aniway
+      - RABBITMQ_PASSWORD=aniway_pass
     ports:
       - "8086:8086"
     depends_on:
       comment-postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     networks:
       - aniway-network
@@ -279,7 +371,87 @@ services:
       timeout: 10s
       retries: 3
 
+  post-service:
+    build:
+      context: ./PostService
+      dockerfile: Dockerfile
+    container_name: post-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://post-postgres:5432/post_db
+      - SPRING_DATASOURCE_USERNAME=post_user
+      - SPRING_DATASOURCE_PASSWORD=post_password
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USERNAME=aniway
+      - RABBITMQ_PASSWORD=aniway_pass
+    ports:
+      - "8097:8097"
+    depends_on:
+      post-postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - aniway-network
+    restart: unless-stopped
+
   # Frontend
+  # Level Service
+  level-service:
+    build:
+      context: ./LevelService
+      dockerfile: Dockerfile
+    container_name: level-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://level-postgres:5432/level_db
+      - SPRING_DATASOURCE_USERNAME=level_user
+      - SPRING_DATASOURCE_PASSWORD=level_password
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USERNAME=aniway
+      - RABBITMQ_PASSWORD=aniway_pass
+    ports:
+      - "8098:8098"
+    depends_on:
+      level-postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - aniway-network
+    restart: unless-stopped
+
+  # Forum Service
+  forum-service:
+    build:
+      context: ./ForumService
+      dockerfile: Dockerfile
+    container_name: forum-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://forum-postgres:5432/forumdb
+      - SPRING_DATASOURCE_USERNAME=forum_user
+      - SPRING_DATASOURCE_PASSWORD=forum_password
+      - JWT_SECRET=mySecretKey12345678901234567890123456789012345678901234567890
+      - JWT_EXPIRATION=86400000
+      - AUTH_SERVICE_URL=http://auth-service:8085
+      - MANGA_SERVICE_URL=http://manga-service:8081
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USERNAME=aniway
+      - RABBITMQ_PASSWORD=aniway_pass
+    ports:
+      - "8087:8087"
+    depends_on:
+      forum-postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - aniway-network
+    restart: unless-stopped
   frontend:
     build:
       context: ./AniWayFrontend
@@ -299,6 +471,8 @@ volumes:
   image_storage_postgres_data:
   auth_postgres_data:
   comment_postgres_data:
+  post_postgres_data:
   melon_data:
   melon_logs:
   melon_temp:
+  forum_postgres_data:

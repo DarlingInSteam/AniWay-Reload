@@ -129,6 +129,50 @@ export function useDeleteThread() {
   })
 }
 
+export function usePinThread() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, pinned }: { id: number; pinned: boolean }) => forumService.pinThread(id, pinned),
+    onSuccess: (_,_vars) => {
+      qc.invalidateQueries({ queryKey: ['forum','threads','infinite'] })
+      qc.invalidateQueries({ queryKey: ['forum','thread', _vars.id] })
+    }
+  })
+}
+
+export function useLockThread() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, locked }: { id: number; locked: boolean }) => forumService.lockThread(id, locked),
+    onSuccess: (_,_vars) => {
+      qc.invalidateQueries({ queryKey: ['forum','threads','infinite'] })
+      qc.invalidateQueries({ queryKey: ['forum','thread', _vars.id] })
+    }
+  })
+}
+
+export function useSubscribeThread() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => forumService.subscribeThread(id),
+    onSuccess: (_,_id) => {
+      qc.invalidateQueries({ queryKey: ['forum','thread', _id] })
+      qc.invalidateQueries({ queryKey: ['forum','threads','infinite'] })
+    }
+  })
+}
+
+export function useUnsubscribeThread() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => forumService.unsubscribeThread(id),
+    onSuccess: (_,_id) => {
+      qc.invalidateQueries({ queryKey: ['forum','thread', _id] })
+      qc.invalidateQueries({ queryKey: ['forum','threads','infinite'] })
+    }
+  })
+}
+
 // Posts
 export function useThreadPosts(threadId?: number, page=0, size=20) {
   return useQuery({

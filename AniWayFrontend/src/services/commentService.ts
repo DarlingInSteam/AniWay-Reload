@@ -1,8 +1,7 @@
 import { 
   CommentCreateDTO, 
   CommentUpdateDTO, 
-  CommentResponseDTO, 
-  CommentReactionDTO 
+  CommentResponseDTO 
 } from '@/types/comments'
 
 class CommentService {
@@ -84,7 +83,7 @@ class CommentService {
    */
   async getComments(
     targetId: number,
-    type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW',
+    type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST',
     page: number = 0,
     size: number = 20,
     sortBy: string = 'createdAt',
@@ -122,34 +121,13 @@ class CommentService {
     return this.request(`/${parentCommentId}/replies?${params}`)
   }
 
-  /**
-   * Добавление реакции на комментарий
-   */
-  async addReaction(commentId: number, reactionType: 'LIKE' | 'DISLIKE'): Promise<void> {
-    const params = new URLSearchParams({
-      reactionType
-    })
-
-    return this.request(`/${commentId}/reactions?${params}`, {
-      method: 'POST'
-    })
-  }
-
-  /**
-   * Удаление реакции с комментария
-   */
-  async removeReaction(commentId: number): Promise<void> {
-    return this.request(`/${commentId}/reactions`, {
-      method: 'DELETE'
-    })
-  }
 
   /**
    * Получение количества комментариев для цели
    */
   async getCommentsCount(
     targetId: number,
-    type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW'
+    type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST'
   ): Promise<number> {
     const params = new URLSearchParams({
       targetId: targetId.toString(),
@@ -167,11 +145,19 @@ class CommentService {
     return this.request(`/user/${userId}`)
   }
 
-  /**
-   * Получение статистики реакций
-   */
-  async getReactionStats(commentId: number): Promise<CommentReactionDTO> {
-    return this.request(`/${commentId}/reactions`)
+  // Reactions API (toggle semantics implemented on backend). After POST we fetch fresh stats.
+  async addReaction(commentId: number, reactionType: 'LIKE' | 'DISLIKE'): Promise<{ commentId: number; likesCount: number; dislikesCount: number }> {
+    await this.request(`/${commentId}/reactions?reactionType=${reactionType}`, { method: 'POST' });
+    const stats = await this.request<{ commentId:number; likesCount:number; dislikesCount:number }>(`/${commentId}/reactions`);
+    return stats;
+  }
+
+  // Convenience wrappers for posts
+  async listForPost(postId: number, page=0, size=20) {
+    return this.getComments(postId, 'POST', page, size, 'createdAt', 'desc');
+  }
+  async createForPost(postId: number, content: string, parentCommentId?: number) {
+    return this.createComment({ content, targetId: postId, commentType: 'POST', parentCommentId });
   }
 }
 

@@ -107,6 +107,7 @@ services:
       - MANGA_SERVICE_URL=http://manga-service:8081
       - CHAPTER_SERVICE_URL=http://chapter-service:8082
       - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
+      - LEVEL_SERVICE_URL=http://level-service:8098
     ports:
       - "8080:8080"
     depends_on:
@@ -118,6 +119,8 @@ services:
       - forum-service
       - notification-service
       - melon-service
+      - level-service
+      - rabbitmq
     networks:
       - aniway-network
 
@@ -184,15 +187,79 @@ services:
       - JWT_SECRET=mySecretKey12345678901234567890123456789012345678901234567890
       - JWT_EXPIRATION=86400000
       - AUTH_SERVICE_URL=http://auth-service:8085
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USERNAME=aniway
+      - RABBITMQ_PASSWORD=aniway_pass
     ports:
       - "8086:8086"
     depends_on:
       comment-postgres:
         condition: service_healthy
+      rabbitmq:
+        condition: service_started
     networks:
       - aniway-network
 
   # Frontend - для разработки с hot-reload
+  # Level Service (dev)
+  level-service:
+    build:
+      context: ./LevelService
+      dockerfile: Dockerfile
+    volumes:
+      - ./LevelService/src:/app/src:ro
+      - ./LevelService/build.gradle.kts:/app/build.gradle.kts:ro
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://level-postgres:5432/level_db
+      - SPRING_DATASOURCE_USERNAME=level_user
+      - SPRING_DATASOURCE_PASSWORD=level_password
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USERNAME=aniway
+      - RABBITMQ_PASSWORD=aniway_pass
+    ports:
+      - "8098:8098"
+    depends_on:
+      level-postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    networks:
+      - aniway-network
+
+  level-postgres:
+    image: postgres:16
+    container_name: level-postgres-dev
+    environment:
+      POSTGRES_DB: level_db
+      POSTGRES_USER: level_user
+      POSTGRES_PASSWORD: level_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5440:5432"
+    volumes:
+      - level_postgres_data:/var/lib/postgresql/data
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U level_user -d level_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: rabbitmq-dev
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: aniway
+      RABBITMQ_DEFAULT_PASS: aniway_pass
+    networks:
+      - aniway-network
   frontend:
     build:
       context: ./AniWayFrontend
@@ -487,3 +554,4 @@ volumes:
   notification_postgres_data:
   gradle-cache-forum:
   gradle-cache-notification:
+  level_postgres_data:

@@ -53,6 +53,12 @@ public class ReviewDTO {
     
     /** Количество дизлайков. */
     private Integer dislikesCount;
+
+    // NOTE: Frontend (TopsPage) currently expects singular field names likeCount / dislikeCount.
+    // To maintain backward compatibility we expose alias fields. They duplicate the values
+    // of likesCount/dislikesCount and can be removed once the frontend is refactored.
+    private Integer likeCount;      // alias for likesCount
+    private Integer dislikeCount;   // alias for dislikesCount
     
     /** Фактор доверия. */
     private Integer trustFactor;
