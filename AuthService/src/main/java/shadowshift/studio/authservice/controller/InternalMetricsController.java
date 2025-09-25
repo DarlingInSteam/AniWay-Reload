@@ -24,12 +24,14 @@ public class InternalMetricsController {
     @PostMapping("/{userId}/comments/increment")
     public ResponseEntity<Void> incrementComments(@PathVariable Long userId) {
         userService.incrementCommentsCount(userId);
+            log.info("[InternalMetrics] Incremented commentsCount for user {}", userId);
         return ResponseEntity.ok().build();
     }
 
     @PostMapping("/{userId}/likes-given/increment")
     public ResponseEntity<Void> incrementLikesGiven(@PathVariable Long userId) {
         userService.incrementLikesGivenCount(userId);
+            log.info("[InternalMetrics] Incremented likesGivenCount for user {}", userId);
         return ResponseEntity.ok().build();
     }
 }
