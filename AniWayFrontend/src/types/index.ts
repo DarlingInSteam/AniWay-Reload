@@ -343,6 +343,7 @@ export interface TopReviewDTO {
   userDisplayName?: string
   userAvatar?: string
   mangaId?: number
+  mangaTitle?: string
   rating?: number
   comment?: string
   likesCount?: number

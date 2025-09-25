@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 public class ForumPostTopDTO {
     Long id;
     Long threadId;
+    String content; // full
     String contentExcerpt;
     Long authorId;
     String authorName;

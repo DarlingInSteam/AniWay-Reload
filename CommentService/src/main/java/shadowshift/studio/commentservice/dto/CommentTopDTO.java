@@ -9,6 +9,7 @@ import shadowshift.studio.commentservice.enums.CommentType;
 @Builder
 public class CommentTopDTO {
     Long id;
+    String content; // full
     String contentExcerpt;
     Long userId;
     // Author enrichment (name/avatar) could be added later by calling AuthService.

@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 public class ForumThreadTopDTO {
     Long id;
     String title;
+    String content; // full content
     String contentExcerpt; // trimmed content
     Long authorId;
     String authorName; // optional, can be null until enriched

@@ -44,9 +44,10 @@ public class ForumTopsController {
             int days = switch(range) { case "7" -> 7; case "30" -> 30; default -> 7; };
             data = threadRepository.findTopThreadsSince(LocalDateTime.now().minusDays(days), pr).getContent();
         }
-        List<ForumThreadTopDTO> dtos = data.stream().map(t -> ForumThreadTopDTO.builder()
+    List<ForumThreadTopDTO> dtos = data.stream().map(t -> ForumThreadTopDTO.builder()
                 .id(t.getId())
                 .title(t.getTitle())
+        .content(t.getContent())
                 .contentExcerpt(trim(t.getContent()))
                 .authorId(t.getAuthorId())
                 .repliesCount(t.getRepliesCount())
@@ -72,9 +73,10 @@ public class ForumTopsController {
             int days = switch(range) { case "7" -> 7; case "30" -> 30; default -> 7; };
             data = postRepository.findTopPostsSince(LocalDateTime.now().minusDays(days), pr).getContent();
         }
-        List<ForumPostTopDTO> dtos = data.stream().map(p -> ForumPostTopDTO.builder()
+    List<ForumPostTopDTO> dtos = data.stream().map(p -> ForumPostTopDTO.builder()
                 .id(p.getId())
                 .threadId(p.getThreadId())
+        .content(p.getContent())
                 .contentExcerpt(trim(p.getContent()))
                 .authorId(p.getAuthorId())
                 .likesCount(p.getLikesCount())

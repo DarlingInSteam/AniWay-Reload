@@ -35,8 +35,9 @@ public class CommentTopsController {
             int days = switch(range) { case "7" -> 7; case "30" -> 30; default -> 7; };
             data = commentRepository.findTopCommentsSince(LocalDateTime.now().minusDays(days), pr).getContent();
         }
-        List<CommentTopDTO> dtos = data.stream().map(c -> CommentTopDTO.builder()
+    List<CommentTopDTO> dtos = data.stream().map(c -> CommentTopDTO.builder()
                 .id(c.getId())
+        .content(c.getContent())
                 .contentExcerpt(trim(c.getContent()))
                 .userId(c.getUserId())
                 .likesCount(c.getLikesCount())
