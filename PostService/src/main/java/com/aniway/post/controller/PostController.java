@@ -85,6 +85,13 @@ public class PostController {
         );
     }
 
+    @GetMapping("/tops")
+    public List<PostDtos.FrontendPost> tops(@RequestHeader(value = "X-User-Id", required = false) String userHeader,
+                                            @RequestParam(name = "range", required = false, defaultValue = "all") String range,
+                                            @RequestParam(name = "limit", required = false) Integer limit) {
+        return postService.getTop(range, limit, currentUserId(userHeader));
+    }
+
     public record VoteRequest(int value) {}
 
     @PostMapping("/{id}/vote")

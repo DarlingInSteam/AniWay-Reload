@@ -28,8 +28,9 @@ const USER_METRICS: { label: string; value: UserMetric; desc: string }[] = [
 export function TopsPage() {
   const [userMetric, setUserMetric] = useState<UserMetric>('readers')
   const [threadsRange, setThreadsRange] = useState<Range>('all')
-  const [postsRange, setPostsRange] = useState<Range>('all')
+  // Removed forum posts tab (postsRange) per request
   const [commentsRange, setCommentsRange] = useState<Range>('all')
+  const [wallRange, setWallRange] = useState<'all' | '7' | '30' | 'today'>('all')
   const [reviewsDays, setReviewsDays] = useState<number>(7)
   const navigate = useNavigate()
 
@@ -54,12 +55,7 @@ export function TopsPage() {
     staleTime: 60_000
   })
 
-  // Posts
-  const postsQuery = useQuery({
-    queryKey: ['tops-posts', postsRange],
-    queryFn: () => apiClient.getTopPosts({ range: postsRange, limit: 15 }),
-    staleTime: 60_000
-  })
+  // Forum posts leaderboard removed
 
   // Comments
   const commentsQuery = useQuery({
@@ -68,15 +64,22 @@ export function TopsPage() {
     staleTime: 60_000
   })
 
+  // Wall posts (profile posts)
+  const wallPostsQuery = useQuery({
+    queryKey: ['tops-wall-posts', wallRange],
+    queryFn: () => apiClient.getTopWallPosts({ range: wallRange, limit: 15 }),
+    staleTime: 60_000
+  })
+
   // Tabs
-  type TabKey = 'users' | 'reviews' | 'threads' | 'posts' | 'comments'
+  type TabKey = 'users' | 'reviews' | 'threads' | 'comments' | 'wall'
   const [activeTab, setActiveTab] = useState<TabKey>('users')
   const tabs: { key: TabKey; label: string }[] = [
     { key: 'users', label: 'Пользователи' },
     { key: 'reviews', label: 'Обзоры' },
     { key: 'threads', label: 'Темы форума' },
-    { key: 'posts', label: 'Посты' },
-    { key: 'comments', label: 'Комментарии' }
+    { key: 'comments', label: 'Комментарии' },
+    { key: 'wall', label: 'Стена' }
   ]
 
   const Panel: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
@@ -153,7 +156,8 @@ export function TopsPage() {
   const reviewUserMap = useUserMiniBatch((reviewsQuery.data||[]).map((r:any)=> r.userId))
   const reviewMangaMap = useMangaMiniBatch((reviewsQuery.data||[]).map((r:any)=> r.mangaId))
   const threadAuthorMap = useUserMiniBatch((threadsQuery.data||[]).map((t:any)=> t.authorId))
-  const postAuthorMap = useUserMiniBatch((postsQuery.data||[]).map((p:any)=> p.authorId))
+  // Removed forum posts author enrichment
+  const wallAuthorMap = useUserMiniBatch((wallPostsQuery.data||[]).map((p:any)=> p.userId))
   const commentAuthorMap = useUserMiniBatch((commentsQuery.data||[]).map((c:any)=> c.userId))
 
   const renderReviews = () => {
@@ -241,41 +245,7 @@ export function TopsPage() {
     )
   }
 
-  const renderPosts = () => {
-    if (postsQuery.isLoading) return <LeaderboardSkeleton rows={10} />
-    if (postsQuery.isError) return <LeaderboardError onRetry={() => postsQuery.refetch()} />
-    const posts = postsQuery.data || []
-    return (
-      <div className="flex flex-col gap-5">
-        {posts.map((p: any, idx: number) => {
-          const trust = (p.likeCount ?? 0) - (p.dislikeCount ?? 0)
-          const author = postAuthorMap[p.authorId]
-          return (
-            <div key={p.id || idx} id={`post-${p.id}`} className="glass-panel p-5 space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded bg-fuchsia-600/30 flex items-center justify-center text-[11px] text-fuchsia-200 font-bold">{idx+1}</div>
-                <div className="flex-1 min-w-0">
-                  {author && <div className="text-[11px] text-white/50 mb-1 flex items-center gap-2">
-                    {author.avatar && <img src={author.avatar} className="w-4 h-4 rounded-full object-cover" alt={author.username}/>}
-                    <span>{author.displayName || author.username}</span>
-                  </div>}
-                  <div className="text-xs flex flex-wrap gap-2 mb-2 text-white/60">
-                    <span className={`px-2 py-0.5 rounded ${trust>0 ? 'bg-emerald-600/30 text-emerald-200' : trust<0 ? 'bg-rose-700/40 text-rose-200' : 'bg-purple-600/30'}`}>Trust {trust}</span>
-                    <span className="px-2 py-0.5 rounded bg-pink-600/30">👍 {p.likeCount ?? p.likesCount ?? 0}</span>
-                    <span className="px-2 py-0.5 rounded bg-rose-600/30">👎 {p.dislikeCount ?? p.dislikesCount ?? 0}</span>
-                  </div>
-                  <div className="prose prose-invert text-sm whitespace-pre-wrap">{p.content || p.contentExcerpt}</div>
-                  <div className="mt-3 flex flex-wrap gap-3 text-[10px] text-white/50">
-                    <button onClick={()=> navigate(`/forum/thread/${p.threadId}#post-${p.id}`)} className="underline decoration-dotted hover:text-white/80">Перейти к посту</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    )
-  }
+  // renderPosts removed
 
   const renderComments = () => {
     if (commentsQuery.isLoading) return <LeaderboardSkeleton rows={10} />
@@ -322,6 +292,51 @@ export function TopsPage() {
     )
   }
 
+  const renderWallPosts = () => {
+    if (wallPostsQuery.isLoading) return <LeaderboardSkeleton rows={10} />
+    if (wallPostsQuery.isError) return <LeaderboardError onRetry={() => wallPostsQuery.refetch()} />
+    const wallPosts = wallPostsQuery.data || []
+    return (
+      <div className="flex flex-col gap-5">
+        {wallPosts.map((p: any, idx: number) => {
+          const stats = p.stats || {}
+          const author = wallAuthorMap[p.userId]
+          return (
+            <div key={p.id || idx} id={`wall-post-${p.id}`} className="glass-panel p-5 space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded bg-amber-600/30 flex items-center justify-center text-[11px] text-amber-200 font-bold">{idx+1}</div>
+                <div className="flex-1 min-w-0">
+                  {author && <div className="text-[11px] text-white/50 mb-1 flex items-center gap-2">
+                    {author.avatar && <img src={author.avatar} className="w-4 h-4 rounded-full object-cover" alt={author.username}/>}
+                    <span>{author.displayName || author.username}</span>
+                  </div>}
+                  <div className="flex flex-wrap gap-2 text-[10px] text-white/60 mb-2">
+                    <span className="px-2 py-0.5 rounded bg-indigo-600/30">Score {typeof stats.score === 'number' ? stats.score : ( (stats.up || 0) - (stats.down || 0) )}</span>
+                    <span className="px-2 py-0.5 rounded bg-pink-600/30">👍 {stats.up ?? 0}</span>
+                    <span className="px-2 py-0.5 rounded bg-rose-600/30">👎 {stats.down ?? 0}</span>
+                  </div>
+                  <div className="prose prose-invert text-sm whitespace-pre-wrap">{p.content}</div>
+                  {p.attachments?.length > 0 && (
+                    <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {p.attachments.slice(0,6).map((a: any) => (
+                        <div key={a.id} className="relative group">
+                          <img src={a.url} alt={a.filename} className="w-full h-24 object-cover rounded border border-white/10" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-3 flex flex-wrap gap-3 text-[10px] text-white/50">
+                    <button onClick={()=> navigate(`/profile/${p.userId}#wall-post-${p.id}`)} className="underline decoration-dotted hover:text-white/80">Перейти к посту</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
       <div className="flex flex-col gap-4">
@@ -343,11 +358,12 @@ export function TopsPage() {
           {activeTab==='threads' && (
             <div className="ml-auto"><Segmented value={threadsRange} onChange={setThreadsRange} options={RANGE_OPTIONS} /></div>
           )}
-          {activeTab==='posts' && (
-            <div className="ml-auto"><Segmented value={postsRange} onChange={setPostsRange} options={RANGE_OPTIONS} /></div>
-          )}
+          {/* posts tab removed */}
           {activeTab==='comments' && (
             <div className="ml-auto"><Segmented value={commentsRange} onChange={setCommentsRange} options={RANGE_OPTIONS} /></div>
+          )}
+          {activeTab==='wall' && (
+            <div className="ml-auto"><Segmented value={wallRange} onChange={setWallRange} options={[{label:'Все', value:'all'},{label:'Сегодня', value:'today'},{label:'7 д', value:'7'},{label:'30 д', value:'30'}]} /></div>
           )}
         </div>
       </div>
@@ -356,8 +372,9 @@ export function TopsPage() {
         {activeTab === 'users' && <Panel>{renderUsers()}</Panel>}
         {activeTab === 'reviews' && <Panel>{renderReviews()}</Panel>}
         {activeTab === 'threads' && <Panel>{renderThreads()}</Panel>}
-        {activeTab === 'posts' && <Panel>{renderPosts()}</Panel>}
+  {/* posts panel removed */}
         {activeTab === 'comments' && <Panel>{renderComments()}</Panel>}
+        {activeTab === 'wall' && <Panel>{renderWallPosts()}</Panel>}
       </div>
     </div>
   )

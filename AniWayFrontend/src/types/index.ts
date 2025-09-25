@@ -396,3 +396,16 @@ export interface TopCommentDTO {
   targetId?: number
   createdAt?: string
 }
+
+// Wall (profile) posts leaderboard DTO
+export interface TopWallPostDTO {
+  id: number
+  userId: number
+  content: string
+  createdAt?: string
+  updatedAt?: string
+  editedUntil?: string
+  attachments?: { id: number; filename: string; url: string; sizeBytes: number }[]
+  references?: { id: number; type: string; refId: number }[]
+  stats?: { score: number; up: number; down: number; userVote?: number | null; commentsCount?: number }
+}

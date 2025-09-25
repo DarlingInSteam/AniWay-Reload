@@ -11,6 +11,7 @@ import com.aniway.post.repo.PostVoteRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
@@ -39,12 +40,39 @@ public class PostService {
     private String postUpvoteRoutingKey;
 
     private static final Pattern MANGA_REF_PATTERN = Pattern.compile("\\[\\[manga:(\\d+)]]");
+    private static final int DEFAULT_TOP_LIMIT = 20;
 
     public PostService(PostRepository postRepository, PostVoteRepository voteRepository, PostReferenceRepository referenceRepository, RabbitTemplate rabbitTemplate) {
         this.postRepository = postRepository;
         this.voteRepository = voteRepository;
         this.referenceRepository = referenceRepository;
         this.rabbitTemplate = rabbitTemplate;
+    }
+
+    @Transactional(readOnly = true)
+    public List<PostDtos.FrontendPost> getTop(String range, Integer limit, Long currentUserId) {
+        int cappedLimit = (limit == null ? DEFAULT_TOP_LIMIT : Math.min(Math.max(limit, 1), 100));
+        Instant since;
+        if (range == null || range.equalsIgnoreCase("all")) {
+            since = null;
+        } else if (range.equalsIgnoreCase("today")) {
+            since = Instant.now().minus(1, ChronoUnit.DAYS);
+        } else if (range.equals("7") || range.equalsIgnoreCase("7d")) {
+            since = Instant.now().minus(7, ChronoUnit.DAYS);
+        } else if (range.equals("30") || range.equalsIgnoreCase("30d")) {
+            since = Instant.now().minus(30, ChronoUnit.DAYS);
+        } else {
+            throw new IllegalArgumentException("Invalid range parameter");
+        }
+
+        List<Post> posts;
+        PageRequest pageable = PageRequest.of(0, cappedLimit);
+        if (since == null) {
+            posts = postRepository.findTopAll(pageable);
+        } else {
+            posts = postRepository.findTopSince(since, pageable);
+        }
+        return posts.stream().map(p -> PostMapper.toFrontend(p, currentUserId)).toList();
     }
 
     public PostDtos.PostResponse create(Long authorId, PostDtos.CreatePostRequest req) {

@@ -329,6 +329,14 @@ class ApiClient {
     return this.request<import('@/types').TopCommentDTO[]>(`/comments/tops?${searchParams.toString()}`);
   }
 
+  // Wall posts (user profile posts) leaderboard (range: all | 7 | 30 | today)
+  async getTopWallPosts(params: { range?: 'all' | '7' | '30' | 'today'; limit?: number }): Promise<import('@/types').TopWallPostDTO[]> {
+    const limit = Math.min(Math.max(params.limit ?? 10, 1), 100);
+    const searchParams = new URLSearchParams({ limit: String(limit) });
+    if (params.range && params.range !== 'all') searchParams.append('range', params.range);
+    return this.request<import('@/types').TopWallPostDTO[]>(`/posts/tops?${searchParams.toString()}`);
+  }
+
   async getUserPublicProgress(userId: number): Promise<any[]> {
     if (!(globalThis as any).__publicProgressCache) {
       (globalThis as any).__publicProgressCache = new Map<number, Promise<any[]>>();
