@@ -31,7 +31,13 @@ public class BadgeEvaluationService {
     private static final String BADGE_TEN_COMMENTS = "TEN_COMMENTS";
     private static final String BADGE_HUNDRED_CHAPTERS = "HUNDRED_CHAPTERS";
 
-    private static final Set<String> LIKE_SOURCES = Set.of("LIKE_RECEIVED", "POST_UPVOTED", "CHAPTER_LIKE_RECEIVED");
+    private static final Set<String> LIKE_SOURCES = Set.of(
+        "LIKE_RECEIVED",
+        "POST_UPVOTED",
+        "CHAPTER_LIKE_RECEIVED",
+        "FORUM_THREAD_LIKE_RECEIVED",
+        "FORUM_POST_LIKE_RECEIVED"
+    );
 
     @Transactional
     public List<UserBadge> evaluateUser(Long userId) {

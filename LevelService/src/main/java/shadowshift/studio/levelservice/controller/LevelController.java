@@ -59,9 +59,32 @@ public class LevelController {
     @GetMapping("/{userId}/transactions")
     public ResponseEntity<?> getUserTransactions(@PathVariable Long userId,
                                                  @RequestParam(defaultValue = "0") int page,
-                                                 @RequestParam(defaultValue = "20") int size) {
+                                                 @RequestParam(defaultValue = "20") int size,
+                                                 @RequestParam(required = false) String sourceType,
+                                                 @RequestParam(required = false, name = "sinceDays") Integer sinceDays) {
         Pageable pageable = PageRequest.of(page, Math.min(size, 100));
         Page<XpTransaction> txPage = xpTransactionRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
+
+        // In-memory filtering for now (data volume expected low). Could be replaced with derived queries if needed.
+        if (sourceType != null || sinceDays != null) {
+            var filtered = txPage.getContent().stream()
+                    .filter(tx -> sourceType == null || sourceType.equalsIgnoreCase(tx.getSourceType()))
+                    .filter(tx -> {
+                        if (sinceDays == null) return true;
+                        return tx.getCreatedAt() != null && tx.getCreatedAt().isAfter(java.time.LocalDateTime.now().minusDays(sinceDays));
+                    })
+                    .toList();
+            // simple manual page wrapper (no total recalc for filtered subset -> provide counts)
+            Map<String, Object> resp = new java.util.HashMap<>();
+            resp.put("content", filtered);
+            resp.put("page", page);
+            resp.put("size", size);
+            resp.put("filtered", true);
+            resp.put("totalReturned", filtered.size());
+            resp.put("originalTotalElements", txPage.getTotalElements());
+            resp.put("originalTotalPages", txPage.getTotalPages());
+            return ResponseEntity.ok(resp);
+        }
         return ResponseEntity.ok(txPage);
     }
 

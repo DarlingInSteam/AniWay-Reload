@@ -41,6 +41,12 @@ public class XpEventListener {
     @Value("${leveling.xp.commentCreated:5}")
     private long commentCreatedXp;
 
+    @Value("${leveling.xp.forumThreadLikeReceived:2}")
+    private long forumThreadLikeReceivedXp;
+
+    @Value("${leveling.xp.forumPostLikeReceived:2}")
+    private long forumPostLikeReceivedXp;
+
     // Simple dynamic routing: messages contain a type field
     @RabbitListener(queues = "xp.events.queue")
     public void handle(@Payload Map<String, Object> message) {
@@ -53,7 +59,9 @@ public class XpEventListener {
                 case "BADGE_AWARDED" -> handleBadgeAwarded(message, eventId);
                 case "POST_UPVOTED" -> handlePostUpvoted(message, eventId);
                 case "CHAPTER_LIKE_RECEIVED" -> handleChapterLikeReceived(message, eventId);
-                case "COMMENT_CREATED" -> handleCommentCreated(message, eventId); // 0 XP but tracked for badges
+                case "COMMENT_CREATED" -> handleCommentCreated(message, eventId);
+                case "FORUM_THREAD_LIKE_RECEIVED" -> handleForumThreadLike(message, eventId);
+                case "FORUM_POST_LIKE_RECEIVED" -> handleForumPostLike(message, eventId);
                 default -> log.warn("Unknown XP event type: {}", type);
             }
         } catch (Exception e) {
@@ -114,6 +122,24 @@ public class XpEventListener {
         UserXp updated = levelServiceDomain.addXp(authorUserId, commentCreatedXp, "COMMENT_CREATED", String.valueOf(commentId), eventId);
         log.info("Applied COMMENT_CREATED ({} XP) for user {} => total {}", commentCreatedXp, authorUserId, updated.getTotalXp());
         evaluateBadgesAsync(authorUserId);
+    }
+
+    private void handleForumThreadLike(Map<String, Object> msg, String eventId) {
+        Long receiverUserId = asLong(msg.get("receiverUserId"));
+        Long threadId = asLong(msg.get("threadId"));
+        if (receiverUserId == null || threadId == null) return;
+        UserXp updated = levelServiceDomain.addXp(receiverUserId, forumThreadLikeReceivedXp, "FORUM_THREAD_LIKE_RECEIVED", String.valueOf(threadId), eventId);
+        log.info("Applied FORUM_THREAD_LIKE_RECEIVED XP to user {} => total {}", receiverUserId, updated.getTotalXp());
+        evaluateBadgesAsync(receiverUserId);
+    }
+
+    private void handleForumPostLike(Map<String, Object> msg, String eventId) {
+        Long receiverUserId = asLong(msg.get("receiverUserId"));
+        Long postId = asLong(msg.get("postId"));
+        if (receiverUserId == null || postId == null) return;
+        UserXp updated = levelServiceDomain.addXp(receiverUserId, forumPostLikeReceivedXp, "FORUM_POST_LIKE_RECEIVED", String.valueOf(postId), eventId);
+        log.info("Applied FORUM_POST_LIKE_RECEIVED XP to user {} => total {}", receiverUserId, updated.getTotalXp());
+        evaluateBadgesAsync(receiverUserId);
     }
 
     private void evaluateBadgesAsync(Long userId) {
