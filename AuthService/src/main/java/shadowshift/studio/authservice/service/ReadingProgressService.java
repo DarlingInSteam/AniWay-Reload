@@ -78,17 +78,22 @@ public class ReadingProgressService {
                         isNew = true;
         }
         
-        readingProgressRepository.save(progress);
-        
+                readingProgressRepository.save(progress);
+
                 boolean wasAlreadyCompleted = existingProgress.isPresent() && existingProgress.get().getIsCompleted();
-                if (isCompleted && !wasAlreadyCompleted) {
+                // Award policy change: give XP on first creation OR on completion transition (but only once total).
+                if (isNew) {
+                        publishChapterReadEvent(user.getId(), chapterId);
+                        log.info("Reading progress created (initial) for user: {} chapter: {} page: {} (isCompleted={}, award=initial)", username, chapterId, pageNumber, isCompleted);
+                } else if (isCompleted && !wasAlreadyCompleted) {
                         userService.incrementChapterCount(username);
                         publishChapterReadEvent(user.getId(), chapterId);
-                } else if (isNew) {
-                        // Even if not completed yet, we can choose to award XP only on completion; so skip here.
+                        log.info("Reading progress completion transition for user: {} chapter: {} page: {} (award=completion)", username, chapterId, pageNumber);
+                } else {
+                        log.debug("Reading progress updated no-award user={} chapter={} page={} isCompleted={} wasCompletedPreviously={}", username, chapterId, pageNumber, isCompleted, wasAlreadyCompleted);
                 }
-        
-        log.info("Reading progress updated for user: {} chapter: {} page: {}", username, chapterId, pageNumber);
+
+                log.info("Reading progress saved for user: {} chapter: {} page: {}", username, chapterId, pageNumber);
         
         return convertToDTO(progress);
     }
@@ -244,9 +249,11 @@ public class ReadingProgressService {
         progress.setIsCompleted(progressData.getIsCompleted());
         readingProgressRepository.save(progress);
         
-        if (progressData.getIsCompleted() && !wasCompleted) {
-            userService.incrementChapterCount(username);
-        }
+                if (progressData.getIsCompleted() && !wasCompleted) {
+                        userService.incrementChapterCount(username);
+                        publishChapterReadEvent(user.getId(), progress.getChapterId());
+                        log.info("Reading progress completion via ID update user={} chapter={} award=completion", username, progress.getChapterId());
+                }
         
         return convertToDTO(progress);
     }
