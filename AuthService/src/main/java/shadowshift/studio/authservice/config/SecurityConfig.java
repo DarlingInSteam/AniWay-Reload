@@ -57,6 +57,8 @@ public class SecurityConfig {
                 "/api/auth/password/reset/request-code", "/api/auth/password/reset/verify-code", "/api/auth/password/reset/perform").permitAll()
             .requestMatchers("/api/auth/account/delete/request-code", "/api/auth/account/delete/verify-code", "/api/auth/account/delete/perform", "/api/auth/password/change").authenticated()
                         .requestMatchers("/actuator/**").permitAll()
+                        // Internal metrics endpoints (should be restricted by network or gateway rules)
+                        .requestMatchers("/internal/metrics/users/**").permitAll()
                         .requestMatchers("/internal/bookmarks/manga/*/subscribers").permitAll()
                         .requestMatchers("/api/admin/bookmarks/cleanup-orphaned").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/reviews/manga/*/rating").permitAll()

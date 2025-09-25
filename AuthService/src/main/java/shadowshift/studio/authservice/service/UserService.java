@@ -236,6 +236,42 @@ public class UserService implements UserDetailsService {
         userRepository.save(user);
     }
 
+    /**
+     * Increment commentsCount metric for a user (used by other services via internal endpoint).
+     * Silent if user not found to avoid cascading failures from remote services.
+     * @param userId id of user
+     */
+    public void incrementCommentsCount(Long userId) {
+        try {
+            User user = userRepository.findById(userId).orElse(null);
+            if (user == null) return;
+            if (user.getCommentsCount() == null) user.setCommentsCount(0);
+            user.setCommentsCount(user.getCommentsCount() + 1);
+            userRepository.save(user);
+            log.debug("Incremented commentsCount for user {} => {}", userId, user.getCommentsCount());
+        } catch (Exception ex) {
+            log.warn("Failed to increment commentsCount for user {}: {}", userId, ex.getMessage());
+        }
+    }
+
+    /**
+     * Increment likesGivenCount metric for a user when they like a chapter/comment/review/forum item.
+     * We only increment on new like (not on unlike) so total is monotonic.
+     * @param userId user id
+     */
+    public void incrementLikesGivenCount(Long userId) {
+        try {
+            User user = userRepository.findById(userId).orElse(null);
+            if (user == null) return;
+            if (user.getLikesGivenCount() == null) user.setLikesGivenCount(0);
+            user.setLikesGivenCount(user.getLikesGivenCount() + 1);
+            userRepository.save(user);
+            log.debug("Incremented likesGivenCount for user {} => {}", userId, user.getLikesGivenCount());
+        } catch (Exception ex) {
+            log.warn("Failed to increment likesGivenCount for user {}: {}", userId, ex.getMessage());
+        }
+    }
+
     public void banOrUnBanUser(Long adminId, Long userId, String reason) {
         // Legacy toggle kept for backward compatibility: if user currently NONE => PERM ban, otherwise UNBAN
         User user = userRepository.findById(userId)

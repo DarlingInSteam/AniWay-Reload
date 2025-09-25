@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.springframework.web.client.RestTemplate;
 
 /**
  * Сервис для управления главами манги.
@@ -381,6 +382,14 @@ public class ChapterService {
         chapter.setLikeCount(currentLikes + 1);
         chapterRepository.save(chapter);
 
+        // Increment user's likesGivenCount (only chapter likes are counted per business rule)
+        try {
+            RestTemplate rt = new RestTemplate();
+            rt.postForEntity(authServiceInternalUrl + "/internal/metrics/users/" + userId + "/likes-given/increment", null, Void.class);
+        } catch (Exception ex) {
+            System.out.println("[ChapterService] Failed to increment likesGivenCount for user " + userId + ": " + ex.getMessage());
+        }
+
     // Publish CHAPTER_LIKE_RECEIVED XP event awarding XP to the liker (as per new semantics)
     if (rabbitTemplate != null) {
             try {
@@ -488,6 +497,13 @@ public class ChapterService {
                 } catch (Exception ex) {
                     System.err.println("Failed to publish CHAPTER_LIKE_RECEIVED event: " + ex.getMessage());
                 }
+            }
+            // Increment likesGivenCount only for chapter likes (new like path)
+            try {
+                RestTemplate rt = new RestTemplate();
+                rt.postForEntity(authServiceInternalUrl + "/internal/metrics/users/" + userId + "/likes-given/increment", null, Void.class);
+            } catch (Exception ex) {
+                System.out.println("[ChapterService] Failed to increment likesGivenCount (toggle) for user " + userId + ": " + ex.getMessage());
             }
             return Map.of("liked", true, "likeCount", chapter.getLikeCount()); // лайк поставлен
         }

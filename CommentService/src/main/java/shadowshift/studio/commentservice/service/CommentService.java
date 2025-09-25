@@ -104,6 +104,16 @@ public class CommentService {
 
     Comment savedComment = commentRepository.save(comment);
 
+        // Fire-and-forget increment of user comment counter in AuthService
+        try {
+            // Using simple RestTemplate to avoid adding Feign dependency here
+            var rt = new org.springframework.web.client.RestTemplate();
+            // AuthService assumed reachable via gateway path /api/auth or directly if service mesh; using internal direct path
+            rt.postForEntity("http://auth-service/internal/metrics/users/" + userId + "/comments/increment", null, Void.class);
+        } catch (Exception ex) {
+            log.debug("Could not call AuthService incrementCommentsCount for user {}: {}", userId, ex.getMessage());
+        }
+
         // Publish COMMENT_CREATED event (0 XP tracking) immediately after persistence
         try {
             Map<String, Object> event = new HashMap<>();
