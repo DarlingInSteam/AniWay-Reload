@@ -1,8 +1,10 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, MessageCircle } from 'lucide-react';
 import { CommentSection } from '@/components/comments/CommentSection';
 import { Post } from '@/types/posts';
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer';
+import { MangaMiniCard } from './MangaMiniCard';
+import { apiClient } from '@/lib/api';
 
 interface PostCommentsModalProps {
   open: boolean;
@@ -24,6 +26,59 @@ export const PostCommentsModal: React.FC<PostCommentsModalProps> = ({ open, onCl
     }
   }, [open, onClose]);
 
+  // Resolve manga references inside modal (replicates logic from PostItem)
+  const [resolvedContent, setResolvedContent] = useState(post.content);
+  const [referencedManga, setReferencedManga] = useState<Array<{id:number; title:string; coverUrl?:string}>>([]);
+  useEffect(()=>{
+    if(!open) return; // only process when modal is open
+    let cancelled = false;
+    async function resolve(){
+      const pattern = /\[\[manga:(\d+)\]\]/g;
+      const ids = Array.from(new Set([...post.content.matchAll(pattern)].map(m=>parseInt(m[1]))));
+      if(ids.length===0){ setResolvedContent(post.content); setReferencedManga([]); return; }
+      const titleMap: Record<number,string> = {}; const coverMap: Record<number,string|undefined> = {};
+      await Promise.all(ids.map(async id => {
+        try {
+          const m = await apiClient.getMangaById(id);
+          if(m){
+            titleMap[id] = (m as any).title || `Манга #${id}`;
+            coverMap[id] = (m as any).coverUrl || (m as any).coverImageUrl;
+          } else { titleMap[id] = `Манга #${id}`; }
+        } catch { titleMap[id] = `Манга #${id}`; }
+      }));
+      if(cancelled) return;
+      const slugCache: Record<number,string> = {};
+      const replaced = post.content.replace(pattern, (_,id)=>{
+        const num = parseInt(id);
+        const title = titleMap[num];
+        const slug = slugCache[num] || title.toLowerCase().replace(/[^a-z0-9\s-]/gi,'').replace(/\s+/g,'-').replace(/-+/g,'-');
+        return `[${title}](/manga/${num}--${slug})`;
+      });
+      setResolvedContent(replaced);
+      setReferencedManga(ids.map(id=>({ id, title: titleMap[id], coverUrl: coverMap[id] })));
+    }
+    resolve();
+    return ()=>{ cancelled = true };
+  }, [open, post.content]);
+
+  // Comments count handling
+  const [commentsCount, setCommentsCount] = useState<number|undefined>(undefined);
+  const handleCountChange = (count: number) => {
+    setCommentsCount(prev => {
+      if(prev === undefined){
+        // initial load: compute delta from post.stats if available
+        if(typeof post.stats?.commentsCount === 'number' && post.stats.commentsCount !== count){
+          const delta = count - (post.stats.commentsCount||0);
+          if(delta !== 0) onCommentsCountChange?.(delta);
+        }
+      } else if(prev !== count){
+        const delta = count - prev;
+        if(delta !== 0) onCommentsCountChange?.(delta);
+      }
+      return count;
+    });
+  };
+
   if(!open) return null;
 
   return (
@@ -33,7 +88,9 @@ export const PostCommentsModal: React.FC<PostCommentsModalProps> = ({ open, onCl
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-white/10">
           <div className="flex items-center gap-2 text-sm font-medium text-slate-200">
-            <MessageCircle size={16} /> Комментарии к посту
+            <MessageCircle size={16} /> Комментарии к посту {commentsCount !== undefined && (
+              <span className="text-xs text-purple-300">({commentsCount})</span>
+            )}
           </div>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-md bg-white/5 hover:bg-white/10 text-slate-300" aria-label="Закрыть">
             <X size={16} />
@@ -44,14 +101,22 @@ export const PostCommentsModal: React.FC<PostCommentsModalProps> = ({ open, onCl
           <div>
             <div className="text-[11px] uppercase tracking-wide text-slate-400 font-semibold mb-2">Пост</div>
             <div className="prose prose-invert max-w-none text-sm">
-              <MarkdownRenderer value={post.content} />
+              <MarkdownRenderer value={resolvedContent} />
             </div>
+            {referencedManga.length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4">
+                {referencedManga.map(m => (
+                  <MangaMiniCard key={m.id} id={m.id} title={m.title} coverUrl={m.coverUrl} />
+                ))}
+              </div>
+            )}
           </div>
           <div>
             <CommentSection 
               targetId={post.id as any} 
               type={'POST' as any} 
               title="Комментарии" 
+              onCountChange={handleCountChange}
             />
           </div>
         </div>

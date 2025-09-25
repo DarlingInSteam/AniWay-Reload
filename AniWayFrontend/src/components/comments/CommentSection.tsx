@@ -14,13 +14,15 @@ interface CommentSectionProps {
   type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST'
   title?: string
   maxLevel?: number
+  onCountChange?: (count: number) => void
 }
 
 export function CommentSection({ 
   targetId, 
   type, 
   title = 'Комментарии',
-  maxLevel = 3 
+  maxLevel = 3,
+  onCountChange
 }: CommentSectionProps) {
   const { isAuthenticated } = useAuth()
   const [sortBy, setSortBy] = useState<'createdAt' | 'likesCount'>('createdAt')
@@ -43,6 +45,7 @@ export function CommentSection({
       try {
         const count = await commentService.getCommentsCount(targetId, type)
         setTotalCommentsCount(count)
+        onCountChange?.(count)
       } catch (error) {
         console.error('Failed to load comments count:', error)
       }
@@ -57,6 +60,7 @@ export function CommentSection({
       try {
         const count = await commentService.getCommentsCount(targetId, type)
         setTotalCommentsCount(count)
+        onCountChange?.(count)
       } catch (error) {
         console.error('Failed to load comments count:', error)
       }
