@@ -69,7 +69,7 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ value, onChange,
     </button>
   )
   return (
-    <div className={`rounded-xl border border-white/10 bg-white/5 ${compact? 'p-3':'p-4'} space-y-3`}> 
+    <div className={`rounded-xl border border-white/10 bg-white/5 ${compact? 'p-3':'p-4'} space-y-3 max-w-full overflow-hidden`}> 
       <div className="flex flex-wrap items-center gap-1">
         {toolbarBtn('Жирный', <Bold className="h-4 w-4" />, 'bold')}
         {toolbarBtn('Курсив', <Italic className="h-4 w-4" />, 'italic')}
@@ -92,7 +92,7 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ value, onChange,
           className="w-full resize-y rounded-md bg-black/30 p-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-primary/40 font-medium tracking-wide leading-relaxed" />
       )}
       {preview && (
-        <div className="prose prose-invert max-w-none text-sm leading-relaxed markdown-body">
+        <div className="prose prose-invert max-w-none text-sm leading-relaxed markdown-body max-w-full overflow-hidden break-words">
           <MarkdownRenderer value={value || '*Пусто*'} />
         </div>
       )}
