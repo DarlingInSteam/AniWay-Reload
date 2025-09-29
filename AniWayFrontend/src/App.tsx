@@ -21,6 +21,7 @@ import { NotificationsPage } from './notifications/NotificationsPage'
 import { authService } from './services/authService'
 import { Toaster } from 'sonner'
 import { TopsPage } from './pages/TopsPage'
+import { SearchPage } from './pages/SearchPage'
 
 function InnerApp() {
   const { user } = useAuth();
@@ -41,6 +42,7 @@ function InnerApp() {
           <Route path="/forum/create-thread" element={<CreateThreadPage />} />
           {/* Топы / Лидеры */}
           <Route path="/tops" element={<TopsPage />} />
+          <Route path="/search" element={<SearchPage />} />
           
           {/* Аутентификация */}
           <Route path="/login" element={<AuthPage />} />
