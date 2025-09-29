@@ -108,9 +108,11 @@ export function MobileNavBar() {
           </li>
         </ul>
       </div>
+      {/* Overlay for sheet */}
+      <div className={cn('fixed inset-0 z-[58] md:hidden transition-opacity duration-300', moreOpen ? 'opacity-80 pointer-events-auto' : 'opacity-0 pointer-events-none')} style={{background:'radial-gradient(circle at 50% 90%, rgba(0,0,0,0.85), rgba(0,0,0,0.92) 60%, rgba(0,0,0,0.95))'}} />
       {/* Expandable sheet */}
-      <div ref={sheetRef} className={cn('absolute left-0 right-0 bottom-full pb-3 z-[65]', moreOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-2 pointer-events-none', 'transition-all duration-300')}> 
-        <div className="mx-4 rounded-2xl overflow-hidden border border-white/35 backdrop-blur-2xl bg-gradient-to-br from-[#0f0f18]/98 via-[#09090f]/98 to-[#050507]/98 shadow-[0_10px_40px_-5px_rgba(0,0,0,0.75)]">
+      <div ref={sheetRef} className={cn('absolute left-0 right-0 bottom-full pb-4 z-[66]', moreOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-3 pointer-events-none', 'transition-all duration-300')}> 
+        <div className="mx-4 rounded-2xl overflow-hidden border border-white/40 bg-[#050507] shadow-[0_8px_48px_-4px_rgba(0,0,0,0.85)]">
           <div className="flex items-center justify-between p-3 border-b border-white/10">
             <span className="text-xs font-semibold text-white/70">Быстрые разделы</span>
             <button onClick={()=> setMoreOpen(false)} className="p-1 rounded-lg hover:bg-white/10"><ChevronUp className="w-4 h-4 text-white/60"/></button>
