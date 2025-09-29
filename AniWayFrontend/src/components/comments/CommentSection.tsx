@@ -117,41 +117,43 @@ export function CommentSection({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full">
       {/* Заголовок секции */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 max-w-full">
+        <div className="flex items-center space-x-3 min-w-0">
           <MessageCircle className="h-6 w-6 text-primary" />
-          <h2 className="text-xl font-semibold text-white">{title}</h2>
-          <span className="text-sm text-gray-400">
+          <h2 className="text-xl font-semibold text-white truncate">{title}</h2>
+          <span className="text-sm text-gray-400 flex-shrink-0">
             ({totalCommentsCount})
           </span>
         </div>
 
         {/* Сортировка */}
-        <div className="flex items-center space-x-2">
-          <Select value={sortBy} onValueChange={(value: 'createdAt' | 'likesCount') => setSortBy(value)}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="createdAt">По дате</SelectItem>
-              <SelectItem value="likesCount">По рейтингу</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={toggleSortDir}
-            className="h-8 w-8 p-0"
-          >
-            {sortDir === 'desc' ? (
-              <SortDesc className="h-4 w-4" />
-            ) : (
-              <SortAsc className="h-4 w-4" />
-            )}
-          </Button>
+        <div className="flex items-center flex-wrap gap-2 sm:gap-2 w-full sm:w-auto">
+          <div className="flex items-center gap-2">
+            <Select value={sortBy} onValueChange={(value: 'createdAt' | 'likesCount') => setSortBy(value)}>
+              <SelectTrigger className="w-[120px] h-8 px-2 text-xs sm:text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="max-w-[160px]">
+                <SelectItem value="createdAt">По дате</SelectItem>
+                <SelectItem value="likesCount">По рейтингу</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleSortDir}
+              className="h-8 w-8 p-0 flex-shrink-0"
+              aria-label={sortDir === 'desc' ? 'Сортировка по убыванию' : 'Сортировка по возрастанию'}
+            >
+              {sortDir === 'desc' ? (
+                <SortDesc className="h-4 w-4" />
+              ) : (
+                <SortAsc className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
         </div>
       </div>
 
