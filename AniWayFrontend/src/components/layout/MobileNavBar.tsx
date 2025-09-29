@@ -14,6 +14,7 @@ export function MobileNavBar() {
   const [hasScrolled, setHasScrolled] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
   const sheetRef = useRef<HTMLDivElement|null>(null)
+  const navRef = useRef<HTMLElement|null>(null)
 
   useEffect(()=>{
     const onScroll = () => setHasScrolled(window.scrollY > 12)
@@ -44,8 +45,25 @@ export function MobileNavBar() {
     { to: '/forum', icon: MessageSquare, label: 'Форум', desc: 'Обсуждения и темы' },
   ]
 
+  // Close sheet on outside click or ESC
+  useEffect(()=> {
+    if(!moreOpen) return
+    const handleDown = (e: MouseEvent) => {
+      if(sheetRef.current && sheetRef.current.contains(e.target as Node)) return
+      if(navRef.current && navRef.current.contains(e.target as Node)) {
+        const btn = (e.target as HTMLElement).closest('[data-more-btn]')
+        if(btn) return
+      }
+      setMoreOpen(false)
+    }
+    const handleKey = (e: KeyboardEvent) => { if(e.key==='Escape') setMoreOpen(false) }
+    document.addEventListener('mousedown', handleDown)
+    document.addEventListener('keydown', handleKey)
+    return ()=> { document.removeEventListener('mousedown', handleDown); document.removeEventListener('keydown', handleKey) }
+  }, [moreOpen])
+
   return (
-    <nav className={cn('md:hidden fixed bottom-0 inset-x-0 z-50','backdrop-blur-xl border-t border-white/25 bg-manga-black/98 transition-shadow', hasScrolled && 'shadow-[0_-4px_18px_-4px_rgba(0,0,0,0.65)]')}
+    <nav ref={navRef} className={cn('md:hidden fixed bottom-0 inset-x-0 z-[60]','backdrop-blur-xl border-t border-white/30 bg-[#0b0b10]/98 transition-shadow', hasScrolled && 'shadow-[0_-4px_18px_-4px_rgba(0,0,0,0.7)]')}
       style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 4px)' }}>
       <div className="flex items-stretch justify-between px-2 py-1">
         <ul className="flex items-stretch">
@@ -81,7 +99,7 @@ export function MobileNavBar() {
               </NavLink>
             </li>) })}
           <li>
-            <button onClick={()=> setMoreOpen(o=> !o)} className={cn('px-2 flex flex-col items-center justify-center text-[10px] gap-0.5 min-w-[56px] text-white/55 hover:text-white', moreOpen && 'text-white')}> 
+            <button data-more-btn onClick={()=> setMoreOpen(o=> !o)} className={cn('px-2 flex flex-col items-center justify-center text-[10px] gap-0.5 min-w-[56px] text-white/55 hover:text-white', moreOpen && 'text-white')}> 
               <div className={cn('w-9 h-9 flex items-center justify-center rounded-full', moreOpen && 'bg-white/10 ring-1 ring-white/15')}>
                 <MoreHorizontal className="w-5 h-5" />
               </div>
@@ -91,8 +109,8 @@ export function MobileNavBar() {
         </ul>
       </div>
       {/* Expandable sheet */}
-      <div ref={sheetRef} className={cn('absolute left-0 right-0 bottom-full pb-3 pointer-events-none', moreOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2', 'transition-all duration-300')}> 
-        <div className="mx-4 rounded-2xl overflow-hidden border border-white/25 backdrop-blur-xl bg-manga-black/98 pointer-events-auto shadow-2xl">
+      <div ref={sheetRef} className={cn('absolute left-0 right-0 bottom-full pb-3 z-[65]', moreOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-2 pointer-events-none', 'transition-all duration-300')}> 
+        <div className="mx-4 rounded-2xl overflow-hidden border border-white/35 backdrop-blur-2xl bg-gradient-to-br from-[#0f0f18]/98 via-[#09090f]/98 to-[#050507]/98 shadow-[0_10px_40px_-5px_rgba(0,0,0,0.75)]">
           <div className="flex items-center justify-between p-3 border-b border-white/10">
             <span className="text-xs font-semibold text-white/70">Быстрые разделы</span>
             <button onClick={()=> setMoreOpen(false)} className="p-1 rounded-lg hover:bg-white/10"><ChevronUp className="w-4 h-4 text-white/60"/></button>
