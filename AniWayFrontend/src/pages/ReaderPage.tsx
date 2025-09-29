@@ -304,6 +304,7 @@ export function ReaderPage() {
   }
 
   const handleTapOrClick = (e: React.MouseEvent | React.TouchEvent) => {
+    // On mobile treat it as potential like only if almost no vertical movement and within 2 quick taps
     let clientX: number
     let clientY: number
     if ('touches' in e && e.touches.length > 0) {
@@ -317,12 +318,15 @@ export function ReaderPage() {
       clientX = mouseEvent.clientX
       clientY = mouseEvent.clientY
     }
-    const currentTime = Date.now()
-    const timeDiff = currentTime - lastTap
-    if (timeDiff < 320 && timeDiff > 0) {
+    const now = Date.now()
+    const delta = now - lastTap
+    // Require tighter window AND ensure the last gesture did not move notably
+    if (delta > 0 && delta < 280 && !touchMovedRef.current) {
       attemptLikeFromGesture(clientX, clientY)
+      setLastTap(0) // reset so triple taps don't like twice
+    } else {
+      setLastTap(now)
     }
-    setLastTap(currentTime)
   }
 
   const handleDoubleClickDesktop = (e: React.MouseEvent) => {
@@ -341,7 +345,7 @@ export function ReaderPage() {
     const t = e.touches[0]
     const dx = t.clientX - touchStartRef.current.x
     const dy = t.clientY - touchStartRef.current.y
-    if (Math.abs(dx) > 8 || Math.abs(dy) > 8) touchMovedRef.current = true
+    if (Math.abs(dx) > 6 || Math.abs(dy) > 6) touchMovedRef.current = true
   }
   const handleTouchEndSwipe = (e: React.TouchEvent) => {
     if (!touchStartRef.current) return
@@ -387,40 +391,49 @@ export function ReaderPage() {
   // UI visibility control - only on H key or scroll up
   useEffect(() => {
     let lastScrollY = window.scrollY
+    let accumulated = 0
+    let raf: number | null = null
     let hasUserInteracted = false
+    const THRESHOLD = 36 // px before toggling
+    const SMALL_MOVEMENT_RESET = 4
 
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY
-      const scrollingUp = currentScrollY < lastScrollY
+    const applyVisibility = (show: boolean) => {
+      setShowUI(prev => show === prev ? prev : show)
+    }
 
-      // Mark that user has started scrolling
-      if (!hasUserInteracted && Math.abs(currentScrollY - lastScrollY) > 10) {
-        hasUserInteracted = true
-      }
-
-      if (scrollingUp) {
-        setShowUI(true)
-      } else if (hasUserInteracted) {
-        // Only hide UI when scrolling down if user has already interacted
-        setShowUI(false)
-      }
-
-      lastScrollY = currentScrollY
+    const onScroll = () => {
+      const current = window.scrollY
+      const delta = current - lastScrollY
+      if (!hasUserInteracted && Math.abs(delta) > 2) hasUserInteracted = true
+      // Ignore micro scroll jitter
+      if (Math.abs(delta) <= SMALL_MOVEMENT_RESET) return
+      accumulated += delta
+      lastScrollY = current
+      if (raf) cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        if (accumulated <= -THRESHOLD) {
+          applyVisibility(true)
+          accumulated = 0
+        } else if (accumulated >= THRESHOLD && hasUserInteracted) {
+          applyVisibility(false)
+          accumulated = 0
+        }
+      })
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'h' || e.key === 'H') {
         setShowUI(prev => !prev)
-        hasUserInteracted = true // Mark as interacted when using keyboard
+        hasUserInteracted = true
       }
     }
 
-    window.addEventListener('scroll', handleScroll)
+    window.addEventListener('scroll', onScroll, { passive: true })
     document.addEventListener('keydown', handleKeyDown)
-
     return () => {
-      window.removeEventListener('scroll', handleScroll)
+      window.removeEventListener('scroll', onScroll)
       document.removeEventListener('keydown', handleKeyDown)
+      if (raf) cancelAnimationFrame(raf)
     }
   }, [])
 
@@ -915,19 +928,19 @@ export function ReaderPage() {
       {/* Right vertical action bar */}
       {chapter && (
         <div className={cn(
-          'fixed top-1/2 -translate-y-1/2 right-2 sm:right-4 z-40 flex flex-col space-y-3',
+          'fixed top-1/2 -translate-y-1/2 right-1.5 xs:right-2 sm:right-4 z-40 flex flex-col space-y-2 sm:space-y-3',
           showUI ? 'opacity-100' : 'opacity-0 pointer-events-none'
         )}>
           <button
             onClick={() => setShowChapterList(true)}
-            className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white shadow-lg backdrop-blur-md transition group focus:outline-none focus:ring-2 focus:ring-primary/50 active:scale-95"
+            className="reader-fab"
             title="Список глав" aria-label="Список глав"
           >
             <BookOpen className="h-5 w-5 group-hover:text-primary transition-colors" />
           </button>
           <button
             onClick={() => setShowSideComments(true)}
-            className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white shadow-lg backdrop-blur-md transition group focus:outline-none focus:ring-2 focus:ring-blue-500/40 active:scale-95"
+            className="reader-fab"
             title="Комментарии" aria-label="Комментарии"
           >
             <MessageCircle className="h-5 w-5 group-hover:text-blue-400 transition-colors" />
@@ -935,24 +948,21 @@ export function ReaderPage() {
           <button
             onClick={handleChapterLike}
             disabled={liking}
-            className={cn(
-              'p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white shadow-lg backdrop-blur-md transition group focus:outline-none focus:ring-2 focus:ring-red-500/40 active:scale-95',
-              isLiked && 'text-red-400'
-            )}
+            className={cn('reader-fab', isLiked && 'text-red-400')}
             title={isLiked ? 'Убрать лайк' : 'Поставить лайк'}
           >
             <Heart className={cn('h-5 w-5', isLiked && 'fill-current')} />
           </button>
           <button
             onClick={() => setIsSettingsOpen(v=>!v)}
-            className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white shadow-lg backdrop-blur-md transition group focus:outline-none focus:ring-2 focus:ring-amber-300/40 active:scale-95"
+            className="reader-fab"
             title="Настройки" aria-label="Настройки"
           >
             <Settings className="h-5 w-5 group-hover:text-amber-300 transition-colors" />
           </button>
           <button
             onClick={() => navigate(-1)}
-            className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white shadow-lg backdrop-blur-md transition group focus:outline-none focus:ring-2 focus:ring-white/30 active:scale-95"
+            className="reader-fab"
             title="Назад" aria-label="Назад"
           >
             <ArrowLeft className="h-5 w-5 group-hover:text-gray-300" />
@@ -1024,14 +1034,23 @@ export function ReaderPage() {
         </div>
       )}
 
-      {/* Mobile navigation hints */}
+      {/* Mobile navigation hints (updated: mention scroll threshold) */}
       <div className={cn(
-        'fixed bottom-4 right-4 sm:hidden bg-black/80 backdrop-blur-sm text-white text-xs p-3 rounded-lg transition-all duration-300 border border-white/20',
+        'fixed bottom-4 right-4 sm:hidden bg-black/85 backdrop-blur-md text-white text-[11px] leading-relaxed p-3 rounded-lg transition-all duration-300 border border-white/20 shadow-lg',
         showUI ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
       )}>
-        Тапните по изображению чтобы скрыть UI<br/>
-        Двойной тап для лайка
+        Тап по странице — скрыть/показать интерфейс<br/>
+        Быстрый двойной тап (без скролла) — лайк
       </div>
+
+      {/* Scoped styles for improved FAB contrast */}
+      <style>{`
+        .reader-fab { position: relative; padding: 0.85rem; border-radius: 1rem; background: linear-gradient(145deg, rgba(15,16,20,0.92), rgba(10,11,14,0.92)); border: 1px solid rgba(255,255,255,0.15); color: #fff; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); box-shadow: 0 2px 6px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06); transition: background .25s, transform .15s, box-shadow .25s; }
+        .reader-fab:hover { background: linear-gradient(145deg, rgba(32,34,40,0.95), rgba(18,19,24,0.95)); box-shadow: 0 4px 14px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.12); }
+        .reader-fab:active { transform: scale(0.94); }
+        .reader-fab:focus-visible { outline: 2px solid #3B82F6; outline-offset: 2px; }
+        @media (max-width: 640px) { .reader-fab { padding: 0.7rem; } }
+      `}</style>
     </div>
   )
 }
