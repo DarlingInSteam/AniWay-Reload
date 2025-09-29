@@ -45,9 +45,9 @@ export function MobileNavBar() {
   ]
 
   return (
-    <nav className={cn('md:hidden fixed bottom-0 inset-x-0 z-50','backdrop-blur-lg border-t border-white/15 bg-manga-black/92 transition-shadow', hasScrolled && 'shadow-[0_-4px_16px_-4px_rgba(0,0,0,0.5)]')}
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-      <div className="flex items-stretch justify-between px-1">
+    <nav className={cn('md:hidden fixed bottom-0 inset-x-0 z-50','backdrop-blur-xl border-t border-white/20 bg-manga-black/96 transition-shadow', hasScrolled && 'shadow-[0_-4px_18px_-4px_rgba(0,0,0,0.55)]')}
+      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 4px)' }}>
+      <div className="flex items-stretch justify-between px-2 py-1">
         <ul className="flex items-stretch">
           {primaryLeft.map(item => {
             const Icon = item.icon; const active = item.match(location.pathname)
@@ -60,9 +60,12 @@ export function MobileNavBar() {
               </li>)
           })}
         </ul>
-        {/* Center Search button */}
-        <button onClick={()=> navigate('/search')} className="-mt-6 relative flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 via-fuchsia-500 to-pink-500 shadow-lg shadow-pink-800/30 ring-2 ring-white/10 active:scale-95 transition">
-          <Search className="w-7 h-7 text-white" />
+        {/* Center Search button (same style as others, emphasized with ring) */}
+        <button onClick={()=> navigate('/search')} className="relative flex flex-col items-center justify-center gap-0.5 min-w-[64px] px-2 text-[10px] text-white/65 hover:text-white active:scale-95 transition">
+          <div className={cn('w-11 h-11 flex items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 via-fuchsia-500 to-pink-500 ring-2 ring-white/15 shadow-md')}> 
+            <Search className="w-5 h-5 text-white" />
+          </div>
+          <span className="leading-none">Поиск</span>
         </button>
         <ul className="flex items-stretch">
           {primaryRight.map(item => { const Icon = item.icon; const active = item.match(location.pathname); return (
@@ -88,8 +91,8 @@ export function MobileNavBar() {
         </ul>
       </div>
       {/* Expandable sheet */}
-      <div ref={sheetRef} className={cn('absolute left-0 right-0 bottom-full pb-2 pointer-events-none', moreOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2', 'transition-all duration-300')}> 
-        <div className="mx-4 rounded-2xl overflow-hidden border border-white/15 backdrop-blur-xl bg-manga-black/90 pointer-events-auto shadow-2xl">
+      <div ref={sheetRef} className={cn('absolute left-0 right-0 bottom-full pb-3 pointer-events-none', moreOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2', 'transition-all duration-300')}> 
+        <div className="mx-4 rounded-2xl overflow-hidden border border-white/20 backdrop-blur-2xl bg-manga-black/95 pointer-events-auto shadow-2xl">
           <div className="flex items-center justify-between p-3 border-b border-white/10">
             <span className="text-xs font-semibold text-white/70">Быстрые разделы</span>
             <button onClick={()=> setMoreOpen(false)} className="p-1 rounded-lg hover:bg-white/10"><ChevronUp className="w-4 h-4 text-white/60"/></button>
