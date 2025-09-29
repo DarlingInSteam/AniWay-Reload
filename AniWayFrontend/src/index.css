@@ -194,6 +194,28 @@
   max-width: 100%; 
   overflow: hidden;
 }
+.markdown-body img, .markdown-body video, .markdown-body iframe {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+.markdown-body a {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.markdown-body pre code {
+  word-break: normal;
+  white-space: pre;
+}
+.markdown-body pre { 
+  max-width: 100%;
+}
+.markdown-body table { 
+  display: block; 
+  width: 100%; 
+  overflow-x: auto; 
+  -webkit-overflow-scrolling: touch; 
+}
 .markdown-body p { margin-top: 0.5rem; margin-bottom: 0.75rem; word-break: break-word; }
 .markdown-body pre { background: rgba(0,0,0,0.4); padding: 0.75rem 1rem; border-radius: 0.75rem; overflow-x: auto; font-size: 12px; }
 .markdown-body code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; word-break: break-all; }

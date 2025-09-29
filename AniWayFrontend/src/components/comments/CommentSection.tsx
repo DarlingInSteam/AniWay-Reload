@@ -188,7 +188,7 @@ export function CommentSection({
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-4 overflow-x-hidden">
           {comments.map((comment) => (
             <CommentItem
               key={comment.id}
