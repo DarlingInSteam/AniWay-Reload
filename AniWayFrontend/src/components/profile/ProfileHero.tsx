@@ -296,23 +296,24 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit
         <LevelPanel profile={profile} />
       </div>
 
-      {/* Mobile layout */}
-      <div className="md:hidden px-5 pt-6 pb-5 flex flex-col gap-5">
-        <div className="flex items-start gap-4">
+      {/* Mobile layout (single-column refined) */}
+      <div className="md:hidden px-4 pt-6 pb-6 flex flex-col gap-6">
+        <div className="flex flex-col items-center text-center relative">
           <div className="relative">
-            <div className="absolute -inset-1 rounded-xl bg-gradient-to-br from-primary/40 via-primary/10 to-transparent blur-sm opacity-70" />
-            <Avatar className="relative w-28 h-28 rounded-xl ring-2 ring-white/15 shadow-lg">
+            <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-primary/50 via-primary/10 to-transparent blur-sm opacity-80" />
+            <Avatar className="relative w-32 h-32 rounded-2xl ring-2 ring-white/15 shadow-xl">
               <AvatarImage src={computedAvatarUrl || '/icon.png'} />
-              <AvatarFallback className="bg-slate-700 text-2xl text-white font-semibold">
+              <AvatarFallback className="bg-slate-700 text-3xl text-white font-semibold">
                 {profile.username.charAt(0).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <div className="absolute -bottom-3 left-0">
+            {/* Level badge centered beneath avatar */}
+            <div className="absolute -bottom-5 left-1/2 -translate-x-1/2">
               <LevelPanel profile={profile} variant='badge' />
             </div>
             {isOwn && (
               <button
-                className="absolute bottom-1 right-1 p-2 rounded-md bg-black/60 hover:bg-black/70 text-white border border-white/20 shadow transition"
+                className="absolute top-1 right-1 p-2 rounded-md bg-black/60 hover:bg-black/70 text-white border border-white/20 shadow transition"
                 aria-label="Изменить аватар"
                 onClick={() => fileInputRef.current?.click()}
               >
@@ -327,18 +328,18 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit
               onChange={handleAvatarChange}
             />
           </div>
-          <div className="flex-1 min-w-0 flex flex-col gap-2">
+          <div className="mt-8 space-y-2 w-full">
             <h1 className="text-2xl font-semibold leading-snug text-white break-words">
               {profile.displayName || profile.username}
             </h1>
             {profile.displayName && (
               <div className="text-slate-400 text-xs break-all -mt-1">@{profile.username}</div>
             )}
-            <div className="flex flex-wrap items-center gap-2 mt-1 text-[11px]">
+            <div className="flex flex-wrap justify-center gap-2 pt-1 text-[11px]">
               <span className="px-2 py-0.5 rounded bg-white/10 border border-white/10 uppercase tracking-wide text-slate-300">{profile.role}</span>
               <span className={`px-2 py-0.5 rounded uppercase tracking-wide ${profile.isOnline ? 'bg-primary/20 text-primary font-medium' : 'bg-slate-600/30 text-slate-300'}`}>{profile.isOnline ? 'В СЕТИ' : 'ОФЛАЙН'}</span>
               {isOwn && (
-                <Button size="sm" variant="outline" className="h-7 px-3 ml-auto bg-primary/25 border-primary/40 text-white text-[11px]" onClick={onEdit}>
+                <Button size="sm" variant="outline" className="h-7 px-3 bg-primary/25 border-primary/40 text-white text-[11px]" onClick={onEdit}>
                   <Edit className="w-3 h-3 mr-1" /> Редактировать
                 </Button>
               )}
@@ -346,11 +347,11 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit
           </div>
         </div>
         {hasBio && (
-          <div>
+          <div className="mt-1">
             <div className={`relative text-slate-300 text-sm leading-relaxed markdown-body ${bioExpanded ? '' : 'line-clamp-4'}`}>
               <MarkdownRenderer value={safeBio} />
               {!bioExpanded && (
-                <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-background to-transparent" />
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-neutral-950/95 via-neutral-950/60 to-transparent" />
               )}
             </div>
             <button
