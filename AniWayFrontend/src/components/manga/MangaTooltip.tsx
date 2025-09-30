@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { Bookmark, ChevronDown, X } from 'lucide-react'
 import { MangaResponseDTO, BookmarkStatus } from '@/types'
@@ -40,6 +41,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const { isAuthenticated } = useAuth()
+  const navigate = useNavigate()
   const { getMangaBookmark, changeStatus, addBookmark, removeBookmark } = useBookmarks()
 
   const bookmarkInfo = isAuthenticated ? getMangaBookmark(manga.id) : null
@@ -346,7 +348,24 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
               {visibleGenres.map((genre, index) => (
                 <span
                   key={index}
-                  className="bg-gray-700/80 text-gray-200 px-2 py-1 rounded-md text-xs hover:bg-gray-600 transition-colors cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    e.preventDefault()
+                    // Переход в каталог с применением выбранного жанра, сохраняя другие базовые параметры (сброс страницы)
+                    navigate({
+                      pathname: '/catalog',
+                      search: `?genre=${encodeURIComponent(genre)}`
+                    })
+                  }}
+                  className="bg-gray-700/80 text-gray-200 px-2 py-1 rounded-md text-xs hover:bg-gray-600 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/60"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      navigate({ pathname: '/catalog', search: `?genre=${encodeURIComponent(genre)}` })
+                    }
+                  }}
                 >
                   {genre}
                 </span>
