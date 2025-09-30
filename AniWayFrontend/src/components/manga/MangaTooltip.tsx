@@ -352,9 +352,10 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
                     e.stopPropagation()
                     e.preventDefault()
                     // Переход в каталог с применением выбранного жанра, сохраняя другие базовые параметры (сброс страницы)
+                    // Используем параметр множественного выбора genres, чтобы фильтр отобразился в панели и его можно было сбросить
                     navigate({
                       pathname: '/catalog',
-                      search: `?genre=${encodeURIComponent(genre)}`
+                      search: `?genres=${encodeURIComponent(genre)}`
                     })
                   }}
                   className="bg-gray-700/80 text-gray-200 px-2 py-1 rounded-md text-xs hover:bg-gray-600 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/60"
@@ -363,7 +364,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      navigate({ pathname: '/catalog', search: `?genre=${encodeURIComponent(genre)}` })
+                      navigate({ pathname: '/catalog', search: `?genres=${encodeURIComponent(genre)}` })
                     }
                   }}
                 >
