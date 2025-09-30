@@ -454,32 +454,26 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
 
         <div className="lg:hidden space-y-7 animate-fade-in">
           <Tabs value={activeTab} onValueChange={v => setActiveTabParam(v as any)} className="space-y-7">
-            <div className="relative -mx-4 px-0">
-              {/* Gradient edges (pointer-events-none so tabs beneath still clickable) */}
-              <div className="pointer-events-none absolute inset-y-0 left-0 w-3 bg-gradient-to-r from-background via-background/60 to-transparent z-10" />
-              <div className="pointer-events-none absolute inset-y-0 right-0 w-3 bg-gradient-to-l from-background via-background/60 to-transparent z-10" />
-              <TabsList
-                className="relative z-20 flex flex-nowrap overflow-x-auto gap-1.5 glass-panel pl-4 pr-4 py-2 rounded-2xl scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent snap-x snap-mandatory whitespace-nowrap scroll-smooth"
-                role="tablist" aria-label="Разделы профиля"
-                ref={(el)=>{ if(el){ const active = el.querySelector('[data-state=\"active\"]') as HTMLElement | null; if(active){ requestAnimationFrame(()=>{ active.scrollIntoView({ inline:'center', block:'nearest', behavior:'smooth' }) }) } } }}
-              >
-                <TabsTrigger value="overview" className="relative group rounded-xl px-4 py-2 text-[13px] font-medium text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10 flex-shrink-0 snap-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 first:ml-0">
-                  <span className="relative z-10">Обзор</span>
-                </TabsTrigger>
-                <TabsTrigger value="library" className="relative group rounded-xl px-4 py-2 text-[13px] font-medium text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10 flex-shrink-0 snap-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
-                  <span className="relative z-10">Библиотека</span>
-                </TabsTrigger>
-                <TabsTrigger value="reviews" className="relative group rounded-xl px-4 py-2 text-[13px] font-medium text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10 flex-shrink-0 snap-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
-                  <span className="relative z-10">Отзывы</span>
-                </TabsTrigger>
-                <TabsTrigger value="comments" className="relative group rounded-xl px-4 py-2 text-[13px] font-medium text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10 flex-shrink-0 snap-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
-                  <span className="relative z-10">Комментарии</span>
-                </TabsTrigger>
-                <TabsTrigger value="achievements" className="relative group rounded-xl px-4 py-2 text-[13px] font-medium text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10 flex-shrink-0 snap-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
-                  <span className="relative z-10">Достижения</span>
-                </TabsTrigger>
-              </TabsList>
-            </div>
+            <TabsList
+              className="flex flex-nowrap overflow-x-auto gap-2 bg-black/30 border border-white/10 backdrop-blur rounded-2xl p-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent whitespace-nowrap scroll-smooth"
+              role="tablist" aria-label="Разделы профиля"
+            >
+              <TabsTrigger value="overview" className="min-w-[38%] text-center relative group rounded-xl px-4 py-2 text-[13px] font-medium text-slate-300 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-primary/25 flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+                Обзор
+              </TabsTrigger>
+              <TabsTrigger value="library" className="min-w-[38%] text-center relative group rounded-xl px-4 py-2 text-[13px] font-medium text-slate-300 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-primary/25 flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+                Библиотека
+              </TabsTrigger>
+              <TabsTrigger value="reviews" className="min-w-[38%] text-center relative group rounded-xl px-4 py-2 text-[13px] font-medium text-slate-300 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-primary/25 flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+                Отзывы
+              </TabsTrigger>
+              <TabsTrigger value="comments" className="min-w-[38%] text-center relative group rounded-xl px-4 py-2 text-[13px] font-medium text-slate-300 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-primary/25 flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+                Комментарии
+              </TabsTrigger>
+              <TabsTrigger value="achievements" className="min-w-[38%] text-center relative group rounded-xl px-4 py-2 text-[13px] font-medium text-slate-300 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-primary/25 flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+                Достижения
+              </TabsTrigger>
+            </TabsList>
 
             <TabsContent value="overview" className="space-y-7">
               <LevelOverviewSection profile={profile} isOwnProfile={isOwnProfile} currentUserId={currentUser?.id} activity={activity} mobile />
