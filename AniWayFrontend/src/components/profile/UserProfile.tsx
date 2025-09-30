@@ -454,14 +454,16 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
 
         <div className="lg:hidden space-y-7 animate-fade-in">
           <Tabs value={activeTab} onValueChange={v => setActiveTabParam(v as any)} className="space-y-7">
-            <div className="relative">
-              {/* Gradient edges */}
-              <div className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-background via-background/60 to-transparent z-10" />
-              <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-background via-background/60 to-transparent z-10" />
+            <div className="relative -mx-4 px-4">
+              {/* Gradient edges (narrower so first tab not hidden) */}
+              <div className="pointer-events-none absolute inset-y-0 left-0 w-4 bg-gradient-to-r from-background via-background/70 to-transparent z-10" />
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-4 bg-gradient-to-l from-background via-background/70 to-transparent z-10" />
               <TabsList
-                className="flex flex-nowrap overflow-x-auto gap-1.5 glass-panel p-1.5 rounded-2xl scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent snap-x snap-mandatory"
+                className="flex flex-nowrap overflow-x-auto gap-1.5 glass-panel p-2 rounded-2xl scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent snap-x snap-mandatory whitespace-nowrap scroll-smooth"
                 role="tablist" aria-label="Разделы профиля"
+                ref={(el)=>{ if(el){ const active = el.querySelector('[data-state="active"]') as HTMLElement | null; if(active){ requestAnimationFrame(()=>{ active.scrollIntoView({ inline:'center', block:'nearest', behavior:'smooth' }) }) } } }}
               >
+                <div className="flex-shrink-0 w-1" aria-hidden="true" />
                 <TabsTrigger value="overview" className="relative group rounded-xl px-4 py-2 text-[13px] font-medium text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10 flex-shrink-0 snap-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
                   <span className="relative z-10">Обзор</span>
                 </TabsTrigger>
@@ -477,6 +479,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
                 <TabsTrigger value="achievements" className="relative group rounded-xl px-4 py-2 text-[13px] font-medium text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10 flex-shrink-0 snap-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
                   <span className="relative z-10">Достижения</span>
                 </TabsTrigger>
+                <div className="flex-shrink-0 w-1" aria-hidden="true" />
               </TabsList>
             </div>
 
