@@ -82,16 +82,40 @@ export function CatalogPage() {
     if (parts.length === 2) return [parts[0], parts[1]] as [number, number]
     return fallback
   }
-  const initialActiveFilters: any = {
-    genres: parseArray(searchParams.get('genres')),
-    tags: parseArray(searchParams.get('tags')),
-    type: searchParams.get('type') || undefined,
-    status: searchParams.get('status') || undefined,
-    ageRating: parseRange(searchParams.get('ageRating'), [0, 21]),
-    rating: parseRange(searchParams.get('rating'), [0, 10]),
-    releaseYear: parseRange(searchParams.get('releaseYear'), [1990, new Date().getFullYear()]),
-    chapterRange: parseRange(searchParams.get('chapterRange'), [0, 1000])
+  // Build initial filters once from URL (single capture to avoid race with writer effect)
+  const collectInitialFilters = () => {
+    // Support legacy single 'genre' param by merging into genres if present
+    const legacySingleGenre = searchParams.get('genre')
+    // Allow both comma list (?genres=a,b) and repeated params (?genres=a&genres=b)
+    const repeatedGenres = searchParams.getAll('genres')
+    const combinedGenres = repeatedGenres.length > 0
+      ? repeatedGenres.flatMap(g => g.split(',')).map(g => g.trim()).filter(Boolean)
+      : parseArray(searchParams.get('genres'))
+    if (legacySingleGenre && !combinedGenres.includes(legacySingleGenre)) {
+      combinedGenres.push(legacySingleGenre)
+    }
+    const repeatedTags = searchParams.getAll('tags')
+    const combinedTags = repeatedTags.length > 0
+      ? repeatedTags.flatMap(t => t.split(',')).map(t => t.trim()).filter(Boolean)
+      : parseArray(searchParams.get('tags'))
+    const f: any = {
+      genres: combinedGenres,
+      tags: combinedTags,
+      type: searchParams.get('type') || undefined,
+      status: searchParams.get('status') || undefined,
+      ageRating: parseRange(searchParams.get('ageRating'), [0, 21]),
+      rating: parseRange(searchParams.get('rating'), [0, 10]),
+      releaseYear: parseRange(searchParams.get('releaseYear'), [1990, new Date().getFullYear()]),
+      chapterRange: parseRange(searchParams.get('chapterRange'), [0, 1000])
+    }
+    Object.keys(f).forEach(k => {
+      const v = f[k]
+      if (Array.isArray(v) && v.length === 0) delete f[k]
+      if (v === undefined) delete f[k]
+    })
+    return f
   }
+  const initialActiveFilters: any = collectInitialFilters()
   Object.keys(initialActiveFilters).forEach(k => {
     const v = (initialActiveFilters as any)[k]
     if (Array.isArray(v) && v.length === 0) delete (initialActiveFilters as any)[k]
@@ -112,7 +136,7 @@ export function CatalogPage() {
   const sortDropdownRef = useRef<HTMLDivElement>(null)
   const desktopSortRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
-  const genre = searchParams.get('genre')
+  const genre = searchParams.get('genre') // legacy single genre (still supported)
 
   const queryKeyParams = useMemo(() => ({
     genre: genre || null,
@@ -240,7 +264,49 @@ export function CatalogPage() {
 
   // getSortByField не требуется — используем непосредственный sortField
 
-  // Синхронизация состояния с URL (без циклических обновлений)
+  // --- EARLY URL -> STATE SYNC EFFECT ---
+  // Ensures that when user navigates via tooltip using repeated ?genres=<g> or ?tags=<t>,
+  // we immediately reflect those into draft & active filters BEFORE we write back to URL.
+  useEffect(() => {
+    // Read repeated params again (fresh each navigation)
+    const rawRepeatedGenres = searchParams.getAll('genres')
+    const rawRepeatedTags = searchParams.getAll('tags')
+    const singleGenre = searchParams.get('genre')
+    const expandedGenres = rawRepeatedGenres.length > 0
+      ? rawRepeatedGenres.flatMap(g => g.split(',')).map(g => g.trim()).filter(Boolean)
+      : []
+    if (singleGenre && !expandedGenres.includes(singleGenre)) expandedGenres.push(singleGenre)
+    const expandedTags = rawRepeatedTags.length > 0
+      ? rawRepeatedTags.flatMap(t => t.split(',')).map(t => t.trim()).filter(Boolean)
+      : []
+
+    const needGenresUpdate = expandedGenres.length > 0 && (
+      JSON.stringify([...new Set(expandedGenres)].sort()) !== JSON.stringify([...(draftFilters.selectedGenres||[])].sort())
+    )
+    const needTagsUpdate = expandedTags.length > 0 && (
+      JSON.stringify([...new Set(expandedTags)].sort()) !== JSON.stringify([...(draftFilters.selectedTags||[])].sort())
+    )
+    if (needGenresUpdate || needTagsUpdate) {
+      const nextDraft = { ...draftFilters }
+      const nextActive = { ...activeFilters }
+      if (needGenresUpdate) {
+        const uniq = [...new Set(expandedGenres)]
+        nextDraft.selectedGenres = uniq
+        nextActive.genres = uniq
+      }
+      if (needTagsUpdate) {
+        const uniqT = [...new Set(expandedTags)]
+        nextDraft.selectedTags = uniqT
+        nextActive.tags = uniqT
+      }
+      setDraftFilters(nextDraft)
+      setActiveFilters(nextActive)
+      setCurrentPage(0)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+
+  // Синхронизация состояния с URL (без циклических обновлений) – WRITER effect (runs after state changes)
   useEffect(() => {
     const params: Record<string,string> = {}
     if (genre) params.genre = genre
@@ -495,33 +561,7 @@ export function CatalogPage() {
     setCurrentPage(0)
   }
 
-  // --- Sync URL array params (genres, tags) into filter state if they change externally (e.g. tooltip navigation) ---
-  useEffect(() => {
-    // Collect genres & tags from URLSearchParams (may appear multiple times)
-    const sp = new URLSearchParams(window.location.search)
-    const urlGenres = sp.getAll('genres')
-    const urlTags = sp.getAll('tags')
-
-    // Determine if we need to update draft / active filters
-    const currentDraftGenres = draftFilters.selectedGenres || []
-    const currentDraftTags = draftFilters.selectedTags || []
-    const needGenresUpdate = urlGenres.length > 0 && (urlGenres.sort().join(',') !== [...currentDraftGenres].sort().join(','))
-    const needTagsUpdate = urlTags.length > 0 && (urlTags.sort().join(',') !== [...currentDraftTags].sort().join(','))
-
-    if (needGenresUpdate || needTagsUpdate) {
-      const nextDraft = { ...draftFilters }
-      if (needGenresUpdate) nextDraft.selectedGenres = urlGenres
-      if (needTagsUpdate) nextDraft.selectedTags = urlTags
-      setDraftFilters(nextDraft)
-
-      const nextActive = { ...activeFilters }
-      if (needGenresUpdate) nextActive.genres = urlGenres
-      if (needTagsUpdate) nextActive.tags = urlTags
-      setActiveFilters(nextActive)
-      setCurrentPage(0)
-    }
-  // We intentionally depend on searchParams to reflect URL changes; plus explicit dependencies we read
-  }, [searchParams, draftFilters, activeFilters])
+  // (Removed old external sync effect – replaced by early sync above)
 
 
   return (
