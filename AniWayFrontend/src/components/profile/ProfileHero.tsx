@@ -59,10 +59,6 @@ const AvatarSection: React.FC<{ profile: UserProfile; isOwn: boolean; uploading:
         </>
       )}
     </div>
-    <div className="flex items-center gap-2 text-sm text-slate-300">
-      <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-white/10 border border-white/10 text-xs tracking-wide uppercase text-slate-300">{profile.role}</span>
-      <span className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs tracking-wide uppercase ${profile.isOnline ? 'bg-primary/20 text-primary font-medium' : 'bg-slate-600/30 text-slate-300'}`}>{profile.isOnline ? 'В СЕТИ' : 'ОФЛАЙН'}</span>
-    </div>
   </div>
 )
 
@@ -251,6 +247,24 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit
   const [bioExpanded, setBioExpanded] = useState(false)
   const safeBio = profile.bio || ''
   const hasBio = safeBio.length > 0
+  // Measure bio height (mobile) to decide if toggle is needed (> 3 lines)
+  const bioMeasureRef = useRef<HTMLDivElement | null>(null)
+  const [canToggleBio, setCanToggleBio] = useState(false)
+  useEffect(() => {
+    if (!hasBio) { setCanToggleBio(false); return }
+    const el = bioMeasureRef.current
+    if (!el) return
+    // line-clamp-4 approximates 4 * line-height; we want toggle only if content > 3 lines
+    // We'll compute lines by dividing scrollHeight by computed line-height
+    const style = window.getComputedStyle(el)
+    const lineHeight = parseFloat(style.lineHeight || '0') || 0
+    if (lineHeight > 0) {
+      const lines = Math.round(el.scrollHeight / lineHeight)
+      setCanToggleBio(lines > 3)
+    } else {
+      setCanToggleBio(el.scrollHeight > 0 && el.scrollHeight > 3 * 18)
+    }
+  }, [safeBio, hasBio])
 
   return (
     <GlassPanel className="w-full">
@@ -307,10 +321,7 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit
                 {profile.username.charAt(0).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            {/* Level badge centered beneath avatar */}
-            <div className="absolute -bottom-5 left-1/2 -translate-x-1/2">
-              <LevelPanel profile={profile} variant='badge' />
-            </div>
+            {/* Move level badge out of overlap: render below avatar normally */}
             {isOwn && (
               <button
                 className="absolute top-1 right-1 p-2 rounded-md bg-black/60 hover:bg-black/70 text-white border border-white/20 shadow transition"
@@ -328,7 +339,7 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit
               onChange={handleAvatarChange}
             />
           </div>
-          <div className="mt-8 space-y-2 w-full">
+          <div className="mt-4 space-y-2 w-full">
             <h1 className="text-2xl font-semibold leading-snug text-white break-words">
               {profile.displayName || profile.username}
             </h1>
@@ -344,23 +355,28 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit
                 </Button>
               )}
             </div>
+            <div className="flex justify-center pt-2">
+              <LevelPanel profile={profile} variant='badge' />
+            </div>
           </div>
         </div>
         {hasBio && (
           <div className="mt-1">
-            <div className={`relative text-slate-300 text-sm leading-relaxed markdown-body ${bioExpanded ? '' : 'line-clamp-4'}`}>
+            <div ref={bioMeasureRef} className={`relative text-slate-300 text-sm leading-relaxed markdown-body ${bioExpanded ? '' : 'line-clamp-4'}`}>
               <MarkdownRenderer value={safeBio} />
-              {!bioExpanded && (
+              {!bioExpanded && canToggleBio && (
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-neutral-950/95 via-neutral-950/60 to-transparent" />
               )}
             </div>
-            <button
-              onClick={() => setBioExpanded(v=>!v)}
-              className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium"
-              aria-expanded={bioExpanded}
-            >
-              {bioExpanded ? 'Свернуть' : 'Читать полностью'} <ChevronDown className={`w-4 h-4 transition-transform ${bioExpanded ? 'rotate-180' : ''}`} />
-            </button>
+            {canToggleBio && (
+              <button
+                onClick={() => setBioExpanded(v=>!v)}
+                className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium"
+                aria-expanded={bioExpanded}
+              >
+                {bioExpanded ? 'Свернуть' : 'Читать полностью'} <ChevronDown className={`w-4 h-4 transition-transform ${bioExpanded ? 'rotate-180' : ''}`} />
+              </button>
+            )}
           </div>
         )}
       </div>
