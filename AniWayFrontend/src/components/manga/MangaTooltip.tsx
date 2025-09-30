@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { Bookmark, ChevronDown, X } from 'lucide-react'
 import { MangaResponseDTO, BookmarkStatus } from '@/types'
@@ -346,15 +346,15 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
           <div className="mb-3">
             <div className="flex flex-wrap gap-1">
               {visibleGenres.map((genre, index) => (
-                <button
+                <Link
                   key={index}
-                  type="button"
-                  onClick={() => navigate(`/catalog?genres=${encodeURIComponent(genre)}`)}
+                  to={`/catalog?genres=${encodeURIComponent(genre)}`}
+                  onClick={() => setIsVisible(false)}
                   className="px-2 py-1 rounded-md text-xs bg-gray-700/80 text-gray-200 hover:bg-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/60"
                   aria-label={`Перейти в каталог по жанру ${genre}`}
                 >
                   {genre}
-                </button>
+                </Link>
               ))}
               {hiddenGenresCount > 0 && !showAllGenres && (
                 <span
