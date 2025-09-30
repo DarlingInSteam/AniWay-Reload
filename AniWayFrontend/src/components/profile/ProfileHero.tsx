@@ -66,7 +66,7 @@ const AvatarSection: React.FC<{ profile: UserProfile; isOwn: boolean; uploading:
   </div>
 )
 
-const LevelPanel: React.FC<{ profile: UserProfile; }> = ({ profile }) => {
+const LevelPanel: React.FC<{ profile: UserProfile; variant?: 'desktop'|'mobile' }> = ({ profile, variant='desktop' }) => {
   const userId = parseInt(profile.id)
   const { data: levelData, isLoading, isError } = useUserLevel(userId)
   const [open, setOpen] = useState(false)
@@ -80,15 +80,14 @@ const LevelPanel: React.FC<{ profile: UserProfile; }> = ({ profile }) => {
   const pct = levelData ? Math.min(100, (levelData.progress * 100)) : Math.min(100, (xpInto / xpForNext) * 100)
   const remaining = levelData ? Math.max(0, levelData.xpForNextLevel - levelData.xpIntoCurrentLevel) : Math.max(0, xpForNext - xpInto)
 
-  return (
-    <div className="hidden lg:flex flex-col w-72">
-      <GlassPanel
+  const baseCard = (
+    <GlassPanel
         onClick={() => setOpen(true)}
         padding="none"
-        className="relative p-4 flex flex-col gap-4 cursor-pointer transition-shadow group overflow-hidden
+        className={`relative p-4 flex flex-col gap-4 cursor-pointer transition-shadow group overflow-hidden
         before:absolute before:inset-0 before:pointer-events-none before:rounded-[inherit]
         before:bg-gradient-to-br before:from-slate-900/50 before:via-slate-800/40 before:to-slate-900/20
-        hover:shadow-lg hover:shadow-black/40">
+        hover:shadow-lg hover:shadow-black/40 ${variant==='mobile' ? 'min-w-[200px]' : ''}`}>        
         {/* Subtle top accent line */}
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
         <div className="flex items-start justify-between">
@@ -133,6 +132,11 @@ const LevelPanel: React.FC<{ profile: UserProfile; }> = ({ profile }) => {
         {/* Soft corner glow */}
         <div className="pointer-events-none absolute -bottom-10 -right-10 w-40 h-40 rounded-full bg-primary/10 blur-2xl opacity-0 group-hover:opacity-70 transition-opacity" />
       </GlassPanel>
+  )
+
+  return (
+    <div className={`${variant==='desktop' ? 'hidden lg:flex flex-col w-72' : 'flex lg:hidden w-full'} ${variant==='mobile' ? 'mt-2' : ''}`}>
+      {baseCard}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-xl bg-neutral-900/95 border border-white/10 max-h-[80vh] p-0 flex flex-col">
           <DialogHeader>
@@ -266,6 +270,10 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit
           )}
         </div>
         <LevelPanel profile={profile} />
+      </div>
+      {/* Mobile inline level (below hero main block) */}
+      <div className="mt-4 lg:hidden">
+        <LevelPanel profile={profile} variant='mobile' />
       </div>
     </GlassPanel>
   )
