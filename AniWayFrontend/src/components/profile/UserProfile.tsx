@@ -455,22 +455,23 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
         <div className="lg:hidden space-y-7 animate-fade-in">
           <Tabs value={activeTab} onValueChange={v => setActiveTabParam(v as any)} className="space-y-7">
             <TabsList
-              className="flex flex-nowrap overflow-x-auto gap-2 bg-black/30 border border-white/10 backdrop-blur rounded-2xl p-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent whitespace-nowrap scroll-smooth"
               role="tablist" aria-label="Разделы профиля"
+              className="flex w-full flex-nowrap overflow-x-auto gap-2 bg-black/30 border border-white/10 backdrop-blur rounded-2xl px-3 py-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent whitespace-nowrap scroll-smooth [&>*]:flex-shrink-0"
+              ref={(el)=>{ if(el){ el.scrollLeft = 0 } }}
             >
-              <TabsTrigger value="overview" className="min-w-[38%] text-center relative group rounded-xl px-4 py-2 text-[13px] font-medium text-slate-300 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-primary/25 flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+              <TabsTrigger value="overview" className="px-5 py-2 rounded-lg text-[13px] font-medium text-slate-300 hover:text-white data-[state=active]:text-white data-[state=active]:bg-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
                 Обзор
               </TabsTrigger>
-              <TabsTrigger value="library" className="min-w-[38%] text-center relative group rounded-xl px-4 py-2 text-[13px] font-medium text-slate-300 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-primary/25 flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+              <TabsTrigger value="library" className="px-5 py-2 rounded-lg text-[13px] font-medium text-slate-300 hover:text-white data-[state=active]:text-white data-[state=active]:bg-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
                 Библиотека
               </TabsTrigger>
-              <TabsTrigger value="reviews" className="min-w-[38%] text-center relative group rounded-xl px-4 py-2 text-[13px] font-medium text-slate-300 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-primary/25 flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+              <TabsTrigger value="reviews" className="px-5 py-2 rounded-lg text-[13px] font-medium text-slate-300 hover:text-white data-[state=active]:text-white data-[state=active]:bg-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
                 Отзывы
               </TabsTrigger>
-              <TabsTrigger value="comments" className="min-w-[38%] text-center relative group rounded-xl px-4 py-2 text-[13px] font-medium text-slate-300 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-primary/25 flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+              <TabsTrigger value="comments" className="px-5 py-2 rounded-lg text-[13px] font-medium text-slate-300 hover:text-white data-[state=active]:text-white data-[state=active]:bg-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
                 Комментарии
               </TabsTrigger>
-              <TabsTrigger value="achievements" className="min-w-[38%] text-center relative group rounded-xl px-4 py-2 text-[13px] font-medium text-slate-300 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-primary/25 flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+              <TabsTrigger value="achievements" className="px-5 py-2 rounded-lg text-[13px] font-medium text-slate-300 hover:text-white data-[state=active]:text-white data-[state=active]:bg-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
                 Достижения
               </TabsTrigger>
             </TabsList>
