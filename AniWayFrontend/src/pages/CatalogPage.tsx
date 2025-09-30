@@ -495,6 +495,34 @@ export function CatalogPage() {
     setCurrentPage(0)
   }
 
+  // --- Sync URL array params (genres, tags) into filter state if they change externally (e.g. tooltip navigation) ---
+  useEffect(() => {
+    // Collect genres & tags from URLSearchParams (may appear multiple times)
+    const sp = new URLSearchParams(window.location.search)
+    const urlGenres = sp.getAll('genres')
+    const urlTags = sp.getAll('tags')
+
+    // Determine if we need to update draft / active filters
+    const currentDraftGenres = draftFilters.selectedGenres || []
+    const currentDraftTags = draftFilters.selectedTags || []
+    const needGenresUpdate = urlGenres.length > 0 && (urlGenres.sort().join(',') !== [...currentDraftGenres].sort().join(','))
+    const needTagsUpdate = urlTags.length > 0 && (urlTags.sort().join(',') !== [...currentDraftTags].sort().join(','))
+
+    if (needGenresUpdate || needTagsUpdate) {
+      const nextDraft = { ...draftFilters }
+      if (needGenresUpdate) nextDraft.selectedGenres = urlGenres
+      if (needTagsUpdate) nextDraft.selectedTags = urlTags
+      setDraftFilters(nextDraft)
+
+      const nextActive = { ...activeFilters }
+      if (needGenresUpdate) nextActive.genres = urlGenres
+      if (needTagsUpdate) nextActive.tags = urlTags
+      setActiveFilters(nextActive)
+      setCurrentPage(0)
+    }
+  // We intentionally depend on searchParams to reflect URL changes; plus explicit dependencies we read
+  }, [searchParams, draftFilters, activeFilters])
+
 
   return (
     <div className="min-h-screen bg-background">
