@@ -33,6 +33,7 @@ public class EmailSenderImpl implements EmailSender {
                 case REGISTRATION -> "AniWay · Подтверждение регистрации";
                 case PASSWORD_RESET -> "AniWay · Сброс пароля";
                 case ACCOUNT_DELETION -> "AniWay · Подтверждение удаления аккаунта";
+                case LOGIN -> "AniWay · Код входа";
             };
 
             String html = EmailTemplateRenderer.renderVerificationEmail(purpose, code, ttlSeconds);

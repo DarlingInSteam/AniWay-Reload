@@ -23,6 +23,7 @@ public class EmailTemplateRenderer {
             case REGISTRATION -> "templates/email/verification_registration.html";
             case PASSWORD_RESET -> "templates/email/verification_password_reset.html";
             case ACCOUNT_DELETION -> "templates/email/verification_account_deletion.html";
+            case LOGIN -> "templates/email/verification_login.html";
         };
     }
 
@@ -57,6 +58,7 @@ public class EmailTemplateRenderer {
             case REGISTRATION -> "Подтверждение регистрации";
             case PASSWORD_RESET -> "Сброс пароля";
             case ACCOUNT_DELETION -> "Удаление аккаунта";
+            case LOGIN -> "Код входа";
         };
         return header + "\nКод: " + code + "\nСрок действия: ~" + minutes + " мин.\nНе делитесь кодом.";
     }

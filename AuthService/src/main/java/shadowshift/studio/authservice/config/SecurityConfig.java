@@ -54,7 +54,8 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .authorizeHttpRequests(auth -> auth
             .requestMatchers("/api/auth/login", "/api/auth/register", "/api/auth/email/request-code", "/api/auth/email/verify-code",
-                "/api/auth/password/reset/request-code", "/api/auth/password/reset/verify-code", "/api/auth/password/reset/perform").permitAll()
+                "/api/auth/password/reset/request-code", "/api/auth/password/reset/verify-code", "/api/auth/password/reset/perform",
+                "/api/auth/login/request-code", "/api/auth/login/verify-code").permitAll()
             .requestMatchers("/api/auth/account/delete/request-code", "/api/auth/account/delete/verify-code", "/api/auth/account/delete/perform", "/api/auth/password/change").authenticated()
                         .requestMatchers("/actuator/**").permitAll()
                         // Internal metrics endpoints (should be restricted by network or gateway rules)

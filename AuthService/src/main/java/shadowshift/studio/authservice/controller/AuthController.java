@@ -42,6 +42,7 @@ public class AuthController {
     private final AuthService authService;
     private final EmailVerificationService emailVerificationService;
     private final UserService userService;
+    private final shadowshift.studio.authservice.config.AuthLoginProperties authLoginProperties;
     
     /**
      * Регистрирует нового пользователя в системе.
@@ -174,13 +175,54 @@ public class AuthController {
      * @throws Exception в случае ошибки аутентификации
      */
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> authenticate(@Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<?> authenticate(@Valid @RequestBody LoginRequest request) {
         try {
+            if (authLoginProperties.isEnabled()) {
+                // Validate credentials only
+                authService.authenticateCredentialsOnly(request.getUsername(), request.getPassword());
+                // Load entity for email
+                var userEntity = userService.findByUsername(request.getUsername());
+                var v = emailVerificationService.requestCode(userEntity.getEmail(), shadowshift.studio.authservice.entity.EmailVerification.Purpose.LOGIN);
+                return ResponseEntity.ok(Map.of(
+                        "twoStep", true,
+                        "requestId", v.getId(),
+                        "ttlSeconds", emailVerificationService.getRemainingTtlSeconds(v)
+                ));
+            }
             AuthResponse response = authService.authenticate(request);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Authentication failed: {}", e.getMessage());
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // --- Two-step login (password + email code) ---
+    @PostMapping("/login/request-code")
+    public ResponseEntity<?> loginRequestCode(@Valid @RequestBody LoginRequest request) {
+        try {
+            // First authenticate credentials (but do not issue JWT yet)
+            authService.authenticateCredentialsOnly(request.getUsername(), request.getPassword());
+            // Validate credentials already done; ensure user exists (throws if absent)
+            userService.loadUserByUsername(request.getUsername());
+            // Retrieve entity to access email
+            var userEntity = userService.findByUsername(request.getUsername());
+            var v = emailVerificationService.requestCode(userEntity.getEmail(), shadowshift.studio.authservice.entity.EmailVerification.Purpose.LOGIN);
+            return ResponseEntity.ok(Map.of("requestId", v.getId(), "ttlSeconds", emailVerificationService.getRemainingTtlSeconds(v)));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/login/verify-code")
+    public ResponseEntity<?> loginVerifyCode(@Valid @RequestBody PasswordResetDtos.VerifyRequest request) {
+        try {
+            var token = emailVerificationService.verifyCode(java.util.UUID.fromString(request.getRequestId()), request.getCode(), shadowshift.studio.authservice.entity.EmailVerification.Purpose.LOGIN);
+            // Exchange verification token for final JWT (reuse password reset pattern -> a dedicated service method)
+            var authResp = authService.issueTokenFromVerificationToken(token, shadowshift.studio.authservice.entity.EmailVerification.Purpose.LOGIN);
+            return ResponseEntity.ok(Map.of("token", authResp.getToken(), "user", authResp.getUser()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
     

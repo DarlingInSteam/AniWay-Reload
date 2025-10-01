@@ -204,6 +204,38 @@ class AuthService {
     return authResponse
   }
 
+  // Запрос кода входа (двухшаговый login)
+  async requestLoginCode(data: LoginRequest): Promise<{requestId: string, ttlSeconds: number}> {
+    const res = await fetch(`${this.baseUrl}/auth/login/request-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    })
+    if (!res.ok) {
+      const t = await res.text()
+      throw new Error(t || 'Failed to request login code')
+    }
+    return res.json()
+  }
+
+  async verifyLoginCode(requestId: string, code: string): Promise<AuthResponse> {
+    const res = await fetch(`${this.baseUrl}/auth/login/verify-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId, code })
+    })
+    if (!res.ok) {
+      const t = await res.text()
+      throw new Error(t || 'Failed to verify login code')
+    }
+    const body = await res.json()
+    if (body?.token) {
+      this.setToken(body.token)
+      return { token: body.token, user: body.user }
+    }
+    throw new Error('Malformed login verify response')
+  }
+
   // Выход
   async logout(): Promise<void> {
     this.removeToken()
