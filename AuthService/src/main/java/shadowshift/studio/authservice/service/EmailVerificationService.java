@@ -77,7 +77,7 @@ public class EmailVerificationService {
                 .build();
         verification = emailVerificationRepository.save(verification);
 
-        emailSender.sendVerificationCode(normEmail, code);
+    emailSender.sendVerificationCode(normEmail, code, purpose, codeTtlSeconds);
 
         return verification;
     }
