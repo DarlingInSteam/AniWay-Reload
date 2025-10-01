@@ -750,9 +750,14 @@ export function ReaderPage() {
             <div className="flex items-center space-x-2 justify-end">
               <button
                 onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                className="p-2 rounded-full hover:bg-white/10 text-white transition-colors"
+                aria-label="Настройки чтения"
+                className={cn(
+                  'relative group p-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white transition-all backdrop-blur-sm shadow-sm shadow-black/40',
+                  isSettingsOpen && 'bg-white/15 border-white/20'
+                )}
               >
-                <Settings className="h-5 w-5" />
+                <Settings className="h-5 w-5 group-hover:text-primary transition-colors" />
+                <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-medium tracking-wide text-white/60 opacity-0 group-hover:opacity-100 transition pointer-events-none select-none hidden sm:block">Настройки</span>
               </button>
               <button
                 onClick={() => setShowUI(!showUI)}
@@ -767,9 +772,33 @@ export function ReaderPage() {
 
   {/* Settings Panel */}
       {isSettingsOpen && (
-        <div className="fixed top-16 right-4 z-40 bg-card border border-border/30 rounded-xl p-4 min-w-[200px] animate-fade-in settings-panel">
-          <h3 className="text-white font-semibold mb-3">Настройки чтения</h3>
-          <div className="space-y-2">
+        <div
+          className={cn(
+            'settings-panel z-40 animate-fade-in',
+            'fixed',
+            'md:top-16 md:right-4 md:rounded-xl md:min-w-[240px] md:max-w-[260px]',
+            'md:border md:border-white/15',
+            'md:bg-gradient-to-br md:from-white/10 md:via-white/5 md:to-white/5',
+            'bg-black/80 md:bg-black/60',
+            'backdrop-blur-xl',
+            // Mobile bottom sheet style
+            'bottom-0 left-0 right-0 md:bottom-auto md:left-auto md:right-4',
+            'md:shadow-lg shadow-inner',
+            'md:p-4 p-5 pt-4'
+          )}
+        >
+          <div className="mx-auto w-full max-w-md">
+            <div className="flex items-center justify-between mb-3 md:mb-4">
+              <h3 className="text-white font-semibold text-base md:text-sm tracking-wide">Настройки чтения</h3>
+              <button
+                onClick={() => setIsSettingsOpen(false)}
+                className="md:hidden p-2 -m-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition"
+                aria-label="Закрыть настройки"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-2">
             <button
               onClick={() => setReadingMode(mode => mode === 'vertical' ? 'horizontal' : 'vertical')}
               className="w-full text-left text-sm text-muted-foreground hover:text-white transition-colors p-2 rounded hover:bg-secondary"
@@ -807,24 +836,12 @@ export function ReaderPage() {
             >
               {showUI ? 'Скрыть UI' : 'Показать UI'}
             </button>
-            {chapter && manga && (
-              <button
-                onClick={async () => {
-                  try {
-                    await markChapterCompleted(manga.id, chapter.id, chapter.chapterNumber)
-                    console.log('Chapter manually marked as completed')
-                  } catch (error) {
-                    console.error('Failed to mark chapter as completed:', error)
-                  }
-                }}
-                className="w-full text-left text-sm text-muted-foreground hover:text-white transition-colors p-2 rounded hover:bg-secondary"
-              >
-                <div className="flex items-center justify-between">
-                  <span>Завершить главу</span>
-                  <BookOpen className="h-5 w-5 text-green-500" />
-                </div>
-              </button>
-            )}
+            {/* Manual finish chapter button removed per request */}
+            </div>
+            {/* Drag handle for mobile */}
+            <div className="md:hidden mt-5 pt-2">
+              <div className="h-1 w-10 mx-auto rounded-full bg-white/20" />
+            </div>
           </div>
         </div>
       )}
