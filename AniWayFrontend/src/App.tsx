@@ -22,6 +22,8 @@ import { authService } from './services/authService'
 import { Toaster } from 'sonner'
 import { TopsPage } from './pages/TopsPage'
 import { SearchPage } from './pages/SearchPage'
+import ResetPasswordRequestPage from './pages/ResetPasswordRequestPage'
+import ResetPasswordCodePage from './pages/ResetPasswordCodePage'
 
 function InnerApp() {
   const { user } = useAuth();
@@ -47,6 +49,8 @@ function InnerApp() {
           {/* Аутентификация */}
           <Route path="/login" element={<AuthPage />} />
           <Route path="/register" element={<AuthPage />} />
+          <Route path="/reset-password" element={<ResetPasswordRequestPage />} />
+          <Route path="/reset-password/code" element={<ResetPasswordCodePage />} />
           
           {/* Защищённые маршруты */}
           <Route path="/profile" element={
