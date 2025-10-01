@@ -1,71 +1,151 @@
 import React, { useState, useEffect } from 'react';
 import { authService } from '@/services/authService';
-import { Button } from '@/components/ui/button';
-import GlassPanel from '@/components/ui/GlassPanel';
+import VerificationCodeInput from '@/components/auth/VerificationCodeInput';
+
+type Step = 'email' | 'code' | 'password' | 'done';
 
 const EMAIL_REGEX = /.+@.+\..+/;
 
 export const ResetPasswordRequestPage: React.FC = () => {
+  const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [requestId, setRequestId] = useState<string | null>(null);
+  const [code, setCode] = useState<string[]>(['','','','','','']);
+  const [verificationToken, setVerificationToken] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string|null>(null);
-  const [success, setSuccess] = useState(false);
-  const [requestId, setRequestId] = useState<string|null>(null);
-  const [ttl, setTtl] = useState<number>(0);
-  const [cooldown, setCooldown] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [ttl, setTtl] = useState(0);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
-  useEffect(() => {
-    if (cooldown <= 0) return;
-    const t = setTimeout(()=>setCooldown(cooldown-1), 1000);
-    return () => clearTimeout(t);
-  }, [cooldown]);
+  // timers
+  useEffect(()=>{ if(ttl<=0) return; const t=setTimeout(()=>setTtl(s=>s-1),1000); return ()=>clearTimeout(t);},[ttl]);
+  useEffect(()=>{ if(resendCooldown<=0) return; const t=setTimeout(()=>setResendCooldown(s=>s-1),1000); return ()=>clearTimeout(t);},[resendCooldown]);
 
-  useEffect(() => {
-    if (!ttl) return;
-    const t = setTimeout(()=> setTtl(Math.max(0, ttl-1)), 1000);
-    return () => clearTimeout(t);
-  }, [ttl]);
-
-  const submit = async (e: React.FormEvent) => {
+  const handleRequest = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!EMAIL_REGEX.test(email)) { setError('Введите корректный email'); return; }
     setError(null);
+    if(!EMAIL_REGEX.test(email)) { setError('Введите корректный email'); return; }
     setLoading(true);
     try {
       const resp = await authService.requestPasswordResetCode(email);
       setRequestId(resp.requestId || null);
       setTtl(resp.ttlSeconds || 0);
-      setSuccess(true);
-      setCooldown(30);
-    } catch (ex: any) {
-      setError(ex?.message || 'Ошибка запроса');
-    } finally {
-      setLoading(false);
-    }
+      setResendCooldown(45);
+      setStep('code');
+    } catch (e:any) {
+      setError(e.message || 'Ошибка отправки');
+    } finally { setLoading(false); }
+  };
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if(!requestId) { setError('Нет идентификатора запроса'); return; }
+    const full = code.join('');
+    if(full.length!==6) { setError('Введите 6 цифр'); return; }
+    setLoading(true);
+    try {
+      const resp = await authService.verifyPasswordResetCode(requestId, full);
+      setVerificationToken(resp.verificationToken);
+      setStep('password');
+    } catch (e:any) {
+      setError(e.message || 'Неверный код');
+    } finally { setLoading(false); }
+  };
+
+  const handleResend = async () => {
+    if(resendCooldown>0 || !email) return;
+    try {
+      setLoading(true);
+      await authService.requestPasswordResetCode(email);
+      setResendCooldown(45);
+    } catch (e:any) {
+      setError(e.message || 'Ошибка повтора');
+    } finally { setLoading(false); }
+  };
+
+  const handlePerform = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if(!verificationToken) { setError('Нет verificationToken'); return; }
+    if(newPassword.length < 6) { setError('Пароль >= 6 символов'); return; }
+    if(newPassword !== confirmPassword) { setError('Пароли не совпадают'); return; }
+    setLoading(true);
+    try {
+      await authService.performPasswordReset(verificationToken, newPassword);
+      setStep('done');
+    } catch (e:any) {
+      setError(e.message || 'Ошибка смены пароля');
+    } finally { setLoading(false); }
   };
 
   return (
-    <div className="flex justify-center mt-10 px-4">
-      <GlassPanel className="w-full max-w-md p-6">
-        <h1 className="text-xl font-semibold text-white mb-4">Восстановление пароля</h1>
-        <p className="text-sm text-slate-400 mb-4">Введите email аккаунта. Если он существует – мы отправим код.</p>
-        <form onSubmit={submit} className="space-y-4">
-          <div>
-            <label className="block text-xs uppercase tracking-wide mb-1 text-slate-300">Email</label>
-            <input type="email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full rounded bg-slate-800/70 border border-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" placeholder="you@example.com" required />
-          </div>
-          {error && <div className="text-red-400 text-sm">{error}</div>}
-          {success && <div className="text-green-400 text-sm">Если email существует – код отправлен.</div>}
-          {requestId && <div className="text-[11px] text-slate-400">ID запроса: <span className="font-mono">{requestId}</span></div>}
-          {ttl>0 && <div className="text-[11px] text-slate-400">Код истечёт через {ttl}s</div>}
-          <Button type="submit" disabled={loading || cooldown>0} className="w-full">{loading ? 'Отправка...' : cooldown>0 ? `Повтор через ${cooldown}s` : 'Отправить код'}</Button>
-        </form>
-        {requestId && (
-          <div className="mt-4 text-center">
-            <a href={`/reset-password/code?requestId=${requestId}&email=${encodeURIComponent(email)}`} className="text-primary text-sm hover:underline">У меня уже есть код →</a>
+    <div className="max-w-md mx-auto mt-10 px-4">
+      <div className="bg-card shadow-xl rounded-lg p-8 border border-border/30">
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-bold text-white">Сброс пароля</h2>
+          <p className="text-muted-foreground mt-2">
+            {step==='email' && 'Подтвердите email'}
+            {step==='code' && `Введите код (${ttl > 0 ? ttl + 's' : 'истекает скоро'})`}
+            {step==='password' && 'Создайте новый пароль'}
+            {step==='done' && 'Готово'}
+          </p>
+        </div>
+        {error && <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-md"><p className="text-red-400 text-sm">{error}</p></div>}
+
+        {step==='email' && (
+          <form onSubmit={handleRequest} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">Email</label>
+              <input type="email" value={email} onChange={e=>setEmail(e.target.value)} required placeholder="Введите email" className="w-full px-3 py-2 bg-white/5 border border-border/30 rounded-md text-white focus:outline-none focus:ring-primary/50 focus:border-primary/50" />
+            </div>
+            <button type="submit" disabled={loading} className="w-full py-2 px-4 rounded-md text-sm font-medium text-white bg-primary hover:bg-primary/80 disabled:opacity-50">
+              {loading ? 'Отправка...' : 'Получить код'}
+            </button>
+          </form>
+        )}
+
+        {step==='code' && (
+          <form onSubmit={handleVerify} className="space-y-6">
+            <VerificationCodeInput value={code} onChange={setCode} autoFocus />
+            <div className="text-center text-sm text-muted-foreground">Код отправлен на {email}</div>
+            <div className="flex justify-between items-center">
+              <button type="button" onClick={()=>{setStep('email'); setCode(['','','','','','']);}} className="text-xs text-muted-foreground hover:text-white">Изменить email</button>
+              <button type="button" onClick={handleResend} disabled={resendCooldown>0||loading} className="text-xs text-primary disabled:opacity-40">
+                {resendCooldown>0 ? `Отправить снова (${resendCooldown})` : 'Отправить ещё раз'}
+              </button>
+            </div>
+            <button type="submit" disabled={loading || code.join('').length!==6} className="w-full py-2 px-4 rounded-md text-sm font-medium text-white bg-primary hover:bg-primary/80 disabled:opacity-50">
+              {loading ? 'Проверка...' : 'Подтвердить'}
+            </button>
+          </form>
+        )}
+
+        {step==='password' && (
+          <form onSubmit={handlePerform} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">Новый пароль</label>
+              <input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} required className="w-full px-3 py-2 bg-white/5 border border-border/30 rounded-md text-white focus:outline-none focus:ring-primary/50 focus:border-primary/50" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">Повторите пароль</label>
+              <input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} required className="w-full px-3 py-2 bg-white/5 border border-border/30 rounded-md text-white focus:outline-none focus:ring-primary/50 focus:border-primary/50" />
+            </div>
+            <button type="submit" disabled={loading} className="w-full py-2 px-4 rounded-md text-sm font-medium text-white bg-primary hover:bg-primary/80 disabled:opacity-50">
+              {loading ? 'Сохранение...' : 'Сменить пароль'}
+            </button>
+          </form>
+        )}
+
+        {step==='done' && (
+          <div className="space-y-4 text-center">
+            <div className="text-green-400 text-sm">Пароль изменён. Вы уже вошли.</div>
+            <a href="/" className="text-primary hover:text-primary/80 text-sm">Перейти на главную</a>
           </div>
         )}
-      </GlassPanel>
+      </div>
     </div>
   );
 };
