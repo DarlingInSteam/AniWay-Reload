@@ -38,7 +38,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         
         // Пропускаем публичные auth endpoints (расширенный список)
         String path = request.getServletPath();
-        if (isPublicAuthPath(path)) {
+            if (isPublicAuthPath(path) || path.equals("/error")) {
             log.trace("JWT Filter: Skipping public auth endpoint {}", path);
             filterChain.doFilter(request, response);
             return;

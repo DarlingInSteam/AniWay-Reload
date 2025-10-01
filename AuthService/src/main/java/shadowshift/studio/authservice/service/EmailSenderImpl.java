@@ -40,15 +40,16 @@ public class EmailSenderImpl implements EmailSender {
             // Fallback plain text
             String plain = EmailTemplateRenderer.renderPlainText(purpose, code, ttlSeconds);
             MimeMessage mime = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(mime, false, "UTF-8");
+            // multipart=true to allow alternative HTML + plain text
+            MimeMessageHelper helper = new MimeMessageHelper(mime, true, "UTF-8");
             helper.setFrom(from);
             helper.setTo(email);
             helper.setSubject(subject);
-            helper.setText(plain, html); // set alternative
+            helper.setText(plain, html); // plain as fallback, html as rich
             mailSender.send(mime);
             log.info("Verification code (purpose {}) sent to {}", purpose, email);
         } catch (Exception e) {
-            log.error("Failed to send verification email to {}: {}", email, e.getMessage());
+            log.error("Failed to send verification email to {}: {}", email, e.getMessage(), e);
             throw new IllegalStateException("EMAIL_SEND_FAILED");
         }
     }
