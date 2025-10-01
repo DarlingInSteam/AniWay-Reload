@@ -260,7 +260,8 @@ export function ReaderPage() {
 
   // Handle chapter like/unlike
   const handleChapterLike = async () => {
-    if (!chapter || liking) return
+    // One-way like: do nothing if already liked
+    if (!chapter || liking || isLiked) return
 
     setLiking(true)
     try {
@@ -717,22 +718,22 @@ export function ReaderPage() {
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
-              <div className="flex flex-col items-center">
-                <button
-                  onClick={() => setShowChapterList(true)}
-                  className="font-semibold text-base hover:text-primary transition-colors"
-                  title="Открыть список глав"
-                >
-                  {formatChapterTitle(chapter)}
-                </button>
-                <button
-                  onClick={() => setShowChapterList(true)}
-                  className="text-xs text-gray-400 mt-1 hover:text-primary/80 transition"
-                  title="Открыть список глав"
-                >
-                  {currentChapterIndex + 1} из {sortedChapters?.length || 0}
-                </button>
-              </div>
+              <div className="flex flex-col items-center min-w-0 max-w-full">
+                  <button
+                    onClick={() => setShowChapterList(true)}
+                    className="font-semibold text-base hover:text-primary transition-colors max-w-[68vw] sm:max-w-[420px] truncate whitespace-nowrap overflow-hidden"
+                    title={formatChapterTitle(chapter)}
+                  >
+                    {formatChapterTitle(chapter)}
+                  </button>
+                  <button
+                    onClick={() => setShowChapterList(true)}
+                    className="text-xs text-gray-400 mt-1 hover:text-primary/80 transition"
+                    title="Открыть список глав"
+                  >
+                    {currentChapterIndex + 1} из {sortedChapters?.length || 0}
+                  </button>
+                </div>
               <button
                 disabled={!nextChapter}
                 onClick={navigateToNextChapter}
@@ -743,19 +744,8 @@ export function ReaderPage() {
               </button>
             </div>
 
-            {/* Right side - фиксированная ширина */}
+            {/* Right side - like button removed */}
             <div className="flex items-center space-x-2 justify-end">
-              <button
-                onClick={handleChapterLike}
-                disabled={liking}
-                className={cn(
-                  "p-2 rounded-full hover:bg-white/10 text-white transition-colors flex items-center space-x-1",
-                  isLiked && "text-red-400"
-                )}
-              >
-                <Heart className={cn("h-5 w-5", isLiked && "fill-current")} />
-                <span className="text-sm">{chapter?.likeCount || 0}</span>
-              </button>
               <button
                 onClick={() => setIsSettingsOpen(!isSettingsOpen)}
                 className="p-2 rounded-full hover:bg-white/10 text-white transition-colors"
@@ -947,9 +937,10 @@ export function ReaderPage() {
           </button>
           <button
             onClick={handleChapterLike}
-            disabled={liking}
-            className={cn('reader-fab', isLiked && 'text-red-400')}
-            title={isLiked ? 'Убрать лайк' : 'Поставить лайк'}
+            disabled={liking || isLiked}
+            className={cn('reader-fab', isLiked && 'text-red-400 opacity-80 cursor-default')}
+            title={isLiked ? 'Лайк уже поставлен' : 'Поставить лайк'}
+            aria-pressed={isLiked}
           >
             <Heart className={cn('h-5 w-5', isLiked && 'fill-current')} />
           </button>
