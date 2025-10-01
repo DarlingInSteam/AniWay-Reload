@@ -103,7 +103,7 @@ function ChapterImageList({
               {image.pageNumber} / {images.length}
             </div>
             {index === 0 && showUI && isVisible && (
-              <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute inset-0 pointer-events-none hidden md:block">
                 {previousChapter && (
                   <div className="absolute left-0 top-1/2 -translate-y-1/2 p-2">
                     <div className="bg-black/70 backdrop-blur-sm text-white px-3 py-2 rounded-r-lg text-sm border border-white/20 animate-pulse">
@@ -709,7 +709,7 @@ export function ReaderPage() {
             </div>
 
             {/* Center - chapter navigation + clickable index */}
-            <div className="flex items-center justify-center text-white space-x-3">
+            <div className="flex items-center justify-center text-white space-x-3 min-w-0">
               <button
                 disabled={!previousChapter}
                 onClick={navigateToPreviousChapter}
@@ -719,21 +719,23 @@ export function ReaderPage() {
                 <ChevronLeft className="h-5 w-5" />
               </button>
               <div className="flex flex-col items-center min-w-0 max-w-full">
-                  <button
-                    onClick={() => setShowChapterList(true)}
-                    className="font-semibold text-base hover:text-primary transition-colors max-w-[68vw] sm:max-w-[420px] truncate whitespace-nowrap overflow-hidden"
-                    title={formatChapterTitle(chapter)}
-                  >
-                    {formatChapterTitle(chapter)}
-                  </button>
-                  <button
-                    onClick={() => setShowChapterList(true)}
-                    className="text-xs text-gray-400 mt-1 hover:text-primary/80 transition"
-                    title="Открыть список глав"
-                  >
-                    {currentChapterIndex + 1} из {sortedChapters?.length || 0}
-                  </button>
-                </div>
+                <button
+                  onClick={() => setShowChapterList(true)}
+                  className="font-semibold text-base hover:text-primary transition-colors w-full max-w-[64vw] sm:max-w-[460px] text-center truncate"
+                  title={formatChapterTitle(chapter)}
+                >
+                  {formatChapterTitle(chapter)}
+                </button>
+                <button
+                  onClick={() => setShowChapterList(true)}
+                  className="mt-1 inline-flex items-center gap-1 text-[10px] tracking-wide text-gray-300/80 hover:text-primary/80 transition px-2 py-0.5 rounded-full bg-white/5 border border-white/10"
+                  title="Открыть список глав"
+                >
+                  <span className="font-medium">{currentChapterIndex + 1}</span>
+                  <span className="opacity-60">/</span>
+                  <span>{sortedChapters?.length || 0}</span>
+                </button>
+              </div>
               <button
                 disabled={!nextChapter}
                 onClick={navigateToNextChapter}
@@ -904,14 +906,14 @@ export function ReaderPage() {
 
       {/* Keyboard Shortcuts Help */}
       <div className={cn(
-        'fixed bottom-4 left-4 bg-black/80 backdrop-blur-sm text-white text-xs p-3 rounded-lg transition-all duration-300 border border-white/20',
+        'fixed bottom-4 left-4 bg-black/80 backdrop-blur-sm text-white text-xs p-3 rounded-lg transition-all duration-300 border border-white/20 hidden md:block',
         showUI ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
       )}>
         <div className="space-y-1">
           <div>ESC - Назад</div>
           <div>H - Показать/скрыть UI</div>
           <div>← → - Смена глав</div>
-          <div>Двойной тап - Лайк</div>
+          <div>Двойной клик - Лайк</div>
         </div>
       </div>
 
