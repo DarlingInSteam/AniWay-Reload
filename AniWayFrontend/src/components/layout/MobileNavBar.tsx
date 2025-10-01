@@ -66,7 +66,7 @@ export function MobileNavBar() {
     <nav
       ref={navRef}
       className={cn(
-        'md:hidden fixed bottom-0 inset-x-0 z-[60] backdrop-blur-xl border-t border-white/20 bg-[#0b0d11]/95 transition-shadow',
+        'md:hidden fixed bottom-0 inset-x-0 z-[60] backdrop-blur-xl border-t border-white/20 bg-[#0b0d11]/90 supports-[backdrop-filter]:bg-[#0b0d11]/80 transition-shadow',
         hasScrolled && 'shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.75)]'
       )}
       style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 4px)' }}
