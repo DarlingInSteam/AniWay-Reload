@@ -746,22 +746,12 @@ export function ReaderPage() {
               </button>
             </div>
 
-            {/* Right side - like button removed */}
+            {/* Right side now only holds mobile menu toggle (settings moved to side action bar) */}
             <div className="flex items-center space-x-2 justify-end">
-              <button
-                onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                aria-label="Настройки чтения"
-                className={cn(
-                  'relative group p-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white transition-all backdrop-blur-sm shadow-sm shadow-black/40',
-                  isSettingsOpen && 'bg-white/15 border-white/20'
-                )}
-              >
-                <Settings className="h-5 w-5 group-hover:text-primary transition-colors" />
-                <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-medium tracking-wide text-white/60 opacity-0 group-hover:opacity-100 transition pointer-events-none select-none hidden sm:block">Настройки</span>
-              </button>
               <button
                 onClick={() => setShowUI(!showUI)}
                 className="md:hidden p-2 rounded-full hover:bg-white/10 text-white transition-colors"
+                aria-label="Переключить UI"
               >
                 <Menu className="h-5 w-5" />
               </button>
@@ -774,17 +764,15 @@ export function ReaderPage() {
       {isSettingsOpen && (
         <div
           className={cn(
-            'settings-panel z-40 animate-fade-in',
-            'fixed',
-            'md:top-16 md:right-4 md:rounded-xl md:min-w-[240px] md:max-w-[260px]',
-            'md:border md:border-white/15',
-            'md:bg-gradient-to-br md:from-white/10 md:via-white/5 md:to-white/5',
-            'bg-black/80 md:bg-black/60',
-            'backdrop-blur-xl',
-            // Mobile bottom sheet style
-            'bottom-0 left-0 right-0 md:bottom-auto md:left-auto md:right-4',
-            'md:shadow-lg shadow-inner',
-            'md:p-4 p-5 pt-4'
+            'settings-panel z-40 animate-fade-in fixed',
+            // Desktop: align roughly with vertical action bar (center right)
+            'hidden md:block md:top-1/2 md:-translate-y-1/2 md:right-[84px] md:rounded-2xl md:min-w-[250px] md:max-w-[280px]',
+            'md:border md:border-white/15 md:bg-gradient-to-br md:from-white/10 md:via-white/5 md:to-white/5 md:shadow-xl',
+            // Mobile bottom sheet retains previous style
+            'md:translate-x-0',
+            'bg-black/85 md:bg-black/60 backdrop-blur-2xl',
+            'bottom-0 left-0 right-0 md:bottom-auto md:left-auto',
+            'p-5 pt-4 md:p-5'
           )}
         >
           <div className="mx-auto w-full max-w-md">
