@@ -110,8 +110,12 @@ public class AuthController {
     @PostMapping("/password/reset/perform")
     public ResponseEntity<?> passwordResetPerform(@Valid @RequestBody PasswordResetDtos.PerformRequest request) {
         try {
-            authService.resetPasswordWithToken(request.getVerificationToken(), request.getNewPassword());
-            return ResponseEntity.ok(Map.of("success", true));
+            var authResp = authService.resetPasswordWithToken(request.getVerificationToken(), request.getNewPassword());
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "token", authResp.getToken(),
+                "user", authResp.getUser()
+            ));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
         }

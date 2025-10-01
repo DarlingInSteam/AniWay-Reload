@@ -115,7 +115,7 @@ class AuthService {
     return res.json()
   }
 
-  async performPasswordReset(verificationToken: string, newPassword: string): Promise<boolean> {
+  async performPasswordReset(verificationToken: string, newPassword: string): Promise<AuthResponse> {
     const res = await fetch(`${this.baseUrl}/auth/password/reset/perform`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -125,7 +125,12 @@ class AuthService {
       const t = await res.text();
       throw new Error(t || 'Failed to reset password')
     }
-    return true
+    const body = await res.json() as any;
+    if (body?.token) {
+      this.setToken(body.token);
+      return { token: body.token, user: body.user } as AuthResponse;
+    }
+    throw new Error('Malformed response from reset perform');
   }
 
   async changePassword(currentPassword: string, newPassword: string): Promise<boolean> {

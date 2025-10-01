@@ -158,7 +158,7 @@ public class AuthService {
     }
 
     // Password reset using previously verified token (PASSWORD_RESET purpose)
-    public void resetPasswordWithToken(String verificationToken, String newPassword) {
+    public AuthResponse resetPasswordWithToken(String verificationToken, String newPassword) {
         String email = emailVerificationService.consumeVerificationToken(verificationToken, shadowshift.studio.authservice.entity.EmailVerification.Purpose.PASSWORD_RESET);
         var userOpt = userRepository.findByEmail(email);
         if (userOpt.isEmpty()) {
@@ -166,8 +166,11 @@ public class AuthService {
         }
         var user = userOpt.get();
         user.setPassword(passwordEncoder.encode(newPassword));
+        user.setLastLogin(LocalDateTime.now());
         userRepository.save(user);
         log.info("Password reset for user {}", user.getUsername());
+        var jwtToken = jwtService.generateToken(user);
+        return AuthResponse.of(jwtToken, UserMapper.toFullUserDTO(user));
     }
 
     // Authenticated password change

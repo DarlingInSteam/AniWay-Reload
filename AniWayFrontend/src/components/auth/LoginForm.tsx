@@ -112,6 +112,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToRegis
                 Зарегистрироваться
               </button>
             </p>
+            <p className="text-xs mt-3">
+              <a href="/reset-password" className="text-primary/80 hover:text-primary underline underline-offset-2">Забыли пароль?</a>
+            </p>
           </div>
         )}
       </div>
