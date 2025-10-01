@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import VerificationCodeInput from './VerificationCodeInput'
 import { useAuth } from '../../contexts/AuthContext'
 import { LoginRequest } from '../../types'
 import { authService } from '../../services/authService'
@@ -17,7 +18,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToRegis
   const [loading, setLoading] = useState(false)
   const [twoStep, setTwoStep] = useState(false)
   const [requestId, setRequestId] = useState<string | null>(null)
-  const [loginCode, setLoginCode] = useState('')
+  const [loginCode, setLoginCode] = useState<string[]>(['','','','','',''])
   const [codePhase, setCodePhase] = useState<'idle' | 'requested' | 'verifying'>('idle')
   const { login } = useAuth()
 
@@ -59,7 +60,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToRegis
     setError(null)
     setCodePhase('verifying')
     try {
-      await authService.verifyLoginCode(requestId, loginCode.trim())
+      const code = loginCode.join('')
+      await authService.verifyLoginCode(requestId, code)
       onSuccess?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка подтверждения')
@@ -110,14 +112,16 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToRegis
 
         {twoStep && (
           <form onSubmit={handleVerifyCode} className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-white mb-2">Код подтверждения</label>
-              <input value={loginCode} onChange={e => setLoginCode(e.target.value)} maxLength={6} pattern="[0-9]*" inputMode="numeric" className="tracking-widest text-center text-xl w-full px-3 py-3 bg-white/5 border border-border/30 rounded-md text-white focus:outline-none focus:ring-primary/50 focus:border-primary/50" placeholder="••••••" />
-              <p className="text-xs text-muted-foreground mt-2">Введите 6-значный код из письма. Возможна задержка 1–2 минуты.</p>
-            </div>
-            <div className="flex gap-3">
-              <button type="submit" disabled={codePhase==='verifying'} className="flex-1 py-2 px-4 rounded-md text-sm font-medium text-white bg-primary hover:bg-primary/80 disabled:opacity-50">{codePhase==='verifying' ? 'Проверка...' : 'Подтвердить'}</button>
-              <button type="button" onClick={() => { setTwoStep(false); setRequestId(null); setLoginCode(''); }} className="px-4 py-2 rounded-md text-sm bg-white/10 hover:bg-white/15 text-white">Отмена</button>
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-full text-center">
+                <label className="block text-sm font-medium text-white mb-2">Код подтверждения</label>
+                <VerificationCodeInput value={loginCode} onChange={setLoginCode} autoFocus />
+                <p className="text-xs text-muted-foreground mt-3">Введите 6-значный код из письма. Возможна задержка 1–2 минуты.</p>
+              </div>
+              <div className="flex gap-3 w-full">
+                <button type="submit" disabled={codePhase==='verifying' || loginCode.join('').length!==6} className="flex-1 py-2 px-4 rounded-md text-sm font-medium text-white bg-primary hover:bg-primary/80 disabled:opacity-50">{codePhase==='verifying' ? 'Проверка...' : 'Подтвердить'}</button>
+                <button type="button" onClick={() => { setTwoStep(false); setRequestId(null); setLoginCode(['','','','','','']); }} className="px-4 py-2 rounded-md text-sm bg-white/10 hover:bg-white/15 text-white">Отмена</button>
+              </div>
             </div>
           </form>
         )}

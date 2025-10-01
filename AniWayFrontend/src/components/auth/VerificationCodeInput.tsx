@@ -23,12 +23,22 @@ export const VerificationCodeInput: React.FC<Props> = ({ value, onChange, length
     onChange(next);
     if (val && idx < length - 1) inputsRef.current[idx+1]?.focus();
   };
+  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const text = e.clipboardData.getData('text').replace(/\D/g,'').slice(0,length);
+    if (!text) return;
+    e.preventDefault();
+    const next = [...value];
+    for (let i=0;i<length;i++) next[i] = text[i]||'';
+    onChange(next);
+    const focusIndex = Math.min(text.length, length-1);
+    inputsRef.current[focusIndex]?.focus();
+  };
   const handleKeyDown = (idx: number, e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Backspace' && !value[idx] && idx > 0) inputsRef.current[idx-1]?.focus();
   };
 
   return (
-    <div className={`flex justify-center gap-2 ${className||''}`}>
+  <div className={`flex justify-center gap-2 ${className||''}`} onPaste={handlePaste}>
       {Array.from({ length }).map((_,i)=>(
         <input
           key={i}

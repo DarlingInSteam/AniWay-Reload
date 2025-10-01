@@ -5,31 +5,56 @@
   <title>AniWay · Подтверждение регистрации</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body{margin:0;padding:0;background:#0F172A;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:#F1F5F9;}
-    .container{max-width:560px;margin:0 auto;padding:32px;}
-    .panel{background:#1E293B;border:1px solid #334155;border-radius:12px;padding:32px;}
-    h1{margin:0 0 16px;font-size:22px;font-weight:600;letter-spacing:.5px;}
-    p{margin:0 0 16px;line-height:1.5;}
-    .code{font-size:32px;letter-spacing:8px;font-weight:700;color:#6366F1;text-align:center;margin:24px 0 8px;font-family:ui-monospace,monospace;}
-    .meta{font-size:12px;color:#94A3B8;text-align:center;margin-bottom:24px;}
-    .footer{margin-top:32px;text-align:center;font-size:11px;color:#94A3B8;line-height:1.4;}
-    a{color:#6366F1;text-decoration:none;}a:hover{text-decoration:underline;}
+    /* Base reset */
+  body{margin:0;padding:0;-webkit-text-size-adjust:100%;background:#F5F7FA !important;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:#1E293B;}
+    table{border-collapse:collapse;border-spacing:0;}
+    img{border:0;line-height:100%;outline:none;text-decoration:none;}
+    /* Layout */
+    .wrapper{width:100%;background:#F5F7FA;padding:32px 12px;}
+    .content{max-width:600px;margin:0 auto;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:16px;overflow:hidden;box-shadow:0 4px 12px rgba(15,23,42,0.06);} 
+    .header{padding:28px 40px 8px 40px;text-align:center;background:linear-gradient(135deg,#6366F1,#8B5CF6);}
+    .header h1{margin:12px 0 0;font-size:20px;font-weight:600;letter-spacing:.5px;color:#FFFFFF;}
+    .brand-icon{display:inline-block;background:#FFFFFF0D;border:1px solid #FFFFFF1A;padding:12px;border-radius:14px;backdrop-filter:blur(4px);}    
+    .inner{padding:32px 40px 40px;}
+    h2{margin:0 0 18px;font-size:22px;font-weight:600;letter-spacing:.3px;color:#1E293B;}
+    p{margin:0 0 16px;line-height:1.55;font-size:15px;}
+    .code-box{background:#F1F5F9;border:1px solid #E2E8F0;border-radius:14px;padding:28px 10px;margin:28px 0 12px;text-align:center;}
+    .code{font-size:36px;letter-spacing:10px;font-weight:700;color:#4F46E5;font-family:ui-monospace,Consolas,monospace;}
+    .ttl{font-size:12px;letter-spacing:.5px;color:#64748B;margin-top:10px;text-transform:uppercase;}
+    .note{font-size:12px;color:#64748B;line-height:1.5;margin-top:28px;}
+    .divider{height:1px;background:#E2E8F0;margin:36px 0;}
+    .footer{padding:0 40px 36px;text-align:center;font-size:11px;color:#64748B;line-height:1.5;}
+    a{color:#4F46E5;text-decoration:none;font-weight:500;}a:hover{text-decoration:underline;}
+    @media (max-width:620px){
+      .content{border-radius:0;}
+      .inner{padding:28px 22px 36px;}
+      .header{padding:24px 20px 4px;}
+      .code{font-size:30px;letter-spacing:8px;}
+    }
   </style>
 </head>
 <body>
-<div class="container">
-  <div style="text-align:center;margin-bottom:24px">
-    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#6366F1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
+  <div class="wrapper">
+    <div class="content">
+      <div class="header">
+        <div class="brand-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
+        </div>
+        <h1>AniWay</h1>
+      </div>
+      <div class="inner">
+        <h2>Подтверждение регистрации</h2>
+        <p>Вы запросили создание аккаунта на платформе AniWay. Чтобы завершить процесс, введите одноразовый код ниже в течение ограниченного времени.</p>
+        <div class="code-box">
+          <div class="code">{{CODE}}</div>
+          <div class="ttl">Код активен примерно {{TTL_MINUTES}} мин.</div>
+        </div>
+        <p style="font-size:14px;margin-top:24px;">Если вы не отправляли этот запрос — просто проигнорируйте письмо. Ваш адрес мог быть введён другим пользователем по ошибке.</p>
+        <div class="divider"></div>
+        <p class="note">Никогда не делитесь кодом с третьими лицами. Команда поддержки AniWay никогда не попросит у вас этот код.<br/>Это автоматическое уведомление — отвечать на него не нужно.</p>
+      </div>
+      <div class="footer">© AniWay. Все права защищены.<br/>Вы получили это письмо, потому что на сайте была инициирована регистрация с вашим email.</div>
+    </div>
   </div>
-  <div class="panel">
-    <h1>Подтверждение регистрации</h1>
-    <p>Вы запросили создание аккаунта на платформе AniWay.</p>
-    <p>Для завершения регистрации введите код:</p>
-    <div class="code">{{CODE}}</div>
-    <div class="meta">Срок действия: ~{{TTL_MINUTES}} мин.</div>
-    <p style="font-size:13px;color:#94A3B8">Если вы не отправляли этот запрос — проигнорируйте письмо.<br/>Не делитесь этим кодом.</p>
-  </div>
-  <div class="footer">Это автоматическое письмо. Ответы не читаются.<br/>© AniWay</div>
-</div>
 </body>
 </html>
