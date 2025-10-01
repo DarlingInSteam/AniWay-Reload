@@ -66,75 +66,50 @@ export function MobileNavBar() {
     <nav
       ref={navRef}
       className={cn(
-        'md:hidden fixed bottom-0 inset-x-0 z-[60] backdrop-blur-2xl border-t border-white/15 bg-[#07090d]/95',
-        'supports-[backdrop-filter]:bg-[#07090dcc] transition-shadow',
-        hasScrolled && 'shadow-[0_-6px_28px_-6px_rgba(0,0,0,0.85)]'
+        'md:hidden fixed bottom-0 inset-x-0 z-[60] backdrop-blur-xl border-t border-white/20 bg-[#0b0d11]/95 transition-shadow',
+        hasScrolled && 'shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.75)]'
       )}
       style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 4px)' }}
     >
-      <div className="grid grid-cols-5 items-stretch px-1 py-1 gap-0 relative select-none">
-        {/* Left group (may contain 1-2 items) */}
-        <div className="flex items-stretch justify-start">
-          {primaryLeft.map(item => {
-            const Icon = item.icon; const active = item.match(location.pathname)
-            return (
-              <NavLink key={item.to} to={item.to} className={({isActive})=> cn(
-                'flex-1 flex flex-col items-center justify-center text-[10px] gap-0.5 min-w-[54px] px-1',
-                'text-white/55 hover:text-white',
-                (isActive || active) && 'text-white'
-              )}>
-                <div className={cn('w-9 h-9 flex items-center justify-center rounded-full transition-colors', (active) && 'bg-white/10 ring-1 ring-white/15')}>
+      <div className="flex items-stretch justify-between gap-0 px-1 py-1 select-none">
+        {[
+          ...primaryLeft,
+          { to: '/search', icon: Search, label: 'Поиск', match:(p:string)=> p.startsWith('/search') },
+          ...primaryRight,
+          { to: '__more__', icon: MoreHorizontal, label: 'Ещё', match:()=> false, more:true }
+        ].map(item => {
+          const Icon = item.icon
+          const active = item.more ? moreOpen : item.match(location.pathname)
+          const isMore = !!item.more
+          const onClick = (e: any) => {
+            if(isMore){ e.preventDefault(); setMoreOpen(o=>!o); return }
+            if(isMore) return
+          }
+          return (
+            <div key={item.to+item.label} className="flex-1 flex">
+              <NavLink
+                to={isMore ? '#' : item.to}
+                onClick={onClick}
+                className={({isActive}) => cn(
+                  'flex-1 flex flex-col items-center justify-center gap-0.5 min-w-[54px] px-1 text-[10px]',
+                  'text-white/55 hover:text-white transition-colors',
+                  (isActive || active) && 'text-white'
+                )}
+              >
+                <div className={cn(
+                  'relative w-9 h-9 flex items-center justify-center rounded-full transition-all',
+                  (active) && 'bg-white/10 ring-1 ring-white/15'
+                )}>
                   <Icon className="w-5 h-5" />
+                  {item.to === '/notifications' && unread>0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-5 px-1 rounded-full bg-sky-500 text-[10px] font-semibold flex items-center justify-center text-white ring-2 ring-[#0b0d11]">{unread>99?'99+':unread}</span>
+                  )}
                 </div>
                 <span className="leading-none">{item.label}</span>
               </NavLink>
-            )
-          })}
-        </div>
-        {/* Center search (dedicated col) */}
-        <div className="flex items-stretch justify-center">
-          <NavLink to="/search" className={({isActive})=> cn(
-            'flex flex-col items-center justify-center text-[10px] gap-0.5 min-w-[54px] px-1',
-            'text-white/55 hover:text-white',
-            (isActive || location.pathname.startsWith('/search')) && 'text-white'
-          )}>
-            <div className={cn('w-9 h-9 flex items-center justify-center rounded-full transition-colors', location.pathname.startsWith('/search') && 'bg-white/10 ring-1 ring-white/15')}>
-              <Search className="w-5 h-5" />
             </div>
-            <span className="leading-none">Поиск</span>
-          </NavLink>
-        </div>
-        {/* Right cluster (notifications, profile/login, more) */}
-        <div className="col-span-3 flex items-stretch justify-end">
-          {primaryRight.map(item => { const Icon = item.icon; const active = item.match(location.pathname); return (
-            <NavLink key={item.to} to={item.to} className={({isActive})=> cn(
-              'flex flex-col items-center justify-center text-[10px] gap-0.5 min-w-[54px] px-1',
-              'text-white/55 hover:text-white',
-              (isActive || active) && 'text-white'
-            )}>
-              <div className={cn('relative w-9 h-9 flex items-center justify-center rounded-full transition-colors', active && 'bg-white/10 ring-1 ring-white/15')}>
-                <Icon className="w-5 h-5" />
-                {item.to==='/notifications' && unread>0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] h-5 px-1 rounded-full bg-sky-500 text-[10px] font-semibold flex items-center justify-center text-white ring-2 ring-[#07090d]">{unread>99?'99+':unread}</span>
-                )}
-              </div>
-              <span className="leading-none">{item.label}</span>
-            </NavLink>
-          )})}
-          <button
-            data-more-btn
-            onClick={()=> setMoreOpen(o=> !o)}
-            className={cn(
-              'flex flex-col items-center justify-center text-[10px] gap-0.5 min-w-[54px] px-1 text-white/55 hover:text-white transition-colors',
-              moreOpen && 'text-white'
-            )}
-          >
-            <div className={cn('w-9 h-9 flex items-center justify-center rounded-full transition-colors', moreOpen && 'bg-white/10 ring-1 ring-white/15')}>
-              <MoreHorizontal className="w-5 h-5" />
-            </div>
-            <span className="leading-none">Ещё</span>
-          </button>
-        </div>
+          )
+        })}
       </div>
       {/* Overlay for sheet */}
   <div className={cn('fixed inset-0 z-[58] md:hidden transition-opacity duration-300', moreOpen ? 'opacity-80 pointer-events-auto' : 'opacity-0 pointer-events-none')} style={{background:'radial-gradient(circle at 50% 90%, rgba(0,0,0,0.85), rgba(0,0,0,0.92) 60%, rgba(0,0,0,0.95))'}} />
