@@ -63,56 +63,84 @@ export function MobileNavBar() {
   }, [moreOpen])
 
   return (
-    <nav ref={navRef} className={cn('md:hidden fixed bottom-0 inset-x-0 z-[60]','backdrop-blur-xl border-t border-white/30 bg-[#0b0b10]/98 transition-shadow', hasScrolled && 'shadow-[0_-4px_18px_-4px_rgba(0,0,0,0.7)]')}
-      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 4px)' }}>
-      <div className="flex items-stretch justify-between px-2 py-1">
-        <ul className="flex items-stretch">
+    <nav
+      ref={navRef}
+      className={cn(
+        'md:hidden fixed bottom-0 inset-x-0 z-[60] backdrop-blur-2xl border-t border-white/15 bg-[#07090d]/95',
+        'supports-[backdrop-filter]:bg-[#07090dcc] transition-shadow',
+        hasScrolled && 'shadow-[0_-6px_28px_-6px_rgba(0,0,0,0.85)]'
+      )}
+      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 4px)' }}
+    >
+      <div className="grid grid-cols-5 items-stretch px-1 py-1 gap-0 relative select-none">
+        {/* Left group (may contain 1-2 items) */}
+        <div className="flex items-stretch justify-start">
           {primaryLeft.map(item => {
             const Icon = item.icon; const active = item.match(location.pathname)
             return (
-              <li key={item.to}>
-                <NavLink to={item.to} className={cn('px-2 flex flex-col items-center justify-center text-[10px] gap-0.5 min-w-[56px]', 'text-white/55 hover:text-white', active && 'text-white')}> 
-                  <div className={cn('w-9 h-9 flex items-center justify-center rounded-full', active && 'bg-white/10 ring-1 ring-white/15')}><Icon className="w-5 h-5"/></div>
-                  <span className="leading-none">{item.label}</span>
-                </NavLink>
-              </li>)
-          })}
-        </ul>
-        {/* Center Search button (uniform) */}
-        <NavLink to="/search" className={cn('px-2 flex flex-col items-center justify-center text-[10px] gap-0.5 min-w-[56px]', 'text-white/55 hover:text-white', location.pathname.startsWith('/search') && 'text-white')}>
-          <div className={cn('w-9 h-9 flex items-center justify-center rounded-full', location.pathname.startsWith('/search') && 'bg-white/10 ring-1 ring-white/15')}>
-            <Search className="w-5 h-5" />
-          </div>
-          <span className="leading-none">Поиск</span>
-        </NavLink>
-        <ul className="flex items-stretch">
-          {primaryRight.map(item => { const Icon = item.icon; const active = item.match(location.pathname); return (
-            <li key={item.to}>
-              <NavLink to={item.to} className={cn('px-2 flex flex-col items-center justify-center text-[10px] gap-0.5 min-w-[56px]', 'text-white/55 hover:text-white', active && 'text-white')}>
-                <div className={cn('relative w-9 h-9 flex items-center justify-center rounded-full', active && 'bg-white/10 ring-1 ring-white/15')}>
+              <NavLink key={item.to} to={item.to} className={({isActive})=> cn(
+                'flex-1 flex flex-col items-center justify-center text-[10px] gap-0.5 min-w-[54px] px-1',
+                'text-white/55 hover:text-white',
+                (isActive || active) && 'text-white'
+              )}>
+                <div className={cn('w-9 h-9 flex items-center justify-center rounded-full transition-colors', (active) && 'bg-white/10 ring-1 ring-white/15')}>
                   <Icon className="w-5 h-5" />
-                  {item.to==='/notifications' && unread>0 && (
-                    <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1.5 rounded-full bg-sky-500 text-[10px] font-semibold flex items-center justify-center text-white ring-2 ring-manga-black">{unread>99?'99+':unread}</span>
-                  )}
                 </div>
                 <span className="leading-none">{item.label}</span>
               </NavLink>
-            </li>) })}
-          <li>
-            <button data-more-btn onClick={()=> setMoreOpen(o=> !o)} className={cn('px-2 flex flex-col items-center justify-center text-[10px] gap-0.5 min-w-[56px] text-white/55 hover:text-white', moreOpen && 'text-white')}> 
-              <div className={cn('w-9 h-9 flex items-center justify-center rounded-full', moreOpen && 'bg-white/10 ring-1 ring-white/15')}>
-                <MoreHorizontal className="w-5 h-5" />
+            )
+          })}
+        </div>
+        {/* Center search (dedicated col) */}
+        <div className="flex items-stretch justify-center">
+          <NavLink to="/search" className={({isActive})=> cn(
+            'flex flex-col items-center justify-center text-[10px] gap-0.5 min-w-[54px] px-1',
+            'text-white/55 hover:text-white',
+            (isActive || location.pathname.startsWith('/search')) && 'text-white'
+          )}>
+            <div className={cn('w-9 h-9 flex items-center justify-center rounded-full transition-colors', location.pathname.startsWith('/search') && 'bg-white/10 ring-1 ring-white/15')}>
+              <Search className="w-5 h-5" />
+            </div>
+            <span className="leading-none">Поиск</span>
+          </NavLink>
+        </div>
+        {/* Right cluster (notifications, profile/login, more) */}
+        <div className="col-span-3 flex items-stretch justify-end">
+          {primaryRight.map(item => { const Icon = item.icon; const active = item.match(location.pathname); return (
+            <NavLink key={item.to} to={item.to} className={({isActive})=> cn(
+              'flex flex-col items-center justify-center text-[10px] gap-0.5 min-w-[54px] px-1',
+              'text-white/55 hover:text-white',
+              (isActive || active) && 'text-white'
+            )}>
+              <div className={cn('relative w-9 h-9 flex items-center justify-center rounded-full transition-colors', active && 'bg-white/10 ring-1 ring-white/15')}>
+                <Icon className="w-5 h-5" />
+                {item.to==='/notifications' && unread>0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-5 px-1 rounded-full bg-sky-500 text-[10px] font-semibold flex items-center justify-center text-white ring-2 ring-[#07090d]">{unread>99?'99+':unread}</span>
+                )}
               </div>
-              <span className="leading-none">Ещё</span>
-            </button>
-          </li>
-        </ul>
+              <span className="leading-none">{item.label}</span>
+            </NavLink>
+          )})}
+          <button
+            data-more-btn
+            onClick={()=> setMoreOpen(o=> !o)}
+            className={cn(
+              'flex flex-col items-center justify-center text-[10px] gap-0.5 min-w-[54px] px-1 text-white/55 hover:text-white transition-colors',
+              moreOpen && 'text-white'
+            )}
+          >
+            <div className={cn('w-9 h-9 flex items-center justify-center rounded-full transition-colors', moreOpen && 'bg-white/10 ring-1 ring-white/15')}>
+              <MoreHorizontal className="w-5 h-5" />
+            </div>
+            <span className="leading-none">Ещё</span>
+          </button>
+        </div>
       </div>
       {/* Overlay for sheet */}
-      <div className={cn('fixed inset-0 z-[58] md:hidden transition-opacity duration-300', moreOpen ? 'opacity-80 pointer-events-auto' : 'opacity-0 pointer-events-none')} style={{background:'radial-gradient(circle at 50% 90%, rgba(0,0,0,0.85), rgba(0,0,0,0.92) 60%, rgba(0,0,0,0.95))'}} />
+  <div className={cn('fixed inset-0 z-[58] md:hidden transition-opacity duration-300', moreOpen ? 'opacity-80 pointer-events-auto' : 'opacity-0 pointer-events-none')} style={{background:'radial-gradient(circle at 50% 90%, rgba(0,0,0,0.85), rgba(0,0,0,0.92) 60%, rgba(0,0,0,0.95))'}} />
       {/* Expandable sheet */}
-      <div ref={sheetRef} className={cn('absolute left-0 right-0 bottom-full pb-4 z-[66]', moreOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-3 pointer-events-none', 'transition-all duration-300')}> 
-        <div className="mx-4 rounded-2xl overflow-hidden border border-white/40 bg-[#050507] shadow-[0_8px_48px_-4px_rgba(0,0,0,0.85)]">
+      <div ref={sheetRef} className={cn('absolute left-0 right-0 bottom-full pb-4 z-[66]', moreOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-2 pointer-events-none', 'transition-all duration-300')}> 
+        <div className="mx-4 rounded-2xl overflow-hidden border border-white/25 bg-[#050507]/95 backdrop-blur-xl shadow-[0_8px_42px_-6px_rgba(0,0,0,0.85)]">
           <div className="flex items-center justify-between p-3 border-b border-white/10">
             <span className="text-xs font-semibold text-white/70">Быстрые разделы</span>
             <button onClick={()=> setMoreOpen(false)} className="p-1 rounded-lg hover:bg-white/10"><ChevronUp className="w-4 h-4 text-white/60"/></button>
