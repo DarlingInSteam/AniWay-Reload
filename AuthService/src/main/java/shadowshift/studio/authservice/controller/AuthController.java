@@ -180,8 +180,11 @@ public class AuthController {
             if (authLoginProperties.isEnabled()) {
                 // Validate credentials only
                 authService.authenticateCredentialsOnly(request.getUsername(), request.getPassword());
-                // Load entity for email
-                var userEntity = userService.findByUsername(request.getUsername());
+                // Load entity for email (username OR email)
+                var userEntity = userService.findByUsernameOrEmail(request.getUsername());
+                if (userEntity == null) {
+                    return ResponseEntity.badRequest().body(Map.of("error", "User not found"));
+                }
                 var v = emailVerificationService.requestCode(userEntity.getEmail(), shadowshift.studio.authservice.entity.EmailVerification.Purpose.LOGIN);
                 return ResponseEntity.ok(Map.of(
                         "twoStep", true,
@@ -205,8 +208,11 @@ public class AuthController {
             authService.authenticateCredentialsOnly(request.getUsername(), request.getPassword());
             // Validate credentials already done; ensure user exists (throws if absent)
             userService.loadUserByUsername(request.getUsername());
-            // Retrieve entity to access email
-            var userEntity = userService.findByUsername(request.getUsername());
+            // Retrieve entity to access email (username OR email)
+            var userEntity = userService.findByUsernameOrEmail(request.getUsername());
+            if (userEntity == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "User not found"));
+            }
             var v = emailVerificationService.requestCode(userEntity.getEmail(), shadowshift.studio.authservice.entity.EmailVerification.Purpose.LOGIN);
             return ResponseEntity.ok(Map.of("requestId", v.getId(), "ttlSeconds", emailVerificationService.getRemainingTtlSeconds(v)));
         } catch (IllegalArgumentException e) {
