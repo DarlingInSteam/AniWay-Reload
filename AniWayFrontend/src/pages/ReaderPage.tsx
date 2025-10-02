@@ -764,12 +764,12 @@ export function ReaderPage() {
               </div>
             </div>
 
-            {/* Center - chapter navigation + clickable index */}
-            <div className="flex items-center justify-center text-white space-x-3 min-w-0">
+            {/* Center - chapter navigation + clickable index (fixed layout) */}
+            <div className="flex items-center justify-center text-white space-x-2 sm:space-x-3 min-w-0">
               <button
                 disabled={!previousChapter}
                 onClick={navigateToPreviousChapter}
-                className={cn('p-2 rounded-lg border border-white/10 hover:bg-white/10 transition disabled:opacity-30 disabled:cursor-not-allowed')}
+                className={cn('p-1.5 sm:p-2 rounded-lg border border-white/10 hover:bg-white/10 transition disabled:opacity-30 disabled:cursor-not-allowed')}
                 title="Предыдущая глава"
               >
                 <ChevronLeft className="h-5 w-5" />
@@ -778,11 +778,8 @@ export function ReaderPage() {
                 <button
                   ref={titleContainerRef}
                   onClick={() => setShowChapterList(true)}
-                  className="font-semibold text-base hover:text-primary transition-colors w-full max-w-[64vw] sm:max-w-[460px] text-center"
-                  style={{
-                    // Give it a little min width so buttons don't collapse container to near zero
-                    minWidth: '40px'
-                  }}
+                  className="font-semibold text-base hover:text-primary transition-colors w-full max-w-[64vw] sm:max-w-[460px] text-center truncate whitespace-nowrap"
+                  style={{ minWidth: '40px' }}
                   title={chapter ? formatChapterTitle(chapter) : ''}
                 >
                   {finalTitle || (chapter ? formatChapterTitle(chapter) : '')}
@@ -800,7 +797,7 @@ export function ReaderPage() {
               <button
                 disabled={!nextChapter}
                 onClick={navigateToNextChapter}
-                className={cn('p-2 rounded-lg border border-white/10 hover:bg-white/10 transition disabled:opacity-30 disabled:cursor-not-allowed')}
+                className={cn('p-1.5 sm:p-2 rounded-lg border border-white/10 hover:bg-white/10 transition disabled:opacity-30 disabled:cursor-not-allowed')}
                 title="Следующая глава"
               >
                 <ChevronRight className="h-5 w-5" />
