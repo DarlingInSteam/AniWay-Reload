@@ -27,7 +27,6 @@ const toneStyles: Record<SummaryTone, { card: string; icon: string }> = {
 export function TopsHero({ summaryCards }: { summaryCards: SummaryCard[] }) {
   return (
     <GlassPanel className="relative overflow-hidden border-white/10 bg-background/70 p-6 md:p-8">
-      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.18),transparent_55%)]" aria-hidden />
       <div className="relative z-10">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           {summaryCards.map((card) => {
