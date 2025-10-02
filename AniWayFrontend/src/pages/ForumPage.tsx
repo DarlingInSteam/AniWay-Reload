@@ -163,7 +163,7 @@ export function ForumPage(){
           </div>
         )}
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,2.1fr),minmax(260px,1fr)]">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,2.1fr),minmax(260px,1fr)] xl:items-start">
           <div className="space-y-4">
             <PinnedThreads threads={pinned} />
             {highlightThreads.length > 0 && (
@@ -186,19 +186,19 @@ export function ForumPage(){
                 </div>
               </div>
             )}
+
+            <div className="space-y-4">
+              {threadsLoading && !allThreads.length && <div className="text-sm text-muted-foreground">Загрузка тем...</div>}
+              <ForumThreadList threads={visible} users={authorUsers} density={density} isAdmin={isAdmin} onPinToggle={handlePinToggle} onDelete={handleDelete} />
+              {hasNextPage && (
+                <div className="pt-2">
+                  <button disabled={isFetchingNextPage} onClick={()=> fetchNextPage()} className="w-full rounded-xl bg-white/5 py-3 text-sm font-medium text-white/80 hover:bg-white/10 disabled:opacity-50">{isFetchingNextPage? 'Загрузка...' : 'Загрузить ещё'}</button>
+                </div>
+              )}
+              {!threadsLoading && !filtered.length && <div className="text-sm text-muted-foreground">Ничего не найдено</div>}
+            </div>
           </div>
           <ForumActivityPanel stats={activityStats} />
-        </div>
-
-        <div className="space-y-4">
-          {threadsLoading && !allThreads.length && <div className="text-sm text-muted-foreground">Загрузка тем...</div>}
-          <ForumThreadList threads={visible} users={authorUsers} density={density} isAdmin={isAdmin} onPinToggle={handlePinToggle} onDelete={handleDelete} />
-          {hasNextPage && (
-            <div className="pt-2">
-              <button disabled={isFetchingNextPage} onClick={()=> fetchNextPage()} className="w-full rounded-xl bg-white/5 py-3 text-sm font-medium text-white/80 hover:bg-white/10 disabled:opacity-50">{isFetchingNextPage? 'Загрузка...' : 'Загрузить ещё'}</button>
-            </div>
-          )}
-          {!threadsLoading && !filtered.length && <div className="text-sm text-muted-foreground">Ничего не найдено</div>}
         </div>
       </div>
     </ForumLayout>
