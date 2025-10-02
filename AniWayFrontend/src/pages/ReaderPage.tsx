@@ -19,7 +19,7 @@ import {
 import { apiClient } from '@/lib/api'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { cn } from '@/lib/utils'
-import { formatChapterTitle, getDisplayChapterNumber } from '@/lib/chapterUtils'
+import { formatChapterTitle, getDisplayChapterNumber, getAdaptiveChapterTitle } from '@/lib/chapterUtils'
 import { useAuth } from '@/contexts/AuthContext'
 import { useReadingProgress } from '@/hooks/useProgress'
 import { CommentSection } from '@/components/comments/CommentSection'
@@ -145,6 +145,7 @@ export function ReaderPage() {
   const touchStartRef = useRef<{x:number,y:number,time:number}|null>(null)
   const touchMovedRef = useRef<boolean>(false)
   const [showSideComments, setShowSideComments] = useState(false)
+  const [viewportWidth, setViewportWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1024)
 
   const { user } = useAuth()
   const queryClient = useQueryClient()
@@ -163,6 +164,15 @@ export function ReaderPage() {
     } catch (e) {
       // ignore storage errors (e.g., privacy mode)
     }
+  }, [])
+
+  // Track viewport width for adaptive title
+  useEffect(() => {
+    function handleResize() {
+      setViewportWidth(window.innerWidth)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
   }, [])
 
   // Auto-open side comments panel if navigating directly to a comment anchor (#comment-...)
@@ -724,7 +734,7 @@ export function ReaderPage() {
                   className="font-semibold text-base hover:text-primary transition-colors w-full max-w-[64vw] sm:max-w-[460px] text-center truncate"
                   title={formatChapterTitle(chapter)}
                 >
-                  {formatChapterTitle(chapter)}
+                  {getAdaptiveChapterTitle(chapter, viewportWidth)}
                 </button>
                 <button
                   onClick={() => setShowChapterList(true)}
