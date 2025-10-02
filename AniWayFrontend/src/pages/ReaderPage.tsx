@@ -738,18 +738,32 @@ export function ReaderPage() {
         <div className="container mx-auto px-4 h-16">
           <div className="grid grid-cols-3 items-center h-full">
             {/* Left side - фиксированная ширина */}
-            <div className="flex items-center space-x-4 justify-start">
+            <div className="flex items-center space-x-3 sm:space-x-4 justify-start min-w-0">
+              {/* Back button (always) */}
               <button
                 onClick={() => navigate(-1)}
                 className="p-2 rounded-full hover:bg-white/10 text-white transition-colors"
+                aria-label="Назад"
               >
                 <ArrowLeft className="h-5 w-5" />
               </button>
-
-              <div className="hidden md:flex items-center space-x-2">
+              {/* Mobile home->manga button (shows only on < md) when manga exists */}
+              {manga && (
+                <Link
+                  to={`/manga/${manga.id}`}
+                  className="md:hidden p-2 rounded-full hover:bg-white/10 text-white transition-colors"
+                  aria-label="Страница манги"
+                  title={manga.title}
+                >
+                  <Home className="h-5 w-5" />
+                </Link>
+              )}
+              {/* Desktop section with site home + manga title */}
+              <div className="hidden md:flex items-center space-x-2 min-w-0">
                 <Link
                   to="/"
                   className="p-2 rounded-full hover:bg-white/10 text-white transition-colors"
+                  aria-label="Главная"
                 >
                   <Home className="h-5 w-5" />
                 </Link>
@@ -757,6 +771,7 @@ export function ReaderPage() {
                   <Link
                     to={`/manga/${manga.id}`}
                     className="text-white hover:text-primary transition-colors truncate max-w-[150px]"
+                    title={manga.title}
                   >
                     {manga.title}
                   </Link>
