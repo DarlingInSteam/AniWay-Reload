@@ -49,11 +49,11 @@ export function CommentsSection({ query, formatter, commentAuthorMap, onNavigate
         return (
           <GlassPanel
             key={comment.id || index}
-            className="relative overflow-hidden border-white/10 bg-background/75 p-5 transition hover:border-emerald-400/35 hover:bg-emerald-500/10"
+            className="relative overflow-hidden border-white/10 bg-background/75 p-5 transition-colors hover:border-white/20 hover:bg-white/10 active:bg-white/12"
           >
             <div className="relative z-10 space-y-4">
               <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-sm font-semibold text-primary">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-sm font-semibold text-white/80">
                   {index + 1}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -72,7 +72,7 @@ export function CommentsSection({ query, formatter, commentAuthorMap, onNavigate
                           ? 'bg-emerald-500/25 text-emerald-100'
                           : trust < 0
                             ? 'bg-rose-600/35 text-rose-100'
-                            : 'bg-primary/20 text-primary'
+                            : 'bg-white/10 text-white/70'
                       }`}
                     >
                       Trust {formatter.integer.format(trust)}

@@ -39,11 +39,11 @@ export function WallSection({ query, formatter, wallAuthorMap, wallMangaMap, onN
         return (
           <GlassPanel
             key={post.id || index}
-            className="relative overflow-hidden border-white/10 bg-background/75 p-5 transition hover:border-amber-400/35 hover:bg-amber-500/10"
+            className="relative overflow-hidden border-white/10 bg-background/75 p-5 transition-colors hover:border-white/20 hover:bg-white/10 active:bg-white/12"
           >
             <div className="relative z-10 space-y-4">
               <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-sm font-semibold text-primary">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-sm font-semibold text-white/80">
                   {index + 1}
                 </div>
                 <div className="min-w-0 flex-1 space-y-2">
@@ -76,13 +76,13 @@ export function WallSection({ query, formatter, wallAuthorMap, wallMangaMap, onN
                         type="button"
                         key={`${post.id}-${mangaId}`}
                         onClick={() => onNavigate(`/manga/${manga.id}#wall-post-${post.id}`)}
-                        className="glass-panel group flex items-center gap-3 rounded-2xl border-white/15 bg-background/70 p-3 text-left transition hover:border-primary/35 hover:bg-primary/10"
+                        className="glass-panel group flex items-center gap-3 rounded-2xl border-white/15 bg-background/70 p-3 text-left transition-colors hover:border-white/20 hover:bg-white/10 active:bg-white/12"
                       >
                         <div className="flex h-14 w-12 items-center justify-center overflow-hidden rounded-lg bg-white/10 text-[10px] text-white/40">
                           {manga.cover ? <img src={manga.cover} alt={manga.title} className="h-full w-full object-cover" /> : '—'}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-xs font-semibold text-white group-hover:text-primary">{manga.title}</div>
+                          <div className="truncate text-xs font-semibold text-white group-hover:text-white">{manga.title}</div>
                           <div className="text-[11px] text-white/55">Манга</div>
                         </div>
                       </button>

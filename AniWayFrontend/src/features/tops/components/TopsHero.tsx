@@ -1,27 +1,15 @@
 import type { SummaryCard, SummaryTone } from '../types'
 import { GlassPanel } from './primitives'
 
+const neutralCardHover = 'hover:border-white/20 hover:bg-white/10'
+const neutralIcon = 'bg-white/10 text-white/80'
+
 const toneStyles: Record<SummaryTone, { card: string; icon: string }> = {
-  primary: {
-    card: 'hover:border-primary/35 hover:bg-primary/10',
-    icon: 'bg-primary/20 text-primary'
-  },
-  rose: {
-    card: 'hover:border-rose-400/35 hover:bg-rose-500/10',
-    icon: 'bg-rose-500/20 text-rose-200'
-  },
-  sky: {
-    card: 'hover:border-sky-400/35 hover:bg-sky-500/10',
-    icon: 'bg-sky-500/20 text-sky-200'
-  },
-  emerald: {
-    card: 'hover:border-emerald-400/35 hover:bg-emerald-500/10',
-    icon: 'bg-emerald-500/20 text-emerald-200'
-  },
-  amber: {
-    card: 'hover:border-amber-400/35 hover:bg-amber-500/10',
-    icon: 'bg-amber-500/20 text-amber-200'
-  }
+  primary: { card: neutralCardHover, icon: neutralIcon },
+  rose: { card: neutralCardHover, icon: neutralIcon },
+  sky: { card: neutralCardHover, icon: neutralIcon },
+  emerald: { card: neutralCardHover, icon: neutralIcon },
+  amber: { card: neutralCardHover, icon: neutralIcon }
 }
 
 export function TopsHero({ summaryCards }: { summaryCards: SummaryCard[] }) {

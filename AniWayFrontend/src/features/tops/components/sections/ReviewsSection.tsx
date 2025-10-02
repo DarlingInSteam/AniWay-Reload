@@ -39,7 +39,7 @@ export function ReviewsSection({ query, formatter, reviewUserMap, reviewMangaMap
         return (
           <GlassPanel
             key={review.id || index}
-            className="relative overflow-hidden border-white/10 bg-background/75 p-5 transition hover:border-rose-400/35 hover:bg-rose-500/10"
+            className="relative overflow-hidden border-white/10 bg-background/75 p-5 transition-colors hover:border-white/20 hover:bg-white/10 active:bg-white/12"
           >
             <div className="relative z-10 space-y-4">
               <div className="flex items-start gap-3">
@@ -71,7 +71,7 @@ export function ReviewsSection({ query, formatter, reviewUserMap, reviewMangaMap
                           ? 'bg-emerald-500/25 text-emerald-100'
                           : trust < 0
                             ? 'bg-rose-600/35 text-rose-100'
-                            : 'bg-primary/20 text-primary'
+                            : 'bg-white/10 text-white/70'
                       }`}
                     >
                       Trust {formatter.integer.format(trust)}
@@ -88,13 +88,13 @@ export function ReviewsSection({ query, formatter, reviewUserMap, reviewMangaMap
                 <button
                   type="button"
                   onClick={() => onNavigate(`/manga/${review.mangaId}#review-${review.id}`)}
-                  className="glass-panel group flex items-center gap-3 rounded-2xl border-white/15 bg-background/70 p-3 text-left transition hover:border-primary/35 hover:bg-primary/10"
+                  className="glass-panel group flex items-center gap-3 rounded-2xl border-white/15 bg-background/70 p-3 text-left transition-colors hover:border-white/20 hover:bg-white/10 active:bg-white/12"
                 >
                   <div className="flex h-16 w-12 items-center justify-center overflow-hidden rounded-xl bg-white/10 text-[10px] text-white/40">
                     {manga.cover ? <img src={manga.cover} alt={manga.title} className="h-full w-full object-cover" /> : '—'}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-xs font-semibold text-white group-hover:text-primary">
+                    <div className="truncate text-xs font-semibold text-white group-hover:text-white">
                       {manga.title || review.mangaTitle || `Манга #${review.mangaId}`}
                     </div>
                     <div className="text-[11px] text-white/55">Перейти к манге</div>

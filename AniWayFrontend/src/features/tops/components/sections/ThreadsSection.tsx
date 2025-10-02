@@ -32,11 +32,11 @@ export function ThreadsSection({ query, formatter, threadAuthorMap, onNavigate }
         return (
           <GlassPanel
             key={thread.id || index}
-            className="relative overflow-hidden border-white/10 bg-background/75 p-5 transition hover:border-sky-400/35 hover:bg-sky-500/10"
+            className="relative overflow-hidden border-white/10 bg-background/75 p-5 transition-colors hover:border-white/20 hover:bg-white/10 active:bg-white/12"
           >
             <div className="relative z-10 space-y-4">
               <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-sm font-semibold text-primary">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-sm font-semibold text-white/80">
                   {index + 1}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -61,7 +61,7 @@ export function ThreadsSection({ query, formatter, threadAuthorMap, onNavigate }
                 <button
                   type="button"
                   onClick={() => thread.id && onNavigate(`/forum/thread/${thread.id}#from-tops`)}
-                  className="ml-auto text-[11px] font-semibold text-primary underline decoration-dotted decoration-primary/60 transition hover:text-white"
+                  className="ml-auto text-[11px] font-semibold text-white/80 underline decoration-dotted decoration-white/50 transition-colors hover:text-white"
                 >
                   Читать тему
                 </button>

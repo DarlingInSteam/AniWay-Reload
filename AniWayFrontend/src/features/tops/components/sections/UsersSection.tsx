@@ -64,10 +64,10 @@ export function UsersSection({ query, userMetric, userLevelMap, formatter, onNav
           return (
             <GlassPanel
               key={user.id || index}
-              className="group relative overflow-hidden border-white/10 bg-background/75 p-5 text-left transition hover:border-primary/35 hover:bg-primary/10"
+              className="group relative cursor-pointer overflow-hidden border-white/10 bg-background/75 p-5 text-left transition-colors hover:border-white/20 hover:bg-white/10 active:bg-white/12"
               onClick={() => user.id && onNavigateToProfile(user.id)}
             >
-              <div className="absolute inset-0 bg-primary/20 opacity-0 transition-opacity duration-200 group-hover:opacity-100" aria-hidden />
+              <div className="absolute inset-0 bg-white/12 opacity-0 transition-opacity duration-200 group-hover:opacity-100" aria-hidden />
               <div className="relative z-10 space-y-5">
                 <div className="flex items-start gap-4">
                   <div className="relative">
@@ -78,7 +78,7 @@ export function UsersSection({ query, userMetric, userLevelMap, formatter, onNav
                         (user.username || '?')[0]
                       )}
                     </div>
-                    <div className="absolute -bottom-2 -right-2 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-background shadow-lg">
+                    <div className="absolute -bottom-2 -right-2 flex h-7 w-7 items-center justify-center rounded-full bg-white text-xs font-semibold text-background shadow-lg">
                       {index + 1}
                     </div>
                   </div>
