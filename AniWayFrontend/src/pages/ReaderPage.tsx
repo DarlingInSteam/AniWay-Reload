@@ -19,7 +19,7 @@ import {
 import { apiClient } from '@/lib/api'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { cn } from '@/lib/utils'
-import { formatChapterTitle, getDisplayChapterNumber, getAdaptiveChapterTitle } from '@/lib/chapterUtils'
+import { formatChapterTitle, getDisplayChapterNumber, getAdaptiveChapterTitle, buildChapterTitleVariants } from '@/lib/chapterUtils'
 import { useAuth } from '@/contexts/AuthContext'
 import { useReadingProgress } from '@/hooks/useProgress'
 import { CommentSection } from '@/components/comments/CommentSection'
@@ -146,6 +146,11 @@ export function ReaderPage() {
   const touchMovedRef = useRef<boolean>(false)
   const [showSideComments, setShowSideComments] = useState(false)
   const [viewportWidth, setViewportWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1024)
+  // Local adaptive title component state
+  const titleContainerRef = useRef<HTMLButtonElement|null>(null)
+  const [titleVariantIndex, setTitleVariantIndex] = useState(0) // 0=full,1=medium,2=short,3=minimal (fallback to getAdaptive based on viewport first)
+  const [finalTitle, setFinalTitle] = useState<string>('')
+  const variantsRef = useRef<string[]>([])
 
   const { user } = useAuth()
   const queryClient = useQueryClient()
@@ -166,14 +171,7 @@ export function ReaderPage() {
     }
   }, [])
 
-  // Track viewport width for adaptive title
-  useEffect(() => {
-    function handleResize() {
-      setViewportWidth(window.innerWidth)
-    }
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
+  // (moved) adaptive title effects placed after chapter query
 
   // Auto-open side comments panel if navigating directly to a comment anchor (#comment-...)
   useEffect(() => {
@@ -202,6 +200,54 @@ export function ReaderPage() {
     queryFn: () => apiClient.getChapterById(parseInt(chapterId!)),
     enabled: !!chapterId,
   })
+
+  // Track viewport width for adaptive title
+  useEffect(() => {
+    function handleResize() {
+      setViewportWidth(window.innerWidth)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  // Prepare title variants when chapter or viewport changes
+  useEffect(() => {
+    if (!chapter) return
+    const v = buildChapterTitleVariants(chapter)
+    const adaptive = getAdaptiveChapterTitle(chapter, viewportWidth)
+    variantsRef.current = [v.full, v.medium, v.short, v.minimal]
+    let startIndex = variantsRef.current.findIndex(x => x === adaptive)
+    if (startIndex === -1) startIndex = 0
+    setTitleVariantIndex(startIndex)
+    setFinalTitle(adaptive)
+  }, [chapter, viewportWidth])
+
+  // Measure and downgrade variant until fits
+  useEffect(() => {
+    if (!titleContainerRef.current || !chapter) return
+    const el = titleContainerRef.current
+    const fit = () => {
+      let idx = titleVariantIndex
+      while (idx < variantsRef.current.length) {
+        el.textContent = variantsRef.current[idx]
+        const overflown = el.scrollWidth > el.clientWidth
+        if (!overflown) {
+          setFinalTitle(variantsRef.current[idx])
+          if (idx !== titleVariantIndex) setTitleVariantIndex(idx)
+          break
+        }
+        idx++
+        if (idx === variantsRef.current.length) {
+          setFinalTitle(variantsRef.current[variantsRef.current.length -1])
+          setTitleVariantIndex(variantsRef.current.length -1)
+        }
+      }
+    }
+    const ro = new ResizeObserver(() => fit())
+    ro.observe(el)
+    fit()
+    return () => ro.disconnect()
+  }, [titleVariantIndex, chapter])
 
   const { data: images, isLoading } = useQuery({
     queryKey: ['chapter-images', chapterId],
@@ -730,11 +776,16 @@ export function ReaderPage() {
               </button>
               <div className="flex flex-col items-center min-w-0 max-w-full">
                 <button
+                  ref={titleContainerRef}
                   onClick={() => setShowChapterList(true)}
-                  className="font-semibold text-base hover:text-primary transition-colors w-full max-w-[64vw] sm:max-w-[460px] text-center truncate"
-                  title={formatChapterTitle(chapter)}
+                  className="font-semibold text-base hover:text-primary transition-colors w-full max-w-[64vw] sm:max-w-[460px] text-center"
+                  style={{
+                    // Give it a little min width so buttons don't collapse container to near zero
+                    minWidth: '40px'
+                  }}
+                  title={chapter ? formatChapterTitle(chapter) : ''}
                 >
-                  {getAdaptiveChapterTitle(chapter, viewportWidth)}
+                  {finalTitle || (chapter ? formatChapterTitle(chapter) : '')}
                 </button>
                 <button
                   onClick={() => setShowChapterList(true)}
