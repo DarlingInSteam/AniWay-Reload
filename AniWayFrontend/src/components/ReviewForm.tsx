@@ -82,8 +82,8 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
   };
 
   return (
-    <div className="bg-white/5 backdrop-blur-md rounded-3xl p-6 shadow-lg border border-white/10">
-      <h3 className="text-xl font-bold text-white mb-6">
+    <div className="bg-white/5 backdrop-blur-md rounded-3xl p-6 shadow-lg border border-white/10 max-w-full overflow-hidden">
+      <h3 className="text-xl font-bold text-white mb-6 break-words">
         {isEditing ? 'Редактировать отзыв' : 'Написать отзыв'}
       </h3>
 
@@ -109,7 +109,9 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
         {/* Comment Section */}
         <div>
           <label className="block text-sm font-medium text-gray-200 mb-2">Комментарий</label>
-          <MarkdownEditor value={comment} onChange={setComment} placeholder="Поделитесь своими впечатлениями о манге... Используйте Markdown (жирный, курсив, спойлеры)." minRows={6} maxRows={18} />
+          <div className="w-full overflow-hidden">
+            <MarkdownEditor value={comment} onChange={setComment} placeholder="Поделитесь своими впечатлениями о манге... Используйте Markdown (жирный, курсив, спойлеры)." minRows={6} maxRows={18} />
+          </div>
           <div className="flex justify-between items-center mt-2">
             <p className="text-xs text-gray-400">Расскажите о сюжете, персонажах, рисовке...</p>
             <span className="text-xs text-gray-400">{comment.length}/2000</span>
@@ -124,7 +126,7 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
               <RatingStars rating={rating} maxRating={10} size="sm" showValue={false} />
               <span className="text-sm font-medium text-white">{rating}/10</span>
             </div>
-            <div className="text-gray-200 text-sm leading-relaxed markdown-body">
+            <div className="text-gray-200 text-sm leading-relaxed markdown-body max-w-full overflow-hidden break-words">
               <MarkdownRenderer value={comment.trim()} />
             </div>
           </div>

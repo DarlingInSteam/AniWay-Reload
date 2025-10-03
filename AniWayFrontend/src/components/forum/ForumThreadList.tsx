@@ -11,14 +11,28 @@ function loadVisits(){
 export function ForumThreadList({ threads, users, density = 'comfortable', isAdmin, onPinToggle, onDelete }: Props) {
   if (!threads.length) return <div className="text-sm text-muted-foreground">Тем пока нет</div>
   const visits = loadVisits()
+  const isCompact = density === 'compact'
+  const gap = isCompact ? 'gap-2 sm:gap-2.5' : 'gap-3 sm:gap-3.5'
   return (
-    <div className={(density === 'compact' ? 'space-y-1.5' : 'space-y-3') + ' sm:space-y-3'}>
+    <div className={`flex flex-col ${gap}`}>
       {threads.map(t => {
         const lastVisit = visits[t.id]
         const lastActivity = new Date(t.lastActivityAt).getTime()
         const isNew = !lastVisit
         const isUpdated = !!lastVisit && lastActivity > lastVisit
-        return <ForumThreadCard key={t.id} thread={t} users={users} density={density} isNew={isNew} isUpdated={isUpdated} isAdmin={isAdmin} onPinToggle={onPinToggle} onDelete={onDelete} />
+        return (
+          <ForumThreadCard
+            key={t.id}
+            thread={t}
+            users={users}
+            density={density}
+            isNew={isNew}
+            isUpdated={isUpdated}
+            isAdmin={isAdmin}
+            onPinToggle={onPinToggle}
+            onDelete={onDelete}
+          />
+        )
       })}
     </div>
   )

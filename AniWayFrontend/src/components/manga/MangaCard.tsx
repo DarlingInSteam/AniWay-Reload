@@ -1,14 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { Calendar, User, Star, Eye, Heart, Bookmark, Flame, ShieldCheck } from 'lucide-react'
+import { Star, Eye, Bookmark, Flame, ShieldCheck } from 'lucide-react'
 import { MangaResponseDTO } from '@/types'
-import { formatDate, getStatusColor, getStatusText, cn } from '@/lib/utils'
+import { getStatusColor, getStatusText, cn } from '@/lib/utils'
 import { computeMangaBadges } from '@/utils/mangaBadges'
 import { useBookmarks } from '@/hooks/useBookmarks'
 import { useAuth } from '@/contexts/AuthContext'
 import { useReadingProgress } from '@/hooks/useProgress'
 import { useRating } from '@/hooks/useRating'
 import { useQueryClient } from '@tanstack/react-query'
+
+const CARD_TYPE_LABELS: Record<MangaResponseDTO['type'], string> = {
+  MANGA: 'манга',
+  MANHWA: 'манхва',
+  MANHUA: 'маньхуа',
+  WESTERN_COMIC: 'западный комикс',
+  RUSSIAN_COMIC: 'русский комикс',
+  OEL: 'oel',
+  OTHER: 'другое'
+}
 
 interface MangaCardProps {
   manga: MangaResponseDTO
@@ -22,7 +32,7 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
 
   const { isAuthenticated } = useAuth()
   const { getMangaBookmark } = useBookmarks()
-  const { getMangaReadingPercentage, getMangaProgress } = useReadingProgress()
+  const { getMangaProgress } = useReadingProgress()
   const { rating } = useRating(manga.id)
   const queryClient = useQueryClient()
   
@@ -53,8 +63,6 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
   const isInBookmarks = bookmarkInfo !== null
   
   // Получаем прогресс чтения
-  const readingProgress = isAuthenticated ? getMangaReadingPercentage(manga.id, manga.totalChapters) : 0
-  
   // Вычисляем количество прочитанных глав более точно
   const getReadChaptersCount = () => {
     if (!isAuthenticated || manga.totalChapters === 0) return 0
@@ -105,6 +113,15 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
   const rawGenres = manga.genre ? manga.genre.split(',').map(g=>g.trim()).filter(Boolean) : []
   const primaryGenres = rawGenres.slice(0,2)
   const hiddenGenresCount = rawGenres.length - primaryGenres.length
+  const typeLabel = CARD_TYPE_LABELS[manga.type] || 'манга'
+  const statusLabel = getStatusText(manga.status)
+  const badgeClass = 'inline-flex items-center gap-1 rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] leading-none text-white/75 whitespace-nowrap'
+  const releaseYear = (() => {
+    if (!manga.releaseDate) return undefined
+    const date = new Date(manga.releaseDate)
+    return Number.isNaN(date.getTime()) ? undefined : date.getFullYear()
+  })()
+  
 
   return (
     <div className="group flex flex-col space-y-2 md:space-y-3 w-full transition-transform duration-300 will-change-transform hover:md:-translate-y-1 hover:lg:-translate-y-1 motion-reduce:transform-none">
@@ -213,38 +230,49 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
       </Link>
 
       {/* Metadata */}
-    {showMetadata && (
-  <div className="flex flex-col px-1 h-[3.6rem] md:h-[4.2rem] select-none">
-          {/* Title - строго фиксированная высота для 2 строк */}
+      {showMetadata && (
+        <div className="flex flex-col gap-2 px-1 pb-1 select-none">
           <Link
             to={`/manga/${manga.id}`}
-            className="block mb-1 md:mb-1.5"
+            className="block"
           >
-            <h3 className="text-xs md:text-sm font-semibold text-white line-clamp-2 hover:text-primary transition-colors duration-200 leading-tight h-[2rem] md:h-[2.25rem] overflow-hidden tracking-tight">
+            <h3 className="text-xs md:text-sm font-semibold text-white line-clamp-2 hover:text-primary transition-colors duration-200 leading-tight tracking-tight">
               {manga.title}
             </h3>
           </Link>
 
-          {/* Genre and Year - строго фиксированная высота */}
-          <div className="flex items-center justify-between text-[11px] text-muted-foreground h-4 mb-1 gap-2">
-            <span className="line-clamp-1 flex-1 mr-2 flex items-center gap-1 overflow-hidden">
-              {primaryGenres.map((g,idx) => (
-                <span key={g} className={cn(
-                  'bg-white/5 px-1.5 py-0.5 rounded-md text-[10px] leading-none text-white/80',
-                  idx>0 && 'hidden [@media(min-width:480px)]:inline-flex'
-                )}>{g}</span>
+          <div className="flex items-center gap-2 text-[11px] text-white/70">
+            <div className="flex min-w-0 flex-wrap items-center gap-1">
+              {primaryGenres.map((g, idx) => (
+                <span
+                  key={g}
+                  className={cn(
+                    'rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] leading-none text-white/75 whitespace-nowrap',
+                    idx > 0 && 'hidden [@media(min-width:480px)]:inline-flex'
+                  )}
+                  title={g}
+                >
+                  {g}
+                </span>
               ))}
               {hiddenGenresCount > 0 && (
-                <span className="bg-white/5 px-1.5 py-0.5 rounded-md text-[10px] leading-none text-white/50">+{hiddenGenresCount}</span>
+                <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] leading-none text-white/55 whitespace-nowrap">+{hiddenGenresCount}</span>
               )}
-              {primaryGenres.length===0 && <span className="italic opacity-60">Нет жанров</span>}
-            </span>
-            <span className="flex-shrink-0">
-              {manga.releaseDate ? new Date(manga.releaseDate).getFullYear() : '—'}
-            </span>
+              {primaryGenres.length === 0 && (
+                <span className="italic text-white/40">Нет жанров</span>
+              )}
+            </div>
+            <span className="ml-auto flex-shrink-0 text-white/60">{releaseYear ?? '—'}</span>
           </div>
 
-          {/* Удален нижний блок рейтинга и просмотров */}
+          <div className="flex flex-wrap items-center gap-2 text-[10px] text-white/70">
+            <span className={badgeClass}>
+              {typeLabel}
+            </span>
+            <span className={cn(badgeClass, 'text-white/65')}>
+              {statusLabel}
+            </span>
+          </div>
         </div>
       )}
     </div>

@@ -66,3 +66,61 @@ export function formatVolumeNumber(chapter: ChapterDTO): string | null {
   }
   return null
 }
+
+/**
+ * Возвращает различные варианты заголовка главы для адаптивного отображения
+ */
+export function buildChapterTitleVariants(chapter: ChapterDTO) {
+  const full = formatChapterTitle(chapter)
+
+  // Если это кастомное название (не начинается с "Глава"), то для сокращений просто обрезаем
+  const isCustom = chapter.title && chapter.title.trim() && !chapter.title.startsWith('Глава')
+  const chapterNum = chapter.originalChapterNumber || getDisplayChapterNumber(chapter.chapterNumber)
+  let volume: number | undefined
+  if (chapter.volumeNumber) volume = chapter.volumeNumber
+  else if (chapter.chapterNumber >= 1000) volume = Math.floor(chapter.chapterNumber / 1000)
+
+  if (isCustom) {
+    const trimmed = chapter.title!.trim()
+    return {
+      full,
+      medium: trimmed.length > 38 ? trimmed.slice(0, 38) + '…' : trimmed,
+      short: trimmed.length > 26 ? trimmed.slice(0, 26) + '…' : trimmed,
+      minimal: trimmed.length > 14 ? trimmed.slice(0, 14) + '…' : trimmed
+    }
+  }
+
+  // Стандартные варианты
+  const medium = volume ? `Том ${volume} • Гл ${chapterNum}` : `Глава ${chapterNum}`
+  const short = volume ? `T${volume} Г${chapterNum}` : `Гл ${chapterNum}`
+  const minimal = volume ? `${volume}:${chapterNum}` : `${chapterNum}`
+
+  return { full, medium, short, minimal }
+}
+
+/**
+ * Выбирает наилучший вариант заголовка исходя из доступной ширины.
+ * Очень простая эвристика: по брейкпоинтам ширины окна и длине полного заголовка
+ */
+export function getAdaptiveChapterTitle(chapter: ChapterDTO, viewportWidth: number): string {
+  const variants = buildChapterTitleVariants(chapter)
+  const fullLen = variants.full.length
+
+  // Узкие экраны телефонов
+  if (viewportWidth < 340) {
+    return variants.minimal
+  }
+  if (viewportWidth < 390) {
+    return fullLen > 22 ? variants.short : variants.full
+  }
+  if (viewportWidth < 460) {
+    if (fullLen > 32) return variants.medium
+    return variants.full
+  }
+  if (viewportWidth < 560) {
+    if (fullLen > 40) return variants.medium
+    return variants.full
+  }
+  // Десктоп — всегда полный
+  return variants.full
+}

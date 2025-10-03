@@ -19,7 +19,7 @@ import {
 import { apiClient } from '@/lib/api'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { cn } from '@/lib/utils'
-import { formatChapterTitle, getDisplayChapterNumber } from '@/lib/chapterUtils'
+import { formatChapterTitle, getDisplayChapterNumber, getAdaptiveChapterTitle, buildChapterTitleVariants } from '@/lib/chapterUtils'
 import { useAuth } from '@/contexts/AuthContext'
 import { useReadingProgress } from '@/hooks/useProgress'
 import { CommentSection } from '@/components/comments/CommentSection'
@@ -103,7 +103,7 @@ function ChapterImageList({
               {image.pageNumber} / {images.length}
             </div>
             {index === 0 && showUI && isVisible && (
-              <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute inset-0 pointer-events-none hidden md:block">
                 {previousChapter && (
                   <div className="absolute left-0 top-1/2 -translate-y-1/2 p-2">
                     <div className="bg-black/70 backdrop-blur-sm text-white px-3 py-2 rounded-r-lg text-sm border border-white/20 animate-pulse">
@@ -145,6 +145,12 @@ export function ReaderPage() {
   const touchStartRef = useRef<{x:number,y:number,time:number}|null>(null)
   const touchMovedRef = useRef<boolean>(false)
   const [showSideComments, setShowSideComments] = useState(false)
+  const [viewportWidth, setViewportWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1024)
+  // Local adaptive title component state
+  const titleContainerRef = useRef<HTMLButtonElement|null>(null)
+  const [titleVariantIndex, setTitleVariantIndex] = useState(0) // 0=full,1=medium,2=short,3=minimal (fallback to getAdaptive based on viewport first)
+  const [finalTitle, setFinalTitle] = useState<string>('')
+  const variantsRef = useRef<string[]>([])
 
   const { user } = useAuth()
   const queryClient = useQueryClient()
@@ -164,6 +170,8 @@ export function ReaderPage() {
       // ignore storage errors (e.g., privacy mode)
     }
   }, [])
+
+  // (moved) adaptive title effects placed after chapter query
 
   // Auto-open side comments panel if navigating directly to a comment anchor (#comment-...)
   useEffect(() => {
@@ -192,6 +200,54 @@ export function ReaderPage() {
     queryFn: () => apiClient.getChapterById(parseInt(chapterId!)),
     enabled: !!chapterId,
   })
+
+  // Track viewport width for adaptive title
+  useEffect(() => {
+    function handleResize() {
+      setViewportWidth(window.innerWidth)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  // Prepare title variants when chapter or viewport changes
+  useEffect(() => {
+    if (!chapter) return
+    const v = buildChapterTitleVariants(chapter)
+    const adaptive = getAdaptiveChapterTitle(chapter, viewportWidth)
+    variantsRef.current = [v.full, v.medium, v.short, v.minimal]
+    let startIndex = variantsRef.current.findIndex(x => x === adaptive)
+    if (startIndex === -1) startIndex = 0
+    setTitleVariantIndex(startIndex)
+    setFinalTitle(adaptive)
+  }, [chapter, viewportWidth])
+
+  // Measure and downgrade variant until fits
+  useEffect(() => {
+    if (!titleContainerRef.current || !chapter) return
+    const el = titleContainerRef.current
+    const fit = () => {
+      let idx = titleVariantIndex
+      while (idx < variantsRef.current.length) {
+        el.textContent = variantsRef.current[idx]
+        const overflown = el.scrollWidth > el.clientWidth
+        if (!overflown) {
+          setFinalTitle(variantsRef.current[idx])
+          if (idx !== titleVariantIndex) setTitleVariantIndex(idx)
+          break
+        }
+        idx++
+        if (idx === variantsRef.current.length) {
+          setFinalTitle(variantsRef.current[variantsRef.current.length -1])
+          setTitleVariantIndex(variantsRef.current.length -1)
+        }
+      }
+    }
+    const ro = new ResizeObserver(() => fit())
+    ro.observe(el)
+    fit()
+    return () => ro.disconnect()
+  }, [titleVariantIndex, chapter])
 
   const { data: images, isLoading } = useQuery({
     queryKey: ['chapter-images', chapterId],
@@ -260,7 +316,8 @@ export function ReaderPage() {
 
   // Handle chapter like/unlike
   const handleChapterLike = async () => {
-    if (!chapter || liking) return
+    // One-way like: do nothing if already liked
+    if (!chapter || liking || isLiked) return
 
     setLiking(true)
     try {
@@ -304,6 +361,7 @@ export function ReaderPage() {
   }
 
   const handleTapOrClick = (e: React.MouseEvent | React.TouchEvent) => {
+    // On mobile treat it as potential like only if almost no vertical movement and within 2 quick taps
     let clientX: number
     let clientY: number
     if ('touches' in e && e.touches.length > 0) {
@@ -317,12 +375,15 @@ export function ReaderPage() {
       clientX = mouseEvent.clientX
       clientY = mouseEvent.clientY
     }
-    const currentTime = Date.now()
-    const timeDiff = currentTime - lastTap
-    if (timeDiff < 320 && timeDiff > 0) {
+    const now = Date.now()
+    const delta = now - lastTap
+    // Require tighter window AND ensure the last gesture did not move notably
+    if (delta > 0 && delta < 280 && !touchMovedRef.current) {
       attemptLikeFromGesture(clientX, clientY)
+      setLastTap(0) // reset so triple taps don't like twice
+    } else {
+      setLastTap(now)
     }
-    setLastTap(currentTime)
   }
 
   const handleDoubleClickDesktop = (e: React.MouseEvent) => {
@@ -341,7 +402,7 @@ export function ReaderPage() {
     const t = e.touches[0]
     const dx = t.clientX - touchStartRef.current.x
     const dy = t.clientY - touchStartRef.current.y
-    if (Math.abs(dx) > 8 || Math.abs(dy) > 8) touchMovedRef.current = true
+    if (Math.abs(dx) > 6 || Math.abs(dy) > 6) touchMovedRef.current = true
   }
   const handleTouchEndSwipe = (e: React.TouchEvent) => {
     if (!touchStartRef.current) return
@@ -387,40 +448,49 @@ export function ReaderPage() {
   // UI visibility control - only on H key or scroll up
   useEffect(() => {
     let lastScrollY = window.scrollY
+    let accumulated = 0
+    let raf: number | null = null
     let hasUserInteracted = false
+    const THRESHOLD = 36 // px before toggling
+    const SMALL_MOVEMENT_RESET = 4
 
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY
-      const scrollingUp = currentScrollY < lastScrollY
+    const applyVisibility = (show: boolean) => {
+      setShowUI(prev => show === prev ? prev : show)
+    }
 
-      // Mark that user has started scrolling
-      if (!hasUserInteracted && Math.abs(currentScrollY - lastScrollY) > 10) {
-        hasUserInteracted = true
-      }
-
-      if (scrollingUp) {
-        setShowUI(true)
-      } else if (hasUserInteracted) {
-        // Only hide UI when scrolling down if user has already interacted
-        setShowUI(false)
-      }
-
-      lastScrollY = currentScrollY
+    const onScroll = () => {
+      const current = window.scrollY
+      const delta = current - lastScrollY
+      if (!hasUserInteracted && Math.abs(delta) > 2) hasUserInteracted = true
+      // Ignore micro scroll jitter
+      if (Math.abs(delta) <= SMALL_MOVEMENT_RESET) return
+      accumulated += delta
+      lastScrollY = current
+      if (raf) cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        if (accumulated <= -THRESHOLD) {
+          applyVisibility(true)
+          accumulated = 0
+        } else if (accumulated >= THRESHOLD && hasUserInteracted) {
+          applyVisibility(false)
+          accumulated = 0
+        }
+      })
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'h' || e.key === 'H') {
         setShowUI(prev => !prev)
-        hasUserInteracted = true // Mark as interacted when using keyboard
+        hasUserInteracted = true
       }
     }
 
-    window.addEventListener('scroll', handleScroll)
+    window.addEventListener('scroll', onScroll, { passive: true })
     document.addEventListener('keydown', handleKeyDown)
-
     return () => {
-      window.removeEventListener('scroll', handleScroll)
+      window.removeEventListener('scroll', onScroll)
       document.removeEventListener('keydown', handleKeyDown)
+      if (raf) cancelAnimationFrame(raf)
     }
   }, [])
 
@@ -668,18 +738,32 @@ export function ReaderPage() {
         <div className="container mx-auto px-4 h-16">
           <div className="grid grid-cols-3 items-center h-full">
             {/* Left side - фиксированная ширина */}
-            <div className="flex items-center space-x-4 justify-start">
+            <div className="flex items-center space-x-3 sm:space-x-4 justify-start min-w-0">
+              {/* Back button (always) */}
               <button
                 onClick={() => navigate(-1)}
                 className="p-2 rounded-full hover:bg-white/10 text-white transition-colors"
+                aria-label="Назад"
               >
                 <ArrowLeft className="h-5 w-5" />
               </button>
-
-              <div className="hidden md:flex items-center space-x-2">
+              {/* Mobile home->manga button (shows only on < md) when manga exists */}
+              {manga && (
+                <Link
+                  to={`/manga/${manga.id}`}
+                  className="md:hidden p-2 rounded-full hover:bg-white/10 text-white transition-colors"
+                  aria-label="Страница манги"
+                  title={manga.title}
+                >
+                  <Home className="h-5 w-5" />
+                </Link>
+              )}
+              {/* Desktop section with site home + manga title */}
+              <div className="hidden md:flex items-center space-x-2 min-w-0">
                 <Link
                   to="/"
                   className="p-2 rounded-full hover:bg-white/10 text-white transition-colors"
+                  aria-label="Главная"
                 >
                   <Home className="h-5 w-5" />
                 </Link>
@@ -687,6 +771,7 @@ export function ReaderPage() {
                   <Link
                     to={`/manga/${manga.id}`}
                     className="text-white hover:text-primary transition-colors truncate max-w-[150px]"
+                    title={manga.title}
                   >
                     {manga.title}
                   </Link>
@@ -694,64 +779,52 @@ export function ReaderPage() {
               </div>
             </div>
 
-            {/* Center - chapter navigation + clickable index */}
-            <div className="flex items-center justify-center text-white space-x-3">
+            {/* Center - chapter navigation + clickable index (fixed layout) */}
+            <div className="flex items-center justify-center text-white space-x-2 sm:space-x-3 min-w-0">
               <button
                 disabled={!previousChapter}
                 onClick={navigateToPreviousChapter}
-                className={cn('p-2 rounded-lg border border-white/10 hover:bg-white/10 transition disabled:opacity-30 disabled:cursor-not-allowed')}
+                className={cn('p-1.5 sm:p-2 rounded-lg border border-white/10 hover:bg-white/10 transition disabled:opacity-30 disabled:cursor-not-allowed')}
                 title="Предыдущая глава"
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
-              <div className="flex flex-col items-center">
+              <div className="flex flex-col items-center min-w-0 max-w-full">
                 <button
+                  ref={titleContainerRef}
                   onClick={() => setShowChapterList(true)}
-                  className="font-semibold text-base hover:text-primary transition-colors"
-                  title="Открыть список глав"
+                  className="font-semibold text-base hover:text-primary transition-colors w-full max-w-[64vw] sm:max-w-[460px] text-center truncate whitespace-nowrap"
+                  style={{ minWidth: '40px' }}
+                  title={chapter ? formatChapterTitle(chapter) : ''}
                 >
-                  {formatChapterTitle(chapter)}
+                  {finalTitle || (chapter ? formatChapterTitle(chapter) : '')}
                 </button>
                 <button
                   onClick={() => setShowChapterList(true)}
-                  className="text-xs text-gray-400 mt-1 hover:text-primary/80 transition"
+                  className="mt-1 inline-flex items-center gap-1 text-[10px] tracking-wide text-gray-300/80 hover:text-primary/80 transition px-2 py-0.5 rounded-full bg-white/5 border border-white/10"
                   title="Открыть список глав"
                 >
-                  {currentChapterIndex + 1} из {sortedChapters?.length || 0}
+                  <span className="font-medium">{currentChapterIndex + 1}</span>
+                  <span className="opacity-60">/</span>
+                  <span>{sortedChapters?.length || 0}</span>
                 </button>
               </div>
               <button
                 disabled={!nextChapter}
                 onClick={navigateToNextChapter}
-                className={cn('p-2 rounded-lg border border-white/10 hover:bg-white/10 transition disabled:opacity-30 disabled:cursor-not-allowed')}
+                className={cn('p-1.5 sm:p-2 rounded-lg border border-white/10 hover:bg-white/10 transition disabled:opacity-30 disabled:cursor-not-allowed')}
                 title="Следующая глава"
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
             </div>
 
-            {/* Right side - фиксированная ширина */}
+            {/* Right side now only holds mobile menu toggle (settings moved to side action bar) */}
             <div className="flex items-center space-x-2 justify-end">
-              <button
-                onClick={handleChapterLike}
-                disabled={liking}
-                className={cn(
-                  "p-2 rounded-full hover:bg-white/10 text-white transition-colors flex items-center space-x-1",
-                  isLiked && "text-red-400"
-                )}
-              >
-                <Heart className={cn("h-5 w-5", isLiked && "fill-current")} />
-                <span className="text-sm">{chapter?.likeCount || 0}</span>
-              </button>
-              <button
-                onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                className="p-2 rounded-full hover:bg-white/10 text-white transition-colors"
-              >
-                <Settings className="h-5 w-5" />
-              </button>
               <button
                 onClick={() => setShowUI(!showUI)}
                 className="md:hidden p-2 rounded-full hover:bg-white/10 text-white transition-colors"
+                aria-label="Переключить UI"
               >
                 <Menu className="h-5 w-5" />
               </button>
@@ -762,9 +835,31 @@ export function ReaderPage() {
 
   {/* Settings Panel */}
       {isSettingsOpen && (
-        <div className="fixed top-16 right-4 z-40 bg-card border border-border/30 rounded-xl p-4 min-w-[200px] animate-fade-in settings-panel">
-          <h3 className="text-white font-semibold mb-3">Настройки чтения</h3>
-          <div className="space-y-2">
+        <div
+          className={cn(
+            'settings-panel z-40 animate-fade-in fixed',
+            // Desktop: align roughly with vertical action bar (center right)
+            'hidden md:block md:top-1/2 md:-translate-y-1/2 md:right-[84px] md:rounded-2xl md:min-w-[250px] md:max-w-[280px]',
+            'md:border md:border-white/15 md:bg-gradient-to-br md:from-white/10 md:via-white/5 md:to-white/5 md:shadow-xl',
+            // Mobile bottom sheet retains previous style
+            'md:translate-x-0',
+            'bg-black/85 md:bg-black/60 backdrop-blur-2xl',
+            'bottom-0 left-0 right-0 md:bottom-auto md:left-auto',
+            'p-5 pt-4 md:p-5'
+          )}
+        >
+          <div className="mx-auto w-full max-w-md">
+            <div className="flex items-center justify-between mb-3 md:mb-4">
+              <h3 className="text-white font-semibold text-base md:text-sm tracking-wide">Настройки чтения</h3>
+              <button
+                onClick={() => setIsSettingsOpen(false)}
+                className="md:hidden p-2 -m-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition"
+                aria-label="Закрыть настройки"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-2">
             <button
               onClick={() => setReadingMode(mode => mode === 'vertical' ? 'horizontal' : 'vertical')}
               className="w-full text-left text-sm text-muted-foreground hover:text-white transition-colors p-2 rounded hover:bg-secondary"
@@ -802,24 +897,12 @@ export function ReaderPage() {
             >
               {showUI ? 'Скрыть UI' : 'Показать UI'}
             </button>
-            {chapter && manga && (
-              <button
-                onClick={async () => {
-                  try {
-                    await markChapterCompleted(manga.id, chapter.id, chapter.chapterNumber)
-                    console.log('Chapter manually marked as completed')
-                  } catch (error) {
-                    console.error('Failed to mark chapter as completed:', error)
-                  }
-                }}
-                className="w-full text-left text-sm text-muted-foreground hover:text-white transition-colors p-2 rounded hover:bg-secondary"
-              >
-                <div className="flex items-center justify-between">
-                  <span>Завершить главу</span>
-                  <BookOpen className="h-5 w-5 text-green-500" />
-                </div>
-              </button>
-            )}
+            {/* Manual finish chapter button removed per request */}
+            </div>
+            {/* Drag handle for mobile */}
+            <div className="md:hidden mt-5 pt-2">
+              <div className="h-1 w-10 mx-auto rounded-full bg-white/20" />
+            </div>
           </div>
         </div>
       )}
@@ -901,58 +984,56 @@ export function ReaderPage() {
 
       {/* Keyboard Shortcuts Help */}
       <div className={cn(
-        'fixed bottom-4 left-4 bg-black/80 backdrop-blur-sm text-white text-xs p-3 rounded-lg transition-all duration-300 border border-white/20',
+        'fixed bottom-4 left-4 bg-black/80 backdrop-blur-sm text-white text-xs p-3 rounded-lg transition-all duration-300 border border-white/20 hidden md:block',
         showUI ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
       )}>
         <div className="space-y-1">
           <div>ESC - Назад</div>
           <div>H - Показать/скрыть UI</div>
           <div>← → - Смена глав</div>
-          <div>Двойной тап - Лайк</div>
+          <div>Двойной клик - Лайк</div>
         </div>
       </div>
 
       {/* Right vertical action bar */}
       {chapter && (
         <div className={cn(
-          'fixed top-1/2 -translate-y-1/2 right-2 sm:right-4 z-40 flex flex-col space-y-3',
+          'fixed top-1/2 -translate-y-1/2 right-1.5 xs:right-2 sm:right-4 z-40 flex flex-col space-y-2 sm:space-y-3',
           showUI ? 'opacity-100' : 'opacity-0 pointer-events-none'
         )}>
           <button
             onClick={() => setShowChapterList(true)}
-            className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white shadow-lg backdrop-blur-md transition group focus:outline-none focus:ring-2 focus:ring-primary/50 active:scale-95"
+            className="reader-fab"
             title="Список глав" aria-label="Список глав"
           >
             <BookOpen className="h-5 w-5 group-hover:text-primary transition-colors" />
           </button>
           <button
             onClick={() => setShowSideComments(true)}
-            className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white shadow-lg backdrop-blur-md transition group focus:outline-none focus:ring-2 focus:ring-blue-500/40 active:scale-95"
+            className="reader-fab"
             title="Комментарии" aria-label="Комментарии"
           >
             <MessageCircle className="h-5 w-5 group-hover:text-blue-400 transition-colors" />
           </button>
           <button
             onClick={handleChapterLike}
-            disabled={liking}
-            className={cn(
-              'p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white shadow-lg backdrop-blur-md transition group focus:outline-none focus:ring-2 focus:ring-red-500/40 active:scale-95',
-              isLiked && 'text-red-400'
-            )}
-            title={isLiked ? 'Убрать лайк' : 'Поставить лайк'}
+            disabled={liking || isLiked}
+            className={cn('reader-fab', isLiked && 'text-red-400 opacity-80 cursor-default')}
+            title={isLiked ? 'Лайк уже поставлен' : 'Поставить лайк'}
+            aria-pressed={isLiked}
           >
             <Heart className={cn('h-5 w-5', isLiked && 'fill-current')} />
           </button>
           <button
             onClick={() => setIsSettingsOpen(v=>!v)}
-            className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white shadow-lg backdrop-blur-md transition group focus:outline-none focus:ring-2 focus:ring-amber-300/40 active:scale-95"
+            className="reader-fab"
             title="Настройки" aria-label="Настройки"
           >
             <Settings className="h-5 w-5 group-hover:text-amber-300 transition-colors" />
           </button>
           <button
             onClick={() => navigate(-1)}
-            className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white shadow-lg backdrop-blur-md transition group focus:outline-none focus:ring-2 focus:ring-white/30 active:scale-95"
+            className="reader-fab"
             title="Назад" aria-label="Назад"
           >
             <ArrowLeft className="h-5 w-5 group-hover:text-gray-300" />
@@ -1024,14 +1105,23 @@ export function ReaderPage() {
         </div>
       )}
 
-      {/* Mobile navigation hints */}
+      {/* Mobile navigation hints (updated: mention scroll threshold) */}
       <div className={cn(
-        'fixed bottom-4 right-4 sm:hidden bg-black/80 backdrop-blur-sm text-white text-xs p-3 rounded-lg transition-all duration-300 border border-white/20',
+        'fixed bottom-4 right-4 sm:hidden bg-black/85 backdrop-blur-md text-white text-[11px] leading-relaxed p-3 rounded-lg transition-all duration-300 border border-white/20 shadow-lg',
         showUI ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
       )}>
-        Тапните по изображению чтобы скрыть UI<br/>
-        Двойной тап для лайка
+        Тап по странице — скрыть/показать интерфейс<br/>
+        Быстрый двойной тап (без скролла) — лайк
       </div>
+
+      {/* Scoped styles for improved FAB contrast */}
+      <style>{`
+        .reader-fab { position: relative; padding: 0.85rem; border-radius: 1rem; background: linear-gradient(145deg, rgba(15,16,20,0.92), rgba(10,11,14,0.92)); border: 1px solid rgba(255,255,255,0.15); color: #fff; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); box-shadow: 0 2px 6px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06); transition: background .25s, transform .15s, box-shadow .25s; }
+        .reader-fab:hover { background: linear-gradient(145deg, rgba(32,34,40,0.95), rgba(18,19,24,0.95)); box-shadow: 0 4px 14px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.12); }
+        .reader-fab:active { transform: scale(0.94); }
+        .reader-fab:focus-visible { outline: 2px solid #3B82F6; outline-offset: 2px; }
+        @media (max-width: 640px) { .reader-fab { padding: 0.7rem; } }
+      `}</style>
     </div>
   )
 }

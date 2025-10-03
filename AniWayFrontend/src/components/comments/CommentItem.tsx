@@ -118,14 +118,25 @@ export function CommentItem({
   const primaryProvided = comment.userAvatar || (comment as any).avatar || undefined
   const computedAvatar = useResolvedAvatar(comment.userId, primaryProvided)
 
+  // Responsive indentation: full 1.5rem (ml-6) only on md+ screens; on small screens we compress after depth 1
+  const indentClass = level > 0 ? (level === 1 ? 'ml-4 md:ml-6' : 'ml-3 md:ml-6') : ''
+  const clampedIndent = indentClass
+
   return (
-    <div id={`comment-${comment.id}`} className={cn(
-      "p-4 rounded-3xl bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/10 transition-colors group target-comment",
-      level > 0 && "ml-6"
-    )}>
+    <div
+      id={`comment-${comment.id}`}
+      className={cn(
+        "p-4 rounded-3xl bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/10 transition-colors group target-comment overflow-hidden",
+        clampedIndent
+      )}
+      style={{
+        // Hard cap visual indentation growth on mobile by limiting max width shrink
+        // (Optional future: compute based on viewport width)
+      }}
+    >
       {/* Заголовок комментария */}
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center space-x-3">
+      <div className="flex items-start justify-between mb-3 min-w-0">
+        <div className="flex items-center space-x-3 min-w-0">
           <Link
             to={buildProfileUrl(comment.userId, (comment as any).userDisplayName || comment.username, comment.username)}
             className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 rounded-full"
@@ -138,10 +149,10 @@ export function CommentItem({
               </AvatarFallback>
             </Avatar>
           </Link>
-          <div>
+          <div className="min-w-0">
             <Link
               to={buildProfileUrl(comment.userId, (comment as any).userDisplayName || comment.username, comment.username)}
-              className="font-medium text-white group-hover:text-primary transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 rounded"
+              className="font-medium text-white group-hover:text-primary transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 rounded break-all"
             >
               {comment.username}
             </Link>
@@ -191,13 +202,13 @@ export function CommentItem({
           submitText="Сохранить"
         />
       ) : (
-        <div className="mb-3 text-white leading-relaxed markdown-body">
+        <div className="mb-3 text-white leading-relaxed markdown-body break-words">
           <MarkdownRenderer value={comment.content} />
         </div>
       )}
 
       {/* Действия с комментарием */}
-      <div className="flex items-center space-x-4">
+  <div className="flex items-center space-x-4 flex-wrap">
         {/* Лайки и дизлайки */}
         <div className="flex items-center space-x-2">
           <Button

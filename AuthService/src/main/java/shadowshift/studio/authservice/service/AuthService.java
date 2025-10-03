@@ -11,6 +11,7 @@ import shadowshift.studio.authservice.entity.Role;
 import shadowshift.studio.authservice.entity.User;
 import shadowshift.studio.authservice.mapper.UserMapper;
 import shadowshift.studio.authservice.repository.UserRepository;
+import shadowshift.studio.authservice.repository.EmailVerificationRepository;
 
 import java.time.LocalDateTime;
 
@@ -27,10 +28,10 @@ import java.time.LocalDateTime;
 public class AuthService {
     
     private final UserRepository userRepository;
+    private final EmailVerificationRepository emailVerificationRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
-    private final UserService userService;
     private final EmailVerificationService emailVerificationService;
     
     /**
@@ -79,7 +80,7 @@ public class AuthService {
         
         log.info("User registered successfully: {}", user.getUsername());
 
-        UserDTO userDTO = UserMapper.toUserDTO(user);
+    // UserDTO userDTO = UserMapper.toUserDTO(user); // Removed unused variable
         
     var jwtToken = jwtService.generateToken(user);
 
@@ -110,11 +111,36 @@ public class AuthService {
         
         log.info("User authenticated successfully: {}", user.getUsername());
 
-        UserDTO userDTO = UserMapper.toUserDTO(user);
+    // UserDTO userDTO = UserMapper.toUserDTO(user); // Removed unused variable
 
     var jwtToken = jwtService.generateToken(user);
 
         return AuthResponse.of(jwtToken, UserMapper.toFullUserDTO(user));
+    }
+
+    // Credentials check only (for two-step login) without issuing token yet
+    public void authenticateCredentialsOnly(String usernameOrEmail, String password) {
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                        usernameOrEmail,
+                        password
+                )
+        );
+    }
+
+    // Issue final JWT based on previously verified verificationToken purpose LOGIN
+    public AuthResponse issueTokenFromVerificationToken(String verificationToken, shadowshift.studio.authservice.entity.EmailVerification.Purpose purpose) {
+        if (purpose != shadowshift.studio.authservice.entity.EmailVerification.Purpose.LOGIN) {
+            throw new IllegalArgumentException("Unsupported purpose for token issuance: " + purpose);
+        }
+        // Find EmailVerification by token
+    var ev = emailVerificationRepository.findFirstByVerificationTokenAndStatusAndPurpose(verificationToken, shadowshift.studio.authservice.entity.EmailVerification.Status.VERIFIED, purpose)
+        .orElseThrow(() -> new IllegalArgumentException("Invalid or expired verification token"));
+    var user = userRepository.findByEmail(ev.getEmail()).orElseThrow(() -> new IllegalArgumentException("User not found"));
+        user.setLastLogin(java.time.LocalDateTime.now());
+        userRepository.save(user);
+    var jwt = jwtService.generateToken(user);
+    return AuthResponse.of(jwt, UserMapper.toFullUserDTO(user));
     }
     
     /**
@@ -158,7 +184,7 @@ public class AuthService {
     }
 
     // Password reset using previously verified token (PASSWORD_RESET purpose)
-    public void resetPasswordWithToken(String verificationToken, String newPassword) {
+    public AuthResponse resetPasswordWithToken(String verificationToken, String newPassword) {
         String email = emailVerificationService.consumeVerificationToken(verificationToken, shadowshift.studio.authservice.entity.EmailVerification.Purpose.PASSWORD_RESET);
         var userOpt = userRepository.findByEmail(email);
         if (userOpt.isEmpty()) {
@@ -166,8 +192,11 @@ public class AuthService {
         }
         var user = userOpt.get();
         user.setPassword(passwordEncoder.encode(newPassword));
+        user.setLastLogin(LocalDateTime.now());
         userRepository.save(user);
         log.info("Password reset for user {}", user.getUsername());
+        var jwtToken = jwtService.generateToken(user);
+        return AuthResponse.of(jwtToken, UserMapper.toFullUserDTO(user));
     }
 
     // Authenticated password change

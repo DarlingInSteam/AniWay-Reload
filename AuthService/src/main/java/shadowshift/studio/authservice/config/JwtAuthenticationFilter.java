@@ -36,11 +36,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         
         log.debug("JWT Filter: Processing request to {}", request.getRequestURI());
         
-        // Пропускаем только публичные auth endpoints
+        // Пропускаем публичные auth endpoints (расширенный список)
         String path = request.getServletPath();
-    if (path.equals("/api/auth/login") || path.equals("/api/auth/register") ||
-        path.equals("/api/auth/email/request-code") || path.equals("/api/auth/email/verify-code")) {
-            log.debug("JWT Filter: Skipping public auth endpoints");
+            if (isPublicAuthPath(path) || path.equals("/error")) {
+            log.trace("JWT Filter: Skipping public auth endpoint {}", path);
             filterChain.doFilter(request, response);
             return;
         }
@@ -85,5 +84,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
         
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * Проверка принадлежности пути к публичным auth эндпоинтам.
+     * Важно держать синхронизацию со списком в SecurityConfig.requestMatchers(...).permitAll().
+     */
+    private boolean isPublicAuthPath(String path) {
+        // базовые
+        if (path.equals("/api/auth/login") || path.equals("/api/auth/register")) return true;
+        // email verification (registration)
+        if (path.equals("/api/auth/email/request-code") || path.equals("/api/auth/email/verify-code")) return true;
+        // password reset
+        if (path.equals("/api/auth/password/reset/request-code") || path.equals("/api/auth/password/reset/verify-code") || path.equals("/api/auth/password/reset/perform")) return true;
+        // two-step login dedicated endpoints
+        if (path.equals("/api/auth/login/request-code") || path.equals("/api/auth/login/verify-code")) return true;
+        return false;
     }
 }

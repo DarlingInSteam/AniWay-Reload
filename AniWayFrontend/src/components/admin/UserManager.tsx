@@ -24,52 +24,108 @@ import { useAuth } from '@/contexts/AuthContext'
 
 // Компонент фильтров пользователей
 function UserFilters({ filters, onFiltersChange, onImmediateSearchChange }: { filters: AdminUserFilter; onFiltersChange: (f: AdminUserFilter)=>void; onImmediateSearchChange: (value: string)=>void }) {
+  const statusOptions: Array<{ value: AdminUserFilter['status']; label: string }> = [
+    { value: 'all', label: 'Все' },
+    { value: 'active', label: 'Активные' },
+    { value: 'banned', label: 'Заблок.' }
+  ]
+
   return (
-    <div className="glass-panel p-4 flex flex-wrap gap-3 items-center rounded-lg border border-white/10">
-      <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-        <Search className="h-4 w-4 opacity-60" />
-        <Input
-          placeholder="Поиск пользователя..."
-          value={filters.search}
-          onChange={(e)=>onImmediateSearchChange(e.target.value)}
-          className="h-8 text-sm bg-transparent"
-          aria-label="Поиск пользователя"
-        />
+    <div className="glass-panel rounded-2xl p-6 shadow-lg">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-end">
+        <div className="flex-1">
+          <Label htmlFor="user-search" className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-200/80">
+            Поиск
+          </Label>
+          <div className="mt-2 flex items-center gap-3 rounded-xl border border-white/15 bg-white/10 px-4 py-2 transition focus-within:border-blue-400/60">
+            <Search className="h-4 w-4 text-slate-300" aria-hidden="true" />
+            <Input
+              id="user-search"
+              placeholder="Введите имя пользователя, email или часть ника"
+              value={filters.search}
+              onChange={(e)=>onImmediateSearchChange(e.target.value)}
+              className="h-auto flex-1 border-none bg-transparent p-0 text-sm text-white placeholder:text-slate-400 focus-visible:ring-0"
+              aria-label="Поиск пользователя"
+            />
+          </div>
+        </div>
+
+        <div className="w-full lg:w-auto">
+          <Label className="text-xs font-semibold uppercase tracking-[0.24ем] text-slate-200/80">
+            Статусы
+          </Label>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {statusOptions.map(option => {
+              const active = filters.status === option.value
+              return (
+                <Button
+                  key={option.value}
+                  type="button"
+                  size="sm"
+                  variant={active ? 'default' : 'outline'}
+                  onClick={() => onFiltersChange({ ...filters, status: option.value })}
+                  className={`rounded-full px-4 text-xs font-medium transition ${active ? 'bg-blue-500/30 text-white hover:bg-blue-500/40 border border-blue-400/60' : 'text-slate-200 hover:bg-white/10'}`}
+                >
+                  {option.label}
+                </Button>
+              )
+            })}
+          </div>
+        </div>
       </div>
-      <Select value={filters.status} onValueChange={(v:any)=>onFiltersChange({...filters, status: v})}>
-        <SelectTrigger className="h-8 w-[130px] text-xs bg-transparent"><SelectValue placeholder="Статус" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Все</SelectItem>
-          <SelectItem value="active">Активные</SelectItem>
-          <SelectItem value="banned">Заблок.</SelectItem>
-        </SelectContent>
-      </Select>
-      <Select value={filters.role} onValueChange={(v:any)=>onFiltersChange({...filters, role: v})}>
-        <SelectTrigger className="h-8 w-[150px] text-xs bg-transparent"><SelectValue placeholder="Роль" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Все роли</SelectItem>
-          <SelectItem value="USER">Пользователь</SelectItem>
-          <SelectItem value="TRANSLATOR">Переводчик</SelectItem>
-          <SelectItem value="ADMIN">Админ</SelectItem>
-        </SelectContent>
-      </Select>
-      <Select value={filters.sortBy} onValueChange={(v:any)=>onFiltersChange({...filters, sortBy: v})}>
-        <SelectTrigger className="h-8 w-[150px] text-xs bg-transparent"><SelectValue placeholder="Сортировка" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="username">Имя</SelectItem>
-          <SelectItem value="createdAt">Регистрация</SelectItem>
-          <SelectItem value="lastLogin">Вход</SelectItem>
-          <SelectItem value="role">Роль</SelectItem>
-        </SelectContent>
-      </Select>
-      <Select value={filters.sortOrder} onValueChange={(v:any)=>onFiltersChange({...filters, sortOrder: v})}>
-        <SelectTrigger className="h-8 w-[110px] text-xs bg-transparent"><SelectValue /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="asc">ASC</SelectItem>
-          <SelectItem value="desc">DESC</SelectItem>
-        </SelectContent>
-      </Select>
-      <Button variant="outline" size="sm" onClick={()=>onFiltersChange({ search: '', status: 'all', role: 'all', sortBy: 'username', sortOrder: 'asc'})} className="h-8 text-xs">Сброс</Button>
+
+      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="flex flex-col gap-1">
+          <Label className="text-[10px] uppercase tracking-[0.3em] text-slate-400">Роль</Label>
+          <Select value={filters.role} onValueChange={(v:any)=>onFiltersChange({...filters, role: v})}>
+            <SelectTrigger className="h-10 rounded-xl border border-white/15 bg-white/10 text-sm text-white">
+              <SelectValue placeholder="Роль" />
+            </SelectTrigger>
+            <SelectContent className="bg-slate-900/95 text-slate-100">
+              <SelectItem value="all">Все роли</SelectItem>
+              <SelectItem value="USER">Пользователь</SelectItem>
+              <SelectItem value="TRANSLATOR">Переводчик</SelectItem>
+              <SelectItem value="ADMIN">Администратор</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label className="text-[10px] uppercase tracking-[0.3em] text-slate-400">Сортировка</Label>
+          <Select value={filters.sortBy} onValueChange={(v:any)=>onFiltersChange({...filters, sortBy: v})}>
+            <SelectTrigger className="h-10 rounded-xl border border-white/15 bg-white/10 text-sm text-white">
+              <SelectValue placeholder="Сортировка" />
+            </SelectTrigger>
+            <SelectContent className="bg-slate-900/95 text-slate-100">
+              <SelectItem value="username">Имя</SelectItem>
+              <SelectItem value="createdAt">Регистрация</SelectItem>
+              <SelectItem value="lastLogin">Последний вход</SelectItem>
+              <SelectItem value="role">Роль</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label className="text-[10px] uppercase tracking-[0.3em] text-slate-400">Порядок</Label>
+          <Select value={filters.sortOrder} onValueChange={(v:any)=>onFiltersChange({...filters, sortOrder: v})}>
+            <SelectTrigger className="h-10 rounded-xl border border-white/15 bg-white/10 text-sm text-white">
+              <SelectValue placeholder="Порядок" />
+            </SelectTrigger>
+            <SelectContent className="bg-slate-900/95 text-slate-100">
+              <SelectItem value="asc">По возрастанию</SelectItem>
+              <SelectItem value="desc">По убыванию</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={()=>onFiltersChange({ search: '', status: 'all', role: 'all', sortBy: 'username', sortOrder: 'asc'})}
+            className="h-10 rounded-xl border-white/20 bg-white/5 text-xs font-semibold uppercase tracking-[0.2em] text-slate-100 hover:bg-white/10"
+          >
+            Сбросить фильтры
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -779,89 +835,249 @@ export function UserManager() {
     return true
   })
 
+  const statCards = [
+    {
+      key: 'totalUsers',
+      label: 'Всего пользователей',
+      value: effectiveStats?.totalUsers,
+      icon: Users,
+      badgeClass: 'border-blue-400/40 bg-blue-500/20 text-blue-100',
+      hint: 'Аккаунты за все время'
+    },
+    {
+      key: 'translators',
+      label: 'Переводчики',
+      value: effectiveStats?.translators,
+      icon: Activity,
+      badgeClass: 'border-purple-400/40 bg-purple-500/20 text-purple-100',
+      hint: 'Активные участники команд'
+    },
+    {
+      key: 'admins',
+      label: 'Администраторы',
+      value: effectiveStats?.admins,
+      icon: Shield,
+      badgeClass: 'border-amber-400/40 bg-amber-500/20 text-amber-100',
+      hint: 'Доступ к панели'
+    },
+    {
+      key: 'banned',
+      label: 'Заблокировано',
+      value: effectiveStats?.banned,
+      icon: Ban,
+      badgeClass: 'border-rose-400/40 bg-rose-500/20 text-rose-100',
+      hint: 'Включая временные меры'
+    },
+    {
+      key: 'activeLast7Days',
+      label: 'Активны за 7 дней',
+      value: effectiveStats?.activeLast7Days,
+      icon: UserCheck,
+      badgeClass: 'border-emerald-400/40 bg-emerald-500/20 text-emerald-100',
+      hint: 'Пользователи с недавним входом'
+    }
+  ] as const
+
+  const totalElements = (usersData as any)?.totalElements || 0
+  const totalPages = (usersData as any)?.totalPages || 1
+  const displayedCount = filteredUsers.length
+
+  const activeFilterChips = useMemo(() => {
+    const chips: { key: string; label: string; onClear: () => void }[] = []
+    if (filters.search.trim().length > 0) {
+      chips.push({
+        key: 'search',
+        label: `Поиск: ${filters.search}`,
+        onClear: () => {
+          setRawSearch('')
+          setFilters(f => ({ ...f, search: '' }))
+        }
+      })
+    }
+    if (filters.status !== 'all') {
+      const statusLabel = filters.status === 'active' ? 'Активные' : 'Заблокированные'
+      chips.push({
+        key: 'status',
+        label: `Статус: ${statusLabel}`,
+        onClear: () => setFilters(f => ({ ...f, status: 'all' }))
+      })
+    }
+    if (filters.role !== 'all') {
+      const roleMap: Record<string, string> = {
+        USER: 'Пользователь',
+        TRANSLATOR: 'Переводчик',
+        ADMIN: 'Администратор'
+      }
+      chips.push({
+        key: 'role',
+        label: `Роль: ${roleMap[filters.role] || filters.role}`,
+        onClear: () => setFilters(f => ({ ...f, role: 'all' }))
+      })
+    }
+    if (filters.sortBy !== 'username' || filters.sortOrder !== 'asc') {
+      const sortLabelMap: Record<string, string> = {
+        username: 'Имя',
+        createdAt: 'Регистрация',
+        lastLogin: 'Последний вход',
+        role: 'Роль'
+      }
+      const orderLabel = filters.sortOrder === 'asc' ? 'по возрастанию' : 'по убыванию'
+      chips.push({
+        key: 'sort',
+        label: `Сортировка: ${sortLabelMap[filters.sortBy] || filters.sortBy} (${orderLabel})`,
+        onClear: () => setFilters(f => ({ ...f, sortBy: 'username', sortOrder: 'asc' }))
+      })
+    }
+    return chips
+  }, [filters, setFilters, setRawSearch])
+
+  const isRefreshing = isLoading || isStatsLoading
+  const handleRefresh = () => {
+    setManualStats(null)
+    refetch()
+    refetchUserStats()
+  }
+
   return (
-    <div className="space-y-5">
-      {/* Статистика пользователей (новая панель будет подключена после запроса stats) */}
-      {/* Placeholder removed old single-card layout */}
-
-        {/* Enhanced Filters */}
-        <UserFilters 
-          filters={filters} 
-          onFiltersChange={setFilters} 
-          onImmediateSearchChange={setRawSearch}
-        />
-
-        {/* Modern Data Table */}
-        <div className="glass-panel w-full rounded-xl border border-white/10 bg-white/5 backdrop-blur-xl p-4 grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
-          {[
-            { key: 'totalUsers', label: 'Всего', value: effectiveStats?.totalUsers },
-            { key: 'translators', label: 'Переводчики', value: effectiveStats?.translators },
-            { key: 'admins', label: 'Админы', value: effectiveStats?.admins },
-            { key: 'banned', label: 'Забаненные', value: effectiveStats?.banned },
-            { key: 'activeLast7Days', label: 'Активные 7д', value: effectiveStats?.activeLast7Days }
-          ].map(stat => (
-            <div key={stat.key} className="flex flex-col gap-1">
-              <div className="text-[10px] uppercase tracking-wide opacity-60">{stat.label}</div>
-              <div className="text-xl font-semibold text-white">{stat.value ?? '—'}</div>
-            </div>
-          ))}
-          {(!effectiveStats && isStatsLoading) && (
-            <div className="col-span-full flex justify-center py-2 text-slate-400 text-sm">
-              <Loader2 className="h-4 w-4 animate-spin mr-2" /> Загрузка статистики...
-            </div>
-          )}
-          {(!effectiveStats && isStatsError) && (
-            <div className="col-span-full flex flex-col items-center gap-2 py-2 text-red-300 text-sm">
-              <div>Ошибка загрузки статистики</div>
-              <button
-                onClick={() => { setManualStats(null); refetchUserStats(); }}
-                className="px-3 py-1 rounded bg-white/10 hover:bg-white/20 border border-white/20"
-              >Повторить</button>
-              {statsError && <code className="text-[10px] opacity-60 max-w-full break-all">{String((statsError as any).message)}</code>}
-            </div>
-          )}
-          {(!effectiveStats && !isStatsLoading && !isStatsError) && (
-            <div className="col-span-full flex justify-center py-2 text-slate-400 text-xs">
-              (Диагностика: нет данных и нет ошибки — смотрим DEBUG логи в консоли)
-            </div>
-          )}
-        </div>
-
-        <div className="glass-panel rounded-xl border border-white/10 bg-white/5 backdrop-blur-xl overflow-hidden">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-white/5">
-            <div className="flex items-center gap-4 text-sm text-slate-400">
-              <span>Показано {filteredUsers.length} из {(usersData as any)?.totalElements || 0}</span>
-              <div className="w-px h-4 bg-white/20" />
-              <span>Страница {currentPage + 1} из {(usersData as any)?.totalPages || 1}</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentPage === 0}
-                onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
-                className="bg-white/10 border-white/20 hover:bg-white/20 text-white"
-              >
-                Назад
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentPage >= ((usersData as any)?.totalPages || 1) - 1}
-                onClick={() => setCurrentPage(p => p + 1)}
-                className="bg-white/10 border-white/20 hover:bg-white/20 text-white"
-              >
-                Далее
-              </Button>
+    <div className="flex flex-col gap-6">
+      <div className="glass-panel rounded-3xl p-6 shadow-xl">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-3">
+            <Badge variant="outline" className="border-white/20 bg-white/10 text-[10px] font-semibold uppercase tracking-[0.4em] text-slate-200">
+              Панель модерации
+            </Badge>
+            <div>
+              <h1 className="text-2xl font-semibold text-white md:text-3xl">Управление пользователями</h1>
+              <p className="mt-2 max-w-2xl text-sm text-slate-300">
+                Анализируйте активность, применяйте меры модерации и держите экосистему AniWay в идеальном состоянии.
+              </p>
             </div>
           </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="text-xs text-slate-300/80">
+              Всего аккаунтов в системе: <span className="font-semibold text-white">{totalUsers ?? '—'}</span>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="flex items-center gap-2 rounded-full border-white/30 bg-white/10 px-5 text-xs font-semibold uppercase tracking-[0.2em] text-white hover:bg-white/20"
+            >
+              {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              <span>Обновить</span>
+            </Button>
+          </div>
+        </div>
+      </div>
 
-          <div className="overflow-x-auto">{isLoading ? (
-            <Table className="text-sm">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {statCards.map(card => {
+          const Icon = card.icon
+          const displayValue = typeof card.value === 'number' ? card.value.toLocaleString('ru-RU') : (card.value ?? '—')
+          return (
+            <div key={card.key} className="glass-panel rounded-2xl p-4 shadow-lg">
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-[10px] uppercase tracking-[0.3em] text-slate-300">{card.label}</div>
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-2xl border text-white/90 ${card.badgeClass}`}>
+                    <Icon className="h-4 w-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-semibold text-white">
+                  {isStatsLoading && !effectiveStats ? (
+                    <span className="flex items-center gap-2 text-sm text-slate-300">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Загрузка...
+                    </span>
+                  ) : (
+                    displayValue
+                  )}
+                </div>
+                <div className="text-[11px] text-slate-300/80">{card.hint}</div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {isStatsError && (
+        <div className="rounded-2xl border border-red-500/40 bg-red-500/15 p-4 text-sm text-red-100">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              Ошибка загрузки статистики. Попробуйте обновить страницу или повторите попытку позже.
+              {statsError && (
+                <div className="mt-1 text-[11px] opacity-70">{String((statsError as any).message)}</div>
+              )}
+            </div>
+            <Button size="sm" variant="outline" onClick={() => { setManualStats(null); refetchUserStats() }} className="border-red-300/40 bg-red-500/10 text-red-100 hover:bg-red-500/20">
+              Повторить запрос
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {!effectiveStats && !isStatsLoading && !isStatsError && (
+        <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-xs text-slate-300">
+          Отсутствуют данные статистики. Проверьте консоль браузера для деталей (DEBUG логирование).
+        </div>
+      )}
+
+      <UserFilters 
+        filters={filters} 
+        onFiltersChange={setFilters} 
+        onImmediateSearchChange={setRawSearch}
+      />
+
+      {activeFilterChips.length > 0 && (
+        <div className="glass-panel flex flex-wrap items-center gap-2 rounded-2xl px-4 py-3 text-xs text-slate-200">
+          <span className="uppercase tracking-[0.3em] text-slate-400">Активные фильтры:</span>
+          {activeFilterChips.map(chip => (
+            <button
+              key={chip.key}
+              onClick={chip.onClear}
+              className="group flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-100 transition hover:border-white/30 hover:bg-white/15"
+            >
+              <span>{chip.label}</span>
+              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-[11px] text-white/70 group-hover:bg-white/20">×</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+  <div className="glass-panel overflow-hidden rounded-2xl shadow-lg">
+        <div className="flex flex-col gap-4 border-b border-white/10 bg-white/5 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-1">
+            <div className="text-[10px] uppercase tracking-[0.3em] text-slate-400">Результаты</div>
+            <div className="flex flex-wrap items-center gap-3 text-sm text-slate-200">
+              <span>Показано {displayedCount} из {totalElements}</span>
+              <span className="hidden h-4 w-px bg-white/20 sm:inline-block" />
+              <span>Страница {currentPage + 1} из {totalPages}</span>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Badge variant="outline" className="border-blue-400/40 bg-blue-500/10 text-blue-100">
+              Всего в базе: {totalUsers ?? '—'}
+            </Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              className="border-white/20 bg-white/10 text-white hover:bg-white/20"
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Обновить список
+            </Button>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">{isLoading ? (
+            <Table className="min-w-[960px] text-sm">
               <TableHeader>
-                <TableRow className="border-b border-white/10 hover:bg-transparent">
+                <TableRow className="border-b border-white/10 bg-slate-950/60 hover:bg-transparent">
                   {['Пользователь','Email','Роль','Статус','Активность','Статистика','Действия'].map(h => (
-                    <TableHead key={h} className="text-slate-300 font-semibold py-4 px-6">
+                    <TableHead key={h} className="py-4 px-6 text-slate-300">
                       <div className="h-4 bg-white/10 rounded w-24 animate-pulse" />
                     </TableHead>
                   ))}
@@ -880,9 +1096,9 @@ export function UserManager() {
               </TableBody>
             </Table>
           ) : (
-            <Table className="text-sm">
+            <Table className="min-w-[960px] text-sm">
               <TableHeader>
-                <TableRow className="border-b border-white/10 hover:bg-transparent">
+                <TableRow className="border-b border-white/10 bg-slate-950/60 hover:bg-transparent">
                   {[
                     { key: 'username', label: 'Пользователь', sortable: true },
                     { key: 'email', label: 'Email', className: 'hidden xl:table-cell', sortable: true },
@@ -898,7 +1114,7 @@ export function UserManager() {
                     return (
                       <TableHead
                         key={col.key}
-                        className={`text-slate-300 font-semibold py-4 px-6 ${col.className||''} ${sortable ? 'cursor-pointer select-none hover:text-white' : ''}`}
+                        className={`py-4 px-6 text-slate-300 font-semibold ${col.className||''} ${sortable ? 'cursor-pointer select-none transition hover:text-white' : ''}`}
                         onClick={() => {
                           if (!sortable) return
                           setFilters(f => {
@@ -938,23 +1154,25 @@ export function UserManager() {
                 <TableRow>
                   <TableCell colSpan={7} className="py-16">
                     <div className="flex flex-col items-center justify-center text-center space-y-4">
-                      <div className="p-4 rounded-full bg-white/10">
+                      <div className="rounded-full bg-white/10 p-4">
                         <Users className="h-12 w-12 text-slate-400" />
                       </div>
                       <div>
-                        <h3 className="text-lg font-semibold text-white mb-2">Пользователи не найдены</h3>
-                        <p className="text-slate-400 max-w-md">
-                          {filters.search ? 
-                            `Нет пользователей, соответствующих запросу "${filters.search}"` :
-                            'Попробуйте изменить фильтры или добавить нового пользователя'
-                          }
+                        <h3 className="mb-2 text-lg font-semibold text-white">Пользователи не найдены</h3>
+                        <p className="max-w-md text-slate-400">
+                          {filters.search
+                            ? `Нет пользователей, соответствующих запросу "${filters.search}"`
+                            : 'Попробуйте изменить фильтры или добавить нового пользователя'}
                         </p>
                       </div>
                       {filters.search && (
-                        <Button 
+                        <Button
                           variant="outline"
-                          onClick={() => setFilters(f => ({ ...f, search: '' }))}
-                          className="bg-white/10 border-white/20 hover:bg-white/20 text-white"
+                          onClick={() => {
+                            setRawSearch('')
+                            setFilters(f => ({ ...f, search: '' }))
+                          }}
+                          className="border-white/20 bg-white/10 text-white hover:bg-white/20"
                         >
                           Очистить поиск
                         </Button>
@@ -966,6 +1184,31 @@ export function UserManager() {
             </TableBody>
           </Table>
         )}
+        </div>
+        <div className="flex flex-col gap-3 border-t border-white/10 bg-slate-950/80 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-xs text-slate-400">
+            Страница {currentPage + 1} из {totalPages}. Всего записей: {totalElements}
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage === 0}
+              onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+              className="border-white/20 bg-white/5 text-white transition hover:bg-white/15 disabled:opacity-40"
+            >
+              Назад
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage >= totalPages - 1}
+              onClick={() => setCurrentPage(p => p + 1)}
+              className="border-white/20 bg-white/5 text-white transition hover:bg-white/15 disabled:opacity-40"
+            >
+              Далее
+            </Button>
+          </div>
         </div>
       </div>
       {/* Журнал действий администраторов */}

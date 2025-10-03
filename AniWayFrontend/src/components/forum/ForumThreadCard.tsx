@@ -60,7 +60,7 @@ export function ForumThreadCard({ thread, users, density = 'comfortable', isNew,
   const highlight = isNew || isUpdated
   const ring = isNew ? 'ring-2 ring-emerald-500/40' : isUpdated ? 'ring-2 ring-sky-500/40' : ''
   return (
-    <div className={`group relative flex rounded-xl border border-white/10 bg-white/5 ${padding} hover:bg-white/10 transition-colors ${ring} focus-within:outline-none focus-within:ring-2 focus-within:ring-primary/40`}> 
+    <div className={`group relative flex h-full rounded-xl border border-white/10 bg-white/5 ${padding} hover:bg-white/10 transition-colors ${ring} focus-within:outline-none focus-within:ring-2 focus-within:ring-primary/40`}>
       <div className="flex flex-col items-center justify-start pr-4 mr-4 border-r border-white/10 gap-2 w-12 text-[11px] text-white/60">
         <span className="inline-flex items-center gap-1"><MessageSquare className="h-3 w-3" />{thread.repliesCount}</span>
         <span className="inline-flex items-center gap-1"><Eye className="h-3 w-3" />{thread.viewsCount}</span>

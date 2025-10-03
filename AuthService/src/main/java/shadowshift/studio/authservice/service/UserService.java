@@ -132,6 +132,15 @@ public class UserService implements UserDetailsService {
     public User findByUsername(String username) {
         return userRepository.findByUsername(username).orElse(null);
     }
+
+    /**
+     * Находит пользователя по имени пользователя ИЛИ email (унифицированный вход).
+     * @param usernameOrEmail значение, которое может быть username или email
+     * @return пользователь или null
+     */
+    public User findByUsernameOrEmail(String usernameOrEmail) {
+        return userRepository.findByUsernameOrEmail(usernameOrEmail, usernameOrEmail).orElse(null);
+    }
     
     private Specification<User> buildSearchSpecification(String query, String role) {
         return (root, criteriaQuery, criteriaBuilder) -> {

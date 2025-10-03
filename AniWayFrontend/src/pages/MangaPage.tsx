@@ -197,43 +197,27 @@ export function MangaPage() {
   const handleChapterLike = async (chapterId: number, e: React.MouseEvent) => {
     e.preventDefault() // Prevent navigation to reader
     e.stopPropagation()
-
+    // One-way like: ignore if already liked
+    if (likedChapters.has(chapterId)) return
     if (likingChapters.has(chapterId)) return // Prevent double-clicks
 
     setLikingChapters(prev => new Set(prev).add(chapterId))
-
     try {
       const response = await apiClient.toggleChapterLike(chapterId)
-      console.log('Toggle like response:', response)
-
-      // Update local state based on server response
       if (response.liked) {
         setLikedChapters(prev => new Set(prev).add(chapterId))
-      } else {
-        setLikedChapters(prev => {
-          const newSet = new Set(prev)
-          newSet.delete(chapterId)
-          return newSet
+        queryClient.setQueryData(['chapters', mangaId], (oldData: any) => {
+          if (!oldData) return oldData
+          return oldData.map((chapter: any) => {
+            if (chapter.id === chapterId) {
+              return { ...chapter, likeCount: response.likeCount }
+            }
+            return chapter
+          })
         })
       }
-
-      // Оптимистично обновляем кеш без полной инвалидации
-      queryClient.setQueryData(['chapters', mangaId], (oldData: any) => {
-        if (!oldData) return oldData
-        return oldData.map((chapter: any) => {
-          if (chapter.id === chapterId) {
-            console.log(`Updating chapter ${chapterId} likeCount from ${chapter.likeCount} to ${response.likeCount}`)
-            return {
-              ...chapter,
-              likeCount: response.likeCount
-            }
-          }
-          return chapter
-        })
-      })
-
     } catch (error) {
-      console.error('Failed to toggle chapter like:', error)
+      console.error('Failed to like chapter:', error)
     } finally {
       setLikingChapters(prev => {
         const newSet = new Set(prev)
@@ -790,11 +774,13 @@ export function MangaPage() {
                             <div className="flex items-center space-x-2 flex-shrink-0">
                               <button
                                 onClick={(e) => handleChapterLike(chapter.id, e)}
-                                disabled={likingChapters.has(chapter.id)}
+                                disabled={likingChapters.has(chapter.id) || likedChapters.has(chapter.id)}
+                                aria-pressed={likedChapters.has(chapter.id)}
+                                title={likedChapters.has(chapter.id) ? 'Лайк уже поставлен' : 'Поставить лайк'}
                                 className={cn(
                                   "flex items-center space-x-1 px-2 py-1 rounded-lg transition-all duration-200 border",
                                   likedChapters.has(chapter.id)
-                                    ? "text-red-400 bg-red-500/20 border-red-500/30 hover:bg-red-500/30"
+                                    ? "text-red-400 bg-red-500/20 border-red-500/30 cursor-default"
                                     : "text-muted-foreground bg-white/5 border-white/10 hover:bg-white/10 hover:text-red-400"
                                 )}
                               >

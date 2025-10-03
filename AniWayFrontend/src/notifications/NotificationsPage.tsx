@@ -1,8 +1,14 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { CheckCheck, Trash2 } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+
 import { useNotifications } from './NotificationContext';
 import { deleteAll } from './api';
 import { parsePayload, formatTitle, formatDescription, formatDate, getIcon, getNavigationTarget } from './notificationUtils';
-import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/authService';
 
 interface NotificationItem {
@@ -20,6 +26,7 @@ export const NotificationsPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
   const [end, setEnd] = useState(false);
+  const [viewFilter, setViewFilter] = useState<'all' | 'unread'>('all');
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Merge real-time items (dedupe by id) at top
@@ -31,6 +38,9 @@ export const NotificationsPage: React.FC = () => {
     pages.flat().forEach(n => { if (!seen.has(n.id)) { seen.add(n.id); combined.push(n); } });
     return combined.sort((a,b) => b.id - a.id);
   }, [flat, pages]);
+
+  const unreadCount = React.useMemo(() => merged.filter(n => n.status === 'UNREAD').length, [merged]);
+  const displayed = React.useMemo(() => viewFilter === 'unread' ? merged.filter(n => n.status === 'UNREAD') : merged, [merged, viewFilter]);
 
   const loadPage = useCallback(async () => {
     if (loading || end) return;
@@ -58,8 +68,6 @@ export const NotificationsPage: React.FC = () => {
     }
   }, [loading, end, page]);
 
-  useEffect(() => { loadPage(); }, []); // initial
-
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
@@ -70,21 +78,105 @@ export const NotificationsPage: React.FC = () => {
     return () => obs.disconnect();
   }, [loadPage]);
 
+  useEffect(() => {
+    if (!loading && pages.length === 0 && !end) {
+      loadPage();
+    }
+  }, [loading, pages.length, end, loadPage]);
+
   return (
-    <div className="max-w-3xl mx-auto px-4 py-6">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold">Уведомления</h1>
-        <div className="flex gap-4">
-          <button onClick={() => markAll()} className="text-xs text-blue-400 hover:underline">Прочитать все</button>
-          <button onClick={async () => { try { await deleteAll(authService.getToken(), (window as any).currentUserId); await clearAll(); setPages([]); setPage(0); setEnd(true);} catch(e){ console.error(e);} }} className="text-xs text-red-400 hover:underline">Удалить все</button>
+    <div className="relative mx-auto max-w-5xl px-4 py-10 lg:px-6">
+      <div className="glass-panel rounded-3xl p-6 shadow-2xl">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="glass-inline flex flex-wrap items-center gap-1 rounded-full p-1 text-xs text-white">
+            {(['all', 'unread'] as const).map(option => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setViewFilter(option)}
+                className={cn(
+                  'rounded-full px-4 py-1.5 font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40',
+                  viewFilter === option
+                    ? 'bg-blue-500/25 text-white shadow-lg shadow-blue-500/30'
+                    : 'text-slate-200/80 hover:bg-white/10 hover:text-white'
+                )}
+              >
+                {option === 'all' ? 'Все' : 'Непрочитанные'}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={unreadCount === 0}
+              onClick={() => markAll()}
+              className="h-9 rounded-full border border-white/20 bg-white/15 text-white transition hover:bg-white/25 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <CheckCheck className="mr-2 h-4 w-4" />
+              Прочитать все
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              onClick={async () => {
+                try {
+                  await deleteAll(authService.getToken(), (window as any).currentUserId);
+                  await clearAll();
+                  setPages([]);
+                  setPage(0);
+                  setEnd(false);
+                } catch (e) {
+                  console.error(e);
+                }
+              }}
+              className="h-9 rounded-full"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Очистить
+            </Button>
+          </div>
         </div>
       </div>
-      <div className="space-y-2">
-  {merged.map(n => <Row key={n.id} n={n} onActivate={(target) => { markRead([n.id]); if (target) navigate(target); }} />)}
+
+      <div className="mt-10 space-y-4">
+        {displayed.map(n => (
+          <Row
+            key={n.id}
+            n={n}
+            onActivate={(target) => {
+              markRead([n.id]);
+              if (target) navigate(target);
+            }}
+          />
+        ))}
       </div>
+
+      {displayed.length === 0 && !loading && (
+        <div className="glass-panel mt-10 rounded-3xl p-12 text-center shadow-xl">
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full border border-white/10 bg-white/10 text-4xl">📭</div>
+          <h2 className="text-xl font-semibold text-white">Ничего нового пока нет</h2>
+          <p className="mt-3 text-sm text-slate-300">
+            {viewFilter === 'unread'
+              ? 'Все уведомления уже прочитаны. Как только появится что-то важное, вы увидите это здесь.'
+              : 'Когда появятся новые события, они мгновенно отобразятся в этом разделе.'}
+          </p>
+        </div>
+      )}
+
       {!end && <div ref={sentinelRef} className="h-10" />}
-      {loading && <div className="text-center py-4 text-neutral-500 text-sm">Загрузка...</div>}
-      {end && <div className="text-center py-4 text-neutral-600 text-xs">Больше нет уведомлений</div>}
+      {loading && (
+        <div className="mt-6 space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="h-24 rounded-3xl border border-white/5 bg-white/5 skeleton-shimmer" />
+          ))}
+        </div>
+      )}
+      {end && displayed.length > 0 && (
+        <div className="py-6 text-center text-xs text-slate-400">Больше нет уведомлений</div>
+      )}
     </div>
   );
 };
@@ -95,18 +187,52 @@ const Row: React.FC<{ n: NotificationItem; onActivate: (target: string | null) =
   const desc = formatDescription(n.type, parsed);
   const icon = getIcon(n.type);
   const target = getNavigationTarget(n.type, parsed);
+  const isUnread = n.status === 'UNREAD';
   return (
-    <div onClick={() => onActivate(target)} className={`p-3 rounded border border-neutral-800 bg-neutral-900 hover:bg-neutral-800 transition cursor-pointer ${n.status==='UNREAD' ? 'shadow-inner' : ''}`}>
-      <div className="flex items-start gap-3">
-        <div className="text-lg leading-none mt-0.5">{icon}</div>
-        <div className="flex-1 min-w-0">
-          <div className="flex justify-between gap-4">
-            <div className="font-medium truncate">{title}</div>
-            <div className="text-[11px] text-neutral-500 whitespace-nowrap">{formatDate(n.createdAtEpoch)}</div>
+    <button
+      type="button"
+      onClick={() => onActivate(target)}
+      className={cn(
+        'glass-panel group relative w-full overflow-hidden rounded-3xl p-6 text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 hover:border-white/30 hover:bg-white/10',
+        isUnread && 'border-blue-400/60 shadow-lg shadow-blue-500/25'
+      )}
+    >
+      <div className="absolute left-0 top-0 h-full w-1 bg-blue-400/70" aria-hidden="true" />
+      <div className="flex items-start gap-4">
+        <div className={cn(
+          'flex h-12 w-12 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-2xl text-white shadow-inner',
+          isUnread && 'border-blue-300/50 bg-blue-500/20 text-white shadow-blue-500/40'
+        )}>
+          {icon}
+        </div>
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex flex-wrap items-start gap-2">
+            <div className="min-w-0 flex-1 text-base font-semibold leading-tight text-white line-clamp-2">{title}</div>
+            <div className="shrink-0 text-[11px] uppercase tracking-[0.18em] text-slate-400">
+              {formatDate(n.createdAtEpoch)}
+            </div>
           </div>
-          {desc && <div className="text-neutral-400 text-xs mt-1 line-clamp-2">{desc}</div>}
+          {desc && (
+            <p className="text-sm leading-relaxed text-slate-300 line-clamp-3 group-hover:text-slate-200">
+              {desc}
+            </p>
+          )}
+          <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] uppercase tracking-[0.2em]">
+            <Badge
+              variant="outline"
+              className={cn(
+                'border-white/15 bg-white/5 text-white/80',
+                isUnread && 'border-blue-300/50 bg-blue-500/15 text-white'
+              )}
+            >
+              {isUnread ? 'Новое' : 'Прочитано'}
+            </Badge>
+            <Badge variant="outline" className="border-white/10 bg-white/5 text-slate-300/90">
+              {n.type.replace(/_/g, ' ').toLowerCase()}
+            </Badge>
+          </div>
         </div>
       </div>
-    </div>
+    </button>
   );
 };

@@ -35,14 +35,28 @@ export const ProfileStatsStrip: React.FC<ProfileStatsStripProps> = ({ profile, e
   { label: 'Присоединился', value: formatJoinDate(profile.joinedDate) }
   ]
   return (
-    <div className="mt-4 w-full grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-2">
-      {stats.map(s => (
-        <div key={s.label} className="relative group glass-inline rounded-xl px-3 py-3 flex flex-col items-start transition-colors hover:bg-white/10 hover:border-white/20">
-          <div className="text-[10px] uppercase tracking-wide text-slate-400 font-medium">{s.label}</div>
-          <div className="text-lg font-semibold text-white/90 group-hover:text-white transition">{s.value}</div>
-          <div className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition bg-primary/5 pointer-events-none" />
-        </div>
-      ))}
+    <div className="mt-4 w-full">
+      <div
+        className="grid grid-cols-2 xs:grid-cols-3 md:grid-cols-7 gap-2
+        [--stat-min:140px]
+        sm:[--stat-min:120px]
+        md:[--stat-min:110px]
+        lg:[--stat-min:100px]
+        overflow-x-auto md:overflow-visible pb-1 md:pb-0 snap-x snap-mandatory scroll-smooth scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent"
+        role="list" aria-label="Статистика пользователя"
+      >
+        {stats.map(s => (
+          <div
+            key={s.label}
+            role="listitem"
+            className="relative group glass-inline rounded-xl px-3 py-3 flex flex-col items-start transition-colors hover:bg-white/10 hover:border-white/20 min-w-[var(--stat-min)] snap-start"
+          >
+            <div className="text-[10px] uppercase tracking-wide text-slate-400 font-medium whitespace-nowrap">{s.label}</div>
+            <div className="text-lg font-semibold text-white/90 group-hover:text-white transition">{s.value}</div>
+            <div className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition bg-primary/5 pointer-events-none" />
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

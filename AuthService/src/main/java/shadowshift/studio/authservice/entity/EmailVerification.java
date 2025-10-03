@@ -55,7 +55,7 @@ public class EmailVerification {
     private LocalDateTime createdAt;
 
     public enum Status { ACTIVE, VERIFIED, FAILED, EXPIRED }
-    public enum Purpose { REGISTRATION, PASSWORD_RESET, ACCOUNT_DELETION }
+    public enum Purpose { REGISTRATION, PASSWORD_RESET, ACCOUNT_DELETION, LOGIN }
 
     public boolean isExpired() {
         return LocalDateTime.now().isAfter(expiresAt);

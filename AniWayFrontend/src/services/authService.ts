@@ -115,7 +115,7 @@ class AuthService {
     return res.json()
   }
 
-  async performPasswordReset(verificationToken: string, newPassword: string): Promise<boolean> {
+  async performPasswordReset(verificationToken: string, newPassword: string): Promise<AuthResponse> {
     const res = await fetch(`${this.baseUrl}/auth/password/reset/perform`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -125,7 +125,12 @@ class AuthService {
       const t = await res.text();
       throw new Error(t || 'Failed to reset password')
     }
-    return true
+    const body = await res.json() as any;
+    if (body?.token) {
+      this.setToken(body.token);
+      return { token: body.token, user: body.user } as AuthResponse;
+    }
+    throw new Error('Malformed response from reset perform');
   }
 
   async changePassword(currentPassword: string, newPassword: string): Promise<boolean> {
@@ -197,6 +202,38 @@ class AuthService {
     const authResponse: AuthResponse = await response.json()
     this.setToken(authResponse.token)
     return authResponse
+  }
+
+  // Запрос кода входа (двухшаговый login)
+  async requestLoginCode(data: LoginRequest): Promise<{requestId: string, ttlSeconds: number}> {
+    const res = await fetch(`${this.baseUrl}/auth/login/request-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    })
+    if (!res.ok) {
+      const t = await res.text()
+      throw new Error(t || 'Failed to request login code')
+    }
+    return res.json()
+  }
+
+  async verifyLoginCode(requestId: string, code: string): Promise<AuthResponse> {
+    const res = await fetch(`${this.baseUrl}/auth/login/verify-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId, code })
+    })
+    if (!res.ok) {
+      const t = await res.text()
+      throw new Error(t || 'Failed to verify login code')
+    }
+    const body = await res.json()
+    if (body?.token) {
+      this.setToken(body.token)
+      return { token: body.token, user: body.user }
+    }
+    throw new Error('Malformed login verify response')
   }
 
   // Выход

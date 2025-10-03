@@ -1,10 +1,13 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { parsePayload, formatTitle, formatDescription, formatDate, getIcon, getNavigationTarget } from './notificationUtils';
+import { useNavigate } from 'react-router-dom';
+
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+import { authService } from '@/services/authService';
+
 import { useNotifications } from './NotificationContext';
 import { deleteAll } from './api';
-import { authService } from '@/services/authService';
-import { useNavigate } from 'react-router-dom';
-import { cn } from '@/lib/utils';
+import { parsePayload, formatTitle, formatDescription, formatDate, getIcon, getNavigationTarget } from './notificationUtils';
 
 interface NotificationDropdownProps {
   open: boolean;
@@ -72,7 +75,7 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ open
   return (
     <div
       ref={containerRef}
-      className="animate-scale-in origin-top-right absolute right-0 mt-2 w-[420px] max-h-[560px] z-[70] rounded-xl shadow-2xl border border-white/10 bg-neutral-900/95 backdrop-blur-md flex flex-col overflow-hidden"
+      className="animate-scale-in origin-top-right absolute right-0 z-[70] mt-2 flex w-[420px] max-h-[560px] flex-col overflow-hidden rounded-3xl border border-white/12 bg-[#070b13] shadow-2xl shadow-black/70"
     >
       <Header unread={unread} busy={busy} onMarkAll={markAll} onClose={onClose} onDeleteAll={async () => {
         setBusy(true);
@@ -108,10 +111,14 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ open
 
 const Header: React.FC<{ unread: number; busy: boolean; onMarkAll: () => void; onDeleteAll: () => Promise<void>; onClose: () => void; }> = ({ unread, busy, onMarkAll, onDeleteAll, onClose }) => {
   return (
-    <div className="px-4 py-2 flex items-center gap-3 border-b border-white/10 bg-gradient-to-br from-white/5 to-white/0">
-      <div className="flex-1 flex items-center gap-2">
-        <span className="text-sm font-semibold tracking-wide">Уведомления</span>
-        {unread > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/20 text-primary font-medium">{unread}</span>}
+  <div className="flex items-center gap-3 border-b border-white/10 bg-[#121725] px-5 py-3">
+      <div className="flex flex-1 items-center gap-2">
+        <span className="text-sm font-semibold tracking-wide text-white">Уведомления</span>
+        {unread > 0 && (
+          <Badge variant="outline" className="border-blue-300/50 bg-blue-500/20 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-white">
+            {unread}
+          </Badge>
+        )}
       </div>
       <div className="flex items-center gap-3">
         {unread > 0 && (
@@ -125,7 +132,7 @@ const Header: React.FC<{ unread: number; busy: boolean; onMarkAll: () => void; o
 };
 
 const Footer: React.FC<{ loading: boolean; onLoadMore: () => void; onOpenFull: () => void; }> = ({ loading, onLoadMore, onOpenFull }) => (
-  <div className="flex items-center justify-between gap-3 px-3 py-2 border-t border-white/10 bg-neutral-950/70 backdrop-blur-sm">
+  <div className="flex items-center justify-between gap-3 border-t border-white/10 bg-[#101521] px-3 py-2">
     <button onClick={onLoadMore} disabled={loading} className="text-[11px] text-blue-400 hover:text-blue-300 disabled:opacity-40">{loading ? 'Загрузка…' : 'Загрузить ещё'}</button>
     <button onClick={onOpenFull} className="text-[11px] text-neutral-400 hover:text-neutral-200">Все уведомления</button>
   </div>
@@ -142,21 +149,32 @@ const NotificationRow: React.FC<RowProps> = ({ n, onActivate }) => {
     <li>
       <button
         onClick={() => onActivate(n.id, n.payload, n.type)}
-        className={cn(
-          'group w-full text-left px-4 py-3 flex gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 transition bg-transparent',
-          isUnread && 'bg-white/5'
+          className={cn(
+          'group relative flex w-full gap-3 rounded-2xl border border-transparent bg-[#131926] px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 hover:border-white/25 hover:bg-[#182030]',
+          isUnread && 'border-blue-400/60 bg-[#192b42] shadow-lg shadow-blue-500/25'
         )}
       >
         <div className="flex flex-col items-center pt-0.5">
-          <div className="text-base leading-none select-none">{icon}</div>
-          {isUnread && <span className="mt-1 inline-block w-2 h-2 rounded-full bg-primary shadow shadow-primary/40" />}
+          <div className={cn('flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-base text-white shadow-inner', isUnread && 'border-blue-300/50 bg-blue-500/25 text-white')}>{icon}</div>
+          {isUnread && <span className="mt-1 inline-block h-1.5 w-1.5 rounded-full bg-primary shadow shadow-primary/40" />}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex justify-between gap-3">
-            <span className={cn('text-[13px] font-medium truncate pr-2', isUnread ? 'text-white' : 'text-neutral-200 group-hover:text-white')}>{title}</span>
-            <span className="text-[10px] shrink-0 text-neutral-500 tabular-nums">{formatDate(n.createdAtEpoch)}</span>
+          <div className="flex items-start gap-3">
+            <span className={cn('flex-1 text-[13px] font-semibold leading-snug text-white line-clamp-2', !isUnread && 'text-neutral-200 group-hover:text-white')}>{title}</span>
+            <span className="shrink-0 text-[10px] uppercase tracking-[0.18em] text-neutral-500 tabular-nums">{formatDate(n.createdAtEpoch)}</span>
           </div>
-          {desc && <div className="text-neutral-400 text-[11px] leading-snug mt-1 line-clamp-2 group-hover:text-neutral-300">{desc}</div>}
+          {desc && <div className="mt-1 text-[11px] leading-relaxed text-neutral-300 line-clamp-3 group-hover:text-neutral-100/90">{desc}</div>}
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-neutral-400">
+            <Badge
+              variant="outline"
+              className={cn('border-white/10 bg-white/5 px-2 py-0.5', isUnread && 'border-blue-300/50 bg-blue-500/20 text-white')}
+            >
+              {isUnread ? 'Новое' : 'Прочитано'}
+            </Badge>
+            <Badge variant="outline" className="border-white/10 bg-white/5 px-2 py-0.5 text-neutral-300">
+              {n.type.replace(/_/g, ' ').toLowerCase()}
+            </Badge>
+          </div>
         </div>
       </button>
     </li>

@@ -3,8 +3,10 @@ package shadowshift.studio.authservice.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
+import jakarta.mail.internet.MimeMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
+import shadowshift.studio.authservice.entity.EmailVerification;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -21,21 +23,33 @@ public class EmailSenderImpl implements EmailSender {
     private boolean enabled;
 
     @Override
-    public void sendVerificationCode(String email, String code) {
+    public void sendVerificationCode(String email, String code, EmailVerification.Purpose purpose, long ttlSeconds) {
         if (!enabled) {
-            log.info("Email sending disabled. Supposed to send code {} to {}", code, email);
+            log.info("Email sending disabled. Supposed to send code {} to {} purpose {}", code, email, purpose);
             return;
         }
         try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(from);
-            message.setTo(email);
-            message.setSubject("Ваш код подтверждения AniWay");
-            message.setText("Ваш код подтверждения: " + code + "\nОн истекает через 10 минут. Если вы не запрашивали код – проигнорируйте это письмо.");
-            mailSender.send(message);
-            log.info("Verification code sent to {}", email);
+            String subject = switch (purpose) {
+                case REGISTRATION -> "AniWay · Подтверждение регистрации";
+                case PASSWORD_RESET -> "AniWay · Сброс пароля";
+                case ACCOUNT_DELETION -> "AniWay · Подтверждение удаления аккаунта";
+                case LOGIN -> "AniWay · Код входа";
+            };
+
+            String html = EmailTemplateRenderer.renderVerificationEmail(purpose, code, ttlSeconds);
+            // Fallback plain text
+            String plain = EmailTemplateRenderer.renderPlainText(purpose, code, ttlSeconds);
+            MimeMessage mime = mailSender.createMimeMessage();
+            // multipart=true to allow alternative HTML + plain text
+            MimeMessageHelper helper = new MimeMessageHelper(mime, true, "UTF-8");
+            helper.setFrom(from);
+            helper.setTo(email);
+            helper.setSubject(subject);
+            helper.setText(plain, html); // plain as fallback, html as rich
+            mailSender.send(mime);
+            log.info("Verification code (purpose {}) sent to {}", purpose, email);
         } catch (Exception e) {
-            log.error("Failed to send verification email to {}: {}", email, e.getMessage());
+            log.error("Failed to send verification email to {}: {}", email, e.getMessage(), e);
             throw new IllegalStateException("EMAIL_SEND_FAILED");
         }
     }

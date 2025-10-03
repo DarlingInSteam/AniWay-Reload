@@ -454,21 +454,25 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
 
         <div className="lg:hidden space-y-7 animate-fade-in">
           <Tabs value={activeTab} onValueChange={v => setActiveTabParam(v as any)} className="space-y-7">
-            <TabsList className="grid grid-cols-2 md:grid-cols-5 glass-panel p-1.5 gap-1.5">
-              <TabsTrigger value="overview" className="relative group rounded-xl px-3 py-2 text-[13px] font-medium text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
-                <span className="relative z-10">Обзор</span>
+            <TabsList
+              role="tablist" aria-label="Разделы профиля"
+              className="flex w-full flex-nowrap overflow-x-auto gap-2 bg-black/30 border border-white/10 backdrop-blur rounded-2xl px-3 py-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent whitespace-nowrap scroll-smooth [&>*]:flex-shrink-0"
+              ref={(el)=>{ if(el){ el.scrollLeft = 0 } }}
+            >
+              <TabsTrigger value="overview" className="px-5 py-2 rounded-lg text-[13px] font-medium text-slate-300 hover:text-white data-[state=active]:text-white data-[state=active]:bg-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+                Обзор
               </TabsTrigger>
-              <TabsTrigger value="library" className="relative group rounded-xl px-3 py-2 text-[13px] font-medium text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
-                <span className="relative z-10">Библиотека</span>
+              <TabsTrigger value="library" className="px-5 py-2 rounded-lg text-[13px] font-medium text-slate-300 hover:text-white data-[state=active]:text-white data-[state=active]:bg-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+                Библиотека
               </TabsTrigger>
-              <TabsTrigger value="reviews" className="relative group rounded-xl px-3 py-2 text-[13px] font-medium text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
-                <span className="relative z-10">Отзывы</span>
+              <TabsTrigger value="reviews" className="px-5 py-2 rounded-lg text-[13px] font-medium text-slate-300 hover:text-white data-[state=active]:text-white data-[state=active]:bg-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+                Отзывы
               </TabsTrigger>
-              <TabsTrigger value="comments" className="relative group rounded-xl px-3 py-2 text-[13px] font-medium text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
-                <span className="relative z-10">Комментарии</span>
+              <TabsTrigger value="comments" className="px-5 py-2 rounded-lg text-[13px] font-medium text-slate-300 hover:text-white data-[state=active]:text-white data-[state=active]:bg-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+                Комментарии
               </TabsTrigger>
-              <TabsTrigger value="achievements" className="relative group rounded-xl px-3 py-2 text-[13px] font-medium text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
-                <span className="relative z-10">Достижения</span>
+              <TabsTrigger value="achievements" className="px-5 py-2 rounded-lg text-[13px] font-medium text-slate-300 hover:text-white data-[state=active]:text-white data-[state=active]:bg-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+                Достижения
               </TabsTrigger>
             </TabsList>
 
