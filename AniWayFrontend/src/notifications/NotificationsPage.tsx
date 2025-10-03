@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, CheckCheck, Sparkles, Trash2 } from 'lucide-react';
+import { CheckCheck, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -39,7 +39,6 @@ export const NotificationsPage: React.FC = () => {
     return combined.sort((a,b) => b.id - a.id);
   }, [flat, pages]);
 
-  const totalCount = merged.length;
   const unreadCount = React.useMemo(() => merged.filter(n => n.status === 'UNREAD').length, [merged]);
   const displayed = React.useMemo(() => viewFilter === 'unread' ? merged.filter(n => n.status === 'UNREAD') : merged, [merged, viewFilter]);
 
@@ -87,84 +86,57 @@ export const NotificationsPage: React.FC = () => {
 
   return (
     <div className="relative mx-auto max-w-5xl px-4 py-10 lg:px-6">
-      <div className="glass-panel rounded-3xl p-8 shadow-2xl">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-4">
-            <Badge variant="outline" className="border-white/20 bg-white/10 text-[11px] font-semibold uppercase tracking-[0.4em] text-slate-100">
-              Центр уведомлений
-            </Badge>
-            <div className="flex items-start gap-4">
-              <div className="rounded-2xl border border-white/15 bg-white/10 p-3 text-white shadow-inner shadow-blue-500/20">
-                <Bell className="h-7 w-7" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-semibold text-white lg:text-4xl">Уведомления AniWay</h1>
-                <p className="mt-3 max-w-2xl text-sm text-slate-200/80">
-                  Отслеживайте обновления, приглашения в переводы и важные события из вашего мира манги. Длинные тексты теперь читаются комфортно и не обрезаются.
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-200/80">
-              <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-blue-300" />
-                Всего: <strong className="font-semibold text-white">{totalCount}</strong>
-              </span>
-              <span className="inline-flex items-center gap-2 rounded-full border border-blue-400/40 bg-blue-500/10 px-4 py-1.5">
-                <div className="h-2 w-2 rounded-full bg-blue-400" />
-                Непрочитанные: <strong className="font-semibold text-white">{unreadCount}</strong>
-              </span>
-            </div>
+      <div className="glass-panel rounded-3xl p-6 shadow-2xl">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="glass-inline flex flex-wrap items-center gap-1 rounded-full p-1 text-xs text-white">
+            {(['all', 'unread'] as const).map(option => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setViewFilter(option)}
+                className={cn(
+                  'rounded-full px-4 py-1.5 font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40',
+                  viewFilter === option
+                    ? 'bg-blue-500/25 text-white shadow-lg shadow-blue-500/30'
+                    : 'text-slate-200/80 hover:bg-white/10 hover:text-white'
+                )}
+              >
+                {option === 'all' ? 'Все' : 'Непрочитанные'}
+              </button>
+            ))}
           </div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="glass-panel inline-flex rounded-full p-1 text-xs text-white">
-              {(['all', 'unread'] as const).map(option => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => setViewFilter(option)}
-                  className={cn(
-                    'rounded-full px-4 py-1.5 font-medium transition',
-                    viewFilter === option
-                      ? 'bg-blue-500/25 text-white shadow-lg shadow-blue-500/30'
-                      : 'text-slate-200/80 hover:bg-white/10 hover:text-white'
-                  )}
-                >
-                  {option === 'all' ? 'Все' : 'Непрочитанные'}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                onClick={() => markAll()}
-                className="h-9 rounded-full border border-white/20 bg-white/15 text-white hover:bg-white/25"
-              >
-                <CheckCheck className="mr-2 h-4 w-4" />
-                Прочитать все
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="destructive"
-                onClick={async () => {
-                  try {
-                    await deleteAll(authService.getToken(), (window as any).currentUserId);
-                    await clearAll();
-                    setPages([]);
-                    setPage(0);
-                    setEnd(false);
-                  } catch (e) {
-                    console.error(e);
-                  }
-                }}
-                className="h-9 rounded-full"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Очистить
-              </Button>
-            </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={unreadCount === 0}
+              onClick={() => markAll()}
+              className="h-9 rounded-full border border-white/20 bg-white/15 text-white transition hover:bg-white/25 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <CheckCheck className="mr-2 h-4 w-4" />
+              Прочитать все
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              onClick={async () => {
+                try {
+                  await deleteAll(authService.getToken(), (window as any).currentUserId);
+                  await clearAll();
+                  setPages([]);
+                  setPage(0);
+                  setEnd(false);
+                } catch (e) {
+                  console.error(e);
+                }
+              }}
+              className="h-9 rounded-full"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Очистить
+            </Button>
           </div>
         </div>
       </div>
