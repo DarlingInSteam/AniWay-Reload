@@ -75,7 +75,7 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ open
   return (
     <div
       ref={containerRef}
-      className="glass-panel animate-scale-in origin-top-right absolute right-0 z-[70] mt-2 flex w-[420px] max-h-[560px] flex-col overflow-hidden rounded-3xl bg-slate-950/85 backdrop-blur-2xl shadow-2xl shadow-black/60"
+      className="glass-panel animate-scale-in origin-top-right absolute right-0 z-[70] mt-2 flex w-[420px] max-h-[560px] flex-col overflow-hidden rounded-3xl bg-[#0c1018] backdrop-blur-md shadow-2xl shadow-black/70"
     >
       <Header unread={unread} busy={busy} onMarkAll={markAll} onClose={onClose} onDeleteAll={async () => {
         setBusy(true);
@@ -111,7 +111,7 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ open
 
 const Header: React.FC<{ unread: number; busy: boolean; onMarkAll: () => void; onDeleteAll: () => Promise<void>; onClose: () => void; }> = ({ unread, busy, onMarkAll, onDeleteAll, onClose }) => {
   return (
-  <div className="flex items-center gap-3 border-b border-white/10 bg-white/8 px-5 py-3">
+  <div className="flex items-center gap-3 border-b border-white/10 bg-[#121725] px-5 py-3">
       <div className="flex flex-1 items-center gap-2">
         <span className="text-sm font-semibold tracking-wide text-white">Уведомления</span>
         {unread > 0 && (
@@ -132,7 +132,7 @@ const Header: React.FC<{ unread: number; busy: boolean; onMarkAll: () => void; o
 };
 
 const Footer: React.FC<{ loading: boolean; onLoadMore: () => void; onOpenFull: () => void; }> = ({ loading, onLoadMore, onOpenFull }) => (
-  <div className="flex items-center justify-between gap-3 border-t border-white/10 bg-white/6 px-3 py-2 backdrop-blur-sm">
+  <div className="flex items-center justify-between gap-3 border-t border-white/10 bg-[#101521] px-3 py-2">
     <button onClick={onLoadMore} disabled={loading} className="text-[11px] text-blue-400 hover:text-blue-300 disabled:opacity-40">{loading ? 'Загрузка…' : 'Загрузить ещё'}</button>
     <button onClick={onOpenFull} className="text-[11px] text-neutral-400 hover:text-neutral-200">Все уведомления</button>
   </div>
@@ -150,8 +150,8 @@ const NotificationRow: React.FC<RowProps> = ({ n, onActivate }) => {
       <button
         onClick={() => onActivate(n.id, n.payload, n.type)}
         className={cn(
-          'glass-panel group relative flex w-full gap-3 rounded-2xl bg-white/12 px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 hover:border-white/25 hover:bg-white/18',
-          isUnread && 'border-blue-400/60 bg-blue-500/22 shadow-lg shadow-blue-500/25'
+          'glass-panel group relative flex w-full gap-3 rounded-2xl bg-[#131926] px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 hover:border-white/25 hover:bg-[#182030]',
+          isUnread && 'border-blue-400/60 bg-[#192b42] shadow-lg shadow-blue-500/25'
         )}
       >
         <div className="flex flex-col items-center pt-0.5">

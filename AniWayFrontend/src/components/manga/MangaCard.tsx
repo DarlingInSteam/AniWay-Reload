@@ -2,13 +2,34 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { Calendar, User, Star, Eye, Heart, Bookmark, Flame, ShieldCheck } from 'lucide-react'
 import { MangaResponseDTO } from '@/types'
-import { formatDate, getStatusColor, getStatusText, cn } from '@/lib/utils'
+import { getStatusColor, getStatusText, cn } from '@/lib/utils'
 import { computeMangaBadges } from '@/utils/mangaBadges'
 import { useBookmarks } from '@/hooks/useBookmarks'
 import { useAuth } from '@/contexts/AuthContext'
 import { useReadingProgress } from '@/hooks/useProgress'
 import { useRating } from '@/hooks/useRating'
 import { useQueryClient } from '@tanstack/react-query'
+
+const CARD_TYPE_LABELS: Record<MangaResponseDTO['type'], string> = {
+  MANGA: 'Манга',
+  MANHWA: 'Манхва',
+  MANHUA: 'Маньхуа',
+  WESTERN_COMIC: 'Западный комикс',
+  RUSSIAN_COMIC: 'Русский комикс',
+  OEL: 'OEL',
+  OTHER: 'Другое'
+}
+
+const formatUpdatedAtShort = (value?: string) => {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  const currentYear = new Date().getFullYear()
+  const options: Intl.DateTimeFormatOptions = date.getFullYear() === currentYear
+    ? { day: '2-digit', month: 'short' }
+    : { day: '2-digit', month: 'short', year: 'numeric' }
+  return date.toLocaleDateString('ru-RU', options)
+}
 
 interface MangaCardProps {
   manga: MangaResponseDTO
@@ -105,6 +126,17 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
   const rawGenres = manga.genre ? manga.genre.split(',').map(g=>g.trim()).filter(Boolean) : []
   const primaryGenres = rawGenres.slice(0,2)
   const hiddenGenresCount = rawGenres.length - primaryGenres.length
+  const typeLabel = CARD_TYPE_LABELS[manga.type] || 'Манга'
+  const statusLabel = getStatusText(manga.status)
+  const releaseYear = (() => {
+    if (!manga.releaseDate) return undefined
+    const date = new Date(manga.releaseDate)
+    return Number.isNaN(date.getTime()) ? undefined : date.getFullYear()
+  })()
+  const ratingValue = rating?.averageRating ? rating.averageRating.toFixed(1) : '—'
+  const updatedLabel = formatUpdatedAtShort(manga.updatedAt || manga.createdAt)
+  const progressPercent = Math.min(100, readingProgress)
+  const showProgressBar = isAuthenticated && progressPercent > 0
 
   return (
     <div className="group flex flex-col space-y-2 md:space-y-3 w-full transition-transform duration-300 will-change-transform hover:md:-translate-y-1 hover:lg:-translate-y-1 motion-reduce:transform-none">
@@ -213,38 +245,76 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
       </Link>
 
       {/* Metadata */}
-    {showMetadata && (
-  <div className="flex flex-col px-1 h-[3.6rem] md:h-[4.2rem] select-none">
-          {/* Title - строго фиксированная высота для 2 строк */}
+      {showMetadata && (
+        <div className="flex flex-col gap-2 px-1 pb-1 select-none">
           <Link
             to={`/manga/${manga.id}`}
-            className="block mb-1 md:mb-1.5"
+            className="block"
           >
-            <h3 className="text-xs md:text-sm font-semibold text-white line-clamp-2 hover:text-primary transition-colors duration-200 leading-tight h-[2rem] md:h-[2.25rem] overflow-hidden tracking-tight">
+            <h3 className="text-xs md:text-sm font-semibold text-white line-clamp-2 hover:text-primary transition-colors duration-200 leading-tight tracking-tight">
               {manga.title}
             </h3>
           </Link>
 
-          {/* Genre and Year - строго фиксированная высота */}
-          <div className="flex items-center justify-between text-[11px] text-muted-foreground h-4 mb-1 gap-2">
-            <span className="line-clamp-1 flex-1 mr-2 flex items-center gap-1 overflow-hidden">
-              {primaryGenres.map((g,idx) => (
-                <span key={g} className={cn(
-                  'bg-white/5 px-1.5 py-0.5 rounded-md text-[10px] leading-none text-white/80',
-                  idx>0 && 'hidden [@media(min-width:480px)]:inline-flex'
-                )}>{g}</span>
+          <div className="flex items-center gap-2 text-[11px] text-white/70">
+            <div className="flex min-w-0 flex-wrap items-center gap-1">
+              {primaryGenres.map((g, idx) => (
+                <span
+                  key={g}
+                  className={cn(
+                    'rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] leading-none text-white/75 whitespace-nowrap',
+                    idx > 0 && 'hidden [@media(min-width:480px)]:inline-flex'
+                  )}
+                  title={g}
+                >
+                  {g}
+                </span>
               ))}
               {hiddenGenresCount > 0 && (
-                <span className="bg-white/5 px-1.5 py-0.5 rounded-md text-[10px] leading-none text-white/50">+{hiddenGenresCount}</span>
+                <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] leading-none text-white/55 whitespace-nowrap">+{hiddenGenresCount}</span>
               )}
-              {primaryGenres.length===0 && <span className="italic opacity-60">Нет жанров</span>}
+              {primaryGenres.length === 0 && (
+                <span className="italic text-white/40">Нет жанров</span>
+              )}
+            </div>
+            <span className="ml-auto flex-shrink-0 text-white/60">{releaseYear ?? '—'}</span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 text-[10px] text-white/70">
+            <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 uppercase tracking-[0.24em] text-white/75">
+              {typeLabel}
             </span>
-            <span className="flex-shrink-0">
-              {manga.releaseDate ? new Date(manga.releaseDate).getFullYear() : '—'}
+            <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 text-white/65">
+              {statusLabel}
             </span>
           </div>
 
-          {/* Удален нижний блок рейтинга и просмотров */}
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground/80">
+            <span className="inline-flex items-center gap-1 text-white/75">
+              <Star className="h-3 w-3 text-primary" />
+              {ratingValue}
+            </span>
+            <span className="inline-flex items-center gap-1 text-white/55">
+              <Calendar className="h-3 w-3" />
+              {updatedLabel}
+            </span>
+          </div>
+
+          {showProgressBar && (
+            <div
+              className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={progressPercent}
+            >
+              <div
+                className="h-full rounded-full bg-primary/70 transition-[width] duration-300 ease-out"
+                style={{ width: `${progressPercent}%` }}
+                title={`Прочитано ${progressPercent}%`}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>

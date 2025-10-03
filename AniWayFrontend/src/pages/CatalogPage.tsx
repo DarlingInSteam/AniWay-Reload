@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { Filter, ArrowUpDown, ArrowUp, ArrowDown, X, ChevronLeft, ChevronRight, Check, RotateCcw } from 'lucide-react'
@@ -13,6 +13,66 @@ import { MangaFilterPanel } from '@/components/filters/MangaFilterPanel'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { cn } from '@/lib/utils'
 import { PageResponse, MangaResponseDTO } from '@/types'
+
+const TYPE_LABELS: Record<string, string> = {
+  MANGA: 'Манга',
+  MANHWA: 'Манхва',
+  MANHUA: 'Маньхуа',
+  WESTERN_COMIC: 'Западный комикс',
+  RUSSIAN_COMIC: 'Русский комикс',
+  OEL: 'OEL',
+  OTHER: 'Другое'
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  ONGOING: 'Выходит',
+  COMPLETED: 'Завершена',
+  HIATUS: 'Пауза',
+  CANCELLED: 'Отменена'
+}
+
+const ACTIVE_TYPE_LABELS: Record<string, string> = {
+  манга: 'Манга',
+  манхва: 'Манхва',
+  маньхуа: 'Маньхуа',
+  'западный комикс': 'Западный комикс',
+  рукомикс: 'Русский комикс',
+  другое: 'Другое'
+}
+
+const DEFAULT_AGE_RATING: [number, number] = [0, 21]
+const DEFAULT_RATING_RANGE: [number, number] = [0, 10]
+const DEFAULT_CHAPTER_RANGE: [number, number] = [0, 1000]
+const DEFAULT_RELEASE_YEAR_RANGE: [number, number] = [1990, new Date().getFullYear()]
+
+const CHIP_TONE_CLASSES: Record<'default' | 'primary' | 'warm', string> = {
+  default: 'border-white/15 bg-white/8 text-white/80 hover:bg-white/12 hover:text-white',
+  primary: 'border-primary/40 bg-primary/20 text-primary hover:bg-primary/30',
+  warm: 'border-amber-300/35 bg-amber-400/20 text-amber-200 hover:bg-amber-400/30'
+}
+
+const rangesEqual = (a?: [number, number], b?: [number, number]) => {
+  if (!a || !b) return false
+  return a[0] === b[0] && a[1] === b[1]
+}
+
+type ChipTone = 'default' | 'primary' | 'warm'
+type ChipCategory = 'search' | 'genre' | 'tag' | 'type' | 'status' | 'ageRating' | 'rating' | 'releaseYear' | 'chapterRange' | 'strict' | 'activeType'
+
+interface ActiveChip {
+  key: string
+  label: string
+  tone?: ChipTone
+  onRemove: () => void
+}
+
+const normalizeRange = (value: unknown): [number, number] | undefined => {
+  if (!Array.isArray(value) || value.length !== 2) return undefined
+  const first = Number(value[0])
+  const second = Number(value[1])
+  if (!Number.isFinite(first) || !Number.isFinite(second)) return undefined
+  return [first, second]
+}
 
 export function CatalogPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -558,8 +618,274 @@ export function CatalogPage() {
     setActiveFilters({})
     setDraftFilters({})
     setActiveType('все')
+    setSearchInput('')
+    setSearchQuery('')
     setCurrentPage(0)
   }
+
+  const removeFilterChip = useCallback((category: ChipCategory, value?: string) => {
+    if (category === 'search') {
+      setSearchInput('')
+      setSearchQuery('')
+      setCurrentPage(0)
+      return
+    }
+
+  setActiveFilters((prev: any) => {
+      const next: any = { ...prev }
+      let changed = false
+
+      const removeArrayValue = (key: 'genres' | 'tags', target?: string) => {
+        if (!target) return
+        const current = Array.isArray(next[key]) ? (next[key] as string[]).filter(item => item !== target) : []
+        if (current.length > 0) {
+          next[key] = current
+        } else {
+          delete next[key]
+        }
+        changed = true
+      }
+
+      switch (category) {
+        case 'genre':
+          removeArrayValue('genres', value)
+          break
+        case 'tag':
+          removeArrayValue('tags', value)
+          break
+        case 'type':
+          if (next.type) {
+            delete next.type
+            changed = true
+          }
+          break
+        case 'activeType':
+          break
+        case 'status':
+          if (next.status) {
+            delete next.status
+            changed = true
+          }
+          break
+        case 'ageRating':
+          if (next.ageRating) {
+            delete next.ageRating
+            changed = true
+          }
+          break
+        case 'rating':
+          if (next.rating) {
+            delete next.rating
+            changed = true
+          }
+          break
+        case 'releaseYear':
+          if (next.releaseYear) {
+            delete next.releaseYear
+            changed = true
+          }
+          break
+        case 'chapterRange':
+          if (next.chapterRange) {
+            delete next.chapterRange
+            changed = true
+          }
+          break
+        case 'strict':
+          if (next.strictMatch) {
+            delete next.strictMatch
+            changed = true
+          }
+          break
+      }
+
+      return changed ? next : prev
+    })
+
+  setDraftFilters((prev: any) => {
+      const next: any = { ...prev }
+      let changed = false
+
+      const removeDraftArrayValue = (key: 'selectedGenres' | 'selectedTags', target?: string) => {
+        if (!target) return
+        const current = Array.isArray(next[key]) ? (next[key] as string[]).filter(item => item !== target) : []
+        if (current.length > 0) {
+          next[key] = current
+        } else {
+          delete next[key]
+        }
+        changed = true
+      }
+
+      switch (category) {
+        case 'genre':
+          removeDraftArrayValue('selectedGenres', value)
+          break
+        case 'tag':
+          removeDraftArrayValue('selectedTags', value)
+          break
+        case 'type':
+          if (next.mangaType) {
+            next.mangaType = ''
+            changed = true
+          }
+          break
+        case 'activeType':
+          break
+        case 'status':
+          if (next.status) {
+            next.status = ''
+            changed = true
+          }
+          break
+        case 'ageRating':
+          if (next.ageRating) {
+            next.ageRating = DEFAULT_AGE_RATING
+            changed = true
+          }
+          break
+        case 'rating':
+          if (next.rating) {
+            next.rating = DEFAULT_RATING_RANGE
+            changed = true
+          }
+          break
+        case 'releaseYear':
+          if (next.releaseYear) {
+            next.releaseYear = DEFAULT_RELEASE_YEAR_RANGE
+            changed = true
+          }
+          break
+        case 'chapterRange':
+          if (next.chapterRange) {
+            next.chapterRange = DEFAULT_CHAPTER_RANGE
+            changed = true
+          }
+          break
+        case 'strict':
+          if (next.strictMatch) {
+            next.strictMatch = false
+            changed = true
+          }
+          break
+      }
+
+      return changed ? next : prev
+    })
+
+    if (category === 'activeType') {
+      setActiveType('все')
+    }
+
+    setCurrentPage(0)
+  }, [setActiveFilters, setDraftFilters, setActiveType, setSearchInput, setSearchQuery])
+
+  const activeChips = useMemo<ActiveChip[]>(() => {
+    const chips: ActiveChip[] = []
+
+    if (searchQuery) {
+      chips.push({
+        key: 'search',
+        label: `Поиск: “${searchQuery}”`,
+        onRemove: () => removeFilterChip('search')
+      })
+    }
+
+    if (activeType !== 'все') {
+      const label = ACTIVE_TYPE_LABELS[activeType] || activeType
+      chips.push({
+        key: 'active-type',
+        label,
+        tone: 'primary',
+        onRemove: () => removeFilterChip('activeType')
+      })
+    }
+
+    const genres = Array.isArray((activeFilters as any).genres) ? (activeFilters as any).genres as string[] : []
+    genres.forEach(genre => {
+      chips.push({
+        key: `genre-${genre}`,
+        label: genre,
+        onRemove: () => removeFilterChip('genre', genre)
+      })
+    })
+
+    const tags = Array.isArray((activeFilters as any).tags) ? (activeFilters as any).tags as string[] : []
+    tags.forEach(tag => {
+      chips.push({
+        key: `tag-${tag}`,
+        label: `#${tag}`,
+        onRemove: () => removeFilterChip('tag', tag)
+      })
+    })
+
+    const appliedType = (activeFilters as any).type as string | undefined
+    if (appliedType) {
+      chips.push({
+        key: `type-${appliedType}`,
+        label: TYPE_LABELS[appliedType] || appliedType,
+        tone: 'primary',
+        onRemove: () => removeFilterChip('type')
+      })
+    }
+
+    const appliedStatus = (activeFilters as any).status as string | undefined
+    if (appliedStatus) {
+      chips.push({
+        key: `status-${appliedStatus}`,
+        label: STATUS_LABELS[appliedStatus] || appliedStatus,
+        onRemove: () => removeFilterChip('status')
+      })
+    }
+
+    const ageRange = normalizeRange((activeFilters as any).ageRating)
+    if (ageRange && !rangesEqual(ageRange, DEFAULT_AGE_RATING)) {
+      chips.push({
+        key: 'age-rating',
+        label: `Возраст: ${ageRange[0]}+–${ageRange[1]}+`,
+        onRemove: () => removeFilterChip('ageRating')
+      })
+    }
+
+    const ratingRange = normalizeRange((activeFilters as any).rating)
+    if (ratingRange && !rangesEqual(ratingRange, DEFAULT_RATING_RANGE)) {
+      chips.push({
+        key: 'rating-range',
+        label: `Рейтинг: ${ratingRange[0]}–${ratingRange[1]}`,
+        onRemove: () => removeFilterChip('rating')
+      })
+    }
+
+    const releaseRange = normalizeRange((activeFilters as any).releaseYear)
+    if (releaseRange && !rangesEqual(releaseRange, DEFAULT_RELEASE_YEAR_RANGE)) {
+      chips.push({
+        key: 'release-range',
+        label: `Годы: ${releaseRange[0]}–${releaseRange[1]}`,
+        onRemove: () => removeFilterChip('releaseYear')
+      })
+    }
+
+    const chapterRange = normalizeRange((activeFilters as any).chapterRange)
+    if (chapterRange && !rangesEqual(chapterRange, DEFAULT_CHAPTER_RANGE)) {
+      chips.push({
+        key: 'chapter-range',
+        label: `Главы: ${chapterRange[0]}–${chapterRange[1]}`,
+        onRemove: () => removeFilterChip('chapterRange')
+      })
+    }
+
+    const strict = Boolean((activeFilters as any).strictMatch)
+    if (strict) {
+      chips.push({
+        key: 'strict',
+        label: 'Строгое совпадение',
+        tone: 'warm',
+        onRemove: () => removeFilterChip('strict')
+      })
+    }
+
+    return chips
+  }, [activeFilters, activeType, searchQuery, removeFilterChip])
 
   // (Removed old external sync effect – replaced by early sync above)
 
@@ -614,9 +940,9 @@ export function CatalogPage() {
         <div className="flex gap-8">
           {/* Левая колонка: каталог */}
             <div className="flex-1 min-w-0">
-              <div className="glass-panel p-4 lg:p-5">
+              <div className="glass-panel space-y-5 p-4 lg:p-5">
                 {/* Заголовок + поиск + сортировка */}
-                <div className="flex flex-col gap-4 mb-4">
+                <div className="flex flex-col gap-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <h1 className="text-xl md:text-2xl font-bold text-white">{pageTitle}</h1>
                     <div className="flex items-center gap-3 w-full sm:w-auto flex-1">
@@ -658,6 +984,38 @@ export function CatalogPage() {
                       </button>
                     </div>
                   </div>
+                </div>
+
+                {activeChips.length > 0 && (
+                  <div className="glass-inline flex flex-wrap items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-3 py-3">
+                    {activeChips.map(chip => (
+                      <button
+                        key={chip.key}
+                        onClick={chip.onRemove}
+                        className={cn(
+                          'group inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+                          CHIP_TONE_CLASSES[chip.tone ?? 'default']
+                        )}
+                      >
+                        <span className="leading-none">{chip.label}</span>
+                        <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/10 transition group-hover:bg-white/20">
+                          <X className="h-3 w-3" />
+                        </span>
+                      </button>
+                    ))}
+                    <button
+                      onClick={clearAllFilters}
+                      className="inline-flex items-center gap-2 rounded-full border border-white/15 px-3 py-1.5 text-[11px] text-muted-foreground transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      Сбросить все
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
+                  <span className="text-[11px] uppercase tracking-[0.35em] text-muted-foreground/70">Результаты</span>
+                  <span className="text-xs text-muted-foreground/80">Найдено: {totalElements}</span>
                 </div>
 
                 {/* Сетка карточек */}
