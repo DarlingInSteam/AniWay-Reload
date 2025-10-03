@@ -31,30 +31,27 @@ function UserFilters({ filters, onFiltersChange, onImmediateSearchChange }: { fi
   ]
 
   return (
-    <div className="glass-panel relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/70 via-slate-900/55 to-blue-900/40 p-6 shadow-lg shadow-black/20">
-      <div className="absolute -right-12 -top-12 h-32 w-32 rounded-full bg-blue-500/10 blur-3xl" aria-hidden="true" />
-      <div className="absolute -left-10 -bottom-16 h-40 w-40 rounded-full bg-purple-500/10 blur-3xl" aria-hidden="true" />
-
-      <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end">
+    <div className="glass-panel rounded-2xl p-6 shadow-lg">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-end">
         <div className="flex-1">
-          <Label htmlFor="user-search" className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300/70">
+          <Label htmlFor="user-search" className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-200/80">
             Поиск
           </Label>
-          <div className="mt-2 flex items-center gap-3 rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2 transition focus-within:border-blue-400/60 focus-within:bg-slate-900/80">
-            <Search className="h-4 w-4 text-slate-400" aria-hidden="true" />
+          <div className="mt-2 flex items-center gap-3 rounded-xl border border-white/15 bg-white/10 px-4 py-2 transition focus-within:border-blue-400/60">
+            <Search className="h-4 w-4 text-slate-300" aria-hidden="true" />
             <Input
               id="user-search"
               placeholder="Введите имя пользователя, email или часть ника"
               value={filters.search}
               onChange={(e)=>onImmediateSearchChange(e.target.value)}
-              className="h-auto flex-1 border-none bg-transparent p-0 text-sm text-white placeholder:text-slate-500 focus-visible:ring-0"
+              className="h-auto flex-1 border-none bg-transparent p-0 text-sm text-white placeholder:text-slate-400 focus-visible:ring-0"
               aria-label="Поиск пользователя"
             />
           </div>
         </div>
 
         <div className="w-full lg:w-auto">
-          <Label className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300/70">
+          <Label className="text-xs font-semibold uppercase tracking-[0.24ем] text-slate-200/80">
             Статусы
           </Label>
           <div className="mt-2 flex flex-wrap gap-2">
@@ -67,7 +64,7 @@ function UserFilters({ filters, onFiltersChange, onImmediateSearchChange }: { fi
                   size="sm"
                   variant={active ? 'default' : 'outline'}
                   onClick={() => onFiltersChange({ ...filters, status: option.value })}
-                  className={`rounded-full border-white/20 px-4 text-xs font-medium shadow-sm transition ${active ? 'bg-gradient-to-r from-blue-500/80 to-purple-500/70 text-white shadow-blue-500/30 hover:from-blue-500 hover:to-purple-500' : 'bg-transparent text-slate-300 hover:bg-white/10'}`}
+                  className={`rounded-full px-4 text-xs font-medium transition ${active ? 'bg-blue-500/30 text-white hover:bg-blue-500/40 border border-blue-400/60' : 'text-slate-200 hover:bg-white/10'}`}
                 >
                   {option.label}
                 </Button>
@@ -77,11 +74,11 @@ function UserFilters({ filters, onFiltersChange, onImmediateSearchChange }: { fi
         </div>
       </div>
 
-      <div className="relative mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div className="flex flex-col gap-1">
           <Label className="text-[10px] uppercase tracking-[0.3em] text-slate-400">Роль</Label>
           <Select value={filters.role} onValueChange={(v:any)=>onFiltersChange({...filters, role: v})}>
-            <SelectTrigger className="h-10 rounded-xl border-white/15 bg-slate-950/60 text-sm text-white">
+            <SelectTrigger className="h-10 rounded-xl border border-white/15 bg-white/10 text-sm text-white">
               <SelectValue placeholder="Роль" />
             </SelectTrigger>
             <SelectContent className="bg-slate-900/95 text-slate-100">
@@ -95,7 +92,7 @@ function UserFilters({ filters, onFiltersChange, onImmediateSearchChange }: { fi
         <div className="flex flex-col gap-1">
           <Label className="text-[10px] uppercase tracking-[0.3em] text-slate-400">Сортировка</Label>
           <Select value={filters.sortBy} onValueChange={(v:any)=>onFiltersChange({...filters, sortBy: v})}>
-            <SelectTrigger className="h-10 rounded-xl border-white/15 bg-slate-950/60 text-sm text-white">
+            <SelectTrigger className="h-10 rounded-xl border border-white/15 bg-white/10 text-sm text-white">
               <SelectValue placeholder="Сортировка" />
             </SelectTrigger>
             <SelectContent className="bg-slate-900/95 text-slate-100">
@@ -109,7 +106,7 @@ function UserFilters({ filters, onFiltersChange, onImmediateSearchChange }: { fi
         <div className="flex flex-col gap-1">
           <Label className="text-[10px] uppercase tracking-[0.3em] text-slate-400">Порядок</Label>
           <Select value={filters.sortOrder} onValueChange={(v:any)=>onFiltersChange({...filters, sortOrder: v})}>
-            <SelectTrigger className="h-10 rounded-xl border-white/15 bg-slate-950/60 text-sm text-white">
+            <SelectTrigger className="h-10 rounded-xl border border-white/15 bg-white/10 text-sm text-white">
               <SelectValue placeholder="Порядок" />
             </SelectTrigger>
             <SelectContent className="bg-slate-900/95 text-slate-100">
@@ -123,7 +120,7 @@ function UserFilters({ filters, onFiltersChange, onImmediateSearchChange }: { fi
             variant="outline"
             size="sm"
             onClick={()=>onFiltersChange({ search: '', status: 'all', role: 'all', sortBy: 'username', sortOrder: 'asc'})}
-            className="h-10 rounded-xl border-white/20 bg-transparent text-xs font-semibold uppercase tracking-[0.2em] text-slate-200 hover:bg-white/10"
+            className="h-10 rounded-xl border-white/20 bg-white/5 text-xs font-semibold uppercase tracking-[0.2em] text-slate-100 hover:bg-white/10"
           >
             Сбросить фильтры
           </Button>
@@ -844,7 +841,7 @@ export function UserManager() {
       label: 'Всего пользователей',
       value: effectiveStats?.totalUsers,
       icon: Users,
-      accent: 'from-blue-500/40 via-blue-500/10 to-transparent',
+      badgeClass: 'border-blue-400/40 bg-blue-500/20 text-blue-100',
       hint: 'Аккаунты за все время'
     },
     {
@@ -852,7 +849,7 @@ export function UserManager() {
       label: 'Переводчики',
       value: effectiveStats?.translators,
       icon: Activity,
-      accent: 'from-purple-500/35 via-purple-500/10 to-transparent',
+      badgeClass: 'border-purple-400/40 bg-purple-500/20 text-purple-100',
       hint: 'Активные участники команд'
     },
     {
@@ -860,7 +857,7 @@ export function UserManager() {
       label: 'Администраторы',
       value: effectiveStats?.admins,
       icon: Shield,
-      accent: 'from-amber-500/35 via-amber-500/10 to-transparent',
+      badgeClass: 'border-amber-400/40 bg-amber-500/20 text-amber-100',
       hint: 'Доступ к панели'
     },
     {
@@ -868,7 +865,7 @@ export function UserManager() {
       label: 'Заблокировано',
       value: effectiveStats?.banned,
       icon: Ban,
-      accent: 'from-rose-500/40 via-rose-500/10 to-transparent',
+      badgeClass: 'border-rose-400/40 bg-rose-500/20 text-rose-100',
       hint: 'Включая временные меры'
     },
     {
@@ -876,7 +873,7 @@ export function UserManager() {
       label: 'Активны за 7 дней',
       value: effectiveStats?.activeLast7Days,
       icon: UserCheck,
-      accent: 'from-emerald-500/35 via-emerald-500/10 to-transparent',
+      badgeClass: 'border-emerald-400/40 bg-emerald-500/20 text-emerald-100',
       hint: 'Пользователи с недавним входом'
     }
   ] as const
@@ -943,10 +940,8 @@ export function UserManager() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="glass-panel relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-r from-slate-950/80 via-slate-900/65 to-blue-900/45 p-6 shadow-xl shadow-black/30">
-        <div className="pointer-events-none absolute -right-20 top-0 h-48 w-48 rounded-full bg-blue-500/20 blur-3xl" />
-        <div className="pointer-events-none absolute -left-24 bottom-0 h-48 w-48 rounded-full bg-purple-500/20 blur-3xl" />
-        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+      <div className="glass-panel rounded-3xl p-6 shadow-xl">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-3">
             <Badge variant="outline" className="border-white/20 bg-white/10 text-[10px] font-semibold uppercase tracking-[0.4em] text-slate-200">
               Панель модерации
@@ -982,15 +977,11 @@ export function UserManager() {
           const Icon = card.icon
           const displayValue = typeof card.value === 'number' ? card.value.toLocaleString('ru-RU') : (card.value ?? '—')
           return (
-            <div
-              key={card.key}
-              className={`glass-panel relative overflow-hidden rounded-2xl border border-white/10 bg-slate-950/70 p-4 shadow-lg shadow-black/20`}
-            >
-              <div className={`absolute inset-0 bg-gradient-to-br ${card.accent}`} aria-hidden="true" />
-              <div className="relative flex flex-col gap-3">
+            <div key={card.key} className="glass-panel rounded-2xl p-4 shadow-lg">
+              <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                   <div className="text-[10px] uppercase tracking-[0.3em] text-slate-300">{card.label}</div>
-                  <div className="rounded-full bg-white/10 p-2 text-white/80">
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-2xl border text-white/90 ${card.badgeClass}`}>
                     <Icon className="h-4 w-4" />
                   </div>
                 </div>
@@ -1040,7 +1031,7 @@ export function UserManager() {
       />
 
       {activeFilterChips.length > 0 && (
-        <div className="glass-panel flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-xs text-slate-200">
+        <div className="glass-panel flex flex-wrap items-center gap-2 rounded-2xl px-4 py-3 text-xs text-slate-200">
           <span className="uppercase tracking-[0.3em] text-slate-400">Активные фильтры:</span>
           {activeFilterChips.map(chip => (
             <button
@@ -1055,7 +1046,7 @@ export function UserManager() {
         </div>
       )}
 
-      <div className="glass-panel overflow-hidden rounded-2xl border border-white/10 bg-slate-950/70 shadow-lg shadow-black/25">
+  <div className="glass-panel overflow-hidden rounded-2xl shadow-lg">
         <div className="flex flex-col gap-4 border-b border-white/10 bg-white/5 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1">
             <div className="text-[10px] uppercase tracking-[0.3em] text-slate-400">Результаты</div>
