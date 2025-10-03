@@ -75,7 +75,7 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ open
   return (
     <div
       ref={containerRef}
-      className="glass-panel animate-scale-in origin-top-right absolute right-0 z-[70] mt-2 flex w-[420px] max-h-[560px] flex-col overflow-hidden rounded-3xl bg-[#0c1018] backdrop-blur-md shadow-2xl shadow-black/70"
+      className="animate-scale-in origin-top-right absolute right-0 z-[70] mt-2 flex w-[420px] max-h-[560px] flex-col overflow-hidden rounded-3xl border border-white/12 bg-[#070b13] shadow-2xl shadow-black/70"
     >
       <Header unread={unread} busy={busy} onMarkAll={markAll} onClose={onClose} onDeleteAll={async () => {
         setBusy(true);
@@ -149,8 +149,8 @@ const NotificationRow: React.FC<RowProps> = ({ n, onActivate }) => {
     <li>
       <button
         onClick={() => onActivate(n.id, n.payload, n.type)}
-        className={cn(
-          'glass-panel group relative flex w-full gap-3 rounded-2xl bg-[#131926] px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 hover:border-white/25 hover:bg-[#182030]',
+          className={cn(
+          'group relative flex w-full gap-3 rounded-2xl border border-transparent bg-[#131926] px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 hover:border-white/25 hover:bg-[#182030]',
           isUnread && 'border-blue-400/60 bg-[#192b42] shadow-lg shadow-blue-500/25'
         )}
       >

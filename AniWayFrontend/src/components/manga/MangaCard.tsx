@@ -115,6 +115,7 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
   const hiddenGenresCount = rawGenres.length - primaryGenres.length
   const typeLabel = CARD_TYPE_LABELS[manga.type] || 'манга'
   const statusLabel = getStatusText(manga.status)
+  const badgeClass = 'inline-flex items-center gap-1 rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] leading-none text-white/75 whitespace-nowrap'
   const releaseYear = (() => {
     if (!manga.releaseDate) return undefined
     const date = new Date(manga.releaseDate)
@@ -265,10 +266,10 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
           </div>
 
           <div className="flex flex-wrap items-center gap-2 text-[10px] text-white/70">
-            <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 text-white/80">
+            <span className={badgeClass}>
               {typeLabel}
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 text-white/65">
+            <span className={cn(badgeClass, 'text-white/65')}>
               {statusLabel}
             </span>
           </div>

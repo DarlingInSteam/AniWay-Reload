@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
-import { TopsHero } from '@/features/tops/components/TopsHero'
 import { TopsTabNav } from '@/features/tops/components/TopsTabNav'
 import { TopsSidebar } from '@/features/tops/components/TopsSidebar'
 import {
@@ -109,8 +108,6 @@ export function TopsPage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto space-y-8 px-4 py-8">
-        <TopsHero summaryCards={topsData.summaryCards} />
-
         <TopsTabNav
           activeTab={activeTab}
           onChange={(tab) => setActiveTab(tab)}
