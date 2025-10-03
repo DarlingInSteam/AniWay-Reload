@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { Calendar, User, Star, Eye, Heart, Bookmark, Flame, ShieldCheck } from 'lucide-react'
+import { Star, Eye, Bookmark, Flame, ShieldCheck } from 'lucide-react'
 import { MangaResponseDTO } from '@/types'
 import { getStatusColor, getStatusText, cn } from '@/lib/utils'
 import { computeMangaBadges } from '@/utils/mangaBadges'
@@ -11,24 +11,13 @@ import { useRating } from '@/hooks/useRating'
 import { useQueryClient } from '@tanstack/react-query'
 
 const CARD_TYPE_LABELS: Record<MangaResponseDTO['type'], string> = {
-  MANGA: 'Манга',
-  MANHWA: 'Манхва',
-  MANHUA: 'Маньхуа',
-  WESTERN_COMIC: 'Западный комикс',
-  RUSSIAN_COMIC: 'Русский комикс',
-  OEL: 'OEL',
-  OTHER: 'Другое'
-}
-
-const formatUpdatedAtShort = (value?: string) => {
-  if (!value) return '—'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '—'
-  const currentYear = new Date().getFullYear()
-  const options: Intl.DateTimeFormatOptions = date.getFullYear() === currentYear
-    ? { day: '2-digit', month: 'short' }
-    : { day: '2-digit', month: 'short', year: 'numeric' }
-  return date.toLocaleDateString('ru-RU', options)
+  MANGA: 'манга',
+  MANHWA: 'манхва',
+  MANHUA: 'маньхуа',
+  WESTERN_COMIC: 'западный комикс',
+  RUSSIAN_COMIC: 'русский комикс',
+  OEL: 'oel',
+  OTHER: 'другое'
 }
 
 interface MangaCardProps {
@@ -43,7 +32,7 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
 
   const { isAuthenticated } = useAuth()
   const { getMangaBookmark } = useBookmarks()
-  const { getMangaReadingPercentage, getMangaProgress } = useReadingProgress()
+  const { getMangaProgress } = useReadingProgress()
   const { rating } = useRating(manga.id)
   const queryClient = useQueryClient()
   
@@ -74,8 +63,6 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
   const isInBookmarks = bookmarkInfo !== null
   
   // Получаем прогресс чтения
-  const readingProgress = isAuthenticated ? getMangaReadingPercentage(manga.id, manga.totalChapters) : 0
-  
   // Вычисляем количество прочитанных глав более точно
   const getReadChaptersCount = () => {
     if (!isAuthenticated || manga.totalChapters === 0) return 0
@@ -126,17 +113,14 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
   const rawGenres = manga.genre ? manga.genre.split(',').map(g=>g.trim()).filter(Boolean) : []
   const primaryGenres = rawGenres.slice(0,2)
   const hiddenGenresCount = rawGenres.length - primaryGenres.length
-  const typeLabel = CARD_TYPE_LABELS[manga.type] || 'Манга'
+  const typeLabel = CARD_TYPE_LABELS[manga.type] || 'манга'
   const statusLabel = getStatusText(manga.status)
   const releaseYear = (() => {
     if (!manga.releaseDate) return undefined
     const date = new Date(manga.releaseDate)
     return Number.isNaN(date.getTime()) ? undefined : date.getFullYear()
   })()
-  const ratingValue = rating?.averageRating ? rating.averageRating.toFixed(1) : '—'
-  const updatedLabel = formatUpdatedAtShort(manga.updatedAt || manga.createdAt)
-  const progressPercent = Math.min(100, readingProgress)
-  const showProgressBar = isAuthenticated && progressPercent > 0
+  
 
   return (
     <div className="group flex flex-col space-y-2 md:space-y-3 w-full transition-transform duration-300 will-change-transform hover:md:-translate-y-1 hover:lg:-translate-y-1 motion-reduce:transform-none">
@@ -281,40 +265,13 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
           </div>
 
           <div className="flex flex-wrap items-center gap-2 text-[10px] text-white/70">
-            <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 uppercase tracking-[0.24em] text-white/75">
+            <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 text-white/80">
               {typeLabel}
             </span>
             <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 text-white/65">
               {statusLabel}
             </span>
           </div>
-
-          <div className="flex items-center justify-between text-[10px] text-muted-foreground/80">
-            <span className="inline-flex items-center gap-1 text-white/75">
-              <Star className="h-3 w-3 text-primary" />
-              {ratingValue}
-            </span>
-            <span className="inline-flex items-center gap-1 text-white/55">
-              <Calendar className="h-3 w-3" />
-              {updatedLabel}
-            </span>
-          </div>
-
-          {showProgressBar && (
-            <div
-              className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10"
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={progressPercent}
-            >
-              <div
-                className="h-full rounded-full bg-primary/70 transition-[width] duration-300 ease-out"
-                style={{ width: `${progressPercent}%` }}
-                title={`Прочитано ${progressPercent}%`}
-              />
-            </div>
-          )}
         </div>
       )}
     </div>

@@ -1013,10 +1013,7 @@ export function CatalogPage() {
                   </div>
                 )}
 
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
-                  <span className="text-[11px] uppercase tracking-[0.35em] text-muted-foreground/70">Результаты</span>
-                  <span className="text-xs text-muted-foreground/80">Найдено: {totalElements}</span>
-                </div>
+                <div className="border-t border-white/10 pt-4" />
 
                 {/* Сетка карточек */}
                 <ErrorBoundary fallback={
