@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { MessageView as MessageDto } from '@/types/social';
+import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer';
 
 function initials(value: string): string {
   const parts = value.trim().split(/\s+/);
@@ -26,7 +27,7 @@ function getUserDisplay(users: Record<number, UserMini>, userId: number, current
 
 export const GlobalChatPage: React.FC = () => {
   const { user, isAdmin, isAuthenticated } = useAuth();
-  const chat = useGlobalChat({ includeArchived: isAdmin });
+  const chat = useGlobalChat({ includeArchived: isAdmin, messageRefreshIntervalMs: 5000 });
   const {
     categories,
     selectedCategory,
@@ -222,33 +223,31 @@ export const GlobalChatPage: React.FC = () => {
   }, [messages]);
 
   return (
-    <div className="min-h-[calc(100vh-120px)] bg-gradient-to-br from-manga-black via-manga-black/95 to-manga-black text-white">
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.3em] text-primary/80">
-              <MessageSquare className="h-4 w-4" />
-              Глобальный чат
-            </p>
-            <h1 className="mt-2 text-3xl font-semibold text-white">Категории общения AniWay</h1>
-            <p className="mt-1 text-sm text-white/60">
-              Выбирайте канал общения, отвечайте на сообщения и следите за важными обновлениями сообщества.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={refreshAll} disabled={loadingCategories || loadingMessages}>
-              {loadingCategories || loadingMessages ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-            </Button>
-          </div>
+    <div className="mx-auto w-full max-w-7xl px-4 py-8 text-white">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.25em] text-primary/70">
+          <MessageSquare className="h-4 w-4" />
+          Прямой эфир AniWay
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={refreshAll}
+          disabled={loadingCategories || loadingMessages}
+          className="gap-2"
+        >
+          {loadingCategories || loadingMessages ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCcw className="h-3 w-3" />}
+          Обновить всё
+        </Button>
+      </div>
 
-        {!!chatError && (
-          <GlassPanel className="mb-6 border border-red-500/40 bg-red-500/10 text-sm text-red-200">
-            Не удалось загрузить данные чата. Попробуйте обновить страницу или зайдите позже.
-          </GlassPanel>
-        )}
+      {!!chatError && (
+        <GlassPanel className="mb-6 border border-red-500/40 bg-red-500/10 text-sm text-red-200">
+          Не удалось загрузить данные чата. Попробуйте обновить страницу или зайдите позже.
+        </GlassPanel>
+      )}
 
-        <div className="grid gap-6 lg:grid-cols-[320px,1fr] xl:grid-cols-[360px,1fr]">
+      <div className="grid gap-6 lg:grid-cols-[320px,1fr] xl:grid-cols-[360px,1fr]">
           <div className="space-y-6">
             <GlassPanel className="space-y-4" padding="md">
               <div className="flex items-center justify-between">
@@ -261,7 +260,7 @@ export const GlobalChatPage: React.FC = () => {
                 </Button>
               </div>
 
-              <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
+              <div className="max-h-[calc(100vh-260px)] space-y-2 overflow-y-auto pr-1">
                 {loadingCategories && categories.length === 0 ? (
                   <div className="flex items-center justify-center py-10">
                     <LoadingSpinner />
@@ -415,7 +414,7 @@ export const GlobalChatPage: React.FC = () => {
             )}
           </div>
 
-          <GlassPanel className="flex min-h-[640px] flex-col border-white/10 bg-white/5" padding="lg">
+          <GlassPanel className="flex h-[calc(100vh-220px)] min-h-[520px] flex-col overflow-hidden border-white/10 bg-white/5" padding="lg">
             {selectedCategory ? (
               <>
                 <div className="mb-4 flex flex-col gap-2 border-b border-white/10 pb-4 sm:flex-row sm:items-start sm:justify-between">
@@ -453,7 +452,7 @@ export const GlobalChatPage: React.FC = () => {
 
                 <div className="flex-1 overflow-hidden">
                   <div className="flex h-full flex-col">
-                    <div className="flex-1 overflow-y-auto px-1">
+                    <div className="flex-1 overflow-y-auto px-1 scrollbar-thin">
                       {loadingMessages && messages.length === 0 ? (
                         <div className="flex min-h-[320px] items-center justify-center">
                           <LoadingSpinner />
@@ -519,7 +518,9 @@ export const GlobalChatPage: React.FC = () => {
                                       </Badge>
                                     )}
                                   </div>
-                                  <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-white/90">{message.content}</p>
+                                  <div className="mt-2 prose prose-invert max-w-none text-sm leading-relaxed markdown-body">
+                                    <MarkdownRenderer value={message.content} />
+                                  </div>
                                   {replyTarget ? (
                                     <button
                                       type="button"
@@ -529,7 +530,11 @@ export const GlobalChatPage: React.FC = () => {
                                       <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">
                                         <Reply className="h-3 w-3" /> Ответ для {getUserDisplay(users, replyTarget.senderId, user?.id)}
                                       </p>
-                                      <p className="mt-1 line-clamp-2 text-[13px] text-white/80">{replyTarget.content}</p>
+                                      <div className="mt-2 max-h-32 overflow-hidden text-[13px] text-white/80">
+                                        <div className="prose prose-invert max-w-none text-[13px] leading-relaxed markdown-body">
+                                          <MarkdownRenderer value={replyTarget.content} />
+                                        </div>
+                                      </div>
                                     </button>
                                   ) : message.replyToMessageId ? (
                                     <div className="mt-3 rounded-xl border border-dashed border-white/10 bg-black/30 px-3 py-2 text-xs text-white/60">
@@ -546,7 +551,7 @@ export const GlobalChatPage: React.FC = () => {
                                       )}
                                     </div>
                                   ) : null}
-                                  <div className="mt-3 hidden items-center gap-2 text-xs text-white/60 group-hover:flex">
+                                  <div className="mt-3 flex items-center gap-2 text-xs text-white/60 opacity-0 transition-opacity duration-200 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto">
                                     <Button
                                       variant="ghost"
                                       size="sm"
@@ -582,7 +587,11 @@ export const GlobalChatPage: React.FC = () => {
                               Очистить
                             </button>
                           </div>
-                          <p className="mt-2 line-clamp-3 text-white/80">{replyTo.content}</p>
+                          <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border border-white/5 bg-black/20 p-2">
+                            <div className="prose prose-invert max-w-none text-sm leading-relaxed markdown-body">
+                              <MarkdownRenderer value={replyTo.content} />
+                            </div>
+                          </div>
                         </div>
                       )}
 
@@ -626,7 +635,6 @@ export const GlobalChatPage: React.FC = () => {
               </div>
             )}
           </GlassPanel>
-        </div>
       </div>
     </div>
   );

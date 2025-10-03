@@ -28,8 +28,6 @@ export function Header() {
   const channelUnread = inboxSummary?.channelUnread ?? 0
   const directUnread = inboxSummary?.directUnread ?? 0
 
-  // Универсальный поиск манги
-  // Debounce input to limit network calls
   useEffect(() => {
     const h = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 250)
     return () => clearTimeout(h)
@@ -129,7 +127,6 @@ export function Header() {
               { label: 'Каталог', to: '/catalog' },
               { label: 'Топы', to: '/tops' },
               { label: 'Форум', to: '/forum' },
-              { label: 'Чат', to: '/chat' },
               { label: 'API Docs', to: '/api-docs' }
             ].map(item => (
               <Link

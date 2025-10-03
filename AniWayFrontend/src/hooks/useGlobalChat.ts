@@ -7,6 +7,7 @@ interface UseGlobalChatOptions {
   pageSize?: number;
   includeArchived?: boolean;
   autoRefreshIntervalMs?: number;
+  messageRefreshIntervalMs?: number;
 }
 
 interface UseGlobalChatResult {
@@ -40,6 +41,8 @@ export function useGlobalChat(options?: UseGlobalChatOptions): UseGlobalChatResu
   const pageSize = options?.pageSize ?? DEFAULT_PAGE_SIZE;
   const includeArchived = options?.includeArchived ?? false;
   const refreshInterval = options?.autoRefreshIntervalMs ?? DEFAULT_REFRESH_INTERVAL;
+  const derivedMessageInterval = refreshInterval > 0 ? Math.min(refreshInterval / 2, 10000) : 10000;
+  const messageRefreshInterval = options?.messageRefreshIntervalMs ?? derivedMessageInterval;
 
   const [categories, setCategories] = useState<CategoryView[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
@@ -52,6 +55,8 @@ export function useGlobalChat(options?: UseGlobalChatOptions): UseGlobalChatResu
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const selectedCategoryRef = useRef<number | null>(null);
   const refreshTimerRef = useRef<number | null>(null);
+  const messageRefreshTimerRef = useRef<number | null>(null);
+  const messagesRef = useRef<MessageDto[]>([]);
   const queryClient = useQueryClient();
 
   const sortCategories = useCallback((items: CategoryView[]) => {
@@ -120,19 +125,59 @@ export function useGlobalChat(options?: UseGlobalChatOptions): UseGlobalChatResu
       }
       const isBefore = Boolean(params?.before);
       const isAfter = Boolean(params?.after);
-      setMessagePage(page);
-      setMessages(prev => {
+      setMessagePage(prev => {
+        if (!prev || (!isBefore && !isAfter)) {
+          return { ...page, messages: [...page.messages] };
+        }
         if (isBefore) {
-          return [...page.messages, ...prev];
+          const existingIds = new Set(prev.messages.map(message => message.id));
+          const filtered = page.messages.filter(message => !existingIds.has(message.id));
+          return {
+            ...prev,
+            hasMore: page.hasMore,
+            nextCursor: page.nextCursor,
+            messages: [...filtered, ...prev.messages],
+          };
         }
         if (isAfter) {
-          return [...prev, ...page.messages];
+          const existingIds = new Set(prev.messages.map(message => message.id));
+          const filtered = page.messages.filter(message => !existingIds.has(message.id));
+          if (filtered.length === 0) {
+            return prev;
+          }
+          return {
+            ...prev,
+            messages: [...prev.messages, ...filtered],
+          };
         }
-        return [...page.messages];
+        return prev;
       });
-      const lastMessage = page.messages[page.messages.length - 1];
-      if (!isBefore && !isAfter && lastMessage && selectedCategoryRef.current === categoryId) {
-        await markCategoryRead(categoryId, lastMessage.id);
+      setMessages(prev => {
+        if (!prev || (!isBefore && !isAfter)) {
+          const next = [...page.messages];
+          messagesRef.current = next;
+          return next;
+        }
+        const existingIds = new Set(prev.map(message => message.id));
+        const filtered = page.messages.filter(message => !existingIds.has(message.id));
+        if (filtered.length === 0) {
+          return prev;
+        }
+        const next = isBefore ? [...filtered, ...prev] : [...prev, ...filtered];
+        messagesRef.current = next;
+        return next;
+      });
+      if (!isBefore && !isAfter && page.messages.length > 0) {
+        const lastMessage = page.messages[page.messages.length - 1];
+        if (lastMessage && selectedCategoryRef.current === categoryId) {
+          await markCategoryRead(categoryId, lastMessage.id);
+        }
+      }
+      if (isAfter && page.messages.length > 0) {
+        const lastMessage = page.messages[page.messages.length - 1];
+        if (lastMessage && selectedCategoryRef.current === categoryId) {
+          await markCategoryRead(categoryId, lastMessage.id);
+        }
       }
     } catch (err) {
       console.error('Failed to load chat messages', err);
@@ -244,6 +289,40 @@ export function useGlobalChat(options?: UseGlobalChatOptions): UseGlobalChatResu
       }
     };
   }, [loadCategories, refreshInterval]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    if (messageRefreshTimerRef.current) {
+      window.clearInterval(messageRefreshTimerRef.current);
+      messageRefreshTimerRef.current = null;
+    }
+    if (!selectedCategoryId || messageRefreshInterval <= 0) {
+      return () => {};
+    }
+    messageRefreshTimerRef.current = window.setInterval(() => {
+      const categoryId = selectedCategoryRef.current;
+      if (!categoryId) {
+        return;
+      }
+      const currentMessages = messagesRef.current;
+      const lastMessageId = currentMessages[currentMessages.length - 1]?.id;
+      if (lastMessageId) {
+        loadMessages(categoryId, { after: lastMessageId }).catch(() => {});
+      } else {
+        loadMessages(categoryId).catch(() => {});
+      }
+    }, messageRefreshInterval);
+
+    return () => {
+      if (messageRefreshTimerRef.current) {
+        window.clearInterval(messageRefreshTimerRef.current);
+        messageRefreshTimerRef.current = null;
+      }
+    };
+  }, [selectedCategoryId, messageRefreshInterval, loadMessages]);
 
   useEffect(() => {
     if (selectedCategoryId != null) {
