@@ -116,6 +116,8 @@ services:
       - image-storage-service
       - auth-service
       - comment-service
+      - friend-service
+      - message-service
       - forum-service
       - notification-service
       - melon-service
@@ -197,6 +199,61 @@ services:
       comment-postgres:
         condition: service_healthy
       rabbitmq:
+        condition: service_started
+    networks:
+      - aniway-network
+
+  # Friend Service - для разработки
+  friend-service:
+    build:
+      context: ./FriendService
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./FriendService/src:/app/src:ro
+      - ./FriendService/build.gradle:/app/build.gradle:ro
+      - ./FriendService/settings.gradle:/app/settings.gradle:ro
+      - gradle-cache-friend:/home/gradle/.gradle
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DEVTOOLS_RESTART_ENABLED=true
+      - FRIEND_DB_URL=jdbc:postgresql://friend-postgres:5432/frienddb
+      - FRIEND_DB_USERNAME=frienduser
+      - FRIEND_DB_PASSWORD=friendpass123
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8095
+    ports:
+      - "8102:8102"
+    depends_on:
+      friend-postgres:
+        condition: service_healthy
+      notification-service:
+        condition: service_started
+    networks:
+      - aniway-network
+
+  # Message Service - для разработки
+  message-service:
+    build:
+      context: ./MessageService
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./MessageService/src:/app/src:ro
+      - ./MessageService/build.gradle:/app/build.gradle:ro
+      - ./MessageService/settings.gradle:/app/settings.gradle:ro
+      - gradle-cache-message:/home/gradle/.gradle
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DEVTOOLS_RESTART_ENABLED=true
+      - DATABASE_URL=jdbc:postgresql://message-postgres:5432/messages
+      - DATABASE_USERNAME=aniway
+      - DATABASE_PASSWORD=aniway_pass
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8095
+      - FRIEND_SERVICE_URL=http://friend-service:8102
+    ports:
+      - "8103:8103"
+    depends_on:
+      message-postgres:
+        condition: service_healthy
+      friend-service:
         condition: service_started
     networks:
       - aniway-network
@@ -386,6 +443,48 @@ services:
       timeout: 5s
       retries: 5
 
+  friend-postgres:
+    image: postgres:16
+    container_name: friend-postgres-dev
+    environment:
+      POSTGRES_DB: frienddb
+      POSTGRES_USER: frienduser
+      POSTGRES_PASSWORD: friendpass123
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5442:5432"
+    volumes:
+      - friend_postgres_data:/var/lib/postgresql/data
+      - ./FriendService/friendDB.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U frienduser -d frienddb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  message-postgres:
+    image: postgres:16
+    container_name: message-postgres-dev
+    environment:
+      POSTGRES_DB: messages
+      POSTGRES_USER: aniway
+      POSTGRES_PASSWORD: aniway_pass
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5443:5432"
+    volumes:
+      - message_postgres_data:/var/lib/postgresql/data
+      - ./MessageService/messageDB.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aniway -d messages"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # Forum Service - for development (added to mirror prod environment)
   forum-service:
     build:
@@ -554,4 +653,8 @@ volumes:
   notification_postgres_data:
   gradle-cache-forum:
   gradle-cache-notification:
+  gradle-cache-friend:
+  gradle-cache-message:
   level_postgres_data:
+  friend_postgres_data:
+  message_postgres_data:

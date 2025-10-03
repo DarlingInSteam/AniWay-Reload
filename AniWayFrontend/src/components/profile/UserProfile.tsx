@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import { useSyncedSearchParam } from '@/hooks/useSyncedSearchParam';
 import { ProfileBackground } from './ProfileBackground';
@@ -36,6 +36,13 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { profileService } from '@/services/profileService';
 import { apiClient } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import useFriendData from '@/hooks/useFriendData';
+import useUserMiniBatch from '@/hooks/useUserMiniBatch';
+import { ProfileFriendActions } from './ProfileFriendActions';
+import { ProfileFriendList } from './ProfileFriendList';
+import { ProfileFriendRequests } from './ProfileFriendRequests';
+import { ProfileMessagesPanel } from './ProfileMessagesPanel';
+import { cn } from '@/lib/utils';
 // Added level overview section component dependencies
 import React from 'react';
 
@@ -76,13 +83,129 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   const [reviewsCount, setReviewsCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTabParam] = useSyncedSearchParam<'overview' | 'library' | 'reviews' | 'comments' | 'achievements'>('tab', 'overview');
+  const [activeTab, setActiveTabParam] = useSyncedSearchParam<'overview' | 'library' | 'friends' | 'messages' | 'reviews' | 'comments' | 'achievements'>('tab', 'overview');
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [editOpen, setEditOpen] = useState(false);
 
   // Pull both user and avatar setter in a single hook call to avoid conditional hook order issues
   const { user: currentUser, setUserAvatarLocal } = useAuth();
+  const targetUserId = parseInt(userId);
+  const {
+    friends: visibleFriends,
+    summary: friendSummary,
+    incomingRequests,
+    outgoingRequests,
+    status: friendshipStatus,
+    incomingRequestForTarget,
+    outgoingRequestForTarget,
+    refresh: refreshFriendData,
+    loading: friendLoading,
+    error: friendError,
+  } = useFriendData(targetUserId, currentUser?.id);
+
+  const userMiniIds = useMemo(() => {
+    const ids = new Set<number>();
+    visibleFriends.forEach(friend => ids.add(friend.friendUserId));
+    incomingRequests.forEach(request => ids.add(request.requesterId));
+    outgoingRequests.forEach(request => ids.add(request.receiverId));
+    ids.add(targetUserId);
+    if (currentUser?.id) {
+      ids.add(currentUser.id);
+    }
+    return Array.from(ids);
+  }, [visibleFriends, incomingRequests, outgoingRequests, targetUserId, currentUser?.id]);
+
+  const miniUsers = useUserMiniBatch(userMiniIds);
+
+  const currentUserMini = useMemo(() => {
+    if (!currentUser) return null;
+    return {
+      id: currentUser.id,
+      username: currentUser.username,
+      displayName: currentUser.displayName || currentUser.username,
+      avatar: currentUser.avatar || undefined,
+    };
+  }, [currentUser]);
+
+  const targetUserMini = useMemo(() => {
+    if (profile) {
+      return {
+        id: parseInt(profile.id),
+        username: profile.username,
+        displayName: profile.displayName || profile.username,
+        avatar: profile.avatar,
+      };
+    }
+    return miniUsers[targetUserId] || null;
+  }, [profile, miniUsers, targetUserId]);
+
+  const userMiniMap = useMemo(() => {
+    const map = { ...miniUsers };
+    if (currentUserMini) {
+      map[currentUserMini.id] = currentUserMini;
+    }
+    if (targetUserMini) {
+      map[targetUserMini.id] = targetUserMini;
+    }
+    return map;
+  }, [miniUsers, currentUserMini, targetUserMini]);
+
+  const sendFriendRequest = useCallback(async (message?: string) => {
+    try {
+      await apiClient.createFriendRequest({ targetUserId, message });
+      await refreshFriendData();
+    } catch (err) {
+      console.error('Failed to send friend request', err);
+      throw err;
+    }
+  }, [targetUserId, refreshFriendData]);
+
+  const acceptFriendRequest = useCallback(async (requestId: string) => {
+    try {
+      await apiClient.acceptFriendRequest(requestId);
+      await refreshFriendData();
+    } catch (err) {
+      console.error('Failed to accept friend request', err);
+      throw err;
+    }
+  }, [refreshFriendData]);
+
+  const declineFriendRequest = useCallback(async (requestId: string) => {
+    try {
+      await apiClient.declineFriendRequest(requestId);
+      await refreshFriendData();
+    } catch (err) {
+      console.error('Failed to decline friend request', err);
+      throw err;
+    }
+  }, [refreshFriendData]);
+
+  const removeFriend = useCallback(async (friendUserId: number) => {
+    if (!friendUserId) return;
+    try {
+      await apiClient.removeFriend(friendUserId);
+      await refreshFriendData();
+    } catch (err) {
+      console.error('Failed to remove friend', err);
+      throw err;
+    }
+  }, [refreshFriendData]);
+
+  const sendDirectMessage = useCallback(async (content: string) => {
+    if (!currentUser?.id) {
+      throw new Error('Для отправки сообщений необходимо авторизоваться');
+    }
+    try {
+      const conversation = await apiClient.createConversation(targetUserId);
+      await apiClient.sendConversationMessage(conversation.id, content);
+    } catch (err) {
+      console.error('Failed to send direct message', err);
+      throw err;
+    }
+  }, [currentUser?.id, targetUserId]);
+
+  const showMessagesTab = isOwnProfile && !!currentUser;
 
   // MAIN LOAD EFFECT: depends only on userId / isOwnProfile to avoid loops on avatar changes
   useEffect(() => {
@@ -391,16 +514,44 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
           <ProfileStatsStrip profile={profile} extra={{ favorites: undefined, achievements: achievements.length, reviewsCount }} />
         </div>
 
+        <div className="mb-6 animate-fade-in">
+          <ProfileFriendActions
+            isOwnProfile={isOwnProfile}
+            currentUser={currentUserMini}
+            targetUser={targetUserMini}
+            summary={friendSummary}
+            status={friendshipStatus}
+            incomingRequestForTarget={incomingRequestForTarget}
+            outgoingRequestForTarget={outgoingRequestForTarget}
+            friendsCount={visibleFriends.length}
+            onSendRequest={sendFriendRequest}
+            onAcceptRequest={acceptFriendRequest}
+            onDeclineRequest={declineFriendRequest}
+            onRemoveFriend={removeFriend}
+            onSendMessage={currentUser && friendshipStatus === 'friends' ? sendDirectMessage : undefined}
+            isAuthenticated={!!currentUser}
+            loading={friendLoading}
+          />
+        </div>
+
         {/* Desktop Layout: Табы занимают всю ширину */}
         <div className="hidden lg:block animate-fade-in">
           <Tabs value={activeTab} onValueChange={v => setActiveTabParam(v as any)} className="space-y-7">
-            <TabsList className="grid grid-cols-5 glass-panel p-1.5 rounded-2xl gap-1.5">
+            <TabsList className={cn('glass-panel p-1.5 rounded-2xl gap-1.5 grid', showMessagesTab ? 'grid-cols-6 xl:grid-cols-7' : 'grid-cols-6')}>
               <TabsTrigger value="overview" className="relative group rounded-xl px-4 py-2 font-medium text-xs tracking-wide uppercase text-slate-400 hover:text-white transition focus-visible:outline-none data-[state=active]:text-white data-[state=active]:shadow-inner data-[state=active]:bg-white/10">
                 <span className="relative z-10">Обзор</span>
               </TabsTrigger>
               <TabsTrigger value="library" className="relative group rounded-xl px-4 py-2 font-medium text-xs tracking-wide uppercase text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
                 <span className="relative z-10">Библиотека</span>
               </TabsTrigger>
+              <TabsTrigger value="friends" className="relative group rounded-xl px-4 py-2 font-medium text-xs tracking-wide uppercase text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
+                <span className="relative z-10">Друзья</span>
+              </TabsTrigger>
+              {showMessagesTab && (
+                <TabsTrigger value="messages" className="relative group rounded-xl px-4 py-2 font-medium text-xs tracking-wide uppercase text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
+                  <span className="relative z-10">Сообщения</span>
+                </TabsTrigger>
+              )}
               <TabsTrigger value="reviews" className="relative group rounded-xl px-4 py-2 font-medium text-xs tracking-wide uppercase text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
                 <span className="relative z-10">Отзывы</span>
               </TabsTrigger>
@@ -420,6 +571,51 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               <Collections collections={collections} isOwnProfile={isOwnProfile} />
 
             </TabsContent>
+
+            <TabsContent value="friends" className="space-y-6">
+              {friendError ? (
+                <div className="rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-6 text-center text-sm text-red-200">
+                  Не удалось загрузить информацию о друзьях. Попробуйте обновить страницу позже.
+                </div>
+              ) : friendLoading ? (
+                <div className="flex items-center justify-center py-10">
+                  <LoadingSpinner />
+                </div>
+              ) : (
+                <>
+                  {isOwnProfile ? (
+                    <>
+                      <ProfileFriendRequests
+                        incoming={incomingRequests}
+                        outgoing={outgoingRequests}
+                        users={userMiniMap}
+                        onAccept={acceptFriendRequest}
+                        onDecline={declineFriendRequest}
+                      />
+                      <ProfileFriendList
+                        friends={visibleFriends}
+                        users={userMiniMap}
+                        title="Мои друзья"
+                        emptyMessage="Добавьте пользователей в друзья, чтобы следить за их активностью."
+                      />
+                    </>
+                  ) : (
+                    <ProfileFriendList
+                      friends={visibleFriends}
+                      users={userMiniMap}
+                      title="Друзья пользователя"
+                      emptyMessage="Пока нет друзей, которых можно показать."
+                    />
+                  )}
+                </>
+              )}
+            </TabsContent>
+
+            {showMessagesTab && (
+              <TabsContent value="messages" className="space-y-6">
+                <ProfileMessagesPanel currentUserId={currentUser?.id} />
+              </TabsContent>
+            )}
 
             <TabsContent value="reviews" className="space-y-6 max-h-96 overflow-y-auto">
               {reviewsLoading ? (
@@ -465,6 +661,14 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               <TabsTrigger value="library" className="px-5 py-2 rounded-lg text-[13px] font-medium text-slate-300 hover:text-white data-[state=active]:text-white data-[state=active]:bg-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
                 Библиотека
               </TabsTrigger>
+              <TabsTrigger value="friends" className="px-5 py-2 rounded-lg text-[13px] font-medium text-slate-300 hover:text-white data-[state=active]:text-white data-[state=active]:bg-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+                Друзья
+              </TabsTrigger>
+              {showMessagesTab && (
+                <TabsTrigger value="messages" className="px-5 py-2 rounded-lg text-[13px] font-medium text-slate-300 hover:text-white data-[state=active]:text-white data-[state=active]:bg-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+                  Сообщения
+                </TabsTrigger>
+              )}
               <TabsTrigger value="reviews" className="px-5 py-2 rounded-lg text-[13px] font-medium text-slate-300 hover:text-white data-[state=active]:text-white data-[state=active]:bg-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
                 Отзывы
               </TabsTrigger>
@@ -485,6 +689,51 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               <FavoriteComics favorites={favoriteMangas} isOwnProfile={isOwnProfile} />
               <ReadingProgressModule progress={readingProgress} isOwnProfile={isOwnProfile} />
             </TabsContent>
+
+            <TabsContent value="friends" className="space-y-6">
+              {friendError ? (
+                <div className="rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-6 text-center text-sm text-red-200">
+                  Не удалось загрузить информацию о друзьях. Попробуйте позже.
+                </div>
+              ) : friendLoading ? (
+                <div className="flex items-center justify-center py-10">
+                  <LoadingSpinner />
+                </div>
+              ) : (
+                <>
+                  {isOwnProfile ? (
+                    <>
+                      <ProfileFriendRequests
+                        incoming={incomingRequests}
+                        outgoing={outgoingRequests}
+                        users={userMiniMap}
+                        onAccept={acceptFriendRequest}
+                        onDecline={declineFriendRequest}
+                      />
+                      <ProfileFriendList
+                        friends={visibleFriends}
+                        users={userMiniMap}
+                        title="Мои друзья"
+                        emptyMessage="Добавьте пользователей в друзья, чтобы видеть их здесь."
+                      />
+                    </>
+                  ) : (
+                    <ProfileFriendList
+                      friends={visibleFriends}
+                      users={userMiniMap}
+                      title="Друзья пользователя"
+                      emptyMessage="Пока нет друзей, которых можно показать."
+                    />
+                  )}
+                </>
+              )}
+            </TabsContent>
+
+            {showMessagesTab && (
+              <TabsContent value="messages" className="space-y-6">
+                <ProfileMessagesPanel currentUserId={currentUser?.id} />
+              </TabsContent>
+            )}
 
             <TabsContent value="reviews" className="space-y-6 max-h-96 overflow-y-auto">
               {reviewsLoading ? (

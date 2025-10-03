@@ -24,6 +24,7 @@ import { TopsPage } from './pages/TopsPage'
 import { SearchPage } from './pages/SearchPage'
 import ResetPasswordRequestPage from './pages/ResetPasswordRequestPage'
 import ResetPasswordCodePage from './pages/ResetPasswordCodePage'
+import GlobalChatPage from './pages/GlobalChatPage'
 
 function InnerApp() {
   const { user } = useAuth();
@@ -42,6 +43,7 @@ function InnerApp() {
             <Route path="/forum/category/:categoryId/create-thread" element={<CreateThreadPage />} />
           <Route path="/forum/thread/:threadId" element={<ForumThreadPage />} />
           <Route path="/forum/create-thread" element={<CreateThreadPage />} />
+          <Route path="/chat" element={<GlobalChatPage />} />
           {/* Топы / Лидеры */}
           <Route path="/tops" element={<TopsPage />} />
           <Route path="/search" element={<SearchPage />} />

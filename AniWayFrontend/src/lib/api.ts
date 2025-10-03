@@ -1,4 +1,5 @@
 import {MangaResponseDTO, ChapterDTO, ChapterImageDTO, SearchParams, PageResponse, UserSearchParams, UserSearchResult, User, UpdateProfileRequest, AdminUserData, AdminUserFilter, AdminUsersPageResponse, AdminUsersParams, AdminActionLogDTO } from '@/types';
+import type { FriendSummary, FriendView as FriendDto, FriendRequestView, InboxSummaryView, ConversationView as ConversationDto, MessagePageView as MessagePageDto, MessageView as MessageDto, CategoryView, CreateCategoryPayload, UpdateCategoryPayload, CategoryUnreadMap } from '@/types/social';
 
 const API_BASE_URL = '/api';
 
@@ -1036,6 +1037,180 @@ class ApiClient {
       }
     }
     return false
+  }
+
+  // =============================
+  // Friend Service integrations
+  // =============================
+
+  async getFriendSummary(): Promise<FriendSummary> {
+    return this.request<FriendSummary>('/friends/summary');
+  }
+
+  async getMyFriends(): Promise<FriendDto[]> {
+    return this.request<FriendDto[]>('/friends');
+  }
+
+  async getFriendsOfUser(userId: number): Promise<FriendDto[]> {
+    return this.request<FriendDto[]>(`/friends/users/${userId}`);
+  }
+
+  async getIncomingFriendRequests(): Promise<FriendRequestView[]> {
+    return this.request<FriendRequestView[]>('/friends/requests/incoming');
+  }
+
+  async getOutgoingFriendRequests(): Promise<FriendRequestView[]> {
+    return this.request<FriendRequestView[]>('/friends/requests/outgoing');
+  }
+
+  async createFriendRequest(payload: { targetUserId: number; message?: string }): Promise<FriendRequestView> {
+    return this.request<FriendRequestView>('/friends/requests', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async acceptFriendRequest(requestId: string): Promise<FriendRequestView> {
+    return this.request<FriendRequestView>(`/friends/requests/${requestId}/accept`, {
+      method: 'POST',
+    });
+  }
+
+  async declineFriendRequest(requestId: string): Promise<FriendRequestView> {
+    return this.request<FriendRequestView>(`/friends/requests/${requestId}/decline`, {
+      method: 'POST',
+    });
+  }
+
+  async removeFriend(friendUserId: number): Promise<void> {
+    await this.request<void>(`/friends/${friendUserId}`, { method: 'DELETE' });
+  }
+
+  // =============================
+  // Messaging Service integrations
+  // =============================
+
+  async getInboxSummary(): Promise<InboxSummaryView> {
+    return this.request<InboxSummaryView>('/messages/summary');
+  }
+
+  async listConversations(page = 0, size = 20): Promise<ConversationDto[]> {
+    const params = new URLSearchParams({ page: String(page), size: String(size) });
+    return this.request<ConversationDto[]>(`/messages/conversations?${params}`);
+  }
+
+  async createConversation(targetUserId: number): Promise<ConversationDto> {
+    return this.request<ConversationDto>('/messages/conversations', {
+      method: 'POST',
+      body: JSON.stringify({ targetUserId }),
+    });
+  }
+
+  async getConversationMessages(
+    conversationId: string,
+    params?: { before?: string; after?: string; size?: number }
+  ): Promise<MessagePageDto> {
+    const searchParams = new URLSearchParams();
+    if (params?.before) searchParams.set('before', params.before);
+    if (params?.after) searchParams.set('after', params.after);
+    if (params?.size) searchParams.set('size', String(params.size));
+    const query = searchParams.toString();
+    const suffix = query ? `?${query}` : '';
+    return this.request<MessagePageDto>(`/messages/conversations/${conversationId}/messages${suffix}`);
+  }
+
+  async sendConversationMessage(
+    conversationId: string,
+    content: string,
+    replyToMessageId?: string
+  ): Promise<MessageDto> {
+    const body: Record<string, any> = { content };
+    if (replyToMessageId) {
+      body.replyToMessageId = replyToMessageId;
+    }
+    return this.request<MessageDto>(`/messages/conversations/${conversationId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async markConversationRead(conversationId: string, lastMessageId: string): Promise<void> {
+    await this.request<void>(`/messages/conversations/${conversationId}/read`, {
+      method: 'POST',
+      body: JSON.stringify({ lastMessageId }),
+    });
+  }
+
+  async listChatCategories(includeArchived = false): Promise<CategoryView[]> {
+    const params = new URLSearchParams();
+    if (includeArchived) {
+      params.set('includeArchived', 'true');
+    }
+    const query = params.toString();
+    const suffix = query ? `?${query}` : '';
+    return this.request<CategoryView[]>(`/messages/categories${suffix}`);
+  }
+
+  async getCategoryUnreadMap(): Promise<CategoryUnreadMap> {
+    return this.request<CategoryUnreadMap>('/messages/categories/unread');
+  }
+
+  async getCategoryMessages(
+    categoryId: number,
+    params?: { before?: string; after?: string; size?: number }
+  ): Promise<MessagePageDto> {
+    const searchParams = new URLSearchParams();
+    if (params?.before) searchParams.set('before', params.before);
+    if (params?.after) searchParams.set('after', params.after);
+    if (params?.size) searchParams.set('size', String(params.size));
+    const query = searchParams.toString();
+    const suffix = query ? `?${query}` : '';
+    return this.request<MessagePageDto>(`/messages/categories/${categoryId}/messages${suffix}`);
+  }
+
+  async sendCategoryMessage(
+    categoryId: number,
+    content: string,
+    replyToMessageId?: string | null
+  ): Promise<MessageDto> {
+    const payload: Record<string, any> = { content };
+    if (replyToMessageId) {
+      payload.replyToMessageId = replyToMessageId;
+    }
+    return this.request<MessageDto>(`/messages/categories/${categoryId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async markCategoryRead(categoryId: number, lastMessageId: string): Promise<void> {
+    await this.request<void>(`/messages/categories/${categoryId}/read`, {
+      method: 'POST',
+      body: JSON.stringify({ lastMessageId }),
+    });
+  }
+
+  async createChatCategory(payload: CreateCategoryPayload): Promise<CategoryView> {
+    const body: Record<string, any> = { title: payload.title };
+    if (payload.slug !== undefined) body.slug = payload.slug;
+    if (payload.description !== undefined) body.description = payload.description;
+    if (payload.isDefault !== undefined) body.isDefault = payload.isDefault;
+    return this.request<CategoryView>('/messages/categories', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async updateChatCategory(categoryId: number, payload: UpdateCategoryPayload): Promise<CategoryView> {
+    const body: Record<string, any> = {};
+    if (payload.title !== undefined) body.title = payload.title;
+    if (payload.description !== undefined) body.description = payload.description;
+    if (payload.isArchived !== undefined) body.isArchived = payload.isArchived;
+    if (payload.isDefault !== undefined) body.isDefault = payload.isDefault;
+    return this.request<CategoryView>(`/messages/categories/${categoryId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
   }
 }
 
