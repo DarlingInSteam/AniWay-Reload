@@ -356,7 +356,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
   const showConversation = mobileView === 'conversation';
 
   return (
-    <div className={cn('flex h-full flex-col gap-4', className)}>
+    <div className={cn('mx-auto w-full max-w-6xl flex h-full flex-col gap-4 px-4 py-6 text-white', className)}>
       {Boolean(inbox.error) && (
         <GlassPanel padding="sm" className="border border-red-500/40 bg-red-500/10 text-sm text-red-200">
           Не удалось загрузить сообщения. Убедитесь, что вы авторизованы и попробуйте позже.
@@ -364,14 +364,14 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
       )}
 
       <div className="flex items-center justify-between lg:hidden">
-        <div className="text-xs font-semibold uppercase tracking-[0.3em] text-white/40">Личные сообщения</div>
-        <div className="glass-inline flex items-center rounded-full border border-white/10 bg-white/5 p-0.5">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-white/50">Личные сообщения</div>
+        <div className="glass-inline flex items-center rounded-full border border-white/15 bg-white/10 p-0.5 backdrop-blur">
           <button
             type="button"
             onClick={() => setMobileView('list')}
             className={cn(
-              'rounded-full px-3 py-1 text-xs font-medium transition',
-              showList ? 'bg-white/15 text-white' : 'text-white/60 hover:text-white/80'
+              'rounded-full px-3 py-1 text-xs font-semibold transition',
+              showList ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white/90'
             )}
           >
             Диалоги
@@ -381,9 +381,9 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
             onClick={() => setMobileView('conversation')}
             disabled={!hasActiveConversation}
             className={cn(
-              'rounded-full px-3 py-1 text-xs font-medium transition',
-              showConversation ? 'bg-white/15 text-white' : 'text-white/60 hover:text-white/80',
-              !hasActiveConversation && 'cursor-not-allowed opacity-40 hover:text-white/60'
+              'rounded-full px-3 py-1 text-xs font-semibold transition',
+              showConversation ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white/90',
+              !hasActiveConversation && 'cursor-not-allowed opacity-35 hover:text-white/70'
             )}
           >
             Чат
@@ -391,13 +391,13 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
         </div>
       </div>
 
-      <div className="flex flex-1 min-h-0 flex-col gap-4 lg:flex-row">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
         <GlassPanel
           padding="none"
           className={cn(
-            'flex min-h-0 flex-col overflow-hidden border-white/10 bg-white/5 backdrop-blur-xl',
+            'flex min-h-0 flex-col overflow-hidden border-white/15 bg-white/8 backdrop-blur-xl shadow-[0_18px_48px_rgba(15,23,42,0.28)]',
             showList ? 'flex' : 'hidden',
-            'lg:flex lg:w-[320px] xl:w-[360px]'
+            'lg:flex lg:w-[280px] xl:w-[320px]'
           )}
         >
           <div className="flex items-center justify-between gap-2 border-b border-white/10 px-5 py-4">
@@ -503,10 +503,10 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                           setMobileView('conversation');
                         }}
                         className={cn(
-                          'group w-full rounded-2xl border px-4 py-3 text-left transition backdrop-blur-md',
+                          'group w-full rounded-3xl border px-4 py-3 text-left transition backdrop-blur-lg',
                           isActive
-                            ? 'border-primary/40 bg-white/15 text-white'
-                            : 'border-white/10 bg-white/5 text-white/90 hover:border-white/20 hover:bg-white/10'
+                            ? 'border-primary/45 bg-primary/15 text-white'
+                            : 'border-white/12 bg-white/6 text-white/85 hover:border-white/20 hover:bg-white/10'
                         )}
                       >
                         <div className="flex items-center gap-3">
@@ -520,7 +520,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                           <div className="min-w-0 flex-1">
                             <div className="flex items-start justify-between gap-2">
                               <span className="truncate text-sm font-semibold text-white">{title}</span>
-                              <span className="shrink-0 text-[11px] text-white/50">{timestamp}</span>
+                              <span className="shrink-0 text-[11px] font-medium text-white/50">{timestamp}</span>
                             </div>
                             <div className="mt-1 flex items-center gap-1 text-xs text-white/60">
                               {renderLastMessageStatus(conversation)}
@@ -550,14 +550,14 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
         <GlassPanel
           padding="none"
           className={cn(
-            'flex min-h-0 flex-1 flex-col overflow-hidden border-white/10 bg-white/5 backdrop-blur-xl',
+            'flex min-h-0 flex-1 flex-col overflow-hidden border-white/15 bg-white/8 backdrop-blur-xl shadow-[0_24px_60px_rgba(15,23,42,0.32)]',
             showConversation ? 'flex' : 'hidden',
             'lg:flex'
           )}
         >
           {draftTarget ? (
             <div className="flex min-h-0 flex-1 flex-col">
-              <div className="flex items-center justify-between gap-3 border-b border-white/10 px-6 py-5">
+              <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-white/6 px-6 py-5">
                 <div className="flex items-center gap-3">
                   <Button
                     variant="ghost"
@@ -610,10 +610,10 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                 </div>
               </div>
 
-              <div className="border-t border-white/10 px-6 py-5">
-                <div className="space-y-3">
-                  {error && <p className="text-sm text-red-300">{error}</p>}
-                  <div className="rounded-2xl border border-white/10 bg-white/5 px-1 py-1">
+              <div className="border-t border-white/10 bg-white/5 px-6 py-5">
+                <div className="space-y-4">
+                  {error && <p className="rounded-2xl border border-red-500/40 bg-red-500/15 px-4 py-2 text-sm text-red-100">{error}</p>}
+                  <div className="rounded-[26px] border border-white/12 bg-black/30 px-4 py-3 backdrop-blur">
                     <Textarea
                       ref={messageInputRef}
                       placeholder="Напишите первое сообщение"
@@ -621,23 +621,24 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                       onChange={event => setMessageText(event.target.value)}
                       onKeyDown={handleEnterSend}
                       disabled={inbox.loadingMessages}
-                      className="min-h-[96px] resize-none border-none bg-transparent px-3 py-2 text-sm text-white placeholder:text-white/40 focus-visible:ring-0 focus-visible:ring-offset-0"
+                      className="min-h-[88px] resize-none border-none bg-transparent px-0 text-sm text-white placeholder:text-white/40 focus-visible:ring-0 focus-visible:ring-offset-0"
                     />
                   </div>
-                  <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-white/50">
+                  <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-white/60">
                     <div className="flex items-center gap-2">
                       <EmojiPickerButton
                         onEmojiSelect={handleInsertEmoji}
                         disabled={inbox.loadingMessages}
-                        anchorClassName="h-9 w-9"
+                        anchorClassName="h-10 w-10"
                       />
                       <span>
-                        <kbd className="rounded bg-white/10 px-1 py-0.5 text-[10px]">Ctrl</kbd> + <kbd className="rounded bg-white/10 px-1 py-0.5 text-[10px]">Enter</kbd> чтобы отправить.
+                        Используйте <kbd className="rounded bg-white/10 px-1 py-0.5 text-[10px]">Ctrl</kbd> + <kbd className="rounded bg-white/10 px-1 py-0.5 text-[10px]">Enter</kbd>, чтобы отправить.
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
-                        variant="outline"
+                        variant="ghost"
+                        className="h-11 rounded-2xl border border-white/10 bg-white/5 px-5 text-white/80 transition hover:bg-white/10"
                         onClick={() => {
                           setMessageText('');
                           setDraftTarget(null);
@@ -646,7 +647,11 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                       >
                         Отменить
                       </Button>
-                      <Button onClick={handleSend} disabled={!messageText.trim() || inbox.loadingMessages}>
+                      <Button
+                        onClick={handleSend}
+                        disabled={!messageText.trim() || inbox.loadingMessages}
+                        className="h-11 rounded-2xl bg-primary px-6 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(88,101,242,0.45)] transition hover:bg-primary/90"
+                      >
                         Отправить
                       </Button>
                     </div>
@@ -656,7 +661,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
             </div>
           ) : selectedConversation ? (
             <div className="flex min-h-0 flex-1 flex-col">
-              <div className="flex items-start justify-between gap-3 border-b border-white/10 px-6 py-5">
+              <div className="flex items-start justify-between gap-3 border-b border-white/10 bg-white/6 px-6 py-5">
                 <div className="flex items-center gap-3">
                   <Button
                     variant="ghost"
@@ -736,7 +741,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                 </DropdownMenu>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-4 py-6 scrollbar-thin">
+              <div className="flex-1 overflow-y-auto px-6 py-6 scrollbar-thin">
                 {inbox.loadingMessages && inbox.messages.length === 0 ? (
                   <div className="flex h-full items-center justify-center">
                     <LoadingSpinner />
@@ -747,7 +752,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                     <p>Сообщений пока нет. Напишите первое сообщение!</p>
                   </div>
                 ) : (
-                  <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-3">
+                  <div className="mx-auto flex w-full max-w-[820px] flex-col gap-4">
                     {inbox.hasMoreMessages && (
                       <div className="flex justify-center py-2">
                         <Button
@@ -830,7 +835,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                             )}
                             <div
                               className={cn(
-                                'flex min-w-0 max-w-[900px] flex-col gap-1',
+                                'flex min-w-0 max-w-[540px] flex-col gap-2',
                                 isOwn ? 'items-end text-right' : 'items-start'
                               )}
                             >
@@ -851,8 +856,10 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                               )}
                               <div
                                 className={cn(
-                                  'relative w-full rounded-2xl border px-4 py-3 text-sm leading-relaxed backdrop-blur-md shadow-[0_12px_32px_rgba(15,23,42,0.25)] transition',
-                                  isOwn ? 'border-primary/40 bg-white/15 text-white' : 'border-white/10 bg-white/8 text-white/90',
+                                  'relative w-full rounded-3xl border px-5 py-3 text-sm leading-relaxed shadow-[0_16px_38px_rgba(15,23,42,0.32)] backdrop-blur-xl transition',
+                                  isOwn
+                                    ? 'border-primary/50 bg-primary/25 text-white'
+                                    : 'border-white/12 bg-white/10 text-white/90',
                                   isHighlighted && 'ring-2 ring-primary/60'
                                 )}
                               >
@@ -918,10 +925,10 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                 )}
               </div>
 
-              <div className="border-t border-white/10 px-6 py-5">
-                <div className="space-y-3">
-                  {error && <p className="text-sm text-red-300">{error}</p>}
-                  <div className="rounded-2xl border border-white/10 bg-white/5 px-1 py-1">
+              <div className="border-t border-white/10 bg-white/5 px-6 py-5">
+                <div className="space-y-4">
+                  {error && <p className="rounded-2xl border border-red-500/40 bg-red-500/15 px-4 py-2 text-sm text-red-100">{error}</p>}
+                  <div className="rounded-[26px] border border-white/12 bg-black/30 px-4 py-3 backdrop-blur">
                     <Textarea
                       ref={messageInputRef}
                       placeholder="Введите сообщение"
@@ -929,25 +936,34 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                       onChange={event => setMessageText(event.target.value)}
                       onKeyDown={handleEnterSend}
                       disabled={(!selectedConversation && !draftTarget) || inbox.loadingMessages}
-                      className="min-h-[96px] resize-none border-none bg-transparent px-3 py-2 text-sm text-white placeholder:text-white/40 focus-visible:ring-0 focus-visible:ring-offset-0"
+                      className="min-h-[88px] resize-none border-none bg-transparent px-0 text-sm text-white placeholder:text-white/40 focus-visible:ring-0 focus-visible:ring-offset-0"
                     />
                   </div>
-                  <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-white/50">
+                  <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-white/60">
                     <div className="flex items-center gap-2">
                       <EmojiPickerButton
                         onEmojiSelect={handleInsertEmoji}
                         disabled={inbox.loadingMessages || (!selectedConversation && !draftTarget)}
-                        anchorClassName="h-9 w-9"
+                        anchorClassName="h-10 w-10"
                       />
                       <span>
-                        <kbd className="rounded bg-white/10 px-1 py-0.5 text-[10px]">Ctrl</kbd> + <kbd className="rounded bg-white/10 px-1 py-0.5 text-[10px]">Enter</kbd> чтобы отправить.
+                        Используйте <kbd className="rounded bg-white/10 px-1 py-0.5 text-[10px]">Ctrl</kbd> + <kbd className="rounded bg-white/10 px-1 py-0.5 text-[10px]">Enter</kbd> для быстрого отправления.
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Button variant="outline" onClick={() => setMessageText('')} disabled={!messageText.trim()}>
+                      <Button
+                        variant="ghost"
+                        onClick={() => setMessageText('')}
+                        disabled={!messageText.trim()}
+                        className="h-11 rounded-2xl border border-white/10 bg-white/5 px-5 text-white/80 transition hover:bg-white/10 disabled:opacity-40"
+                      >
                         Очистить
                       </Button>
-                      <Button onClick={handleSend} disabled={!messageText.trim() || inbox.loadingMessages}>
+                      <Button
+                        onClick={handleSend}
+                        disabled={!messageText.trim() || inbox.loadingMessages}
+                        className="h-11 rounded-2xl bg-primary px-6 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(88,101,242,0.45)] transition hover:bg-primary/90 disabled:opacity-50"
+                      >
                         Отправить
                       </Button>
                     </div>
