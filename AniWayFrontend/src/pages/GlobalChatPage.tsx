@@ -288,7 +288,7 @@ export const GlobalChatPage: React.FC = () => {
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 text-white">
-      <GlassPanel padding="sm" className="mb-6 flex flex-wrap items-center justify-between gap-3 border-white/10 bg-background/70 backdrop-blur-xl">
+      <GlassPanel padding="sm" className="mb-6 flex flex-wrap items-center justify-between gap-3 border-white/10 bg-white/5 backdrop-blur-xl">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-white/60">
           <MessageSquare className="h-4 w-4 text-primary/70" />
           Прямой эфир AniWay
@@ -327,13 +327,13 @@ export const GlobalChatPage: React.FC = () => {
 
       <div className="mb-4 flex items-center justify-between lg:hidden">
         <div className="text-xs font-semibold uppercase tracking-[0.3em] text-white/40">Глобальный чат</div>
-        <div className="glass-inline flex items-center rounded-full border border-white/10 bg-white/10 p-0.5">
+        <div className="glass-inline flex items-center rounded-full border border-white/10 bg-white/5 p-0.5">
           <button
             type="button"
             onClick={() => setMobileView('list')}
             className={cn(
               'rounded-full px-3 py-1 text-xs font-medium transition',
-              showList ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white/80'
+              showList ? 'bg-white/15 text-white' : 'text-white/60 hover:text-white/80'
             )}
           >
             Каналы
@@ -344,7 +344,7 @@ export const GlobalChatPage: React.FC = () => {
             disabled={!hasSelectedCategory}
             className={cn(
               'rounded-full px-3 py-1 text-xs font-medium transition',
-              showFeed ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white/80',
+              showFeed ? 'bg-white/15 text-white' : 'text-white/60 hover:text-white/80',
               !hasSelectedCategory && 'cursor-not-allowed opacity-40 hover:text-white/60'
             )}
           >
@@ -357,7 +357,7 @@ export const GlobalChatPage: React.FC = () => {
         <GlassPanel
           padding="none"
           className={cn(
-            'flex min-h-0 flex-col overflow-hidden border-white/10 bg-background/75 backdrop-blur-xl',
+            'flex min-h-0 flex-col overflow-hidden border-white/10 bg-white/5 backdrop-blur-xl',
             showList ? 'flex' : 'hidden',
             'lg:flex lg:w-[320px] xl:w-[360px] lg:h-full'
           )}
@@ -428,7 +428,7 @@ export const GlobalChatPage: React.FC = () => {
                         className={cn(
                           'w-full rounded-2xl border px-4 py-3 text-left transition backdrop-blur-md',
                           isActive
-                            ? 'border-primary/40 bg-primary/12 text-white shadow-[0_12px_40px_rgba(37,99,235,0.28)]'
+                            ? 'border-primary/40 bg-white/15 text-white'
                             : 'border-white/10 bg-white/5 text-white/85 hover:border-white/20 hover:bg-white/10'
                         )}
                       >
@@ -469,7 +469,7 @@ export const GlobalChatPage: React.FC = () => {
         <GlassPanel
           padding="none"
           className={cn(
-            'flex min-h-0 flex-1 flex-col overflow-hidden border-white/10 bg-background/80 backdrop-blur-xl',
+            'flex min-h-0 flex-1 flex-col overflow-hidden border-white/10 bg-white/5 backdrop-blur-xl',
             showFeed ? 'flex' : 'hidden',
             'lg:flex'
           )}
@@ -590,7 +590,7 @@ export const GlobalChatPage: React.FC = () => {
                           }}
                           className={cn(
                             'group relative flex items-start gap-3 rounded-2xl border px-4 py-3 transition backdrop-blur-md',
-                            isOwn ? 'border-primary/40 bg-primary/12' : 'border-white/10 bg-white/5',
+                            isOwn ? 'border-primary/40 bg-white/15' : 'border-white/10 bg-white/8',
                             !isOwn && isReplyToYou && 'border-red-500/50 bg-red-500/10',
                             isHighlighted && 'ring-2 ring-primary/60'
                           )}
@@ -625,7 +625,7 @@ export const GlobalChatPage: React.FC = () => {
                             {replyTarget ? (
                               <button
                                 type="button"
-                                className="mt-3 w-full max-w-md rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-xs text-white/70 transition hover:border-primary/40 hover:bg-primary/10"
+                                className="mt-3 w-full max-w-md rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-xs text-white/70 transition hover:border-primary/40 hover:bg-white/10"
                                 onClick={() => handleJumpToMessage(replyTarget.id)}
                               >
                                 <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">

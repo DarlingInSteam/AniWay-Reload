@@ -246,13 +246,13 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
 
       <div className="flex items-center justify-between lg:hidden">
         <div className="text-xs font-semibold uppercase tracking-[0.3em] text-white/40">Личные сообщения</div>
-        <div className="glass-inline flex items-center rounded-full border border-white/10 bg-white/10 p-0.5">
+        <div className="glass-inline flex items-center rounded-full border border-white/10 bg-white/5 p-0.5">
           <button
             type="button"
             onClick={() => setMobileView('list')}
             className={cn(
               'rounded-full px-3 py-1 text-xs font-medium transition',
-              showList ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white/80'
+              showList ? 'bg-white/15 text-white' : 'text-white/60 hover:text-white/80'
             )}
           >
             Диалоги
@@ -263,7 +263,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
             disabled={!hasActiveConversation}
             className={cn(
               'rounded-full px-3 py-1 text-xs font-medium transition',
-              showConversation ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white/80',
+              showConversation ? 'bg-white/15 text-white' : 'text-white/60 hover:text-white/80',
               !hasActiveConversation && 'cursor-not-allowed opacity-40 hover:text-white/60'
             )}
           >
@@ -276,7 +276,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
         <GlassPanel
           padding="none"
           className={cn(
-            'flex min-h-0 flex-col overflow-hidden border-white/10 bg-background/75 backdrop-blur-xl',
+            'flex min-h-0 flex-col overflow-hidden border-white/10 bg-white/5 backdrop-blur-xl',
             showList ? 'flex' : 'hidden',
             'lg:flex lg:w-[320px] xl:w-[360px]'
           )}
@@ -343,7 +343,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                         setDraftTarget(draftTarget);
                         setMobileView('conversation');
                       }}
-                      className="group w-full rounded-2xl border border-primary/40 bg-primary/15 px-4 py-3 text-left text-white shadow-[0_0_20px_rgba(37,99,235,0.25)] backdrop-blur-md transition hover:border-primary/60 hover:bg-primary/20"
+                      className="group w-full rounded-2xl border border-primary/40 bg-white/15 px-4 py-3 text-left text-white backdrop-blur-md transition hover:border-primary/60 hover:bg-white/20"
                     >
                       <div className="flex items-center gap-3">
                         <Avatar className="h-11 w-11 border border-white/10 bg-black/60">
@@ -386,7 +386,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                         className={cn(
                           'group w-full rounded-2xl border px-4 py-3 text-left transition backdrop-blur-md',
                           isActive
-                            ? 'border-primary/40 bg-primary/12 text-white shadow-[0_12px_40px_rgba(37,99,235,0.28)]'
+                            ? 'border-primary/40 bg-white/15 text-white'
                             : 'border-white/10 bg-white/5 text-white/90 hover:border-white/20 hover:bg-white/10'
                         )}
                       >
@@ -431,7 +431,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
         <GlassPanel
           padding="none"
           className={cn(
-            'flex min-h-0 flex-1 flex-col overflow-hidden border-white/10 bg-background/80 backdrop-blur-xl',
+            'flex min-h-0 flex-1 flex-col overflow-hidden border-white/10 bg-white/5 backdrop-blur-xl',
             showConversation ? 'flex' : 'hidden',
             'lg:flex'
           )}
@@ -653,8 +653,8 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                             className={cn(
                               'group relative max-w-[77%] rounded-2xl border px-4 py-3 text-sm leading-relaxed backdrop-blur-md transition',
                               isOwn
-                                ? 'border-primary/40 bg-primary/15 text-white shadow-[0_12px_30px_rgba(37,99,235,0.25)]'
-                                : 'border-white/10 bg-white/8 text-white/90 shadow-[0_6px_24px_rgba(15,23,42,0.35)]'
+                                ? 'border-primary/40 bg-white/15 text-white'
+                                : 'border-white/10 bg-white/8 text-white/90'
                             )}
                           >
                             <div className="mb-2 flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.3em] text-white/40">
