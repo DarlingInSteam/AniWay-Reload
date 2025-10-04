@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { MessageSquare, Hash, RefreshCcw, Plus, Reply, CornerDownLeft, Loader2, ArchiveRestore, Undo2, MoreVertical, ArrowLeft, Pencil, Search, Users } from 'lucide-react';
+import { MessageSquare, Hash, RefreshCcw, Plus, Reply, CornerDownLeft, Loader2, ArchiveRestore, Undo2, MoreVertical, ArrowLeft, Pencil, Search } from 'lucide-react';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -92,11 +92,6 @@ export const GlobalChatPage: React.FC = () => {
     });
   }, [categories, categoryQuery]);
 
-  const totalUnread = useMemo(
-    () => categories.reduce((acc, category) => acc + (category.unreadCount ?? 0), 0),
-    [categories]
-  );
-
   const dayFormatter = useMemo(
     () => new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }),
     []
@@ -106,8 +101,6 @@ export const GlobalChatPage: React.FC = () => {
     () => new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }),
     []
   );
-
-
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const pendingScrollTargetRef = useRef<string | null>(null);
   const lastMessageIdRef = useRef<string | null>(null);
@@ -121,20 +114,6 @@ export const GlobalChatPage: React.FC = () => {
   }, [messages, replyTo?.senderId]);
 
   const users = useUserMiniBatch(participants);
-
-  const participantPreview = useMemo(
-    () =>
-      participants
-        .map(id => ({
-          id,
-          name: users[id]?.displayName || users[id]?.username || `ID ${id}`,
-          avatar: users[id]?.avatar,
-        }))
-        .slice(0, 8),
-    [participants, users]
-  );
-
-  const participantOverflow = Math.max(participants.length - participantPreview.length, 0);
 
   useEffect(() => {
     const selected = selectedCategory;
@@ -338,67 +317,43 @@ export const GlobalChatPage: React.FC = () => {
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 text-white">
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div className="max-w-3xl space-y-3">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.35em] text-white/60">
-            <MessageSquare className="h-3 w-3 text-primary/70" />
-            Глобальный чат AniWay
-          </div>
-          <h1 className="text-3xl font-semibold text-white">Общайтесь с сообществом в реальном времени</h1>
-          <p className="text-sm text-white/60">
-            Выбирайте каналы, следите за упоминаниями и быстро переходите к нужным обсуждениям. Мы сохранили фирменную палитру, но сделали интерфейс плотнее и информативнее.
-          </p>
-          <div className="flex flex-wrap items-center gap-3 text-xs text-white/60">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1">
-              <Hash className="h-3 w-3 text-primary/70" />
-              Каналов: {categories.length}
-            </span>
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1">
-              <MessageSquare className="h-3 w-3 text-primary/70" />
-              Непрочитано: {totalUnread}
-            </span>
-            {selectedCategory && (
-              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                <Hash className="h-3 w-3 text-primary/70" />
-                Выбран канал: {selectedCategory.title}
-              </span>
-            )}
-          </div>
+      <GlassPanel padding="sm" className="mb-6 flex items-center justify-between gap-3 border-white/10 bg-white/5 backdrop-blur-xl">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-white/60">
+          <MessageSquare className="h-4 w-4 text-primary/70" />
+          Глобальный чат
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            className="gap-2 text-sm"
-            onClick={refreshAll}
-          >
-            <RefreshCcw className="h-3 w-3" />
-            Обновить всё
-          </Button>
-          <Button
-            variant="outline"
-            className="gap-2 text-sm"
-            onClick={refreshCategories}
-          >
-            <Hash className="h-3 w-3" />
-            Каналы
-          </Button>
-          <Button
-            variant="outline"
-            className="gap-2 text-sm"
-            onClick={refreshMessages}
-            disabled={!hasSelectedCategory}
-          >
-            <MessageSquare className="h-3 w-3" />
-            Сообщения
-          </Button>
+        <div className="flex items-center gap-1">
           {isAdmin && (
-            <Button className="gap-2 text-sm" onClick={() => setCreateDialogOpen(true)}>
-              <Plus className="h-3 w-3" />
-              Новый канал
+            <Button size="icon" variant="ghost" className="h-9 w-9 rounded-full text-white/70 hover:bg-white/10" onClick={() => setCreateDialogOpen(true)} aria-label="Создать канал">
+              <Plus className="h-4 w-4" />
             </Button>
           )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-white/70 hover:bg-white/10" aria-label="Действия чата">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem className="gap-2 text-xs" onClick={refreshAll}>
+                <RefreshCcw className="h-3 w-3" />
+                Обновить всё
+              </DropdownMenuItem>
+              <DropdownMenuItem className="gap-2 text-xs" onClick={refreshCategories}>
+                <Hash className="h-3 w-3" />
+                Обновить каналы
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className={cn('gap-2 text-xs', !hasSelectedCategory && 'pointer-events-none opacity-50')}
+                onClick={refreshMessages}
+              >
+                <MessageSquare className="h-3 w-3" />
+                Обновить сообщения
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-      </div>
+      </GlassPanel>
 
       {!!chatError && (
         <GlassPanel padding="sm" className="mb-6 border border-red-500/40 bg-red-500/10 text-sm text-red-200">
@@ -603,104 +558,48 @@ export const GlobalChatPage: React.FC = () => {
                     {selectedCategory.description && (
                       <p className="mt-2 max-w-xl text-xs text-white/60">{selectedCategory.description}</p>
                     )}
-                    {participantPreview.length > 0 && (
-                      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-white/60">
-                        <div className="flex -space-x-2">
-                          {participantPreview.map(participant => {
-                            const profileSlug = buildProfileSlug(participant.id, participant.name);
-                            return (
-                              <Link
-                                key={participant.id}
-                                to={`/profile/${profileSlug}`}
-                                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-black/60 text-[11px] font-semibold text-white transition hover:border-primary/50"
-                                title={participant.name}
-                              >
-                                <Avatar className="h-9 w-9">
-                                  {participant.avatar ? (
-                                    <AvatarImage src={participant.avatar} alt={participant.name} />
-                                  ) : (
-                                    <AvatarFallback>{initials(participant.name)}</AvatarFallback>
-                                  )}
-                                </Avatar>
-                              </Link>
-                            );
-                          })}
-                          {participantOverflow > 0 && (
-                            <div className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-dashed border-white/15 bg-white/5 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70">
-                              +{participantOverflow}
-                            </div>
-                          )}
-                        </div>
-                        <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.3em]">
-                          <Users className="h-3 w-3 text-primary/70" />
-                          Участников: {participants.length}
-                        </span>
-                      </div>
-                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {selectedCategory.unreadCount > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
                     <Button
-                      variant="outline"
-                      size="sm"
-                      className="hidden gap-2 text-xs lg:inline-flex"
-                      onClick={markSelectedCategoryRead}
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9 rounded-full text-white/70 hover:bg-white/10"
+                      aria-label="Действия канала"
                     >
-                      <ArchiveRestore className="h-3 w-3" />
-                      Прочитано
+                      <MoreVertical className="h-4 w-4" />
                     </Button>
-                  )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="hidden gap-2 text-xs lg:inline-flex"
-                    onClick={refreshMessages}
-                  >
-                    <RefreshCcw className="h-3 w-3" />
-                    Обновить
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9 rounded-full text-white/70 hover:bg-white/10"
-                        aria-label="Действия канала"
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem className="gap-2 text-xs" onClick={refreshMessages}>
-                        <RefreshCcw className="h-3 w-3" />
-                        Обновить сообщения
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem className="gap-2 text-xs" onClick={refreshMessages}>
+                      <RefreshCcw className="h-3 w-3" />
+                      Обновить сообщения
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className={cn('gap-2 text-xs', !hasMore && 'pointer-events-none opacity-50')}
+                      onClick={async () => {
+                        if (!hasMore) return;
+                        await loadOlderMessages();
+                      }}
+                    >
+                      <Undo2 className="h-3 w-3" />
+                      Ранние сообщения
+                    </DropdownMenuItem>
+                    {selectedCategory.unreadCount > 0 && (
+                      <DropdownMenuItem className="gap-2 text-xs" onClick={markSelectedCategoryRead}>
+                        <ArchiveRestore className="h-3 w-3" />
+                        Пометить прочитанным
                       </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className={cn('gap-2 text-xs', !hasMore && 'pointer-events-none opacity-50')}
-                        onClick={async () => {
-                          if (!hasMore) return;
-                          await loadOlderMessages();
-                        }}
-                      >
-                        <Undo2 className="h-3 w-3" />
-                        Ранние сообщения
+                    )}
+                    {isAdmin && (
+                      <DropdownMenuItem className="gap-2 text-xs" onClick={() => setEditDialogOpen(true)}>
+                        <Pencil className="h-3 w-3" />
+                        Редактировать категорию
                       </DropdownMenuItem>
-                      {selectedCategory.unreadCount > 0 && (
-                        <DropdownMenuItem className="gap-2 text-xs" onClick={markSelectedCategoryRead}>
-                          <ArchiveRestore className="h-3 w-3" />
-                          Пометить прочитанным
-                        </DropdownMenuItem>
-                      )}
-                      {isAdmin && (
-                        <DropdownMenuItem className="gap-2 text-xs" onClick={() => setEditDialogOpen(true)}>
-                          <Pencil className="h-3 w-3" />
-                          Редактировать категорию
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
 
               <div className="flex-1 overflow-y-auto px-4 py-6 scrollbar-thin">
@@ -714,7 +613,7 @@ export const GlobalChatPage: React.FC = () => {
                     <p>Будьте первыми, кто напишет в этом канале!</p>
                   </div>
                 ) : (
-                  <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+                  <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-3">
                     {hasMore && (
                       <div className="flex justify-center py-2">
                         <Button
@@ -795,7 +694,7 @@ export const GlobalChatPage: React.FC = () => {
                             )}
                             <div
                               className={cn(
-                                'flex min-w-0 max-w-[720px] flex-col gap-1',
+                                'flex min-w-0 max-w-[900px] flex-col gap-1',
                                 isOwn ? 'items-end text-right' : 'items-start'
                               )}
                             >

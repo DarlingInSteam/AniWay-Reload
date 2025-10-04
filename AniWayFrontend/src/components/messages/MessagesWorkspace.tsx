@@ -137,11 +137,6 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
     });
   }, [searchTerm, inbox.conversations, users, currentUserId]);
 
-  const unreadTotal = useMemo(
-    () => inbox.conversations.reduce((acc, conversation) => acc + (conversation.unreadCount ?? 0), 0),
-    [inbox.conversations]
-  );
-
   const dayFormatter = useMemo(
     () => new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }),
     []
@@ -367,51 +362,6 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
           Не удалось загрузить сообщения. Убедитесь, что вы авторизованы и попробуйте позже.
         </GlassPanel>
       )}
-
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="max-w-3xl space-y-3">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.35em] text-white/60">
-            <MessageSquare className="h-3 w-3 text-primary/70" />
-            Личные сообщения
-          </div>
-          <h2 className="text-2xl font-semibold text-white">Поддерживайте контакт с друзьями AniWay</h2>
-          <p className="text-sm text-white/60">
-            Просматривайте все приватные диалоги в едином пространстве, отслеживайте новые ответы и продолжайте разговоры без лишних переходов.
-          </p>
-          <div className="flex flex-wrap items-center gap-3 text-xs text-white/60">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1">
-              Диалогов: {inbox.conversations.length}
-            </span>
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1">
-              Непрочитано: {unreadTotal}
-            </span>
-            {draftTarget && (
-              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-primary">
-                Черновик: {draftResolvedName || draftTarget.username || `ID ${draftTarget.id}`}
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            className="gap-2 text-sm"
-            onClick={inbox.refresh}
-          >
-            <RefreshCcw className="h-3 w-3" />
-            Обновить
-          </Button>
-          <Button
-            variant="outline"
-            className="gap-2 text-sm"
-            onClick={() => setSearchTerm('')}
-            disabled={!searchTerm}
-          >
-            <Search className="h-3 w-3" />
-            Сбросить поиск
-          </Button>
-        </div>
-      </div>
 
       <div className="flex items-center justify-between lg:hidden">
         <div className="text-xs font-semibold uppercase tracking-[0.3em] text-white/40">Личные сообщения</div>
@@ -797,7 +747,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                     <p>Сообщений пока нет. Напишите первое сообщение!</p>
                   </div>
                 ) : (
-                  <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+                  <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-3">
                     {inbox.hasMoreMessages && (
                       <div className="flex justify-center py-2">
                         <Button
@@ -880,7 +830,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                             )}
                             <div
                               className={cn(
-                                'flex min-w-0 max-w-[680px] flex-col gap-1',
+                                'flex min-w-0 max-w-[900px] flex-col gap-1',
                                 isOwn ? 'items-end text-right' : 'items-start'
                               )}
                             >
