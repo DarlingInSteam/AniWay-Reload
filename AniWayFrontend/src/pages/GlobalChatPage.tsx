@@ -269,26 +269,31 @@ export const GlobalChatPage: React.FC = () => {
         </GlassPanel>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[320px,1fr] xl:grid-cols-[360px,1fr]">
-          <div className="space-y-6">
-            <GlassPanel className="space-y-4" padding="md">
-              <div className="flex items-center justify-between">
-                <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
-                  <Hash className="h-4 w-4 text-primary/80" />
-                  Категории
-                </h2>
+      <div className="grid gap-6 rounded-2xl border border-white/10 bg-black/20 lg:grid-cols-[320px_1fr] xl:grid-cols-[360px_1fr]">
+          <div className="flex min-h-0 flex-col border-r border-white/5 bg-black/25">
+            <div className="flex items-center justify-between border-b border-white/5 px-5 py-4">
+              <h2 className="flex items-center gap-2 text-base font-semibold text-white">
+                <Hash className="h-4 w-4 text-primary/80" />
+                Каналы
+              </h2>
+              <div className="flex items-center gap-2">
                 <Button variant="ghost" size="icon" onClick={refreshCategories} disabled={loadingCategories}>
                   {loadingCategories ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
                 </Button>
+                <Button variant="outline" size="icon" onClick={refreshMessages} disabled={loadingMessages}>
+                  {loadingMessages ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                </Button>
               </div>
+            </div>
 
-              <div className="max-h-[calc(100vh-260px)] space-y-2 overflow-y-auto pr-1">
+            <div className="flex-1 overflow-y-auto px-3 pb-4 scrollbar-thin">
+              <div className="sticky top-0 z-10 bg-black/25 py-2 text-[11px] uppercase tracking-wide text-white/40">Списки</div>
                 {loadingCategories && categories.length === 0 ? (
                   <div className="flex items-center justify-center py-10">
                     <LoadingSpinner />
                   </div>
                 ) : categories.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-white/10 bg-white/5 px-4 py-6 text-center text-xs text-slate-300">
+                  <div className="rounded-2xl border border-dashed border-white/10 bg-black/40 px-4 py-6 text-center text-xs text-slate-300">
                     Категории ещё не созданы.
                   </div>
                 ) : (
@@ -301,7 +306,7 @@ export const GlobalChatPage: React.FC = () => {
                         onClick={() => selectCategory(category.id)}
                         className={cn(
                           'w-full rounded-2xl border px-4 py-3 text-left transition',
-                          isActive ? 'border-primary/60 bg-primary/15 shadow-lg shadow-primary/10' : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
+                          isActive ? 'border-primary/60 bg-primary/15 shadow-[0_0_18px_rgba(59,130,246,0.15)]' : 'border-white/10 bg-black/40 hover:border-white/20 hover:bg-black/30'
                         )}
                       >
                         <div className="flex items-start justify-between gap-3">
@@ -334,7 +339,7 @@ export const GlobalChatPage: React.FC = () => {
                   })
                 )}
               </div>
-            </GlassPanel>
+            </div>
 
             {isAdmin && (
               <GlassPanel className="space-y-5 border-white/15 bg-white/5">
@@ -436,21 +441,23 @@ export const GlobalChatPage: React.FC = () => {
             )}
           </div>
 
-          <GlassPanel className="flex h-[calc(100vh-220px)] min-h-[520px] flex-col overflow-visible border-white/10 bg-white/5" padding="lg">
+          <div className="flex h-[calc(100vh-220px)] min-h-[520px] flex-col bg-gradient-to-br from-black/25 via-black/10 to-black/0">
             {selectedCategory ? (
               <>
-                <div className="mb-4 flex flex-col gap-2 border-b border-white/10 pb-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.3em] text-primary/80">
-                      <Hash className="h-4 w-4" />
-                      {selectedCategory.slug}
+                <div className="flex flex-col gap-4 border-b border-white/5 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/20 text-primary">
+                      <Hash className="h-5 w-5" />
                     </div>
-                    <h2 className="mt-1 text-2xl font-semibold text-white">{selectedCategory.title}</h2>
-                    {selectedCategory.description && (
-                      <p className="mt-1 text-sm text-white/60">{selectedCategory.description}</p>
-                    )}
+                    <div>
+                      <h2 className="text-xl font-semibold text-white">{selectedCategory.title}</h2>
+                      <p className="text-xs uppercase tracking-[0.3em] text-white/40">#{selectedCategory.slug || 'канал'}</p>
+                      {selectedCategory.description && (
+                        <p className="mt-1 text-xs text-white/60">{selectedCategory.description}</p>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-white/50">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-white/60">
                     <Button
                       variant="outline"
                       size="sm"
@@ -465,200 +472,199 @@ export const GlobalChatPage: React.FC = () => {
                       size="sm"
                       onClick={refreshMessages}
                       disabled={loadingMessages}
+                      className="gap-1"
                     >
-                      <RefreshCcw className="h-3 w-3" />
-                      <span className="ml-1">Обновить</span>
+                      {loadingMessages ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCcw className="h-3 w-3" />}
+                      Обновить
                     </Button>
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-hidden">
-                  <div className="flex h-full flex-col">
-                    <div className="flex-1 overflow-y-auto px-1 scrollbar-thin">
-                      {loadingMessages && messages.length === 0 ? (
-                        <div className="flex min-h-[320px] items-center justify-center">
-                          <LoadingSpinner />
+                <div className="flex-1 overflow-y-auto px-4 py-6 scrollbar-thin">
+                  {loadingMessages && messages.length === 0 ? (
+                    <div className="flex h-full items-center justify-center">
+                      <LoadingSpinner />
+                    </div>
+                  ) : messages.length === 0 ? (
+                    <div className="mx-auto flex h-full max-w-md flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-white/10 bg-black/30 px-6 py-12 text-center text-sm text-white/60">
+                      <MessageSquare className="h-6 w-6 text-white/40" />
+                      <p>Будьте первыми, кто напишет в этом канале!</p>
+                    </div>
+                  ) : (
+                    <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+                      {hasMore && (
+                        <div className="flex justify-center py-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={loadOlderMessages}
+                            disabled={loadingMessages}
+                          >
+                            {loadingMessages ? <Loader2 className="h-3 w-3 animate-spin" /> : <Undo2 className="h-3 w-3" />}
+                            <span className="ml-1">Загрузить ещё</span>
+                          </Button>
                         </div>
-                      ) : messages.length === 0 ? (
-                        <div className="flex min-h-[320px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center text-sm text-white/60">
-                          <MessageSquare className="h-6 w-6 text-white/40" />
-                          <p>Будьте первыми, кто напишет в этом канале!</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-3 pb-6">
-                          {hasMore && (
-                            <div className="flex justify-center py-4">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={loadOlderMessages}
-                                disabled={loadingMessages}
-                              >
-                                {loadingMessages ? <Loader2 className="h-3 w-3 animate-spin" /> : <Undo2 className="h-3 w-3" />}
-                                <span className="ml-1">Загрузить ещё</span>
-                              </Button>
-                            </div>
-                          )}
+                      )}
 
-                          {messages.map(message => {
-                            const author = getUserDisplay(users, message.senderId, user?.id);
-                            const replyTarget = resolveReplyPreview(message);
-                            const isOwn = user?.id === message.senderId;
-                            const isHighlighted = highlightedMessageId === message.id;
-                            const isReplyToYou = !!replyTarget && replyTarget.senderId === user?.id;
-                            const profileSlug = buildProfileSlug(message.senderId, users[message.senderId]?.displayName || users[message.senderId]?.username || author);
-                            return (
-                              <div
-                                key={message.id}
-                                ref={node => {
-                                  if (node) {
-                                    messageRefs.current.set(message.id, node);
-                                  } else {
-                                    messageRefs.current.delete(message.id);
-                                  }
-                                }}
-                                className={cn(
-                                  'group relative flex items-start gap-3 rounded-2xl border px-4 py-3 transition-all',
-                                  isOwn ? 'border-primary/50 bg-primary/15' : 'border-white/10 bg-white/5',
-                                  !isOwn && isReplyToYou && 'border-red-500/60 bg-red-500/10',
-                                  isHighlighted && 'ring-2 ring-primary/60'
+                      {messages.map(message => {
+                        const author = getUserDisplay(users, message.senderId, user?.id);
+                        const replyTarget = resolveReplyPreview(message);
+                        const isOwn = user?.id === message.senderId;
+                        const isHighlighted = highlightedMessageId === message.id;
+                        const isReplyToYou = !!replyTarget && replyTarget.senderId === user?.id;
+                        const profileSlug = buildProfileSlug(message.senderId, users[message.senderId]?.displayName || users[message.senderId]?.username || author);
+                        return (
+                          <div
+                            key={message.id}
+                            ref={node => {
+                              if (node) {
+                                messageRefs.current.set(message.id, node);
+                              } else {
+                                messageRefs.current.delete(message.id);
+                              }
+                            }}
+                            className={cn(
+                              'group relative flex items-start gap-3 rounded-2xl border px-4 py-3 transition-all',
+                              isOwn ? 'border-primary/50 bg-primary/15' : 'border-white/10 bg-white/5',
+                              !isOwn && isReplyToYou && 'border-red-500/60 bg-red-500/10',
+                              isHighlighted && 'ring-2 ring-primary/60'
+                            )}
+                          >
+                            <Link to={`/profile/${profileSlug}`} className="shrink-0">
+                              <Avatar className="h-10 w-10 border border-white/10 bg-black/40 transition hover:border-primary/60">
+                                {users[message.senderId]?.avatar ? (
+                                  <AvatarImage src={users[message.senderId]?.avatar} alt={author} />
+                                ) : (
+                                  <AvatarFallback>{initials(author)}</AvatarFallback>
                                 )}
-                              >
-                                <Link to={`/profile/${profileSlug}`} className="shrink-0">
-                                  <Avatar className="h-10 w-10 border border-white/10 bg-black/40 transition hover:border-primary/60">
-                                    {users[message.senderId]?.avatar ? (
-                                      <AvatarImage src={users[message.senderId]?.avatar} alt={author} />
-                                    ) : (
-                                      <AvatarFallback>{initials(author)}</AvatarFallback>
-                                    )}
-                                  </Avatar>
+                              </Avatar>
+                            </Link>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2 text-xs text-white/60">
+                                <Link
+                                  to={`/profile/${profileSlug}`}
+                                  className="font-semibold text-primary transition hover:text-primary/80"
+                                >
+                                  {author}
                                 </Link>
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex flex-wrap items-center gap-2 text-xs text-white/60">
-                                    <Link
-                                      to={`/profile/${profileSlug}`}
-                                      className="font-semibold text-primary transition hover:text-primary/80"
-                                    >
-                                      {author}
-                                    </Link>
-                                    <span className="text-white/40">{new Date(message.createdAt).toLocaleString()}</span>
-                                    {isReplyToYou && (
-                                      <Badge variant="secondary" className="bg-red-500/20 text-red-200 border-red-500/40">
-                                        Ответ вам
-                                      </Badge>
-                                    )}
+                                <span className="text-white/40">{new Date(message.createdAt).toLocaleString()}</span>
+                                {isReplyToYou && (
+                                  <Badge variant="secondary" className="border-red-500/40 bg-red-500/20 text-red-200">
+                                    Ответ вам
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="mt-2 prose prose-invert max-w-none text-sm leading-relaxed markdown-body">
+                                <MarkdownRenderer value={message.content} />
+                              </div>
+                              {replyTarget ? (
+                                <button
+                                  type="button"
+                                  className="mt-3 w-full max-w-md rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-left text-xs text-white/70 transition hover:border-primary/40 hover:bg-primary/10"
+                                  onClick={() => handleJumpToMessage(replyTarget.id)}
+                                >
+                                  <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">
+                                    <Reply className="h-3 w-3" /> Ответ для {getUserDisplay(users, replyTarget.senderId, user?.id)}
+                                  </p>
+                                  <div className="mt-2 max-h-32 overflow-hidden text-[13px] text-white/80">
+                                    <div className="prose prose-invert max-w-none text-[13px] leading-relaxed markdown-body">
+                                      <MarkdownRenderer value={replyTarget.content} />
+                                    </div>
                                   </div>
-                                  <div className="mt-2 prose prose-invert max-w-none text-sm leading-relaxed markdown-body">
-                                    <MarkdownRenderer value={message.content} />
-                                  </div>
-                                  {replyTarget ? (
+                                </button>
+                              ) : message.replyToMessageId ? (
+                                <div className="mt-3 rounded-xl border border-dashed border-white/10 bg-black/30 px-3 py-2 text-xs text-white/60">
+                                  <p>Ответ на сообщение из архива.</p>
+                                  {hasMore && (
                                     <button
                                       type="button"
-                                      className="mt-3 w-full max-w-md rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-left text-xs text-white/70 transition hover:border-primary/40 hover:bg-primary/10"
-                                      onClick={() => handleJumpToMessage(replyTarget.id)}
+                                      onClick={() => handleJumpToMessage(message.replyToMessageId!)}
+                                      className="mt-2 inline-flex items-center gap-2 rounded-lg border border-white/10 px-2 py-1 text-[11px] uppercase tracking-[0.2em] text-white/70 transition hover:border-primary/40 hover:text-white"
                                     >
-                                      <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">
-                                        <Reply className="h-3 w-3" /> Ответ для {getUserDisplay(users, replyTarget.senderId, user?.id)}
-                                      </p>
-                                      <div className="mt-2 max-h-32 overflow-hidden text-[13px] text-white/80">
-                                        <div className="prose prose-invert max-w-none text-[13px] leading-relaxed markdown-body">
-                                          <MarkdownRenderer value={replyTarget.content} />
-                                        </div>
-                                      </div>
+                                      <Undo2 className="h-3 w-3" />
+                                      Загрузить контекст
                                     </button>
-                                  ) : message.replyToMessageId ? (
-                                    <div className="mt-3 rounded-xl border border-dashed border-white/10 bg-black/30 px-3 py-2 text-xs text-white/60">
-                                      <p>Ответ на сообщение из архива.</p>
-                                      {hasMore && (
-                                        <button
-                                          type="button"
-                                          onClick={() => handleJumpToMessage(message.replyToMessageId!)}
-                                          className="mt-2 inline-flex items-center gap-2 rounded-lg border border-white/10 px-2 py-1 text-[11px] uppercase tracking-[0.2em] text-white/70 transition hover:border-primary/40 hover:text-white"
-                                        >
-                                          <Undo2 className="h-3 w-3" />
-                                          Загрузить контекст
-                                        </button>
-                                      )}
-                                    </div>
-                                  ) : null}
-                                  <div className="mt-3 flex items-center gap-2 text-xs text-white/60 opacity-0 transition-opacity duration-200 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-8 px-3 text-xs"
-                                      onClick={() => {
-                                        setReplyTo(message);
-                                        handleJumpToMessage(message.id);
-                                      }}
-                                    >
-                                      <CornerDownLeft className="mr-1 h-3 w-3" /> Ответить
-                                    </Button>
-                                  </div>
+                                  )}
                                 </div>
+                              ) : null}
+                              <div className="pointer-events-none mt-3 flex items-center gap-2 text-xs text-white/60 opacity-0 transition-opacity duration-200 group-hover:pointer-events-auto group-hover:opacity-100">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 px-3 text-xs"
+                                  onClick={() => {
+                                    setReplyTo(message);
+                                    handleJumpToMessage(message.id);
+                                  }}
+                                >
+                                  <CornerDownLeft className="mr-1 h-3 w-3" /> Ответить
+                                </Button>
                               </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="mt-4 space-y-3 border-t border-white/10 pt-4">
-                      {replyTo && (
-                        <div className="rounded-2xl border border-white/10 bg-black/30 p-3 text-sm text-white/70">
-                          <div className="flex items-center justify-between">
-                            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.25em] text-white/50">
-                              <Reply className="h-3 w-3" /> Ответ пользователю {getUserDisplay(users, replyTo.senderId, user?.id)}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => setReplyTo(null)}
-                              className="text-xs text-white/50 transition hover:text-white"
-                            >
-                              Очистить
-                            </button>
-                          </div>
-                          <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border border-white/5 bg-black/20 p-2">
-                            <div className="prose prose-invert max-w-none text-sm leading-relaxed markdown-body">
-                              <MarkdownRenderer value={replyTo.content} />
                             </div>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
 
-                      {outgoingError && (
-                        <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2 text-xs text-red-200">
-                          {outgoingError}
-                        </div>
-                      )}
-
-                      <Textarea
-                        ref={messageInputRef}
-                        value={messageText}
-                        onChange={event => setMessageText(event.target.value)}
-                        onKeyDown={handleEnterSend}
-                        placeholder={isAuthenticated ? 'Напишите сообщение для сообщества…' : 'Авторизуйтесь, чтобы писать в глобальный чат'}
-                        disabled={!isAuthenticated || loadingMessages}
-                        className="min-h-[120px] border-white/10 bg-black/40 text-sm"
-                      />
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                          <EmojiPickerButton
-                            onEmojiSelect={handleInsertEmoji}
-                            disabled={!isAuthenticated || loadingMessages}
-                            anchorClassName="h-10 w-10"
-                          />
-                          <p className="text-xs text-white/40">
-                            Нажмите <kbd className="rounded bg-white/10 px-1 py-0.5">Ctrl</kbd> + <kbd className="rounded bg-white/10 px-1 py-0.5">Enter</kbd>, чтобы отправить быстро.
+                <div className="border-t border-white/5 px-6 py-4">
+                  <div className="space-y-3">
+                    {replyTo && (
+                      <div className="rounded-2xl border border-white/10 bg-black/30 p-3 text-sm text-white/70">
+                        <div className="flex items-center justify-between">
+                          <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.25em] text-white/50">
+                            <Reply className="h-3 w-3" /> Ответ пользователю {getUserDisplay(users, replyTo.senderId, user?.id)}
                           </p>
+                          <button
+                            type="button"
+                            onClick={() => setReplyTo(null)}
+                            className="text-xs text-white/50 transition hover:text-white"
+                          >
+                            Очистить
+                          </button>
                         </div>
-                        <Button
-                          onClick={handleSend}
-                          disabled={!isAuthenticated || loadingMessages || !messageText.trim()}
-                          className="min-w-[140px]"
-                        >
-                          <MessageSquare className="mr-2 h-4 w-4" /> Отправить
-                        </Button>
+                        <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border border-white/5 bg-black/20 p-2">
+                          <div className="prose prose-invert max-w-none text-sm leading-relaxed markdown-body">
+                            <MarkdownRenderer value={replyTo.content} />
+                          </div>
+                        </div>
                       </div>
+                    )}
+
+                    {outgoingError && (
+                      <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2 text-xs text-red-200">
+                        {outgoingError}
+                      </div>
+                    )}
+
+                    <Textarea
+                      ref={messageInputRef}
+                      value={messageText}
+                      onChange={event => setMessageText(event.target.value)}
+                      onKeyDown={handleEnterSend}
+                      placeholder={isAuthenticated ? 'Напишите сообщение для сообщества…' : 'Авторизуйтесь, чтобы писать в глобальный чат'}
+                      disabled={!isAuthenticated || loadingMessages}
+                      className="min-h-[120px] resize-none rounded-2xl border border-white/10 bg-black/40 text-sm text-white placeholder:text-white/40 focus:border-primary/60"
+                    />
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 text-xs text-white/40">
+                        <EmojiPickerButton
+                          onEmojiSelect={handleInsertEmoji}
+                          disabled={!isAuthenticated || loadingMessages}
+                          anchorClassName="h-10 w-10"
+                        />
+                        <span>
+                          Нажмите <kbd className="rounded bg-white/10 px-1 py-0.5">Ctrl</kbd> + <kbd className="rounded bg-white/10 px-1 py-0.5">Enter</kbd>, чтобы отправить быстро.
+                        </span>
+                      </div>
+                      <Button
+                        onClick={handleSend}
+                        disabled={!isAuthenticated || loadingMessages || !messageText.trim()}
+                        className="min-w-[140px]"
+                      >
+                        <MessageSquare className="mr-2 h-4 w-4" /> Отправить
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -671,10 +677,9 @@ export const GlobalChatPage: React.FC = () => {
                   <p className="mt-2 text-sm text-white/60">Слева представлены каналы глобального чата AniWay. Выберите любой, чтобы начать общение.</p>
                 </div>
               </div>
-            )}
-          </GlassPanel>
-      </div>
-    </div>
+              )}
+          </div>
+        </div>
   );
 };
 

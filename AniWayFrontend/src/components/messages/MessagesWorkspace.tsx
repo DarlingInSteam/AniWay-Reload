@@ -12,7 +12,7 @@ import { apiClient } from '@/lib/api';
 import { buildProfileSlug } from '@/utils/profileSlug';
 import { EmojiPickerButton } from '@/components/chat/EmojiPickerButton';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Search, Check, CheckCheck, RefreshCcw, Loader2 } from 'lucide-react';
 
 type ComposeUserInput = {
   id: number;
@@ -64,6 +64,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
   const [error, setError] = useState<string | null>(null);
   const [draftTarget, setDraftTarget] = useState<ComposeUserInput | null>(initialComposeUser ?? null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const messageInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -107,6 +108,25 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
     : null;
   const privateOtherName = privateOtherId != null ? (users[privateOtherId]?.displayName || users[privateOtherId]?.username || `Пользователь ${privateOtherId}`) : null;
   const privateOtherSlug = privateOtherId != null ? buildProfileSlug(privateOtherId, privateOtherName ?? undefined) : null;
+  const filteredConversations = useMemo(() => {
+    const normalized = searchTerm.trim().toLowerCase();
+    if (!normalized) return inbox.conversations;
+    return inbox.conversations.filter(conversation => {
+      const title = conversationTitle(conversation, users, currentUserId).toLowerCase();
+      const preview = conversation.lastMessage?.content?.toLowerCase() ?? '';
+      return title.includes(normalized) || preview.includes(normalized);
+    });
+  }, [searchTerm, inbox.conversations, users, currentUserId]);
+
+  const formatTimestamp = useCallback((value?: string | null) => {
+    if (!value) return '';
+    try {
+      const date = new Date(value);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '';
+    }
+  }, []);
 
   useEffect(() => {
     if (!draftTarget) return;
@@ -185,6 +205,17 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
     }
   }, [inbox, selectedConversation]);
 
+  const renderLastMessageStatus = useCallback((conversation: ConversationDto) => {
+    const last = conversation.lastMessage;
+    if (!last || last.senderId !== currentUserId) return null;
+    const isRead = conversation.unreadCount === 0;
+    return isRead ? (
+      <CheckCheck className="h-4 w-4 text-primary/80" />
+    ) : (
+      <Check className="h-4 w-4 text-slate-400" />
+    );
+  }, [currentUserId]);
+
   return (
     <div className={cn('flex h-full flex-col gap-6', className)}>
       {Boolean(inbox.error) && (
@@ -193,15 +224,32 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
         </div>
       )}
 
-      <div className="grid flex-1 min-h-0 gap-4 overflow-hidden lg:grid-cols-[320px_1fr]">
-        <div className="flex h-full min-h-0 flex-col rounded-2xl border border-white/10 bg-white/5 p-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-white/90">Диалоги</h3>
-            <Button size="sm" variant="outline" onClick={inbox.refresh} disabled={inbox.loadingConversations}>
-              Обновить
+      <div className="grid flex-1 min-h-0 gap-4 overflow-hidden rounded-2xl border border-white/10 bg-black/20 lg:grid-cols-[320px_1fr]">
+        <div className="flex h-full min-h-0 flex-col border-r border-white/5 bg-black/30">
+          <div className="flex items-center gap-2 border-b border-white/5 px-4 py-3">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
+              <input
+                type="search"
+                value={searchTerm}
+                onChange={event => setSearchTerm(event.target.value)}
+                placeholder="Поиск диалога"
+                className="h-10 w-full rounded-xl border border-white/10 bg-black/50 pl-10 pr-3 text-sm text-white placeholder:text-white/40 focus:border-primary/60 focus:outline-none"
+              />
+            </div>
+            <Button size="icon" variant="ghost" onClick={inbox.refresh} disabled={inbox.loadingConversations}>
+              {inbox.loadingConversations ? (
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              ) : (
+                <RefreshCcw className="h-4 w-4" />
+              )}
             </Button>
           </div>
-          <div className="mt-3 flex-1 overflow-y-auto pr-1 scrollbar-thin">
+          <div className="flex items-center justify-between px-4 py-2 text-[11px] uppercase tracking-wide text-white/40">
+            <span>Диалоги</span>
+            <span>{filteredConversations.length}</span>
+          </div>
+          <div className="flex-1 overflow-y-auto px-2 pb-4 scrollbar-thin">
             {inbox.loadingConversations && inbox.conversations.length === 0 ? (
               <div className="flex items-center justify-center py-10">
                 <LoadingSpinner />
@@ -214,12 +262,12 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                     type="button"
                     onClick={() => setDraftTarget(draftTarget)}
                     className={cn(
-                      'w-full rounded-xl border px-3 py-3 text-left transition',
-                      'border-primary/60 bg-primary/20'
+                      'w-full rounded-2xl border px-4 py-3 text-left transition',
+                      'border-primary/60 bg-primary/15 text-white shadow-[0_0_18px_rgba(59,130,246,0.15)]'
                     )}
                   >
                     <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10 border border-white/10 bg-black/40">
+                      <Avatar className="h-11 w-11 border border-white/10 bg-black/60">
                         {draftTarget.avatar ? (
                           <AvatarImage src={draftTarget.avatar} alt={draftTarget.displayName || draftTarget.username || 'Новый диалог'} />
                         ) : (
@@ -237,13 +285,14 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                   </button>
                 </li>
               )}
-              {inbox.conversations.map(conversation => {
+              {filteredConversations.map(conversation => {
                 const title = conversationTitle(conversation, users, currentUserId);
                 const isActive = selectedConversation?.id === conversation.id && !draftTarget;
                 const lastMessagePreview = conversation.lastMessage?.content || 'Нет сообщений';
                 const unread = conversation.unreadCount > 0;
                 const otherId = conversation.participantIds.find(id => id !== currentUserId);
                 const avatarUser = otherId ? users[otherId] : undefined;
+                const timestamp = formatTimestamp(conversation.lastMessageAt);
                 return (
                   <li key={conversation.id}>
                     <button
@@ -253,14 +302,14 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                         inbox.selectConversation(conversation.id);
                       }}
                       className={cn(
-                        'w-full rounded-xl border px-3 py-3 text-left transition',
+                        'w-full rounded-2xl border px-4 py-3 text-left transition',
                         isActive
-                          ? 'border-primary/60 bg-primary/20'
-                          : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
+                          ? 'border-primary/60 bg-primary/15 shadow-[0_0_18px_rgba(59,130,246,0.15)]'
+                          : 'border-white/10 bg-black/40 hover:border-white/20 hover:bg-black/30'
                       )}
                     >
                       <div className="flex items-center gap-3">
-                        <Avatar className="h-10 w-10 border border-white/10 bg-black/40">
+                        <Avatar className="h-11 w-11 border border-white/10 bg-black/60">
                           {avatarUser?.avatar ? (
                             <AvatarImage src={avatarUser.avatar} alt={title} />
                           ) : (
@@ -268,21 +317,20 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                           )}
                         </Avatar>
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-start justify-between gap-2">
                             <span className="truncate text-sm font-semibold text-white">{title}</span>
-                            {unread && (
-                              <span className="rounded-full bg-primary/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-                                {conversation.unreadCount}
-                              </span>
-                            )}
+                            <span className="shrink-0 text-[11px] text-white/50">{timestamp}</span>
                           </div>
-                          <p className="mt-1 truncate text-xs text-slate-300">{lastMessagePreview}</p>
-                          {conversation.lastMessageAt && (
-                            <p className="mt-1 text-[11px] uppercase tracking-wide text-slate-500">
-                              {new Date(conversation.lastMessageAt).toLocaleString()}
-                            </p>
-                          )}
+                          <div className="mt-1 flex items-center gap-1 text-xs text-slate-300">
+                            {renderLastMessageStatus(conversation)}
+                            <span className="truncate">{lastMessagePreview}</span>
+                          </div>
                         </div>
+                        {unread && (
+                          <span className="ml-2 flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-primary/80 px-2 text-[11px] font-semibold text-white">
+                            {conversation.unreadCount}
+                          </span>
+                        )}
                       </div>
                     </button>
                   </li>
@@ -298,36 +346,43 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
           </div>
         </div>
 
-  <div className="flex h-full min-h-0 flex-col rounded-2xl border border-white/10 bg-white/5 p-4">
+  <div className="flex h-full min-h-0 flex-col bg-gradient-to-br from-black/20 via-black/10 to-black/5">
           {draftTarget ? (
-            <div className="flex h-full min-h-0 flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-semibold text-white">
-                    {draftResolvedName}
-                  </h3>
-                  <p className="text-xs text-slate-400">Новый личный диалог</p>
-                  {draftProfileSlug && (
-                    <Link
-                      to={`/profile/${draftProfileSlug}`}
-                      className="mt-1 inline-flex items-center gap-1 text-xs text-primary transition hover:text-primary/80"
-                    >
-                      Просмотр профиля
-                    </Link>
-                  )}
+            <div className="flex h-full min-h-0 flex-col">
+              <div className="flex items-center justify-between border-b border-white/5 px-6 py-4">
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-12 w-12 border border-white/10 bg-black/60">
+                    {draftTarget.avatar ? (
+                      <AvatarImage src={draftTarget.avatar} alt={draftResolvedName || 'Новый диалог'} />
+                    ) : (
+                      <AvatarFallback>{initials(draftResolvedName || draftTarget.username || 'Новый диалог')}</AvatarFallback>
+                    )}
+                  </Avatar>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">{draftResolvedName}</h3>
+                    <p className="text-xs text-white/50">Новый личный диалог</p>
+                    {draftProfileSlug && (
+                      <Link
+                        to={`/profile/${draftProfileSlug}`}
+                        className="mt-1 inline-flex items-center gap-1 text-xs text-primary transition hover:text-primary/80"
+                      >
+                        Просмотр профиля
+                      </Link>
+                    )}
+                  </div>
                 </div>
                 <Button size="sm" variant="ghost" onClick={() => setDraftTarget(null)}>
                   Закрыть
                 </Button>
               </div>
 
-              <div className="flex-1 flex items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/10 text-center text-sm text-slate-300 px-6">
-                <p>
-                  Начните беседу. Диалог появится в списке после отправки первого сообщения.
-                </p>
+              <div className="flex flex-1 items-center justify-center px-6">
+                <div className="w-full max-w-sm rounded-2xl border border-dashed border-white/10 bg-black/20 px-6 py-8 text-center text-sm text-slate-300">
+                  <p>Начните беседу. Диалог появится в списке после отправки первого сообщения.</p>
+                </div>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-3 border-t border-white/5 px-6 py-4">
                 {error && <p className="text-sm text-red-300">{error}</p>}
                 <Textarea
                   ref={messageInputRef}
@@ -336,21 +391,22 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                   onChange={event => setMessageText(event.target.value)}
                   onKeyDown={handleEnterSend}
                   disabled={inbox.loadingMessages}
+                  className="min-h-[90px] resize-none rounded-2xl border border-white/10 bg-black/40 text-sm text-white placeholder:text-white/40 focus:border-primary/60"
                 />
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 text-xs text-slate-400">
                     <EmojiPickerButton
                       onEmojiSelect={handleInsertEmoji}
                       disabled={inbox.loadingMessages}
                       anchorClassName="h-10 w-10"
                     />
-                    <p className="text-xs text-slate-400">
+                    <span>
                       <kbd className="rounded bg-white/10 px-1 py-0.5 text-[10px]">Ctrl</kbd> + <kbd className="rounded bg-white/10 px-1 py-0.5 text-[10px]">Enter</kbd> чтобы отправить.
-                    </p>
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button variant="outline" onClick={() => { setMessageText(''); setDraftTarget(null); }}>
-                    Отменить
+                      Отменить
                     </Button>
                     <Button onClick={handleSend} disabled={!messageText.trim() || inbox.loadingMessages}>
                       Отправить
@@ -360,31 +416,40 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
               </div>
             </div>
           ) : selectedConversation ? (
-            <div className="flex h-full min-h-0 flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-semibold text-white">
-                    {conversationTitle(selectedConversation, users, currentUserId)}
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Участники: {selectedConversation.participantIds
-                      .map(id => {
-                        if (id === currentUserId) return 'Вы';
-                        const user = users[id];
-                        return user?.displayName || user?.username || `ID ${id}`;
-                      })
-                      .join(', ')}
-                  </p>
-                  {privateOtherSlug && (
-                    <Link
-                      to={`/profile/${privateOtherSlug}`}
-                      className="mt-1 inline-flex items-center gap-1 text-xs text-primary transition hover:text-primary/80"
-                    >
-                      Профиль собеседника
-                    </Link>
-                  )}
+            <div className="flex h-full min-h-0 flex-col">
+              <div className="flex items-center justify-between border-b border-white/5 px-6 py-4">
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-12 w-12 border border-white/10 bg-black/60">
+                    {privateOtherId && users[privateOtherId]?.avatar ? (
+                      <AvatarImage src={users[privateOtherId].avatar} alt={privateOtherName || 'Диалог'} />
+                    ) : (
+                      <AvatarFallback>{initials(conversationTitle(selectedConversation, users, currentUserId))}</AvatarFallback>
+                    )}
+                  </Avatar>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">
+                      {conversationTitle(selectedConversation, users, currentUserId)}
+                    </h3>
+                    <p className="text-xs text-white/50">
+                      {selectedConversation.participantIds
+                        .map(id => {
+                          if (id === currentUserId) return 'Вы';
+                          const user = users[id];
+                          return user?.displayName || user?.username || `ID ${id}`;
+                        })
+                        .join(', ')}
+                    </p>
+                    {privateOtherSlug && (
+                      <Link
+                        to={`/profile/${privateOtherSlug}`}
+                        className="mt-1 inline-flex items-center gap-1 text-xs text-primary transition hover:text-primary/80"
+                      >
+                        Профиль собеседника
+                      </Link>
+                    )}
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-center justify-end gap-2">
+                <div className="flex items-center gap-2">
                   {inbox.hasMoreMessages && (
                     <Button size="sm" variant="outline" onClick={inbox.loadOlderMessages} disabled={inbox.loadingMessages}>
                       Загрузить ранние сообщения
@@ -432,82 +497,90 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                 </div>
               </div>
 
-              <div className="flex-1 space-y-3 overflow-y-auto rounded-xl border border-white/10 bg-black/20 p-4 pr-1 scrollbar-thin">
-                {inbox.loadingMessages && inbox.messages.length === 0 ? (
-                  <div className="flex items-center justify-center py-10">
-                    <LoadingSpinner />
-                  </div>
-                ) : (
-                  inbox.messages.map(message => {
-                    const author = resolveMessageAuthor(message, users, currentUserId);
-                    const isOwn = message.senderId === currentUserId;
-                    return (
-                      <div
-                        key={message.id}
-                        className={cn(
-                          'max-w-[85%] rounded-xl border px-3 py-2 text-sm leading-relaxed',
-                          isOwn
-                            ? 'ml-auto border-primary/50 bg-primary/10 text-white'
-                            : 'border-white/10 bg-white/5 text-slate-200'
-                        )}
-                      >
-                        <div className="mb-1 flex items-center justify-between gap-2 text-[11px] uppercase tracking-wide text-slate-400">
-                          <span>{author}</span>
-                          <span>{new Date(message.createdAt).toLocaleString()}</span>
+              <div className="flex-1 overflow-y-auto px-4 py-6 scrollbar-thin">
+                <div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
+                  {inbox.loadingMessages && inbox.messages.length === 0 ? (
+                    <div className="flex items-center justify-center py-10">
+                      <LoadingSpinner />
+                    </div>
+                  ) : (
+                    inbox.messages.map(message => {
+                      const author = resolveMessageAuthor(message, users, currentUserId);
+                      const isOwn = message.senderId === currentUserId;
+                      return (
+                        <div className={cn('flex', isOwn ? 'justify-end' : 'justify-start')} key={message.id}>
+                          <div
+                            className={cn(
+                              'group relative max-w-[75%] rounded-2xl px-4 py-2 text-sm shadow-lg transition',
+                              isOwn
+                                ? 'bg-primary/20 text-white shadow-primary/20'
+                                : 'bg-white/10 text-slate-100 shadow-black/10'
+                            )}
+                          >
+                            <div className="mb-1 flex items-center justify-between gap-3 text-[11px] uppercase tracking-wide text-white/40">
+                              <span>{author}</span>
+                              <span>{new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                            <p className="whitespace-pre-line break-words text-[15px] leading-relaxed">{message.content}</p>
+                            {message.replyToMessageId && (
+                              <p className="mt-2 rounded-xl border border-dashed border-white/20 bg-white/10 p-2 text-[11px] text-white/70">
+                                Ответ на сообщение #{message.replyToMessageId.slice(0, 8)}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        <p>{message.content}</p>
-                        {message.replyToMessageId && (
-                          <p className="mt-2 rounded-md border border-dashed border-white/20 bg-white/5 p-2 text-[11px] text-slate-300">
-                            Ответ на сообщение #{message.replyToMessageId.slice(0, 8)}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-                {inbox.messages.length === 0 && !inbox.loadingMessages && (
-                  <div className="rounded-xl border border-dashed border-white/10 bg-white/5 px-4 py-6 text-center text-xs text-slate-300">
-                    Сообщений пока нет. Напишите первое сообщение!
-                  </div>
-                )}
+                      );
+                    })
+                  )}
+                  {inbox.messages.length === 0 && !inbox.loadingMessages && (
+                    <div className="rounded-2xl border border-dashed border-white/10 bg-black/30 px-6 py-8 text-center text-sm text-slate-300">
+                      Сообщений пока нет. Напишите первое сообщение!
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="space-y-3">
-                {error && <p className="text-sm text-red-300">{error}</p>}
-                <Textarea
-                  ref={messageInputRef}
-                  placeholder="Введите сообщение"
-                  value={messageText}
-                  onChange={event => setMessageText(event.target.value)}
-                  onKeyDown={handleEnterSend}
-                  disabled={(!selectedConversation && !draftTarget) || inbox.loadingMessages}
-                />
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <EmojiPickerButton
-                      onEmojiSelect={handleInsertEmoji}
-                      disabled={inbox.loadingMessages || (!selectedConversation && !draftTarget)}
-                      anchorClassName="h-10 w-10"
-                    />
-                    <p className="text-xs text-slate-400">
-                      <kbd className="rounded bg-white/10 px-1 py-0.5 text-[10px]">Ctrl</kbd> + <kbd className="rounded bg-white/10 px-1 py-0.5 text-[10px]">Enter</kbd> чтобы отправить.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={() => setMessageText('')} disabled={!messageText.trim()}>
-                      Очистить
-                    </Button>
-                    <Button onClick={handleSend} disabled={!messageText.trim() || inbox.loadingMessages}>
-                      Отправить
-                    </Button>
+              <div className="border-t border-white/5 px-6 py-4">
+                <div className="space-y-3">
+                  {error && <p className="text-sm text-red-300">{error}</p>}
+                  <Textarea
+                    ref={messageInputRef}
+                    placeholder="Введите сообщение"
+                    value={messageText}
+                    onChange={event => setMessageText(event.target.value)}
+                    onKeyDown={handleEnterSend}
+                    disabled={(!selectedConversation && !draftTarget) || inbox.loadingMessages}
+                    className="min-h-[90px] resize-none rounded-2xl border border-white/10 bg-black/40 text-sm text-white placeholder:text-white/40 focus:border-primary/60"
+                  />
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-xs text-slate-400">
+                      <EmojiPickerButton
+                        onEmojiSelect={handleInsertEmoji}
+                        disabled={inbox.loadingMessages || (!selectedConversation && !draftTarget)}
+                        anchorClassName="h-10 w-10"
+                      />
+                      <span>
+                        <kbd className="rounded bg-white/10 px-1 py-0.5 text-[10px]">Ctrl</kbd> + <kbd className="rounded bg-white/10 px-1 py-0.5 text-[10px]">Enter</kbd> чтобы отправить.
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" onClick={() => setMessageText('')} disabled={!messageText.trim()}>
+                        Очистить
+                      </Button>
+                      <Button onClick={handleSend} disabled={!messageText.trim() || inbox.loadingMessages}>
+                        Отправить
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-slate-300">
-              <p className="text-lg font-semibold text-white">Выберите диалог</p>
-              <p className="text-sm text-slate-400">Выберите чат слева, чтобы просмотреть сообщения.</p>
+            <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center text-slate-300">
+              <div className="rounded-2xl border border-dashed border-white/10 bg-black/30 px-8 py-10 shadow-inner shadow-black/30">
+                <p className="text-lg font-semibold text-white">Выберите диалог</p>
+                <p className="mt-2 text-sm text-white/50">Найдите контакт слева или начните новый чат через поиск.</p>
+              </div>
             </div>
           )}
         </div>
