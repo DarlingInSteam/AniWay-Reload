@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { MessageSquare, Hash, RefreshCcw, Plus, Reply, CornerDownLeft, Loader2, ArchiveRestore, Archive, Shield, Undo2 } from 'lucide-react';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,8 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { MessageView as MessageDto } from '@/types/social';
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer';
+import { buildProfileSlug } from '@/utils/profileSlug';
+import { EmojiPickerButton } from '@/components/chat/EmojiPickerButton';
 
 function initials(value: string): string {
   const parts = value.trim().split(/\s+/);
@@ -27,7 +30,7 @@ function getUserDisplay(users: Record<number, UserMini>, userId: number, current
 
 export const GlobalChatPage: React.FC = () => {
   const { user, isAdmin, isAuthenticated } = useAuth();
-  const chat = useGlobalChat({ includeArchived: isAdmin, messageRefreshIntervalMs: 5000 });
+  const chat = useGlobalChat({ includeArchived: isAdmin, messageRefreshIntervalMs: 5000, autoRefreshIntervalMs: 20000 });
   const {
     categories,
     selectedCategory,
@@ -67,6 +70,7 @@ export const GlobalChatPage: React.FC = () => {
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const pendingScrollTargetRef = useRef<string | null>(null);
   const lastMessageIdRef = useRef<string | null>(null);
+  const messageInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const participants = useMemo(() => {
     const ids = new Set<number>();
@@ -149,6 +153,24 @@ export const GlobalChatPage: React.FC = () => {
       handleSend();
     }
   }, [handleSend]);
+
+  const handleInsertEmoji = useCallback((emoji: string) => {
+    const textarea = messageInputRef.current;
+    const currentValue = messageText;
+    if (!textarea) {
+      setMessageText(prev => prev + emoji);
+      return;
+    }
+    const start = textarea.selectionStart ?? currentValue.length;
+    const end = textarea.selectionEnd ?? currentValue.length;
+    const nextValue = `${currentValue.slice(0, start)}${emoji}${currentValue.slice(end)}`;
+    setMessageText(nextValue);
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const caret = start + emoji.length;
+      textarea.setSelectionRange(caret, caret);
+    });
+  }, [messageText]);
 
   const handleJumpToMessage = useCallback(async (messageId: string) => {
     const node = messageRefs.current.get(messageId);
@@ -484,6 +506,7 @@ export const GlobalChatPage: React.FC = () => {
                             const isOwn = user?.id === message.senderId;
                             const isHighlighted = highlightedMessageId === message.id;
                             const isReplyToYou = !!replyTarget && replyTarget.senderId === user?.id;
+                            const profileSlug = buildProfileSlug(message.senderId, users[message.senderId]?.displayName || users[message.senderId]?.username || author);
                             return (
                               <div
                                 key={message.id}
@@ -501,16 +524,23 @@ export const GlobalChatPage: React.FC = () => {
                                   isHighlighted && 'ring-2 ring-primary/60'
                                 )}
                               >
-                                <Avatar className="h-10 w-10 border border-white/10 bg-black/40">
-                                  {users[message.senderId]?.avatar ? (
-                                    <AvatarImage src={users[message.senderId]?.avatar} alt={author} />
-                                  ) : (
-                                    <AvatarFallback>{initials(author)}</AvatarFallback>
-                                  )}
-                                </Avatar>
+                                <Link to={`/profile/${profileSlug}`} className="shrink-0">
+                                  <Avatar className="h-10 w-10 border border-white/10 bg-black/40 transition hover:border-primary/60">
+                                    {users[message.senderId]?.avatar ? (
+                                      <AvatarImage src={users[message.senderId]?.avatar} alt={author} />
+                                    ) : (
+                                      <AvatarFallback>{initials(author)}</AvatarFallback>
+                                    )}
+                                  </Avatar>
+                                </Link>
                                 <div className="min-w-0 flex-1">
                                   <div className="flex flex-wrap items-center gap-2 text-xs text-white/60">
-                                    <span className="font-semibold text-white/90">{author}</span>
+                                    <Link
+                                      to={`/profile/${profileSlug}`}
+                                      className="font-semibold text-primary transition hover:text-primary/80"
+                                    >
+                                      {author}
+                                    </Link>
                                     <span className="text-white/40">{new Date(message.createdAt).toLocaleString()}</span>
                                     {isReplyToYou && (
                                       <Badge variant="secondary" className="bg-red-500/20 text-red-200 border-red-500/40">
@@ -602,6 +632,7 @@ export const GlobalChatPage: React.FC = () => {
                       )}
 
                       <Textarea
+                        ref={messageInputRef}
                         value={messageText}
                         onChange={event => setMessageText(event.target.value)}
                         onKeyDown={handleEnterSend}
@@ -609,10 +640,17 @@ export const GlobalChatPage: React.FC = () => {
                         disabled={!isAuthenticated || loadingMessages}
                         className="min-h-[120px] border-white/10 bg-black/40 text-sm"
                       />
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-xs text-white/40">
-                          Нажмите <kbd className="rounded bg-white/10 px-1 py-0.5">Ctrl</kbd> + <kbd className="rounded bg-white/10 px-1 py-0.5">Enter</kbd>, чтобы отправить быстро.
-                        </p>
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <EmojiPickerButton
+                            onEmojiSelect={handleInsertEmoji}
+                            disabled={!isAuthenticated || loadingMessages}
+                            anchorClassName="h-10 w-10"
+                          />
+                          <p className="text-xs text-white/40">
+                            Нажмите <kbd className="rounded bg-white/10 px-1 py-0.5">Ctrl</kbd> + <kbd className="rounded bg-white/10 px-1 py-0.5">Enter</kbd>, чтобы отправить быстро.
+                          </p>
+                        </div>
                         <Button
                           onClick={handleSend}
                           disabled={!isAuthenticated || loadingMessages || !messageText.trim()}

@@ -205,6 +205,25 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
     }
   }, [currentUser?.id, targetUserId]);
 
+  const handleOpenMessages = useCallback(() => {
+    if (!targetUserMini) return;
+    if (!currentUser) {
+      navigate('/login');
+      return;
+    }
+    navigate('/messages', {
+      state: {
+        composeSession: Date.now(),
+        composeUser: {
+          id: targetUserMini.id,
+          displayName: targetUserMini.displayName,
+          username: targetUserMini.username,
+          avatar: targetUserMini.avatar,
+        },
+      },
+    });
+  }, [navigate, targetUserMini, currentUser]);
+
   const showMessagesTab = isOwnProfile && !!currentUser;
 
   // MAIN LOAD EFFECT: depends only on userId / isOwnProfile to avoid loops on avatar changes
@@ -510,6 +529,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               }
               // Skip immediate refetch to avoid loop (backend doesn't yet return avatar). Can be re-enabled later.
             }}
+            onOpenMessages={!isOwnProfile ? handleOpenMessages : undefined}
           />
           <ProfileStatsStrip profile={profile} extra={{ favorites: undefined, achievements: achievements.length, reviewsCount }} />
         </div>

@@ -3,7 +3,7 @@ import { apiClient } from '@/lib/api'
 import { UserProfile } from '@/types/profile'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
-import { Camera, Edit, ChevronDown } from 'lucide-react'
+import { Camera, Edit, ChevronDown, MessageCircle } from 'lucide-react'
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
 import { profileService } from '@/services/profileService'
 import { Progress } from '@/components/ui/progress'
@@ -17,6 +17,7 @@ interface ProfileHeroProps {
   isOwn: boolean
   onEdit?: () => void
   onAvatarUpdated?: (newUrl: string) => void
+  onOpenMessages?: () => void
 }
 
 const AvatarSection: React.FC<{ profile: UserProfile; isOwn: boolean; uploading: boolean; avatarError: string | null; avatarSuccess: string | null; fileInputRef: React.RefObject<HTMLInputElement>; onPick: () => void; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; computedAvatarUrl: string; }> = ({ profile, isOwn, uploading, avatarError, avatarSuccess, fileInputRef, onPick, onChange, computedAvatarUrl }) => (
@@ -169,7 +170,7 @@ const LevelPanel: React.FC<{ profile: UserProfile; variant?: 'desktop'|'mobile'|
   )
 }
 
-export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit, onAvatarUpdated }) => {
+export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit, onAvatarUpdated, onOpenMessages }) => {
   // Avatar upload logic (build tag removed per design cleanup)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -295,11 +296,22 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit
                 <span className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] tracking-wide uppercase ${profile.isOnline ? 'bg-primary/20 text-primary font-medium' : 'bg-slate-600/30 text-slate-300'}`}>{profile.isOnline ? 'В СЕТИ' : 'ОФЛАЙН'}</span>
               </div>
             </div>
-            {isOwn && (
-              <Button size="sm" variant="outline" className="bg-primary/25 hover:bg-primary/35 border-primary/40 text-white shadow-sm hover:shadow transition" onClick={onEdit}>
-                <Edit className="w-4 h-4 mr-1" /> Редактировать профиль
-              </Button>
-            )}
+            <div className="flex flex-col items-end gap-3">
+              {!isOwn && onOpenMessages && (
+                <Button
+                  size="sm"
+                  className="bg-primary/30 hover:bg-primary/40 border border-primary/40 text-white shadow-sm hover:shadow transition"
+                  onClick={onOpenMessages}
+                >
+                  <MessageCircle className="w-4 h-4 mr-1" /> Написать сообщение
+                </Button>
+              )}
+              {isOwn && (
+                <Button size="sm" variant="outline" className="bg-primary/25 hover:bg-primary/35 border-primary/40 text-white shadow-sm hover:shadow transition" onClick={onEdit}>
+                  <Edit className="w-4 h-4 mr-1" /> Редактировать профиль
+                </Button>
+              )}
+            </div>
           </div>
           {hasBio && (
             <div className="mt-5 max-w-2xl text-slate-300 text-sm leading-relaxed markdown-body">
@@ -352,6 +364,11 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit
               {isOwn && (
                 <Button size="sm" variant="outline" className="h-7 px-3 bg-primary/25 border-primary/40 text-white text-[11px]" onClick={onEdit}>
                   <Edit className="w-3 h-3 mr-1" /> Редактировать
+                </Button>
+              )}
+              {!isOwn && onOpenMessages && (
+                <Button size="sm" className="h-7 px-3 bg-primary/30 border border-primary/40 text-white text-[11px]" onClick={onOpenMessages}>
+                  <MessageCircle className="w-3 h-3 mr-1" /> Написать
                 </Button>
               )}
             </div>
