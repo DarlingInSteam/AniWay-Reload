@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { MessageSquare, Hash, RefreshCcw, Plus, Reply, CornerDownLeft, Loader2, ArchiveRestore, Archive, Shield, Undo2 } from 'lucide-react';
+import { MessageSquare, Hash, RefreshCcw, Plus, Reply, CornerDownLeft, Loader2, ArchiveRestore, Undo2, MoreVertical, ArrowLeft, Pencil } from 'lucide-react';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useGlobalChat } from '@/hooks/useGlobalChat';
 import useUserMiniBatch, { UserMini } from '@/hooks/useUserMiniBatch';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,6 +17,7 @@ import type { MessageView as MessageDto } from '@/types/social';
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer';
 import { buildProfileSlug } from '@/utils/profileSlug';
 import { EmojiPickerButton } from '@/components/chat/EmojiPickerButton';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 function initials(value: string): string {
   const parts = value.trim().split(/\s+/);
@@ -66,6 +68,9 @@ export const GlobalChatPage: React.FC = () => {
   const [editIsDefault, setEditIsDefault] = useState(false);
   const [editIsArchived, setEditIsArchived] = useState(false);
   const [outgoingError, setOutgoingError] = useState<string | null>(null);
+  const [mobileView, setMobileView] = useState<'list' | 'feed'>('list');
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const pendingScrollTargetRef = useRef<string | null>(null);
@@ -82,7 +87,7 @@ export const GlobalChatPage: React.FC = () => {
   const users = useUserMiniBatch(participants);
 
   useEffect(() => {
-  const selected = selectedCategory;
+    const selected = selectedCategory;
     if (!selected) {
       setEditTitle('');
       setEditDescription('');
@@ -94,10 +99,41 @@ export const GlobalChatPage: React.FC = () => {
       setEditIsDefault(selected.isDefault);
       setEditIsArchived(selected.isArchived);
     }
-  }, [selectedCategory?.id]);
+  }, [selectedCategory]);
 
   useEffect(() => {
-  const last = messages[messages.length - 1];
+    if (selectedCategoryId) {
+      setMobileView('feed');
+    }
+  }, [selectedCategoryId]);
+
+  useEffect(() => {
+    if (!selectedCategoryId) {
+      setMobileView('list');
+      setEditDialogOpen(false);
+    }
+  }, [selectedCategoryId]);
+
+  useEffect(() => {
+    if (!createDialogOpen) {
+      setNewTitle('');
+      setNewSlug('');
+      setNewDescription('');
+      setNewIsDefault(false);
+    }
+  }, [createDialogOpen]);
+
+  useEffect(() => {
+    if (!editDialogOpen && selectedCategory) {
+      setEditTitle(selectedCategory.title);
+      setEditDescription(selectedCategory.description ?? '');
+      setEditIsDefault(selectedCategory.isDefault);
+      setEditIsArchived(selectedCategory.isArchived);
+    }
+  }, [editDialogOpen, selectedCategory]);
+
+  useEffect(() => {
+    const last = messages[messages.length - 1];
     if (!last) {
       lastMessageIdRef.current = null;
       return;
@@ -206,6 +242,7 @@ export const GlobalChatPage: React.FC = () => {
       setNewSlug('');
       setNewDescription('');
       setNewIsDefault(false);
+      setCreateDialogOpen(false);
       toast.success('Категория создана');
     } catch (err: any) {
       const message = err?.message || 'Не удалось создать категорию';
@@ -230,6 +267,7 @@ export const GlobalChatPage: React.FC = () => {
     try {
       await updateCategory(selectedCategoryId, payload);
       toast.success('Категория обновлена');
+      setEditDialogOpen(false);
     } catch (err: any) {
       const message = err?.message || 'Не удалось обновить категорию';
       toast.error(message);
@@ -244,77 +282,162 @@ export const GlobalChatPage: React.FC = () => {
     return referenced || null;
   }, [messages]);
 
+  const hasSelectedCategory = Boolean(selectedCategoryId);
+  const showList = mobileView === 'list';
+  const showFeed = mobileView === 'feed';
+
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 text-white">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.25em] text-primary/70">
-          <MessageSquare className="h-4 w-4" />
+      <GlassPanel padding="sm" className="mb-6 flex flex-wrap items-center justify-between gap-3 border-white/10 bg-background/70 backdrop-blur-xl">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-white/60">
+          <MessageSquare className="h-4 w-4 text-primary/70" />
           Прямой эфир AniWay
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={refreshAll}
-          disabled={loadingCategories || loadingMessages}
-          className="gap-2"
-        >
-          {loadingCategories || loadingMessages ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCcw className="h-3 w-3" />}
-          Обновить всё
-        </Button>
-      </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-white/70 hover:bg-white/10" aria-label="Действия эфира">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem className="gap-2 text-xs" onClick={refreshAll}>
+              <RefreshCcw className="h-3 w-3" />
+              Обновить всё
+            </DropdownMenuItem>
+            <DropdownMenuItem className="gap-2 text-xs" onClick={refreshCategories}>
+              <Hash className="h-3 w-3" />
+              Обновить каналы
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className={cn('gap-2 text-xs', !hasSelectedCategory && 'pointer-events-none opacity-50')}
+              onClick={refreshMessages}
+            >
+              <MessageSquare className="h-3 w-3" />
+              Обновить чат
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </GlassPanel>
 
       {!!chatError && (
-        <GlassPanel className="mb-6 border border-red-500/40 bg-red-500/10 text-sm text-red-200">
+        <GlassPanel padding="sm" className="mb-6 border border-red-500/40 bg-red-500/10 text-sm text-red-200">
           Не удалось загрузить данные чата. Попробуйте обновить страницу или зайдите позже.
         </GlassPanel>
       )}
 
-      <div className="grid gap-6 rounded-2xl border border-white/10 bg-black/20 lg:grid-cols-[320px_1fr] xl:grid-cols-[360px_1fr]">
-          <div className="flex min-h-0 flex-col border-r border-white/5 bg-black/25">
-            <div className="flex items-center justify-between border-b border-white/5 px-5 py-4">
-              <h2 className="flex items-center gap-2 text-base font-semibold text-white">
-                <Hash className="h-4 w-4 text-primary/80" />
-                Каналы
-              </h2>
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" onClick={refreshCategories} disabled={loadingCategories}>
-                  {loadingCategories ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-                </Button>
-                <Button variant="outline" size="icon" onClick={refreshMessages} disabled={loadingMessages}>
-                  {loadingMessages ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
+      <div className="mb-4 flex items-center justify-between lg:hidden">
+        <div className="text-xs font-semibold uppercase tracking-[0.3em] text-white/40">Глобальный чат</div>
+        <div className="glass-inline flex items-center rounded-full border border-white/10 bg-white/10 p-0.5">
+          <button
+            type="button"
+            onClick={() => setMobileView('list')}
+            className={cn(
+              'rounded-full px-3 py-1 text-xs font-medium transition',
+              showList ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white/80'
+            )}
+          >
+            Каналы
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileView('feed')}
+            disabled={!hasSelectedCategory}
+            className={cn(
+              'rounded-full px-3 py-1 text-xs font-medium transition',
+              showFeed ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white/80',
+              !hasSelectedCategory && 'cursor-not-allowed opacity-40 hover:text-white/60'
+            )}
+          >
+            Чат
+          </button>
+        </div>
+      </div>
 
-            <div className="flex-1 overflow-y-auto px-3 pb-4 scrollbar-thin">
-              <div className="sticky top-0 z-10 bg-black/25 py-2 text-[11px] uppercase tracking-wide text-white/40">Списки</div>
-                {loadingCategories && categories.length === 0 ? (
-                  <div className="flex items-center justify-center py-10">
-                    <LoadingSpinner />
-                  </div>
-                ) : categories.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-white/10 bg-black/40 px-4 py-6 text-center text-xs text-slate-300">
-                    Категории ещё не созданы.
-                  </div>
-                ) : (
-                  categories.map(category => {
-                    const isActive = selectedCategoryId === category.id;
-                    return (
+      <div className="flex min-h-[520px] flex-col gap-4 lg:h-[calc(100vh-220px)] lg:flex-row">
+        <GlassPanel
+          padding="none"
+          className={cn(
+            'flex min-h-0 flex-col overflow-hidden border-white/10 bg-background/75 backdrop-blur-xl',
+            showList ? 'flex' : 'hidden',
+            'lg:flex lg:w-[320px] xl:w-[360px] lg:h-full'
+          )}
+        >
+          <div className="flex items-center justify-between gap-2 border-b border-white/10 px-5 py-4">
+            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/50">
+              <Hash className="h-4 w-4 text-primary/70" />
+              Каналы
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-white/70 hover:bg-white/10" aria-label="Действия каналов">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem className="gap-2 text-xs" onClick={refreshCategories}>
+                  <RefreshCcw className="h-3 w-3" />
+                  Обновить списки
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className={cn('gap-2 text-xs', !hasSelectedCategory && 'pointer-events-none opacity-50')}
+                  onClick={refreshMessages}
+                >
+                  <MessageSquare className="h-3 w-3" />
+                  Обновить чат
+                </DropdownMenuItem>
+                {isAdmin && (
+                  <>
+                    <DropdownMenuItem className="gap-2 text-xs" onClick={() => setCreateDialogOpen(true)}>
+                      <Plus className="h-3 w-3" />
+                      Новая категория
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className={cn('gap-2 text-xs', !selectedCategory && 'pointer-events-none opacity-50')}
+                      onClick={() => selectedCategory && setEditDialogOpen(true)}
+                    >
+                      <Pencil className="h-3 w-3" />
+                      Редактировать
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-3 pb-5 scrollbar-thin">
+            {loadingCategories && categories.length === 0 ? (
+              <div className="flex items-center justify-center py-10">
+                <LoadingSpinner />
+              </div>
+            ) : categories.length === 0 ? (
+              <div className="glass-panel mt-6 rounded-2xl border border-dashed border-white/15 bg-white/5 px-4 py-6 text-center text-xs text-white/60">
+                Категории ещё не созданы.
+              </div>
+            ) : (
+              <ul className="space-y-2">
+                {categories.map(category => {
+                  const isActive = selectedCategoryId === category.id;
+                  return (
+                    <li key={category.id}>
                       <button
-                        key={category.id}
                         type="button"
-                        onClick={() => selectCategory(category.id)}
+                        onClick={() => {
+                          selectCategory(category.id);
+                          setMobileView('feed');
+                        }}
                         className={cn(
-                          'w-full rounded-2xl border px-4 py-3 text-left transition',
-                          isActive ? 'border-primary/60 bg-primary/15 shadow-[0_0_18px_rgba(59,130,246,0.15)]' : 'border-white/10 bg-black/40 hover:border-white/20 hover:bg-black/30'
+                          'w-full rounded-2xl border px-4 py-3 text-left transition backdrop-blur-md',
+                          isActive
+                            ? 'border-primary/40 bg-primary/12 text-white shadow-[0_12px_40px_rgba(37,99,235,0.28)]'
+                            : 'border-white/10 bg-white/5 text-white/85 hover:border-white/20 hover:bg-white/10'
                         )}
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-semibold text-white">{category.title}</p>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate text-sm font-semibold text-white">{category.title}</p>
                               {category.isDefault && (
-                                <Badge variant="secondary" className="bg-primary/20 text-primary">
+                                <Badge variant="secondary" className="border-primary/30 bg-primary/15 text-primary">
                                   По умолчанию
                                 </Badge>
                               )}
@@ -325,319 +448,262 @@ export const GlobalChatPage: React.FC = () => {
                               )}
                             </div>
                             {category.description && (
-                              <p className="mt-1 text-xs text-white/60">{category.description}</p>
+                              <p className="mt-1 truncate text-xs text-white/60">{category.description}</p>
                             )}
                           </div>
                           {category.unreadCount > 0 && (
-                            <span className="flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-red-600/90 px-2 text-[11px] font-semibold text-white">
+                            <span className="flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-red-600/80 px-2 text-[11px] font-semibold text-white">
                               {category.unreadCount}
                             </span>
                           )}
                         </div>
                       </button>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-            {isAdmin && (
-              <GlassPanel className="space-y-5 border-white/15 bg-white/5">
-                <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.3em] text-primary/70">
-                  <Shield className="h-4 w-4" />
-                  Управление
-                </div>
-
-                <form onSubmit={handleCreateCategory} className="space-y-3 rounded-2xl border border-white/10 bg-black/30 p-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-white">Новая категория</h3>
-                    <Plus className="h-4 w-4 text-primary/70" />
-                  </div>
-                  <div className="space-y-3">
-                    <input
-                      type="text"
-                      value={newTitle}
-                      onChange={event => setNewTitle(event.target.value)}
-                      placeholder="Название"
-                      className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-primary/60 focus:outline-none"
-                    />
-                    <input
-                      type="text"
-                      value={newSlug}
-                      onChange={event => setNewSlug(event.target.value)}
-                      placeholder="Slug (опционально)"
-                      className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-primary/60 focus:outline-none"
-                    />
-                    <Textarea
-                      value={newDescription}
-                      onChange={event => setNewDescription(event.target.value)}
-                      placeholder="Описание"
-                      className="min-h-[90px] border-white/10 bg-black/30 text-sm"
-                    />
-                    <label className="flex items-center gap-2 text-xs text-white/70">
-                      <input
-                        type="checkbox"
-                        checked={newIsDefault}
-                        onChange={event => setNewIsDefault(event.target.checked)}
-                        className="h-4 w-4 rounded border-white/20 bg-black/40"
-                      />
-                      Сделать категорией по умолчанию
-                    </label>
-                  </div>
-                  <Button type="submit" className="w-full" disabled={creating}>
-                    {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Создать категорию'}
-                  </Button>
-                </form>
-
-                {selectedCategory && (
-                  <form onSubmit={handleUpdateCategory} className="space-y-3 rounded-2xl border border-white/10 bg-black/30 p-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-white">Редактирование</h3>
-                      {selectedCategory.isArchived ? (
-                        <Archive className="h-4 w-4 text-orange-300" />
-                      ) : (
-                        <ArchiveRestore className="h-4 w-4 text-primary/70" />
-                      )}
-                    </div>
-                    <input
-                      type="text"
-                      value={editTitle}
-                      onChange={event => setEditTitle(event.target.value)}
-                      placeholder="Название"
-                      className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-primary/60 focus:outline-none"
-                    />
-                    <Textarea
-                      value={editDescription}
-                      onChange={event => setEditDescription(event.target.value)}
-                      placeholder="Описание"
-                      className="min-h-[90px] border-white/10 bg-black/30 text-sm"
-                    />
-                    <div className="flex flex-col gap-2 text-xs text-white/70">
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={editIsDefault}
-                          onChange={event => setEditIsDefault(event.target.checked)}
-                          className="h-4 w-4 rounded border-white/20 bg-black/40"
-                        />
-                        Сделать категорией по умолчанию
-                      </label>
-                      <label className="flex items-center gap-2 text-orange-200/80">
-                        <input
-                          type="checkbox"
-                          checked={editIsArchived}
-                          onChange={event => setEditIsArchived(event.target.checked)}
-                          className="h-4 w-4 rounded border-white/20 bg-black/40"
-                        />
-                        Переместить в архив
-                      </label>
-                    </div>
-                    <Button type="submit" className="w-full" disabled={updating}>
-                      {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Сохранить изменения'}
-                    </Button>
-                  </form>
-                )}
-              </GlassPanel>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </div>
+        </GlassPanel>
 
-          <div className="flex h-[calc(100vh-220px)] min-h-[520px] flex-col bg-gradient-to-br from-black/25 via-black/10 to-black/0">
-            {selectedCategory ? (
-              <>
-                <div className="flex flex-col gap-4 border-b border-white/5 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/20 text-primary">
-                      <Hash className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-semibold text-white">{selectedCategory.title}</h2>
-                      <p className="text-xs uppercase tracking-[0.3em] text-white/40">#{selectedCategory.slug || 'канал'}</p>
-                      {selectedCategory.description && (
-                        <p className="mt-1 text-xs text-white/60">{selectedCategory.description}</p>
+        <GlassPanel
+          padding="none"
+          className={cn(
+            'flex min-h-0 flex-1 flex-col overflow-hidden border-white/10 bg-background/80 backdrop-blur-xl',
+            showFeed ? 'flex' : 'hidden',
+            'lg:flex'
+          )}
+        >
+          {selectedCategory ? (
+            <>
+              <div className="flex items-start justify-between gap-3 border-b border-white/10 px-6 py-5">
+                <div className="flex items-start gap-3">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 rounded-full text-white/70 hover:bg-white/10 lg:hidden"
+                    onClick={() => setMobileView('list')}
+                    aria-label="Вернуться к списку каналов"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                  <div>
+                    <h2 className="text-xl font-semibold text-white">{selectedCategory.title}</h2>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-white/50">
+                      <span>#{selectedCategory.slug || 'канал'}</span>
+                      {selectedCategory.isArchived && (
+                        <Badge variant="outline" className="border-orange-400/40 text-orange-200">
+                          Архив
+                        </Badge>
                       )}
                     </div>
+                    {selectedCategory.description && (
+                      <p className="mt-2 max-w-xl text-xs text-white/60">{selectedCategory.description}</p>
+                    )}
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-white/60">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={loadOlderMessages}
-                      disabled={!hasMore || loadingMessages}
-                    >
-                      {loadingMessages ? <Loader2 className="h-3 w-3 animate-spin" /> : <Undo2 className="h-3 w-3" />}
-                      <span className="ml-1">Ранние сообщения</span>
-                    </Button>
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
                     <Button
                       variant="ghost"
-                      size="sm"
-                      onClick={refreshMessages}
-                      disabled={loadingMessages}
-                      className="gap-1"
+                      size="icon"
+                      className="h-9 w-9 rounded-full text-white/70 hover:bg-white/10"
+                      aria-label="Действия канала"
                     >
-                      {loadingMessages ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCcw className="h-3 w-3" />}
-                      Обновить
+                      <MoreVertical className="h-4 w-4" />
                     </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem className="gap-2 text-xs" onClick={refreshMessages}>
+                      <RefreshCcw className="h-3 w-3" />
+                      Обновить сообщения
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className={cn('gap-2 text-xs', !hasMore && 'pointer-events-none opacity-50')}
+                      onClick={async () => {
+                        if (!hasMore) return;
+                        await loadOlderMessages();
+                      }}
+                    >
+                      <Undo2 className="h-3 w-3" />
+                      Ранние сообщения
+                    </DropdownMenuItem>
+                    {selectedCategory.unreadCount > 0 && (
+                      <DropdownMenuItem className="gap-2 text-xs" onClick={markSelectedCategoryRead}>
+                        <ArchiveRestore className="h-3 w-3" />
+                        Пометить прочитанным
+                      </DropdownMenuItem>
+                    )}
+                    {isAdmin && (
+                      <DropdownMenuItem className="gap-2 text-xs" onClick={() => setEditDialogOpen(true)}>
+                        <Pencil className="h-3 w-3" />
+                        Редактировать категорию
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-4 py-6 scrollbar-thin">
+                {loadingMessages && messages.length === 0 ? (
+                  <div className="flex h-full items-center justify-center">
+                    <LoadingSpinner />
                   </div>
-                </div>
+                ) : messages.length === 0 ? (
+                  <div className="glass-panel mx-auto flex h-full max-w-md flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-white/15 bg-white/5 px-6 py-12 text-center text-sm text-white/60">
+                    <MessageSquare className="h-6 w-6 text-white/40" />
+                    <p>Будьте первыми, кто напишет в этом канале!</p>
+                  </div>
+                ) : (
+                  <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+                    {hasMore && (
+                      <div className="flex justify-center py-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={loadOlderMessages}
+                          disabled={loadingMessages}
+                          className="gap-2 text-xs"
+                        >
+                          {loadingMessages ? <Loader2 className="h-3 w-3 animate-spin" /> : <Undo2 className="h-3 w-3" />}
+                          Загрузить ещё
+                        </Button>
+                      </div>
+                    )}
 
-                <div className="flex-1 overflow-y-auto px-4 py-6 scrollbar-thin">
-                  {loadingMessages && messages.length === 0 ? (
-                    <div className="flex h-full items-center justify-center">
-                      <LoadingSpinner />
-                    </div>
-                  ) : messages.length === 0 ? (
-                    <div className="mx-auto flex h-full max-w-md flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-white/10 bg-black/30 px-6 py-12 text-center text-sm text-white/60">
-                      <MessageSquare className="h-6 w-6 text-white/40" />
-                      <p>Будьте первыми, кто напишет в этом канале!</p>
-                    </div>
-                  ) : (
-                    <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
-                      {hasMore && (
-                        <div className="flex justify-center py-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={loadOlderMessages}
-                            disabled={loadingMessages}
-                          >
-                            {loadingMessages ? <Loader2 className="h-3 w-3 animate-spin" /> : <Undo2 className="h-3 w-3" />}
-                            <span className="ml-1">Загрузить ещё</span>
-                          </Button>
-                        </div>
-                      )}
-
-                      {messages.map(message => {
-                        const author = getUserDisplay(users, message.senderId, user?.id);
-                        const replyTarget = resolveReplyPreview(message);
-                        const isOwn = user?.id === message.senderId;
-                        const isHighlighted = highlightedMessageId === message.id;
-                        const isReplyToYou = !!replyTarget && replyTarget.senderId === user?.id;
-                        const profileSlug = buildProfileSlug(message.senderId, users[message.senderId]?.displayName || users[message.senderId]?.username || author);
-                        return (
-                          <div
-                            key={message.id}
-                            ref={node => {
-                              if (node) {
-                                messageRefs.current.set(message.id, node);
-                              } else {
-                                messageRefs.current.delete(message.id);
-                              }
-                            }}
-                            className={cn(
-                              'group relative flex items-start gap-3 rounded-2xl border px-4 py-3 transition-all',
-                              isOwn ? 'border-primary/50 bg-primary/15' : 'border-white/10 bg-white/5',
-                              !isOwn && isReplyToYou && 'border-red-500/60 bg-red-500/10',
-                              isHighlighted && 'ring-2 ring-primary/60'
-                            )}
-                          >
-                            <Link to={`/profile/${profileSlug}`} className="shrink-0">
-                              <Avatar className="h-10 w-10 border border-white/10 bg-black/40 transition hover:border-primary/60">
-                                {users[message.senderId]?.avatar ? (
-                                  <AvatarImage src={users[message.senderId]?.avatar} alt={author} />
-                                ) : (
-                                  <AvatarFallback>{initials(author)}</AvatarFallback>
-                                )}
-                              </Avatar>
-                            </Link>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-2 text-xs text-white/60">
-                                <Link
-                                  to={`/profile/${profileSlug}`}
-                                  className="font-semibold text-primary transition hover:text-primary/80"
-                                >
-                                  {author}
-                                </Link>
-                                <span className="text-white/40">{new Date(message.createdAt).toLocaleString()}</span>
-                                {isReplyToYou && (
-                                  <Badge variant="secondary" className="border-red-500/40 bg-red-500/20 text-red-200">
-                                    Ответ вам
-                                  </Badge>
-                                )}
-                              </div>
-                              <div className="mt-2 prose prose-invert max-w-none text-sm leading-relaxed markdown-body">
-                                <MarkdownRenderer value={message.content} />
-                              </div>
-                              {replyTarget ? (
-                                <button
-                                  type="button"
-                                  className="mt-3 w-full max-w-md rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-left text-xs text-white/70 transition hover:border-primary/40 hover:bg-primary/10"
-                                  onClick={() => handleJumpToMessage(replyTarget.id)}
-                                >
-                                  <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">
-                                    <Reply className="h-3 w-3" /> Ответ для {getUserDisplay(users, replyTarget.senderId, user?.id)}
-                                  </p>
-                                  <div className="mt-2 max-h-32 overflow-hidden text-[13px] text-white/80">
-                                    <div className="prose prose-invert max-w-none text-[13px] leading-relaxed markdown-body">
-                                      <MarkdownRenderer value={replyTarget.content} />
-                                    </div>
+                    {messages.map(message => {
+                      const author = getUserDisplay(users, message.senderId, user?.id);
+                      const replyTarget = resolveReplyPreview(message);
+                      const isOwn = user?.id === message.senderId;
+                      const isHighlighted = highlightedMessageId === message.id;
+                      const isReplyToYou = !!replyTarget && replyTarget.senderId === user?.id;
+                      const profileSlug = buildProfileSlug(message.senderId, users[message.senderId]?.displayName || users[message.senderId]?.username || author);
+                      return (
+                        <div
+                          key={message.id}
+                          ref={node => {
+                            if (node) {
+                              messageRefs.current.set(message.id, node);
+                            } else {
+                              messageRefs.current.delete(message.id);
+                            }
+                          }}
+                          className={cn(
+                            'group relative flex items-start gap-3 rounded-2xl border px-4 py-3 transition backdrop-blur-md',
+                            isOwn ? 'border-primary/40 bg-primary/12' : 'border-white/10 bg-white/5',
+                            !isOwn && isReplyToYou && 'border-red-500/50 bg-red-500/10',
+                            isHighlighted && 'ring-2 ring-primary/60'
+                          )}
+                        >
+                          <Link to={`/profile/${profileSlug}`} className="shrink-0">
+                            <Avatar className="h-10 w-10 border border-white/10 bg-black/40 transition hover:border-primary/60">
+                              {users[message.senderId]?.avatar ? (
+                                <AvatarImage src={users[message.senderId]?.avatar} alt={author} />
+                              ) : (
+                                <AvatarFallback>{initials(author)}</AvatarFallback>
+                              )}
+                            </Avatar>
+                          </Link>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-white/60">
+                              <Link
+                                to={`/profile/${profileSlug}`}
+                                className="font-semibold text-primary transition hover:text-primary/80"
+                              >
+                                {author}
+                              </Link>
+                              <span className="text-white/40">{new Date(message.createdAt).toLocaleString()}</span>
+                              {isReplyToYou && (
+                                <Badge variant="secondary" className="border-red-500/40 bg-red-500/20 text-red-200">
+                                  Ответ вам
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="mt-2 prose prose-invert max-w-none text-sm leading-relaxed markdown-body">
+                              <MarkdownRenderer value={message.content} />
+                            </div>
+                            {replyTarget ? (
+                              <button
+                                type="button"
+                                className="mt-3 w-full max-w-md rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-xs text-white/70 transition hover:border-primary/40 hover:bg-primary/10"
+                                onClick={() => handleJumpToMessage(replyTarget.id)}
+                              >
+                                <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">
+                                  <Reply className="h-3 w-3" /> Ответ для {getUserDisplay(users, replyTarget.senderId, user?.id)}
+                                </p>
+                                <div className="mt-2 max-h-32 overflow-hidden text-[13px] text-white/80">
+                                  <div className="prose prose-invert max-w-none text-[13px] leading-relaxed markdown-body">
+                                    <MarkdownRenderer value={replyTarget.content} />
                                   </div>
-                                </button>
-                              ) : message.replyToMessageId ? (
-                                <div className="mt-3 rounded-xl border border-dashed border-white/10 bg-black/30 px-3 py-2 text-xs text-white/60">
-                                  <p>Ответ на сообщение из архива.</p>
-                                  {hasMore && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleJumpToMessage(message.replyToMessageId!)}
-                                      className="mt-2 inline-flex items-center gap-2 rounded-lg border border-white/10 px-2 py-1 text-[11px] uppercase tracking-[0.2em] text-white/70 transition hover:border-primary/40 hover:text-white"
-                                    >
-                                      <Undo2 className="h-3 w-3" />
-                                      Загрузить контекст
-                                    </button>
-                                  )}
                                 </div>
-                              ) : null}
-                              <div className="pointer-events-none mt-3 flex items-center gap-2 text-xs text-white/60 opacity-0 transition-opacity duration-200 group-hover:pointer-events-auto group-hover:opacity-100">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 px-3 text-xs"
-                                  onClick={() => {
-                                    setReplyTo(message);
-                                    handleJumpToMessage(message.id);
-                                  }}
-                                >
-                                  <CornerDownLeft className="mr-1 h-3 w-3" /> Ответить
-                                </Button>
+                              </button>
+                            ) : message.replyToMessageId ? (
+                              <div className="mt-3 rounded-xl border border-dashed border-white/10 bg-white/5 px-3 py-2 text-xs text-white/60">
+                                <p>Ответ на сообщение из архива.</p>
+                                {hasMore && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleJumpToMessage(message.replyToMessageId!)}
+                                    className="mt-2 inline-flex items-center gap-2 rounded-lg border border-white/10 px-2 py-1 text-[11px] uppercase tracking-[0.2em] text-white/70 transition hover:border-primary/40 hover:text-white"
+                                  >
+                                    <Undo2 className="h-3 w-3" />
+                                    Загрузить контекст
+                                  </button>
+                                )}
                               </div>
+                            ) : null}
+                            <div className="pointer-events-none mt-3 flex items-center gap-2 text-xs text-white/60 opacity-0 transition-opacity duration-200 group-hover:pointer-events-auto group-hover:opacity-100">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 px-3 text-xs"
+                                onClick={() => {
+                                  setReplyTo(message);
+                                  handleJumpToMessage(message.id);
+                                }}
+                              >
+                                <CornerDownLeft className="mr-1 h-3 w-3" /> Ответить
+                              </Button>
                             </div>
                           </div>
-                        );
-                      })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t border-white/10 px-6 py-5">
+                <div className="space-y-3">
+                  {replyTo && (
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white/70">
+                      <div className="flex items-center justify-between">
+                        <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.25em] text-white/50">
+                          <Reply className="h-3 w-3" /> Ответ пользователю {getUserDisplay(users, replyTo.senderId, user?.id)}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setReplyTo(null)}
+                          className="text-xs text-white/50 transition hover:text-white"
+                        >
+                          Очистить
+                        </button>
+                      </div>
+                      <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border border-white/5 bg-white/5 p-2">
+                        <div className="prose prose-invert max-w-none text-sm leading-relaxed markdown-body">
+                          <MarkdownRenderer value={replyTo.content} />
+                        </div>
+                      </div>
                     </div>
                   )}
-                </div>
 
-                <div className="border-t border-white/5 px-6 py-4">
-                  <div className="space-y-3">
-                    {replyTo && (
-                      <div className="rounded-2xl border border-white/10 bg-black/30 p-3 text-sm text-white/70">
-                        <div className="flex items-center justify-between">
-                          <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.25em] text-white/50">
-                            <Reply className="h-3 w-3" /> Ответ пользователю {getUserDisplay(users, replyTo.senderId, user?.id)}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => setReplyTo(null)}
-                            className="text-xs text-white/50 transition hover:text-white"
-                          >
-                            Очистить
-                          </button>
-                        </div>
-                        <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border border-white/5 bg-black/20 p-2">
-                          <div className="prose prose-invert max-w-none text-sm leading-relaxed markdown-body">
-                            <MarkdownRenderer value={replyTo.content} />
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                  {outgoingError && (
+                    <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2 text-xs text-red-200">
+                      {outgoingError}
+                    </div>
+                  )}
 
-                    {outgoingError && (
-                      <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2 text-xs text-red-200">
-                        {outgoingError}
-                      </div>
-                    )}
-
+                  <div className="rounded-2xl border border-white/10 bg-white/5 px-1 py-1">
                     <Textarea
                       ref={messageInputRef}
                       value={messageText}
@@ -645,41 +711,157 @@ export const GlobalChatPage: React.FC = () => {
                       onKeyDown={handleEnterSend}
                       placeholder={isAuthenticated ? 'Напишите сообщение для сообщества…' : 'Авторизуйтесь, чтобы писать в глобальный чат'}
                       disabled={!isAuthenticated || loadingMessages}
-                      className="min-h-[120px] resize-none rounded-2xl border border-white/10 bg-black/40 text-sm text-white placeholder:text-white/40 focus:border-primary/60"
+                      className="min-h-[120px] resize-none border-none bg-transparent px-3 py-2 text-sm text-white placeholder:text-white/40 focus-visible:ring-0 focus-visible:ring-offset-0"
                     />
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="flex items-center gap-2 text-xs text-white/40">
-                        <EmojiPickerButton
-                          onEmojiSelect={handleInsertEmoji}
-                          disabled={!isAuthenticated || loadingMessages}
-                          anchorClassName="h-10 w-10"
-                        />
-                        <span>
-                          Нажмите <kbd className="rounded bg-white/10 px-1 py-0.5">Ctrl</kbd> + <kbd className="rounded bg-white/10 px-1 py-0.5">Enter</kbd>, чтобы отправить быстро.
-                        </span>
-                      </div>
-                      <Button
-                        onClick={handleSend}
-                        disabled={!isAuthenticated || loadingMessages || !messageText.trim()}
-                        className="min-w-[140px]"
-                      >
-                        <MessageSquare className="mr-2 h-4 w-4" /> Отправить
-                      </Button>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-white/50">
+                    <div className="flex items-center gap-2">
+                      <EmojiPickerButton
+                        onEmojiSelect={handleInsertEmoji}
+                        disabled={!isAuthenticated || loadingMessages}
+                        anchorClassName="h-9 w-9"
+                      />
+                      <span>
+                        Нажмите <kbd className="rounded bg-white/10 px-1 py-0.5">Ctrl</kbd> + <kbd className="rounded bg-white/10 px-1 py-0.5">Enter</kbd>, чтобы отправить быстро.
+                      </span>
                     </div>
+                    <Button
+                      onClick={handleSend}
+                      disabled={!isAuthenticated || loadingMessages || !messageText.trim()}
+                      className="min-w-[140px]"
+                    >
+                      <MessageSquare className="mr-2 h-4 w-4" /> Отправить
+                    </Button>
                   </div>
                 </div>
-              </>
-            ) : (
-              <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center text-white/60">
-                <MessageSquare className="h-10 w-10 text-white/40" />
-                <div>
-                  <h2 className="text-xl font-semibold text-white">Выберите категорию</h2>
-                  <p className="mt-2 text-sm text-white/60">Слева представлены каналы глобального чата AniWay. Выберите любой, чтобы начать общение.</p>
-                </div>
               </div>
+            </>
+          ) : (
+            <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center text-white/60">
+              <div className="glass-panel w-full max-w-sm rounded-2xl border border-dashed border-white/15 bg-white/5 px-8 py-10 shadow-[0_12px_40px_rgba(15,23,42,0.35)]">
+                <MessageSquare className="mx-auto mb-3 h-8 w-8 text-white/40" />
+                <h2 className="text-xl font-semibold text-white">Выберите категорию</h2>
+                <p className="mt-2 text-sm text-white/60">Слева представлены каналы глобального чата AniWay. Выберите любой, чтобы начать общение.</p>
+              </div>
+            </div>
+          )}
+        </GlassPanel>
+      </div>
+
+      {isAdmin && (
+        <>
+          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+            <DialogContent className="border border-white/10 bg-background/95 text-white">
+              <DialogHeader>
+                <DialogTitle>Новая категория</DialogTitle>
+                <DialogDescription className="text-sm text-white/60">
+                  Настройте новый канал глобального чата.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleCreateCategory} className="space-y-4">
+                <input
+                  type="text"
+                  value={newTitle}
+                  onChange={event => setNewTitle(event.target.value)}
+                  placeholder="Название"
+                  className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-primary/60 focus:outline-none"
+                />
+                <input
+                  type="text"
+                  value={newSlug}
+                  onChange={event => setNewSlug(event.target.value)}
+                  placeholder="Slug (опционально)"
+                  className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-primary/60 focus:outline-none"
+                />
+                <Textarea
+                  value={newDescription}
+                  onChange={event => setNewDescription(event.target.value)}
+                  placeholder="Описание"
+                  className="min-h-[90px] border-white/15 bg-white/5 text-sm text-white placeholder:text-white/40"
+                />
+                <label className="flex items-center gap-2 text-xs text-white/70">
+                  <input
+                    type="checkbox"
+                    checked={newIsDefault}
+                    onChange={event => setNewIsDefault(event.target.checked)}
+                    className="h-4 w-4 rounded border-white/20 bg-black/40"
+                  />
+                  Сделать категорией по умолчанию
+                </label>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(false)} disabled={creating}>
+                    Отмена
+                  </Button>
+                  <Button type="submit" disabled={creating}>
+                    {creating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                    Создать
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+            <DialogContent className="border border-white/10 bg-background/95 text-white">
+              <DialogHeader>
+                <DialogTitle>Настройки категории</DialogTitle>
+                <DialogDescription className="text-sm text-white/60">
+                  Обновите параметры выбранного канала.
+                </DialogDescription>
+              </DialogHeader>
+              {selectedCategory ? (
+                <form onSubmit={handleUpdateCategory} className="space-y-4">
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={event => setEditTitle(event.target.value)}
+                    placeholder="Название"
+                    className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-primary/60 focus:outline-none"
+                  />
+                  <Textarea
+                    value={editDescription}
+                    onChange={event => setEditDescription(event.target.value)}
+                    placeholder="Описание"
+                    className="min-h-[90px] border-white/15 bg-white/5 text-sm text-white placeholder:text-white/40"
+                  />
+                  <div className="flex flex-col gap-2 text-xs text-white/70">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={editIsDefault}
+                        onChange={event => setEditIsDefault(event.target.checked)}
+                        className="h-4 w-4 rounded border-white/20 bg-black/40"
+                      />
+                      Сделать категорией по умолчанию
+                    </label>
+                    <label className="flex items-center gap-2 text-orange-200/80">
+                      <input
+                        type="checkbox"
+                        checked={editIsArchived}
+                        onChange={event => setEditIsArchived(event.target.checked)}
+                        className="h-4 w-4 rounded border-white/20 bg-black/40"
+                      />
+                      Переместить в архив
+                    </label>
+                  </div>
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)} disabled={updating}>
+                      Отмена
+                    </Button>
+                    <Button type="submit" disabled={updating}>
+                      {updating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Pencil className="mr-2 h-4 w-4" />}
+                      Сохранить
+                    </Button>
+                  </DialogFooter>
+                </form>
+              ) : (
+                <p className="text-sm text-white/60">Выберите категорию для редактирования.</p>
               )}
-          </div>
-        </div>
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
+    </div>
   );
 };
 

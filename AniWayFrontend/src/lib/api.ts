@@ -11,16 +11,25 @@ class ApiClient {
 
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
-    const token = localStorage.getItem('authToken');
-    let userId = localStorage.getItem('userId') || localStorage.getItem('userID') || localStorage.getItem('currentUserId');
+  const token = localStorage.getItem('authToken');
+  let userId = localStorage.getItem('userId') || localStorage.getItem('userID') || localStorage.getItem('currentUserId');
+    let userRole = localStorage.getItem('userRole') || localStorage.getItem('user_role');
+    if (userRole === 'null' || userRole === 'undefined' || userRole === '') {
+      userRole = null;
+    }
     // Fallback: try decode JWT payload (assuming standard 'sub' or 'userId' claim) if userId absent
     if(!userId && token){
       try {
         const payload = JSON.parse(atob(token.split('.')[1] || ''));
         const extracted = payload.userId || payload.userID || payload.sub || payload.id;
-        if(extracted){
+        if (extracted) {
           userId = String(extracted);
           localStorage.setItem('userId', userId);
+        }
+        const roleValue = payload.role || (Array.isArray(payload.authorities) ? payload.authorities[0] : undefined);
+        if (roleValue && !userRole) {
+          userRole = String(roleValue).toUpperCase().replace(/^ROLE_/, '');
+          localStorage.setItem('userRole', userRole);
         }
       } catch { /* silent */ }
     }
@@ -33,14 +42,20 @@ class ApiClient {
     const needsUserHeader = !!userId && (
       (/^\/posts\b/.test(endpoint) && ['POST','PUT','DELETE','GET'].includes(method)) ||
       (/^\/posts\/.*\/vote$/.test(endpoint)) ||
-      (/^\/comments\b/.test(endpoint) && ['POST','PUT','DELETE','GET'].includes(method))
+      (/^\/comments\b/.test(endpoint) && ['POST','PUT','DELETE','GET'].includes(method)) ||
+      (/^\/messages\b/.test(endpoint))
     );
+    const normalizedUserRole = userRole ? userRole.toUpperCase().replace(/^ROLE_/, '') : undefined;
+    const headerUserRole = normalizedUserRole || (token ? 'USER' : undefined);
 
     const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
         ...this.getAuthHeaders(),
-        ...(needsUserHeader ? { 'X-User-Id': userId! } : {}),
+        ...(needsUserHeader ? {
+          'X-User-Id': userId!,
+          ...(headerUserRole ? { 'X-User-Role': headerUserRole } : {})
+        } : {}),
         ...options?.headers,
       },
       ...options,
