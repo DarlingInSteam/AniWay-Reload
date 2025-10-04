@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { MessageSquare, Hash, RefreshCcw, Plus, Reply, CornerDownLeft, Loader2, ArchiveRestore, Undo2, MoreVertical, ArrowLeft, Pencil } from 'lucide-react';
+import { MessageSquare, Hash, RefreshCcw, Plus, Reply, CornerDownLeft, Loader2, ArchiveRestore, Undo2, MoreVertical, ArrowLeft, Pencil, Search, Users } from 'lucide-react';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -28,6 +28,14 @@ function getUserDisplay(users: Record<number, UserMini>, userId: number, current
   if (currentUserId && userId === currentUserId) return 'Вы';
   const user = users[userId];
   return user?.displayName || user?.username || `ID ${userId}`;
+}
+
+function isSameCalendarDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function minutesBetween(a: Date, b: Date): number {
+  return Math.abs(a.getTime() - b.getTime()) / 60000;
 }
 
 export const GlobalChatPage: React.FC = () => {
@@ -71,6 +79,34 @@ export const GlobalChatPage: React.FC = () => {
   const [mobileView, setMobileView] = useState<'list' | 'feed'>('list');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [categoryQuery, setCategoryQuery] = useState('');
+
+  const filteredCategories = useMemo(() => {
+    const normalized = categoryQuery.trim().toLowerCase();
+    if (!normalized) return categories;
+    return categories.filter(category => {
+      const title = category.title?.toLowerCase() ?? '';
+      const description = category.description?.toLowerCase() ?? '';
+      const slug = category.slug?.toLowerCase() ?? '';
+      return title.includes(normalized) || description.includes(normalized) || slug.includes(normalized);
+    });
+  }, [categories, categoryQuery]);
+
+  const totalUnread = useMemo(
+    () => categories.reduce((acc, category) => acc + (category.unreadCount ?? 0), 0),
+    [categories]
+  );
+
+  const dayFormatter = useMemo(
+    () => new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }),
+    []
+  );
+
+  const timeFormatter = useMemo(
+    () => new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+    []
+  );
+
 
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const pendingScrollTargetRef = useRef<string | null>(null);
@@ -85,6 +121,20 @@ export const GlobalChatPage: React.FC = () => {
   }, [messages, replyTo?.senderId]);
 
   const users = useUserMiniBatch(participants);
+
+  const participantPreview = useMemo(
+    () =>
+      participants
+        .map(id => ({
+          id,
+          name: users[id]?.displayName || users[id]?.username || `ID ${id}`,
+          avatar: users[id]?.avatar,
+        }))
+        .slice(0, 8),
+    [participants, users]
+  );
+
+  const participantOverflow = Math.max(participants.length - participantPreview.length, 0);
 
   useEffect(() => {
     const selected = selectedCategory;
@@ -288,36 +338,67 @@ export const GlobalChatPage: React.FC = () => {
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 text-white">
-      <GlassPanel padding="sm" className="mb-6 flex flex-wrap items-center justify-between gap-3 border-white/10 bg-white/5 backdrop-blur-xl">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-white/60">
-          <MessageSquare className="h-4 w-4 text-primary/70" />
-          Прямой эфир AniWay
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div className="max-w-3xl space-y-3">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.35em] text-white/60">
+            <MessageSquare className="h-3 w-3 text-primary/70" />
+            Глобальный чат AniWay
+          </div>
+          <h1 className="text-3xl font-semibold text-white">Общайтесь с сообществом в реальном времени</h1>
+          <p className="text-sm text-white/60">
+            Выбирайте каналы, следите за упоминаниями и быстро переходите к нужным обсуждениям. Мы сохранили фирменную палитру, но сделали интерфейс плотнее и информативнее.
+          </p>
+          <div className="flex flex-wrap items-center gap-3 text-xs text-white/60">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1">
+              <Hash className="h-3 w-3 text-primary/70" />
+              Каналов: {categories.length}
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1">
+              <MessageSquare className="h-3 w-3 text-primary/70" />
+              Непрочитано: {totalUnread}
+            </span>
+            {selectedCategory && (
+              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                <Hash className="h-3 w-3 text-primary/70" />
+                Выбран канал: {selectedCategory.title}
+              </span>
+            )}
+          </div>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-white/70 hover:bg-white/10" aria-label="Действия эфира">
-              <MoreVertical className="h-4 w-4" />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            className="gap-2 text-sm"
+            onClick={refreshAll}
+          >
+            <RefreshCcw className="h-3 w-3" />
+            Обновить всё
+          </Button>
+          <Button
+            variant="outline"
+            className="gap-2 text-sm"
+            onClick={refreshCategories}
+          >
+            <Hash className="h-3 w-3" />
+            Каналы
+          </Button>
+          <Button
+            variant="outline"
+            className="gap-2 text-sm"
+            onClick={refreshMessages}
+            disabled={!hasSelectedCategory}
+          >
+            <MessageSquare className="h-3 w-3" />
+            Сообщения
+          </Button>
+          {isAdmin && (
+            <Button className="gap-2 text-sm" onClick={() => setCreateDialogOpen(true)}>
+              <Plus className="h-3 w-3" />
+              Новый канал
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem className="gap-2 text-xs" onClick={refreshAll}>
-              <RefreshCcw className="h-3 w-3" />
-              Обновить всё
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2 text-xs" onClick={refreshCategories}>
-              <Hash className="h-3 w-3" />
-              Обновить каналы
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className={cn('gap-2 text-xs', !hasSelectedCategory && 'pointer-events-none opacity-50')}
-              onClick={refreshMessages}
-            >
-              <MessageSquare className="h-3 w-3" />
-              Обновить чат
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </GlassPanel>
+          )}
+        </div>
+      </div>
 
       {!!chatError && (
         <GlassPanel padding="sm" className="mb-6 border border-red-500/40 bg-red-500/10 text-sm text-red-200">
@@ -404,6 +485,24 @@ export const GlobalChatPage: React.FC = () => {
             </DropdownMenu>
           </div>
 
+          <div className="px-5 pt-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
+              <input
+                type="search"
+                value={categoryQuery}
+                onChange={event => setCategoryQuery(event.target.value)}
+                placeholder="Поиск канала"
+                className="h-10 w-full rounded-xl border border-white/10 bg-white/5 pl-10 pr-3 text-sm text-white placeholder:text-white/40 focus:border-primary/50 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between px-5 pb-2 text-[11px] uppercase tracking-[0.3em] text-white/40">
+            <span>Всего: {categories.length}</span>
+            <span>Показано: {filteredCategories.length}</span>
+          </div>
+
           <div className="flex-1 overflow-y-auto px-3 pb-5 scrollbar-thin">
             {loadingCategories && categories.length === 0 ? (
               <div className="flex items-center justify-center py-10">
@@ -413,9 +512,13 @@ export const GlobalChatPage: React.FC = () => {
               <div className="glass-panel mt-6 rounded-2xl border border-dashed border-white/15 bg-white/5 px-4 py-6 text-center text-xs text-white/60">
                 Категории ещё не созданы.
               </div>
+            ) : filteredCategories.length === 0 ? (
+              <div className="glass-panel mt-6 rounded-2xl border border-dashed border-white/15 bg-white/5 px-4 py-6 text-center text-xs text-white/60">
+                Ничего не найдено. Попробуйте изменить запрос.
+              </div>
             ) : (
               <ul className="space-y-2">
-                {categories.map(category => {
+                {filteredCategories.map(category => {
                   const isActive = selectedCategoryId === category.id;
                   return (
                     <li key={category.id}>
@@ -500,48 +603,104 @@ export const GlobalChatPage: React.FC = () => {
                     {selectedCategory.description && (
                       <p className="mt-2 max-w-xl text-xs text-white/60">{selectedCategory.description}</p>
                     )}
+                    {participantPreview.length > 0 && (
+                      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-white/60">
+                        <div className="flex -space-x-2">
+                          {participantPreview.map(participant => {
+                            const profileSlug = buildProfileSlug(participant.id, participant.name);
+                            return (
+                              <Link
+                                key={participant.id}
+                                to={`/profile/${profileSlug}`}
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-black/60 text-[11px] font-semibold text-white transition hover:border-primary/50"
+                                title={participant.name}
+                              >
+                                <Avatar className="h-9 w-9">
+                                  {participant.avatar ? (
+                                    <AvatarImage src={participant.avatar} alt={participant.name} />
+                                  ) : (
+                                    <AvatarFallback>{initials(participant.name)}</AvatarFallback>
+                                  )}
+                                </Avatar>
+                              </Link>
+                            );
+                          })}
+                          {participantOverflow > 0 && (
+                            <div className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-dashed border-white/15 bg-white/5 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70">
+                              +{participantOverflow}
+                            </div>
+                          )}
+                        </div>
+                        <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.3em]">
+                          <Users className="h-3 w-3 text-primary/70" />
+                          Участников: {participants.length}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
+                <div className="flex items-center gap-2">
+                  {selectedCategory.unreadCount > 0 && (
                     <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-9 w-9 rounded-full text-white/70 hover:bg-white/10"
-                      aria-label="Действия канала"
+                      variant="outline"
+                      size="sm"
+                      className="hidden gap-2 text-xs lg:inline-flex"
+                      onClick={markSelectedCategoryRead}
                     >
-                      <MoreVertical className="h-4 w-4" />
+                      <ArchiveRestore className="h-3 w-3" />
+                      Прочитано
                     </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem className="gap-2 text-xs" onClick={refreshMessages}>
-                      <RefreshCcw className="h-3 w-3" />
-                      Обновить сообщения
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className={cn('gap-2 text-xs', !hasMore && 'pointer-events-none opacity-50')}
-                      onClick={async () => {
-                        if (!hasMore) return;
-                        await loadOlderMessages();
-                      }}
-                    >
-                      <Undo2 className="h-3 w-3" />
-                      Ранние сообщения
-                    </DropdownMenuItem>
-                    {selectedCategory.unreadCount > 0 && (
-                      <DropdownMenuItem className="gap-2 text-xs" onClick={markSelectedCategoryRead}>
-                        <ArchiveRestore className="h-3 w-3" />
-                        Пометить прочитанным
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="hidden gap-2 text-xs lg:inline-flex"
+                    onClick={refreshMessages}
+                  >
+                    <RefreshCcw className="h-3 w-3" />
+                    Обновить
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 rounded-full text-white/70 hover:bg-white/10"
+                        aria-label="Действия канала"
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem className="gap-2 text-xs" onClick={refreshMessages}>
+                        <RefreshCcw className="h-3 w-3" />
+                        Обновить сообщения
                       </DropdownMenuItem>
-                    )}
-                    {isAdmin && (
-                      <DropdownMenuItem className="gap-2 text-xs" onClick={() => setEditDialogOpen(true)}>
-                        <Pencil className="h-3 w-3" />
-                        Редактировать категорию
+                      <DropdownMenuItem
+                        className={cn('gap-2 text-xs', !hasMore && 'pointer-events-none opacity-50')}
+                        onClick={async () => {
+                          if (!hasMore) return;
+                          await loadOlderMessages();
+                        }}
+                      >
+                        <Undo2 className="h-3 w-3" />
+                        Ранние сообщения
                       </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                      {selectedCategory.unreadCount > 0 && (
+                        <DropdownMenuItem className="gap-2 text-xs" onClick={markSelectedCategoryRead}>
+                          <ArchiveRestore className="h-3 w-3" />
+                          Пометить прочитанным
+                        </DropdownMenuItem>
+                      )}
+                      {isAdmin && (
+                        <DropdownMenuItem className="gap-2 text-xs" onClick={() => setEditDialogOpen(true)}>
+                          <Pencil className="h-3 w-3" />
+                          Редактировать категорию
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto px-4 py-6 scrollbar-thin">
@@ -571,102 +730,153 @@ export const GlobalChatPage: React.FC = () => {
                       </div>
                     )}
 
-                    {messages.map(message => {
+                    {messages.map((message, index) => {
+                      const previous = index > 0 ? messages[index - 1] : null;
                       const author = getUserDisplay(users, message.senderId, user?.id);
                       const replyTarget = resolveReplyPreview(message);
                       const isOwn = user?.id === message.senderId;
                       const isHighlighted = highlightedMessageId === message.id;
                       const isReplyToYou = !!replyTarget && replyTarget.senderId === user?.id;
-                      const profileSlug = buildProfileSlug(message.senderId, users[message.senderId]?.displayName || users[message.senderId]?.username || author);
+                      const profileSlug = buildProfileSlug(
+                        message.senderId,
+                        users[message.senderId]?.displayName || users[message.senderId]?.username || author
+                      );
+                      const messageDate = new Date(message.createdAt);
+                      const previousDate = previous ? new Date(previous.createdAt) : null;
+                      const showDateSeparator = !previousDate || !isSameCalendarDay(messageDate, previousDate);
+                      const startsNewGroup =
+                        !previous ||
+                        previous.senderId !== message.senderId ||
+                        !previousDate ||
+                        !isSameCalendarDay(messageDate, previousDate) ||
+                        minutesBetween(messageDate, previousDate) > 6;
+                      const showAvatar = !isOwn && startsNewGroup;
+                      const spacingClass = index === 0 ? '' : startsNewGroup ? 'mt-8' : 'mt-3';
+
                       return (
-                        <div
-                          key={message.id}
-                          ref={node => {
-                            if (node) {
-                              messageRefs.current.set(message.id, node);
-                            } else {
-                              messageRefs.current.delete(message.id);
-                            }
-                          }}
-                          className={cn(
-                            'group relative flex items-start gap-3 rounded-2xl border px-4 py-3 transition backdrop-blur-md',
-                            isOwn ? 'border-primary/40 bg-white/15' : 'border-white/10 bg-white/8',
-                            !isOwn && isReplyToYou && 'border-red-500/50 bg-red-500/10',
-                            isHighlighted && 'ring-2 ring-primary/60'
+                        <React.Fragment key={message.id}>
+                          {showDateSeparator && (
+                            <div className="relative my-6 flex items-center justify-center">
+                              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-white/60">
+                                {dayFormatter.format(messageDate)}
+                              </span>
+                            </div>
                           )}
-                        >
-                          <Link to={`/profile/${profileSlug}`} className="shrink-0">
-                            <Avatar className="h-10 w-10 border border-white/10 bg-black/40 transition hover:border-primary/60">
-                              {users[message.senderId]?.avatar ? (
-                                <AvatarImage src={users[message.senderId]?.avatar} alt={author} />
-                              ) : (
-                                <AvatarFallback>{initials(author)}</AvatarFallback>
+                          <div
+                            ref={node => {
+                              if (node) {
+                                messageRefs.current.set(message.id, node);
+                              } else {
+                                messageRefs.current.delete(message.id);
+                              }
+                            }}
+                            className={cn(
+                              'group flex items-end gap-3',
+                              isOwn ? 'justify-end' : 'justify-start',
+                              spacingClass
+                            )}
+                          >
+                            {!isOwn && (
+                              <div className="flex w-10 justify-center">
+                                <Link
+                                  to={`/profile/${profileSlug}`}
+                                  className={cn('transition', showAvatar ? 'opacity-100' : 'pointer-events-none opacity-0')}
+                                  title={author}
+                                >
+                                  <Avatar className="h-10 w-10 border border-white/10 bg-black/50 transition hover:border-primary/60">
+                                    {users[message.senderId]?.avatar ? (
+                                      <AvatarImage src={users[message.senderId]?.avatar} alt={author} />
+                                    ) : (
+                                      <AvatarFallback>{initials(author)}</AvatarFallback>
+                                    )}
+                                  </Avatar>
+                                </Link>
+                              </div>
+                            )}
+                            <div
+                              className={cn(
+                                'flex min-w-0 max-w-[720px] flex-col gap-1',
+                                isOwn ? 'items-end text-right' : 'items-start'
                               )}
-                            </Avatar>
-                          </Link>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2 text-xs text-white/60">
-                              <Link
-                                to={`/profile/${profileSlug}`}
-                                className="font-semibold text-primary transition hover:text-primary/80"
-                              >
-                                {author}
-                              </Link>
-                              <span className="text-white/40">{new Date(message.createdAt).toLocaleString()}</span>
-                              {isReplyToYou && (
-                                <Badge variant="secondary" className="border-red-500/40 bg-red-500/20 text-red-200">
-                                  Ответ вам
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="mt-2 prose prose-invert max-w-none text-sm leading-relaxed markdown-body">
-                              <MarkdownRenderer value={message.content} />
-                            </div>
-                            {replyTarget ? (
-                              <button
-                                type="button"
-                                className="mt-3 w-full max-w-md rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-xs text-white/70 transition hover:border-primary/40 hover:bg-white/10"
-                                onClick={() => handleJumpToMessage(replyTarget.id)}
-                              >
-                                <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">
-                                  <Reply className="h-3 w-3" /> Ответ для {getUserDisplay(users, replyTarget.senderId, user?.id)}
-                                </p>
-                                <div className="mt-2 max-h-32 overflow-hidden text-[13px] text-white/80">
-                                  <div className="prose prose-invert max-w-none text-[13px] leading-relaxed markdown-body">
-                                    <MarkdownRenderer value={replyTarget.content} />
-                                  </div>
+                            >
+                              {startsNewGroup && (
+                                <div className="flex flex-wrap items-center gap-2 text-xs text-white/60">
+                                  {isOwn ? (
+                                    <span className="font-semibold text-primary">Вы</span>
+                                  ) : (
+                                    <Link
+                                      to={`/profile/${profileSlug}`}
+                                      className="font-semibold text-primary transition hover:text-primary/80"
+                                    >
+                                      {author}
+                                    </Link>
+                                  )}
+                                  <span className="text-white/40">{timeFormatter.format(messageDate)}</span>
+                                  {isReplyToYou && (
+                                    <Badge variant="secondary" className="border-red-500/40 bg-red-500/20 text-red-200">
+                                      Ответ вам
+                                    </Badge>
+                                  )}
                                 </div>
-                              </button>
-                            ) : message.replyToMessageId ? (
-                              <div className="mt-3 rounded-xl border border-dashed border-white/10 bg-white/5 px-3 py-2 text-xs text-white/60">
-                                <p>Ответ на сообщение из архива.</p>
-                                {hasMore && (
+                              )}
+                              <div
+                                className={cn(
+                                  'relative w-full rounded-2xl border px-4 py-3 text-sm leading-relaxed backdrop-blur-md shadow-[0_12px_32px_rgba(15,23,42,0.25)]',
+                                  isOwn ? 'border-primary/40 bg-white/15 text-white' : 'border-white/10 bg-white/8 text-white/90',
+                                  !isOwn && isReplyToYou && 'border-red-500/50 bg-red-500/10',
+                                  isHighlighted && 'ring-2 ring-primary/60'
+                                )}
+                              >
+                                {replyTarget ? (
                                   <button
                                     type="button"
-                                    onClick={() => handleJumpToMessage(message.replyToMessageId!)}
-                                    className="mt-2 inline-flex items-center gap-2 rounded-lg border border-white/10 px-2 py-1 text-[11px] uppercase tracking-[0.2em] text-white/70 transition hover:border-primary/40 hover:text-white"
+                                    className="mb-3 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-xs text-white/70 transition hover:border-primary/40 hover:bg-white/10"
+                                    onClick={() => handleJumpToMessage(replyTarget.id)}
                                   >
-                                    <Undo2 className="h-3 w-3" />
-                                    Загрузить контекст
+                                    <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">
+                                      <Reply className="h-3 w-3" /> Ответ для {getUserDisplay(users, replyTarget.senderId, user?.id)}
+                                    </p>
+                                    <div className="mt-2 max-h-32 overflow-hidden text-[13px] text-white/80">
+                                      <div className="prose prose-invert max-w-none text-[13px] leading-relaxed markdown-body">
+                                        <MarkdownRenderer value={replyTarget.content} />
+                                      </div>
+                                    </div>
                                   </button>
-                                )}
+                                ) : message.replyToMessageId ? (
+                                  <div className="mb-3 rounded-xl border border-dashed border-white/10 bg-white/5 px-3 py-2 text-xs text-white/60">
+                                    <p>Ответ на сообщение из архива.</p>
+                                    {hasMore && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleJumpToMessage(message.replyToMessageId!)}
+                                        className="mt-2 inline-flex items-center gap-2 rounded-lg border border-white/10 px-2 py-1 text-[11px] uppercase tracking-[0.2em] text-white/70 transition hover:border-primary/40 hover:text-white"
+                                      >
+                                        <Undo2 className="h-3 w-3" />
+                                        Загрузить контекст
+                                      </button>
+                                    )}
+                                  </div>
+                                ) : null}
+                                <div className="prose prose-invert max-w-none text-sm leading-relaxed markdown-body">
+                                  <MarkdownRenderer value={message.content} />
+                                </div>
                               </div>
-                            ) : null}
-                            <div className="pointer-events-none mt-3 flex items-center gap-2 text-xs text-white/60 opacity-0 transition-opacity duration-200 group-hover:pointer-events-auto group-hover:opacity-100">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 px-3 text-xs"
-                                onClick={() => {
-                                  setReplyTo(message);
-                                  handleJumpToMessage(message.id);
-                                }}
-                              >
-                                <CornerDownLeft className="mr-1 h-3 w-3" /> Ответить
-                              </Button>
+                              <div className="pointer-events-none mt-2 flex items-center gap-2 text-xs text-white/60 opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 px-3 text-xs"
+                                  onClick={() => {
+                                    setReplyTo(message);
+                                    handleJumpToMessage(message.id);
+                                  }}
+                                >
+                                  <CornerDownLeft className="mr-1 h-3 w-3" /> Ответить
+                                </Button>
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        </React.Fragment>
                       );
                     })}
                   </div>

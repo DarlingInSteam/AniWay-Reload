@@ -14,7 +14,9 @@ import { EmojiPickerButton } from '@/components/chat/EmojiPickerButton';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import GlassPanel from '@/components/ui/GlassPanel';
-import { Trash2, Search, Check, CheckCheck, RefreshCcw, Loader2, MoreVertical, ArrowLeft, MessageSquare, Undo2, X } from 'lucide-react';
+import { Trash2, Search, Check, CheckCheck, RefreshCcw, Loader2, MoreVertical, ArrowLeft, MessageSquare, Undo2, X, Copy, Reply as ReplyIcon } from 'lucide-react';
+import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer';
+import { toast } from 'sonner';
 
 type ComposeUserInput = {
   id: number;
@@ -60,8 +62,17 @@ function resolveMessageAuthor(
   return user?.displayName || user?.username || `ID ${message.senderId}`;
 }
 
+function isSameCalendarDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function minutesBetween(a: Date, b: Date): number {
+  return Math.abs(a.getTime() - b.getTime()) / 60000;
+}
+
 export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUserId, className, initialComposeUser }) => {
   const inbox = useMessagingInbox({ pageSize: 25, conversationRefreshIntervalMs: 40000, messageRefreshIntervalMs: 5000 });
+  const { hasMoreMessages, loadOlderMessages } = inbox;
   const [messageText, setMessageText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [draftTarget, setDraftTarget] = useState<ComposeUserInput | null>(initialComposeUser ?? null);
@@ -70,6 +81,10 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
   const [mobileView, setMobileView] = useState<'list' | 'conversation'>('list');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const messageInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const pendingScrollTargetRef = useRef<string | null>(null);
+  const lastMessageIdRef = useRef<string | null>(null);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialComposeUser?.id) {
@@ -122,6 +137,21 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
     });
   }, [searchTerm, inbox.conversations, users, currentUserId]);
 
+  const unreadTotal = useMemo(
+    () => inbox.conversations.reduce((acc, conversation) => acc + (conversation.unreadCount ?? 0), 0),
+    [inbox.conversations]
+  );
+
+  const dayFormatter = useMemo(
+    () => new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }),
+    []
+  );
+
+  const timeFormatter = useMemo(
+    () => new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+    []
+  );
+
   const formatTimestamp = useCallback((value?: string | null) => {
     if (!value) return '';
     try {
@@ -131,6 +161,64 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
       return '';
     }
   }, []);
+
+  const resolveReplyPreview = useCallback(
+    (message: MessageDto) => {
+      if (!message.replyToMessageId) return null;
+      return inbox.messages.find(item => item.id === message.replyToMessageId) || null;
+    },
+    [inbox.messages]
+  );
+
+  const handleJumpToMessage = useCallback(
+    async (messageId: string) => {
+      const node = messageRefs.current.get(messageId);
+      if (node) {
+        setHighlightedMessageId(messageId);
+        node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      if (hasMoreMessages) {
+        pendingScrollTargetRef.current = messageId;
+        await loadOlderMessages();
+      } else {
+        toast.info('Сообщение находится вне текущей истории. Загрузите ранние сообщения.');
+      }
+    },
+    [hasMoreMessages, loadOlderMessages]
+  );
+
+  const handleCopyMessage = useCallback(async (content: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      toast.success('Сообщение скопировано');
+    } catch (err: any) {
+      console.error('Failed to copy message', err);
+      toast.error('Не удалось скопировать сообщение');
+    }
+  }, []);
+
+  const handleQuoteMessage = useCallback(
+    (content: string) => {
+      const quoted = content
+        .split('\n')
+        .map(line => `> ${line}`)
+        .join('\n');
+      setMessageText(prev => {
+        const base = prev.trim().length > 0 ? `${prev.replace(/\s+$/, '')}\n` : '';
+        return `${base}${quoted}\n`;
+      });
+      requestAnimationFrame(() => {
+        const node = messageInputRef.current;
+        if (node) {
+          node.focus();
+          const length = node.value.length;
+          node.setSelectionRange(length, length);
+        }
+      });
+    },
+    [messageInputRef]
+  );
 
   useEffect(() => {
     if (!draftTarget) return;
@@ -155,6 +243,38 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
     }
   }, [selectedConversation, draftTarget]);
 
+  useEffect(() => {
+    const last = inbox.messages[inbox.messages.length - 1];
+    if (!last) {
+      lastMessageIdRef.current = null;
+      return;
+    }
+    if (lastMessageIdRef.current !== last.id) {
+      lastMessageIdRef.current = last.id;
+      const node = messageRefs.current.get(last.id);
+      if (node) {
+        node.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      }
+    }
+  }, [inbox.messages]);
+
+  useEffect(() => {
+    if (!pendingScrollTargetRef.current) return;
+    const target = pendingScrollTargetRef.current;
+    const node = messageRefs.current.get(target);
+    if (node) {
+      setHighlightedMessageId(target);
+      node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      pendingScrollTargetRef.current = null;
+    }
+  }, [inbox.messages]);
+
+  useEffect(() => {
+    if (!highlightedMessageId) return;
+    const timer = window.setTimeout(() => setHighlightedMessageId(null), 3500);
+    return () => window.clearTimeout(timer);
+  }, [highlightedMessageId]);
+
   const handleSend = useCallback(async () => {
     const trimmed = messageText.trim();
     if (!trimmed) return;
@@ -163,9 +283,13 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
       if (selectedConversation?.id) {
         await inbox.sendMessage(selectedConversation.id, trimmed);
       } else if (draftTarget?.id) {
+        // Создаем новый диалог
         const conversation = await apiClient.createConversation(draftTarget.id);
+        // Добавляем его в список сразу
+        inbox.addConversation(conversation);
+        // Выбираем его
         await inbox.selectConversation(conversation.id);
-        await inbox.refresh();
+        // Отправляем сообщение
         await inbox.sendMessage(conversation.id, trimmed);
         setDraftTarget(null);
       } else {
@@ -243,6 +367,51 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
           Не удалось загрузить сообщения. Убедитесь, что вы авторизованы и попробуйте позже.
         </GlassPanel>
       )}
+
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="max-w-3xl space-y-3">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.35em] text-white/60">
+            <MessageSquare className="h-3 w-3 text-primary/70" />
+            Личные сообщения
+          </div>
+          <h2 className="text-2xl font-semibold text-white">Поддерживайте контакт с друзьями AniWay</h2>
+          <p className="text-sm text-white/60">
+            Просматривайте все приватные диалоги в едином пространстве, отслеживайте новые ответы и продолжайте разговоры без лишних переходов.
+          </p>
+          <div className="flex flex-wrap items-center gap-3 text-xs text-white/60">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1">
+              Диалогов: {inbox.conversations.length}
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1">
+              Непрочитано: {unreadTotal}
+            </span>
+            {draftTarget && (
+              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-primary">
+                Черновик: {draftResolvedName || draftTarget.username || `ID ${draftTarget.id}`}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            className="gap-2 text-sm"
+            onClick={inbox.refresh}
+          >
+            <RefreshCcw className="h-3 w-3" />
+            Обновить
+          </Button>
+          <Button
+            variant="outline"
+            className="gap-2 text-sm"
+            onClick={() => setSearchTerm('')}
+            disabled={!searchTerm}
+          >
+            <Search className="h-3 w-3" />
+            Сбросить поиск
+          </Button>
+        </div>
+      </div>
 
       <div className="flex items-center justify-between lg:hidden">
         <div className="text-xs font-semibold uppercase tracking-[0.3em] text-white/40">Личные сообщения</div>
@@ -644,31 +813,155 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                       </div>
                     )}
 
-                    {inbox.messages.map(message => {
+                    {inbox.messages.map((message, index) => {
+                      const previous = index > 0 ? inbox.messages[index - 1] : null;
                       const author = resolveMessageAuthor(message, users, currentUserId);
+                      const replyPreview = resolveReplyPreview(message);
                       const isOwn = message.senderId === currentUserId;
+                      const messageDate = new Date(message.createdAt);
+                      const previousDate = previous ? new Date(previous.createdAt) : null;
+                      const showDateSeparator = !previousDate || !isSameCalendarDay(messageDate, previousDate);
+                      const startsNewGroup =
+                        !previous ||
+                        previous.senderId !== message.senderId ||
+                        !previousDate ||
+                        !isSameCalendarDay(messageDate, previousDate) ||
+                        minutesBetween(messageDate, previousDate) > 6;
+                      const showAvatar = !isOwn && startsNewGroup;
+                      const spacingClass = index === 0 ? '' : startsNewGroup ? 'mt-8' : 'mt-3';
+                      const isHighlighted = highlightedMessageId === message.id;
+                      const senderProfileSlug =
+                        typeof message.senderId === 'number'
+                          ? buildProfileSlug(
+                              message.senderId,
+                              users[message.senderId]?.displayName || users[message.senderId]?.username || author
+                            )
+                          : null;
+
                       return (
-                        <div className={cn('flex', isOwn ? 'justify-end' : 'justify-start')} key={message.id}>
-                          <div
-                            className={cn(
-                              'group relative max-w-[77%] rounded-2xl border px-4 py-3 text-sm leading-relaxed backdrop-blur-md transition',
-                              isOwn
-                                ? 'border-primary/40 bg-white/15 text-white'
-                                : 'border-white/10 bg-white/8 text-white/90'
-                            )}
-                          >
-                            <div className="mb-2 flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.3em] text-white/40">
-                              <span className="truncate">{author}</span>
-                              <span>{new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        <React.Fragment key={message.id}>
+                          {showDateSeparator && (
+                            <div className="relative my-6 flex items-center justify-center">
+                              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-white/60">
+                                {dayFormatter.format(messageDate)}
+                              </span>
                             </div>
-                            <p className="whitespace-pre-line break-words text-[15px] leading-relaxed">{message.content}</p>
-                            {message.replyToMessageId && (
-                              <p className="mt-3 rounded-xl border border-dashed border-white/20 bg-white/10 p-2 text-[11px] text-white/70">
-                                Ответ на сообщение #{message.replyToMessageId.slice(0, 8)}
-                              </p>
+                          )}
+                          <div
+                            ref={node => {
+                              if (node) {
+                                messageRefs.current.set(message.id, node);
+                              } else {
+                                messageRefs.current.delete(message.id);
+                              }
+                            }}
+                            className={cn('group flex items-end gap-3', isOwn ? 'justify-end' : 'justify-start', spacingClass)}
+                          >
+                            {!isOwn && (
+                              <div className="flex w-10 justify-center">
+                                <Link
+                                  to={senderProfileSlug ? `/profile/${senderProfileSlug}` : '#'}
+                                  className={cn(
+                                    'transition',
+                                    showAvatar ? 'opacity-100' : 'pointer-events-none opacity-0',
+                                    !senderProfileSlug && 'pointer-events-none'
+                                  )}
+                                  title={author}
+                                >
+                                  <Avatar className="h-10 w-10 border border-white/10 bg-black/50 transition hover:border-primary/60">
+                                    {users[message.senderId]?.avatar ? (
+                                      <AvatarImage src={users[message.senderId]?.avatar} alt={author} />
+                                    ) : (
+                                      <AvatarFallback>{initials(author)}</AvatarFallback>
+                                    )}
+                                  </Avatar>
+                                </Link>
+                              </div>
                             )}
+                            <div
+                              className={cn(
+                                'flex min-w-0 max-w-[680px] flex-col gap-1',
+                                isOwn ? 'items-end text-right' : 'items-start'
+                              )}
+                            >
+                              {startsNewGroup && (
+                                <div className="flex flex-wrap items-center gap-2 text-xs text-white/60">
+                                  {senderProfileSlug && !isOwn ? (
+                                    <Link
+                                      to={`/profile/${senderProfileSlug}`}
+                                      className="font-semibold text-primary transition hover:text-primary/80"
+                                    >
+                                      {author}
+                                    </Link>
+                                  ) : (
+                                    <span className="font-semibold text-primary">{author}</span>
+                                  )}
+                                  <span className="text-white/40">{timeFormatter.format(messageDate)}</span>
+                                </div>
+                              )}
+                              <div
+                                className={cn(
+                                  'relative w-full rounded-2xl border px-4 py-3 text-sm leading-relaxed backdrop-blur-md shadow-[0_12px_32px_rgba(15,23,42,0.25)] transition',
+                                  isOwn ? 'border-primary/40 bg-white/15 text-white' : 'border-white/10 bg-white/8 text-white/90',
+                                  isHighlighted && 'ring-2 ring-primary/60'
+                                )}
+                              >
+                                {replyPreview ? (
+                                  <button
+                                    type="button"
+                                    className="mb-3 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-xs text-white/70 transition hover:border-primary/40 hover:bg-white/10"
+                                    onClick={() => void handleJumpToMessage(replyPreview.id)}
+                                  >
+                                    <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">
+                                      <ReplyIcon className="h-3 w-3" />
+                                      Ответ на сообщение {resolveMessageAuthor(replyPreview, users, currentUserId)}
+                                    </p>
+                                    <div className="mt-2 max-h-32 overflow-hidden text-[13px] text-white/80">
+                                      <div className="prose prose-invert max-w-none text-[13px] leading-relaxed markdown-body">
+                                        <MarkdownRenderer value={replyPreview.content} />
+                                      </div>
+                                    </div>
+                                  </button>
+                                ) : message.replyToMessageId ? (
+                                  <div className="mb-3 rounded-xl border border-dashed border-white/10 bg-white/5 px-3 py-2 text-xs text-white/60">
+                                    <p>Ответ на сообщение из архива.</p>
+                                    {hasMoreMessages && (
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleJumpToMessage(message.replyToMessageId!)}
+                                        className="mt-2 inline-flex items-center gap-2 rounded-lg border border-white/10 px-2 py-1 text-[11px] uppercase tracking-[0.2em] text-white/70 transition hover:border-primary/40 hover:text-white"
+                                      >
+                                        <Undo2 className="h-3 w-3" />
+                                        Загрузить контекст
+                                      </button>
+                                    )}
+                                  </div>
+                                ) : null}
+                                <div className="prose prose-invert max-w-none text-sm leading-relaxed markdown-body">
+                                  <MarkdownRenderer value={message.content} />
+                                </div>
+                              </div>
+                              <div className="pointer-events-none mt-2 flex flex-wrap gap-2 text-xs text-white/60 opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 px-3 text-xs"
+                                  onClick={() => handleQuoteMessage(message.content)}
+                                >
+                                  <ReplyIcon className="mr-1 h-3 w-3" /> Цитировать
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 px-3 text-xs"
+                                  onClick={() => void handleCopyMessage(message.content)}
+                                >
+                                  <Copy className="mr-1 h-3 w-3" /> Скопировать
+                                </Button>
+                              </div>
+                            </div>
                           </div>
-                        </div>
+                        </React.Fragment>
                       );
                     })}
                   </div>

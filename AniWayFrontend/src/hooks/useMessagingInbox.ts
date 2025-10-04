@@ -22,6 +22,7 @@ export interface UseMessagingInboxResult {
   loadingMessages: boolean;
   error: unknown;
   selectConversation: (conversationId: string) => Promise<void>;
+  addConversation: (conversation: ConversationDto) => void;
   refresh: () => Promise<void>;
   loadOlderMessages: () => Promise<void>;
   sendMessage: (conversationId: string, content: string) => Promise<void>;
@@ -242,16 +243,19 @@ export function useMessagingInbox(options?: UseMessagingInboxOptions): UseMessag
         return next;
       });
       setMessagePage(prev => prev ? { ...prev, messages: [...prev.messages, message] } : prev);
-      setConversations(prev => prev.map(conversation =>
-        conversation.id === conversationId
-          ? {
-            ...conversation,
-            lastMessage: message,
-            lastMessageAt: message.createdAt,
-            unreadCount: 0,
-          }
-          : conversation
-      ));
+      setConversations(prev => {
+        // Обновляем существующий диалог
+        return prev.map(conversation =>
+          conversation.id === conversationId
+            ? {
+              ...conversation,
+              lastMessage: message,
+              lastMessageAt: message.createdAt,
+              unreadCount: 0,
+            }
+            : conversation
+        );
+      });
       await markConversationRead(conversationId, message.id);
     } catch (err) {
       console.error('Failed to send message', err);
@@ -300,6 +304,18 @@ export function useMessagingInbox(options?: UseMessagingInboxOptions): UseMessag
     }
   }, [loadConversations, loadMessages, selectedId]);
 
+  const addConversation = useCallback((conversation: ConversationDto) => {
+    setConversations(prev => {
+      // Проверяем, не существует ли уже
+      const exists = prev.some(c => c.id === conversation.id);
+      if (exists) {
+        return prev;
+      }
+      // Добавляем в начало списка
+      return [conversation, ...prev];
+    });
+  }, []);
+
   useEffect(() => {
     loadConversations();
   }, [loadConversations]);
@@ -319,6 +335,7 @@ export function useMessagingInbox(options?: UseMessagingInboxOptions): UseMessag
     loadingMessages,
     error,
     selectConversation,
+    addConversation,
     refresh,
     loadOlderMessages,
     sendMessage,
