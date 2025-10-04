@@ -436,7 +436,7 @@ export const GlobalChatPage: React.FC = () => {
             )}
           </div>
 
-          <GlassPanel className="flex h-[calc(100vh-220px)] min-h-[520px] flex-col overflow-hidden border-white/10 bg-white/5" padding="lg">
+          <GlassPanel className="flex h-[calc(100vh-220px)] min-h-[520px] flex-col overflow-visible border-white/10 bg-white/5" padding="lg">
             {selectedCategory ? (
               <>
                 <div className="mb-4 flex flex-col gap-2 border-b border-white/10 pb-4 sm:flex-row sm:items-start sm:justify-between">

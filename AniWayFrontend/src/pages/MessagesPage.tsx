@@ -23,7 +23,7 @@ export const MessagesPage: React.FC = () => {
         <h1 className="text-3xl font-bold">Личные сообщения</h1>
       </header>
 
-      <GlassPanel className="rounded-2xl border border-white/10 bg-white/5 h-[calc(100vh-220px)] min-h-[520px] overflow-hidden" padding="none">
+  <GlassPanel className="rounded-2xl border border-white/10 bg-white/5 h-[calc(100vh-220px)] min-h-[520px] overflow-visible" padding="none">
         <MessagesWorkspace currentUserId={user?.id} initialComposeUser={composeTarget ?? undefined} className="h-full px-4 py-5 sm:px-6 sm:py-6" />
       </GlassPanel>
     </div>

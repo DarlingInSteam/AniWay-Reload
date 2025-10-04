@@ -25,6 +25,7 @@ export interface UseMessagingInboxResult {
   refresh: () => Promise<void>;
   loadOlderMessages: () => Promise<void>;
   sendMessage: (conversationId: string, content: string) => Promise<void>;
+  deleteConversation: (conversationId: string) => Promise<void>;
 }
 
 const DEFAULT_PAGE_SIZE = 30;
@@ -259,6 +260,39 @@ export function useMessagingInbox(options?: UseMessagingInboxOptions): UseMessag
     }
   }, [markConversationRead]);
 
+  const deleteConversation = useCallback(async (conversationId: string) => {
+    if (!conversationId) return;
+    setError(null);
+    try {
+      await apiClient.deleteConversation(conversationId);
+
+      let removedSelected = false;
+      let fallbackId: string | null = null;
+
+      setConversations(prev => {
+        const filtered = prev.filter(conversation => conversation.id !== conversationId);
+        if (selectedIdRef.current === conversationId) {
+          removedSelected = true;
+          fallbackId = filtered[0]?.id ?? null;
+        }
+        return filtered;
+      });
+
+      if (removedSelected) {
+        setMessages([]);
+        messagesRef.current = [];
+        setMessagePage(null);
+        setSelectedId(fallbackId ?? null);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['inbox-summary'] }).catch(() => {});
+    } catch (err) {
+      console.error('Failed to delete conversation', err);
+      setError(err);
+      throw err;
+    }
+  }, [queryClient]);
+
   const refresh = useCallback(async () => {
     await loadConversations();
     if (selectedId) {
@@ -288,6 +322,7 @@ export function useMessagingInbox(options?: UseMessagingInboxOptions): UseMessag
     refresh,
     loadOlderMessages,
     sendMessage,
+    deleteConversation,
   };
 }
 

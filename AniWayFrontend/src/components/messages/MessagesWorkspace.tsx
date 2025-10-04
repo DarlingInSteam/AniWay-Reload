@@ -11,6 +11,8 @@ import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api';
 import { buildProfileSlug } from '@/utils/profileSlug';
 import { EmojiPickerButton } from '@/components/chat/EmojiPickerButton';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Trash2 } from 'lucide-react';
 
 type ComposeUserInput = {
   id: number;
@@ -61,6 +63,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
   const [messageText, setMessageText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [draftTarget, setDraftTarget] = useState<ComposeUserInput | null>(initialComposeUser ?? null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const messageInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -164,6 +167,24 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
     });
   }, [messageText]);
 
+  const handleDeleteConversation = useCallback(async () => {
+    if (!selectedConversation) return false;
+    setIsDeleting(true);
+    setError(null);
+    try {
+      await inbox.deleteConversation(selectedConversation.id);
+      setMessageText('');
+      setDraftTarget(null);
+      return true;
+    } catch (err: any) {
+      console.error('Failed to delete conversation', err);
+      setError(err?.message || 'Не удалось удалить диалог.');
+      return false;
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [inbox, selectedConversation]);
+
   return (
     <div className={cn('flex h-full flex-col gap-6', className)}>
       {Boolean(inbox.error) && (
@@ -172,8 +193,8 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
         </div>
       )}
 
-      <div className="grid flex-1 gap-4 overflow-hidden lg:grid-cols-3">
-        <div className="flex h-full flex-col rounded-2xl border border-white/10 bg-white/5 p-3 lg:col-span-1">
+      <div className="grid flex-1 min-h-0 gap-4 overflow-hidden lg:grid-cols-[320px_1fr]">
+        <div className="flex h-full min-h-0 flex-col rounded-2xl border border-white/10 bg-white/5 p-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-white/90">Диалоги</h3>
             <Button size="sm" variant="outline" onClick={inbox.refresh} disabled={inbox.loadingConversations}>
@@ -277,9 +298,9 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
           </div>
         </div>
 
-        <div className="flex h-full flex-col rounded-2xl border border-white/10 bg-white/5 p-4 lg:col-span-2">
+  <div className="flex h-full min-h-0 flex-col rounded-2xl border border-white/10 bg-white/5 p-4">
           {draftTarget ? (
-            <div className="flex h-full flex-col gap-4">
+            <div className="flex h-full min-h-0 flex-col gap-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-base font-semibold text-white">
@@ -339,7 +360,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
               </div>
             </div>
           ) : selectedConversation ? (
-            <div className="flex h-full flex-col gap-4">
+            <div className="flex h-full min-h-0 flex-col gap-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-base font-semibold text-white">
@@ -363,14 +384,55 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                     </Link>
                   )}
                 </div>
-                {inbox.hasMoreMessages && (
-                  <Button size="sm" variant="outline" onClick={inbox.loadOlderMessages} disabled={inbox.loadingMessages}>
-                    Загрузить ранние сообщения
-                  </Button>
-                )}
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {inbox.hasMoreMessages && (
+                    <Button size="sm" variant="outline" onClick={inbox.loadOlderMessages} disabled={inbox.loadingMessages}>
+                      Загрузить ранние сообщения
+                    </Button>
+                  )}
+                  {selectedConversation.type === 'PRIVATE' && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-red-300 transition hover:text-red-100"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Удалить чат
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent className="bg-gray-900 text-white">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Удалить диалог?</AlertDialogTitle>
+                          <AlertDialogDescription className="text-sm text-slate-300">
+                            {privateOtherName
+                              ? `Общая история с ${privateOtherName} будет скрыта из списка диалогов. Сообщения могут сохраниться у собеседника.`
+                              : 'Диалог будет скрыт из вашего списка. Сообщения могут сохраниться у собеседника.'}
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel disabled={isDeleting}>Отмена</AlertDialogCancel>
+                          <AlertDialogAction
+                            className="bg-red-600 hover:bg-red-500 focus:ring-red-400 disabled:opacity-60"
+                            disabled={isDeleting}
+                            onClick={async () => {
+                              const success = await handleDeleteConversation();
+                              if (!success) {
+                                // returning false keeps dialog closed; error message shown below composer
+                              }
+                            }}
+                          >
+                            {isDeleting ? 'Удаляем…' : 'Удалить'}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                </div>
               </div>
 
-              <div className="flex-1 space-y-3 overflow-y-auto rounded-xl border border-white/10 bg-black/20 p-4">
+              <div className="flex-1 space-y-3 overflow-y-auto rounded-xl border border-white/10 bg-black/20 p-4 pr-1 scrollbar-thin">
                 {inbox.loadingMessages && inbox.messages.length === 0 ? (
                   <div className="flex items-center justify-center py-10">
                     <LoadingSpinner />

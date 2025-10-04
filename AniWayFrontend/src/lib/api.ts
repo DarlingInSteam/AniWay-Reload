@@ -1141,6 +1141,12 @@ class ApiClient {
     });
   }
 
+  async deleteConversation(conversationId: string): Promise<void> {
+    await this.request<void>(`/messages/conversations/${conversationId}`, {
+      method: 'DELETE',
+    });
+  }
+
   async listChatCategories(includeArchived = false): Promise<CategoryView[]> {
     const params = new URLSearchParams();
     if (includeArchived) {
