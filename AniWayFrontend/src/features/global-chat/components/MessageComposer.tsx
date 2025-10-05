@@ -129,7 +129,7 @@ export function MessageComposer({
   );
 
   return (
-    <GlassPanel padding="sm" className="w-full rounded-2xl border-white/10 bg-white/5">
+    <GlassPanel padding="none" className="w-full rounded-2xl border-white/10 bg-white/5 px-3 py-2">
       <div className="space-y-2">
       {replyTo && (
           <div className="flex items-start gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70">
@@ -162,8 +162,8 @@ export function MessageComposer({
 
         <MarkdownMiniToolbar onCommand={applyMarkdownCommand} className="text-white/80" />
 
-        <div className="flex items-end gap-3">
-          <div className="flex-1 rounded-xl border border-white/10 bg-black/30 px-2 py-2">
+        <div className="flex items-end gap-2">
+          <div className="flex-1 rounded-xl border border-white/10 bg-black/30 px-2 py-1.5">
             <Textarea
               ref={textareaRef}
               value={messageText}
@@ -176,16 +176,14 @@ export function MessageComposer({
               className="min-h-[72px] w-full resize-none border-none bg-transparent px-1 py-1 text-sm text-white placeholder:text-white/40 focus-visible:ring-0 focus-visible:ring-offset-0"
             />
           </div>
-          <div className="flex items-end">
-            <button
-              type="button"
-              onClick={handleSend}
-              disabled={!isAuthenticated || loadingMessages || !messageText.trim()}
-              className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/80 text-lg font-semibold text-white transition hover:bg-primary disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/40"
-            >
-              ▶
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={!isAuthenticated || loadingMessages || !messageText.trim()}
+            className="flex h-11 w-11 shrink-0 items-center justify-center self-end rounded-full bg-primary/80 text-lg font-semibold text-white transition hover:bg-primary disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/40 transform translate-y-[1px]"
+          >
+            ▶
+          </button>
         </div>
       </div>
     </GlassPanel>
