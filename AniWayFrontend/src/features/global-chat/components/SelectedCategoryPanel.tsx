@@ -1,4 +1,5 @@
-import { GlassPanel } from '@/components/ui/GlassPanel';
+import { useEffect, useRef } from 'react';
+import { motion, useAnimation } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import type { CategoryView, MessageView as MessageDto } from '@/types/social';
 import type { UserMini } from '@/hooks/useUserMiniBatch';
@@ -18,21 +19,15 @@ interface SelectedCategoryPanelProps {
   replyTo: MessageDto | null;
   dayFormatter: Intl.DateTimeFormat;
   timeFormatter: Intl.DateTimeFormat;
-  isAdmin: boolean;
   isAuthenticated: boolean;
   registerMessageNode: (messageId: string, node: HTMLDivElement | null) => void;
   resolveReplyPreview: (message: MessageDto) => MessageDto | null;
   onJumpToMessage: (messageId: string) => Promise<void>;
   onLoadOlderMessages: () => Promise<void>;
-  onRefreshMessages: () => void;
-  onMarkSelectedCategoryRead: () => void;
-  onOpenEditCategory: () => void;
   onReplyToMessage: (message: MessageDto | null) => void;
-  onBackToList: () => void;
   onSendMessage: (content: string) => Promise<void>;
   onCancelReply: () => void;
   className?: string;
-  showBackButton: boolean;
 }
 
 export function SelectedCategoryPanel({
@@ -46,47 +41,71 @@ export function SelectedCategoryPanel({
   replyTo,
   dayFormatter,
   timeFormatter,
-  isAdmin,
   isAuthenticated,
   registerMessageNode,
   resolveReplyPreview,
   onJumpToMessage,
   onLoadOlderMessages,
-  onRefreshMessages,
-  onMarkSelectedCategoryRead,
-  onOpenEditCategory,
   onReplyToMessage,
-  onBackToList,
   onSendMessage,
   onCancelReply,
   className,
-  showBackButton,
 }: SelectedCategoryPanelProps) {
   const hasCategory = Boolean(category);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const scrollPositionsRef = useRef<Record<number, number>>({});
+  const motionControls = useAnimation();
+
+  useEffect(() => {
+    if (!category) return;
+    motionControls.set({ opacity: 0, y: 8 });
+    void motionControls.start({ opacity: 1, y: 0, transition: { duration: 0.25, ease: 'easeOut' } });
+  }, [category?.id, motionControls]);
+
+  useEffect(() => {
+    const node = scrollContainerRef.current;
+    if (!node || !category?.id) {
+      return;
+    }
+
+    const handleScroll = () => {
+      scrollPositionsRef.current[category.id] = node.scrollTop;
+    };
+
+    node.addEventListener('scroll', handleScroll);
+    return () => {
+      node.removeEventListener('scroll', handleScroll);
+    };
+  }, [category?.id]);
+
+  useEffect(() => {
+    const node = scrollContainerRef.current;
+    if (!node) return;
+
+    if (!category?.id) {
+      node.scrollTop = 0;
+      return;
+    }
+
+    const stored = scrollPositionsRef.current[category.id];
+    if (typeof stored === 'number') {
+      node.scrollTop = stored;
+    } else {
+      node.scrollTop = node.scrollHeight;
+    }
+  }, [category?.id]);
 
   return (
-    <GlassPanel
-      padding="none"
-      className={cn(
-        'flex min-h-0 flex-1 flex-col overflow-hidden',
-        className
-      )}
-    >
+    <div className={cn('flex min-h-0 flex-1 flex-col', className)}>
       {hasCategory && category ? (
         <>
-          <CategoryHeader
-            category={category}
-            hasMore={hasMore}
-            loadingMessages={loadingMessages}
-            onRefreshMessages={onRefreshMessages}
-            onLoadOlderMessages={onLoadOlderMessages}
-            onMarkSelectedCategoryRead={onMarkSelectedCategoryRead}
-            isAdmin={isAdmin}
-            onOpenEditCategory={onOpenEditCategory}
-            onBackToList={onBackToList}
-            showBackButton={showBackButton}
-          />
-          <div className="flex-1 overflow-y-auto px-6 pb-6 pt-4 scrollbar-thin">
+          <CategoryHeader category={category} />
+          <motion.div
+            ref={scrollContainerRef}
+            animate={motionControls}
+            initial={false}
+            className="flex-1 overflow-y-auto px-2 pb-6 pt-2 sm:px-4 lg:px-6 scrollbar-thin"
+          >
             <MessageFeed
               messages={messages}
               users={users}
@@ -102,8 +121,8 @@ export function SelectedCategoryPanel({
               onReply={message => onReplyToMessage(message)}
               resolveReplyPreview={resolveReplyPreview}
             />
-          </div>
-          <div className="border-t border-white/5 bg-white/5 px-6 py-5">
+          </motion.div>
+          <div className="px-2 pb-4 pt-2 sm:px-4 lg:px-6">
             <MessageComposer
               replyTo={replyTo}
               users={users}
@@ -118,6 +137,6 @@ export function SelectedCategoryPanel({
       ) : (
         <NoCategorySelected />
       )}
-    </GlassPanel>
+    </div>
   );
 }

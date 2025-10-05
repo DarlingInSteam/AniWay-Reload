@@ -4,14 +4,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useGlobalChat } from '@/hooks/useGlobalChat';
 import useUserMiniBatch from '@/hooks/useUserMiniBatch';
 import type { MessageView as MessageDto } from '@/types/social';
-import { cn } from '@/lib/utils';
 import { ChatPageHeader } from '@/features/global-chat/components/ChatPageHeader';
-import { ChatMobileToggle } from '@/features/global-chat/components/ChatMobileToggle';
 import { ChannelSidebar } from '@/features/global-chat/components/ChannelSidebar';
 import { SelectedCategoryPanel } from '@/features/global-chat/components/SelectedCategoryPanel';
 import { CategoryCreateDialog, CategoryCreatePayload } from '@/features/global-chat/components/CategoryCreateDialog';
 import { CategoryEditDialog, CategoryEditPayload } from '@/features/global-chat/components/CategoryEditDialog';
-import { CategoryQuickBar } from '@/features/global-chat/components/CategoryQuickBar';
 import { useChatMessageNavigation } from '@/features/global-chat/hooks/useChatMessageNavigation';
 
 export const GlobalChatPage: React.FC = () => {
@@ -41,7 +38,6 @@ export const GlobalChatPage: React.FC = () => {
     updateCategory,
   } = chat;
 
-  const [mobileView, setMobileView] = useState<'list' | 'feed'>('list');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [categoryQuery, setCategoryQuery] = useState('');
@@ -97,12 +93,6 @@ export const GlobalChatPage: React.FC = () => {
       toast.error(message);
     }
   }, [chatError]);
-
-  useEffect(() => {
-    if (!selectedCategoryId) {
-      setMobileView('list');
-    }
-  }, [selectedCategoryId]);
 
   useEffect(() => {
     if (!selectedCategory && editDialogOpen) {
@@ -164,110 +154,66 @@ export const GlobalChatPage: React.FC = () => {
     [refreshCategories, refreshMessages, selectedCategoryId, updateCategory]
   );
 
-  const handleReplyToMessage = useCallback(
-    (message: MessageDto | null) => {
-      setReplyTo(message);
-      if (message) {
-        setMobileView('feed');
-      }
-    },
-    [setReplyTo, setMobileView]
-  );
+  const handleReplyToMessage = useCallback((message: MessageDto | null) => {
+    setReplyTo(message);
+  }, [setReplyTo]);
 
   const handleCancelReply = useCallback(() => {
     setReplyTo(null);
   }, [setReplyTo]);
 
-  const handleNavigateToFeed = useCallback(() => {
-    setMobileView('feed');
-  }, []);
-
-  const handleNavigateToList = useCallback(() => {
-    setMobileView('list');
-  }, []);
-
-  const handleSelectCategoryQuick = useCallback(
-    (categoryId: number) => {
-      selectCategory(categoryId);
-      setMobileView('feed');
-    },
-    [selectCategory, setMobileView]
-  );
-
   return (
     <div className="min-h-[calc(100vh-88px)]">
-      <div className="mx-auto flex w-full max-w-[1320px] flex-1 flex-col gap-5 px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
+      <div className="mx-auto flex w-full max-w-[1500px] flex-1 flex-col gap-6 px-4 py-8 sm:px-6 lg:px-10 lg:py-12">
         <ChatPageHeader
           hasSelectedCategory={hasSelectedCategory}
           onRefreshAll={refreshAll}
           onRefreshCategories={refreshCategories}
           onRefreshMessages={refreshMessages}
         />
-
-        {featuredCategories.length > 0 && (
-          <CategoryQuickBar
-            categories={featuredCategories}
-            selectedCategoryId={selectedCategoryId ?? null}
-            onSelectCategory={handleSelectCategoryQuick}
-          />
-        )}
-
-        <ChatMobileToggle
-          showList={mobileView === 'list'}
-          showFeed={mobileView === 'feed'}
+        <ChannelSidebar
+          categories={categories}
+          filteredCategories={filteredCategories}
+          loading={loadingCategories}
+          loadingMessages={loadingMessages}
+          selectedCategoryId={selectedCategoryId}
+          selectedCategory={selectedCategory ?? null}
           hasSelectedCategory={hasSelectedCategory}
-          onShowList={handleNavigateToList}
-          onShowFeed={handleNavigateToFeed}
+          hasMore={hasMore}
+          isAdmin={isAdmin}
+          categoryQuery={categoryQuery}
+          onCategoryQueryChange={setCategoryQuery}
+          onSelectCategory={selectCategory}
+          onRefreshCategories={refreshCategories}
+          onRefreshMessages={refreshMessages}
+          onLoadOlderMessages={loadOlderMessages}
+          onMarkSelectedCategoryRead={markSelectedCategoryRead}
+          onOpenCreateCategory={() => setCreateDialogOpen(true)}
+          onOpenEditCategory={() => setEditDialogOpen(true)}
         />
 
-        <div className="flex flex-1 flex-col gap-4 lg:flex-row">
-          <ChannelSidebar
-            categories={categories}
-            filteredCategories={filteredCategories}
-            loading={loadingCategories}
-            selectedCategoryId={selectedCategoryId}
-            showSidebar={mobileView === 'list'}
-            hasSelectedCategory={hasSelectedCategory}
-            isAdmin={isAdmin}
-            categoryQuery={categoryQuery}
-            onCategoryQueryChange={setCategoryQuery}
-            onSelectCategory={selectCategory}
-            onNavigateToFeed={handleNavigateToFeed}
-            onRefreshCategories={refreshCategories}
-            onRefreshMessages={refreshMessages}
-            onOpenCreateCategory={() => setCreateDialogOpen(true)}
-            onOpenEditCategory={() => setEditDialogOpen(true)}
+        <div className="flex flex-1 min-h-0 flex-col">
+          <SelectedCategoryPanel
+            category={selectedCategory ?? null}
+            messages={messages}
+            users={users}
+            currentUserId={currentUserId}
+            highlightedMessageId={highlightedMessageId}
+            hasMore={hasMore}
+            loadingMessages={loadingMessages}
+            replyTo={replyTo}
+            dayFormatter={dayFormatter}
+            timeFormatter={timeFormatter}
+            isAuthenticated={isAuthenticated}
+            registerMessageNode={registerMessageNode}
+            resolveReplyPreview={resolveReplyPreview}
+            onJumpToMessage={handleJumpToMessage}
+            onLoadOlderMessages={loadOlderMessages}
+            onReplyToMessage={handleReplyToMessage}
+            onSendMessage={handleSendMessage}
+            onCancelReply={handleCancelReply}
+            className="h-full"
           />
-
-          <div className={cn('min-h-0 flex-1', mobileView === 'feed' ? 'flex' : 'hidden', 'lg:flex')}>
-            <SelectedCategoryPanel
-              category={selectedCategory ?? null}
-              messages={messages}
-              users={users}
-              currentUserId={currentUserId}
-              highlightedMessageId={highlightedMessageId}
-              hasMore={hasMore}
-              loadingMessages={loadingMessages}
-              replyTo={replyTo}
-              dayFormatter={dayFormatter}
-              timeFormatter={timeFormatter}
-              isAdmin={isAdmin}
-              isAuthenticated={isAuthenticated}
-              registerMessageNode={registerMessageNode}
-              resolveReplyPreview={resolveReplyPreview}
-              onJumpToMessage={handleJumpToMessage}
-              onLoadOlderMessages={loadOlderMessages}
-              onRefreshMessages={refreshMessages}
-              onMarkSelectedCategoryRead={markSelectedCategoryRead}
-              onOpenEditCategory={() => setEditDialogOpen(true)}
-              onReplyToMessage={handleReplyToMessage}
-              onBackToList={handleNavigateToList}
-              onSendMessage={handleSendMessage}
-              onCancelReply={handleCancelReply}
-              className="h-full"
-              showBackButton={mobileView === 'feed'}
-            />
-          </div>
         </div>
       </div>
 

@@ -1,13 +1,12 @@
 import { useCallback, useRef, useState } from 'react';
-import { MessageSquare, Reply } from 'lucide-react';
 import type { MessageView as MessageDto } from '@/types/social';
 import type { UserMini } from '@/hooks/useUserMiniBatch';
 import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
 import { EmojiPickerButton } from '@/components/chat/EmojiPickerButton';
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer';
 import { getUserDisplay } from '../utils/messageHelpers';
 import { toast } from 'sonner';
+import { GlassPanel } from '@/components/ui/GlassPanel';
 
 interface MessageComposerProps {
   replyTo: MessageDto | null;
@@ -80,57 +79,74 @@ export function MessageComposer({
   );
 
   return (
-    <div className="space-y-3">
+    <GlassPanel padding="sm" className="w-full rounded-2xl border-white/10 bg-white/5">
+      <div className="space-y-3">
       {replyTo && (
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white/70">
-          <div className="flex items-center justify-between">
-            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.25em] text-white/50">
-              <Reply className="h-3 w-3" /> Ответ пользователю {getUserDisplay(users, replyTo.senderId, currentUserId)}
-            </p>
-            <button type="button" onClick={onCancelReply} className="text-xs text-white/50 transition hover:text-white">
-              Очистить
-            </button>
-          </div>
-          <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border border-white/5 bg-white/5 p-2">
-            <div className="prose prose-invert max-w-none text-sm leading-relaxed markdown-body">
-              <MarkdownRenderer value={replyTo.content} />
+          <div className="flex items-start gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70">
+            <span className="mt-[2px] text-white/50">↩</span>
+            <div className="flex-1">
+              <div className="flex items-start justify-between gap-2 text-[11px] uppercase tracking-[0.25em] text-white/40">
+                <span>Ответ {getUserDisplay(users, replyTo.senderId, currentUserId)}</span>
+                <button
+                  type="button"
+                  onClick={onCancelReply}
+                  className="tracking-normal text-white/50 transition hover:text-white"
+                >
+                  Очистить
+                </button>
+              </div>
+              <div className="mt-1 max-h-28 overflow-y-auto rounded-lg border border-white/5 bg-black/20 px-3 py-2 text-left text-sm text-white/70">
+                <div className="prose prose-invert max-w-none text-sm leading-relaxed markdown-body line-clamp-3">
+                  <MarkdownRenderer value={replyTo.content} />
+                </div>
+              </div>
             </div>
-          </div>
         </div>
       )}
 
       {outgoingError && (
-        <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2 text-xs text-red-200">
+          <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
           {outgoingError}
         </div>
       )}
 
-      <div className="rounded-2xl border border-white/10 bg-white/5 px-1 py-1">
-        <Textarea
-          ref={textareaRef}
-          value={messageText}
-          onChange={event => setMessageText(event.target.value)}
-          onKeyDown={handleEnterSend}
-          placeholder={isAuthenticated ? 'Напишите сообщение для сообщества…' : 'Авторизуйтесь, чтобы писать в глобальный чат'}
-          disabled={!isAuthenticated || loadingMessages}
-          className="min-h-[120px] resize-none border-none bg-transparent px-3 py-2 text-sm text-white placeholder:text-white/40 focus-visible:ring-0 focus-visible:ring-offset-0"
-        />
-      </div>
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-white/50">
-        <div className="flex items-center gap-2">
-          <EmojiPickerButton onEmojiSelect={handleInsertEmoji} disabled={!isAuthenticated || loadingMessages} anchorClassName="h-9 w-9" />
-          <span>
-            Нажмите <kbd className="rounded bg-white/10 px-1 py-0.5">Ctrl</kbd> + <kbd className="rounded bg-white/10 px-1 py-0.5">Enter</kbd>, чтобы отправить быстро.
-          </span>
+        <div className="flex items-end gap-3">
+          <div className="flex-1 rounded-xl border border-white/10 bg-black/30 px-2 py-2">
+            <Textarea
+              ref={textareaRef}
+              value={messageText}
+              onChange={event => setMessageText(event.target.value)}
+              onKeyDown={handleEnterSend}
+              placeholder={
+                isAuthenticated ? 'Напишите сообщение…' : 'Авторизуйтесь, чтобы писать в глобальный чат'
+              }
+              disabled={!isAuthenticated || loadingMessages}
+              className="min-h-[72px] w-full resize-none border-none bg-transparent px-1 py-1 text-sm text-white placeholder:text-white/40 focus-visible:ring-0 focus-visible:ring-offset-0"
+            />
+          </div>
+          <div className="flex flex-col items-end gap-2">
+            <EmojiPickerButton
+              onEmojiSelect={handleInsertEmoji}
+              disabled={!isAuthenticated || loadingMessages}
+              anchorClassName="h-9 w-9 rounded-full border border-white/10 bg-white/10 text-white/70 hover:bg-white/20"
+            />
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={!isAuthenticated || loadingMessages || !messageText.trim()}
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/80 text-lg font-semibold text-white transition hover:bg-primary disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/40"
+            >
+              ▶
+            </button>
+          </div>
         </div>
-        <Button
-          onClick={handleSend}
-          disabled={!isAuthenticated || loadingMessages || !messageText.trim()}
-          className="min-w-[140px]"
-        >
-          <MessageSquare className="mr-2 h-4 w-4" /> Отправить
-        </Button>
+        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] uppercase tracking-[0.25em] text-white/35">
+          <span>
+            Ctrl + Enter — отправить
+          </span>
+          <span className="tracking-normal text-white/40">Поддерживается Markdown</span>
+        </div>
       </div>
-    </div>
+    </GlassPanel>
   );
 }

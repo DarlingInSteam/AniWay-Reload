@@ -1,10 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { CornerDownLeft, Loader2, Reply, Undo2 } from 'lucide-react';
+import { CornerDownLeft, Loader2, Undo2 } from 'lucide-react';
 import type { MessageView as MessageDto } from '@/types/social';
 import type { UserMini } from '@/hooks/useUserMiniBatch';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer';
@@ -43,6 +41,19 @@ export function MessageFeed({
   onReply,
   resolveReplyPreview,
 }: MessageFeedProps) {
+  const replySnippets = useMemo(() => {
+    const map = new Map<string, string>();
+    messages.forEach(message => {
+      if (!message.id) return;
+      const content = message.content
+        .replace(/[`*_>#~]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      map.set(message.id, content.slice(0, 140));
+    });
+    return map;
+  }, [messages]);
+
   if (loadingMessages && messages.length === 0) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -53,28 +64,25 @@ export function MessageFeed({
 
   if (messages.length === 0) {
     return (
-      <div className="glass-panel mx-auto flex h-full max-w-md flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-white/15 bg-white/5 px-6 py-12 text-center text-sm text-white/60">
-        <CornerDownLeft className="h-6 w-6 rotate-90 text-white/40" />
-        <p>Будьте первыми, кто напишет в этом канале!</p>
+      <div className="mx-auto flex h-full max-w-lg flex-col items-center justify-center gap-3 px-6 text-center text-sm text-white/50">
+        <CornerDownLeft className="h-6 w-6 rotate-90 text-white/35" />
+        <p>Здесь пока тихо. Начните обсуждение первым.</p>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-3">
+    <div className="mx-auto flex w-full flex-col gap-3">
       {hasMore && (
-        <div className="flex justify-center py-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onLoadOlderMessages}
-            disabled={loadingMessages}
-            className="gap-2 text-xs"
-          >
-            {loadingMessages ? <Loader2 className="h-3 w-3 animate-spin" /> : <Undo2 className="h-3 w-3" />}
-            Загрузить ещё
-          </Button>
-        </div>
+        <button
+          type="button"
+          onClick={onLoadOlderMessages}
+          disabled={loadingMessages}
+          className="mx-auto flex items-center gap-2 rounded-full border border-white/10 px-4 py-1.5 text-[11px] uppercase tracking-[0.3em] text-white/60 transition hover:border-white/25 hover:text-white disabled:pointer-events-none disabled:opacity-50"
+        >
+          {loadingMessages ? <Loader2 className="h-3 w-3 animate-spin" /> : <Undo2 className="h-3 w-3" />}
+          Ранние сообщения
+        </button>
       )}
 
       {messages.map((message, index) => {
@@ -99,28 +107,29 @@ export function MessageFeed({
           minutesBetween(messageDate, previousDate) > 6;
         const showAvatar = !isOwn && startsNewGroup;
         const spacingClass = index === 0 ? '' : startsNewGroup ? 'mt-8' : 'mt-3';
+        const replySnippet = replyTarget ? replySnippets.get(replyTarget.id) ?? '' : '';
 
         return (
           <React.Fragment key={message.id}>
             {showDateSeparator && (
-              <div className="relative my-6 flex items-center justify-center">
-                <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-white/60">
+              <div className="relative my-6 flex items-center justify-center text-[10px] uppercase tracking-[0.3em] text-white/30">
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1">
                   {dayFormatter.format(messageDate)}
                 </span>
               </div>
             )}
             <div
               ref={node => registerMessageNode(message.id, node)}
-              className={cn('group flex items-end gap-3', isOwn ? 'justify-end' : 'justify-start', spacingClass)}
+              className={cn('group flex w-full gap-3 px-1', isOwn ? 'justify-end' : 'justify-start', spacingClass)}
             >
               {!isOwn && (
-                <div className="flex w-10 justify-center">
+                <div className="flex min-w-[28px] justify-center">
                   <Link
                     to={`/profile/${profileSlug}`}
                     className={cn('transition', showAvatar ? 'opacity-100' : 'pointer-events-none opacity-0')}
                     title={author}
                   >
-                    <Avatar className="h-10 w-10 border border-white/10 bg-black/50 transition hover:border-primary/60">
+                    <Avatar className="h-5 w-5 border border-white/15 bg-black/60 text-[10px] transition hover:border-primary/50">
                       {users[message.senderId]?.avatar ? (
                         <AvatarImage src={users[message.senderId]?.avatar} alt={author} />
                       ) : (
@@ -142,66 +151,61 @@ export function MessageFeed({
                     )}
                     <span className="text-white/40">{timeFormatter.format(messageDate)}</span>
                     {isReplyToYou && (
-                      <Badge variant="secondary" className="border-red-500/40 bg-red-500/20 text-red-200">
+                      <span className="rounded-full border border-red-500/40 bg-red-500/15 px-2 py-[2px] text-[10px] uppercase tracking-[0.2em] text-red-100">
                         Ответ вам
-                      </Badge>
+                      </span>
                     )}
                   </div>
                 )}
+                {replyTarget ? (
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 text-xs text-white/60 transition hover:text-white"
+                    onClick={() => onJumpToMessage(replyTarget.id)}
+                  >
+                    <span className="text-white/50">↩</span>
+                    <span className="truncate text-left">
+                      {getUserDisplay(users, replyTarget.senderId, currentUserId)}: {replySnippet || 'Сообщение'}
+                    </span>
+                  </button>
+                ) : message.replyToMessageId ? (
+                  <div className="flex items-center gap-2 text-xs text-white/50">
+                    <span className="text-white/40">↩</span>
+                    <span>Ответ на сообщение из архива.</span>
+                    {hasMore && (
+                      <button
+                        type="button"
+                        onClick={() => onJumpToMessage(message.replyToMessageId!)}
+                        className="rounded-full border border-white/10 px-2 py-[2px] text-[10px] uppercase tracking-[0.25em] text-white/60 transition hover:border-white/30 hover:text-white"
+                      >
+                        Найти
+                      </button>
+                    )}
+                  </div>
+                ) : null}
+
                 <div
                   className={cn(
-                    'relative w-full rounded-2xl border px-4 py-3 text-sm leading-relaxed backdrop-blur-md shadow-[0_12px_32px_rgba(15,23,42,0.25)]',
-                    isOwn ? 'border-primary/40 bg-white/15 text-white' : 'border-white/10 bg-white/8 text-white/90',
-                    !isOwn && isReplyToYou && 'border-red-500/50 bg-red-500/10',
-                    isHighlighted && 'ring-2 ring-primary/60'
+                    'relative w-full text-sm leading-relaxed text-white/80',
+                    isHighlighted && 'rounded-xl bg-white/10 px-3 py-2 shadow-[0_0_0_1px_rgba(148,163,184,0.15)]'
                   )}
                 >
-                  {replyTarget ? (
-                    <button
-                      type="button"
-                      className="mb-3 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-xs text-white/70 transition hover:border-primary/40 hover:bg-white/10"
-                      onClick={() => onJumpToMessage(replyTarget.id)}
-                    >
-                      <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">
-                        <Reply className="h-3 w-3" /> Ответ для {getUserDisplay(users, replyTarget.senderId, currentUserId)}
-                      </p>
-                      <div className="mt-2 max-h-32 overflow-hidden text-[13px] text-white/80">
-                        <div className="prose prose-invert max-w-none text-[13px] leading-relaxed markdown-body">
-                          <MarkdownRenderer value={replyTarget.content} />
-                        </div>
-                      </div>
-                    </button>
-                  ) : message.replyToMessageId ? (
-                    <div className="mb-3 rounded-xl border border-dashed border-white/10 bg-white/5 px-3 py-2 text-xs text-white/60">
-                      <p>Ответ на сообщение из архива.</p>
-                      {hasMore && (
-                        <button
-                          type="button"
-                          onClick={() => onJumpToMessage(message.replyToMessageId!)}
-                          className="mt-2 inline-flex items-center gap-2 rounded-lg border border-white/10 px-2 py-1 text-[11px] uppercase tracking-[0.2em] text-white/70 transition hover:border-primary/40 hover:text-white"
-                        >
-                          <Undo2 className="h-3 w-3" />
-                          Загрузить контекст
-                        </button>
-                      )}
-                    </div>
-                  ) : null}
                   <div className="prose prose-invert max-w-none text-sm leading-relaxed markdown-body">
                     <MarkdownRenderer value={message.content} />
                   </div>
                 </div>
-                <div className="pointer-events-none mt-2 flex items-center gap-2 text-xs text-white/60 opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-3 text-xs"
+                <div className="mt-1 flex items-center gap-3 text-[11px] text-white/40 opacity-0 transition group-hover:opacity-100">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 text-white/50 transition hover:text-white"
                     onClick={() => {
                       onReply(message);
                       onJumpToMessage(message.id);
                     }}
                   >
-                    <CornerDownLeft className="mr-1 h-3 w-3" /> Ответить
-                  </Button>
+                    <CornerDownLeft className="h-3 w-3" />
+                    Ответить
+                  </button>
                 </div>
               </div>
             </div>
