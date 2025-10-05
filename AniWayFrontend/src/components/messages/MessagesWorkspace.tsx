@@ -12,7 +12,7 @@ import { apiClient } from '@/lib/api';
 import { buildProfileSlug } from '@/utils/profileSlug';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Trash2, Search, Check, CheckCheck, RefreshCcw, Loader2, MoreVertical, ArrowLeft, MessageSquare, Undo2, X, Copy, Reply as ReplyIcon, CornerDownLeft } from 'lucide-react';
+import { Trash2, Search, Check, CheckCheck, RefreshCcw, Loader2, MoreVertical, ArrowLeft, ArrowDown, MessageSquare, Undo2, X, Copy, Reply as ReplyIcon, CornerDownLeft } from 'lucide-react';
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer';
 import { toast } from 'sonner';
 
@@ -92,6 +92,9 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
   const lastMessageIdRef = useRef<string | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [replyTarget, setReplyTarget] = useState<MessageDto | null>(null);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const conversationScrollRef = useRef<HTMLDivElement | null>(null);
+  const shouldStickToBottomRef = useRef(true);
 
   useEffect(() => {
     if (initialComposeUser?.id) {
@@ -202,6 +205,29 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
     [inbox.messages]
   );
 
+  const evaluateScrollPosition = useCallback(() => {
+    const node = conversationScrollRef.current;
+    if (!node) return;
+    const { scrollTop, scrollHeight, clientHeight } = node;
+    const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
+    const atBottom = distanceFromBottom < 96;
+    shouldStickToBottomRef.current = atBottom;
+    setShowScrollToBottom(prev => {
+      if (atBottom) {
+        return prev ? false : prev;
+      }
+      return prev ? prev : true;
+    });
+  }, []);
+
+  const scrollConversationToBottom = useCallback(() => {
+    const node = conversationScrollRef.current;
+    if (!node) return;
+    shouldStickToBottomRef.current = true;
+    node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' });
+    requestAnimationFrame(evaluateScrollPosition);
+  }, [evaluateScrollPosition]);
+
   const handleQuoteMessage = useCallback(
     (content: string) => {
       const quoted = content
@@ -258,19 +284,42 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
   }, [draftTarget?.id]);
 
   useEffect(() => {
+    const node = conversationScrollRef.current;
+    if (!node) return;
+    const handleScroll = () => evaluateScrollPosition();
+    handleScroll();
+    node.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      node.removeEventListener('scroll', handleScroll);
+    };
+  }, [evaluateScrollPosition, selectedConversation?.id]);
+
+  useEffect(() => {
+    shouldStickToBottomRef.current = true;
+    setShowScrollToBottom(false);
+    requestAnimationFrame(evaluateScrollPosition);
+  }, [selectedConversation?.id, evaluateScrollPosition]);
+
+  useEffect(() => {
     const last = inbox.messages[inbox.messages.length - 1];
     if (!last) {
       lastMessageIdRef.current = null;
+      shouldStickToBottomRef.current = true;
+      setShowScrollToBottom(false);
       return;
     }
+    const shouldAutoStick = shouldStickToBottomRef.current || last.senderId === currentUserId;
     if (lastMessageIdRef.current !== last.id) {
       lastMessageIdRef.current = last.id;
       const node = messageRefs.current.get(last.id);
-      if (node) {
+      if (node && shouldAutoStick) {
         node.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        requestAnimationFrame(evaluateScrollPosition);
+      } else if (!shouldAutoStick) {
+        setShowScrollToBottom(prev => (prev ? prev : true));
       }
     }
-  }, [inbox.messages]);
+  }, [inbox.messages, currentUserId, evaluateScrollPosition]);
 
   useEffect(() => {
     if (!pendingScrollTargetRef.current) return;
@@ -755,34 +804,35 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                 </DropdownMenu>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-6 py-6 scrollbar-thin">
-                {inbox.loadingMessages && inbox.messages.length === 0 ? (
-                  <div className="flex h-full items-center justify-center">
-                    <LoadingSpinner />
-                  </div>
-                ) : inbox.messages.length === 0 ? (
-                  <div className="mx-auto flex h-full max-w-md flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-white/15 px-6 py-12 text-center text-sm text-white/60">
-                    <MessageSquare className="h-6 w-6 text-white/40" />
-                    <p>Сообщений пока нет. Напишите первое сообщение!</p>
-                  </div>
-                ) : (
-                  <div className="mx-auto flex w-full max-w-[820px] flex-col gap-4">
-                    {inbox.hasMoreMessages && (
-                      <div className="flex justify-center py-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={inbox.loadOlderMessages}
-                          disabled={inbox.loadingMessages}
-                          className="gap-2 text-xs"
-                        >
-                          {inbox.loadingMessages ? <Loader2 className="h-3 w-3 animate-spin" /> : <Undo2 className="h-3 w-3" />}
-                          Загрузить ещё
-                        </Button>
-                      </div>
-                    )}
+              <div className="relative flex-1 min-h-0">
+                <div ref={conversationScrollRef} className="h-full overflow-y-auto px-6 py-6 scrollbar-thin">
+                  {inbox.loadingMessages && inbox.messages.length === 0 ? (
+                    <div className="flex h-full items-center justify-center">
+                      <LoadingSpinner />
+                    </div>
+                  ) : inbox.messages.length === 0 ? (
+                    <div className="mx-auto flex h-full max-w-md flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-white/15 px-6 py-12 text-center text-sm text-white/60">
+                      <MessageSquare className="h-6 w-6 text-white/40" />
+                      <p>Сообщений пока нет. Напишите первое сообщение!</p>
+                    </div>
+                  ) : (
+                    <div className="mx-auto flex w-full max-w-[820px] flex-col gap-4">
+                      {inbox.hasMoreMessages && (
+                        <div className="flex justify-center py-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={inbox.loadOlderMessages}
+                            disabled={inbox.loadingMessages}
+                            className="gap-2 text-xs"
+                          >
+                            {inbox.loadingMessages ? <Loader2 className="h-3 w-3 animate-spin" /> : <Undo2 className="h-3 w-3" />}
+                            Загрузить ещё
+                          </Button>
+                        </div>
+                      )}
 
-                    {inbox.messages.map((message, index) => {
+                      {inbox.messages.map((message, index) => {
                       const previous = index > 0 ? inbox.messages[index - 1] : null;
                       const author = resolveMessageAuthor(message, users, currentUserId);
                       const replyPreview = resolveReplyPreview(message);
@@ -947,8 +997,19 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                           </div>
                         </React.Fragment>
                       );
-                    })}
-                  </div>
+                      })}
+                    </div>
+                  )}
+                </div>
+                {showScrollToBottom && inbox.messages.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={scrollConversationToBottom}
+                    aria-label="Прокрутить вниз"
+                    className="absolute bottom-6 right-6 flex h-11 w-11 items-center justify-center rounded-full bg-primary/80 text-white shadow-lg transition hover:bg-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary/60"
+                  >
+                    <ArrowDown className="h-5 w-5" />
+                  </button>
                 )}
               </div>
 
