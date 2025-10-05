@@ -65,7 +65,7 @@ export function ChannelSidebar({
   }, [categories, filteredCategories, categoryQuery]);
 
   return (
-    <div className="sticky top-0.5 z-30 flex h-14 min-h-[56px] items-center gap-3 rounded-2xl border border-white/12 px-3 sm:px-4 sm:top-1 !overflow-visible bg-transparent">
+    <div className="sticky top-0.5 z-30 flex h-14 min-h-[56px] items-center gap-3 border-b border-white/12 bg-transparent px-3 backdrop-blur-sm sm:top-1 sm:px-4 !overflow-visible">
       <div className="hidden items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-white/40 lg:flex">
         <span>Каналы</span>
         <span className="text-white/30">·</span>
@@ -92,10 +92,10 @@ export function ChannelSidebar({
                 type="button"
                 onClick={() => onSelectCategory(category.id)}
                 className={cn(
-                  'relative inline-flex min-w-[120px] max-w-[200px] items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-colors duration-200',
+                  'relative inline-flex min-w-[120px] max-w-[200px] items-center gap-2 rounded-xl px-3 py-2 text-sm transition-colors duration-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-white/40',
                   isActive
-                    ? 'border-white/30 text-white'
-                    : 'border-transparent text-white/65 hover:border-white/20 hover:text-white'
+                    ? 'bg-white/12 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)]'
+                    : 'text-white/65 hover:bg-white/5 hover:text-white'
                 )}
               >
                 <span className="truncate">{category.title}</span>
