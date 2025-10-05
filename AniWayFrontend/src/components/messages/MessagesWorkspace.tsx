@@ -12,7 +12,7 @@ import { apiClient } from '@/lib/api';
 import { buildProfileSlug } from '@/utils/profileSlug';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Trash2, Search, Check, CheckCheck, RefreshCcw, Loader2, MoreVertical, ArrowLeft, MessageSquare, Undo2, X, Copy, Reply as ReplyIcon } from 'lucide-react';
+import { Trash2, Search, Check, CheckCheck, RefreshCcw, Loader2, MoreVertical, ArrowLeft, MessageSquare, Undo2, X, Copy, Reply as ReplyIcon, CornerDownLeft } from 'lucide-react';
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer';
 import { toast } from 'sonner';
 
@@ -83,6 +83,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
   const pendingScrollTargetRef = useRef<string | null>(null);
   const lastMessageIdRef = useRef<string | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const [replyTarget, setReplyTarget] = useState<MessageDto | null>(null);
 
   useEffect(() => {
     if (initialComposeUser?.id) {
@@ -239,6 +240,16 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
   }, [selectedConversation, draftTarget]);
 
   useEffect(() => {
+    setReplyTarget(null);
+  }, [selectedConversation?.id]);
+
+  useEffect(() => {
+    if (draftTarget) {
+      setReplyTarget(null);
+    }
+  }, [draftTarget?.id]);
+
+  useEffect(() => {
     const last = inbox.messages[inbox.messages.length - 1];
     if (!last) {
       lastMessageIdRef.current = null;
@@ -276,7 +287,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
     setError(null);
     try {
       if (selectedConversation?.id) {
-        await inbox.sendMessage(selectedConversation.id, trimmed);
+        await inbox.sendMessage(selectedConversation.id, trimmed, replyTarget?.id);
       } else if (draftTarget?.id) {
         // Создаем новый диалог
         const conversation = await apiClient.createConversation(draftTarget.id);
@@ -291,11 +302,12 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
         return;
       }
       setMessageText('');
+      setReplyTarget(null);
     } catch (err: any) {
       console.error('Failed to send message', err);
       setError(err?.message || 'Не удалось отправить сообщение.');
     }
-  }, [draftTarget, inbox, messageText, selectedConversation]);
+  }, [draftTarget, inbox, messageText, selectedConversation, replyTarget]);
 
   const handleEnterSend = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
@@ -322,6 +334,22 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
     }
   }, [inbox, selectedConversation]);
 
+  const handleReplyToMessage = useCallback((message: MessageDto) => {
+    setReplyTarget(message);
+    setHighlightedMessageId(message.id);
+    requestAnimationFrame(() => {
+      const node = messageInputRef.current;
+      if (!node) return;
+      node.focus();
+      const end = node.value.length;
+      node.setSelectionRange(end, end);
+    });
+  }, []);
+
+  const handleCancelReply = useCallback(() => {
+    setReplyTarget(null);
+  }, []);
+
   const renderLastMessageStatus = useCallback((conversation: ConversationDto) => {
     const last = conversation.lastMessage;
     if (!last || last.senderId !== currentUserId) return null;
@@ -336,6 +364,48 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
   const hasActiveConversation = Boolean(selectedConversation || draftTarget);
   const showList = mobileView === 'list';
   const showConversation = mobileView === 'conversation';
+
+  const replyAuthor = replyTarget ? resolveMessageAuthor(replyTarget, users, currentUserId) : null;
+  const replyPreviewBlock = replyTarget ? (
+    <div className="flex items-start gap-3 rounded-2xl border border-primary/40 bg-primary/15 px-3 py-3 text-xs text-white/80">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-primary/40 bg-primary/20 text-primary/80">
+        <CornerDownLeft className="h-4 w-4" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-primary/70">Ответ на сообщение</p>
+            {replyAuthor && <p className="mt-1 text-sm font-semibold text-white/90">{replyAuthor}</p>}
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-full text-white/70 hover:bg-white/10"
+            onClick={handleCancelReply}
+            aria-label="Отменить ответ"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="mt-2 max-h-32 overflow-hidden rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white/80">
+          <div className="prose prose-invert max-w-none text-[13px] leading-relaxed markdown-body">
+            <MarkdownRenderer value={replyTarget.content} />
+          </div>
+        </div>
+        {selectedConversation && (
+          <button
+            type="button"
+            onClick={() => void handleJumpToMessage(replyTarget.id)}
+            className="mt-2 inline-flex items-center gap-2 rounded-lg border border-white/10 px-2 py-1 text-[11px] uppercase tracking-[0.2em] text-white/70 transition hover:border-primary/40 hover:text-white"
+          >
+            <ReplyIcon className="h-3 w-3" />
+            Показать в чате
+          </button>
+        )}
+      </div>
+    </div>
+  ) : null;
 
   return (
     <div className={cn('h-[calc(100vh-88px)] flex flex-col overflow-hidden text-white', className)}>
@@ -400,7 +470,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-1 pb-4 sm:px-2 lg:px-0 scrollbar-thin">
+            <div className="mt-4 flex-1 overflow-y-auto px-1 pb-4 sm:px-2 lg:px-0 scrollbar-thin">
               {inbox.loadingConversations && inbox.conversations.length === 0 ? (
                 <div className="flex items-center justify-center py-10">
                   <LoadingSpinner />
@@ -565,6 +635,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
               <div className="border-t border-white/12 px-4 py-4 sm:px-6">
                 <div className="space-y-2">
                   {error && <p className="rounded-2xl border border-red-500/40 px-4 py-2 text-sm text-red-100">{error}</p>}
+                  {replyPreviewBlock}
                   <div className="w-full rounded-2xl border border-white/15 px-3 py-2">
                     <div className="flex items-end gap-2">
                       <Textarea
@@ -833,6 +904,14 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                                   variant="ghost"
                                   size="sm"
                                   className="h-8 px-3 text-xs"
+                                  onClick={() => handleReplyToMessage(message)}
+                                >
+                                  <CornerDownLeft className="mr-1 h-3 w-3" /> Ответить
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 px-3 text-xs"
                                   onClick={() => handleQuoteMessage(message.content)}
                                 >
                                   <ReplyIcon className="mr-1 h-3 w-3" /> Цитировать
@@ -858,6 +937,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
               <div className="border-t border-white/12 px-4 py-4 sm:px-6">
                 <div className="space-y-2">
                   {error && <p className="rounded-2xl border border-red-500/40 px-4 py-2 text-sm text-red-100">{error}</p>}
+                  {replyPreviewBlock}
                   <div className="w-full rounded-2xl border border-white/15 px-3 py-2">
                     <div className="flex items-end gap-2">
                       <Textarea

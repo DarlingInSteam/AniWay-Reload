@@ -25,7 +25,7 @@ export interface UseMessagingInboxResult {
   addConversation: (conversation: ConversationDto) => void;
   refresh: () => Promise<void>;
   loadOlderMessages: () => Promise<void>;
-  sendMessage: (conversationId: string, content: string) => Promise<void>;
+  sendMessage: (conversationId: string, content: string, replyToMessageId?: string) => Promise<void>;
   deleteConversation: (conversationId: string) => Promise<void>;
 }
 
@@ -232,11 +232,11 @@ export function useMessagingInbox(options?: UseMessagingInboxOptions): UseMessag
     await loadMessages(selectedId, { before: oldestMessageId });
   }, [loadMessages, selectedId, messagePage?.hasMore, messages]);
 
-  const sendMessage = useCallback(async (conversationId: string, content: string) => {
+  const sendMessage = useCallback(async (conversationId: string, content: string, replyToMessageId?: string) => {
     const trimmed = content.trim();
     if (!trimmed) return;
     try {
-      const message = await apiClient.sendConversationMessage(conversationId, trimmed);
+      const message = await apiClient.sendConversationMessage(conversationId, trimmed, replyToMessageId);
       setMessages(prev => {
         const next = [...prev, message];
         messagesRef.current = next;
