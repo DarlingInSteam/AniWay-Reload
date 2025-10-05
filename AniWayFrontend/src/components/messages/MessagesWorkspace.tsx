@@ -68,6 +68,14 @@ function minutesBetween(a: Date, b: Date): number {
   return Math.abs(a.getTime() - b.getTime()) / 60000;
 }
 
+function createReplySnippet(content: string, limit = 160): string {
+  return content
+    .replace(/[`*_>#~]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, limit);
+}
+
 export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUserId, className, initialComposeUser }) => {
   const inbox = useMessagingInbox({ pageSize: 25, conversationRefreshIntervalMs: 40000, messageRefreshIntervalMs: 5000 });
   const { hasMoreMessages, loadOlderMessages } = inbox;
@@ -378,44 +386,37 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
   const showConversation = mobileView === 'conversation';
 
   const replyAuthor = replyTarget ? resolveMessageAuthor(replyTarget, users, currentUserId) : null;
+  const replyPreviewSnippet = replyTarget ? createReplySnippet(replyTarget.content, 140) : null;
   const replyPreviewBlock = replyTarget ? (
-    <div className="flex items-start gap-3 rounded-2xl border border-primary/40 bg-primary/15 px-3 py-3 text-xs text-white/80">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-primary/40 bg-primary/20 text-primary/80">
+    <div className="flex items-center gap-3 rounded-xl border border-white/12 bg-white/[0.05] px-3 py-2 text-xs text-white/75">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary/80">
         <CornerDownLeft className="h-4 w-4" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-primary/70">Ответ на сообщение</p>
-            {replyAuthor && <p className="mt-1 text-sm font-semibold text-white/90">{replyAuthor}</p>}
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 rounded-full text-white/70 hover:bg-white/10"
-            onClick={handleCancelReply}
-            aria-label="Отменить ответ"
-          >
-            <X className="h-4 w-4" />
-          </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] uppercase tracking-[0.26em] text-white/45">Ответ для {replyAuthor || 'сообщения'}</span>
+          {selectedConversation && (
+            <button
+              type="button"
+              onClick={() => void handleJumpToMessage(replyTarget.id)}
+              className="rounded-full border border-white/10 px-3 py-[2px] text-[10px] uppercase tracking-[0.3em] text-white/60 transition hover:border-primary/40 hover:text-white"
+            >
+              Показать
+            </button>
+          )}
         </div>
-        <div className="mt-2 max-h-32 overflow-hidden rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white/80">
-          <div className="prose prose-invert max-w-none text-[13px] leading-relaxed markdown-body">
-            <MarkdownRenderer value={replyTarget.content} />
-          </div>
-        </div>
-        {selectedConversation && (
-          <button
-            type="button"
-            onClick={() => void handleJumpToMessage(replyTarget.id)}
-            className="mt-2 inline-flex items-center gap-2 rounded-lg border border-white/10 px-2 py-1 text-[11px] uppercase tracking-[0.2em] text-white/70 transition hover:border-primary/40 hover:text-white"
-          >
-            <ReplyIcon className="h-3 w-3" />
-            Показать в чате
-          </button>
+        {replyPreviewSnippet && (
+          <p className="mt-1 line-clamp-2 text-xs leading-snug text-white/70">{replyPreviewSnippet}</p>
         )}
       </div>
+      <button
+        type="button"
+        onClick={handleCancelReply}
+        aria-label="Отменить ответ"
+        className="rounded-full p-1.5 text-white/50 transition hover:bg-white/10 hover:text-white"
+      >
+        <X className="h-4 w-4" />
+      </button>
     </div>
   ) : null;
 
@@ -785,6 +786,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                       const previous = index > 0 ? inbox.messages[index - 1] : null;
                       const author = resolveMessageAuthor(message, users, currentUserId);
                       const replyPreview = resolveReplyPreview(message);
+                      const replySnippet = replyPreview ? createReplySnippet(replyPreview.content) : '';
                       const isOwn = message.senderId === currentUserId;
                       const messageDate = new Date(message.createdAt);
                       const previousDate = previous ? new Date(previous.createdAt) : null;
@@ -796,7 +798,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                         !isSameCalendarDay(messageDate, previousDate) ||
                         minutesBetween(messageDate, previousDate) > 6;
                       const showAvatar = !isOwn && startsNewGroup;
-                      const spacingClass = index === 0 ? '' : startsNewGroup ? 'mt-8' : 'mt-3';
+                      const spacingClass = index === 0 ? 'mt-1' : startsNewGroup ? 'mt-6' : 'mt-2';
                       const isHighlighted = highlightedMessageId === message.id;
                       const senderProfileSlug =
                         typeof message.senderId === 'number'
@@ -823,10 +825,10 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                                 messageRefs.current.delete(message.id);
                               }
                             }}
-                            className={cn('group flex items-end gap-3', isOwn ? 'justify-end' : 'justify-start', spacingClass)}
+                            className={cn('group flex items-end gap-2', isOwn ? 'justify-end' : 'justify-start', spacingClass)}
                           >
                             {!isOwn && (
-                              <div className="flex w-10 justify-center">
+                              <div className="flex w-9 justify-center">
                                 <Link
                                   to={senderProfileSlug ? `/profile/${senderProfileSlug}` : '#'}
                                   className={cn(
@@ -836,7 +838,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                                   )}
                                   title={author}
                                 >
-                                  <Avatar className="h-10 w-10 border border-white/10 bg-black/50 transition hover:border-primary/60">
+                                  <Avatar className="h-9 w-9 border border-white/10 bg-black/50 text-[11px] transition hover:border-primary/60">
                                     {users[message.senderId]?.avatar ? (
                                       <AvatarImage src={users[message.senderId]?.avatar} alt={author} />
                                     ) : (
@@ -848,58 +850,62 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                             )}
                             <div
                               className={cn(
-                                'flex min-w-0 max-w-[760px] flex-col gap-2',
+                                'flex min-w-0 max-w-[760px] flex-col gap-1.5',
                                 isOwn ? 'items-end text-right' : 'items-start'
                               )}
                             >
                               {startsNewGroup && (
-                                <div className="flex flex-wrap items-center gap-2 text-xs text-white/60">
+                                <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-white/45">
                                   {senderProfileSlug && !isOwn ? (
                                     <Link
                                       to={`/profile/${senderProfileSlug}`}
-                                      className="font-semibold text-primary transition hover:text-primary/80"
+                                      className="font-semibold text-white transition hover:text-primary"
                                     >
                                       {author}
                                     </Link>
                                   ) : (
-                                    <span className="font-semibold text-primary">{author}</span>
+                                    <span className="font-semibold text-white/90">{author}</span>
                                   )}
-                                  <span className="text-white/40">{timeFormatter.format(messageDate)}</span>
+                                  <span className="text-white/35 tracking-normal lowercase">
+                                    {timeFormatter.format(messageDate)}
+                                  </span>
                                 </div>
                               )}
                               <div
                                 className={cn(
-                                  'w-full rounded-2xl border px-4 py-3 text-sm leading-relaxed transition',
+                                  'w-full rounded-xl border px-3 py-2 text-[13px] leading-relaxed transition shadow-sm',
                                   isOwn
-                                    ? 'border-primary/40 bg-primary/20 text-white'
-                                    : 'border-white/12 bg-white/10 text-white/90',
-                                  isHighlighted && 'ring-2 ring-primary/60'
+                                    ? 'border-primary/30 bg-primary/20 text-white'
+                                    : 'border-white/10 bg-white/[0.07] text-white/90',
+                                  isHighlighted && 'ring-1 ring-primary/60'
                                 )}
                               >
                                 {replyPreview ? (
                                   <button
                                     type="button"
-                                    className="mb-3 w-full rounded-xl border border-white/10 px-3 py-2 text-left text-xs text-white/70 transition hover:border-primary/40 hover:bg-white/5"
+                                    className={cn(
+                                      'mb-2 flex w-full items-start gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-left text-xs text-white/70 transition hover:border-primary/40 hover:bg-white/10 hover:text-white',
+                                      isOwn && 'flex-row-reverse text-right'
+                                    )}
                                     onClick={() => void handleJumpToMessage(replyPreview.id)}
                                   >
-                                    <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">
-                                      <ReplyIcon className="h-3 w-3" />
-                                      Ответ на сообщение {resolveMessageAuthor(replyPreview, users, currentUserId)}
-                                    </p>
-                                    <div className="mt-2 max-h-32 overflow-hidden text-[13px] text-white/80">
-                                      <div className="prose prose-invert max-w-none text-[13px] leading-relaxed markdown-body">
-                                        <MarkdownRenderer value={replyPreview.content} />
-                                      </div>
+                                    <CornerDownLeft className="mt-[2px] h-3.5 w-3.5 flex-shrink-0 text-white/50" />
+                                    <div className={cn('min-w-0 flex-1', isOwn && 'text-right')}>
+                                      <p className="text-[10px] uppercase tracking-[0.28em] text-white/40">
+                                        {resolveMessageAuthor(replyPreview, users, currentUserId)}
+                                      </p>
+                                      <p className="mt-1 line-clamp-2 text-xs leading-snug text-white/75">{replySnippet || 'Сообщение'}</p>
                                     </div>
                                   </button>
                                 ) : message.replyToMessageId ? (
-                                  <div className="mb-3 rounded-xl border border-dashed border-white/10 px-3 py-2 text-xs text-white/60">
-                                    <p>Ответ на сообщение из архива.</p>
+                                  <div className={cn('mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-white/12 px-3 py-1.5 text-xs text-white/60', isOwn && 'justify-end text-right')}>
+                                    <span className="text-white/45">↩</span>
+                                    <span>Ответ на сообщение из архива.</span>
                                     {hasMoreMessages && (
                                       <button
                                         type="button"
                                         onClick={() => void handleJumpToMessage(message.replyToMessageId!)}
-                                        className="mt-2 inline-flex items-center gap-2 rounded-lg border border-white/10 px-2 py-1 text-[11px] uppercase tracking-[0.2em] text-white/70 transition hover:border-primary/40 hover:text-white"
+                                        className="inline-flex items-center gap-1.5 rounded-full border border-white/15 px-3 py-[3px] text-[10px] uppercase tracking-[0.25em] text-white/70 transition hover:border-primary/40 hover:text-white"
                                       >
                                         <Undo2 className="h-3 w-3" />
                                         Загрузить контекст
@@ -911,11 +917,11 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                                   <MarkdownRenderer value={message.content} />
                                 </div>
                               </div>
-                              <div className="pointer-events-none mt-2 flex flex-wrap gap-2 text-xs text-white/60 opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100">
+                              <div className="pointer-events-none mt-1.5 flex flex-wrap gap-1.5 text-[11px] text-white/60 opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100">
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-8 px-3 text-xs"
+                                  className="h-7 px-2 text-[11px]"
                                   onClick={() => handleReplyToMessage(message)}
                                 >
                                   <CornerDownLeft className="mr-1 h-3 w-3" /> Ответить
@@ -923,7 +929,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-8 px-3 text-xs"
+                                  className="h-7 px-2 text-[11px]"
                                   onClick={() => handleQuoteMessage(message.content)}
                                 >
                                   <ReplyIcon className="mr-1 h-3 w-3" /> Цитировать
@@ -931,7 +937,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-8 px-3 text-xs"
+                                  className="h-7 px-2 text-[11px]"
                                   onClick={() => void handleCopyMessage(message.content)}
                                 >
                                   <Copy className="mr-1 h-3 w-3" /> Скопировать
