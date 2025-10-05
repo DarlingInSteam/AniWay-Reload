@@ -202,6 +202,22 @@ spring:
           filters:
             - StripPrefix=0
 
+        # FriendService - Friends API
+        - id: friends-api
+          uri: http://friend-service:8102
+          predicates:
+            - Path=/api/friends/**
+          filters:
+            - StripPrefix=0
+
+        # MessageService - Messaging API
+        - id: messages-api
+          uri: http://message-service:8103
+          predicates:
+            - Path=/api/messages/**
+          filters:
+            - StripPrefix=0
+
         # LevelService - Levels & Badges API endpoints
         - id: levels-api
           uri: http://level-service:8098

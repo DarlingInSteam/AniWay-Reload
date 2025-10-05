@@ -29,6 +29,8 @@ services:
       - auth-service
       - manga-service
       - comment-service
+      - friend-service
+      - message-service
       - chapter-service
       - image-storage-service
       - forum-service
@@ -106,6 +108,43 @@ services:
     depends_on:
       - comment-postgres
       - rabbitmq
+    networks:
+      - aniway-network
+
+  # Friend Service
+  friend-service:
+    build:
+      context: ./FriendService
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - FRIEND_DB_URL=jdbc:postgresql://friend-postgres:5432/frienddb
+      - FRIEND_DB_USERNAME=frienduser
+      - FRIEND_DB_PASSWORD=friendpass123
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8095
+    restart: unless-stopped
+    depends_on:
+      - friend-postgres
+      - notification-service
+    networks:
+      - aniway-network
+
+  # Message Service
+  message-service:
+    build:
+      context: ./MessageService
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - DATABASE_URL=jdbc:postgresql://message-postgres:5432/messages
+      - DATABASE_USERNAME=aniway
+      - DATABASE_PASSWORD=aniway_pass
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8095
+      - FRIEND_SERVICE_URL=http://friend-service:8102
+    restart: unless-stopped
+    depends_on:
+      - message-postgres
+      - friend-service
     networks:
       - aniway-network
 
@@ -233,6 +272,19 @@ services:
     networks:
       - aniway-network
 
+  friend-postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: frienddb
+      POSTGRES_USER: frienduser
+      POSTGRES_PASSWORD: friendpass123
+    volumes:
+      - friend_data:/var/lib/postgresql/data
+      - ./FriendService/friendDB.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+    networks:
+      - aniway-network
+
   chapter-postgres:
     image: postgres:15
     environment:
@@ -296,6 +348,19 @@ services:
       POSTGRES_PASSWORD: notificationpass123
     volumes:
       - notification_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - aniway-network
+
+  message-postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: messages
+      POSTGRES_USER: aniway
+      POSTGRES_PASSWORD: aniway_pass
+    volumes:
+      - message_data:/var/lib/postgresql/data
+      - ./MessageService/messageDB.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
     networks:
       - aniway-network
@@ -373,6 +438,7 @@ volumes:
   auth_data:
   manga_data:
   comment_data:
+  friend_data:
   chapter_data:
   image_data:
   forum_data:
@@ -380,6 +446,7 @@ volumes:
   melon_logs:
   melon_temp:
   notification_data:
+  message_data:
   post_data:
   level_data:
 

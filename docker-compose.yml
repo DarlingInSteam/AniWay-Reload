@@ -109,6 +109,68 @@ services:
       timeout: 5s
       retries: 5
 
+  friend-postgres:
+    image: postgres:16
+    container_name: friend-postgres
+    environment:
+      POSTGRES_DB: frienddb
+      POSTGRES_USER: frienduser
+      POSTGRES_PASSWORD: friendpass123
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5442:5432"
+    volumes:
+      - friend_postgres_data:/var/lib/postgresql/data
+      - ./FriendService/friendDB.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U frienduser -d frienddb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  message-postgres:
+    image: postgres:16
+    container_name: message-postgres
+    environment:
+      POSTGRES_DB: messages
+      POSTGRES_USER: aniway
+      POSTGRES_PASSWORD: aniway_pass
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5443:5432"
+    volumes:
+      - message_postgres_data:/var/lib/postgresql/data
+      - ./MessageService/messageDB.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aniway -d messages"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  notification-postgres:
+    image: postgres:16
+    container_name: notification-postgres
+    environment:
+      POSTGRES_DB: notification_db
+      POSTGRES_USER: notification_user
+      POSTGRES_PASSWORD: notification_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5441:5432"
+    volumes:
+      - notification_postgres_data:/var/lib/postgresql/data
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notification_user -d notification_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   post-postgres:
     image: postgres:16
     container_name: post-postgres
@@ -281,6 +343,9 @@ services:
       - image-storage-service
       - auth-service
       - post-service
+      - notification-service
+      - friend-service
+      - message-service
       - level-service
       - forum-service
       - rabbitmq
@@ -370,6 +435,72 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+  notification-service:
+    build:
+      context: ./NotificationService
+      dockerfile: Dockerfile
+    container_name: notification-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://notification-postgres:5432/notification_db
+      - SPRING_DATASOURCE_USERNAME=notification_user
+      - SPRING_DATASOURCE_PASSWORD=notification_password
+    ports:
+      - "8095:8095"
+    depends_on:
+      notification-postgres:
+        condition: service_healthy
+    networks:
+      - aniway-network
+    restart: unless-stopped
+
+  friend-service:
+    build:
+      context: ./FriendService
+      dockerfile: Dockerfile
+    container_name: friend-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - FRIEND_DB_URL=jdbc:postgresql://friend-postgres:5432/frienddb
+      - FRIEND_DB_USERNAME=frienduser
+      - FRIEND_DB_PASSWORD=friendpass123
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8095
+    ports:
+      - "8102:8102"
+    depends_on:
+      friend-postgres:
+        condition: service_healthy
+      notification-service:
+        condition: service_started
+    networks:
+      - aniway-network
+    restart: unless-stopped
+
+  message-service:
+    build:
+      context: ./MessageService
+      dockerfile: Dockerfile
+    container_name: message-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - DATABASE_URL=jdbc:postgresql://message-postgres:5432/messages
+      - DATABASE_USERNAME=aniway
+      - DATABASE_PASSWORD=aniway_pass
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8095
+      - FRIEND_SERVICE_URL=http://friend-service:8102
+    ports:
+      - "8103:8103"
+    depends_on:
+      message-postgres:
+        condition: service_healthy
+      friend-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+    networks:
+      - aniway-network
+    restart: unless-stopped
 
   post-service:
     build:
@@ -472,6 +603,9 @@ volumes:
   auth_postgres_data:
   comment_postgres_data:
   post_postgres_data:
+  friend_postgres_data:
+  message_postgres_data:
+  notification_postgres_data:
   melon_data:
   melon_logs:
   melon_temp:

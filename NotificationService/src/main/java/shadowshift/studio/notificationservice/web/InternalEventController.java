@@ -99,6 +99,53 @@ public class InternalEventController {
         return ResponseEntity.accepted().build();
     }
 
+    @PostMapping("/direct-message")
+    public ResponseEntity<Void> directMessage(@RequestBody DirectMessageEvent body) {
+        if (body.getRecipientUserId() == null) {
+            return ResponseEntity.accepted().build();
+        }
+        java.util.Map<String, Object> map = new java.util.LinkedHashMap<>();
+        map.put("conversationId", body.getConversationId());
+        map.put("messageId", body.getMessageId());
+        if (body.getPreview() != null) {
+            map.put("preview", truncate(body.getPreview(), 140));
+        }
+        if (body.getSenderUserId() != null) {
+            map.put("senderUserId", body.getSenderUserId());
+        }
+        String dedupeKey = dedupeKeyForDirectMessage(body.getRecipientUserId(), body.getMessageId());
+        facade.createBasic(body.getRecipientUserId(), NotificationType.DIRECT_MESSAGE, toJson(map), dedupeKey);
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/direct-message-reply")
+    public ResponseEntity<Void> directMessageReply(@RequestBody DirectMessageReplyEvent body) {
+        if (body.getRecipientUserId() == null) {
+            return ResponseEntity.accepted().build();
+        }
+        java.util.Map<String, Object> map = new java.util.LinkedHashMap<>();
+        map.put("conversationId", body.getConversationId());
+        map.put("messageId", body.getMessageId());
+        map.put("replyToMessageId", body.getReplyToMessageId());
+        String dedupeKey = dedupeKeyForDirectMessage(body.getRecipientUserId(), body.getMessageId());
+        facade.createBasic(body.getRecipientUserId(), NotificationType.DIRECT_MESSAGE_REPLY, toJson(map), dedupeKey);
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/channel-message-reply")
+    public ResponseEntity<Void> channelMessageReply(@RequestBody ChannelMessageReplyEvent body) {
+        if (body.getRecipientUserId() == null) {
+            return ResponseEntity.accepted().build();
+        }
+        java.util.Map<String, Object> map = new java.util.LinkedHashMap<>();
+        map.put("categoryId", body.getCategoryId());
+        map.put("messageId", body.getMessageId());
+        map.put("replyToMessageId", body.getReplyToMessageId());
+        String dedupeKey = dedupeKeyForChannelReply(body.getRecipientUserId(), body.getMessageId());
+        facade.createBasic(body.getRecipientUserId(), NotificationType.CHANNEL_MESSAGE_REPLY, toJson(map), dedupeKey);
+        return ResponseEntity.accepted().build();
+    }
+
     @PostMapping("/chapter-published-batch")
     public ResponseEntity<Void> chapterPublishedBatch(@RequestBody ChapterPublishedBatchEvent body) {
         // Same payload reused for all subscribers; dedupe per user+manga
@@ -240,6 +287,20 @@ public class InternalEventController {
         }
     }
 
+    private String dedupeKeyForDirectMessage(Long recipientUserId, java.util.UUID messageId) {
+        if (recipientUserId == null || messageId == null) {
+            return null;
+        }
+        return "direct_message:" + recipientUserId + ":" + messageId;
+    }
+
+    private String dedupeKeyForChannelReply(Long recipientUserId, java.util.UUID messageId) {
+        if (recipientUserId == null || messageId == null) {
+            return null;
+        }
+        return "channel_reply:" + recipientUserId + ":" + messageId;
+    }
+
     @Data
     public static class CommentCreatedEvent {
         private Long targetUserId; // user who should receive notification
@@ -294,5 +355,30 @@ public class InternalEventController {
         private Long postId;
         private String title;
         private String content;
+    }
+
+    @Data
+    public static class DirectMessageEvent {
+        private Long recipientUserId;
+        private java.util.UUID conversationId;
+        private java.util.UUID messageId;
+        private String preview;
+        private Long senderUserId;
+    }
+
+    @Data
+    public static class DirectMessageReplyEvent {
+        private Long recipientUserId;
+        private java.util.UUID conversationId;
+        private java.util.UUID messageId;
+        private java.util.UUID replyToMessageId;
+    }
+
+    @Data
+    public static class ChannelMessageReplyEvent {
+        private Long recipientUserId;
+        private Long categoryId;
+        private java.util.UUID messageId;
+        private java.util.UUID replyToMessageId;
     }
 }

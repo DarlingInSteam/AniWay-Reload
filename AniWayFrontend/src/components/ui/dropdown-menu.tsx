@@ -53,6 +53,7 @@ const DropdownMenuTrigger: React.FC<DropdownMenuTriggerProps> = ({
 interface DropdownMenuContentProps {
   children: React.ReactNode
   align?: 'start' | 'center' | 'end'
+  className?: string
   isOpen?: boolean
   setIsOpen?: (open: boolean) => void
 }
@@ -60,6 +61,7 @@ interface DropdownMenuContentProps {
 const DropdownMenuContent: React.FC<DropdownMenuContentProps> = ({ 
   children, 
   align = 'end',
+  className,
   isOpen,
   setIsOpen 
 }) => {
@@ -93,8 +95,9 @@ const DropdownMenuContent: React.FC<DropdownMenuContentProps> = ({
     <div
       ref={contentRef}
       className={cn(
-        "absolute z-[50] min-w-[8rem] overflow-hidden rounded-md border bg-gray-800 p-1 text-white shadow-lg mt-1",
-        alignClass
+        "absolute z-[50] mt-1 min-w-[8rem] overflow-hidden rounded-md border bg-gray-800 p-1 text-white shadow-lg",
+        alignClass,
+        className
       )}
     >
       {React.Children.map(children, child => 

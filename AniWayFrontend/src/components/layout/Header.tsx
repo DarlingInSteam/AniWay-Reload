@@ -1,5 +1,5 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { Search, Bell, Bookmark, User, Menu, X, Settings, MessageSquare } from 'lucide-react'
+import { Search, Bell, Bookmark, User, Menu, X, Settings, MessageSquare, Globe2, MessageCircle } from 'lucide-react'
 import { NotificationBell } from '@/notifications/NotificationBell'
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -18,9 +18,16 @@ export function Header() {
   const searchRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const { isAuthenticated, isAdmin, isTranslator } = useAuth()
+  const { data: inboxSummary } = useQuery({
+    queryKey: ['inbox-summary'],
+    queryFn: () => apiClient.getInboxSummary(),
+    enabled: isAuthenticated,
+    staleTime: 15000,
+    refetchInterval: 45000,
+  })
+  const channelUnread = inboxSummary?.channelUnread ?? 0
+  const directUnread = inboxSummary?.directUnread ?? 0
 
-  // Универсальный поиск манги
-  // Debounce input to limit network calls
   useEffect(() => {
     const h = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 250)
     return () => clearTimeout(h)
@@ -280,6 +287,30 @@ export function Header() {
                 >
                   <Bookmark className="h-5 w-5" />
                 </Link>
+
+                <Link
+                  to="/chat"
+                  className="relative p-2 lg:p-3 rounded-xl hover:bg-secondary/50 text-muted-foreground hover:text-white transition-colors duration-200"
+                  title="Глобальный чат"
+                >
+                  <Globe2 className="h-5 w-5" />
+                  {channelUnread > 0 && (
+                    <span className="absolute top-1 right-1 inline-flex h-2.5 w-2.5 items-center justify-center rounded-full bg-red-500 ring-2 ring-black/60" />
+                  )}
+                </Link>
+
+                <Link
+                  to="/messages"
+                  className="relative p-2 lg:p-3 rounded-xl hover:bg-secondary/50 text-muted-foreground hover:text-white transition-colors duration-200"
+                  title="Личные сообщения"
+                >
+                  <MessageCircle className="h-5 w-5" />
+                  {directUnread > 0 && (
+                    <span className="absolute top-0.5 right-0 inline-flex min-w-[1.25rem] justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold text-white ring-2 ring-black/60">
+                      {directUnread > 9 ? '9+' : directUnread}
+                    </span>
+                  )}
+                </Link>
                 
                 <NotificationBell />
 
@@ -335,7 +366,7 @@ export function Header() {
                   Каталог
                 </Link>
                 <Link
-                  to="#"
+                  to="/tops"
                   className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
                   onClick={() => setMobileMenuOpen(false)}
                 >
@@ -348,6 +379,32 @@ export function Header() {
                 >
                   <MessageSquare className="h-4 w-4 mr-3" />
                   Форум
+                </Link>
+                <Link
+                  to="/chat"
+                  className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <Globe2 className="h-4 w-4 mr-3" />
+                  Глобальный чат
+                  {channelUnread > 0 && (
+                    <span className="ml-auto inline-flex min-w-[1.5rem] justify-center rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-semibold text-white">
+                      {channelUnread}
+                    </span>
+                  )}
+                </Link>
+                <Link
+                  to="/messages"
+                  className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <MessageCircle className="h-4 w-4 mr-3" />
+                  Личные сообщения
+                  {directUnread > 0 && (
+                    <span className="ml-auto inline-flex min-w-[1.5rem] justify-center rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-semibold text-white">
+                      {directUnread > 9 ? '9+' : directUnread}
+                    </span>
+                  )}
                 </Link>
                 <Link
                   to="/api-docs"
@@ -368,13 +425,14 @@ export function Header() {
                       <Bookmark className="h-4 w-4 mr-3" />
                       Закладки
                     </Link>
-                    <button
-                      className="flex items-center w-full px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
+                    <Link
+                      to="/notifications"
+                      className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       <Bell className="h-4 w-4 mr-3" />
                       Уведомления
-                    </button>
+                    </Link>
                     
                     {isAdmin && (
                       <Link
