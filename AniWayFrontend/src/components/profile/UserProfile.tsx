@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useSyncedSearchParam } from '@/hooks/useSyncedSearchParam';
 import { ProfileBackground } from './ProfileBackground';
 // Legacy components (may be removed later)
@@ -41,8 +41,6 @@ import useUserMiniBatch from '@/hooks/useUserMiniBatch';
 import { ProfileFriendActions } from './ProfileFriendActions';
 import { ProfileFriendList } from './ProfileFriendList';
 import { ProfileFriendRequests } from './ProfileFriendRequests';
-import { ProfileMessagesPanel } from './ProfileMessagesPanel';
-import { cn } from '@/lib/utils';
 // Added level overview section component dependencies
 import React from 'react';
 
@@ -83,17 +81,23 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   const [reviewsCount, setReviewsCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTabParam] = useSyncedSearchParam<'overview' | 'library' | 'friends' | 'messages' | 'reviews' | 'comments' | 'achievements'>('tab', 'overview');
+  const [activeTab, setActiveTabParam] = useSyncedSearchParam<'overview' | 'library' | 'friends' | 'reviews' | 'comments' | 'achievements'>('tab', 'overview');
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [editOpen, setEditOpen] = useState(false);
+
+  useEffect(() => {
+    const allowedTabs = ['overview', 'library', 'friends', 'reviews', 'comments', 'achievements'];
+    if (!allowedTabs.includes(activeTab)) {
+      setActiveTabParam('overview');
+    }
+  }, [activeTab, setActiveTabParam]);
 
   // Pull both user and avatar setter in a single hook call to avoid conditional hook order issues
   const { user: currentUser, setUserAvatarLocal } = useAuth();
   const targetUserId = parseInt(userId);
   const {
     friends: visibleFriends,
-    summary: friendSummary,
     incomingRequests,
     outgoingRequests,
     status: friendshipStatus,
@@ -210,8 +214,6 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
       },
     });
   }, [navigate, targetUserMini, currentUser]);
-
-  const showMessagesTab = isOwnProfile && !!currentUser;
 
   // MAIN LOAD EFFECT: depends only on userId / isOwnProfile to avoid loops on avatar changes
   useEffect(() => {
@@ -525,11 +527,9 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
           <ProfileFriendActions
             isOwnProfile={isOwnProfile}
             targetUser={targetUserMini}
-            summary={friendSummary}
             status={friendshipStatus}
             incomingRequestForTarget={incomingRequestForTarget}
             outgoingRequestForTarget={outgoingRequestForTarget}
-            friendsCount={visibleFriends.length}
             onSendRequest={sendFriendRequest}
             onAcceptRequest={acceptFriendRequest}
             onDeclineRequest={declineFriendRequest}
@@ -542,7 +542,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
         {/* Desktop Layout: Табы занимают всю ширину */}
         <div className="hidden lg:block animate-fade-in">
           <Tabs value={activeTab} onValueChange={v => setActiveTabParam(v as any)} className="space-y-7">
-            <TabsList className={cn('glass-panel p-1.5 rounded-2xl gap-1.5 grid', showMessagesTab ? 'grid-cols-6 xl:grid-cols-7' : 'grid-cols-6')}>
+            <TabsList className="glass-panel p-1.5 rounded-2xl gap-1.5 grid grid-cols-6 xl:grid-cols-6">
               <TabsTrigger value="overview" className="relative group rounded-xl px-4 py-2 font-medium text-xs tracking-wide uppercase text-slate-400 hover:text-white transition focus-visible:outline-none data-[state=active]:text-white data-[state=active]:shadow-inner data-[state=active]:bg-white/10">
                 <span className="relative z-10">Обзор</span>
               </TabsTrigger>
@@ -552,11 +552,6 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               <TabsTrigger value="friends" className="relative group rounded-xl px-4 py-2 font-medium text-xs tracking-wide uppercase text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
                 <span className="relative z-10">Друзья</span>
               </TabsTrigger>
-              {showMessagesTab && (
-                <TabsTrigger value="messages" className="relative group rounded-xl px-4 py-2 font-medium text-xs tracking-wide uppercase text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
-                  <span className="relative z-10">Сообщения</span>
-                </TabsTrigger>
-              )}
               <TabsTrigger value="reviews" className="relative group rounded-xl px-4 py-2 font-medium text-xs tracking-wide uppercase text-slate-400 hover:text-white transition data-[state=active]:text-white data-[state=active]:bg-white/10">
                 <span className="relative z-10">Отзывы</span>
               </TabsTrigger>
@@ -616,12 +611,6 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               )}
             </TabsContent>
 
-            {showMessagesTab && (
-              <TabsContent value="messages" className="space-y-6">
-                <ProfileMessagesPanel currentUserId={currentUser?.id} />
-              </TabsContent>
-            )}
-
             <TabsContent value="reviews" className="space-y-6 max-h-96 overflow-y-auto">
               {reviewsLoading ? (
                 <div className="flex items-center justify-center py-8">
@@ -669,11 +658,6 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               <TabsTrigger value="friends" className="px-5 py-2 rounded-lg text-[13px] font-medium text-slate-300 hover:text-white data-[state=active]:text-white data-[state=active]:bg-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
                 Друзья
               </TabsTrigger>
-              {showMessagesTab && (
-                <TabsTrigger value="messages" className="px-5 py-2 rounded-lg text-[13px] font-medium text-slate-300 hover:text-white data-[state=active]:text-white data-[state=active]:bg-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
-                  Сообщения
-                </TabsTrigger>
-              )}
               <TabsTrigger value="reviews" className="px-5 py-2 rounded-lg text-[13px] font-medium text-slate-300 hover:text-white data-[state=active]:text-white data-[state=active]:bg-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
                 Отзывы
               </TabsTrigger>
@@ -733,12 +717,6 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
                 </>
               )}
             </TabsContent>
-
-            {showMessagesTab && (
-              <TabsContent value="messages" className="space-y-6">
-                <ProfileMessagesPanel currentUserId={currentUser?.id} />
-              </TabsContent>
-            )}
 
             <TabsContent value="reviews" className="space-y-6 max-h-96 overflow-y-auto">
               {reviewsLoading ? (

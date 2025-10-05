@@ -22,6 +22,21 @@ interface ProviderProps {
 
 const PAGE_SIZE = 30;
 
+const FRIEND_NOTIFICATION_TYPES = new Set(['FRIEND_REQUEST_RECEIVED', 'FRIEND_REQUEST_ACCEPTED']);
+
+function handleFriendNotificationSideEffects(notification: NotificationItem) {
+  if (!FRIEND_NOTIFICATION_TYPES.has(notification.type)) return;
+  try {
+    const url = new URL(window.location.href);
+    if (!url.pathname.startsWith('/profile')) return;
+    if (url.searchParams.get('tab') === 'friends') return;
+    url.searchParams.set('tab', 'friends');
+    window.history.replaceState(null, '', `${url.pathname}?${url.searchParams.toString()}`);
+  } catch {
+    // ignore
+  }
+}
+
 export const NotificationProvider: React.FC<ProviderProps> = ({ userId, token = null, children }) => {
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [unread, setUnread] = useState(0);
@@ -42,6 +57,7 @@ export const NotificationProvider: React.FC<ProviderProps> = ({ userId, token = 
     sseCloseRef.current = openSse(userId, (n) => {
       setItems(prev => [n, ...prev].slice(0, 300));
       if (n.status === 'UNREAD') setUnread(u => u + 1);
+      handleFriendNotificationSideEffects(n);
     }, () => {
       // error -> schedule reconnect
       if (!userId) return;

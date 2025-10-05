@@ -11,7 +11,9 @@ const typeIcons: Record<string,string> = {
   COMMENT_ON_REVIEW: '📝',
   NEW_COMMENT_ON_USER_FORUM_THREAD: '🧵',
   REPLY_IN_FORUM_THREAD: '➡️',
-  BOOKMARK_NEW_CHAPTER: '📖'
+  BOOKMARK_NEW_CHAPTER: '📖',
+  FRIEND_REQUEST_RECEIVED: '🤝',
+  FRIEND_REQUEST_ACCEPTED: '🎉'
 };
 
 export function getIcon(type: string): string {
@@ -44,6 +46,10 @@ export function formatTitle(type: string, payload: NotificationPayload): string 
       const ch = payload?.chapterNumber ? ` глава ${payload.chapterNumber}` : ' новая глава';
       return `Новая глава в закладке: ${t}${ch}`;
     }
+    case 'FRIEND_REQUEST_RECEIVED':
+      return 'Новая заявка в друзья';
+    case 'FRIEND_REQUEST_ACCEPTED':
+      return 'Заявка в друзья принята';
     default:
       return 'Новое уведомление';
   }
@@ -60,6 +66,17 @@ export function formatDescription(type: string, payload: NotificationPayload): s
       return short(payload?.excerpt, 100);
     case 'BOOKMARK_NEW_CHAPTER':
       return payload?.mangaTitle ? `${payload.mangaTitle}` : '';
+    case 'FRIEND_REQUEST_RECEIVED': {
+      const from = payload?.requesterDisplayName || payload?.requesterUsername;
+      if (payload?.message) {
+        return `${from ? `${from}: ` : ''}${short(payload.message, 120)}`;
+      }
+      return from ? `${from} хочет добавить вас в друзья` : 'Пользователь отправил вам заявку в друзья';
+    }
+    case 'FRIEND_REQUEST_ACCEPTED': {
+      const accepter = payload?.accepterDisplayName || payload?.accepterUsername;
+      return accepter ? `${accepter} принял(а) вашу заявку` : 'Ваш запрос в друзья принят';
+    }
     default:
       return '';
   }
@@ -118,6 +135,10 @@ export function getNavigationTarget(type: string, payload: NotificationPayload):
       if (payload.chapterId) return `/reader/${payload.chapterId}`;
       if (payload.mangaId) return `/manga/${payload.mangaId}`;
       return '/';
+    }
+    case 'FRIEND_REQUEST_RECEIVED':
+    case 'FRIEND_REQUEST_ACCEPTED': {
+      return '/profile?tab=friends';
     }
     default:
       return null;

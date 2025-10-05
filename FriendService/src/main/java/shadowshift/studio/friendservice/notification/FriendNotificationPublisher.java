@@ -2,15 +2,12 @@ package shadowshift.studio.friendservice.notification;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.AmqpException;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
-import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
 
-import java.time.Duration;
-import java.util.HashMap;
-import java.util.Map;
+import java.time.Instant;
 import java.util.UUID;
 
 @Component
@@ -18,50 +15,49 @@ import java.util.UUID;
 @Slf4j
 public class FriendNotificationPublisher {
 
-    private static final Duration TIMEOUT = Duration.ofSeconds(2);
+    private final RabbitTemplate rabbitTemplate;
 
-    private final WebClient.Builder builder;
+    @Value("${friend.notifications.exchange:notifications.friend.exchange}")
+    private String exchange;
 
-    @Value("${notification.service.base-url:http://notification-service:8095}")
-    private String notificationBaseUrl;
-
-    private WebClient client() {
-        return builder.baseUrl(notificationBaseUrl).build();
-    }
+    @Value("${friend.notifications.routing-key:notifications.friend.event}")
+    private String routingKey;
 
     public void publishFriendRequestReceived(Long targetUserId, Long requesterId, UUID requestId, String message) {
         if (targetUserId == null || targetUserId <= 0) {
             return;
         }
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("targetUserId", targetUserId);
-        payload.put("requestId", requestId);
-        payload.put("requesterId", requesterId);
-        payload.put("message", message);
-        sendAsync("/internal/events/friend-request", payload);
+        FriendNotificationEvent event = FriendNotificationEvent.builder()
+                .type(FriendNotificationEventType.REQUEST_RECEIVED)
+                .targetUserId(targetUserId)
+                .requesterId(requesterId)
+                .requestId(requestId)
+                .message(message)
+                .occurredAt(Instant.now())
+                .build();
+        send(event);
     }
 
     public void publishFriendRequestAccepted(Long requesterId, Long accepterId, UUID requestId) {
         if (requesterId == null || requesterId <= 0) {
             return;
         }
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("targetUserId", requesterId);
-        payload.put("requestId", requestId);
-        payload.put("accepterId", accepterId);
-        sendAsync("/internal/events/friend-accepted", payload);
+        FriendNotificationEvent event = FriendNotificationEvent.builder()
+                .type(FriendNotificationEventType.REQUEST_ACCEPTED)
+                .targetUserId(requesterId)
+        .requesterId(requesterId)
+                .accepterId(accepterId)
+                .requestId(requestId)
+                .occurredAt(Instant.now())
+                .build();
+        send(event);
     }
 
-    private void sendAsync(String uri, Map<String, Object> body) {
-        client().post()
-                .uri(uri)
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(body)
-                .retrieve()
-                .toBodilessEntity()
-                .timeout(TIMEOUT)
-                .doOnError(throwable -> log.warn("Не удалось отправить уведомление {}: {}", uri, throwable.getMessage()))
-                .onErrorResume(e -> Mono.empty())
-                .subscribe();
+    private void send(FriendNotificationEvent event) {
+        try {
+            rabbitTemplate.convertAndSend(exchange, routingKey, event);
+        } catch (AmqpException ex) {
+            log.warn("Не удалось отправить событие {}: {}", event.getType(), ex.getMessage());
+        }
     }
 }

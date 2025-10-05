@@ -4,18 +4,16 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import ProfilePanel from './ProfilePanel';
-import type { FriendSummary, FriendRequestView } from '@/types/social';
+import type { FriendRequestView } from '@/types/social';
 import type { UserMini } from '@/hooks/useUserMiniBatch';
 import type { FriendshipStatus } from '@/hooks/useFriendData';
 
 interface ProfileFriendActionsProps {
   isOwnProfile: boolean;
   targetUser: UserMini | null;
-  summary: FriendSummary | null;
   status: FriendshipStatus;
   incomingRequestForTarget: FriendRequestView | null;
   outgoingRequestForTarget: FriendRequestView | null;
-  friendsCount: number;
   onSendRequest: (message?: string) => Promise<void>;
   onAcceptRequest: (requestId: string) => Promise<void>;
   onDeclineRequest: (requestId: string) => Promise<void>;
@@ -27,11 +25,9 @@ interface ProfileFriendActionsProps {
 export const ProfileFriendActions: React.FC<ProfileFriendActionsProps> = ({
   isOwnProfile,
   targetUser,
-  summary,
   status,
   incomingRequestForTarget,
   outgoingRequestForTarget,
-  friendsCount,
   onSendRequest,
   onAcceptRequest,
   onDeclineRequest,
@@ -39,6 +35,10 @@ export const ProfileFriendActions: React.FC<ProfileFriendActionsProps> = ({
   isAuthenticated,
   loading,
 }) => {
+  if (isOwnProfile) {
+    return null;
+  }
+
   const [pendingAction, setPendingAction] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [requestDialogOpen, setRequestDialogOpen] = useState(false);
@@ -46,9 +46,6 @@ export const ProfileFriendActions: React.FC<ProfileFriendActionsProps> = ({
   const [requestMessageError, setRequestMessageError] = useState<string | null>(null);
 
   const subtitle = useMemo(() => {
-    if (isOwnProfile) {
-      return 'Управляйте связями и следите за активностью друзей.';
-    }
     if (!targetUser) return null;
     switch (status) {
       case 'friends':
@@ -78,29 +75,12 @@ export const ProfileFriendActions: React.FC<ProfileFriendActionsProps> = ({
     }
   };
 
-  const renderSummary = () => (
-    <div className="grid gap-4 sm:grid-cols-3">
-      <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-center">
-        <p className="text-2xl font-semibold text-white">{summary?.friends ?? friendsCount}</p>
-        <p className="mt-1 text-xs uppercase tracking-wide text-slate-400">Друзей</p>
-      </div>
-      <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-center">
-        <p className="text-2xl font-semibold text-white">{summary?.incomingPending ?? 0}</p>
-        <p className="mt-1 text-xs uppercase tracking-wide text-slate-400">Входящих</p>
-      </div>
-      <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-center">
-        <p className="text-2xl font-semibold text-white">{summary?.outgoingPending ?? 0}</p>
-        <p className="mt-1 text-xs uppercase tracking-wide text-slate-400">Исходящих</p>
-      </div>
-    </div>
-  );
-
   const renderActions = () => {
     if (loading) {
       return <p className="text-sm text-slate-300">Загрузка данных друзей...</p>;
     }
 
-    if (!isAuthenticated && !isOwnProfile) {
+    if (!isAuthenticated) {
       return (
         <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-center text-sm text-slate-300">
           <p>Войдите в аккаунт, чтобы добавлять друзей.</p>
@@ -109,10 +89,6 @@ export const ProfileFriendActions: React.FC<ProfileFriendActionsProps> = ({
           </Button>
         </div>
       );
-    }
-
-    if (isOwnProfile) {
-      return renderSummary();
     }
 
     switch (status) {
@@ -221,7 +197,7 @@ export const ProfileFriendActions: React.FC<ProfileFriendActionsProps> = ({
 
   return (
     <ProfilePanel
-      title={isOwnProfile ? 'Мои друзья' : 'Дружба'}
+      title="Дружба"
       className="space-y-5"
       actions={statusMessage ? <span className="text-xs text-slate-400">{statusMessage}</span> : undefined}
     >
