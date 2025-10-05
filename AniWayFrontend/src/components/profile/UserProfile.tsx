@@ -192,19 +192,6 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
     }
   }, [refreshFriendData]);
 
-  const sendDirectMessage = useCallback(async (content: string) => {
-    if (!currentUser?.id) {
-      throw new Error('Для отправки сообщений необходимо авторизоваться');
-    }
-    try {
-      const conversation = await apiClient.createConversation(targetUserId);
-      await apiClient.sendConversationMessage(conversation.id, content);
-    } catch (err) {
-      console.error('Failed to send direct message', err);
-      throw err;
-    }
-  }, [currentUser?.id, targetUserId]);
-
   const handleOpenMessages = useCallback(() => {
     if (!targetUserMini) return;
     if (!currentUser) {
@@ -537,7 +524,6 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
         <div className="mb-6 animate-fade-in">
           <ProfileFriendActions
             isOwnProfile={isOwnProfile}
-            currentUser={currentUserMini}
             targetUser={targetUserMini}
             summary={friendSummary}
             status={friendshipStatus}
@@ -548,7 +534,6 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
             onAcceptRequest={acceptFriendRequest}
             onDeclineRequest={declineFriendRequest}
             onRemoveFriend={removeFriend}
-            onSendMessage={currentUser && friendshipStatus === 'friends' ? sendDirectMessage : undefined}
             isAuthenticated={!!currentUser}
             loading={friendLoading}
           />

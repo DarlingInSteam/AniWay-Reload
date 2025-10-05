@@ -286,18 +286,30 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
     if (!trimmed) return;
     setError(null);
     try {
-      if (selectedConversation?.id) {
-        await inbox.sendMessage(selectedConversation.id, trimmed, replyTarget?.id);
-      } else if (draftTarget?.id) {
-        // Создаем новый диалог
-        const conversation = await apiClient.createConversation(draftTarget.id);
-        // Добавляем его в список сразу
-        inbox.addConversation(conversation);
-        // Выбираем его
-        await inbox.selectConversation(conversation.id);
-        // Отправляем сообщение
-        await inbox.sendMessage(conversation.id, trimmed);
+      if (draftTarget?.id) {
+        let conversationId: string | null = null;
+        const existingConversation = inbox.conversations.find(
+          conversation =>
+            conversation.type === 'PRIVATE' && conversation.participantIds.includes(draftTarget.id)
+        );
+
+        if (existingConversation) {
+          conversationId = existingConversation.id;
+          await inbox.selectConversation(existingConversation.id);
+        } else {
+          const conversation = await apiClient.createConversation(draftTarget.id);
+          inbox.addConversation(conversation);
+          conversationId = conversation.id;
+          await inbox.selectConversation(conversation.id);
+        }
+
+        if (conversationId) {
+          await inbox.sendMessage(conversationId, trimmed);
+        }
+
         setDraftTarget(null);
+      } else if (selectedConversation?.id) {
+        await inbox.sendMessage(selectedConversation.id, trimmed, replyTarget?.id);
       } else {
         return;
       }

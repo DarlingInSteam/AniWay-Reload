@@ -10,7 +10,6 @@ import type { FriendshipStatus } from '@/hooks/useFriendData';
 
 interface ProfileFriendActionsProps {
   isOwnProfile: boolean;
-  currentUser?: UserMini | null;
   targetUser: UserMini | null;
   summary: FriendSummary | null;
   status: FriendshipStatus;
@@ -21,14 +20,12 @@ interface ProfileFriendActionsProps {
   onAcceptRequest: (requestId: string) => Promise<void>;
   onDeclineRequest: (requestId: string) => Promise<void>;
   onRemoveFriend: (userId: number) => Promise<void>;
-  onSendMessage?: (message: string) => Promise<void>;
   isAuthenticated: boolean;
   loading?: boolean;
 }
 
 export const ProfileFriendActions: React.FC<ProfileFriendActionsProps> = ({
   isOwnProfile,
-  currentUser,
   targetUser,
   summary,
   status,
@@ -39,15 +36,14 @@ export const ProfileFriendActions: React.FC<ProfileFriendActionsProps> = ({
   onAcceptRequest,
   onDeclineRequest,
   onRemoveFriend,
-  onSendMessage,
   isAuthenticated,
   loading,
 }) => {
   const [pendingAction, setPendingAction] = useState(false);
-  const [messageDialogOpen, setMessageDialogOpen] = useState(false);
-  const [messageText, setMessageText] = useState('');
-  const [messageError, setMessageError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [requestDialogOpen, setRequestDialogOpen] = useState(false);
+  const [requestMessage, setRequestMessage] = useState('');
+  const [requestMessageError, setRequestMessageError] = useState<string | null>(null);
 
   const subtitle = useMemo(() => {
     if (isOwnProfile) {
@@ -77,27 +73,6 @@ export const ProfileFriendActions: React.FC<ProfileFriendActionsProps> = ({
     } catch (err: any) {
       console.error('Friend action failed', err);
       setStatusMessage(err?.message || 'Не удалось выполнить действие.');
-    } finally {
-      setPendingAction(false);
-    }
-  };
-
-  const handleMessageSend = async () => {
-    if (!messageText.trim()) {
-      setMessageError('Введите сообщение');
-      return;
-    }
-    if (!onSendMessage) return;
-    setPendingAction(true);
-    setMessageError(null);
-    try {
-      await onSendMessage(messageText.trim());
-      setStatusMessage('Сообщение отправлено.');
-      setMessageText('');
-      setMessageDialogOpen(false);
-    } catch (err: any) {
-      console.error('Не удалось отправить сообщение', err);
-      setMessageError(err?.message || 'Ошибка отправки сообщения');
     } finally {
       setPendingAction(false);
     }
@@ -144,9 +119,6 @@ export const ProfileFriendActions: React.FC<ProfileFriendActionsProps> = ({
       case 'friends':
         return (
           <div className="flex flex-wrap items-center gap-3">
-            {onSendMessage && (
-              <Button onClick={() => setMessageDialogOpen(true)} disabled={pendingAction}>Написать сообщение</Button>
-            )}
             <Button
               variant="outline"
               disabled={pendingAction}
@@ -187,7 +159,7 @@ export const ProfileFriendActions: React.FC<ProfileFriendActionsProps> = ({
             <Button disabled={pendingAction} onClick={() => handleAction(() => onSendRequest(undefined))}>
               Добавить в друзья
             </Button>
-            <Dialog open={messageDialogOpen} onOpenChange={setMessageDialogOpen}>
+            <Dialog open={requestDialogOpen} onOpenChange={setRequestDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" disabled={pendingAction}>С сообщением...</Button>
               </DialogTrigger>
@@ -199,19 +171,42 @@ export const ProfileFriendActions: React.FC<ProfileFriendActionsProps> = ({
                   </DialogDescription>
                 </DialogHeader>
                 <Textarea
-                  value={messageText}
-                  onChange={event => setMessageText(event.target.value)}
+                  value={requestMessage}
+                  onChange={event => {
+                    setRequestMessage(event.target.value);
+                    if (requestMessageError) {
+                      setRequestMessageError(null);
+                    }
+                  }}
                   placeholder="Напишите короткое приветствие"
                   maxLength={500}
                 />
-                {messageError && <p className="text-sm text-red-400">{messageError}</p>}
+                {requestMessageError && <p className="text-sm text-red-400">{requestMessageError}</p>}
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setMessageDialogOpen(false)}>Отмена</Button>
-                  <Button onClick={() => handleAction(async () => {
-                    await onSendRequest(messageText.trim());
-                    setMessageText('');
-                    setMessageDialogOpen(false);
-                  })} disabled={pendingAction || !messageText.trim()}>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setRequestDialogOpen(false);
+                      setRequestMessageError(null);
+                    }}
+                  >
+                    Отмена
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      if (!requestMessage.trim()) {
+                        setRequestMessageError('Введите сообщение');
+                        return;
+                      }
+                      void handleAction(async () => {
+                        await onSendRequest(requestMessage.trim());
+                        setRequestMessage('');
+                        setRequestMessageError(null);
+                        setRequestDialogOpen(false);
+                      });
+                    }}
+                    disabled={pendingAction || !requestMessage.trim()}
+                  >
                     Отправить
                   </Button>
                 </DialogFooter>
@@ -232,32 +227,6 @@ export const ProfileFriendActions: React.FC<ProfileFriendActionsProps> = ({
     >
       {subtitle && <p className="text-sm text-slate-300">{subtitle}</p>}
       {renderActions()}
-
-      <Dialog open={messageDialogOpen && status === 'friends'} onOpenChange={setMessageDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Отправить сообщение</DialogTitle>
-            <DialogDescription>
-              Напишите короткое сообщение другу.
-            </DialogDescription>
-          </DialogHeader>
-          <Textarea
-            value={messageText}
-            onChange={event => setMessageText(event.target.value)}
-            placeholder="Ваше сообщение"
-            maxLength={2000}
-          />
-          {messageError && <p className="text-sm text-red-400">{messageError}</p>}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setMessageDialogOpen(false)}>
-              Отмена
-            </Button>
-            <Button onClick={handleMessageSend} disabled={pendingAction || !messageText.trim()}>
-              Отправить
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </ProfilePanel>
   );
 };
