@@ -150,7 +150,7 @@ export const GlobalChatPage: React.FC = () => {
 
   return (
     <div className="h-[calc(100vh-88px)] flex flex-col overflow-hidden">
-      <div className="mx-auto flex w-full max-w-[1500px] flex-1 min-h-0 flex-col gap-4 overflow-hidden px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+      <div className="mx-auto flex w-full max-w-[1500px] flex-1 min-h-0 flex-col gap-3 overflow-hidden px-4 py-3 sm:px-6 sm:py-4 lg:px-10 lg:py-6">
         <ChannelSidebar
           categories={categories}
           filteredCategories={filteredCategories}
