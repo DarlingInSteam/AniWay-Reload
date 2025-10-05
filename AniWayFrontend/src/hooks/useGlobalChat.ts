@@ -110,8 +110,10 @@ export function useGlobalChat(options?: UseGlobalChatOptions): UseGlobalChatResu
     }
   }, [queryClient]);
 
-  const loadMessages = useCallback(async (categoryId: number, params?: { before?: string; after?: string }) => {
-    setLoadingMessages(true);
+  const loadMessages = useCallback(async (categoryId: number, params?: { before?: string; after?: string; silent?: boolean }) => {
+    if (!params?.silent) {
+      setLoadingMessages(true);
+    }
     setError(null);
     try {
       const page = await apiClient.getCategoryMessages(categoryId, {
@@ -183,14 +185,16 @@ export function useGlobalChat(options?: UseGlobalChatOptions): UseGlobalChatResu
       console.error('Failed to load chat messages', err);
       setError(err);
     } finally {
-      setLoadingMessages(false);
+      if (!params?.silent) {
+        setLoadingMessages(false);
+      }
     }
   }, [pageSize, markCategoryRead]);
 
   const loadOlderMessages = useCallback(async () => {
     if (!selectedCategoryId || !messagePage?.hasMore || messages.length === 0) return;
     const oldestMessageId = messages[0].id;
-    await loadMessages(selectedCategoryId, { before: oldestMessageId });
+  await loadMessages(selectedCategoryId, { before: oldestMessageId });
   }, [selectedCategoryId, messagePage?.hasMore, messages, loadMessages]);
 
   const sendMessage = useCallback(async (content: string) => {
@@ -310,9 +314,9 @@ export function useGlobalChat(options?: UseGlobalChatOptions): UseGlobalChatResu
       const currentMessages = messagesRef.current;
       const lastMessageId = currentMessages[currentMessages.length - 1]?.id;
       if (lastMessageId) {
-        loadMessages(categoryId, { after: lastMessageId }).catch(() => {});
+        loadMessages(categoryId, { after: lastMessageId, silent: true }).catch(() => {});
       } else {
-        loadMessages(categoryId).catch(() => {});
+        loadMessages(categoryId, { silent: true }).catch(() => {});
       }
     }, messageRefreshInterval);
 

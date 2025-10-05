@@ -2,7 +2,6 @@ import { useCallback, useRef, useState } from 'react';
 import type { MessageView as MessageDto } from '@/types/social';
 import type { UserMini } from '@/hooks/useUserMiniBatch';
 import { Textarea } from '@/components/ui/textarea';
-import { EmojiPickerButton } from '@/components/chat/EmojiPickerButton';
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer';
 import { getUserDisplay } from '../utils/messageHelpers';
 import { toast } from 'sonner';
@@ -129,30 +128,9 @@ export function MessageComposer({
     [handleSend]
   );
 
-  const handleInsertEmoji = useCallback(
-    (emoji: string) => {
-      const textarea = textareaRef.current;
-      const currentValue = messageText;
-      if (!textarea) {
-        setMessageText(prev => prev + emoji);
-        return;
-      }
-      const start = textarea.selectionStart ?? currentValue.length;
-      const end = textarea.selectionEnd ?? currentValue.length;
-      const nextValue = `${currentValue.slice(0, start)}${emoji}${currentValue.slice(end)}`;
-      setMessageText(nextValue);
-      requestAnimationFrame(() => {
-        textarea.focus();
-        const caret = start + emoji.length;
-        textarea.setSelectionRange(caret, caret);
-      });
-    },
-    [messageText]
-  );
-
   return (
     <GlassPanel padding="sm" className="w-full rounded-2xl border-white/10 bg-white/5">
-      <div className="space-y-3">
+      <div className="space-y-2">
       {replyTo && (
           <div className="flex items-start gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70">
             <span className="mt-[2px] text-white/50">↩</span>
@@ -198,12 +176,7 @@ export function MessageComposer({
               className="min-h-[72px] w-full resize-none border-none bg-transparent px-1 py-1 text-sm text-white placeholder:text-white/40 focus-visible:ring-0 focus-visible:ring-offset-0"
             />
           </div>
-          <div className="flex flex-col items-end gap-2">
-            <EmojiPickerButton
-              onEmojiSelect={handleInsertEmoji}
-              disabled={!isAuthenticated || loadingMessages}
-              anchorClassName="h-9 w-9 rounded-full border border-white/10 bg-white/10 text-white/70 hover:bg-white/20"
-            />
+          <div className="flex items-end">
             <button
               type="button"
               onClick={handleSend}
@@ -213,12 +186,6 @@ export function MessageComposer({
               ▶
             </button>
           </div>
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] uppercase tracking-[0.25em] text-white/35">
-          <span>
-            Ctrl + Enter — отправить
-          </span>
-          <span className="tracking-normal text-white/40">Поддерживается Markdown</span>
         </div>
       </div>
     </GlassPanel>
