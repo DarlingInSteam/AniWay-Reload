@@ -195,6 +195,7 @@ public class FriendRequestService {
                 });
         if (!duplicates.isEmpty()) {
             friendRequestRepository.deleteAllById(duplicates);
+            friendRequestRepository.flush();
         }
     }
 }

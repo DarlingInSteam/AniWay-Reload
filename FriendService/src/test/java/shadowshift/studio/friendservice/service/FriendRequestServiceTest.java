@@ -137,5 +137,6 @@ class FriendRequestServiceTest {
     verify(friendRequestRepository).deleteAllById(argThat(ids ->
         StreamSupport.stream(ids.spliterator(), false)
             .anyMatch(previous.getId()::equals)));
+    verify(friendRequestRepository).flush();
     }
 }
