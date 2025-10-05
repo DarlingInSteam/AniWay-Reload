@@ -10,7 +10,6 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api';
 import { buildProfileSlug } from '@/utils/profileSlug';
-import { EmojiPickerButton } from '@/components/chat/EmojiPickerButton';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import GlassPanel from '@/components/ui/GlassPanel';
@@ -157,14 +156,6 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
     }
   }, []);
 
-  const resolveReplyPreview = useCallback(
-    (message: MessageDto) => {
-      if (!message.replyToMessageId) return null;
-      return inbox.messages.find(item => item.id === message.replyToMessageId) || null;
-    },
-    [inbox.messages]
-  );
-
   const handleJumpToMessage = useCallback(
     async (messageId: string) => {
       const node = messageRefs.current.get(messageId);
@@ -192,6 +183,16 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
       toast.error('Не удалось скопировать сообщение');
     }
   }, []);
+
+  const resolveReplyPreview = useCallback(
+    (message: MessageDto) => {
+      if (!message.replyToMessageId) {
+        return null;
+      }
+      return inbox.messages.find(item => item.id === message.replyToMessageId) ?? null;
+    },
+    [inbox.messages]
+  );
 
   const handleQuoteMessage = useCallback(
     (content: string) => {
@@ -304,24 +305,6 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
     }
   }, [handleSend]);
 
-  const handleInsertEmoji = useCallback((emoji: string) => {
-    const textarea = messageInputRef.current;
-    const currentValue = messageText;
-    if (!textarea) {
-      setMessageText(prev => prev + emoji);
-      return;
-    }
-    const start = textarea.selectionStart ?? currentValue.length;
-    const end = textarea.selectionEnd ?? currentValue.length;
-    const nextValue = `${currentValue.slice(0, start)}${emoji}${currentValue.slice(end)}`;
-    setMessageText(nextValue);
-    requestAnimationFrame(() => {
-      textarea.focus();
-      const caret = start + emoji.length;
-      textarea.setSelectionRange(caret, caret);
-    });
-  }, [messageText]);
-
   const handleDeleteConversation = useCallback(async () => {
     if (!selectedConversation) return false;
     setIsDeleting(true);
@@ -356,42 +339,42 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
   const showConversation = mobileView === 'conversation';
 
   return (
-    <div className={cn('mx-auto w-full max-w-6xl flex h-full flex-col gap-4 px-4 py-6 text-white', className)}>
-      {Boolean(inbox.error) && (
-        <GlassPanel padding="sm" className="border border-red-500/40 bg-red-500/10 text-sm text-red-200">
-          Не удалось загрузить сообщения. Убедитесь, что вы авторизованы и попробуйте позже.
-        </GlassPanel>
-      )}
+    <div className={cn('h-[calc(100vh-88px)] flex flex-col overflow-hidden text-white', className)}>
+      <div className="mx-auto flex w-full max-w-[1500px] flex-1 min-h-0 flex-col gap-2 px-4 pt-1 pb-[2px] sm:px-6 sm:pt-1.5 sm:pb-[2px] lg:px-10 lg:pt-2 lg:pb-[2px]">
+        {Boolean(inbox.error) && (
+          <GlassPanel padding="sm" className="border border-red-500/40 bg-red-500/10 text-sm text-red-200">
+            Не удалось загрузить сообщения. Убедитесь, что вы авторизованы и попробуйте позже.
+          </GlassPanel>
+        )}
 
-      <div className="flex items-center justify-between lg:hidden">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-white/50">Личные сообщения</div>
-        <div className="glass-inline flex items-center rounded-full border border-white/15 bg-white/10 p-0.5 backdrop-blur">
-          <button
-            type="button"
-            onClick={() => setMobileView('list')}
-            className={cn(
-              'rounded-full px-3 py-1 text-xs font-semibold transition',
-              showList ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white/90'
-            )}
-          >
-            Диалоги
-          </button>
-          <button
-            type="button"
-            onClick={() => setMobileView('conversation')}
-            disabled={!hasActiveConversation}
-            className={cn(
-              'rounded-full px-3 py-1 text-xs font-semibold transition',
-              showConversation ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white/90',
-              !hasActiveConversation && 'cursor-not-allowed opacity-35 hover:text-white/70'
-            )}
-          >
-            Чат
-          </button>
+        <div className="flex items-center justify-end pb-2 lg:hidden">
+          <div className="glass-inline flex items-center gap-1 rounded-full border border-white/10 bg-white/8 p-0.5 backdrop-blur">
+            <button
+              type="button"
+              onClick={() => setMobileView('list')}
+              className={cn(
+                'rounded-full px-3 py-1 text-xs font-semibold transition',
+                showList ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white/90'
+              )}
+            >
+              Диалоги
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileView('conversation')}
+              disabled={!hasActiveConversation}
+              className={cn(
+                'rounded-full px-3 py-1 text-xs font-semibold transition',
+                showConversation ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white/90',
+                !hasActiveConversation && 'cursor-not-allowed opacity-35 hover:text-white/70'
+              )}
+            >
+              Чат
+            </button>
+          </div>
         </div>
-      </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
+        <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row">
         <GlassPanel
           padding="none"
           className={cn(
@@ -400,35 +383,12 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
             'lg:flex lg:w-[280px] xl:w-[320px]'
           )}
         >
-          <div className="flex items-center justify-between gap-2 border-b border-white/10 px-5 py-4">
-            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/50">
-              <MessageSquare className="h-4 w-4 text-primary/70" />
-              Диалоги
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9 rounded-full text-white/70 hover:bg-white/10"
-                  aria-label="Действия со списком"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem className="gap-2 text-xs" onClick={inbox.refresh}>
-                  <RefreshCcw className="h-3 w-3" />
-                  Обновить список
-                </DropdownMenuItem>
-                <DropdownMenuItem className="gap-2 text-xs" onClick={() => setSearchTerm('')}>
-                  Очистить поиск
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+          <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3 text-[11px] uppercase tracking-[0.3em] text-white/45">
+            <MessageSquare className="h-4 w-4 text-primary/70" />
+            Диалоги
           </div>
 
-          <div className="px-5 pt-3">
+          <div className="px-4 pt-3">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
               <input
@@ -437,17 +397,12 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                 value={searchTerm}
                 onChange={event => setSearchTerm(event.target.value)}
                 placeholder="Поиск диалога"
-                className="h-10 w-full rounded-xl border border-white/10 bg-white/5 pl-10 pr-3 text-sm text-white placeholder:text-white/40 focus:border-primary/50 focus:outline-none"
+                className="h-9 w-full rounded-xl border border-white/10 bg-white/5 pl-10 pr-3 text-sm text-white placeholder:text-white/40 focus:border-primary/40 focus:outline-none"
               />
             </div>
           </div>
 
-          <div className="flex items-center justify-between px-5 pb-2 text-[11px] uppercase tracking-[0.3em] text-white/40">
-            <span>Диалоги</span>
-            <span>{filteredConversations.length}</span>
-          </div>
-
-          <div className="flex-1 overflow-y-auto px-3 pb-5 scrollbar-thin">
+          <div className="flex-1 overflow-y-auto px-3 pb-4 scrollbar-thin">
             {inbox.loadingConversations && inbox.conversations.length === 0 ? (
               <div className="flex items-center justify-center py-10">
                 <LoadingSpinner />
@@ -610,52 +565,30 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                 </div>
               </div>
 
-              <div className="border-t border-white/10 bg-white/5 px-6 py-5">
-                <div className="space-y-4">
+              <div className="border-t border-white/8 bg-white/5 px-4 py-4 sm:px-6">
+                <div className="space-y-2">
                   {error && <p className="rounded-2xl border border-red-500/40 bg-red-500/15 px-4 py-2 text-sm text-red-100">{error}</p>}
-                  <div className="rounded-[26px] border border-white/12 bg-black/30 px-4 py-3 backdrop-blur">
-                    <Textarea
-                      ref={messageInputRef}
-                      placeholder="Напишите первое сообщение"
-                      value={messageText}
-                      onChange={event => setMessageText(event.target.value)}
-                      onKeyDown={handleEnterSend}
-                      disabled={inbox.loadingMessages}
-                      className="min-h-[88px] resize-none border-none bg-transparent px-0 text-sm text-white placeholder:text-white/40 focus-visible:ring-0 focus-visible:ring-offset-0"
-                    />
-                  </div>
-                  <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-white/60">
-                    <div className="flex items-center gap-2">
-                      <EmojiPickerButton
-                        onEmojiSelect={handleInsertEmoji}
+                  <GlassPanel padding="none" className="w-full rounded-2xl border-white/12 bg-white/8 px-3 py-2">
+                    <div className="flex items-end gap-2">
+                      <Textarea
+                        ref={messageInputRef}
+                        placeholder="Напишите первое сообщение"
+                        value={messageText}
+                        onChange={event => setMessageText(event.target.value)}
+                        onKeyDown={handleEnterSend}
                         disabled={inbox.loadingMessages}
-                        anchorClassName="h-10 w-10"
+                        className="min-h-[72px] w-full resize-none border-none bg-transparent px-1 py-1 text-sm text-white placeholder:text-white/40 focus-visible:ring-0 focus-visible:ring-offset-0"
                       />
-                      <span>
-                        Используйте <kbd className="rounded bg-white/10 px-1 py-0.5 text-[10px]">Ctrl</kbd> + <kbd className="rounded bg-white/10 px-1 py-0.5 text-[10px]">Enter</kbd>, чтобы отправить.
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        className="h-11 rounded-2xl border border-white/10 bg-white/5 px-5 text-white/80 transition hover:bg-white/10"
-                        onClick={() => {
-                          setMessageText('');
-                          setDraftTarget(null);
-                          setMobileView('list');
-                        }}
-                      >
-                        Отменить
-                      </Button>
-                      <Button
+                      <button
+                        type="button"
                         onClick={handleSend}
                         disabled={!messageText.trim() || inbox.loadingMessages}
-                        className="h-11 rounded-2xl bg-primary px-6 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(88,101,242,0.45)] transition hover:bg-primary/90"
+                        className="flex h-11 w-11 shrink-0 items-center justify-center self-end rounded-full bg-primary/80 text-lg font-semibold text-white transition hover:bg-primary disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/40"
                       >
-                        Отправить
-                      </Button>
+                        ▶
+                      </button>
                     </div>
-                  </div>
+                  </GlassPanel>
                 </div>
               </div>
             </div>
@@ -835,7 +768,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                             )}
                             <div
                               className={cn(
-                                'flex min-w-0 max-w-[540px] flex-col gap-2',
+                                'flex min-w-0 max-w-[760px] flex-col gap-2',
                                 isOwn ? 'items-end text-right' : 'items-start'
                               )}
                             >
@@ -856,10 +789,10 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                               )}
                               <div
                                 className={cn(
-                                  'relative w-full rounded-3xl border px-5 py-3 text-sm leading-relaxed shadow-[0_16px_38px_rgba(15,23,42,0.32)] backdrop-blur-xl transition',
+                                  'w-full rounded-2xl border px-4 py-3 text-sm leading-relaxed backdrop-blur-lg transition',
                                   isOwn
-                                    ? 'border-primary/50 bg-primary/25 text-white'
-                                    : 'border-white/12 bg-white/10 text-white/90',
+                                    ? 'border-primary/40 bg-primary/20 text-white shadow-[0_14px_30px_rgba(88,101,242,0.35)]'
+                                    : 'border-white/12 bg-white/10 text-white/90 shadow-[0_14px_30px_rgba(15,23,42,0.32)]',
                                   isHighlighted && 'ring-2 ring-primary/60'
                                 )}
                               >
@@ -925,49 +858,30 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                 )}
               </div>
 
-              <div className="border-t border-white/10 bg-white/5 px-6 py-5">
-                <div className="space-y-4">
+              <div className="border-t border-white/8 bg-white/5 px-4 py-4 sm:px-6">
+                <div className="space-y-2">
                   {error && <p className="rounded-2xl border border-red-500/40 bg-red-500/15 px-4 py-2 text-sm text-red-100">{error}</p>}
-                  <div className="rounded-[26px] border border-white/12 bg-black/30 px-4 py-3 backdrop-blur">
-                    <Textarea
-                      ref={messageInputRef}
-                      placeholder="Введите сообщение"
-                      value={messageText}
-                      onChange={event => setMessageText(event.target.value)}
-                      onKeyDown={handleEnterSend}
-                      disabled={(!selectedConversation && !draftTarget) || inbox.loadingMessages}
-                      className="min-h-[88px] resize-none border-none bg-transparent px-0 text-sm text-white placeholder:text-white/40 focus-visible:ring-0 focus-visible:ring-offset-0"
-                    />
-                  </div>
-                  <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-white/60">
-                    <div className="flex items-center gap-2">
-                      <EmojiPickerButton
-                        onEmojiSelect={handleInsertEmoji}
-                        disabled={inbox.loadingMessages || (!selectedConversation && !draftTarget)}
-                        anchorClassName="h-10 w-10"
+                  <GlassPanel padding="none" className="w-full rounded-2xl border-white/12 bg-white/8 px-3 py-2">
+                    <div className="flex items-end gap-2">
+                      <Textarea
+                        ref={messageInputRef}
+                        placeholder="Введите сообщение"
+                        value={messageText}
+                        onChange={event => setMessageText(event.target.value)}
+                        onKeyDown={handleEnterSend}
+                        disabled={(!selectedConversation && !draftTarget) || inbox.loadingMessages}
+                        className="min-h-[72px] w-full resize-none border-none bg-transparent px-1 py-1 text-sm text-white placeholder:text-white/40 focus-visible:ring-0 focus-visible:ring-offset-0"
                       />
-                      <span>
-                        Используйте <kbd className="rounded bg-white/10 px-1 py-0.5 text-[10px]">Ctrl</kbd> + <kbd className="rounded bg-white/10 px-1 py-0.5 text-[10px]">Enter</kbd> для быстрого отправления.
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        onClick={() => setMessageText('')}
-                        disabled={!messageText.trim()}
-                        className="h-11 rounded-2xl border border-white/10 bg-white/5 px-5 text-white/80 transition hover:bg-white/10 disabled:opacity-40"
-                      >
-                        Очистить
-                      </Button>
-                      <Button
+                      <button
+                        type="button"
                         onClick={handleSend}
                         disabled={!messageText.trim() || inbox.loadingMessages}
-                        className="h-11 rounded-2xl bg-primary px-6 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(88,101,242,0.45)] transition hover:bg-primary/90 disabled:opacity-50"
+                        className="flex h-11 w-11 shrink-0 items-center justify-center self-end rounded-full bg-primary/80 text-lg font-semibold text-white transition hover:bg-primary disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/40"
                       >
-                        Отправить
-                      </Button>
+                        ▶
+                      </button>
                     </div>
-                  </div>
+                  </GlassPanel>
                 </div>
               </div>
 
@@ -1011,7 +925,8 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
         </GlassPanel>
       </div>
     </div>
-  );
+  </div>
+);
 };
 
 export default MessagesWorkspace;
