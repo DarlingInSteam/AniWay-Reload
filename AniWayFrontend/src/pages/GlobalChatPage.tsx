@@ -149,8 +149,8 @@ export const GlobalChatPage: React.FC = () => {
   }, [setReplyTo]);
 
   return (
-    <div className="min-h-[calc(100vh-88px)] flex flex-col">
-      <div className="mx-auto flex w-full max-w-[1500px] flex-1 min-h-0 flex-col gap-4 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+    <div className="h-[calc(100vh-88px)] flex flex-col overflow-hidden">
+      <div className="mx-auto flex w-full max-w-[1500px] flex-1 min-h-0 flex-col gap-4 overflow-hidden px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
         <ChannelSidebar
           categories={categories}
           filteredCategories={filteredCategories}
@@ -172,7 +172,7 @@ export const GlobalChatPage: React.FC = () => {
           onOpenCreateCategory={() => setCreateDialogOpen(true)}
           onOpenEditCategory={() => setEditDialogOpen(true)}
         />
-        <div className="flex flex-1 min-h-0 flex-col">
+  <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
           <SelectedCategoryPanel
             category={selectedCategory ?? null}
             messages={messages}
