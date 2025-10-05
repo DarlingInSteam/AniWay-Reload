@@ -1,0 +1,180 @@
+import { Hash, MessageSquare, MoreVertical, Pencil, Plus, RefreshCcw, Search } from 'lucide-react';
+import { GlassPanel } from '@/components/ui/GlassPanel';
+import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+import type { CategoryView } from '@/types/social';
+
+interface ChannelSidebarProps {
+  categories: CategoryView[];
+  filteredCategories: CategoryView[];
+  loading: boolean;
+  selectedCategoryId: number | null;
+  showSidebar: boolean;
+  hasSelectedCategory: boolean;
+  isAdmin: boolean;
+  categoryQuery: string;
+  onCategoryQueryChange: (value: string) => void;
+  onSelectCategory: (categoryId: number) => void;
+  onNavigateToFeed: () => void;
+  onRefreshCategories: () => void;
+  onRefreshMessages: () => void;
+  onOpenCreateCategory: () => void;
+  onOpenEditCategory: () => void;
+}
+
+export function ChannelSidebar({
+  categories,
+  filteredCategories,
+  loading,
+  selectedCategoryId,
+  showSidebar,
+  hasSelectedCategory,
+  isAdmin,
+  categoryQuery,
+  onCategoryQueryChange,
+  onSelectCategory,
+  onNavigateToFeed,
+  onRefreshCategories,
+  onRefreshMessages,
+  onOpenCreateCategory,
+  onOpenEditCategory,
+}: ChannelSidebarProps) {
+  return (
+    <GlassPanel
+      padding="none"
+      className={cn(
+        'flex min-h-0 flex-col overflow-hidden border-white/10 bg-white/5 backdrop-blur-xl',
+        showSidebar ? 'flex' : 'hidden',
+        'lg:flex lg:w-[320px] xl:w-[360px] lg:h-full'
+      )}
+    >
+      <div className="flex items-center justify-between gap-2 border-b border-white/10 px-5 py-4">
+        <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/50">
+          <Hash className="h-4 w-4 text-primary/70" />
+          Каналы
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-white/70 hover:bg-white/10" aria-label="Действия каналов">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem className="gap-2 text-xs" onClick={onRefreshCategories}>
+              <RefreshCcw className="h-3 w-3" />
+              Обновить списки
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className={cn('gap-2 text-xs', !hasSelectedCategory && 'pointer-events-none opacity-50')}
+              onClick={onRefreshMessages}
+            >
+              <MessageSquare className="h-3 w-3" />
+              Обновить чат
+            </DropdownMenuItem>
+            {isAdmin && (
+              <>
+                <DropdownMenuItem className="gap-2 text-xs" onClick={onOpenCreateCategory}>
+                  <Plus className="h-3 w-3" />
+                  Новая категория
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className={cn('gap-2 text-xs', !hasSelectedCategory && 'pointer-events-none opacity-50')}
+                  onClick={onOpenEditCategory}
+                >
+                  <Pencil className="h-3 w-3" />
+                  Редактировать
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <div className="px-5 pt-3">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
+          <input
+            type="search"
+            value={categoryQuery}
+            onChange={event => onCategoryQueryChange(event.target.value)}
+            placeholder="Поиск канала"
+            className="h-10 w-full rounded-xl border border-white/10 bg-white/5 pl-10 pr-3 text-sm text-white placeholder:text-white/40 focus:border-primary/50 focus:outline-none"
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between px-5 pb-2 text-[11px] uppercase tracking-[0.3em] text-white/40">
+        <span>Всего: {categories.length}</span>
+        <span>Показано: {filteredCategories.length}</span>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-3 pb-5 scrollbar-thin">
+        {loading && categories.length === 0 ? (
+          <div className="flex items-center justify-center py-10">
+            <LoadingSpinner />
+          </div>
+        ) : categories.length === 0 ? (
+          <div className="glass-panel mt-6 rounded-2xl border border-dashed border-white/15 bg-white/5 px-4 py-6 text-center text-xs text-white/60">
+            Категории ещё не созданы.
+          </div>
+        ) : filteredCategories.length === 0 ? (
+          <div className="glass-panel mt-6 rounded-2xl border border-dashed border-white/15 bg-white/5 px-4 py-6 text-center text-xs text-white/60">
+            Ничего не найдено. Попробуйте изменить запрос.
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {filteredCategories.map(category => {
+              const isActive = selectedCategoryId === category.id;
+              return (
+                <li key={category.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSelectCategory(category.id);
+                      onNavigateToFeed();
+                    }}
+                    className={cn(
+                      'w-full rounded-2xl border px-4 py-3 text-left transition backdrop-blur-md',
+                      isActive
+                        ? 'border-primary/40 bg-white/15 text-white'
+                        : 'border-white/10 bg-white/5 text-white/85 hover:border-white/20 hover:bg-white/10'
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate text-sm font-semibold text-white">{category.title}</p>
+                          {category.isDefault && (
+                            <Badge variant="secondary" className="border-primary/30 bg-primary/15 text-primary">
+                              По умолчанию
+                            </Badge>
+                          )}
+                          {category.isArchived && (
+                            <Badge variant="outline" className="border-orange-400/40 text-orange-200">
+                              Архив
+                            </Badge>
+                          )}
+                        </div>
+                        {category.description && (
+                          <p className="mt-1 truncate text-xs text-white/60">{category.description}</p>
+                        )}
+                      </div>
+                      {category.unreadCount > 0 && (
+                        <span className="flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-red-600/80 px-2 text-[11px] font-semibold text-white">
+                          {category.unreadCount}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </GlassPanel>
+  );
+}
