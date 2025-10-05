@@ -5,7 +5,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer';
 import { getUserDisplay } from '../utils/messageHelpers';
 import { toast } from 'sonner';
-import { GlassPanel } from '@/components/ui/GlassPanel';
 import { MarkdownMiniToolbar } from '@/components/markdown/MarkdownMiniToolbar';
 
 interface MessageComposerProps {
@@ -129,10 +128,10 @@ export function MessageComposer({
   );
 
   return (
-    <GlassPanel padding="none" className="w-full rounded-2xl border-white/10 bg-white/5 px-3 py-2">
+    <div className="w-full rounded-2xl border border-white/15 px-3 py-2">
       <div className="space-y-2">
       {replyTo && (
-          <div className="flex items-start gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70">
+          <div className="flex items-start gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs text-white/70">
             <span className="mt-[2px] text-white/50">↩</span>
             <div className="flex-1">
               <div className="flex items-start justify-between gap-2 text-[11px] uppercase tracking-[0.25em] text-white/40">
@@ -145,7 +144,7 @@ export function MessageComposer({
                   Очистить
                 </button>
               </div>
-              <div className="mt-1 max-h-28 overflow-y-auto rounded-lg border border-white/5 bg-black/20 px-3 py-2 text-left text-sm text-white/70">
+              <div className="mt-1 max-h-28 overflow-y-auto rounded-lg border border-white/10 px-3 py-2 text-left text-sm text-white/70">
                 <div className="prose prose-invert max-w-none text-sm leading-relaxed markdown-body line-clamp-3">
                   <MarkdownRenderer value={replyTo.content} />
                 </div>
@@ -155,7 +154,7 @@ export function MessageComposer({
       )}
 
       {outgoingError && (
-          <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+          <div className="rounded-xl border border-red-500/40 px-3 py-2 text-xs text-red-200">
           {outgoingError}
         </div>
       )}
@@ -163,7 +162,7 @@ export function MessageComposer({
         <MarkdownMiniToolbar onCommand={applyMarkdownCommand} className="text-white/80" />
 
         <div className="flex items-end gap-2">
-          <div className="flex-1 rounded-xl border border-white/10 bg-black/30 px-2 py-1.5">
+          <div className="flex-1 rounded-xl border border-white/15 px-2 py-1.5">
             <Textarea
               ref={textareaRef}
               value={messageText}
@@ -186,6 +185,6 @@ export function MessageComposer({
           </button>
         </div>
       </div>
-    </GlassPanel>
+    </div>
   );
 }

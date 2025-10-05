@@ -10,7 +10,6 @@ import {
   Search,
   Undo2,
 } from 'lucide-react';
-import { GlassPanel } from '@/components/ui/GlassPanel';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
@@ -66,10 +65,7 @@ export function ChannelSidebar({
   }, [categories, filteredCategories, categoryQuery]);
 
   return (
-    <GlassPanel
-      padding="none"
-      className="sticky top-0.5 z-30 flex h-14 min-h-[56px] items-center gap-3 px-3 sm:px-4 sm:top-1 !overflow-visible"
-    >
+    <div className="sticky top-0.5 z-30 flex h-14 min-h-[56px] items-center gap-3 rounded-2xl border border-white/12 px-3 sm:px-4 sm:top-1 !overflow-visible bg-transparent">
       <div className="hidden items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-white/40 lg:flex">
         <span>Каналы</span>
         <span className="text-white/30">·</span>
@@ -98,13 +94,16 @@ export function ChannelSidebar({
                 className={cn(
                   'relative inline-flex min-w-[120px] max-w-[200px] items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-colors duration-200',
                   isActive
-                    ? 'border-white/25 bg-white/15 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.2)]'
-                    : 'border-transparent bg-white/5 text-white/65 hover:border-white/15 hover:bg-white/10 hover:text-white'
+                    ? 'border-white/30 text-white'
+                    : 'border-transparent text-white/65 hover:border-white/20 hover:text-white'
                 )}
               >
                 <span className="truncate">{category.title}</span>
                 {category.isDefault && !isActive && (
-                  <Badge variant="secondary" className="hidden rounded-full border-white/20 bg-white/10 px-2 py-0 text-[10px] text-white/70 md:inline-flex">
+                  <Badge
+                    variant="secondary"
+                    className="hidden rounded-full border border-white/20 bg-transparent px-2 py-0 text-[10px] text-white/70 md:inline-flex"
+                  >
                     По умолчанию
                   </Badge>
                 )}
@@ -128,7 +127,7 @@ export function ChannelSidebar({
             <Button
               variant="ghost"
               size="icon"
-              className="h-9 w-9 rounded-full text-white/70 transition hover:bg-white/10 hover:text-white"
+              className="h-9 w-9 rounded-full border border-white/12 text-white/70 transition hover:border-white/25 hover:bg-transparent hover:text-white"
               aria-label="Дополнительные действия"
             >
               <MoreVertical className="h-4 w-4" />
@@ -140,7 +139,7 @@ export function ChannelSidebar({
           >
             <div className="space-y-2">
               <p className="text-[10px] uppercase tracking-[0.3em] text-white/35">Поиск каналов</p>
-              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+              <div className="flex items-center gap-2 rounded-xl border border-white/12 px-3 py-2">
                 <Search className="h-3.5 w-3.5 text-white/40" />
                 <input
                   type="search"
@@ -214,6 +213,6 @@ export function ChannelSidebar({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-    </GlassPanel>
+    </div>
   );
 }
