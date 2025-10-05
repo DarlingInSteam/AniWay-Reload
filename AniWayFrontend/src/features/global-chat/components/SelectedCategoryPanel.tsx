@@ -3,7 +3,6 @@ import { motion, useAnimation } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import type { CategoryView, MessageView as MessageDto } from '@/types/social';
 import type { UserMini } from '@/hooks/useUserMiniBatch';
-import { CategoryHeader } from './CategoryHeader';
 import { MessageFeed } from './MessageFeed';
 import { MessageComposer } from './MessageComposer';
 import { NoCategorySelected } from './NoCategorySelected';
@@ -99,7 +98,6 @@ export function SelectedCategoryPanel({
     <div className={cn('flex min-h-0 flex-1 flex-col gap-2', className)}>
       {hasCategory && category ? (
         <>
-          <CategoryHeader category={category} />
           <motion.div
             ref={scrollContainerRef}
             animate={motionControls}
@@ -122,7 +120,7 @@ export function SelectedCategoryPanel({
               resolveReplyPreview={resolveReplyPreview}
             />
           </motion.div>
-          <div className="mt-2 w-full shrink-0 px-2 pb-2 sm:px-4 sm:pb-3 lg:px-6">
+          <div className="mt-2 w-full shrink-0 px-2 pb-1 sm:px-4 sm:pb-2 lg:px-6 lg:pb-3">
             <MessageComposer
               replyTo={replyTo}
               users={users}
