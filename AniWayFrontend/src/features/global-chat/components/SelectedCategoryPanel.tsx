@@ -120,7 +120,7 @@ export function SelectedCategoryPanel({
               resolveReplyPreview={resolveReplyPreview}
             />
           </motion.div>
-          <div className="mt-2 w-full shrink-0 px-2 pb-1 sm:px-4 sm:pb-2 lg:px-6 lg:pb-3">
+          <div className="mt-1 w-full shrink-0 px-2 pb-0.5 sm:px-4 sm:pb-1 lg:px-6 lg:pb-2">
             <MessageComposer
               replyTo={replyTo}
               users={users}

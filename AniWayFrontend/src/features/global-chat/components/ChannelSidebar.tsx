@@ -68,7 +68,7 @@ export function ChannelSidebar({
   return (
     <GlassPanel
       padding="none"
-      className="sticky top-1 z-30 flex h-14 min-h-[56px] items-center gap-3 px-3 sm:px-4 sm:top-2 !overflow-visible"
+      className="sticky top-0.5 z-30 flex h-14 min-h-[56px] items-center gap-3 px-3 sm:px-4 sm:top-1 !overflow-visible"
     >
       <div className="hidden items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-white/40 lg:flex">
         <span>Каналы</span>
