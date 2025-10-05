@@ -1,8 +1,8 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Home, Search, Trophy, MessageSquare, User, Bell, Bookmark, MoreHorizontal, ChevronUp } from 'lucide-react'
+import { Home, Search, Trophy, MessageSquare, MessageCircle, Globe2, User, Bell, Bookmark, MoreHorizontal, ChevronUp } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/utils'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import { useNotifications } from '@/notifications/NotificationContext'
 
 // Bottom mobile navigation bar with safe-area support
@@ -40,10 +40,20 @@ export function MobileNavBar() {
     primaryRight.push({ to: '/login', icon: User, label: 'Войти', match:(p:string)=> p.startsWith('/login') })
   }
 
-  const sheetLinks = [
-    { to: '/tops', icon: Trophy, label: 'Топы', desc: 'Рейтинги активности' },
-    { to: '/forum', icon: MessageSquare, label: 'Форум', desc: 'Обсуждения и темы' },
-  ]
+  const sheetLinks = useMemo(() => {
+    const links = [
+      { to: '/chat', icon: Globe2, label: 'Глобальный чат', desc: 'Общение с сообществом' },
+      {
+        to: isAuthenticated ? '/messages' : '/login',
+        icon: MessageCircle,
+        label: 'Личные сообщения',
+        desc: isAuthenticated ? 'Диалоги и друзья' : 'Войдите, чтобы переписываться',
+      },
+      { to: '/tops', icon: Trophy, label: 'Топы', desc: 'Рейтинги активности' },
+      { to: '/forum', icon: MessageSquare, label: 'Форум', desc: 'Обсуждения и темы' },
+    ]
+    return links
+  }, [isAuthenticated])
 
   // Close sheet on outside click or ESC
   useEffect(()=> {
