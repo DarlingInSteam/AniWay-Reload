@@ -4,7 +4,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useGlobalChat } from '@/hooks/useGlobalChat';
 import useUserMiniBatch from '@/hooks/useUserMiniBatch';
 import type { MessageView as MessageDto } from '@/types/social';
-import { ChatPageHeader } from '@/features/global-chat/components/ChatPageHeader';
 import { ChannelSidebar } from '@/features/global-chat/components/ChannelSidebar';
 import { SelectedCategoryPanel } from '@/features/global-chat/components/SelectedCategoryPanel';
 import { CategoryCreateDialog, CategoryCreatePayload } from '@/features/global-chat/components/CategoryCreateDialog';
@@ -100,19 +99,6 @@ export const GlobalChatPage: React.FC = () => {
     }
   }, [selectedCategory, editDialogOpen]);
 
-  const featuredCategories = useMemo(() => {
-    const available = categories.filter(category => !category.isArchived);
-    const sorted = [...available].sort((a, b) => {
-      if (a.isDefault && !b.isDefault) return -1;
-      if (!a.isDefault && b.isDefault) return 1;
-      if (b.unreadCount !== a.unreadCount) return b.unreadCount - a.unreadCount;
-      const titleA = a.title ?? '';
-      const titleB = b.title ?? '';
-      return titleA.localeCompare(titleB);
-    });
-    return sorted.slice(0, 8);
-  }, [categories]);
-
   const resolveReplyPreview = useCallback(
     (message: MessageDto) => {
       if (!message.replyToMessageId) return null;
@@ -164,13 +150,7 @@ export const GlobalChatPage: React.FC = () => {
 
   return (
     <div className="min-h-[calc(100vh-88px)]">
-      <div className="mx-auto flex w-full max-w-[1500px] flex-1 flex-col gap-6 px-4 py-8 sm:px-6 lg:px-10 lg:py-12">
-        <ChatPageHeader
-          hasSelectedCategory={hasSelectedCategory}
-          onRefreshAll={refreshAll}
-          onRefreshCategories={refreshCategories}
-          onRefreshMessages={refreshMessages}
-        />
+      <div className="mx-auto flex w-full max-w-[1500px] flex-1 flex-col gap-4 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
         <ChannelSidebar
           categories={categories}
           filteredCategories={filteredCategories}
@@ -184,6 +164,7 @@ export const GlobalChatPage: React.FC = () => {
           categoryQuery={categoryQuery}
           onCategoryQueryChange={setCategoryQuery}
           onSelectCategory={selectCategory}
+          onRefreshAll={refreshAll}
           onRefreshCategories={refreshCategories}
           onRefreshMessages={refreshMessages}
           onLoadOlderMessages={loadOlderMessages}

@@ -30,6 +30,7 @@ interface ChannelSidebarProps {
   categoryQuery: string;
   onCategoryQueryChange: (value: string) => void;
   onSelectCategory: (categoryId: number) => void;
+  onRefreshAll: () => void;
   onRefreshCategories: () => void;
   onRefreshMessages: () => void;
   onLoadOlderMessages: () => Promise<void>;
@@ -51,6 +52,7 @@ export function ChannelSidebar({
   categoryQuery,
   onCategoryQueryChange,
   onSelectCategory,
+  onRefreshAll,
   onRefreshCategories,
   onRefreshMessages,
   onLoadOlderMessages,
@@ -163,6 +165,10 @@ export function ChannelSidebar({
               <DropdownMenuItem className="gap-2 text-xs" onClick={onRefreshCategories}>
                 <RefreshCcw className="h-3 w-3" />
                 Обновить каналы
+              </DropdownMenuItem>
+              <DropdownMenuItem className="gap-2 text-xs" onClick={onRefreshAll}>
+                <RefreshCcw className="h-3 w-3 rotate-180" />
+                Обновить всё
               </DropdownMenuItem>
               <DropdownMenuItem
                 className={cn('gap-2 text-xs', !hasSelectedCategory && 'pointer-events-none opacity-50')}

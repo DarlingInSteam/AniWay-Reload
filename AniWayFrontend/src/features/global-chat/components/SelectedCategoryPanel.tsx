@@ -96,7 +96,7 @@ export function SelectedCategoryPanel({
   }, [category?.id]);
 
   return (
-    <div className={cn('flex min-h-0 flex-1 flex-col', className)}>
+    <div className={cn('flex min-h-[60vh] flex-1 flex-col gap-2', className)}>
       {hasCategory && category ? (
         <>
           <CategoryHeader category={category} />
@@ -104,7 +104,7 @@ export function SelectedCategoryPanel({
             ref={scrollContainerRef}
             animate={motionControls}
             initial={false}
-            className="flex-1 overflow-y-auto px-2 pb-6 pt-2 sm:px-4 lg:px-6 scrollbar-thin"
+            className="flex-1 overflow-y-auto px-2 pt-2 sm:px-4 lg:px-6 scrollbar-thin max-h-[calc(100vh-260px)] min-h-[320px]"
           >
             <MessageFeed
               messages={messages}
@@ -122,7 +122,7 @@ export function SelectedCategoryPanel({
               resolveReplyPreview={resolveReplyPreview}
             />
           </motion.div>
-          <div className="px-2 pb-4 pt-2 sm:px-4 lg:px-6">
+          <div className="mt-2 w-full px-2 pb-4 sm:px-4 lg:px-6">
             <MessageComposer
               replyTo={replyTo}
               users={users}

@@ -7,6 +7,7 @@ import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer';
 import { getUserDisplay } from '../utils/messageHelpers';
 import { toast } from 'sonner';
 import { GlassPanel } from '@/components/ui/GlassPanel';
+import { MarkdownMiniToolbar } from '@/components/markdown/MarkdownMiniToolbar';
 
 interface MessageComposerProps {
   replyTo: MessageDto | null;
@@ -30,6 +31,77 @@ export function MessageComposer({
   const [messageText, setMessageText] = useState('');
   const [outgoingError, setOutgoingError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const wrapSelection = useCallback(
+    (before: string, after: string = before) => {
+      const textarea = textareaRef.current;
+      if (!textarea) {
+        setMessageText(prev => prev + before + after);
+        return;
+      }
+      const start = textarea.selectionStart ?? 0;
+      const end = textarea.selectionEnd ?? 0;
+      const selected = messageText.substring(start, end);
+      const nextValue = messageText.slice(0, start) + before + selected + after + messageText.slice(end);
+      setMessageText(nextValue);
+      const cursorStart = start + before.length;
+      const cursorEnd = cursorStart + selected.length;
+      requestAnimationFrame(() => {
+        if (!textareaRef.current) return;
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(cursorStart, cursorEnd);
+      });
+    },
+    [messageText]
+  );
+
+  const applyMarkdownCommand = useCallback(
+    (cmd: string) => {
+      switch (cmd) {
+        case 'bold':
+          return wrapSelection('**', '**');
+        case 'italic':
+          return wrapSelection('*', '*');
+        case 'strike':
+          return wrapSelection('~~', '~~');
+        case 'code':
+          return wrapSelection('`', '`');
+        case 'spoiler':
+          return wrapSelection('>!', '!<');
+        case 'link':
+          return wrapSelection('[', '](url)');
+        case 'spark':
+          return wrapSelection('**✨', '✨**');
+        case 'h1':
+          return wrapSelection('\n# ', '');
+        case 'h2':
+          return wrapSelection('\n## ', '');
+        case 'quote':
+          return wrapSelection('\n> ', '');
+        case 'ul':
+          return wrapSelection('\n- ', '');
+        case 'ol':
+          return wrapSelection('\n1. ', '');
+        case 'hr': {
+          setMessageText(prev => {
+            const base = prev.endsWith('\n') ? prev : `${prev}\n`;
+            const next = `${base}\n---\n`;
+            requestAnimationFrame(() => {
+              if (!textareaRef.current) return;
+              const pos = next.length;
+              textareaRef.current.focus();
+              textareaRef.current.setSelectionRange(pos, pos);
+            });
+            return next;
+          });
+          return;
+        }
+        default:
+          return;
+      }
+    },
+    [wrapSelection]
+  );
 
   const handleSend = useCallback(async () => {
     const trimmed = messageText.trim();
@@ -109,6 +181,8 @@ export function MessageComposer({
           {outgoingError}
         </div>
       )}
+
+        <MarkdownMiniToolbar onCommand={applyMarkdownCommand} className="text-white/80" />
 
         <div className="flex items-end gap-3">
           <div className="flex-1 rounded-xl border border-white/10 bg-black/30 px-2 py-2">
