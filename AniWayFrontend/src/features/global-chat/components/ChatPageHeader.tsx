@@ -1,56 +1,42 @@
-import { MessageSquare, Hash, RefreshCcw, Plus, MoreVertical } from 'lucide-react';
+import { MessageSquare, Hash, RefreshCcw, MoreVertical } from 'lucide-react';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
 interface ChatPageHeaderProps {
-  isAdmin: boolean;
   hasSelectedCategory: boolean;
-  onOpenCreateCategory: () => void;
   onRefreshAll: () => void;
   onRefreshCategories: () => void;
   onRefreshMessages: () => void;
 }
 
-export function ChatPageHeader({
-  isAdmin,
-  hasSelectedCategory,
-  onOpenCreateCategory,
-  onRefreshAll,
-  onRefreshCategories,
-  onRefreshMessages,
-}: ChatPageHeaderProps) {
+export function ChatPageHeader({ hasSelectedCategory, onRefreshAll, onRefreshCategories, onRefreshMessages }: ChatPageHeaderProps) {
   return (
-    <GlassPanel padding="sm" className="mb-6 flex items-center justify-between gap-3 border-white/10 bg-white/5 backdrop-blur-xl">
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-white/60">
-        <MessageSquare className="h-4 w-4 text-primary/70" />
-        Глобальный чат
+    <GlassPanel padding="lg" className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+      <div>
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-white/50">
+          <MessageSquare className="h-4 w-4 text-primary" />
+          Глобальный чат
+        </div>
+        <h1 className="mt-3 text-2xl font-semibold text-white">Живые обсуждения сообщества AniWay</h1>
+        <p className="mt-2 max-w-3xl text-sm text-white/60">
+          Общайтесь с читателями, делитесь находками и подключайтесь к нужной категории в один клик. Всё в стиле
+          AniWay без лишнего визуального шума.
+        </p>
       </div>
-      <div className="flex items-center gap-1">
-        {isAdmin && (
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-9 w-9 rounded-full text-white/70 hover:bg-white/10"
-            onClick={onOpenCreateCategory}
-            aria-label="Создать канал"
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
-        )}
+      <div className="flex shrink-0 items-center gap-2 self-stretch md:flex-col md:self-auto">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 rounded-full text-white/70 hover:bg-white/10"
-              aria-label="Действия чата"
+              variant="outline"
+              size="sm"
+              className="gap-2 rounded-xl border-white/20 bg-white/5 text-[11px] uppercase tracking-[0.25em] text-white/70 hover:border-white/40 hover:text-white"
             >
-              <MoreVertical className="h-4 w-4" />
+              <MoreVertical className="h-4 w-4" /> Действия
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" className="w-52 border-white/10 bg-[#1C1C1F]/95 backdrop-blur-sm">
             <DropdownMenuItem className="gap-2 text-xs" onClick={onRefreshAll}>
               <RefreshCcw className="h-3 w-3" />
               Обновить всё

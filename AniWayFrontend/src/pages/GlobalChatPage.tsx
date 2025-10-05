@@ -11,6 +11,7 @@ import { ChannelSidebar } from '@/features/global-chat/components/ChannelSidebar
 import { SelectedCategoryPanel } from '@/features/global-chat/components/SelectedCategoryPanel';
 import { CategoryCreateDialog, CategoryCreatePayload } from '@/features/global-chat/components/CategoryCreateDialog';
 import { CategoryEditDialog, CategoryEditPayload } from '@/features/global-chat/components/CategoryEditDialog';
+import { CategoryQuickBar } from '@/features/global-chat/components/CategoryQuickBar';
 import { useChatMessageNavigation } from '@/features/global-chat/hooks/useChatMessageNavigation';
 
 export const GlobalChatPage: React.FC = () => {
@@ -109,6 +110,19 @@ export const GlobalChatPage: React.FC = () => {
     }
   }, [selectedCategory, editDialogOpen]);
 
+  const featuredCategories = useMemo(() => {
+    const available = categories.filter(category => !category.isArchived);
+    const sorted = [...available].sort((a, b) => {
+      if (a.isDefault && !b.isDefault) return -1;
+      if (!a.isDefault && b.isDefault) return 1;
+      if (b.unreadCount !== a.unreadCount) return b.unreadCount - a.unreadCount;
+      const titleA = a.title ?? '';
+      const titleB = b.title ?? '';
+      return titleA.localeCompare(titleB);
+    });
+    return sorted.slice(0, 8);
+  }, [categories]);
+
   const resolveReplyPreview = useCallback(
     (message: MessageDto) => {
       if (!message.replyToMessageId) return null;
@@ -172,21 +186,31 @@ export const GlobalChatPage: React.FC = () => {
     setMobileView('list');
   }, []);
 
+  const handleSelectCategoryQuick = useCallback(
+    (categoryId: number) => {
+      selectCategory(categoryId);
+      setMobileView('feed');
+    },
+    [selectCategory, setMobileView]
+  );
+
   return (
-    <div className="relative min-h-[calc(100vh-120px)] bg-slate-950/95">
-      <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(79,70,229,0.18),_transparent_55%)]"
-        aria-hidden
-      />
-      <div className="relative z-10 mx-auto flex w-full max-w-[1400px] flex-1 flex-col px-4 py-6 lg:px-8 lg:py-10">
+    <div className="min-h-[calc(100vh-88px)]">
+      <div className="mx-auto flex w-full max-w-[1320px] flex-1 flex-col gap-5 px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
         <ChatPageHeader
-          isAdmin={isAdmin}
           hasSelectedCategory={hasSelectedCategory}
-          onOpenCreateCategory={() => setCreateDialogOpen(true)}
           onRefreshAll={refreshAll}
           onRefreshCategories={refreshCategories}
           onRefreshMessages={refreshMessages}
         />
+
+        {featuredCategories.length > 0 && (
+          <CategoryQuickBar
+            categories={featuredCategories}
+            selectedCategoryId={selectedCategoryId ?? null}
+            onSelectCategory={handleSelectCategoryQuick}
+          />
+        )}
 
         <ChatMobileToggle
           showList={mobileView === 'list'}

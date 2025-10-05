@@ -68,7 +68,7 @@ export function SelectedCategoryPanel({
     <GlassPanel
       padding="none"
       className={cn(
-        'flex min-h-0 flex-1 flex-col overflow-hidden border-white/10 bg-white/5 backdrop-blur-xl',
+        'flex min-h-0 flex-1 flex-col overflow-hidden',
         className
       )}
     >
@@ -86,7 +86,7 @@ export function SelectedCategoryPanel({
             onBackToList={onBackToList}
             showBackButton={showBackButton}
           />
-          <div className="flex-1 overflow-y-auto px-4 py-6 scrollbar-thin">
+          <div className="flex-1 overflow-y-auto px-6 pb-6 pt-4 scrollbar-thin">
             <MessageFeed
               messages={messages}
               users={users}
@@ -103,7 +103,7 @@ export function SelectedCategoryPanel({
               resolveReplyPreview={resolveReplyPreview}
             />
           </div>
-          <div className="border-t border-white/10 px-6 py-5">
+          <div className="border-t border-white/5 bg-white/5 px-6 py-5">
             <MessageComposer
               replyTo={replyTo}
               users={users}
