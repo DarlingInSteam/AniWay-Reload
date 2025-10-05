@@ -12,7 +12,6 @@ import { apiClient } from '@/lib/api';
 import { buildProfileSlug } from '@/utils/profileSlug';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import GlassPanel from '@/components/ui/GlassPanel';
 import { Trash2, Search, Check, CheckCheck, RefreshCcw, Loader2, MoreVertical, ArrowLeft, MessageSquare, Undo2, X, Copy, Reply as ReplyIcon } from 'lucide-react';
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer';
 import { toast } from 'sonner';
@@ -342,19 +341,19 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
     <div className={cn('h-[calc(100vh-88px)] flex flex-col overflow-hidden text-white', className)}>
       <div className="mx-auto flex w-full max-w-[1500px] flex-1 min-h-0 flex-col gap-2 px-4 pt-1 pb-[2px] sm:px-6 sm:pt-1.5 sm:pb-[2px] lg:px-10 lg:pt-2 lg:pb-[2px]">
         {Boolean(inbox.error) && (
-          <GlassPanel padding="sm" className="border border-red-500/40 bg-red-500/10 text-sm text-red-200">
+          <div className="rounded-2xl border border-red-500/40 px-4 py-3 text-sm text-red-200">
             Не удалось загрузить сообщения. Убедитесь, что вы авторизованы и попробуйте позже.
-          </GlassPanel>
+          </div>
         )}
 
         <div className="flex items-center justify-end pb-2 lg:hidden">
-          <div className="glass-inline flex items-center gap-1 rounded-full border border-white/10 bg-white/8 p-0.5 backdrop-blur">
+          <div className="flex items-center gap-1 rounded-full border border-white/15 px-0.5">
             <button
               type="button"
               onClick={() => setMobileView('list')}
               className={cn(
-                'rounded-full px-3 py-1 text-xs font-semibold transition',
-                showList ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white/90'
+                'rounded-full px-3 py-1 text-xs font-semibold transition border border-transparent',
+                showList ? 'border-white/30 text-white' : 'text-white/70 hover:text-white/90 hover:border-white/20'
               )}
             >
               Диалоги
@@ -364,8 +363,8 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
               onClick={() => setMobileView('conversation')}
               disabled={!hasActiveConversation}
               className={cn(
-                'rounded-full px-3 py-1 text-xs font-semibold transition',
-                showConversation ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white/90',
+                'rounded-full px-3 py-1 text-xs font-semibold transition border border-transparent',
+                showConversation ? 'border-white/30 text-white' : 'text-white/70 hover:text-white/90 hover:border-white/20',
                 !hasActiveConversation && 'cursor-not-allowed opacity-35 hover:text-white/70'
               )}
             >
@@ -374,145 +373,143 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row">
-        <GlassPanel
-          padding="none"
-          className={cn(
-            'flex min-h-0 flex-col overflow-hidden border-white/15 bg-white/8 backdrop-blur-xl shadow-[0_18px_48px_rgba(15,23,42,0.28)]',
-            showList ? 'flex' : 'hidden',
-            'lg:flex lg:w-[280px] xl:w-[320px]'
-          )}
-        >
-          <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3 text-[11px] uppercase tracking-[0.3em] text-white/45">
-            <MessageSquare className="h-4 w-4 text-primary/70" />
-            Диалоги
-          </div>
-
-          <div className="px-4 pt-3">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
-              <input
-                id="messages-search"
-                type="search"
-                value={searchTerm}
-                onChange={event => setSearchTerm(event.target.value)}
-                placeholder="Поиск диалога"
-                className="h-9 w-full rounded-xl border border-white/10 bg-white/5 pl-10 pr-3 text-sm text-white placeholder:text-white/40 focus:border-primary/40 focus:outline-none"
-              />
+        <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row lg:gap-6">
+          <div
+            className={cn(
+              'flex min-h-0 flex-col',
+              showList ? 'flex' : 'hidden',
+              'lg:flex lg:w-[280px] xl:w-[320px] lg:border-r lg:border-white/15 lg:pr-6'
+            )}
+          >
+            <div className="flex items-center gap-2 border-b border-white/10 px-2 pb-3 pt-2 text-[11px] uppercase tracking-[0.3em] text-white/45 sm:px-3 lg:px-0">
+              <MessageSquare className="h-4 w-4 text-primary/70" />
+              Диалоги
             </div>
-          </div>
 
-          <div className="flex-1 overflow-y-auto px-3 pb-4 scrollbar-thin">
-            {inbox.loadingConversations && inbox.conversations.length === 0 ? (
-              <div className="flex items-center justify-center py-10">
-                <LoadingSpinner />
+            <div className="px-2 pt-3 sm:px-3 lg:px-0">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
+                <input
+                  id="messages-search"
+                  type="search"
+                  value={searchTerm}
+                  onChange={event => setSearchTerm(event.target.value)}
+                  placeholder="Поиск диалога"
+                  className="h-9 w-full rounded-xl border border-white/15 bg-transparent pl-10 pr-3 text-sm text-white placeholder:text-white/40 focus:border-primary/40 focus:outline-none"
+                />
               </div>
-            ) : (
-              <ul className="space-y-2">
-                {draftTarget && (
-                  <li>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDraftTarget(draftTarget);
-                        setMobileView('conversation');
-                      }}
-                      className="group w-full rounded-2xl border border-primary/40 bg-white/15 px-4 py-3 text-left text-white backdrop-blur-md transition hover:border-primary/60 hover:bg-white/20"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-11 w-11 border border-white/10 bg-black/60">
-                          {draftTarget.avatar ? (
-                            <AvatarImage src={draftTarget.avatar} alt={draftTarget.displayName || draftTarget.username || 'Новый диалог'} />
-                          ) : (
-                            <AvatarFallback>{initials(draftTarget.displayName || draftTarget.username || 'Новый диалог')}</AvatarFallback>
-                          )}
-                        </Avatar>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="truncate text-sm font-semibold">{draftTarget.displayName || draftTarget.username || 'Новый диалог'}</span>
-                            <span className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.25em] text-white/80">
-                              Новый
-                            </span>
-                          </div>
-                          <p className="mt-1 truncate text-xs text-white/70">Отправьте первое сообщение</p>
-                        </div>
-                      </div>
-                    </button>
-                  </li>
-                )}
-                {filteredConversations.map(conversation => {
-                  const title = conversationTitle(conversation, users, currentUserId);
-                  const isActive = selectedConversation?.id === conversation.id && !draftTarget;
-                  const lastMessagePreview = conversation.lastMessage?.content || 'Нет сообщений';
-                  const unread = conversation.unreadCount > 0;
-                  const otherId = conversation.participantIds.find(id => id !== currentUserId);
-                  const avatarUser = otherId ? users[otherId] : undefined;
-                  const timestamp = formatTimestamp(conversation.lastMessageAt);
-                  return (
-                    <li key={conversation.id}>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-1 pb-4 sm:px-2 lg:px-0 scrollbar-thin">
+              {inbox.loadingConversations && inbox.conversations.length === 0 ? (
+                <div className="flex items-center justify-center py-10">
+                  <LoadingSpinner />
+                </div>
+              ) : (
+                <ul className="space-y-2">
+                  {draftTarget && (
+                    <li>
                       <button
                         type="button"
                         onClick={() => {
-                          setDraftTarget(null);
-                          inbox.selectConversation(conversation.id);
+                          setDraftTarget(draftTarget);
                           setMobileView('conversation');
                         }}
-                        className={cn(
-                          'group w-full rounded-3xl border px-4 py-3 text-left transition backdrop-blur-lg',
-                          isActive
-                            ? 'border-primary/45 bg-primary/15 text-white'
-                            : 'border-white/12 bg-white/6 text-white/85 hover:border-white/20 hover:bg-white/10'
-                        )}
+                        className="group w-full rounded-2xl border border-primary/40 px-4 py-3 text-left text-white transition hover:border-primary/60"
                       >
                         <div className="flex items-center gap-3">
                           <Avatar className="h-11 w-11 border border-white/10 bg-black/60">
-                            {avatarUser?.avatar ? (
-                              <AvatarImage src={avatarUser.avatar} alt={title} />
+                            {draftTarget.avatar ? (
+                              <AvatarImage src={draftTarget.avatar} alt={draftTarget.displayName || draftTarget.username || 'Новый диалог'} />
                             ) : (
-                              <AvatarFallback>{initials(title)}</AvatarFallback>
+                              <AvatarFallback>{initials(draftTarget.displayName || draftTarget.username || 'Новый диалог')}</AvatarFallback>
                             )}
                           </Avatar>
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-start justify-between gap-2">
-                              <span className="truncate text-sm font-semibold text-white">{title}</span>
-                              <span className="shrink-0 text-[11px] font-medium text-white/50">{timestamp}</span>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="truncate text-sm font-semibold">{draftTarget.displayName || draftTarget.username || 'Новый диалог'}</span>
+                              <span className="rounded-full border border-primary/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.25em] text-primary/80">
+                                Новый
+                              </span>
                             </div>
-                            <div className="mt-1 flex items-center gap-1 text-xs text-white/60">
-                              {renderLastMessageStatus(conversation)}
-                              <span className="truncate">{lastMessagePreview}</span>
-                            </div>
+                            <p className="mt-1 truncate text-xs text-white/60">Отправьте первое сообщение</p>
                           </div>
-                          {unread && (
-                            <span className="ml-2 flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-primary/80 px-2 text-[11px] font-semibold text-white">
-                              {conversation.unreadCount}
-                            </span>
-                          )}
                         </div>
                       </button>
                     </li>
-                  );
-                })}
-                {inbox.conversations.length === 0 && !inbox.loadingConversations && (
-                  <li className="rounded-2xl border border-dashed border-white/15 bg-white/5 px-4 py-6 text-center text-xs text-white/60">
-                    У вас пока нет диалогов. Найдите друзей и начните общение!
-                  </li>
-                )}
-              </ul>
-            )}
+                  )}
+                  {filteredConversations.map(conversation => {
+                    const title = conversationTitle(conversation, users, currentUserId);
+                    const isActive = selectedConversation?.id === conversation.id && !draftTarget;
+                    const lastMessagePreview = conversation.lastMessage?.content || 'Нет сообщений';
+                    const unread = conversation.unreadCount > 0;
+                    const otherId = conversation.participantIds.find(id => id !== currentUserId);
+                    const avatarUser = otherId ? users[otherId] : undefined;
+                    const timestamp = formatTimestamp(conversation.lastMessageAt);
+                    return (
+                      <li key={conversation.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDraftTarget(null);
+                            inbox.selectConversation(conversation.id);
+                            setMobileView('conversation');
+                          }}
+                          className={cn(
+                            'group w-full rounded-2xl border px-4 py-3 text-left transition',
+                            isActive
+                              ? 'border-white/40 text-white'
+                              : 'border-white/10 text-white/70 hover:border-white/20 hover:text-white'
+                          )}
+                        >
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-11 w-11 border border-white/10 bg-black/60">
+                              {avatarUser?.avatar ? (
+                                <AvatarImage src={avatarUser.avatar} alt={title} />
+                              ) : (
+                                <AvatarFallback>{initials(title)}</AvatarFallback>
+                              )}
+                            </Avatar>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="truncate text-sm font-semibold text-white">{title}</span>
+                                <span className="shrink-0 text-[11px] font-medium text-white/45">{timestamp}</span>
+                              </div>
+                              <div className="mt-1 flex items-center gap-1 text-xs text-white/55">
+                                {renderLastMessageStatus(conversation)}
+                                <span className="truncate">{lastMessagePreview}</span>
+                              </div>
+                            </div>
+                            {unread && (
+                              <span className="ml-2 flex h-6 min-w-[1.5rem] items-center justify-center rounded-full border border-primary/70 px-2 text-[11px] font-semibold text-primary/90">
+                                {conversation.unreadCount}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      </li>
+                    );
+                  })}
+                  {inbox.conversations.length === 0 && !inbox.loadingConversations && (
+                    <li className="rounded-2xl border border-dashed border-white/15 px-4 py-6 text-center text-xs text-white/60">
+                      У вас пока нет диалогов. Найдите друзей и начните общение!
+                    </li>
+                  )}
+                </ul>
+              )}
+            </div>
           </div>
-        </GlassPanel>
 
-        <GlassPanel
-          padding="none"
+        <div
           className={cn(
-            'flex min-h-0 flex-1 flex-col overflow-hidden border-white/15 bg-white/8 backdrop-blur-xl shadow-[0_24px_60px_rgba(15,23,42,0.32)]',
+            'flex min-h-0 flex-1 flex-col',
             showConversation ? 'flex' : 'hidden',
-            'lg:flex'
+            'lg:flex lg:pl-6'
           )}
         >
           {draftTarget ? (
             <div className="flex min-h-0 flex-1 flex-col">
-              <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-white/6 px-6 py-5">
+              <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                 <div className="flex items-center gap-3">
                   <Button
                     variant="ghost"
@@ -558,17 +555,17 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                 </Button>
               </div>
 
-              <div className="flex flex-1 items-center justify-center px-6">
-                <div className="glass-panel w-full max-w-sm rounded-2xl border border-dashed border-white/15 bg-white/5 px-6 py-8 text-center text-sm text-white/70">
+              <div className="flex flex-1 items-center justify-center px-4 sm:px-6">
+                <div className="w-full max-w-sm rounded-2xl border border-dashed border-white/15 px-6 py-8 text-center text-sm text-white/70">
                   <MessageSquare className="mx-auto mb-3 h-6 w-6 text-white/40" />
                   <p>Начните беседу. Диалог появится в списке после отправки первого сообщения.</p>
                 </div>
               </div>
 
-              <div className="border-t border-white/8 bg-white/5 px-4 py-4 sm:px-6">
+              <div className="border-t border-white/12 px-4 py-4 sm:px-6">
                 <div className="space-y-2">
-                  {error && <p className="rounded-2xl border border-red-500/40 bg-red-500/15 px-4 py-2 text-sm text-red-100">{error}</p>}
-                  <GlassPanel padding="none" className="w-full rounded-2xl border-white/12 bg-white/8 px-3 py-2">
+                  {error && <p className="rounded-2xl border border-red-500/40 px-4 py-2 text-sm text-red-100">{error}</p>}
+                  <div className="w-full rounded-2xl border border-white/15 px-3 py-2">
                     <div className="flex items-end gap-2">
                       <Textarea
                         ref={messageInputRef}
@@ -588,13 +585,13 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                         ▶
                       </button>
                     </div>
-                  </GlassPanel>
+                  </div>
                 </div>
               </div>
             </div>
           ) : selectedConversation ? (
             <div className="flex min-h-0 flex-1 flex-col">
-              <div className="flex items-start justify-between gap-3 border-b border-white/10 bg-white/6 px-6 py-5">
+              <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                 <div className="flex items-center gap-3">
                   <Button
                     variant="ghost"
@@ -680,7 +677,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                     <LoadingSpinner />
                   </div>
                 ) : inbox.messages.length === 0 ? (
-                  <div className="glass-panel mx-auto flex h-full max-w-md flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-white/15 bg-white/5 px-6 py-12 text-center text-sm text-white/60">
+                  <div className="mx-auto flex h-full max-w-md flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-white/15 px-6 py-12 text-center text-sm text-white/60">
                     <MessageSquare className="h-6 w-6 text-white/40" />
                     <p>Сообщений пока нет. Напишите первое сообщение!</p>
                   </div>
@@ -730,7 +727,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                         <React.Fragment key={message.id}>
                           {showDateSeparator && (
                             <div className="relative my-6 flex items-center justify-center">
-                              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-white/60">
+                              <span className="inline-flex items-center gap-2 rounded-full border border-white/15 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-white/60">
                                 {dayFormatter.format(messageDate)}
                               </span>
                             </div>
@@ -789,17 +786,17 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                               )}
                               <div
                                 className={cn(
-                                  'w-full rounded-2xl border px-4 py-3 text-sm leading-relaxed backdrop-blur-lg transition',
+                                  'w-full rounded-2xl border px-4 py-3 text-sm leading-relaxed transition',
                                   isOwn
-                                    ? 'border-primary/40 bg-primary/20 text-white shadow-[0_14px_30px_rgba(88,101,242,0.35)]'
-                                    : 'border-white/12 bg-white/10 text-white/90 shadow-[0_14px_30px_rgba(15,23,42,0.32)]',
+                                    ? 'border-primary/40 bg-primary/20 text-white'
+                                    : 'border-white/12 bg-white/10 text-white/90',
                                   isHighlighted && 'ring-2 ring-primary/60'
                                 )}
                               >
                                 {replyPreview ? (
                                   <button
                                     type="button"
-                                    className="mb-3 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-xs text-white/70 transition hover:border-primary/40 hover:bg-white/10"
+                                    className="mb-3 w-full rounded-xl border border-white/10 px-3 py-2 text-left text-xs text-white/70 transition hover:border-primary/40 hover:bg-white/5"
                                     onClick={() => void handleJumpToMessage(replyPreview.id)}
                                   >
                                     <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">
@@ -813,7 +810,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                                     </div>
                                   </button>
                                 ) : message.replyToMessageId ? (
-                                  <div className="mb-3 rounded-xl border border-dashed border-white/10 bg-white/5 px-3 py-2 text-xs text-white/60">
+                                  <div className="mb-3 rounded-xl border border-dashed border-white/10 px-3 py-2 text-xs text-white/60">
                                     <p>Ответ на сообщение из архива.</p>
                                     {hasMoreMessages && (
                                       <button
@@ -858,10 +855,10 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                 )}
               </div>
 
-              <div className="border-t border-white/8 bg-white/5 px-4 py-4 sm:px-6">
+              <div className="border-t border-white/12 px-4 py-4 sm:px-6">
                 <div className="space-y-2">
-                  {error && <p className="rounded-2xl border border-red-500/40 bg-red-500/15 px-4 py-2 text-sm text-red-100">{error}</p>}
-                  <GlassPanel padding="none" className="w-full rounded-2xl border-white/12 bg-white/8 px-3 py-2">
+                  {error && <p className="rounded-2xl border border-red-500/40 px-4 py-2 text-sm text-red-100">{error}</p>}
+                  <div className="w-full rounded-2xl border border-white/15 px-3 py-2">
                     <div className="flex items-end gap-2">
                       <Textarea
                         ref={messageInputRef}
@@ -881,7 +878,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
                         ▶
                       </button>
                     </div>
-                  </GlassPanel>
+                  </div>
                 </div>
               </div>
 
@@ -915,14 +912,14 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({ currentUse
             </div>
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center text-white/60">
-              <div className="glass-panel w-full max-w-sm rounded-2xl border border-dashed border-white/15 bg-white/5 px-8 py-10 shadow-[0_12px_40px_rgba(15,23,42,0.35)]">
+              <div className="w-full max-w-sm rounded-2xl border border-dashed border-white/15 px-8 py-10">
                 <MessageSquare className="mx-auto mb-3 h-8 w-8 text-white/40" />
                 <p className="text-lg font-semibold text-white">Выберите диалог</p>
                 <p className="mt-2 text-sm text-white/60">Найдите контакт слева или начните новый чат через поиск.</p>
               </div>
             </div>
           )}
-        </GlassPanel>
+        </div>
       </div>
     </div>
   </div>
