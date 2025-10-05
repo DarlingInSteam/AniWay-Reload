@@ -18,8 +18,10 @@ import shadowshift.studio.friendservice.repository.FriendRequestRepository;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -55,6 +57,7 @@ public class FriendRequestService {
                 .findByRequesterIdAndReceiverIdAndStatus(targetUserId, requesterId, FriendRequestStatus.PENDING)
                 .orElse(null);
         if (opposite != null) {
+            cleanupLegacyAccepted(opposite.getRequesterId(), opposite.getReceiverId(), opposite.getId());
             opposite.markAccepted();
             FriendRequestEntity saved = friendRequestRepository.save(opposite);
             friendshipService.ensureFriendship(opposite.getRequesterId(), opposite.getReceiverId(), opposite.getId());
@@ -84,6 +87,7 @@ public class FriendRequestService {
         if (!request.isPending()) {
             throw new FriendRequestAlreadyProcessedException();
         }
+        cleanupLegacyAccepted(request.getRequesterId(), request.getReceiverId(), request.getId());
         request.markAccepted();
         FriendRequestEntity saved = friendRequestRepository.save(request);
         friendshipService.ensureFriendship(saved.getRequesterId(), saved.getReceiverId(), saved.getId());
@@ -173,5 +177,24 @@ public class FriendRequestService {
 
     private Instant toInstant(OffsetDateTime time) {
         return time != null ? time.toInstant() : null;
+    }
+
+    private void cleanupLegacyAccepted(Long requesterId, Long receiverId, UUID currentRequestId) {
+        Set<UUID> duplicates = new LinkedHashSet<>();
+        friendRequestRepository.findByRequesterIdAndReceiverIdAndStatus(requesterId, receiverId, FriendRequestStatus.ACCEPTED)
+                .ifPresent(existing -> {
+                    if (!existing.getId().equals(currentRequestId)) {
+                        duplicates.add(existing.getId());
+                    }
+                });
+        friendRequestRepository.findByRequesterIdAndReceiverIdAndStatus(receiverId, requesterId, FriendRequestStatus.ACCEPTED)
+                .ifPresent(existing -> {
+                    if (!existing.getId().equals(currentRequestId)) {
+                        duplicates.add(existing.getId());
+                    }
+                });
+        if (!duplicates.isEmpty()) {
+            friendRequestRepository.deleteAllById(duplicates);
+        }
     }
 }

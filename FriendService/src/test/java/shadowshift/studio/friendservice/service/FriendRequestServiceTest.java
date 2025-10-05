@@ -18,10 +18,13 @@ import shadowshift.studio.friendservice.repository.FriendRequestRepository;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.StreamSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -110,5 +113,29 @@ class FriendRequestServiceTest {
         when(friendRequestRepository.findById(pending.getId())).thenReturn(Optional.of(pending));
         assertThatThrownBy(() -> friendRequestService.acceptRequest(999L, pending.getId()))
                 .isInstanceOf(FriendRequestForbiddenActionException.class);
+    }
+
+    @Test
+    void acceptRequestRemovesLegacyAcceptedBeforeSaving() {
+    FriendRequestEntity previous = FriendRequestEntity.builder()
+        .id(UUID.randomUUID())
+        .requesterId(1L)
+        .receiverId(2L)
+        .status(FriendRequestStatus.ACCEPTED)
+        .createdAt(OffsetDateTime.now())
+        .updatedAt(OffsetDateTime.now())
+        .build();
+
+    when(friendRequestRepository.findById(pending.getId())).thenReturn(Optional.of(pending));
+    when(friendRequestRepository.findByRequesterIdAndReceiverIdAndStatus(1L, 2L, FriendRequestStatus.ACCEPTED)).thenReturn(Optional.of(previous));
+    when(friendRequestRepository.findByRequesterIdAndReceiverIdAndStatus(2L, 1L, FriendRequestStatus.ACCEPTED)).thenReturn(Optional.empty());
+    when(friendRequestRepository.save(pending)).thenReturn(pending);
+    when(friendshipService.ensureFriendship(anyLong(), anyLong(), any(UUID.class))).thenReturn(null);
+
+    friendRequestService.acceptRequest(2L, pending.getId());
+
+    verify(friendRequestRepository).deleteAllById(argThat(ids ->
+        StreamSupport.stream(ids.spliterator(), false)
+            .anyMatch(previous.getId()::equals)));
     }
 }

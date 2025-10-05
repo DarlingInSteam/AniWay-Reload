@@ -3,12 +3,12 @@ package shadowshift.studio.friendservice.service;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import shadowshift.studio.friendservice.dto.FriendView;
 import shadowshift.studio.friendservice.entity.FriendshipEntity;
+import shadowshift.studio.friendservice.repository.FriendRequestRepository;
 import shadowshift.studio.friendservice.exception.FriendshipNotFoundException;
 import shadowshift.studio.friendservice.repository.FriendshipRepository;
 
@@ -20,15 +20,21 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import java.util.stream.StreamSupport;
 
 @ExtendWith(MockitoExtension.class)
 class FriendshipServiceTest {
 
     @Mock
     private FriendshipRepository friendshipRepository;
+
+    @Mock
+    private FriendRequestRepository friendRequestRepository;
 
     @InjectMocks
     private FriendshipService friendshipService;
@@ -73,9 +79,22 @@ class FriendshipServiceTest {
 
     @Test
     void removeFriendshipThrowsWhenNotFound() {
-        when(friendshipRepository.existsByUserAIdAndUserBId(1L, 5L)).thenReturn(false);
+        when(friendshipRepository.findByUserAIdAndUserBId(1L, 5L)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> friendshipService.removeFriendship(1L, 5L))
                 .isInstanceOf(FriendshipNotFoundException.class);
+        verify(friendshipRepository, never()).delete(any());
+    }
+
+    @Test
+    void removeFriendshipDeletesAssociatedRequests() {
+        when(friendshipRepository.findByUserAIdAndUserBId(1L, 5L)).thenReturn(Optional.of(sample));
+
+        friendshipService.removeFriendship(1L, 5L);
+
+        verify(friendshipRepository).delete(sample);
+    verify(friendRequestRepository).deleteAllById(argThat(ids ->
+        StreamSupport.stream(ids.spliterator(), false)
+            .anyMatch(sample.getSourceRequestId()::equals)));
     }
 
     @Test
