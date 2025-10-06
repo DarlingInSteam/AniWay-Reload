@@ -831,24 +831,6 @@ async def get_manga_info(filename: str):
         logger.error(f"Error getting manga info for {filename}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/manga-info/{slug}/chapters-only")
-async def get_chapters_metadata_only(slug: str, parser: str = "mangalib"):
-    """
-    Получает ТОЛЬКО метаданные глав без парсинга страниц.
-    Быстрая операция для проверки наличия новых глав.
-    
-    Args:
-        slug: Slug манги
-        parser: Парсер (mangalib, slashlib, hentailib)
-    
-    Returns:
-        JSON с метаданными глав
-    """
-    try:
-        logger.info(f"Getting chapters metadata for slug: {slug}, parser: {parser}")
-        
-        # Определяем Site-Id в зависимости от парсера
-
 @app.get("/catalog/{page}")
 async def get_catalog(page: int, parser: str = "mangalib", limit: int = 60):
     """
@@ -929,6 +911,7 @@ async def get_catalog(page: int, parser: str = "mangalib", limit: int = 60):
 
 @app.get("/manga-info/{slug}/chapters-only")
 async def get_chapters_metadata_only_endpoint(slug: str, parser: str = "mangalib"):
+    try:
         site_ids = {
             "mangalib": "1",
             "slashlib": "2", 
