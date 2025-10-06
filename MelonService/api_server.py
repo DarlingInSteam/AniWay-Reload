@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import uuid
@@ -19,6 +20,13 @@ from pydantic import BaseModel
 # Настройка логирования
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Регулярное выражение для удаления ANSI escape кодов
+ANSI_ESCAPE_PATTERN = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+
+def strip_ansi_codes(text: str) -> str:
+    """Удаляет ANSI escape коды из текста"""
+    return ANSI_ESCAPE_PATTERN.sub('', text)
 
 app = FastAPI()
 
@@ -108,14 +116,17 @@ def ensure_utf8_patch():
             logger.info("UTF-8 patch applied successfully")
 
 def log_task_message(task_id: str, level: str, message: str):
-    """Добавляет сообщение в логи задачи"""
+    """Добавляет сообщение в логи задачи (очищает ANSI коды)"""
     if task_id not in task_logs:
         task_logs[task_id] = []
+    
+    # Очищаем ANSI escape коды из сообщения
+    clean_message = strip_ansi_codes(message)
     
     log_entry = LogEntry(
         timestamp=datetime.now().isoformat(),
         level=level,
-        message=message,
+        message=clean_message,
         task_id=task_id
     )
     
@@ -230,9 +241,11 @@ async def run_melon_command(command: List[str], task_id: str, timeout: int = 600
         # Читаем вывод в реальном времени
         stdout_lines = []
         stderr_lines = []
+        last_update_time = datetime.now()
         
         # Функция для чтения stdout
         async def read_stdout():
+            nonlocal last_update_time
             if process.stdout:
                 while True:
                     line = await process.stdout.readline()
@@ -242,6 +255,7 @@ async def run_melon_command(command: List[str], task_id: str, timeout: int = 600
                     if line_str:
                         stdout_lines.append(line_str)
                         log_task_message(task_id, "INFO", line_str)
+                        last_update_time = datetime.now()
                         
                         # Обновляем прогресс на основе вывода
                         if "Chapter" in line_str and "completed" in line_str:
@@ -255,6 +269,7 @@ async def run_melon_command(command: List[str], task_id: str, timeout: int = 600
 
         # Функция для чтения stderr
         async def read_stderr():
+            nonlocal last_update_time
             if process.stderr:
                 while True:
                     line = await process.stderr.readline()
@@ -265,11 +280,23 @@ async def run_melon_command(command: List[str], task_id: str, timeout: int = 600
                         stderr_lines.append(line_str)
                         log_task_message(task_id, "ERROR", line_str)
                         logger.warning(f"[{task_id}] STDERR: {line_str}")
+                        last_update_time = datetime.now()
 
-        # Читаем stdout и stderr параллельно
+        # Функция для периодического heartbeat (каждые 30 секунд)
+        async def heartbeat():
+            nonlocal last_update_time
+            while process.returncode is None:
+                await asyncio.sleep(30)
+                if process.returncode is None:  # Проверяем снова после sleep
+                    elapsed = (datetime.now() - last_update_time).total_seconds()
+                    log_task_message(task_id, "INFO", f"[Heartbeat] Процесс активен, прошло {int(elapsed)}с с последнего обновления")
+                    update_task_status(task_id, "RUNNING", min(90, 10 + len(stdout_lines)), f"Парсинг в процессе... ({len(stdout_lines)} строк логов)")
+
+        # Читаем stdout, stderr параллельно и отправляем heartbeat
         await asyncio.gather(
             read_stdout(),
-            read_stderr()
+            read_stderr(),
+            heartbeat()
         )
 
         # Ждем завершения процесса
