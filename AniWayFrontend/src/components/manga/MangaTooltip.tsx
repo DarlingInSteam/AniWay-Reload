@@ -6,6 +6,7 @@ import { MangaResponseDTO, BookmarkStatus } from '@/types'
 import { getStatusColor, getStatusText, cn } from '@/lib/utils'
 import { useBookmarks } from '@/hooks/useBookmarks'
 import { useAuth } from '@/contexts/AuthContext'
+import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
 
 interface MangaTooltipProps {
   manga: MangaResponseDTO
@@ -369,9 +370,9 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
 
           {/* Описание */}
           <div className="mb-4">
-            <p className="text-sm text-gray-300 leading-relaxed line-clamp-4">
-              {manga.description || 'Описание недоступно'}
-            </p>
+            <div className="prose prose-invert max-w-none text-sm text-gray-300 leading-relaxed line-clamp-4 markdown-body">
+              <MarkdownRenderer value={manga.description || 'Описание недоступно'} />
+            </div>
           </div>
 
           {/* Секция действий */}
