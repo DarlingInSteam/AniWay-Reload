@@ -295,31 +295,31 @@ export function MangaManagement() {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-muted-foreground">Всего:</span>
-                  <span className="ml-2 text-white">{autoParseTask.total_slugs}</span>
+                  <span className="ml-2 text-white">{autoParseTask.total_slugs || 0}</span>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Обработано:</span>
-                  <span className="ml-2 text-white">{autoParseTask.processed_slugs}</span>
+                  <span className="ml-2 text-white">{autoParseTask.processed_slugs || 0}</span>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Импортировано:</span>
-                  <span className="ml-2 text-green-500">{autoParseTask.imported_slugs.length}</span>
+                  <span className="ml-2 text-green-500">{autoParseTask.imported_slugs?.length || 0}</span>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Пропущено:</span>
-                  <span className="ml-2 text-yellow-500">{autoParseTask.skipped_slugs.length}</span>
+                  <span className="ml-2 text-yellow-500">{autoParseTask.skipped_slugs?.length || 0}</span>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Ошибок:</span>
-                  <span className="ml-2 text-red-500">{autoParseTask.failed_slugs.length}</span>
+                  <span className="ml-2 text-red-500">{autoParseTask.failed_slugs?.length || 0}</span>
                 </div>
               </div>
 
-              {autoParseTask.failed_slugs.length > 0 && (
+              {(autoParseTask.failed_slugs?.length || 0) > 0 && (
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
-                    Ошибки при обработке: {autoParseTask.failed_slugs.join(', ')}
+                    Ошибки при обработке: {autoParseTask.failed_slugs?.join(', ') || ''}
                   </AlertDescription>
                 </Alert>
               )}

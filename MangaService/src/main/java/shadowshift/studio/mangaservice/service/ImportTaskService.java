@@ -30,6 +30,10 @@ public class ImportTaskService {
          */
         PENDING,
         /**
+         * Задача выполняется (парсинг, билдинг и т.д.).
+         */
+        RUNNING,
+        /**
          * Импорт манги.
          */
         IMPORTING_MANGA,

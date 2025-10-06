@@ -50,6 +50,7 @@ public class AutoParsingService {
         AutoParseTask task = new AutoParseTask();
         task.taskId = taskId;
         task.status = "pending";
+        task.totalSlugs = 0;
         task.processedSlugs = 0;
         task.skippedSlugs = new ArrayList<>();
         task.importedSlugs = new ArrayList<>();
