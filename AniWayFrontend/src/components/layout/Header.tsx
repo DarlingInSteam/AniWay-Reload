@@ -1,5 +1,5 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { Search, Bell, Bookmark, User, Menu, X, Settings, MessageSquare, Globe2, MessageCircle } from 'lucide-react'
+import { Search, Bell, Bookmark, User, Menu, X, Settings, MessageSquare } from 'lucide-react'
 import { NotificationBell } from '@/notifications/NotificationBell'
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -17,7 +17,7 @@ export function Header() {
   const location = useLocation()
   const searchRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
-  const { isAuthenticated, isAdmin, isTranslator } = useAuth()
+  const { isAuthenticated, isAdmin } = useAuth()
   const { data: inboxSummary } = useQuery({
     queryKey: ['inbox-summary'],
     queryFn: () => apiClient.getInboxSummary(),
@@ -122,29 +122,38 @@ export function Header() {
           </Link>
 
           {/* Навигация - только на десктопе */}
-          <nav className="hidden lg:flex items-center space-x-4 lg:space-x-6 ml-4">
+          <nav className="hidden lg:flex flex-wrap items-center gap-3 xl:gap-6 ml-4">
             {[
               { label: 'Каталог', to: '/catalog' },
               { label: 'Топы', to: '/tops' },
               { label: 'Форум', to: '/forum' },
-              { label: 'API Docs', to: '/api-docs' }
-            ].map(item => (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={cn(
-                  'text-sm font-medium transition-colors duration-200 whitespace-nowrap',
-                  'text-muted-foreground hover:text-white',
-                  (() => {
-                    if (item.to === '/tops') return location.pathname.startsWith('/tops')
-                    if (item.to === '/forum') return location.pathname.startsWith('/forum')
-                    return location.pathname.startsWith(item.to)
-                  })() && 'text-white'
-                )}
-              >
-                {item.label}
-              </Link>
-            ))}
+              { label: 'Чат', to: '/chat' }
+            ].map(item => {
+              const isActive = (() => {
+                if (item.to === '/tops') return location.pathname.startsWith('/tops')
+                if (item.to === '/forum') return location.pathname.startsWith('/forum')
+                if (item.to === '/chat') return location.pathname.startsWith('/chat')
+                return location.pathname.startsWith(item.to)
+              })()
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={cn(
+                    'relative flex items-center gap-2 text-sm font-medium transition-colors duration-200 whitespace-nowrap',
+                    'text-muted-foreground hover:text-white',
+                    isActive && 'text-white'
+                  )}
+                >
+                  {item.label}
+                  {item.to === '/chat' && channelUnread > 0 && (
+                    <span className="inline-flex min-w-[1.25rem] justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                      {channelUnread > 9 ? '9+' : channelUnread}
+                    </span>
+                  )}
+                </Link>
+              )
+            })}
           </nav>
         </div>
 
@@ -288,30 +297,6 @@ export function Header() {
                   <Bookmark className="h-5 w-5" />
                 </Link>
 
-                <Link
-                  to="/chat"
-                  className="relative p-2 lg:p-3 rounded-xl hover:bg-secondary/50 text-muted-foreground hover:text-white transition-colors duration-200"
-                  title="Глобальный чат"
-                >
-                  <Globe2 className="h-5 w-5" />
-                  {channelUnread > 0 && (
-                    <span className="absolute top-1 right-1 inline-flex h-2.5 w-2.5 items-center justify-center rounded-full bg-red-500 ring-2 ring-black/60" />
-                  )}
-                </Link>
-
-                <Link
-                  to="/messages"
-                  className="relative p-2 lg:p-3 rounded-xl hover:bg-secondary/50 text-muted-foreground hover:text-white transition-colors duration-200"
-                  title="Личные сообщения"
-                >
-                  <MessageCircle className="h-5 w-5" />
-                  {directUnread > 0 && (
-                    <span className="absolute top-0.5 right-0 inline-flex min-w-[1.25rem] justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold text-white ring-2 ring-black/60">
-                      {directUnread > 9 ? '9+' : directUnread}
-                    </span>
-                  )}
-                </Link>
-                
                 <NotificationBell />
 
                 {/* Ссылка на управление доступна только для администраторов */}
@@ -327,7 +312,7 @@ export function Header() {
               </div>
 
               {/* Пользовательское меню */}
-              <UserMenu />
+              <UserMenu directUnread={directUnread} />
             </>
           ) : (
             <div className="flex items-center gap-2">
@@ -385,8 +370,7 @@ export function Header() {
                   className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  <Globe2 className="h-4 w-4 mr-3" />
-                  Глобальный чат
+                  Чат
                   {channelUnread > 0 && (
                     <span className="ml-auto inline-flex min-w-[1.5rem] justify-center rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-semibold text-white">
                       {channelUnread}
@@ -398,7 +382,6 @@ export function Header() {
                   className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  <MessageCircle className="h-4 w-4 mr-3" />
                   Личные сообщения
                   {directUnread > 0 && (
                     <span className="ml-auto inline-flex min-w-[1.5rem] justify-center rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-semibold text-white">
@@ -406,14 +389,7 @@ export function Header() {
                     </span>
                   )}
                 </Link>
-                <Link
-                  to="/api-docs"
-                  className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  📚 API Документация
-                </Link>
-                
+
                 {isAuthenticated && (
                   <>
                     <hr className="my-2 border-border/30" />

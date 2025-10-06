@@ -3,7 +3,11 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useResolvedAvatar } from '@/hooks/useResolvedAvatar'
 
-export const UserMenu: React.FC = () => {
+type UserMenuProps = {
+  directUnread?: number
+}
+
+export const UserMenu: React.FC<UserMenuProps> = ({ directUnread = 0 }) => {
   const [isOpen, setIsOpen] = useState(false)
   const { user, logout, isAdmin, isTranslator } = useAuth()
   const menuRef = useRef<HTMLDivElement>(null)
@@ -49,6 +53,7 @@ export const UserMenu: React.FC = () => {
   }
 
   const resolvedAvatar = useResolvedAvatar(user?.id, user?.avatar)
+  const hasUnreadMessages = directUnread > 0
 
   return (
     <div className="relative" ref={menuRef}>
@@ -56,17 +61,22 @@ export const UserMenu: React.FC = () => {
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center space-x-3 text-muted-foreground hover:text-white focus:outline-none"
       >
-        {resolvedAvatar ? (
-          <div className="w-8 h-8 rounded-full overflow-hidden ring-1 ring-white/20 bg-white/10">
-            <img src={resolvedAvatar} alt={user.username} className="w-full h-full object-cover" />
-          </div>
-        ) : (
-          <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-            <span className="text-white text-sm font-medium">
-              {user.username.charAt(0).toUpperCase()}
-            </span>
-          </div>
-        )}
+        <div className="relative">
+          {resolvedAvatar ? (
+            <div className="w-8 h-8 rounded-full overflow-hidden ring-1 ring-white/20 bg-white/10">
+              <img src={resolvedAvatar} alt={user.username} className="w-full h-full object-cover" />
+            </div>
+          ) : (
+            <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+              <span className="text-white text-sm font-medium">
+                {user.username.charAt(0).toUpperCase()}
+              </span>
+            </div>
+          )}
+          {hasUnreadMessages && (
+            <span className="absolute -top-0.5 -right-0.5 inline-flex h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-black/60" />
+          )}
+        </div>
         <div className="hidden md:block text-left">
           <p className="text-sm font-medium text-white">{user.username}</p>
           {(isAdmin || isTranslator) && (
@@ -93,6 +103,19 @@ export const UserMenu: React.FC = () => {
             onClick={() => setIsOpen(false)}
           >
             Мой профиль
+          </Link>
+
+          <Link
+            to="/messages"
+            className="flex items-center justify-between px-4 py-2 text-sm text-white hover:bg-secondary transition-colors"
+            onClick={() => setIsOpen(false)}
+          >
+            <span>Личные сообщения</span>
+            {hasUnreadMessages && (
+              <span className="ml-3 inline-flex min-w-[1.5rem] justify-center rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-semibold text-white">
+                {directUnread > 9 ? '9+' : directUnread}
+              </span>
+            )}
           </Link>
 
           <Link
