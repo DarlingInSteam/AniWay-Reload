@@ -57,6 +57,7 @@ export class PostService {
         updatedAt: nowIso(),
         editedUntil: new Date(Date.now() + 7*24*3600*1000).toISOString(),
         canEdit: true,
+        canDelete: true,
         attachments: [],
         references: tokens.map(t => ({ mangaId: parseInt(t) || 0 })),
         stats: { score: 0, up: 0, down: 0 },

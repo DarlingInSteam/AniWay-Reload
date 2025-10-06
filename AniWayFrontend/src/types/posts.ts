@@ -31,6 +31,7 @@ export interface Post {
   updatedAt: string;
   editedUntil?: string;
   canEdit?: boolean; // client derived
+  canDelete?: boolean;
   attachments: PostAttachment[];
   references: PostReferenceResolved[];
   stats: PostStats;

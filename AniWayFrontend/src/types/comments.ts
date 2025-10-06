@@ -56,6 +56,8 @@ export interface CommentResponseDTO {
   updatedAt: string
   isEdited: boolean
   isDeleted: boolean
+  canEdit?: boolean
+  canDelete?: boolean
   likesCount: number
   dislikesCount: number
   userReaction?: 'LIKE' | 'DISLIKE'

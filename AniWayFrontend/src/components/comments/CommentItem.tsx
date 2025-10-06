@@ -51,13 +51,16 @@ export function CommentItem({
   level = 0,
   maxLevel = 10
 }: CommentItemProps) {
-  const { user, isAuthenticated } = useAuth()
+  const { user, isAuthenticated, isAdmin } = useAuth()
   const [showReplyForm, setShowReplyForm] = useState(false)
   const [showReplies, setShowReplies] = useState(level <= 1) // Сворачиваем ответы после 1 уровня по умолчанию
   const [isEditing, setIsEditing] = useState(false)
 
   const isOwner = user?.id === comment.userId
-  const canEdit = isOwner && !comment.isDeleted
+  const isDeleted = comment.isDeleted ?? false
+  const canEdit = !isDeleted && ((comment.canEdit ?? false) || isOwner)
+  const canDelete = !isDeleted && ((comment.canDelete ?? isOwner) || isAdmin)
+  const canShowMenu = canEdit || canDelete
   const hasReplies = comment.replies && comment.replies.length > 0
 
   const formatDate = (dateString: string) => {
@@ -168,7 +171,7 @@ export function CommentItem({
         </div>
 
         {/* Меню действий */}
-        {canEdit && (
+        {canShowMenu && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -176,17 +179,21 @@ export function CommentItem({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setIsEditing(true)}>
-                <Edit className="h-4 w-4 mr-2" />
-                Редактировать
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={() => onDelete(comment.id)}
-                className="text-red-400"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Удалить
-              </DropdownMenuItem>
+              {canEdit && (
+                <DropdownMenuItem onClick={() => setIsEditing(true)}>
+                  <Edit className="h-4 w-4 mr-2" />
+                  Редактировать
+                </DropdownMenuItem>
+              )}
+              {canDelete && (
+                <DropdownMenuItem 
+                  onClick={() => onDelete(comment.id)}
+                  className="text-red-400"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Удалить
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         )}
