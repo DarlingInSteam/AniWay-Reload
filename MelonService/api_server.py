@@ -856,12 +856,12 @@ async def get_catalog(page: int, parser: str = "mangalib", limit: int = 60):
         site_id = site_ids.get(parser, "1")
         
         # Запрос к MangaLib API для получения каталога
-        # https://api.cdnlibs.org/api/manga?site_id=1&page=1&count=60
+        # Правильный формат: https://api.cdnlibs.org/api/manga?fields[]=rate_avg&fields[]=rate&fields[]=releaseDate&page=1
+        # MangaLib API не поддерживает параметр count, используется фиксированная пагинация
         api_url = "https://api.cdnlibs.org/api/manga"
         params = {
-            "site_id": site_id,
             "page": page,
-            "count": limit
+            "fields[]": ["rate_avg", "rate", "releaseDate", "summary"]
         }
         headers = {
             "Site-Id": site_id,
@@ -869,28 +869,40 @@ async def get_catalog(page: int, parser: str = "mangalib", limit: int = 60):
         }
         
         response = requests.get(api_url, params=params, headers=headers, timeout=30)
+        
+        # Логируем запрос для отладки
+        logger.debug(f"Request URL: {response.url}")
+        
         response.raise_for_status()
         
         data = response.json()
+        logger.debug(f"API Response keys: {data.keys() if isinstance(data, dict) else 'not a dict'}")
         
         # Извлекаем список манг
         manga_list = data.get("data", [])
-        total = data.get("meta", {}).get("total", 0)
+        if not manga_list and isinstance(data, list):
+            manga_list = data
+        
+        meta = data.get("meta", {})
+        total = meta.get("total", meta.get("total_results", 0))
+        per_page = meta.get("per_page", len(manga_list))
         
         # Формируем список slug'ов
         slugs = []
-        for manga in manga_list:
-            slug = manga.get("slug", manga.get("slug_url", ""))
+        for manga in manga_list[:limit]:  # Ограничиваем до limit элементов
+            # Разные варианты полей со slug
+            slug = manga.get("slug", manga.get("slug_url", manga.get("eng_name", "")))
             if slug:
                 slugs.append(slug)
         
-        logger.info(f"Successfully fetched {len(slugs)} manga slugs from page {page}")
+        logger.info(f"Successfully fetched {len(slugs)} manga slugs from page {page} (total in response: {len(manga_list)})")
         
         return {
             "success": True,
             "page": page,
             "parser": parser,
             "limit": limit,
+            "per_page": per_page,
             "total": total,
             "count": len(slugs),
             "slugs": slugs

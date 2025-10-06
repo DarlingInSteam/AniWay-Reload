@@ -101,7 +101,9 @@ export function MangaManagement() {
             setIsAutoParsing(false)
             
             if (data.status === 'completed') {
-              toast.success(`Автопарсинг завершен! Импортировано: ${data.imported_slugs.length}, пропущено: ${data.skipped_slugs.length}`)
+              const importedCount = data.imported_slugs?.length || 0
+              const skippedCount = data.skipped_slugs?.length || 0
+              toast.success(`Автопарсинг завершен! Импортировано: ${importedCount}, пропущено: ${skippedCount}`)
             } else {
               toast.error('Автопарсинг завершился с ошибкой')
             }
@@ -155,7 +157,9 @@ export function MangaManagement() {
             setIsAutoUpdating(false)
 
             if (data.status === 'completed') {
-              toast.success(`Автообновление завершено! Обновлено манг: ${data.updated_mangas.length}, добавлено глав: ${data.new_chapters_count}`)
+              const updatedCount = data.updated_mangas?.length || 0
+              const newChaptersCount = data.new_chapters_count || 0
+              toast.success(`Автообновление завершено! Обновлено манг: ${updatedCount}, добавлено глав: ${newChaptersCount}`)
             } else {
               toast.error('Автообновление завершилось с ошибкой')
             }
