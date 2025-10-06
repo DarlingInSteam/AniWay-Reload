@@ -71,6 +71,12 @@ public class MangaCreateDTO {
     private String coverImageUrl;
 
     /**
+     * Оригинальный slug манги в источнике Melon.
+     */
+    @Size(max = 255, message = "Melon slug must not exceed 255 characters")
+    private String melonSlug;
+
+    /**
      * Конструктор по умолчанию.
      */
     public MangaCreateDTO() {}
@@ -186,6 +192,20 @@ public class MangaCreateDTO {
      * @param coverImageUrl URL обложки
      */
     public void setCoverImageUrl(String coverImageUrl) { this.coverImageUrl = coverImageUrl; }
+
+    /**
+     * Возвращает оригинальный slug манги в Melon.
+     *
+     * @return slug манги в Melon
+     */
+    public String getMelonSlug() { return melonSlug; }
+
+    /**
+     * Устанавливает оригинальный slug манги в Melon.
+     *
+     * @param melonSlug slug манги в Melon
+     */
+    public void setMelonSlug(String melonSlug) { this.melonSlug = melonSlug; }
 
     /**
      * Возвращает список названий жанров манги.

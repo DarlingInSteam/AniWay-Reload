@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import uuid
@@ -19,6 +20,13 @@ from pydantic import BaseModel
 # Настройка логирования
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Регулярное выражение для удаления ANSI escape кодов
+ANSI_ESCAPE_PATTERN = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+
+def strip_ansi_codes(text: str) -> str:
+    """Удаляет ANSI escape коды из текста"""
+    return ANSI_ESCAPE_PATTERN.sub('', text)
 
 app = FastAPI()
 
@@ -108,14 +116,17 @@ def ensure_utf8_patch():
             logger.info("UTF-8 patch applied successfully")
 
 def log_task_message(task_id: str, level: str, message: str):
-    """Добавляет сообщение в логи задачи"""
+    """Добавляет сообщение в логи задачи (очищает ANSI коды)"""
     if task_id not in task_logs:
         task_logs[task_id] = []
+    
+    # Очищаем ANSI escape коды из сообщения
+    clean_message = strip_ansi_codes(message)
     
     log_entry = LogEntry(
         timestamp=datetime.now().isoformat(),
         level=level,
-        message=message,
+        message=clean_message,
         task_id=task_id
     )
     
@@ -173,7 +184,7 @@ def ensure_cross_device_patch():
             builder_path.write_text(content, encoding='utf-8')
             logger.info("Cross-device patch applied successfully")
 
-def send_progress_to_manga_service(task_id, status, progress, message=None, error=None):
+def send_progress_to_manga_service(task_id, status, progress, message=None, error=None, logs=None):
     try:
         payload = {
             "status": status,
@@ -181,6 +192,8 @@ def send_progress_to_manga_service(task_id, status, progress, message=None, erro
             "message": message,
             "error": error
         }
+        if logs:
+            payload["logs"] = logs if isinstance(logs, list) else [logs]
         url = f"http://manga-service:8081/api/parser/progress/{task_id}"
         resp = requests.post(url, json=payload, timeout=5)
         logger.info(f"Progress sent to MangaService: {payload}, response: {resp.status_code}")
@@ -188,15 +201,26 @@ def send_progress_to_manga_service(task_id, status, progress, message=None, erro
         logger.error(f"Failed to send progress to MangaService: {e}")
 
 def update_task_status(task_id: str, status: str, progress: int, message: str, result: Optional[Dict] = None, error: Optional[str] = None):
-    """Обновляет статус задачи"""
+    """Обновляет статус задачи и отправляет логи в MangaService"""
     if task_id in tasks_storage:
         tasks_storage[task_id].status = status
         tasks_storage[task_id].progress = progress
         tasks_storage[task_id].message = message
         tasks_storage[task_id].updated_at = datetime.now().isoformat()
         if result:
-            tasks_storage[task_id].result = result
-        send_progress_to_manga_service(task_id, status, progress, message, error)
+            # Добавляем результат в список results (не result!)
+            if isinstance(result, list):
+                tasks_storage[task_id].results.extend(result)
+            else:
+                tasks_storage[task_id].results.append(result)
+        
+        # Собираем последние логи для отправки (последние 10 строк)
+        logs_to_send = None
+        if task_id in task_logs and len(task_logs[task_id]) > 0:
+            recent_logs = task_logs[task_id][-10:]  # Последние 10 логов
+            logs_to_send = [f"[{log.timestamp}] [{log.level}] {log.message}" for log in recent_logs]
+        
+        send_progress_to_manga_service(task_id, status, progress, message, error, logs_to_send)
 
 async def run_melon_command(command: List[str], task_id: str, timeout: int = 600) -> Dict[str, Any]:
     """Запускает команду MelonService асинхронно с поддержкой timeout и логирования в реальном времени"""
@@ -210,7 +234,7 @@ async def run_melon_command(command: List[str], task_id: str, timeout: int = 600
         logger.info(f"Running command: {' '.join(full_command)}")
         update_task_status(task_id, "RUNNING", 5, f"Запуск команды: {' '.join(full_command)}")
 
-        # Запускаем процесс с timeout
+        # Запускаем процесс
         process = await asyncio.create_subprocess_exec(
             *full_command,
             cwd=base_path,
@@ -221,39 +245,63 @@ async def run_melon_command(command: List[str], task_id: str, timeout: int = 600
         # Читаем вывод в реальном времени
         stdout_lines = []
         stderr_lines = []
+        last_update_time = datetime.now()
         
-        # Читаем stdout
-        if process.stdout:
-            while True:
-                line = await process.stdout.readline()
-                if not line:
-                    break
-                line_str = line.decode('utf-8', errors='ignore').strip()
-                if line_str:
-                    stdout_lines.append(line_str)
-                    log_task_message(task_id, "INFO", line_str)
-                    
-                    # Обновляем прогресс на основе вывода
-                    if "Chapter" in line_str and "completed" in line_str:
-                        # Пример: "[1/10] Chapter 1.1 completed (15 slides)"
-                        update_task_status(task_id, "RUNNING", min(90, 10 + len(stdout_lines)), f"Парсинг: {line_str}")
-                    elif "Parsing" in line_str and "..." in line_str:
-                        update_task_status(task_id, "RUNNING", min(90, 10 + len(stdout_lines)), f"Парсинг: {line_str}")
-                    elif "Building" in line_str:
-                        update_task_status(task_id, "RUNNING", min(90, 10 + len(stdout_lines)), f"Билдинг: {line_str}")
-                    elif "Done in" in line_str:
-                        update_task_status(task_id, "RUNNING", 95, f"Завершено: {line_str}")
+        # Функция для чтения stdout
+        async def read_stdout():
+            nonlocal last_update_time
+            if process.stdout:
+                while True:
+                    line = await process.stdout.readline()
+                    if not line:
+                        break
+                    line_str = line.decode('utf-8', errors='ignore').strip()
+                    if line_str:
+                        stdout_lines.append(line_str)
+                        log_task_message(task_id, "INFO", line_str)
+                        last_update_time = datetime.now()
+                        
+                        # Обновляем прогресс на основе вывода
+                        if "Chapter" in line_str and "completed" in line_str:
+                            update_task_status(task_id, "RUNNING", min(90, 10 + len(stdout_lines)), f"Парсинг: {line_str}")
+                        elif "Parsing" in line_str and "..." in line_str:
+                            update_task_status(task_id, "RUNNING", min(90, 10 + len(stdout_lines)), f"Парсинг: {line_str}")
+                        elif "Building" in line_str:
+                            update_task_status(task_id, "RUNNING", min(90, 10 + len(stdout_lines)), f"Билдинг: {line_str}")
+                        elif "Done in" in line_str:
+                            update_task_status(task_id, "RUNNING", 95, f"Завершено: {line_str}")
 
-        # Читаем stderr
-        if process.stderr:
-            while True:
-                line = await process.stderr.readline()
-                if not line:
-                    break
-                line_str = line.decode('utf-8', errors='ignore').strip()
-                if line_str:
-                    stderr_lines.append(line_str)
-                    logger.warning(f"[{task_id}] STDERR: {line_str}")
+        # Функция для чтения stderr
+        async def read_stderr():
+            nonlocal last_update_time
+            if process.stderr:
+                while True:
+                    line = await process.stderr.readline()
+                    if not line:
+                        break
+                    line_str = line.decode('utf-8', errors='ignore').strip()
+                    if line_str:
+                        stderr_lines.append(line_str)
+                        log_task_message(task_id, "ERROR", line_str)
+                        logger.warning(f"[{task_id}] STDERR: {line_str}")
+                        last_update_time = datetime.now()
+
+        # Функция для периодического heartbeat (каждые 30 секунд)
+        async def heartbeat():
+            nonlocal last_update_time
+            while process.returncode is None:
+                await asyncio.sleep(30)
+                if process.returncode is None:  # Проверяем снова после sleep
+                    elapsed = (datetime.now() - last_update_time).total_seconds()
+                    log_task_message(task_id, "INFO", f"[Heartbeat] Процесс активен, прошло {int(elapsed)}с с последнего обновления")
+                    update_task_status(task_id, "RUNNING", min(90, 10 + len(stdout_lines)), f"Парсинг в процессе... ({len(stdout_lines)} строк логов)")
+
+        # Читаем stdout, stderr параллельно и отправляем heartbeat
+        await asyncio.gather(
+            read_stdout(),
+            read_stderr(),
+            heartbeat()
+        )
 
         # Ждем завершения процесса
         return_code = await process.wait()
@@ -830,6 +878,156 @@ async def get_manga_info(filename: str):
     except Exception as e:
         logger.error(f"Error getting manga info for {filename}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/catalog/{page}")
+async def get_catalog(page: int, parser: str = "mangalib", limit: int = 60):
+    """
+    Получает список slug'ов манг из каталога MangaLib по номеру страницы.
+    
+    Args:
+        page: Номер страницы каталога (начиная с 1)
+        parser: Парсер (mangalib, slashlib, hentailib)
+        limit: Количество манг на странице (по умолчанию 60)
+    
+    Returns:
+        JSON со списком slug'ов манг
+    """
+    try:
+        logger.info(f"Fetching catalog page {page} for {parser}, limit: {limit}")
+        
+        # Определяем Site-Id
+        site_ids = {
+            "mangalib": "1",
+            "slashlib": "2", 
+            "hentailib": "4"
+        }
+        site_id = site_ids.get(parser, "1")
+        
+        # Запрос к MangaLib API для получения каталога
+        # Правильный формат как в парсере: fields[]=value&fields[]=value2
+        api_url = f"https://api.cdnlibs.org/api/manga?fields[]=rate_avg&fields[]=rate&fields[]=releaseDate&page={page}"
+        headers = {
+            "Site-Id": site_id,
+            "User-Agent": "Mozilla/5.0"
+        }
+        
+        # Запрос без params, всё в URL
+        response = requests.get(api_url, headers=headers, timeout=30)
+        
+        # Логируем запрос для отладки
+        logger.debug(f"Request URL: {response.url}")
+        
+        response.raise_for_status()
+        
+        data = response.json()
+        logger.debug(f"API Response keys: {data.keys() if isinstance(data, dict) else 'not a dict'}")
+        
+        # Извлекаем список манг
+        manga_list = data.get("data", [])
+        if not manga_list and isinstance(data, list):
+            manga_list = data
+        
+        meta = data.get("meta", {})
+        total = meta.get("total", meta.get("total_results", 0))
+        per_page = meta.get("per_page", len(manga_list))
+        
+        # Формируем список slug'ов
+        slugs = []
+        for manga in manga_list[:limit]:  # Ограничиваем до limit элементов
+            # Разные варианты полей со slug
+            slug = manga.get("slug", manga.get("slug_url", manga.get("eng_name", "")))
+            if slug:
+                slugs.append(slug)
+        
+        logger.info(f"Successfully fetched {len(slugs)} manga slugs from page {page} (total in response: {len(manga_list)})")
+        
+        return {
+            "success": True,
+            "page": page,
+            "parser": parser,
+            "limit": limit,
+            "per_page": per_page,
+            "total": total,
+            "count": len(slugs),
+            "slugs": slugs
+        }
+        
+    except requests.exceptions.Timeout:
+        error_msg = f"Timeout fetching catalog page {page}"
+        logger.error(error_msg)
+        return {"success": False, "error": error_msg}
+    except requests.exceptions.RequestException as e:
+        error_msg = f"Request error fetching catalog: {str(e)}"
+        logger.error(error_msg)
+        return {"success": False, "error": error_msg}
+    except Exception as e:
+        error_msg = f"Error fetching catalog page {page}: {str(e)}"
+        logger.error(error_msg)
+        return {"success": False, "error": error_msg}
+
+@app.get("/manga-info/{slug}/chapters-only")
+async def get_chapters_metadata_only_endpoint(slug: str, parser: str = "mangalib"):
+    try:
+        site_ids = {
+            "mangalib": "1",
+            "slashlib": "2", 
+            "hentailib": "4"
+        }
+        site_id = site_ids.get(parser, "1")
+        
+        # Прямой запрос к MangaLib API для получения списка глав
+        api_url = f"https://api.cdnlibs.org/api/manga/{slug}/chapters"
+        headers = {"Site-Id": site_id}
+        
+        response = requests.get(api_url, headers=headers, timeout=30)
+        
+        if response.status_code == 200:
+            data = response.json().get("data", [])
+            
+            chapters = []
+            for chapter_data in data:
+                # Обрабатываем все ветки главы
+                for branch_data in chapter_data.get("branches", []):
+                    chapters.append({
+                        "volume": chapter_data.get("volume"),
+                        "number": chapter_data.get("number"),
+                        "name": chapter_data.get("name", ""),
+                        "id": branch_data.get("id"),
+                        "branch_id": branch_data.get("branch_id")
+                    })
+            
+            logger.info(f"Successfully retrieved {len(chapters)} chapters metadata for slug: {slug}")
+            
+            return {
+                "success": True,
+                "slug": slug,
+                "parser": parser,
+                "total_chapters": len(chapters),
+                "chapters": chapters
+            }
+        else:
+            error_msg = f"MangaLib API returned status {response.status_code}"
+            logger.error(f"Error getting chapters metadata: {error_msg}")
+            return {
+                "success": False,
+                "error": error_msg,
+                "status_code": response.status_code
+            }
+            
+    except requests.Timeout:
+        error_msg = "Request to MangaLib API timed out"
+        logger.error(error_msg)
+        return {
+            "success": False,
+            "error": error_msg
+        }
+    except Exception as e:
+        error_msg = f"Error getting chapters metadata: {str(e)}"
+        logger.error(error_msg)
+        return {
+            "success": False,
+            "error": error_msg
+        }
 
 @app.get("/images/{filename}/{chapter}/{page}")
 async def get_image(filename: str, chapter: str, page: str):

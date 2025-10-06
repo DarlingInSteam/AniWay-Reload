@@ -96,8 +96,8 @@ public class CommentController {
         try {
             Long userId = getCurrentUserId();
             log.info("Deleting comment {} by user {}", commentId, userId);
-
-            commentService.deleteComment(commentId, userId);
+            boolean isAdmin = currentUserIsAdmin();
+            commentService.deleteComment(commentId, userId, isAdmin);
             return ResponseEntity.noContent().build();
         } catch (RuntimeException e) {
             log.error("Error deleting comment {}: {}", commentId, e.getMessage());
@@ -277,6 +277,22 @@ public class CommentController {
             return userPrincipal.getUserId();
         }
         throw new RuntimeException("User not authenticated");
+    }
+
+    private boolean currentUserIsAdmin() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null) {
+            return false;
+        }
+        Object details = authentication.getDetails();
+        if (details instanceof UserPrincipal userPrincipal) {
+            String role = userPrincipal.getRole();
+            if (role != null && role.equalsIgnoreCase("ADMIN")) {
+                return true;
+            }
+        }
+        return authentication.getAuthorities() != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equalsIgnoreCase(a.getAuthority()));
     }
 
     /**

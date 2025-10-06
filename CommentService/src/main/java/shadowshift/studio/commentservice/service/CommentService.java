@@ -250,13 +250,13 @@ public class CommentService {
      * @throws RuntimeException если комментарий не найден или пользователь не имеет прав
      */
     @Transactional
-    public void deleteComment(Long commentId, Long userId) {
-        log.info("Deleting comment {} by user {}", commentId, userId);
+    public void deleteComment(Long commentId, Long userId, boolean adminOverride) {
+        log.info("Deleting comment {} by user {} (adminOverride={})", commentId, userId, adminOverride);
 
         Comment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new RuntimeException("Comment not found"));
 
-        if (!comment.getUserId().equals(userId)) {
+        if (!adminOverride && !comment.getUserId().equals(userId)) {
             throw new RuntimeException("You can only delete your own comments");
         }
 
@@ -489,26 +489,24 @@ public class CommentService {
         CommentReactionDTO reactionStats = getReactionStats(comment.getId());
 
         // Определяем реакцию текущего пользователя (если аутентифицирован)
+        CurrentUserContext userContext = resolveCurrentUserContext();
+        Long currentUserId = userContext.userId();
+        boolean isAdmin = userContext.isAdmin();
+
         ReactionType currentUserReaction = null;
-        try {
-            var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-            if (authentication != null && authentication.getDetails() instanceof shadowshift.studio.commentservice.security.UserPrincipal userPrincipal) {
-                Long currentUserId = userPrincipal.getUserId();
-                if (currentUserId != null) {
-                    commentReactionRepository.findByCommentIdAndUserId(comment.getId(), currentUserId)
-                            .ifPresent(reaction -> {
-                                // capture outer variable via array workaround if needed
-                            });
-                    // Более прямой способ: получить Optional и извлечь reactionType
-                    currentUserReaction = commentReactionRepository.findByCommentIdAndUserId(comment.getId(), currentUserId)
-                            .map(CommentReaction::getReactionType)
-                            .orElse(null);
-                }
+        if (currentUserId != null) {
+            try {
+                currentUserReaction = commentReactionRepository.findByCommentIdAndUserId(comment.getId(), currentUserId)
+                        .map(CommentReaction::getReactionType)
+                        .orElse(null);
+            } catch (Exception ex) {
+                log.debug("Could not resolve current user reaction for comment {}: {}", comment.getId(), ex.getMessage());
             }
-        } catch (Exception ex) {
-            // Логируем как debug чтобы не засорять ошибки – отсутствие аутентификации не критично
-            log.debug("Could not resolve current user reaction for comment {}: {}", comment.getId(), ex.getMessage());
         }
+
+        boolean isDeleted = Boolean.TRUE.equals(comment.getIsDeleted());
+        boolean canEdit = !isDeleted && currentUserId != null && currentUserId.equals(comment.getUserId());
+        boolean canDelete = !isDeleted && (canEdit || isAdmin);
 
         return CommentResponseDTO.builder()
                 .id(comment.getId())
@@ -526,6 +524,8 @@ public class CommentService {
                 .likesCount(reactionStats.getLikesCount())
                 .dislikesCount(reactionStats.getDislikesCount())
                 .userReaction(currentUserReaction)
+                .canEdit(canEdit)
+                .canDelete(canDelete)
                 .build();
     }
 
@@ -542,20 +542,24 @@ public class CommentService {
         CommentReactionDTO reactionStats = getReactionStats(comment.getId());
         int repliesCount = commentRepository.findByParentCommentIdAndIsDeleted(comment.getId(), false).size();
 
+        CurrentUserContext userContext = resolveCurrentUserContext();
+        Long currentUserId = userContext.userId();
+        boolean isAdmin = userContext.isAdmin();
+
         ReactionType currentUserReaction = null;
-        try {
-            var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-            if (authentication != null && authentication.getDetails() instanceof shadowshift.studio.commentservice.security.UserPrincipal userPrincipal) {
-                Long currentUserId = userPrincipal.getUserId();
-                if (currentUserId != null) {
-                    currentUserReaction = commentReactionRepository.findByCommentIdAndUserId(comment.getId(), currentUserId)
-                            .map(CommentReaction::getReactionType)
-                            .orElse(null);
-                }
+        if (currentUserId != null) {
+            try {
+                currentUserReaction = commentReactionRepository.findByCommentIdAndUserId(comment.getId(), currentUserId)
+                        .map(CommentReaction::getReactionType)
+                        .orElse(null);
+            } catch (Exception ex) {
+                log.debug("Could not resolve current user reaction for comment {}: {}", comment.getId(), ex.getMessage());
             }
-        } catch (Exception ex) {
-            log.debug("Could not resolve current user reaction for comment {}: {}", comment.getId(), ex.getMessage());
         }
+
+        boolean isDeleted = Boolean.TRUE.equals(comment.getIsDeleted());
+        boolean canEdit = !isDeleted && currentUserId != null && currentUserId.equals(comment.getUserId());
+        boolean canDelete = !isDeleted && (canEdit || isAdmin);
 
         return CommentResponseDTO.builder()
                 .id(comment.getId())
@@ -574,6 +578,46 @@ public class CommentService {
                 .dislikesCount(reactionStats.getDislikesCount())
                 .repliesCount(repliesCount)
                 .userReaction(currentUserReaction)
+                .canEdit(canEdit)
+                .canDelete(canDelete)
                 .build();
+    }
+
+    private CurrentUserContext resolveCurrentUserContext() {
+        try {
+            var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null) {
+                return CurrentUserContext.EMPTY;
+            }
+
+            Long userId = null;
+            boolean isAdmin = false;
+
+            Object details = authentication.getDetails();
+            if (details instanceof shadowshift.studio.commentservice.security.UserPrincipal userPrincipal) {
+                userId = userPrincipal.getUserId();
+                String role = userPrincipal.getRole();
+                if (role != null && role.equalsIgnoreCase("ADMIN")) {
+                    isAdmin = true;
+                }
+            }
+
+            if (!isAdmin && authentication.getAuthorities() != null) {
+                isAdmin = authentication.getAuthorities().stream()
+                        .anyMatch(a -> {
+                            String authority = a.getAuthority();
+                            return authority != null && (authority.equalsIgnoreCase("ROLE_ADMIN") || authority.equalsIgnoreCase("ADMIN"));
+                        });
+            }
+
+            return new CurrentUserContext(userId, isAdmin);
+        } catch (Exception ex) {
+            log.debug("Failed to resolve current user context: {}", ex.getMessage());
+            return CurrentUserContext.EMPTY;
+        }
+    }
+
+    private record CurrentUserContext(Long userId, boolean isAdmin) {
+        private static final CurrentUserContext EMPTY = new CurrentUserContext(null, false);
     }
 }

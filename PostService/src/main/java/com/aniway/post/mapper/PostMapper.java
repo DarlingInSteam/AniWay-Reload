@@ -3,7 +3,6 @@ package com.aniway.post.mapper;
 import com.aniway.post.dto.PostDtos;
 import com.aniway.post.model.Post;
 import com.aniway.post.model.PostAttachment;
-import com.aniway.post.model.PostReference;
 import com.aniway.post.model.PostVote;
 
 import java.util.List;
@@ -42,36 +41,44 @@ public class PostMapper {
     }
 
     public static PostDtos.FrontendPost toFrontend(Post post, Long currentUserId) {
-    int up = (int) post.getVotes().stream().filter(v -> v.getValue() == 1).count();
-    int down = (int) post.getVotes().stream().filter(v -> v.getValue() == -1).count();
-    Integer userVote = null;
-    if (currentUserId != null) {
-        userVote = post.getVotes().stream()
-            .filter(v -> v.getUserId().equals(currentUserId))
-            .map(PostVote::getValue)
-            .findFirst().orElse(null);
+        return toFrontend(post, currentUserId, false);
     }
-    List<PostDtos.AttachmentDto> attachments = post.getAttachments().stream()
-        .map(a -> new PostDtos.AttachmentDto(a.getId(), a.getFilename(), a.getUrl(), a.getSizeBytes()))
-        .collect(Collectors.toList());
-    List<PostDtos.ReferenceDto> refs = post.getReferences().stream()
-        .map(r -> new PostDtos.ReferenceDto(r.getId(), r.getType(), r.getRefId()))
-        .collect(Collectors.toList());
-    int score = up - down;
-    boolean canEdit = post.getEditedUntil() == null || post.getEditedUntil().isAfter(java.time.Instant.now());
-    long commentsCount = 0L; // placeholder until integrated with CommentService aggregation
-    return new PostDtos.FrontendPost(
-            post.getId(),
-            post.getAuthorId(),
-            post.getContent(),
-            post.getCreatedAt(),
-            post.getUpdatedAt(),
-            post.getEditedUntil(),
-            canEdit,
-            attachments,
-            refs,
-            new PostDtos.FrontendPost.Stats(score, up, down, userVote, commentsCount)
-    );
+
+    public static PostDtos.FrontendPost toFrontend(Post post, Long currentUserId, boolean adminOverride) {
+        int up = (int) post.getVotes().stream().filter(v -> v.getValue() == 1).count();
+        int down = (int) post.getVotes().stream().filter(v -> v.getValue() == -1).count();
+        Integer userVote = null;
+        if (currentUserId != null) {
+            userVote = post.getVotes().stream()
+                    .filter(v -> v.getUserId().equals(currentUserId))
+                    .map(PostVote::getValue)
+                    .findFirst().orElse(null);
+        }
+        List<PostDtos.AttachmentDto> attachments = post.getAttachments().stream()
+                .map(a -> new PostDtos.AttachmentDto(a.getId(), a.getFilename(), a.getUrl(), a.getSizeBytes()))
+                .collect(Collectors.toList());
+        List<PostDtos.ReferenceDto> refs = post.getReferences().stream()
+                .map(r -> new PostDtos.ReferenceDto(r.getId(), r.getType(), r.getRefId()))
+                .collect(Collectors.toList());
+        int score = up - down;
+        boolean ownsPost = currentUserId != null && post.getAuthorId() != null && post.getAuthorId().equals(currentUserId);
+        boolean withinEditWindow = post.getEditedUntil() == null || post.getEditedUntil().isAfter(java.time.Instant.now());
+        boolean canEdit = ownsPost && withinEditWindow;
+        boolean canDelete = adminOverride || ownsPost;
+        long commentsCount = 0L; // placeholder until integrated with CommentService aggregation
+        return new PostDtos.FrontendPost(
+                post.getId(),
+                post.getAuthorId(),
+                post.getContent(),
+                post.getCreatedAt(),
+                post.getUpdatedAt(),
+                post.getEditedUntil(),
+                canEdit,
+                canDelete,
+                attachments,
+                refs,
+                new PostDtos.FrontendPost.Stats(score, up, down, userVote, commentsCount)
+        );
     }
 
     public static void applyAttachments(Post post, List<PostDtos.AttachmentRequest> attachmentRequests) {

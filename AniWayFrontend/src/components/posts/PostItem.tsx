@@ -8,6 +8,7 @@ import { MessageCircle } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { useResolvedAvatar } from '@/hooks/useResolvedAvatar';
 import { PostCommentsModal } from './PostCommentsModal';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface PostItemProps {
   post: Post;
@@ -17,6 +18,7 @@ interface PostItemProps {
 }
 
 export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdated, onDeleted }) => {
+  const { user, isAdmin } = useAuth();
   const [localPost, setLocalPost] = useState(post);
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(post.content);
@@ -88,8 +90,13 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
     }
   }
 
+  const viewerId = currentUserId ?? user?.id ?? null;
+  const isOwner = viewerId !== null && viewerId === localPost.userId;
   const withinWindow = localPost.editedUntil ? new Date(localPost.editedUntil).getTime() > Date.now() : true;
-  const canEdit = localPost.canEdit && withinWindow && currentUserId === localPost.userId;
+  const computedCanEdit = localPost.canEdit ?? false;
+  const canEdit = !localPost.deleted && (computedCanEdit || (isOwner && withinWindow));
+  const baseCanDelete = localPost.canDelete ?? isOwner;
+  const canDelete = !localPost.deleted && (baseCanDelete || isAdmin);
 
   // Transform content: replace [[manga:ID]] with markdown link using cached or placeholder title
   const [resolvedContent, setResolvedContent] = useState<string>(localPost.content);
@@ -231,10 +238,14 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
             {localPost.stats.commentsCount ?? 0}
           </span>
         </button>
-        {canEdit && !editing && (
+        {!editing && (canEdit || canDelete) && (
           <>
-            <button onClick={() => setEditing(true)} className="text-xs text-purple-300 hover:text-purple-200">Редактировать</button>
-            <button onClick={handleDelete} className="text-xs text-red-400 hover:text-red-300">Удалить</button>
+            {canEdit && (
+              <button onClick={() => setEditing(true)} className="text-xs text-purple-300 hover:text-purple-200">Редактировать</button>
+            )}
+            {canDelete && (
+              <button onClick={handleDelete} className="text-xs text-red-400 hover:text-red-300">Удалить</button>
+            )}
           </>
         )}
         {actionError && !editing && (

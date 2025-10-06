@@ -50,7 +50,7 @@ public class PostService {
     }
 
     @Transactional(readOnly = true)
-    public List<PostDtos.FrontendPost> getTop(String range, Integer limit, Long currentUserId) {
+    public List<PostDtos.FrontendPost> getTop(String range, Integer limit, Long currentUserId, boolean isAdmin) {
         int cappedLimit = (limit == null ? DEFAULT_TOP_LIMIT : Math.min(Math.max(limit, 1), 100));
         Instant since;
         if (range == null || range.equalsIgnoreCase("all")) {
@@ -72,7 +72,7 @@ public class PostService {
         } else {
             posts = postRepository.findTopSince(since, pageable);
         }
-        return posts.stream().map(p -> PostMapper.toFrontend(p, currentUserId)).toList();
+    return posts.stream().map(p -> PostMapper.toFrontend(p, currentUserId, isAdmin)).toList();
     }
 
     public PostDtos.PostResponse create(Long authorId, PostDtos.CreatePostRequest req) {
@@ -113,9 +113,9 @@ public class PostService {
         return PostMapper.toFrontend(post, authorId);
     }
 
-    public void delete(Long postId, Long authorId) {
+    public void delete(Long postId, Long actorId, boolean adminOverride) {
         Post post = getPostOrThrow(postId);
-        if (!post.getAuthorId().equals(authorId)) {
+        if (!adminOverride && !post.getAuthorId().equals(actorId)) {
             throw new IllegalStateException("Not owner");
         }
         postRepository.delete(post);
@@ -127,9 +127,9 @@ public class PostService {
         return PostMapper.toResponse(post, currentUserId);
     }
 
-    public PostDtos.FrontendPost getFrontend(Long postId, Long currentUserId) {
+    public PostDtos.FrontendPost getFrontend(Long postId, Long currentUserId, boolean isAdmin) {
         Post post = getPostOrThrow(postId);
-        return PostMapper.toFrontend(post, currentUserId);
+        return PostMapper.toFrontend(post, currentUserId, isAdmin);
     }
 
     @Transactional(readOnly = true)
@@ -138,9 +138,9 @@ public class PostService {
                 .map(p -> PostMapper.toResponse(p, currentUserId));
     }
 
-    public Page<PostDtos.FrontendPost> listByAuthorFrontend(Long authorId, Pageable pageable, Long currentUserId) {
+    public Page<PostDtos.FrontendPost> listByAuthorFrontend(Long authorId, Pageable pageable, Long currentUserId, boolean isAdmin) {
         return postRepository.findByAuthorIdOrderByCreatedAtDesc(authorId, pageable)
-                .map(p -> PostMapper.toFrontend(p, currentUserId));
+                .map(p -> PostMapper.toFrontend(p, currentUserId, isAdmin));
     }
 
     public PostDtos.PostResponse vote(Long postId, Long userId, int value) {

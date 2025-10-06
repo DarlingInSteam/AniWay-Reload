@@ -44,7 +44,8 @@ public class PostDtos {
             Instant createdAt,
             Instant updatedAt,
             Instant editedUntil,
-                        boolean canEdit,
+            boolean canEdit,
+            boolean canDelete,
             List<AttachmentDto> attachments,
             List<ReferenceDto> references,
             Stats stats

@@ -94,7 +94,8 @@ public class ReviewController {
             Authentication authentication) {
         try {
             String username = authentication.getName();
-            reviewService.deleteReview(username, reviewId);
+            boolean isAdmin = hasRole(authentication, "ADMIN");
+            reviewService.deleteReview(username, reviewId, isAdmin);
             return ResponseEntity.ok().build();
         } catch (IllegalArgumentException e) {
             log.warn("Failed to delete review: {}", e.getMessage());
@@ -199,10 +200,12 @@ public class ReviewController {
      * @throws Exception в случае ошибки получения данных
      */
     @GetMapping("/user/{userId}")
-    public ResponseEntity<List<ReviewDTO>> getUserReviews(@PathVariable Long userId) {
+    public ResponseEntity<List<ReviewDTO>> getUserReviews(@PathVariable Long userId,
+                                                         Authentication authentication) {
         try {
             log.info("Getting reviews for user {}", userId);
-            List<ReviewDTO> reviews = reviewService.getAllUserReviews(userId);
+            String currentUsername = authentication != null ? authentication.getName() : null;
+            List<ReviewDTO> reviews = reviewService.getAllUserReviews(userId, currentUsername);
             return ResponseEntity.ok(reviews);
         } catch (Exception e) {
             log.error("Error getting reviews for user {}", userId, e);
@@ -219,6 +222,15 @@ public class ReviewController {
     public ResponseEntity<Long> getUserReviewsCount(@PathVariable Long userId) {
         Long count = reviewService.countUserReviews(userId);
         return ResponseEntity.ok(count);
+    }
+
+    private boolean hasRole(Authentication authentication, String role) {
+        if (authentication == null || authentication.getAuthorities() == null) {
+            return false;
+        }
+        final String expected = "ROLE_" + role;
+        return authentication.getAuthorities().stream()
+                .anyMatch(authority -> expected.equalsIgnoreCase(authority.getAuthority()));
     }
     /**
      * Получает отзыв по идентификатору.

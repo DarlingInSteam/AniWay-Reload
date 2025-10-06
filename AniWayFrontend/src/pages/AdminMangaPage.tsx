@@ -3,7 +3,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { MangaParser } from '@/components/admin/MangaParser'
 import { MangaImporter } from '@/components/admin/MangaImporter'
 import { MangaManager } from '@/components/admin/MangaManager'
-import { Settings, Download, Upload, BookOpen } from 'lucide-react'
+import { MangaManagement } from '@/components/admin/MangaManagement'
+import { Settings, Download, Upload, BookOpen, RefreshCw } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 
@@ -46,7 +47,7 @@ export function AdminMangaPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 bg-card">
+        <TabsList className="grid w-full grid-cols-4 bg-card">
           <TabsTrigger value="parser" className="flex items-center gap-2">
             <Download className="h-4 w-4" />
             Парсер
@@ -58,6 +59,10 @@ export function AdminMangaPage() {
           <TabsTrigger value="manager" className="flex items-center gap-2">
             <BookOpen className="h-4 w-4" />
             Управление
+          </TabsTrigger>
+          <TabsTrigger value="auto" className="flex items-center gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Автоматизация
           </TabsTrigger>
         </TabsList>
 
@@ -71,6 +76,10 @@ export function AdminMangaPage() {
 
         <TabsContent value="manager" className="mt-6">
           <MangaManager />
+        </TabsContent>
+
+        <TabsContent value="auto" className="mt-6">
+          <MangaManagement />
         </TabsContent>
       </Tabs>
     </div>

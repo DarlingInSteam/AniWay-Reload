@@ -8,7 +8,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import shadowshift.studio.mangaservice.entity.Manga;
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Репозиторий для работы с сущностями Manga.
@@ -26,6 +28,14 @@ public interface MangaRepository extends JpaRepository<Manga, Long> {
      * @return список найденных манг
      */
     List<Manga> findByTitleContainingIgnoreCase(String title);
+
+    /**
+     * Проверяет существование манги по melonSlug.
+     *
+     * @param melonSlug уникальный идентификатор манги в Melon
+     * @return true, если манга существует
+     */
+    boolean existsByMelonSlug(String melonSlug);
 
     /**
      * Возвращает все манги с пагинацией и сортировкой.
@@ -355,4 +365,14 @@ public interface MangaRepository extends JpaRepository<Manga, Long> {
                         @Param("chapterRangeMax") Integer chapterRangeMax,
                         Pageable pageable
         );
+
+        /**
+         * Ищет мангу по slug источника Melon.
+         */
+        Optional<Manga> findByMelonSlug(String melonSlug);
+
+        /**
+         * Возвращает список манги по коллекции slug'ов источника.
+         */
+        List<Manga> findByMelonSlugIn(Collection<String> melonSlugs);
 }

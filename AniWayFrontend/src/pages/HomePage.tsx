@@ -4,6 +4,7 @@ import { TrendingUp, Star, Clock, BookOpen, ArrowRight, Eye, Heart } from 'lucid
 import { apiClient } from '@/lib/api'
 import { MangaCardWithTooltip } from '@/components/manga'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
 
 export function HomePage() {
   const { data: popularManga, isLoading: popularLoading } = useQuery({
@@ -64,9 +65,9 @@ export function HomePage() {
                   {featuredManga.title}
                 </h1>
 
-                <p className="text-muted-foreground text-sm md:text-base lg:text-lg mb-6 line-clamp-3">
-                  {featuredManga.description || 'Захватывающая манга, которая не оставит вас равнодушными. Присоединяйтесь к тысячам читателей и окунитесь в удивительный мир приключений.'}
-                </p>
+                <div className="prose prose-invert max-w-none text-muted-foreground text-sm md:text-base lg:text-lg mb-6 line-clamp-3 markdown-body">
+                  <MarkdownRenderer value={featuredManga.description || 'Захватывающая манга, которая не оставит вас равнодушными. Присоединяйтесь к тысячам читателей и окунитесь в удивительный мир приключений.'} />
+                </div>
 
                 <div className="flex flex-wrap items-center gap-4 mb-6">
                   <div className="flex items-center space-x-1">

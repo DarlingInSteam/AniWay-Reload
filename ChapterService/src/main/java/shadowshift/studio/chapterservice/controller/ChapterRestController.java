@@ -278,4 +278,19 @@ public class ChapterRestController {
             ));
         }
     }
+
+    /**
+     * Проверяет существование главы по mangaId и chapterNumber.
+     *
+     * @param mangaId идентификатор манги
+     * @param chapterNumber номер главы
+     * @return true, если глава существует, иначе false
+     */
+    @GetMapping("/exists")
+    public ResponseEntity<Boolean> chapterExists(
+            @RequestParam Long mangaId,
+            @RequestParam Double chapterNumber) {
+        boolean exists = chapterService.chapterExists(mangaId, chapterNumber);
+        return ResponseEntity.ok(exists);
+    }
 }

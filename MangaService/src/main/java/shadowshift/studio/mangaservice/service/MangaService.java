@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -563,6 +564,16 @@ public class MangaService {
         logger.info("Создание новой манги: {}", createDTO.getTitle());
         
         try {
+            // Проверка на существование манги по melonSlug (если указан)
+            if (StringUtils.hasText(createDTO.getMelonSlug())) {
+                String normalizedSlug = createDTO.getMelonSlug().trim();
+                if (mangaRepository.existsByMelonSlug(normalizedSlug)) {
+                    throw new MangaValidationException(
+                            "Манга с переданным Melon slug уже существует: " + normalizedSlug
+                    );
+                }
+            }
+            
             Manga manga = mangaMapper.toEntity(createDTO);
             
             // Обработка жанров
@@ -616,6 +627,15 @@ public class MangaService {
         logger.info("Создание новой манги из Melon: {}", createDTO.getTitle());
         
         try {
+            if (StringUtils.hasText(createDTO.getMelonSlug())) {
+                String normalizedSlug = createDTO.getMelonSlug().trim();
+                if (mangaRepository.existsByMelonSlug(normalizedSlug)) {
+                    throw new MangaValidationException(
+                            "Манга с переданным Melon slug уже существует: " + normalizedSlug
+                    );
+                }
+            }
+
             Manga manga = mangaMapper.toEntity(createDTO);
             
             // Обработка жанров из строки
@@ -707,6 +727,18 @@ public class MangaService {
                 .map(existingManga -> {
                     try {
                         String oldTitle = existingManga.getTitle();
+
+                        if (StringUtils.hasText(updateDTO.getMelonSlug())) {
+                            String normalizedSlug = updateDTO.getMelonSlug().trim();
+                            String currentSlug = existingManga.getMelonSlug();
+                            if (!normalizedSlug.equals(currentSlug)
+                                    && mangaRepository.existsByMelonSlug(normalizedSlug)) {
+                                throw new MangaValidationException(
+                                        "Манга с переданным Melon slug уже существует: " + normalizedSlug
+                                );
+                            }
+                        }
+
                         mangaMapper.updateEntity(existingManga, updateDTO);
                         Manga updatedManga = mangaRepository.save(existingManga);
                         

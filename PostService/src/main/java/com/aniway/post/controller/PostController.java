@@ -17,7 +17,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -35,6 +34,13 @@ public class PostController {
     private Long currentUserId(String header) {
         if (header == null || header.isBlank()) return null;
         try { return Long.parseLong(header); } catch (NumberFormatException e) { return null; }
+    }
+
+    private boolean isAdminRole(String roleHeader) {
+        if (roleHeader == null || roleHeader.isBlank()) {
+            return false;
+        }
+        return "ADMIN".equalsIgnoreCase(roleHeader.trim());
     }
 
     @PostMapping
@@ -56,26 +62,30 @@ public class PostController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@RequestHeader("X-User-Id") String userHeader,
+                                    @RequestHeader(value = "X-User-Role", required = false) String roleHeader,
                                     @PathVariable Long id) {
         Long userId = currentUserId(userHeader);
         if (userId == null) throw new IllegalStateException("Unauthenticated");
-        postService.delete(id, userId);
+        boolean isAdmin = isAdminRole(roleHeader);
+        postService.delete(id, userId, isAdmin);
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/{id}")
     public PostDtos.FrontendPost get(@RequestHeader(value = "X-User-Id", required = false) String userHeader,
+                                     @RequestHeader(value = "X-User-Role", required = false) String roleHeader,
                                      @PathVariable Long id) {
-        return postService.getFrontend(id, currentUserId(userHeader));
+        return postService.getFrontend(id, currentUserId(userHeader), isAdminRole(roleHeader));
     }
 
     @GetMapping
     public Map<String,Object> list(@RequestHeader(value = "X-User-Id", required = false) String userHeader,
+                                   @RequestHeader(value = "X-User-Role", required = false) String roleHeader,
                                    @RequestParam Long userId,
                                    @RequestParam(defaultValue = "0") int page,
                                    @RequestParam(defaultValue = "10") int size) {
         Pageable pageable = PageRequest.of(page, size);
-        Page<PostDtos.FrontendPost> p = postService.listByAuthorFrontend(userId, pageable, currentUserId(userHeader));
+        Page<PostDtos.FrontendPost> p = postService.listByAuthorFrontend(userId, pageable, currentUserId(userHeader), isAdminRole(roleHeader));
         return Map.of(
                 "items", p.getContent(),
                 "page", p.getNumber(),
@@ -87,9 +97,10 @@ public class PostController {
 
     @GetMapping("/tops")
     public List<PostDtos.FrontendPost> tops(@RequestHeader(value = "X-User-Id", required = false) String userHeader,
+                                            @RequestHeader(value = "X-User-Role", required = false) String roleHeader,
                                             @RequestParam(name = "range", required = false, defaultValue = "all") String range,
                                             @RequestParam(name = "limit", required = false) Integer limit) {
-        return postService.getTop(range, limit, currentUserId(userHeader));
+        return postService.getTop(range, limit, currentUserId(userHeader), isAdminRole(roleHeader));
     }
 
     public record VoteRequest(int value) {}

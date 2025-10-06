@@ -10,6 +10,7 @@ import shadowshift.studio.authservice.dto.MangaRatingDTO;
 import shadowshift.studio.authservice.dto.ReviewDTO;
 import shadowshift.studio.authservice.entity.Review;
 import shadowshift.studio.authservice.entity.ReviewLike;
+import shadowshift.studio.authservice.entity.Role;
 import shadowshift.studio.authservice.entity.User;
 import shadowshift.studio.authservice.repository.ReviewLikeRepository;
 import shadowshift.studio.authservice.repository.ReviewRepository;
@@ -128,14 +129,14 @@ public class ReviewService {
      * @throws IllegalArgumentException если пользователь или отзыв не найден, или доступ запрещен
      */
     @Transactional
-    public void deleteReview(String username, Long reviewId) {
+    public void deleteReview(String username, Long reviewId, boolean adminOverride) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
         
         Review review = reviewRepository.findById(reviewId)
                 .orElseThrow(() -> new IllegalArgumentException("Review not found"));
         
-        if (!review.getUserId().equals(user.getId())) {
+        if (!adminOverride && !review.getUserId().equals(user.getId())) {
             throw new IllegalArgumentException("Access denied");
         }
         
@@ -144,7 +145,7 @@ public class ReviewService {
                 .collect(Collectors.toList()));
         
         reviewRepository.delete(review);
-        log.info("Deleted review {} by user {}", reviewId, username);
+        log.info("Deleted review {} by user {} (adminOverride={})", reviewId, username, adminOverride);
     }
     
     /**
@@ -282,13 +283,13 @@ public class ReviewService {
      * @param userId идентификатор пользователя
      * @return список DTO отзывов пользователя
      */
-    public List<ReviewDTO> getAllUserReviews(Long userId) {
-        log.info("Getting all reviews for user {}", userId);
+    public List<ReviewDTO> getAllUserReviews(Long userId, String currentUsername) {
+        log.info("Getting all reviews for user {} (requestedBy={})", userId, currentUsername);
         
         List<Review> userReviews = reviewRepository.findByUserIdOrderByCreatedAtDesc(userId);
         
         return userReviews.stream()
-                .map(review -> convertToDTO(review, null))
+                .map(review -> convertToDTO(review, currentUsername))
                 .collect(Collectors.toList());
     }
     
@@ -325,12 +326,14 @@ public class ReviewService {
             }
         }
         
-        boolean canEdit = currentUser != null && 
-                         currentUser.getId().equals(review.getUserId()) && 
-                         review.canBeEdited();
+    boolean isAdmin = currentUser != null && currentUser.getRole() == Role.ADMIN;
+
+    boolean canEdit = currentUser != null && 
+             currentUser.getId().equals(review.getUserId()) && 
+             review.canBeEdited();
         
-        boolean canDelete = currentUser != null && 
-                           currentUser.getId().equals(review.getUserId());
+    boolean canDelete = (currentUser != null && 
+               currentUser.getId().equals(review.getUserId())) || isAdmin;
         
         return ReviewDTO.builder()
                 .id(review.getId())

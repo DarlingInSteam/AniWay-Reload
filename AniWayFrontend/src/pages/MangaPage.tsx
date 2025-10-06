@@ -16,6 +16,7 @@ import { useReadingProgress } from '@/hooks/useProgress'
 import { CommentSection } from '../components/comments/CommentSection'
 import MangaReviews from '../components/MangaReviews'
 import { useAuth } from '@/contexts/AuthContext'
+import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
 
 import { useSyncedSearchParam } from '@/hooks/useSyncedSearchParam'
 
@@ -475,10 +476,10 @@ export function MangaPage() {
                       <h3 className="text-lg font-bold text-white mb-3">Описание</h3>
                       <div className="text-muted-foreground text-sm md:text-base">
                         <div className={cn(
-                          'transition-all duration-300',
+                          'prose prose-invert max-w-none transition-all duration-300 markdown-body',
                           showFullDescription ? '' : 'line-clamp-3'
                         )}>
-                          {manga.description || 'Описание отсутствует. Это длинный текст описания манги, который может занимать много строк и нуждается в сокращении для лучшего отображения на странице.'}
+                          <MarkdownRenderer value={manga.description || 'Описание отсутствует.'} />
                         </div>
                         {!showFullDescription && (
                           <button

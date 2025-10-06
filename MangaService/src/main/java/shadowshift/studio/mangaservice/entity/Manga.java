@@ -89,6 +89,12 @@ public class Manga {
     private String alternativeNames;
 
     /**
+     * Оригинальный slug из MelonService.
+     */
+    @Column(name = "melon_slug", length = 255, unique = true)
+    private String melonSlug;
+
+    /**
      * Тип манги.
      */
     @Enumerated(EnumType.STRING)
@@ -157,8 +163,9 @@ public class Manga {
 
     /**
      * Связь Many-to-Many с жанрами.
+     * Жанры управляются отдельно через GenreService, поэтому не каскадируем операции.
      */
-    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
         name = "manga_genres",
         joinColumns = @JoinColumn(name = "manga_id"),
@@ -168,8 +175,9 @@ public class Manga {
 
     /**
      * Связь Many-to-Many с тегами.
+     * Теги управляются отдельно через TagService, поэтому не каскадируем операции.
      */
-    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
         name = "manga_tags",
         joinColumns = @JoinColumn(name = "manga_id"),
@@ -521,6 +529,20 @@ public class Manga {
     public void setAlternativeNames(String alternativeNames) { this.alternativeNames = alternativeNames; }
 
     /**
+     * Возвращает slug манги в MelonService.
+     *
+     * @return slug манги
+     */
+    public String getMelonSlug() { return melonSlug; }
+
+    /**
+     * Устанавливает slug манги в MelonService.
+     *
+     * @param melonSlug slug манги
+     */
+    public void setMelonSlug(String melonSlug) { this.melonSlug = melonSlug; }
+
+    /**
      * Возвращает тип манги.
      *
      * @return тип манги
@@ -578,23 +600,28 @@ public class Manga {
 
     /**
      * Добавляет жанр к манге.
+     * ВАЖНО: Не обращаемся к genre.getMangas() — это LAZY-коллекция, которая может вызвать LazyInitializationException.
+     * Двунаправленную связь управляет Hibernate через @ManyToMany.
      *
      * @param genre жанр для добавления
      */
     public void addGenre(Genre genre) {
         this.genres.add(genre);
-        genre.getMangas().add(this);
+        // НЕ обращаемся к genre.getMangas() здесь — это вызовет LazyInitializationException
+        // genre.getMangas().add(this);  // УБРАНО
         genre.incrementMangaCount();
     }
 
     /**
      * Удаляет жанр из манги.
+     * ВАЖНО: Не обращаемся к genre.getMangas() — это LAZY-коллекция.
      *
      * @param genre жанр для удаления
      */
     public void removeGenre(Genre genre) {
         this.genres.remove(genre);
-        genre.getMangas().remove(this);
+        // НЕ обращаемся к genre.getMangas() здесь
+        // genre.getMangas().remove(this);  // УБРАНО
         genre.decrementMangaCount();
     }
 
@@ -614,24 +641,29 @@ public class Manga {
 
     /**
      * Добавляет тег к манге.
+     * ВАЖНО: Не обращаемся к tag.getMangas() — это LAZY-коллекция, которая может вызвать LazyInitializationException.
+     * Двунаправленную связь управляет Hibernate через @ManyToMany.
      *
      * @param tag тег для добавления
      */
     public void addTag(Tag tag) {
         this.tags.add(tag);
-        tag.getMangas().add(this);
+        // НЕ обращаемся к tag.getMangas() здесь — это вызовет LazyInitializationException
+        // tag.getMangas().add(this);  // УБРАНО
         tag.incrementMangaCount();
         tag.incrementPopularity();
     }
 
     /**
      * Удаляет тег из манги.
+     * ВАЖНО: Не обращаемся к tag.getMangas() — это LAZY-коллекция.
      *
      * @param tag тег для удаления
      */
     public void removeTag(Tag tag) {
         this.tags.remove(tag);
-        tag.getMangas().remove(this);
+        // НЕ обращаемся к tag.getMangas() здесь
+        // tag.getMangas().remove(this);  // УБРАНО
         tag.decrementMangaCount();
     }
 

@@ -3,16 +3,26 @@ import { useNavigate } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api'
+import type { User } from '@/types'
 
 export function SearchPage(){
   const [query, setQuery] = useState('')
   const [debounced, setDebounced] = useState('')
+  const [userAvatarFallbacks, setUserAvatarFallbacks] = useState<Record<number, boolean>>({})
   const navigate = useNavigate()
   useEffect(()=> { const h = setTimeout(()=> setDebounced(query.trim()), 250); return ()=> clearTimeout(h)}, [query])
   const mangaEnabled = debounced.length>=2
   const userEnabled = debounced.length>=2
   const { data: mangaRes } = useQuery({ queryKey:['mobile-search-manga', debounced], queryFn: ()=> apiClient.searchManga({ query: debounced }), enabled: mangaEnabled })
   const { data: userRes } = useQuery({ queryKey:['mobile-search-users', debounced], queryFn: ()=> apiClient.searchUsers({ query: debounced, limit: 12 }), enabled: userEnabled })
+  useEffect(()=> { setUserAvatarFallbacks({}) }, [debounced])
+
+  const handleUserAvatarError = (userId: number) => {
+    setUserAvatarFallbacks(prev => {
+      if (prev[userId]) return prev
+      return { ...prev, [userId]: true }
+    })
+  }
   return (
     <div className="container mx-auto px-4 py-5 space-y-6">
       <div>
@@ -41,9 +51,28 @@ export function SearchPage(){
             <div>
               <h2 className="text-xs uppercase tracking-wide text-white/40 mb-2">Пользователи</h2>
               <div className="grid grid-cols-2 gap-3">
-                {(userRes?.users||[]).slice(0,10).map((u:any)=> (
+                {(userRes?.users||[]).slice(0,10).map((u: User)=> (
                   <button key={u.id} onClick={()=> navigate(`/profile/${u.id}`)} className="flex items-center gap-3 p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10">
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-fuchsia-600 flex items-center justify-center text-xs font-semibold text-white/80">{(u.username||'?')[0]}</div>
+                    {(() => {
+                      const avatarUrl = u.avatar || u.profilePicture || null
+                      const showFallback = !avatarUrl || userAvatarFallbacks[u.id]
+                      const initial = (u.displayName || u.username || '?').charAt(0).toUpperCase()
+                      return (
+                        <div className={`w-9 h-9 rounded-full border border-white/15 overflow-hidden flex-shrink-0 ${showFallback ? 'bg-gradient-to-br from-indigo-500 to-fuchsia-600 text-white/80 flex items-center justify-center text-xs font-semibold' : ''}`}>
+                          {showFallback ? (
+                            initial
+                          ) : (
+                            <img
+                              src={avatarUrl!}
+                              alt={u.username}
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                              onError={() => handleUserAvatarError(u.id)}
+                            />
+                          )}
+                        </div>
+                      )
+                    })()}
                     <div className="flex-1 min-w-0 text-left">
                       <div className="text-xs text-white/80 truncate">{u.username}</div>
                       <div className="text-[10px] text-white/40 truncate">{u.role}</div>

@@ -16,9 +16,27 @@ class Parser(MangaParser):
             chapter – данные главы.
         """
 
-        # Логируем начало парсинга главы
-        total_chapters = sum(len(b.chapters) for b in self._Title.branches) if hasattr(self._Title, 'branches') else 1
-        current_chapter_index = 1  # Можно улучшить подсчет индекса главы
+        # Подсчитываем общее количество глав и текущий индекс
+        total_chapters = sum(len(b.chapters) for b in self._Title.branches)
+        current_chapter_index = 0
+        
+        # Находим индекс текущей главы
+        for b in self._Title.branches:
+            for ch in b.chapters:
+                current_chapter_index += 1
+                if ch.id == chapter.id:
+                    break
+            else:
+                continue
+            break
+        
+        # НОВОЕ: Выводим прогресс парсинга в stdout для захвата логов
+        chapter_name = f"{chapter.volume}.{chapter.number}" if chapter.volume else str(chapter.number)
+        if chapter.name:
+            chapter_name += f" - {chapter.name}"
+        print(f"[{current_chapter_index}/{total_chapters}] Chapter {chapter_name} parsing...")
+        
+        # Логируем начало парсинга главы через Portals
         self._Portals.chapter_parsing_start(self._Title, chapter, current_chapter_index, total_chapters)
 
         Slides = self.__GetSlides(branch.id, chapter)
@@ -26,8 +44,11 @@ class Parser(MangaParser):
         for Slide in Slides:
             chapter.add_slide(Slide["link"], Slide["width"], Slide["height"])
 
-        # Логируем завершение парсинга главы
+        # НОВОЕ: Выводим завершение парсинга главы
         slides_count = len(Slides)
+        print(f"[{current_chapter_index}/{total_chapters}] Chapter {chapter_name} completed ({slides_count} slides)")
+        
+        # Логируем завершение парсинга главы через Portals
         self._Portals.chapter_parsing_complete(self._Title, chapter, current_chapter_index, total_chapters, slides_count)
 
     def _InitializeRequestor(self) -> WebRequestor:
