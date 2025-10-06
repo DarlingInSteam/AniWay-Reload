@@ -35,6 +35,8 @@ interface ReviewCardProps {
   onDislike: (reviewId: number) => void;
   onEdit: (review: ReviewData) => void;
   onDelete: (reviewId: number) => void;
+  isCurrentUser?: boolean;
+  onCommentsUpdate?: (reviewId: number) => Promise<void>;
 }
 
 export const ReviewCard: React.FC<ReviewCardProps> = ({
@@ -42,8 +44,9 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
   onLike,
   onDislike,
   onEdit,
-  onDelete
-}) => {
+  onDelete,
+  isCurrentUser = false
+                                                      }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const resolvedAvatar = useResolvedAvatar(review.userId, review.userAvatar);
@@ -85,8 +88,21 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
 
   const shouldTruncate = review.comment.length > 300;
 
+  // Функция для получения цвета рейтинга
+  const getRatingColor = () => {
+    if (review.rating >= 8) {
+      return 'border-green-400/40';
+    } else if (review.rating >= 6) {
+      return 'border-yellow-400/40';
+    } else {
+      return 'border-red-400/40';
+    }
+  };
+
+  const borderColor = getRatingColor();
+
   return (
-    <div className="bg-white/5 backdrop-blur-md rounded-3xl p-5 md:p-6 shadow-lg border border-white/10 transition-all duration-300 hover:shadow-xl hover:bg-white/10">
+    <div className={`backdrop-blur-sm rounded-3xl p-5 md:p-6 transition-all duration-300 hover:bg-white/10 bg-white/5 border ${isCurrentUser ? `ring-1 ring-blue-400/20 border-blue-400/50` : borderColor}`}>
       {/* Header */}
       <div className="flex flex-col gap-4 mb-4">
         <div className="flex items-start gap-3">
@@ -121,6 +137,11 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
               >
                 {review.userDisplayName}
               </Link>
+              {isCurrentUser && (
+                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 whitespace-nowrap">
+                  Ваш отзыв
+                </span>
+              )}
               <span
                 className="px-2 py-0.5 text-xs font-medium rounded-full text-white whitespace-nowrap"
                 style={{ backgroundColor: review.trustFactorColor }}
@@ -135,7 +156,9 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
               </div>
             </div>
             <div className="flex items-center gap-3 text-sm text-gray-300 flex-wrap">
-              <RatingStars rating={review.rating} maxRating={10} size="sm" />
+              <div className="flex items-center gap-2">
+                <RatingStars rating={review.rating} maxRating={10} size="sm" />
+              </div>
               <span className="sm:hidden text-xs text-gray-400">
                 {formatDate(review.createdAt)}
                 {review.isEdited && ' (изменено)'}

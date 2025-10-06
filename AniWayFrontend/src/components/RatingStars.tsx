@@ -7,6 +7,7 @@ interface RatingStarsProps {
   showValue?: boolean;
   interactive?: boolean;
   onRatingChange?: (rating: number) => void;
+  onRatingHover?: (rating: number) => void;
 }
 
 export const RatingStars: React.FC<RatingStarsProps> = ({
@@ -15,7 +16,8 @@ export const RatingStars: React.FC<RatingStarsProps> = ({
   size = 'md',
   showValue = true,
   interactive = false,
-  onRatingChange
+  onRatingChange,
+  onRatingHover
 }) => {
   const sizeClasses = {
     sm: 'w-3 h-3',
@@ -46,6 +48,7 @@ export const RatingStars: React.FC<RatingStarsProps> = ({
           <button
             key={i}
             onClick={() => handleStarClick(i)}
+            onMouseEnter={() => interactive && onRatingHover && onRatingHover(i)}
             disabled={!interactive}
             className={`${sizeClasses[size]} ${
               interactive 
