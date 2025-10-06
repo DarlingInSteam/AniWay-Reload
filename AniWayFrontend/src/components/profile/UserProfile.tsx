@@ -520,7 +520,6 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               friendshipStatus={friendshipStatus}
               friendActionLoading={friendLoading}
               isAuthenticated={!!currentUser}
-              friendTargetName={targetUserMini?.displayName || targetUserMini?.username}
               incomingRequestForTarget={incomingRequestForTarget}
               onSendFriendRequest={!isOwnProfile && currentUser ? sendFriendRequest : undefined}
               onAcceptFriendRequest={!isOwnProfile && friendshipStatus === 'incoming' && incomingRequestForTarget ? () => acceptFriendRequest(incomingRequestForTarget.id) : undefined}

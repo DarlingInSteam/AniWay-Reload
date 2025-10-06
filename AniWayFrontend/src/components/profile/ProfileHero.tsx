@@ -8,8 +8,7 @@ import { Edit, ChevronDown, MessageCircle, Loader2 } from 'lucide-react'
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
 import { Progress } from '@/components/ui/progress'
 import GlassPanel from '@/components/ui/GlassPanel'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Textarea } from '@/components/ui/textarea'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import XpHistoryList from '@/components/profile/XpHistoryList'
 import { useUserLevel } from '@/hooks/useUserLevel'
 import type { FriendshipStatus } from '@/hooks/useFriendData'
@@ -24,7 +23,6 @@ interface ProfileHeroProps {
   friendshipStatus?: FriendshipStatus
   friendActionLoading?: boolean
   isAuthenticated?: boolean
-  friendTargetName?: string
   incomingRequestForTarget?: FriendRequestView | null
   onSendFriendRequest?: (message?: string) => Promise<void>
   onAcceptFriendRequest?: () => Promise<void>
@@ -157,7 +155,6 @@ interface FriendActionControlsProps {
   status?: FriendshipStatus
   loading?: boolean
   isAuthenticated?: boolean
-  targetName?: string | null
   incomingRequest?: FriendRequestView | null
   onSendRequest?: (message?: string) => Promise<void>
   onAcceptRequest?: () => Promise<void>
@@ -170,7 +167,6 @@ const FriendActionControls: React.FC<FriendActionControlsProps> = ({
   status,
   loading,
   isAuthenticated,
-  targetName,
   incomingRequest,
   onSendRequest,
   onAcceptRequest,
@@ -180,42 +176,19 @@ const FriendActionControls: React.FC<FriendActionControlsProps> = ({
 }) => {
   const [pending, setPending] = useState(false)
   const [pendingType, setPendingType] = useState<string | null>(null)
-  const [statusNote, setStatusNote] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
-  const [requestDialogOpen, setRequestDialogOpen] = useState(false)
-  const [requestMessage, setRequestMessage] = useState('')
-  const [requestMessageError, setRequestMessageError] = useState<string | null>(null)
 
   if (!status || status === 'self') {
     return null
   }
 
-  const friendlyName = targetName || 'пользователем'
   const textAlignClass = align === 'center' ? 'text-center' : align === 'start' ? 'text-left' : 'text-right'
-  const subtitle = (() => {
-    switch (status) {
-      case 'friends':
-        return `Вы и ${friendlyName} дружите.`
-      case 'incoming':
-        return `${friendlyName} отправил(а) вам заявку.`
-      case 'outgoing':
-        return `Вы отправили заявку ${friendlyName}.`
-      case 'none':
-        return `Добавьте ${friendlyName} в друзья, чтобы общаться и следить за обновлениями.`
-      default:
-        return null
-    }
-  })()
-
-  const handleAction = async (runner?: () => Promise<void>, successMessage?: string, type?: string) => {
+  const handleAction = async (runner?: () => Promise<void>, type?: string) => {
     if (!runner) return
     setPending(true)
     setPendingType(type ?? null)
-    setStatusNote(null)
     try {
       await runner()
-      setStatusNote({ type: 'success', message: successMessage ?? 'Действие выполнено.' })
     } catch (err: any) {
-      setStatusNote({ type: 'error', message: err?.message || 'Не удалось выполнить действие.' })
     } finally {
       setPending(false)
       setPendingType(null)
@@ -227,7 +200,6 @@ const FriendActionControls: React.FC<FriendActionControlsProps> = ({
   if (!isAuthenticated) {
     return (
       <div className="flex flex-col gap-2 w-full">
-        {subtitle && <div className={`text-xs text-slate-400 ${textAlignClass}`}>{subtitle}</div>}
         <Button asChild className="w-full">
           <Link to="/login">Войти, чтобы добавлять в друзья</Link>
         </Button>
@@ -245,7 +217,7 @@ const FriendActionControls: React.FC<FriendActionControlsProps> = ({
             disabled={disabled || !onRemoveFriend}
             onClick={() => {
               if (!onRemoveFriend) return
-              void handleAction(onRemoveFriend, 'Пользователь удалён из друзей.', 'remove')
+              void handleAction(onRemoveFriend, 'remove')
             }}
           >
             {pending && pendingType === 'remove' && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Удалить из друзей
@@ -259,7 +231,7 @@ const FriendActionControls: React.FC<FriendActionControlsProps> = ({
               disabled={disabled || !onAcceptRequest || !incomingRequest}
               onClick={() => {
                 if (!onAcceptRequest) return
-                void handleAction(onAcceptRequest, 'Заявка принята.', 'accept')
+                void handleAction(onAcceptRequest, 'accept')
               }}
             >
               {pending && pendingType === 'accept' && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Принять заявку
@@ -270,7 +242,7 @@ const FriendActionControls: React.FC<FriendActionControlsProps> = ({
               disabled={disabled || !onDeclineRequest || !incomingRequest}
               onClick={() => {
                 if (!onDeclineRequest) return
-                void handleAction(onDeclineRequest, 'Заявка отклонена.', 'decline')
+                void handleAction(onDeclineRequest, 'decline')
               }}
             >
               {pending && pendingType === 'decline' && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Отклонить
@@ -279,121 +251,35 @@ const FriendActionControls: React.FC<FriendActionControlsProps> = ({
         )
       case 'outgoing':
         return (
-          <div className={`rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300 ${textAlignClass}`}>
-            Заявка отправлена. Ожидайте ответа.
-          </div>
+          <Button className="w-full" variant="outline" disabled>
+            Заявка отправлена
+          </Button>
         )
       case 'none':
       default:
         return (
-          <>
-            <Button
-              className="w-full"
-              disabled={disabled || !onSendRequest}
-              onClick={() => {
-                if (!onSendRequest) return
-                void handleAction(() => onSendRequest(), 'Заявка отправлена.', 'send')
-              }}
-            >
-              {pending && pendingType === 'send' && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Добавить в друзья
-            </Button>
-            {onSendRequest && (
-              <>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  disabled={disabled}
-                  onClick={() => {
-                    setRequestDialogOpen(true)
-                    setRequestMessageError(null)
-                  }}
-                >
-                  С сообщением...
-                </Button>
-                <Dialog
-                  open={requestDialogOpen}
-                  onOpenChange={(open) => {
-                    setRequestDialogOpen(open)
-                    if (!open) {
-                      setRequestMessage('')
-                      setRequestMessageError(null)
-                    }
-                  }}
-                >
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Заявка с сообщением</DialogTitle>
-                      <DialogDescription>
-                        Расскажите, почему вы хотите добавить этого пользователя в друзья.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <Textarea
-                      value={requestMessage}
-                      onChange={(event) => {
-                        setRequestMessage(event.target.value)
-                        if (requestMessageError) {
-                          setRequestMessageError(null)
-                        }
-                      }}
-                      placeholder="Напишите короткое приветствие"
-                      maxLength={500}
-                    />
-                    {requestMessageError && (
-                      <p className="text-xs text-red-400">{requestMessageError}</p>
-                    )}
-                    <DialogFooter>
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setRequestDialogOpen(false)
-                          setRequestMessage('')
-                          setRequestMessageError(null)
-                        }}
-                      >
-                        Отмена
-                      </Button>
-                      <Button
-                        disabled={pending || !requestMessage.trim()}
-                        onClick={() => {
-                          if (!requestMessage.trim()) {
-                            setRequestMessageError('Введите сообщение')
-                            return
-                          }
-                          if (!onSendRequest) return
-                          void handleAction(async () => {
-                            await onSendRequest(requestMessage.trim())
-                            setRequestDialogOpen(false)
-                            setRequestMessage('')
-                            setRequestMessageError(null)
-                          }, 'Заявка отправлена.', 'send-with-message')
-                        }}
-                      >
-                        {pending && pendingType === 'send-with-message' && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Отправить
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </>
-            )}
-          </>
+          <Button
+            className="w-full"
+            disabled={disabled || !onSendRequest}
+            onClick={() => {
+              if (!onSendRequest) return
+              void handleAction(() => onSendRequest(), 'send')
+            }}
+          >
+            {pending && pendingType === 'send' && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Добавить в друзья
+          </Button>
         )
     }
   }
 
   return (
     <div className="flex flex-col gap-2 w-full">
-      {subtitle && <div className={`text-xs text-slate-400 ${textAlignClass}`}>{subtitle}</div>}
       {loading && (
         <Button className="w-full" disabled>
           <Loader2 className="w-4 h-4 mr-2 animate-spin" />Загрузка...
         </Button>
       )}
       {!loading && renderButtons()}
-      {statusNote && (
-        <div className={`text-xs ${textAlignClass} ${statusNote.type === 'success' ? 'text-emerald-400' : 'text-red-400'}`}>
-          {statusNote.message}
-        </div>
-      )}
     </div>
   )
 }
@@ -407,7 +293,6 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({
   friendshipStatus,
   friendActionLoading,
   isAuthenticated,
-  friendTargetName,
   incomingRequestForTarget,
   onSendFriendRequest,
   onAcceptFriendRequest,
@@ -470,7 +355,6 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({
     status: friendshipStatus,
     loading: friendActionLoading,
     isAuthenticated,
-    targetName: friendTargetName,
     incomingRequest: incomingRequestForTarget,
     onSendRequest: onSendFriendRequest,
     onAcceptRequest: onAcceptFriendRequest,
