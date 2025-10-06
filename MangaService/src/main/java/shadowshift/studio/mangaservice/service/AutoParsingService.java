@@ -36,6 +36,10 @@ public class AutoParsingService {
 
     // Хранилище задач автопарсинга
     private final Map<String, AutoParseTask> autoParsingTasks = new HashMap<>();
+    
+    // Маппинг parseTaskId (ID парсинга одной манги) -> autoParsingTaskId (ID задачи автопарсинга)
+    // Необходим для связывания логов от MelonService с задачей автопарсинга
+    private final Map<String, String> parseTaskToAutoParseTask = new HashMap<>();
 
     /**
      * Запускает автоматический парсинг манг из каталога MangaLib по номеру страницы
@@ -109,8 +113,18 @@ public class AutoParsingService {
 
     /**
      * Добавляет лог-сообщение в задачу автопарсинга
+     * Поддерживает как прямой taskId автопарсинга, так и parseTaskId отдельной манги
      */
     public void addLogToTask(String taskId, String logMessage) {
+        // Сначала проверяем, не является ли это parseTaskId
+        String autoParsingTaskId = parseTaskToAutoParseTask.get(taskId);
+        
+        // Если это parseTaskId, используем связанный autoParsingTaskId
+        if (autoParsingTaskId != null) {
+            taskId = autoParsingTaskId;
+            logger.debug("Лог для parseTaskId={} перенаправлен в autoParsingTaskId={}", taskId, autoParsingTaskId);
+        }
+        
         AutoParseTask task = autoParsingTasks.get(taskId);
         if (task != null) {
             synchronized (task.logs) {
@@ -120,6 +134,9 @@ public class AutoParsingService {
                     task.logs.remove(0);
                 }
             }
+            logger.debug("Добавлен лог в задачу {}: {}", taskId, logMessage);
+        } else {
+            logger.warn("Задача не найдена для taskId={}, лог проигнорирован: {}", taskId, logMessage);
         }
     }
 
@@ -163,6 +180,7 @@ public class AutoParsingService {
 
             for (int i = 0; i < slugs.size(); i++) {
                 String slug = slugs.get(i);
+                String parseTaskId = null; // Для очистки маппинга в finally
                 
                 try {
                     // Проверяем, существует ли уже манга с таким slug
@@ -183,7 +201,12 @@ public class AutoParsingService {
                     Map<String, Object> parseResult = melonService.startFullParsing(slug);
                     
                     if (parseResult != null && parseResult.containsKey("task_id")) {
-                        String parseTaskId = (String) parseResult.get("task_id");
+                        parseTaskId = (String) parseResult.get("task_id");
+                        
+                        // Связываем parseTaskId с текущим taskId автопарсинга
+                        // Теперь логи от MelonService для этого parseTaskId будут попадать в нашу задачу
+                        parseTaskToAutoParseTask.put(parseTaskId, taskId);
+                        logger.info("Связали parseTaskId={} с autoParsingTaskId={}", parseTaskId, taskId);
                         
                         // Ждем завершения парсинга и билдинга
                         boolean completed = waitForFullParsingCompletion(parseTaskId);
@@ -220,6 +243,10 @@ public class AutoParsingService {
                             logger.error("Парсинг не завершен для slug: {}", slug);
                             task.failedSlugs.add(slug);
                         }
+                        
+                        // Очищаем маппинг после завершения обработки манги
+                        parseTaskToAutoParseTask.remove(parseTaskId);
+                        logger.debug("Удален маппинг для parseTaskId={}", parseTaskId);
                     } else {
                         logger.error("Не удалось запустить парсинг для slug: {}", slug);
                         task.failedSlugs.add(slug);
@@ -228,6 +255,12 @@ public class AutoParsingService {
                 } catch (Exception e) {
                     logger.error("Ошибка обработки slug '{}': {}", slug, e.getMessage(), e);
                     task.failedSlugs.add(slug);
+                } finally {
+                    // Гарантированно очищаем маппинг даже при ошибке
+                    if (parseTaskId != null) {
+                        parseTaskToAutoParseTask.remove(parseTaskId);
+                        logger.debug("Очистка маппинга для parseTaskId={} в finally", parseTaskId);
+                    }
                 }
 
                 task.processedSlugs++;
