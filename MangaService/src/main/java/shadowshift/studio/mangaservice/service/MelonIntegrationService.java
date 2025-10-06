@@ -302,9 +302,9 @@ public class MelonIntegrationService {
         String url = melonServiceUrl + "/build";
 
         Map<String, String> request = new HashMap<>();
-        request.put("filename", filename);
+        request.put("slug", filename);  // MelonService ожидает "slug", а не "filename"
         request.put("parser", "mangalib");
-        request.put("archive_type", "simple");
+        request.put("type", "simple");  // MelonService ожидает "type", а не "archive_type"
 
         if (branchId != null && !branchId.isEmpty()) {
             request.put("branch_id", branchId);
