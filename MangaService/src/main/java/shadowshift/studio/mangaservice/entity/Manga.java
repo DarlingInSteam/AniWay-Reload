@@ -163,8 +163,9 @@ public class Manga {
 
     /**
      * Связь Many-to-Many с жанрами.
+     * Жанры управляются отдельно через GenreService, поэтому не каскадируем операции.
      */
-    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
         name = "manga_genres",
         joinColumns = @JoinColumn(name = "manga_id"),
@@ -174,8 +175,9 @@ public class Manga {
 
     /**
      * Связь Many-to-Many с тегами.
+     * Теги управляются отдельно через TagService, поэтому не каскадируем операции.
      */
-    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
         name = "manga_tags",
         joinColumns = @JoinColumn(name = "manga_id"),
