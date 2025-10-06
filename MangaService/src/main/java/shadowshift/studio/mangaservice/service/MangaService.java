@@ -564,6 +564,16 @@ public class MangaService {
         logger.info("Создание новой манги: {}", createDTO.getTitle());
         
         try {
+            // Проверка на существование манги по melonSlug (если указан)
+            if (StringUtils.hasText(createDTO.getMelonSlug())) {
+                String normalizedSlug = createDTO.getMelonSlug().trim();
+                if (mangaRepository.existsByMelonSlug(normalizedSlug)) {
+                    throw new MangaValidationException(
+                            "Манга с переданным Melon slug уже существует: " + normalizedSlug
+                    );
+                }
+            }
+            
             Manga manga = mangaMapper.toEntity(createDTO);
             
             // Обработка жанров
