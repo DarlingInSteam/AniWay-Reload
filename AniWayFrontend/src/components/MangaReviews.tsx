@@ -47,7 +47,7 @@ export const MangaReviews: React.FC<MangaReviewsProps> = ({
     let allReviews = [...reviews];
     
     // Добавляем userReview, если он есть и его еще нет в списке reviews
-    if (userReview && !reviews.find(review => review.id === userReview.id)) {
+    if (userReview && !reviews.find((r: ReviewData) => r.id === userReview.id)) {
       allReviews = [userReview, ...allReviews];
     }
     
@@ -55,17 +55,17 @@ export const MangaReviews: React.FC<MangaReviewsProps> = ({
 
     // Фильтрация по настроению
     if (activeTab === 'positive') {
-      filteredReviews = allReviews.filter(review => review.rating >= 8);
+      filteredReviews = allReviews.filter((r: ReviewData) => r.rating >= 8);
     } else if (activeTab === 'neutral') {
-      filteredReviews = allReviews.filter(review => review.rating >= 6 && review.rating < 8);
+      filteredReviews = allReviews.filter((r: ReviewData) => r.rating >= 6 && r.rating < 8);
     } else if (activeTab === 'negative') {
-      filteredReviews = allReviews.filter(review => review.rating < 6);
+      filteredReviews = allReviews.filter((r: ReviewData) => r.rating < 6);
     }
 
     // Поиск по тексту отзыва
     if (search) {
-      filteredReviews = filteredReviews.filter(review =>
-        review.comment.toLowerCase().includes(search.toLowerCase())
+      filteredReviews = filteredReviews.filter((r: ReviewData) =>
+        r.comment.toLowerCase().includes(search.toLowerCase())
       );
     }
 
@@ -94,13 +94,13 @@ export const MangaReviews: React.FC<MangaReviewsProps> = ({
   const sentimentStats = useMemo(() => {
     // Объединяем отзывы пользователя с общими отзывами для статистики
     let allReviews = [...reviews];
-    if (userReview && !reviews.find(review => review.id === userReview.id)) {
+    if (userReview && !reviews.find((r: ReviewData) => r.id === userReview.id)) {
       allReviews = [userReview, ...allReviews];
     }
     
-    const positive = allReviews.filter(review => review.rating >= 8).length;
-    const neutral = allReviews.filter(review => review.rating >= 6 && review.rating < 8).length;
-    const negative = allReviews.filter(review => review.rating < 6).length;
+    const positive = allReviews.filter((r: ReviewData) => r.rating >= 8).length;
+    const neutral = allReviews.filter((r: ReviewData) => r.rating >= 6 && r.rating < 8).length;
+    const negative = allReviews.filter((r: ReviewData) => r.rating < 6).length;
     const total = allReviews.length;
 
     return { positive, neutral, negative, total };
@@ -305,7 +305,7 @@ export const MangaReviews: React.FC<MangaReviewsProps> = ({
           </div>
         ) : (
           <div className="space-y-6">
-            {preparedReviews.map((review) => (
+            {preparedReviews.map((review: ReviewData) => (
               <ReviewCard
                 key={review.id}
                 review={review}
@@ -314,7 +314,7 @@ export const MangaReviews: React.FC<MangaReviewsProps> = ({
                 onEdit={setEditingReview}
                 onDelete={handleDeleteReview}
                 isCurrentUser={user?.id === review.userId}
-                onCommentsUpdate={updateCommentsCount}
+                onCommentsUpdate={async () => Promise.resolve()}
               />
             ))}
           </div>

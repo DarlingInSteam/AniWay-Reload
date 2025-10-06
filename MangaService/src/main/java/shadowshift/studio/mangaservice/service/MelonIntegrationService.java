@@ -763,26 +763,39 @@ public class MelonIntegrationService {
     @Async
     public CompletableFuture<Void> importMangaWithProgressAsync(String taskId, String filename, String branchId) {
         ImportTaskService.ImportTask task = importTaskService.getTask(taskId);
+        
+        logger.info("=== НАЧАЛО ИМПОРТА ===");
+        logger.info("Task ID: {}", taskId);
+        logger.info("Filename: {}", filename);
+        logger.info("Branch ID: {}", branchId);
 
         try {
             // Шаг 1: Получаем данные манги
             task.setStatus(ImportTaskService.TaskStatus.IMPORTING_MANGA);
             task.setProgress(5);
             task.setMessage("Получение данных манги...");
-
+            
+            logger.info("Шаг 1: Получение данных манги из MelonService...");
             Map<String, Object> mangaInfo = getMangaInfo(filename);
+            
             if (mangaInfo == null) {
+                logger.error("ОШИБКА: Информация о манге не найдена в MelonService для filename: {}", filename);
                 importTaskService.markTaskFailed(taskId, "Информация о манге не найдена");
                 return CompletableFuture.completedFuture(null);
             }
+            
+            logger.info("✓ Данные манги успешно получены. Заголовок: {}", mangaInfo.get("localized_name"));
 
             // Шаг 2: Пропускаем повторное скачивание - изображения уже скачаны во время полного парсинга
             task.setProgress(15);
             task.setMessage("Создание записи манги...");
-
+            
+            logger.info("Шаг 2: Создание записи манги в БД...");
             Manga manga = createMangaFromData(mangaInfo, filename);
+            logger.info("✓ Манга создана с ID: {}, название: {}", manga.getId(), manga.getTitle());
 
             // Подсчитываем главы
+            logger.info("Шаг 3: Подсчет глав для импорта...");
             Map<String, Object> content = (Map<String, Object>) mangaInfo.get("content");
             int totalChapters = 0;
             int totalPages = 0;
@@ -818,6 +831,7 @@ public class MelonIntegrationService {
 
             manga.setTotalChapters(totalChapters);
             manga = mangaRepository.save(manga);
+            logger.info("✓ Найдено {} глав для импорта, {} страниц всего", totalChapters, totalPages);
 
             // Обновляем информацию о задаче
             task.setMangaId(manga.getId());
@@ -826,15 +840,24 @@ public class MelonIntegrationService {
             task.setTotalPages(totalPages);
 
             // Шаг 3: Импортируем главы
+            logger.info("Шаг 4: Импорт глав и страниц...");
             task.setStatus(ImportTaskService.TaskStatus.IMPORTING_CHAPTERS);
             task.setProgress(20);
             task.setMessage("Импорт глав: 0/" + totalChapters);
 
             importChaptersWithProgress(taskId, manga.getId(), chaptersToImport, filename);
-
+            
+            logger.info("✓ Все главы импортированы успешно");
             importTaskService.markTaskCompleted(taskId);
+            logger.info("=== ИМПОРТ ЗАВЕРШЕН УСПЕШНО ===");
 
         } catch (Exception e) {
+            logger.error("=== ОШИБКА ИМПОРТА ===");
+            logger.error("Task ID: {}", taskId);
+            logger.error("Filename: {}", filename);
+            logger.error("Тип ошибки: {}", e.getClass().getName());
+            logger.error("Сообщение ошибки: {}", e.getMessage());
+            logger.error("Стек трейс:", e);
             importTaskService.markTaskFailed(taskId, e.getMessage());
         }
 
@@ -1260,11 +1283,17 @@ public class MelonIntegrationService {
     // Недостающие методы для importChaptersWithProgress
     private void importChaptersWithProgress(String taskId, Long mangaId, List<Map<String, Object>> chapters, String filename) {
         ImportTaskService.ImportTask task = importTaskService.getTask(taskId);
+        
+        logger.info("=== ИМПОРТ ГЛАВ ===");
+        logger.info("Manga ID: {}", mangaId);
+        logger.info("Filename (slug): {}", filename);
+        logger.info("Количество глав для импорта: {}", chapters.size());
 
         for (int i = 0; i < chapters.size(); i++) {
             Map<String, Object> chapterData = chapters.get(i);
 
             try {
+                logger.info("--- Импорт главы {}/{} ---", i + 1, chapters.size());
                 // DEBUG: Выводим информацию о главе
                 System.out.println("=== CHAPTER DEBUG ===");
                 System.out.println("Chapter data: " + chapterData);
