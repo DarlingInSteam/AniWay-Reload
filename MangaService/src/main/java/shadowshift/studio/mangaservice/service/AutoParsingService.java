@@ -232,39 +232,18 @@ public class AutoParsingService {
                         // он тоже автоматически был связан с autoParsingTaskId
                         melonService.registerAutoParsingLink(fullParsingTaskId, taskId);
                         
-                        // Ждем завершения парсинга и билдинга
+                        // Ждем завершения ПОЛНОГО парсинга (парсинг → билд → импорт → очистка)
+                        // runFullParsingTaskLogic() уже делает ВСЁ: парсит, билдит, импортирует, очищает
                         boolean completed = waitForFullParsingCompletion(fullParsingTaskId);
                         
                         if (completed) {
-                            // Запускаем импорт в систему
-                            task.message = String.format("Импорт манги %d/%d: %s", i + 1, slugs.size(), slug);
-                            logger.info("Запуск импорта для slug: {}", slug);
-                            
-                            Map<String, Object> importResult = melonService.importToSystemAsync(slug, null);
-                            
-                            if (importResult != null && importResult.containsKey("taskId")) {
-                                String importTaskId = (String) importResult.get("taskId");
-                                
-                                // Ждем завершения импорта
-                                boolean importCompleted = waitForImportCompletion(importTaskId);
-                                
-                                if (importCompleted) {
-                                    // Удаляем из Melon после успешного импорта
-                                    logger.info("Удаление из Melon для slug: {}", slug);
-                                    melonService.deleteManga(slug);
-                                    
-                                    task.importedSlugs.add(slug);
-                                    logger.info("Манга '{}' успешно импортирована и удалена из Melon", slug);
-                                } else {
-                                    logger.error("Импорт не завершен для slug: {}", slug);
-                                    task.failedSlugs.add(slug);
-                                }
-                            } else {
-                                logger.error("Не удалось запустить импорт для slug: {}", slug);
-                                task.failedSlugs.add(slug);
-                            }
+                            // Полный парсинг завершен успешно! 
+                            // runFullParsingTaskLogic() уже импортировал мангу и очистил данные из MelonService
+                            // Повторный импорт и очистка НЕ НУЖНЫ
+                            task.importedSlugs.add(slug);
+                            logger.info("Манга '{}' успешно обработана через полный парсинг (импорт и очистка выполнены автоматически)", slug);
                         } else {
-                            logger.error("Парсинг не завершен для slug: {}", slug);
+                            logger.error("Полный парсинг не завершен для slug: {}", slug);
                             task.failedSlugs.add(slug);
                         }
                         

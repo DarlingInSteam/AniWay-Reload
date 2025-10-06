@@ -598,23 +598,28 @@ public class Manga {
 
     /**
      * Добавляет жанр к манге.
+     * ВАЖНО: Не обращаемся к genre.getMangas() — это LAZY-коллекция, которая может вызвать LazyInitializationException.
+     * Двунаправленную связь управляет Hibernate через @ManyToMany.
      *
      * @param genre жанр для добавления
      */
     public void addGenre(Genre genre) {
         this.genres.add(genre);
-        genre.getMangas().add(this);
+        // НЕ обращаемся к genre.getMangas() здесь — это вызовет LazyInitializationException
+        // genre.getMangas().add(this);  // УБРАНО
         genre.incrementMangaCount();
     }
 
     /**
      * Удаляет жанр из манги.
+     * ВАЖНО: Не обращаемся к genre.getMangas() — это LAZY-коллекция.
      *
      * @param genre жанр для удаления
      */
     public void removeGenre(Genre genre) {
         this.genres.remove(genre);
-        genre.getMangas().remove(this);
+        // НЕ обращаемся к genre.getMangas() здесь
+        // genre.getMangas().remove(this);  // УБРАНО
         genre.decrementMangaCount();
     }
 

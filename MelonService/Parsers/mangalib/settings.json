@@ -3,7 +3,7 @@
 		"archives_directory": "",
 		"images_directory": "",
 		"titles_directory": "",
-		"bad_image_stub": "",
+		"bad_image_stub": null,
 		"pretty": false,
 		"use_id_as_filename": false,
 		"sizing_images": false,
