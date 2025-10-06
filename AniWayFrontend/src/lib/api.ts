@@ -1,5 +1,30 @@
-import {MangaResponseDTO, ChapterDTO, ChapterImageDTO, SearchParams, PageResponse, UserSearchParams, UserSearchResult, User, UpdateProfileRequest, AdminUserData, AdminUserFilter, AdminUsersPageResponse, AdminUsersParams, AdminActionLogDTO } from '@/types';
-import type { FriendSummary, FriendView as FriendDto, FriendRequestView, InboxSummaryView, ConversationView as ConversationDto, MessagePageView as MessagePageDto, MessageView as MessageDto, CategoryView, CreateCategoryPayload, UpdateCategoryPayload, CategoryUnreadMap } from '@/types/social';
+import {
+  AdminActionLogDTO,
+  AdminUsersPageResponse,
+  AdminUsersParams,
+  ChapterDTO,
+  ChapterImageDTO,
+  MangaResponseDTO,
+  PageResponse,
+  SearchParams,
+  UpdateProfileRequest,
+  User,
+  UserSearchParams,
+  UserSearchResult
+} from '@/types';
+import type {
+  CategoryUnreadMap,
+  CategoryView,
+  ConversationView as ConversationDto,
+  CreateCategoryPayload,
+  FriendRequestView,
+  FriendSummary,
+  FriendView as FriendDto,
+  InboxSummaryView,
+  MessagePageView as MessagePageDto,
+  MessageView as MessageDto,
+  UpdateCategoryPayload
+} from '@/types/social';
 
 const API_BASE_URL = '/api';
 
@@ -173,13 +198,11 @@ class ApiClient {
   async getMangaChapters(mangaId: number): Promise<ChapterDTO[]> {
     // Try direct ChapterService endpoint first
     try {
-      const result = await this.request<ChapterDTO[]>(`/chapters/manga/${mangaId}`);
-      return result;
+      return await this.request<ChapterDTO[]>(`/chapters/manga/${mangaId}`);
     } catch (directError) {
       console.warn('Direct ChapterService endpoint failed, trying MangaService proxy:', directError)
       // Fallback to MangaService proxy
-      const result = await this.request<ChapterDTO[]>(`/manga/${mangaId}/chapters`);
-      return result;
+      return await this.request<ChapterDTO[]>(`/manga/${mangaId}/chapters`);
     }
   }
 
@@ -402,7 +425,7 @@ class ApiClient {
     // Поскольку на бэкенде нет массового обновления избранного,
     // реализуем через последовательные запросы к bookmark API
     try {
-      const results = await Promise.all(
+      await Promise.all(
         mangaIds.map(mangaId =>
           this.request<any>('/bookmarks', {
             method: 'POST',
@@ -462,12 +485,12 @@ class ApiClient {
     };
   }
 
-  async updateCollection(id: string, data: { name?: string; description?: string; isPublic?: boolean; mangaIds?: number[] }): Promise<any> {
+  async updateCollection(_id: string, _data: { name?: string; description?: string; isPublic?: boolean; mangaIds?: number[] }): Promise<any> {
     console.warn('Обновление коллекций пока не реализовано на бэкенде');
     return { success: true, message: 'Коллекция обновлена (заглушка)' };
   }
 
-  async deleteCollection(id: string): Promise<{ success: boolean; message: string }> {
+  async deleteCollection(_id: string): Promise<{ success: boolean; message: string }> {
     console.warn('Удаление коллекций пока не реализовано на бэкенде');
     return { success: true, message: 'Коллекция удалена (заглушка)' };
   }
@@ -478,7 +501,7 @@ class ApiClient {
       const bookmarks = await this.getUserBookmarks();
 
       // Группируем по статусам как коллекции
-      const collections = [
+      return [
         {
           id: 'reading',
           name: 'Читаю',
@@ -498,8 +521,6 @@ class ApiClient {
           isPublic: true
         }
       ];
-
-      return collections;
     } catch (error) {
       return [];
     }
@@ -516,13 +537,13 @@ class ApiClient {
     throw new Error('Коллекция не найдена');
   }
 
-  async addMangaToCollection(collectionId: string, mangaId: number): Promise<{ success: boolean; message: string }> {
+  async addMangaToCollection(_collectionId: string, _mangaId: number): Promise<{ success: boolean; message: string }> {
     console.warn('addMangaToCollection пока не реализован на бэкенде');
     // Заглушка - в будущем будет реальный API
     return { success: true, message: 'Манга добавлена в коллекцию (заглушка)' };
   }
 
-  async removeMangaFromCollection(collectionId: string, mangaId: number): Promise<{ success: boolean; message: string }> {
+  async removeMangaFromCollection(_collectionId: string, _mangaId: number): Promise<{ success: boolean; message: string }> {
     console.warn('removeMangaFromCollection пока не реализован на бэкенде');
     // Заглушка - в будущем будет реальный API
     return { success: true, message: 'Манга удалена из коллекции (заглушка)' };
@@ -761,6 +782,39 @@ class ApiClient {
     }
   }
 
+  // Получить данные рейтинга манги
+  async getMangaRatingData(mangaId: number): Promise<any> {
+    try {
+      return this.request<any>(`/auth/reviews/manga/${mangaId}/rating`);
+    } catch (error) {
+      console.error('Failed to get manga rating data:', error);
+      throw error;
+    }
+  }
+
+  // Получить отзыв текущего пользователя для манги
+  async getUserMangaReview(mangaId: number): Promise<any> {
+    try {
+      return this.request<any>(`/auth/reviews/manga/${mangaId}/my`);
+    } catch (error) {
+      console.error('Failed to get user manga review:', error);
+      throw error;
+    }
+  }
+
+  // Поставить дизлайк отзыву
+  async dislikeReview(reviewId: string | number): Promise<{ success: boolean; message: string }> {
+    try {
+      await this.request<void>(`/auth/reviews/${reviewId}/dislike`, {
+        method: 'POST',
+      });
+      return { success: true, message: 'Дизлайк поставлен' };
+    } catch (error) {
+      console.error('Failed to dislike review:', error);
+      return { success: false, message: 'Не удалось поставить дизлайк' };
+    }
+  }
+
   // РАСШИРЕННЫЙ ФУНКЦИОНАЛ - АДАПТИРОВАННЫЙ ПОД БЭКЕНД
 
   // 5. Настройки профиля (используем существующий PUT /users/me)
@@ -881,7 +935,7 @@ class ApiClient {
   }
 
   // 8. Лента активности - пока заглушка
-  async getProfileActivity(userId?: number, limit?: number): Promise<any[]> {
+  async getProfileActivity(_userId?: number, _limit?: number): Promise<any[]> {
     console.warn('Лента активности пока не реализована на бэкенде');
     return [];
   }
