@@ -183,8 +183,15 @@ public class MelonIntegrationService {
                 logger.info("Билд завершен для slug={}, запускаем импорт", slug);
                 
                 try {
+                    // Получаем mangaInfo ДО удаления манги из MelonService
+                    Map<String, Object> mangaInfo = getMangaInfo(slug);
+                    
+                    // Создаем задачу импорта
+                    String importTaskId = importTaskService.createTask(fullTaskId).getTaskId();
+                    logger.info("Создана задача импорта: importTaskId={} для fullTaskId={}", importTaskId, fullTaskId);
+                    
                     // Импортируем мангу в БД (синхронно, чтобы дождаться завершения)
-                    importMangaWithProgressAsync(fullTaskId, slug, null).get();
+                    importMangaWithProgressAsync(importTaskId, slug, null).get();
                     logger.info("Импорт завершен для slug={}, очищаем данные из MelonService", slug);
                     
                     // После успешного импорта - удаляем из MelonService
@@ -196,8 +203,7 @@ public class MelonIntegrationService {
                         logger.warn("Не удалось удалить данные из MelonService для slug={}: {}", slug, deleteResult);
                     }
                     
-                    // Формируем результат
-                    Map<String, Object> mangaInfo = getMangaInfo(slug);
+                    // Формируем результат (mangaInfo уже получен ранее)
                     Map<String, Object> result = new HashMap<>();
                     result.put("filename", slug);
                     result.put("parse_completed", true);
