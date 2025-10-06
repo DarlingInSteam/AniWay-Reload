@@ -375,9 +375,4 @@ public interface MangaRepository extends JpaRepository<Manga, Long> {
          * Возвращает список манги по коллекции slug'ов источника.
          */
         List<Manga> findByMelonSlugIn(Collection<String> melonSlugs);
-
-        /**
-         * Проверяет существование манги по slug источника.
-         */
-        boolean existsByMelonSlug(String melonSlug);
 }
