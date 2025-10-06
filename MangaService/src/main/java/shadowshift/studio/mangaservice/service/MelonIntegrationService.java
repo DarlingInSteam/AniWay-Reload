@@ -460,7 +460,9 @@ public class MelonIntegrationService {
             // Обрабатываем описание
             String description = (String) mangaInfo.get("description");
             if (description != null && !description.trim().isEmpty()) {
-                manga.setDescription(description.trim());
+                // Конвертируем HTML-теги в Markdown
+                description = convertHtmlToMarkdown(description.trim());
+                manga.setDescription(description);
             }
 
             // Обрабатываем английское название
@@ -965,7 +967,9 @@ public class MelonIntegrationService {
         // Обрабатываем описание
         String description = (String) mangaInfo.get("description");
         if (description != null && !description.trim().isEmpty()) {
-            manga.setDescription(description.trim());
+            // Конвертируем HTML-теги в Markdown
+            description = convertHtmlToMarkdown(description.trim());
+            manga.setDescription(description);
         }
 
         manga.setStatus(Manga.MangaStatus.ONGOING);
@@ -1584,5 +1588,50 @@ public class MelonIntegrationService {
         } catch (Exception e) {
             System.err.println("Failed to update pageCount for chapter " + chapterId + ": " + e.getMessage());
         }
+    }
+
+    /**
+     * Конвертирует HTML-теги в Markdown-форматирование.
+     * Поддерживаемые теги:
+     * - <b>, <strong> → **bold**
+     * - <i>, <em> → *italic*
+     * - <br>, <br/> → перенос строки
+     * - <p> → двойной перенос строки
+     * - все остальные теги удаляются
+     *
+     * @param html исходная строка с HTML-тегами
+     * @return строка в формате Markdown
+     */
+    private String convertHtmlToMarkdown(String html) {
+        if (html == null || html.isEmpty()) {
+            return html;
+        }
+
+        String markdown = html
+            // <br> → перенос строки
+            .replaceAll("<br\\s*/?>", "\n")
+            // <p> → двойной перенос строки
+            .replaceAll("</p>\\s*<p>", "\n\n")
+            .replaceAll("</?p>", "\n\n")
+            // <b>, <strong> → **bold**
+            .replaceAll("<b>(.*?)</b>", "**$1**")
+            .replaceAll("<strong>(.*?)</strong>", "**$1**")
+            // <i>, <em> → *italic*
+            .replaceAll("<i>(.*?)</i>", "*$1*")
+            .replaceAll("<em>(.*?)</em>", "*$1*")
+            // <b><i> → ***bold+italic***
+            .replaceAll("<b>\\s*<i>(.*?)</i>\\s*</b>", "***$1***")
+            .replaceAll("<i>\\s*<b>(.*?)</b>\\s*</i>", "***$1***")
+            .replaceAll("<strong>\\s*<em>(.*?)</em>\\s*</strong>", "***$1***")
+            .replaceAll("<em>\\s*<strong>(.*?)</strong>\\s*</em>", "***$1***")
+            // Убираем все остальные HTML-теги
+            .replaceAll("<[^>]*>", "")
+            // Нормализуем пробелы (несколько пробелов → один)
+            .replaceAll(" +", " ")
+            // Нормализуем переносы строк (больше 3 переносов → 2 переноса)
+            .replaceAll("\n{3,}", "\n\n")
+            .trim();
+
+        return markdown;
     }
 }
