@@ -4,7 +4,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import shadowshift.studio.mangaservice.service.ImportTaskService;
+import shadowshift.studio.mangaservice.service.AutoParsingService;
 import java.util.Map;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,6 +28,9 @@ public class ProgressController {
     @Autowired
     private ImportTaskService importTaskService;
 
+    @Autowired
+    private AutoParsingService autoParsingService;
+
     /**
      * Обновляет прогресс выполнения задачи импорта.
      *
@@ -45,6 +50,15 @@ public class ProgressController {
             Integer progress = payload.get("progress") != null ? ((Number) payload.get("progress")).intValue() : null;
             String message = (String) payload.get("message");
             String error = (String) payload.get("error");
+            @SuppressWarnings("unchecked")
+            List<String> logs = (List<String>) payload.get("logs");  // Логи из MelonService
+
+            // Если есть логи, добавляем их в задачу автопарсинга
+            if (logs != null && !logs.isEmpty()) {
+                for (String log : logs) {
+                    autoParsingService.addLogToTask(taskId, log);
+                }
+            }
 
             if (status == null) {
                 logger.error("Отсутствует обязательное поле 'status'");

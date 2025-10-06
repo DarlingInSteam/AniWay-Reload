@@ -173,7 +173,7 @@ def ensure_cross_device_patch():
             builder_path.write_text(content, encoding='utf-8')
             logger.info("Cross-device patch applied successfully")
 
-def send_progress_to_manga_service(task_id, status, progress, message=None, error=None):
+def send_progress_to_manga_service(task_id, status, progress, message=None, error=None, logs=None):
     try:
         payload = {
             "status": status,
@@ -181,6 +181,8 @@ def send_progress_to_manga_service(task_id, status, progress, message=None, erro
             "message": message,
             "error": error
         }
+        if logs:
+            payload["logs"] = logs if isinstance(logs, list) else [logs]
         url = f"http://manga-service:8081/api/parser/progress/{task_id}"
         resp = requests.post(url, json=payload, timeout=5)
         logger.info(f"Progress sent to MangaService: {payload}, response: {resp.status_code}")
@@ -188,7 +190,7 @@ def send_progress_to_manga_service(task_id, status, progress, message=None, erro
         logger.error(f"Failed to send progress to MangaService: {e}")
 
 def update_task_status(task_id: str, status: str, progress: int, message: str, result: Optional[Dict] = None, error: Optional[str] = None):
-    """Обновляет статус задачи"""
+    """Обновляет статус задачи и отправляет логи в MangaService"""
     if task_id in tasks_storage:
         tasks_storage[task_id].status = status
         tasks_storage[task_id].progress = progress
@@ -196,7 +198,14 @@ def update_task_status(task_id: str, status: str, progress: int, message: str, r
         tasks_storage[task_id].updated_at = datetime.now().isoformat()
         if result:
             tasks_storage[task_id].result = result
-        send_progress_to_manga_service(task_id, status, progress, message, error)
+        
+        # Собираем последние логи для отправки (последние 10 строк)
+        logs_to_send = None
+        if task_id in task_logs and len(task_logs[task_id]) > 0:
+            recent_logs = task_logs[task_id][-10:]  # Последние 10 логов
+            logs_to_send = [f"[{log.timestamp}] [{log.level}] {log.message}" for log in recent_logs]
+        
+        send_progress_to_manga_service(task_id, status, progress, message, error, logs_to_send)
 
 async def run_melon_command(command: List[str], task_id: str, timeout: int = 600) -> Dict[str, Any]:
     """Запускает команду MelonService асинхронно с поддержкой timeout и логирования в реальном времени"""
@@ -210,7 +219,7 @@ async def run_melon_command(command: List[str], task_id: str, timeout: int = 600
         logger.info(f"Running command: {' '.join(full_command)}")
         update_task_status(task_id, "RUNNING", 5, f"Запуск команды: {' '.join(full_command)}")
 
-        # Запускаем процесс с timeout
+        # Запускаем процесс
         process = await asyncio.create_subprocess_exec(
             *full_command,
             cwd=base_path,
@@ -222,38 +231,46 @@ async def run_melon_command(command: List[str], task_id: str, timeout: int = 600
         stdout_lines = []
         stderr_lines = []
         
-        # Читаем stdout
-        if process.stdout:
-            while True:
-                line = await process.stdout.readline()
-                if not line:
-                    break
-                line_str = line.decode('utf-8', errors='ignore').strip()
-                if line_str:
-                    stdout_lines.append(line_str)
-                    log_task_message(task_id, "INFO", line_str)
-                    
-                    # Обновляем прогресс на основе вывода
-                    if "Chapter" in line_str and "completed" in line_str:
-                        # Пример: "[1/10] Chapter 1.1 completed (15 slides)"
-                        update_task_status(task_id, "RUNNING", min(90, 10 + len(stdout_lines)), f"Парсинг: {line_str}")
-                    elif "Parsing" in line_str and "..." in line_str:
-                        update_task_status(task_id, "RUNNING", min(90, 10 + len(stdout_lines)), f"Парсинг: {line_str}")
-                    elif "Building" in line_str:
-                        update_task_status(task_id, "RUNNING", min(90, 10 + len(stdout_lines)), f"Билдинг: {line_str}")
-                    elif "Done in" in line_str:
-                        update_task_status(task_id, "RUNNING", 95, f"Завершено: {line_str}")
+        # Функция для чтения stdout
+        async def read_stdout():
+            if process.stdout:
+                while True:
+                    line = await process.stdout.readline()
+                    if not line:
+                        break
+                    line_str = line.decode('utf-8', errors='ignore').strip()
+                    if line_str:
+                        stdout_lines.append(line_str)
+                        log_task_message(task_id, "INFO", line_str)
+                        
+                        # Обновляем прогресс на основе вывода
+                        if "Chapter" in line_str and "completed" in line_str:
+                            update_task_status(task_id, "RUNNING", min(90, 10 + len(stdout_lines)), f"Парсинг: {line_str}")
+                        elif "Parsing" in line_str and "..." in line_str:
+                            update_task_status(task_id, "RUNNING", min(90, 10 + len(stdout_lines)), f"Парсинг: {line_str}")
+                        elif "Building" in line_str:
+                            update_task_status(task_id, "RUNNING", min(90, 10 + len(stdout_lines)), f"Билдинг: {line_str}")
+                        elif "Done in" in line_str:
+                            update_task_status(task_id, "RUNNING", 95, f"Завершено: {line_str}")
 
-        # Читаем stderr
-        if process.stderr:
-            while True:
-                line = await process.stderr.readline()
-                if not line:
-                    break
-                line_str = line.decode('utf-8', errors='ignore').strip()
-                if line_str:
-                    stderr_lines.append(line_str)
-                    logger.warning(f"[{task_id}] STDERR: {line_str}")
+        # Функция для чтения stderr
+        async def read_stderr():
+            if process.stderr:
+                while True:
+                    line = await process.stderr.readline()
+                    if not line:
+                        break
+                    line_str = line.decode('utf-8', errors='ignore').strip()
+                    if line_str:
+                        stderr_lines.append(line_str)
+                        log_task_message(task_id, "ERROR", line_str)
+                        logger.warning(f"[{task_id}] STDERR: {line_str}")
+
+        # Читаем stdout и stderr параллельно
+        await asyncio.gather(
+            read_stdout(),
+            read_stderr()
+        )
 
         # Ждем завершения процесса
         return_code = await process.wait()

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -21,6 +21,7 @@ interface AutoParseTask {
   failed_slugs: string[]
   start_time: string
   end_time?: string
+  logs?: string[]  // Логи в реальном времени
 }
 
 interface AutoUpdateTask {
@@ -35,6 +36,80 @@ interface AutoUpdateTask {
   new_chapters_count: number
   start_time: string
   end_time?: string
+  logs?: string[]  // Логи в реальном времени
+}
+
+// Компонент для отображения логов в реальном времени
+function LogViewer({ logs }: { logs?: string[] }) {
+  const logContainerRef = useRef<HTMLDivElement>(null)
+  const [autoScroll, setAutoScroll] = useState(true)
+
+  useEffect(() => {
+    if (autoScroll && logContainerRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight
+    }
+  }, [logs, autoScroll])
+
+  const handleScroll = () => {
+    if (logContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = logContainerRef.current
+      // Если пользователь прокрутил вверх, отключаем автоскролл
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 10
+      setAutoScroll(isAtBottom)
+    }
+  }
+
+  if (!logs || logs.length === 0) {
+    return (
+      <div className="bg-gray-950 rounded-lg p-4 font-mono text-sm text-gray-400 border border-gray-800">
+        <div className="flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>Ожидание логов...</span>
+        </div>
+      </div>
+    )
+  }
+
+  const getLogColor = (log: string) => {
+    if (log.includes('[ERROR]')) return 'text-red-400'
+    if (log.includes('[WARN]') || log.includes('[WARNING]')) return 'text-yellow-400'
+    if (log.includes('[INFO]')) return 'text-green-400'
+    if (log.includes('[DEBUG]')) return 'text-blue-400'
+    return 'text-gray-300'
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <Label className="text-sm font-medium text-white">Логи выполнения</Label>
+        <div className="flex items-center gap-2">
+          <Badge variant={autoScroll ? "default" : "secondary"} className="text-xs">
+            {autoScroll ? '🔄 Автоскролл' : '⏸️ Пауза'}
+          </Badge>
+          <span className="text-xs text-muted-foreground">
+            {logs.length} строк
+          </span>
+        </div>
+      </div>
+      <div
+        ref={logContainerRef}
+        onScroll={handleScroll}
+        className="bg-gray-950 rounded-lg p-4 font-mono text-sm max-h-96 overflow-y-auto border border-gray-800 shadow-inner"
+        style={{
+          scrollBehavior: autoScroll ? 'smooth' : 'auto',
+        }}
+      >
+        {logs.map((log, index) => (
+          <div
+            key={index}
+            className={`${getLogColor(log)} leading-relaxed hover:bg-gray-900 px-2 py-1 rounded transition-colors`}
+          >
+            {log}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 export function MangaManagement() {
@@ -323,6 +398,9 @@ export function MangaManagement() {
                   </AlertDescription>
                 </Alert>
               )}
+
+              {/* Логи в реальном времени */}
+              <LogViewer logs={autoParseTask.logs} />
             </div>
           )}
         </CardContent>
@@ -429,6 +507,9 @@ export function MangaManagement() {
                   </AlertDescription>
                 </Alert>
               )}
+
+              {/* Логи в реальном времени */}
+              <LogViewer logs={autoUpdateTask.logs} />
             </div>
           )}
         </CardContent>

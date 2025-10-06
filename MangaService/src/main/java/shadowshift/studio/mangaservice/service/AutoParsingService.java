@@ -55,6 +55,7 @@ public class AutoParsingService {
         task.skippedSlugs = new ArrayList<>();
         task.importedSlugs = new ArrayList<>();
         task.failedSlugs = new ArrayList<>();
+        task.logs = new ArrayList<>();  // Инициализация списка логов
         task.message = "Получение списка манг из каталога...";
         task.progress = 0;
         task.startTime = new Date();
@@ -96,6 +97,7 @@ public class AutoParsingService {
         result.put("skipped_slugs", task.skippedSlugs);
         result.put("imported_slugs", task.importedSlugs);
         result.put("failed_slugs", task.failedSlugs);
+        result.put("logs", task.logs);  // Добавляем логи в ответ
         result.put("start_time", task.startTime);
         
         if (task.endTime != null) {
@@ -103,6 +105,22 @@ public class AutoParsingService {
         }
 
         return result;
+    }
+
+    /**
+     * Добавляет лог-сообщение в задачу автопарсинга
+     */
+    public void addLogToTask(String taskId, String logMessage) {
+        AutoParseTask task = autoParsingTasks.get(taskId);
+        if (task != null) {
+            synchronized (task.logs) {
+                task.logs.add(logMessage);
+                // Ограничиваем количество логов (последние 1000 строк)
+                if (task.logs.size() > 1000) {
+                    task.logs.remove(0);
+                }
+            }
+        }
     }
 
     /**
@@ -240,58 +258,68 @@ public class AutoParsingService {
 
     /**
      * Ждет завершения полного парсинга (parse + build)
+     * БЕЗ таймаута - некоторые манги с большим количеством глав могут парситься 100+ минут
      */
     private boolean waitForFullParsingCompletion(String taskId) throws InterruptedException {
-        int maxAttempts = 300; // 10 минут максимум (парсинг + билд могут быть долгими)
         int attempts = 0;
 
-        while (attempts < maxAttempts) {
-            Thread.sleep(2000);
+        while (true) {
+            Thread.sleep(2000); // проверка каждые 2 секунды
             
             Map<String, Object> status = melonService.getFullParsingTaskStatus(taskId);
             
             if (status != null && "completed".equals(status.get("status"))) {
+                logger.info("Полный парсинг завершен успешно после {} попыток ({}s)", attempts, attempts * 2);
                 return true;
             }
             
             if (status != null && "failed".equals(status.get("status"))) {
-                logger.error("Полный парсинг завершился с ошибкой: {}", status.get("message"));
+                logger.error("Полный парсинг завершился с ошибкой после {} попыток: {}", attempts, status.get("message"));
                 return false;
             }
             
             attempts++;
+            
+            // Логируем прогресс каждые 30 проверок (1 минута)
+            if (attempts % 30 == 0) {
+                int minutes = attempts * 2 / 60;
+                logger.info("Ожидание парсинга {}: {} минут, прогресс: {}%", 
+                    taskId, minutes, status != null ? status.get("progress") : "?");
+            }
         }
-
-        logger.error("Превышено время ожидания завершения полного парсинга");
-        return false;
     }
 
     /**
      * Ждет завершения импорта
+     * БЕЗ таймаута - импорт больших манг может занимать много времени
      */
     private boolean waitForImportCompletion(String taskId) throws InterruptedException {
-        int maxAttempts = 300; // 10 минут максимум (импорт может быть долгим)
         int attempts = 0;
 
-        while (attempts < maxAttempts) {
-            Thread.sleep(2000);
+        while (true) {
+            Thread.sleep(2000); // проверка каждые 2 секунды
             
             Map<String, Object> status = melonService.getImportTaskStatus(taskId);
             
             if (status != null && "completed".equals(status.get("status"))) {
+                logger.info("Импорт завершен успешно после {} попыток ({}s)", attempts, attempts * 2);
                 return true;
             }
             
             if (status != null && "failed".equals(status.get("status"))) {
-                logger.error("Импорт завершился с ошибкой: {}", status.get("message"));
+                logger.error("Импорт завершился с ошибкой после {} попыток: {}", attempts, status.get("message"));
                 return false;
             }
             
             attempts++;
+            
+            // Логируем прогресс каждые 30 проверок (1 минута)
+            if (attempts % 30 == 0) {
+                int minutes = attempts * 2 / 60;
+                logger.info("Ожидание импорта {}: {} минут, прогресс: {}%", 
+                    taskId, minutes, status != null ? status.get("progress") : "?");
+            }
         }
-
-        logger.error("Превышено время ожидания завершения импорта");
-        return false;
     }
 
     /**
@@ -307,6 +335,7 @@ public class AutoParsingService {
         List<String> skippedSlugs;
         List<String> importedSlugs;
         List<String> failedSlugs;
+        List<String> logs;  // Логи из MelonService в реальном времени
         Date startTime;
         Date endTime;
         Integer page;   // Номер страницы каталога

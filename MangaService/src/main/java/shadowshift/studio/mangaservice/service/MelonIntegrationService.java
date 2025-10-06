@@ -205,16 +205,18 @@ public class MelonIntegrationService {
      */
     private Map<String, Object> waitForTaskCompletion(String taskId) throws InterruptedException {
         Map<String, Object> status;
-        int maxAttempts = 300; // максимум 10 минут ожидания (парсинг может быть долгим)
-        int attempts = 0;
+        int attempts = 0; // БЕЗ таймаута - некоторые манги парсятся 100+ минут
 
         do {
             Thread.sleep(2000); // жде�� 2 секунды
             status = getTaskStatus(taskId);
             attempts++;
 
-            if (attempts >= maxAttempts) {
-                return Map.of("status", "failed", "message", "Превышено время ожидания завершения задачи");
+            // Логируем каждые 30 проверок (1 минута)
+            if (attempts % 30 == 0) {
+                int minutes = attempts * 2 / 60;
+                logger.info("Ожидание задачи {}: {}min, статус: {}", 
+                    taskId, minutes, status != null ? status.get("status") : "null");
             }
 
         } while (status != null &&
