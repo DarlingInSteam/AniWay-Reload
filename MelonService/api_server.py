@@ -208,7 +208,11 @@ def update_task_status(task_id: str, status: str, progress: int, message: str, r
         tasks_storage[task_id].message = message
         tasks_storage[task_id].updated_at = datetime.now().isoformat()
         if result:
-            tasks_storage[task_id].result = result
+            # Добавляем результат в список results (не result!)
+            if isinstance(result, list):
+                tasks_storage[task_id].results.extend(result)
+            else:
+                tasks_storage[task_id].results.append(result)
         
         # Собираем последние логи для отправки (последние 10 строк)
         logs_to_send = None
