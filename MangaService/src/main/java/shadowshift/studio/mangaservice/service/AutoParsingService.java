@@ -3,6 +3,7 @@ package shadowshift.studio.mangaservice.service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import shadowshift.studio.mangaservice.repository.MangaRepository;
@@ -29,6 +30,9 @@ public class AutoParsingService {
 
     @Autowired
     private ImportTaskService importTaskService;
+
+    @Autowired
+    private ApplicationContext applicationContext;
 
     // Хранилище задач автопарсинга
     private final Map<String, AutoParseTask> autoParsingTasks = new HashMap<>();
@@ -58,8 +62,10 @@ public class AutoParsingService {
 
         autoParsingTasks.put(taskId, task);
 
-        // Запускаем асинхронную обработку
-        processAutoParsingAsync(taskId, task.page, limit);
+        // Запускаем асинхронную обработку через Spring proxy для поддержки @Async
+        // (self-invocation не работает с @Async)
+        AutoParsingService proxy = applicationContext.getBean(AutoParsingService.class);
+        proxy.processAutoParsingAsync(taskId, task.page, limit);
 
         return Map.of(
             "task_id", taskId,
@@ -235,7 +241,7 @@ public class AutoParsingService {
      * Ждет завершения полного парсинга (parse + build)
      */
     private boolean waitForFullParsingCompletion(String taskId) throws InterruptedException {
-        int maxAttempts = 120; // 4 минуты максимум
+        int maxAttempts = 300; // 10 минут максимум (парсинг + билд могут быть долгими)
         int attempts = 0;
 
         while (attempts < maxAttempts) {
@@ -263,7 +269,7 @@ public class AutoParsingService {
      * Ждет завершения импорта
      */
     private boolean waitForImportCompletion(String taskId) throws InterruptedException {
-        int maxAttempts = 120; // 4 минуты максимум
+        int maxAttempts = 300; // 10 минут максимум (импорт может быть долгим)
         int attempts = 0;
 
         while (attempts < maxAttempts) {

@@ -205,7 +205,7 @@ public class MelonIntegrationService {
      */
     private Map<String, Object> waitForTaskCompletion(String taskId) throws InterruptedException {
         Map<String, Object> status;
-        int maxAttempts = 60; // максимум 2 минуты ожидания
+        int maxAttempts = 300; // максимум 10 минут ожидания (парсинг может быть долгим)
         int attempts = 0;
 
         do {
