@@ -6,6 +6,8 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.ui.Model;
 import shadowshift.studio.mangaservice.service.MelonIntegrationService;
+import shadowshift.studio.mangaservice.service.AutoParsingService;
+import shadowshift.studio.mangaservice.service.MangaUpdateService;
 
 import java.util.Map;
 import java.util.List;
@@ -25,6 +27,12 @@ public class ParserController {
 
     @Autowired
     private MelonIntegrationService melonService;
+
+    @Autowired
+    private AutoParsingService autoParsingService;
+
+    @Autowired
+    private MangaUpdateService mangaUpdateService;
 
     /**
      * Отображает главную страницу парсера манги.
@@ -215,6 +223,94 @@ public class ParserController {
         } catch (Exception e) {
             return ResponseEntity.badRequest()
                 .body(Map.of("error", "Ошибка удаления: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Запускает автоматический парсинг манг из каталога MangaLib.
+     * Получает список манг по номеру страницы, фильтрует уже существующие и парсит новые.
+     *
+     * @param request параметры запроса (page - номер страницы, limit - ограничение количества)
+     * @return ResponseEntity с информацией о запущенной задаче автопарсинга
+     */
+    @PostMapping("/auto-parse")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> startAutoParsing(@RequestBody Map<String, Object> request) {
+        try {
+            Integer page = (Integer) request.get("page");
+            Integer limit = (Integer) request.get("limit");
+
+            // Валидация page
+            if (page == null || page <= 0) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Номер страницы должен быть больше 0"));
+            }
+
+            // Валидация limit
+            if (limit != null && limit <= 0) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Ограничение должно быть больше 0"));
+            }
+
+            Map<String, Object> result = autoParsingService.startAutoParsing(page, limit);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                .body(Map.of("error", "Ошибка запуска автопарсинга: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Получает статус задачи автопарсинга.
+     *
+     * @param taskId идентификатор задачи
+     * @return ResponseEntity со статусом задачи
+     */
+    @GetMapping("/auto-parse/status/{taskId}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getAutoParseStatus(@PathVariable String taskId) {
+        try {
+            Map<String, Object> status = autoParsingService.getAutoParseTaskStatus(taskId);
+            return ResponseEntity.ok(status);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                .body(Map.of("error", "Ошибка получения статуса: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Запускает автоматическое обновление всех манг в системе.
+     * Проверяет наличие новых глав и импортирует их.
+     *
+     * @return ResponseEntity с информацией о запущенной задаче обновления
+     */
+    @PostMapping("/auto-update")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> startAutoUpdate() {
+        try {
+            Map<String, Object> result = mangaUpdateService.startAutoUpdate();
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                .body(Map.of("error", "Ошибка запуска автообновления: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Получает статус задачи автообновления.
+     *
+     * @param taskId идентификатор задачи
+     * @return ResponseEntity со статусом задачи
+     */
+    @GetMapping("/auto-update/status/{taskId}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getAutoUpdateStatus(@PathVariable String taskId) {
+        try {
+            Map<String, Object> status = mangaUpdateService.getUpdateTaskStatus(taskId);
+            return ResponseEntity.ok(status);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                .body(Map.of("error", "Ошибка получения статуса: " + e.getMessage()));
         }
     }
 }

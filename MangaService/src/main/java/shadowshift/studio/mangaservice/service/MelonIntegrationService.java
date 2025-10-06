@@ -1,5 +1,7 @@
 package shadowshift.studio.mangaservice.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
@@ -28,6 +30,8 @@ import java.util.stream.Collectors;
  */
 @Service
 public class MelonIntegrationService {
+
+    private static final Logger logger = LoggerFactory.getLogger(MelonIntegrationService.class);
 
     @Autowired
     private RestTemplate restTemplate;
@@ -275,6 +279,71 @@ public class MelonIntegrationService {
         String url = melonServiceUrl + "/manga-info/" + filename;
         ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
         return response.getBody();
+    }
+
+    /**
+     * Получает ТОЛЬКО метаданные глав без парсинга страниц.
+     * Быстрая операция для проверки наличия новых глав.
+     * 
+     * @param slug Slug манги
+     * @return Map с метаданными глав (success, total_chapters, chapters)
+     */
+    public Map<String, Object> getChaptersMetadataOnly(String slug) {
+        try {
+            String url = melonServiceUrl + "/manga-info/" + slug + "/chapters-only?parser=mangalib";
+            
+            logger.info("Получение метаданных глав для slug: {}", slug);
+            ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+            Map<String, Object> result = response.getBody();
+            
+            if (result != null && Boolean.TRUE.equals(result.get("success"))) {
+                logger.info("Успешно получены метаданные для {}: {} глав", 
+                    slug, result.get("total_chapters"));
+                return result;
+            } else {
+                logger.error("Не удалось получить метаданные глав для slug '{}': {}", 
+                    slug, result != null ? result.get("error") : "Unknown error");
+                return Map.of("success", false, "error", 
+                    result != null ? result.get("error") : "Unknown error");
+            }
+            
+        } catch (Exception e) {
+            logger.error("Ошибка получения метаданных глав для slug '{}': {}", slug, e.getMessage());
+            return Map.of("success", false, "error", e.getMessage());
+        }
+    }
+
+    /**
+     * Получает список slug'ов манг из каталога MangaLib по номеру страницы.
+     * 
+     * @param page Номер страницы каталога (начиная с 1)
+     * @param limit Количество манг на странице (по умолчанию 60)
+     * @return Map со списком slug'ов (success, page, count, slugs)
+     */
+    public Map<String, Object> getCatalogSlugs(int page, Integer limit) {
+        try {
+            int pageLimit = (limit != null && limit > 0) ? limit : 60;
+            String url = melonServiceUrl + "/catalog/" + page + "?parser=mangalib&limit=" + pageLimit;
+            
+            logger.info("Получение каталога манг: страница {}, лимит {}", page, pageLimit);
+            ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+            Map<String, Object> result = response.getBody();
+            
+            if (result != null && Boolean.TRUE.equals(result.get("success"))) {
+                logger.info("Успешно получен каталог: страница {}, найдено {} манг", 
+                    page, result.get("count"));
+                return result;
+            } else {
+                logger.error("Не удалось получить каталог для страницы {}: {}", 
+                    page, result != null ? result.get("error") : "Unknown error");
+                return Map.of("success", false, "error", 
+                    result != null ? result.get("error") : "Unknown error");
+            }
+            
+        } catch (Exception e) {
+            logger.error("Ошибка получения каталога для страницы {}: {}", page, e.getMessage());
+            return Map.of("success", false, "error", e.getMessage());
+        }
     }
 
     /**
@@ -774,6 +843,9 @@ public class MelonIntegrationService {
 
     private Manga createMangaFromData(Map<String, Object> mangaInfo, String filename) {
         Manga manga = new Manga();
+
+        // КРИТИЧНО: Устанавливаем melonSlug для проверки дубликатов и автообновления
+        manga.setMelonSlug(filename);
 
         // Обрабатываем title - используем localized_name (русское название)
         String title = (String) mangaInfo.get("localized_name");

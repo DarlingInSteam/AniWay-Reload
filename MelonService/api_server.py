@@ -831,6 +831,165 @@ async def get_manga_info(filename: str):
         logger.error(f"Error getting manga info for {filename}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/manga-info/{slug}/chapters-only")
+async def get_chapters_metadata_only(slug: str, parser: str = "mangalib"):
+    """
+    Получает ТОЛЬКО метаданные глав без парсинга страниц.
+    Быстрая операция для проверки наличия новых глав.
+    
+    Args:
+        slug: Slug манги
+        parser: Парсер (mangalib, slashlib, hentailib)
+    
+    Returns:
+        JSON с метаданными глав
+    """
+    try:
+        logger.info(f"Getting chapters metadata for slug: {slug}, parser: {parser}")
+        
+        # Определяем Site-Id в зависимости от парсера
+
+@app.get("/catalog/{page}")
+async def get_catalog(page: int, parser: str = "mangalib", limit: int = 60):
+    """
+    Получает список slug'ов манг из каталога MangaLib по номеру страницы.
+    
+    Args:
+        page: Номер страницы каталога (начиная с 1)
+        parser: Парсер (mangalib, slashlib, hentailib)
+        limit: Количество манг на странице (по умолчанию 60)
+    
+    Returns:
+        JSON со списком slug'ов манг
+    """
+    try:
+        logger.info(f"Fetching catalog page {page} for {parser}, limit: {limit}")
+        
+        # Определяем Site-Id
+        site_ids = {
+            "mangalib": "1",
+            "slashlib": "2", 
+            "hentailib": "4"
+        }
+        site_id = site_ids.get(parser, "1")
+        
+        # Запрос к MangaLib API для получения каталога
+        # https://api.cdnlibs.org/api/manga?site_id=1&page=1&count=60
+        api_url = "https://api.cdnlibs.org/api/manga"
+        params = {
+            "site_id": site_id,
+            "page": page,
+            "count": limit
+        }
+        headers = {
+            "Site-Id": site_id,
+            "User-Agent": "Mozilla/5.0"
+        }
+        
+        response = requests.get(api_url, params=params, headers=headers, timeout=30)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        # Извлекаем список манг
+        manga_list = data.get("data", [])
+        total = data.get("meta", {}).get("total", 0)
+        
+        # Формируем список slug'ов
+        slugs = []
+        for manga in manga_list:
+            slug = manga.get("slug", manga.get("slug_url", ""))
+            if slug:
+                slugs.append(slug)
+        
+        logger.info(f"Successfully fetched {len(slugs)} manga slugs from page {page}")
+        
+        return {
+            "success": True,
+            "page": page,
+            "parser": parser,
+            "limit": limit,
+            "total": total,
+            "count": len(slugs),
+            "slugs": slugs
+        }
+        
+    except requests.exceptions.Timeout:
+        error_msg = f"Timeout fetching catalog page {page}"
+        logger.error(error_msg)
+        return {"success": False, "error": error_msg}
+    except requests.exceptions.RequestException as e:
+        error_msg = f"Request error fetching catalog: {str(e)}"
+        logger.error(error_msg)
+        return {"success": False, "error": error_msg}
+    except Exception as e:
+        error_msg = f"Error fetching catalog page {page}: {str(e)}"
+        logger.error(error_msg)
+        return {"success": False, "error": error_msg}
+
+@app.get("/manga-info/{slug}/chapters-only")
+async def get_chapters_metadata_only_endpoint(slug: str, parser: str = "mangalib"):
+        site_ids = {
+            "mangalib": "1",
+            "slashlib": "2", 
+            "hentailib": "4"
+        }
+        site_id = site_ids.get(parser, "1")
+        
+        # Прямой запрос к MangaLib API для получения списка глав
+        api_url = f"https://api.cdnlibs.org/api/manga/{slug}/chapters"
+        headers = {"Site-Id": site_id}
+        
+        response = requests.get(api_url, headers=headers, timeout=30)
+        
+        if response.status_code == 200:
+            data = response.json().get("data", [])
+            
+            chapters = []
+            for chapter_data in data:
+                # Обрабатываем все ветки главы
+                for branch_data in chapter_data.get("branches", []):
+                    chapters.append({
+                        "volume": chapter_data.get("volume"),
+                        "number": chapter_data.get("number"),
+                        "name": chapter_data.get("name", ""),
+                        "id": branch_data.get("id"),
+                        "branch_id": branch_data.get("branch_id")
+                    })
+            
+            logger.info(f"Successfully retrieved {len(chapters)} chapters metadata for slug: {slug}")
+            
+            return {
+                "success": True,
+                "slug": slug,
+                "parser": parser,
+                "total_chapters": len(chapters),
+                "chapters": chapters
+            }
+        else:
+            error_msg = f"MangaLib API returned status {response.status_code}"
+            logger.error(f"Error getting chapters metadata: {error_msg}")
+            return {
+                "success": False,
+                "error": error_msg,
+                "status_code": response.status_code
+            }
+            
+    except requests.Timeout:
+        error_msg = "Request to MangaLib API timed out"
+        logger.error(error_msg)
+        return {
+            "success": False,
+            "error": error_msg
+        }
+    except Exception as e:
+        error_msg = f"Error getting chapters metadata: {str(e)}"
+        logger.error(error_msg)
+        return {
+            "success": False,
+            "error": error_msg
+        }
+
 @app.get("/images/{filename}/{chapter}/{page}")
 async def get_image(filename: str, chapter: str, page: str):
     """Получение изображения страницы"""

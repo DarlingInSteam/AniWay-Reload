@@ -89,6 +89,12 @@ public class Manga {
     private String alternativeNames;
 
     /**
+     * Оригинальный slug из MelonService.
+     */
+    @Column(name = "melon_slug", length = 255, unique = true)
+    private String melonSlug;
+
+    /**
      * Тип манги.
      */
     @Enumerated(EnumType.STRING)
@@ -519,6 +525,20 @@ public class Manga {
      * @param alternativeNames альтернативные названия
      */
     public void setAlternativeNames(String alternativeNames) { this.alternativeNames = alternativeNames; }
+
+    /**
+     * Возвращает slug манги в MelonService.
+     *
+     * @return slug манги
+     */
+    public String getMelonSlug() { return melonSlug; }
+
+    /**
+     * Устанавливает slug манги в MelonService.
+     *
+     * @param melonSlug slug манги
+     */
+    public void setMelonSlug(String melonSlug) { this.melonSlug = melonSlug; }
 
     /**
      * Возвращает тип манги.

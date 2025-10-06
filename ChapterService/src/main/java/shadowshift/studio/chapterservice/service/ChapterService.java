@@ -561,6 +561,17 @@ public class ChapterService {
         }
     }
 
+    /**
+     * Проверяет существование главы по mangaId и chapterNumber.
+     *
+     * @param mangaId идентификатор манги
+     * @param chapterNumber номер главы
+     * @return true, если глава существует, иначе false
+     */
+    public boolean chapterExists(Long mangaId, Double chapterNumber) {
+        return chapterRepository.findByMangaIdAndChapterNumber(mangaId, chapterNumber).isPresent();
+    }
+
     private String fetchMangaTitle(Long mangaId) {
         String url = mangaServiceInternalUrl + "/api/manga/" + mangaId;
         try {

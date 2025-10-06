@@ -4,6 +4,7 @@ import shadowshift.studio.mangaservice.dto.MangaCreateDTO;
 import shadowshift.studio.mangaservice.dto.MangaResponseDTO;
 import shadowshift.studio.mangaservice.entity.Manga;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -43,7 +44,8 @@ public class MangaMapper {
         manga.setReleaseDate(createDTO.getReleaseDate());
         manga.setStatus(createDTO.getStatus() != null ? createDTO.getStatus() : Manga.MangaStatus.ONGOING);
         manga.setGenre(createDTO.getGenre());
-        manga.setCoverImageUrl(createDTO.getCoverImageUrl());
+    manga.setCoverImageUrl(createDTO.getCoverImageUrl());
+    manga.setMelonSlug(normalizeSlug(createDTO.getMelonSlug()));
 
         return manga;
     }
@@ -115,5 +117,13 @@ public class MangaMapper {
 
         existingManga.setGenre(updateDTO.getGenre());
         existingManga.setCoverImageUrl(updateDTO.getCoverImageUrl());
+        existingManga.setMelonSlug(normalizeSlug(updateDTO.getMelonSlug()));
+    }
+
+    private String normalizeSlug(String melonSlug) {
+        if (!StringUtils.hasText(melonSlug)) {
+            return null;
+        }
+        return melonSlug.trim();
     }
 }
