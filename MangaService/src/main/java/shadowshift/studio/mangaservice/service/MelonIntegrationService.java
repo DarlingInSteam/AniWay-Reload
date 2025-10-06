@@ -153,7 +153,7 @@ public class MelonIntegrationService {
         try {
             updateFullParsingTask(fullTaskId, "running", 5, "Ожидание завершения парсинга JSON...", null);
             Map<String, Object> finalStatus = waitForTaskCompletion(parseTaskId);
-            if (!"completed".equals(finalStatus.get("status"))) {
+            if (!"completed".equalsIgnoreCase(String.valueOf(finalStatus.get("status")))) {
                 updateFullParsingTask(fullTaskId, "failed", 100,
                     "Парсинг завершился неуспешно: " + finalStatus.get("message"), finalStatus);
                 return;
@@ -177,18 +177,45 @@ public class MelonIntegrationService {
             
             updateFullParsingTask(fullTaskId, "running", 60, "Скачивание изображений запущено, ожидание завершения...", null);
             Map<String, Object> buildStatus = waitForTaskCompletion(buildTaskId);
-            if ("completed".equals(buildStatus.get("status"))) {
-                Map<String, Object> mangaInfo = getMangaInfo(slug);
-                Map<String, Object> result = new HashMap<>();
-                result.put("filename", slug);
-                result.put("parse_completed", true);
-                result.put("build_completed", true);
-                if (mangaInfo != null) {
-                    result.put("title", mangaInfo.get("localized_name"));
-                    result.put("manga_info", mangaInfo);
+            if ("completed".equalsIgnoreCase(String.valueOf(buildStatus.get("status")))) {
+                // Билд завершен успешно, запускаем импорт
+                updateFullParsingTask(fullTaskId, "running", 70, "Скачивание завершено, запускаем импорт в базу данных...", null);
+                logger.info("Билд завершен для slug={}, запускаем импорт", slug);
+                
+                try {
+                    // Импортируем мангу в БД (синхронно, чтобы дождаться завершения)
+                    importMangaWithProgressAsync(fullTaskId, slug, null).get();
+                    logger.info("Импорт завершен для slug={}, очищаем данные из MelonService", slug);
+                    
+                    // После успешного импорта - удаляем из MelonService
+                    updateFullParsingTask(fullTaskId, "running", 95, "Импорт завершен, очистка данных из MelonService...", null);
+                    Map<String, Object> deleteResult = deleteManga(slug);
+                    if (deleteResult != null && Boolean.TRUE.equals(deleteResult.get("success"))) {
+                        logger.info("Данные успешно удалены из MelonService для slug={}", slug);
+                    } else {
+                        logger.warn("Не удалось удалить данные из MelonService для slug={}: {}", slug, deleteResult);
+                    }
+                    
+                    // Формируем результат
+                    Map<String, Object> mangaInfo = getMangaInfo(slug);
+                    Map<String, Object> result = new HashMap<>();
+                    result.put("filename", slug);
+                    result.put("parse_completed", true);
+                    result.put("build_completed", true);
+                    result.put("import_completed", true);
+                    result.put("cleanup_completed", true);
+                    if (mangaInfo != null) {
+                        result.put("title", mangaInfo.get("localized_name"));
+                        result.put("manga_info", mangaInfo);
+                    }
+                    updateFullParsingTask(fullTaskId, "completed", 100,
+                        "Полный парсинг завершен успешно! JSON, изображения импортированы, данные очищены.", result);
+                        
+                } catch (Exception importEx) {
+                    logger.error("Ошибка при импорте или очистке для slug={}: {}", slug, importEx.getMessage(), importEx);
+                    updateFullParsingTask(fullTaskId, "failed", 100,
+                        "Ошибка при импорте: " + importEx.getMessage(), null);
                 }
-                updateFullParsingTask(fullTaskId, "completed", 100,
-                    "Полный парсинг завершен успешно! JSON и изображения готовы.", result);
             } else {
                 updateFullParsingTask(fullTaskId, "failed", 100,
                     "Скачивание изображений завершилось неуспешно: " + buildStatus.get("message"), buildStatus);
@@ -253,8 +280,8 @@ public class MelonIntegrationService {
             }
 
         } while (status != null &&
-                !"completed".equals(status.get("status")) &&
-                !"failed".equals(status.get("status")));
+                !"completed".equalsIgnoreCase(String.valueOf(status.get("status"))) &&
+                !"failed".equalsIgnoreCase(String.valueOf(status.get("status"))));
 
         return status != null ? status : Map.of("status", "failed", "message", "Не удалось получить статус задачи");
     }
