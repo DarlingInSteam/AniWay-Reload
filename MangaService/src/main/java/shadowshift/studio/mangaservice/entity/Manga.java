@@ -639,24 +639,29 @@ public class Manga {
 
     /**
      * Добавляет тег к манге.
+     * ВАЖНО: Не обращаемся к tag.getMangas() — это LAZY-коллекция, которая может вызвать LazyInitializationException.
+     * Двунаправленную связь управляет Hibernate через @ManyToMany.
      *
      * @param tag тег для добавления
      */
     public void addTag(Tag tag) {
         this.tags.add(tag);
-        tag.getMangas().add(this);
+        // НЕ обращаемся к tag.getMangas() здесь — это вызовет LazyInitializationException
+        // tag.getMangas().add(this);  // УБРАНО
         tag.incrementMangaCount();
         tag.incrementPopularity();
     }
 
     /**
      * Удаляет тег из манги.
+     * ВАЖНО: Не обращаемся к tag.getMangas() — это LAZY-коллекция.
      *
      * @param tag тег для удаления
      */
     public void removeTag(Tag tag) {
         this.tags.remove(tag);
-        tag.getMangas().remove(this);
+        // НЕ обращаемся к tag.getMangas() здесь
+        // tag.getMangas().remove(this);  // УБРАНО
         tag.decrementMangaCount();
     }
 
