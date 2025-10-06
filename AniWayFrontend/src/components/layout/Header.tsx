@@ -1,7 +1,7 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { Search, Bell, Bookmark, User, Menu, X, Settings, MessageSquare } from 'lucide-react'
+import { Search, Bell, Bookmark, Menu, X, Settings, MessageSquare } from 'lucide-react'
 import { NotificationBell } from '@/notifications/NotificationBell'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -13,6 +13,7 @@ export function Header() {
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [userAvatarFallbacks, setUserAvatarFallbacks] = useState<Record<number, boolean>>({})
   const navigate = useNavigate()
   const location = useLocation()
   const searchRef = useRef<HTMLDivElement>(null)
@@ -32,6 +33,17 @@ export function Header() {
     const h = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 250)
     return () => clearTimeout(h)
   }, [searchQuery])
+
+  useEffect(() => {
+    setUserAvatarFallbacks({})
+  }, [debouncedQuery])
+
+  const handleUserAvatarError = useCallback((userId: number) => {
+    setUserAvatarFallbacks(prev => {
+      if (prev[userId]) return prev
+      return { ...prev, [userId]: true }
+    })
+  }, [])
 
   const { data: mangaSuggestions, isError: mangaError } = useQuery({
     queryKey: ['search-manga-suggestions', debouncedQuery],
@@ -239,9 +251,34 @@ export function Header() {
                           onClick={() => handleUserSuggestionClick(user.id, user.username)}
                           className="w-full flex items-center p-3 hover:bg-secondary/50 transition-colors"
                         >
-                          <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mr-3 flex-shrink-0">
-                            <User className="w-5 h-5 md:w-6 md:h-6 text-white" />
-                          </div>
+                          {(() => {
+                            const avatarUrl = user.avatar || user.profilePicture || null
+                            const showFallback = !avatarUrl || userAvatarFallbacks[user.id]
+                            const initial = (user.displayName || user.username || '?').charAt(0).toUpperCase()
+                            return (
+                              <div
+                                className={cn(
+                                  'mr-3 flex-shrink-0 overflow-hidden rounded-full border border-white/10',
+                                  'w-10 h-10 md:w-12 md:h-12',
+                                  showFallback ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white' : 'bg-black/30'
+                                )}
+                              >
+                                {showFallback ? (
+                                  <div className="flex h-full w-full items-center justify-center text-sm font-semibold md:text-base">
+                                    {initial}
+                                  </div>
+                                ) : (
+                                  <img
+                                    src={avatarUrl!}
+                                    alt={user.username}
+                                    className="h-full w-full object-cover"
+                                    loading="lazy"
+                                    onError={() => handleUserAvatarError(user.id)}
+                                  />
+                                )}
+                              </div>
+                            )
+                          })()}
                           <div className="flex-1 text-left min-w-0">
                             <h4 className="font-medium text-white truncate text-sm md:text-base">
                               {user.username}
