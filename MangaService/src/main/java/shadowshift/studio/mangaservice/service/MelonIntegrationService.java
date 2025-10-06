@@ -51,6 +51,9 @@ public class MelonIntegrationService {
     @Autowired
     private TagService tagService;
 
+    @Autowired
+    private AutoParsingService autoParsingService;
+
     /**
      * URL сервиса Melon.
      */
@@ -65,6 +68,21 @@ public class MelonIntegrationService {
 
     @Autowired
     private FullParsingTaskRunner fullParsingTaskRunner;
+    
+    // Маппинг fullParsingTaskId -> autoParsingTaskId для связывания логов buildTask
+    private final Map<String, String> fullParsingToAutoParsingTask = new HashMap<>();
+    
+    /**
+     * Регистрирует связь между fullParsingTaskId и autoParsingTaskId.
+     * Используется AutoParsingService для того, чтобы логи от buildTask попадали в правильную задачу.
+     */
+    public void registerAutoParsingLink(String fullParsingTaskId, String autoParsingTaskId) {
+        if (fullParsingTaskId != null && autoParsingTaskId != null) {
+            fullParsingToAutoParsingTask.put(fullParsingTaskId, autoParsingTaskId);
+            logger.info("Зарегистрирована связь fullParsingTaskId={} → autoParsingTaskId={}", 
+                fullParsingTaskId, autoParsingTaskId);
+        }
+    }
 
     /**
      * Запускает парсинг манги через MelonService
@@ -142,10 +160,19 @@ public class MelonIntegrationService {
             Map<String, Object> buildResult = buildManga(slug, null);
             if (buildResult == null || !buildResult.containsKey("task_id")) {
                 updateFullParsingTask(fullTaskId, "failed", 100,
-                    "Не удалось ��апустить скачивание изображений", buildResult);
+                    "Не удалось запустить скачивание изображений", buildResult);
                 return;
             }
             String buildTaskId = (String) buildResult.get("task_id");
+            
+            // Если этот fullParsingTask связан с autoParsingTask, то и buildTaskId тоже нужно связать
+            String autoParsingTaskId = fullParsingToAutoParsingTask.get(fullTaskId);
+            if (autoParsingTaskId != null) {
+                autoParsingService.linkAdditionalTaskId(buildTaskId, autoParsingTaskId);
+                logger.info("Связали buildTaskId={} с autoParsingTaskId={} через fullTaskId={}", 
+                    buildTaskId, autoParsingTaskId, fullTaskId);
+            }
+            
             updateFullParsingTask(fullTaskId, "running", 60, "Скачивание изображений запущено, ожидание завершения...", null);
             Map<String, Object> buildStatus = waitForTaskCompletion(buildTaskId);
             if ("completed".equals(buildStatus.get("status"))) {
@@ -167,6 +194,10 @@ public class MelonIntegrationService {
         } catch (Exception e) {
             updateFullParsingTask(fullTaskId, "failed", 100,
                 "Ошибка при полном парсинге: " + e.getMessage(), null);
+        } finally {
+            // Очищаем маппинг после завершения (успех или ошибка)
+            fullParsingToAutoParsingTask.remove(fullTaskId);
+            logger.debug("Очищен маппинг fullParsingTaskId={}", fullTaskId);
         }
     }
 
