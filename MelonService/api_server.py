@@ -856,19 +856,15 @@ async def get_catalog(page: int, parser: str = "mangalib", limit: int = 60):
         site_id = site_ids.get(parser, "1")
         
         # Запрос к MangaLib API для получения каталога
-        # Правильный формат: https://api.cdnlibs.org/api/manga?fields[]=rate_avg&fields[]=rate&fields[]=releaseDate&page=1
-        # MangaLib API не поддерживает параметр count, используется фиксированная пагинация
-        api_url = "https://api.cdnlibs.org/api/manga"
-        params = {
-            "page": page,
-            "fields[]": ["rate_avg", "rate", "releaseDate", "summary"]
-        }
+        # Правильный формат как в парсере: fields[]=value&fields[]=value2
+        api_url = f"https://api.cdnlibs.org/api/manga?fields[]=rate_avg&fields[]=rate&fields[]=releaseDate&page={page}"
         headers = {
             "Site-Id": site_id,
             "User-Agent": "Mozilla/5.0"
         }
         
-        response = requests.get(api_url, params=params, headers=headers, timeout=30)
+        # Запрос без params, всё в URL
+        response = requests.get(api_url, headers=headers, timeout=30)
         
         # Логируем запрос для отладки
         logger.debug(f"Request URL: {response.url}")
