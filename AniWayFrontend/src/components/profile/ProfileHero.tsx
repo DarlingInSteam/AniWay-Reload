@@ -1,16 +1,19 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { apiClient } from '@/lib/api'
 import { UserProfile } from '@/types/profile'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
-import { Camera, Edit, ChevronDown, MessageCircle } from 'lucide-react'
+import { Edit, ChevronDown, MessageCircle, Loader2 } from 'lucide-react'
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
-import { profileService } from '@/services/profileService'
 import { Progress } from '@/components/ui/progress'
 import GlassPanel from '@/components/ui/GlassPanel'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Textarea } from '@/components/ui/textarea'
 import XpHistoryList from '@/components/profile/XpHistoryList'
 import { useUserLevel } from '@/hooks/useUserLevel'
+import type { FriendshipStatus } from '@/hooks/useFriendData'
+import type { FriendRequestView } from '@/types/social'
 
 interface ProfileHeroProps {
   profile: UserProfile
@@ -18,9 +21,18 @@ interface ProfileHeroProps {
   onEdit?: () => void
   onAvatarUpdated?: (newUrl: string) => void
   onOpenMessages?: () => void
+  friendshipStatus?: FriendshipStatus
+  friendActionLoading?: boolean
+  isAuthenticated?: boolean
+  friendTargetName?: string
+  incomingRequestForTarget?: FriendRequestView | null
+  onSendFriendRequest?: (message?: string) => Promise<void>
+  onAcceptFriendRequest?: () => Promise<void>
+  onDeclineFriendRequest?: () => Promise<void>
+  onRemoveFriend?: () => Promise<void>
 }
 
-const AvatarSection: React.FC<{ profile: UserProfile; isOwn: boolean; uploading: boolean; avatarError: string | null; avatarSuccess: string | null; fileInputRef: React.RefObject<HTMLInputElement>; onPick: () => void; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; computedAvatarUrl: string; }> = ({ profile, isOwn, uploading, avatarError, avatarSuccess, fileInputRef, onPick, onChange, computedAvatarUrl }) => (
+const AvatarSection: React.FC<{ profile: UserProfile; computedAvatarUrl: string }> = ({ profile, computedAvatarUrl }) => (
   <div className="hidden md:flex flex-col items-center md:items-start gap-3 shrink-0">
     <div className="relative group">
       <div className="absolute -inset-1 rounded-xl bg-gradient-to-br from-primary/40 via-primary/10 to-transparent blur-sm opacity-70 group-hover:opacity-95 transition" />
@@ -30,35 +42,6 @@ const AvatarSection: React.FC<{ profile: UserProfile; isOwn: boolean; uploading:
           {profile.username.charAt(0).toUpperCase()}
         </AvatarFallback>
       </Avatar>
-      {isOwn && (
-        <>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            className="hidden"
-            onChange={onChange}
-          />
-          <button
-            className="absolute bottom-2 right-2 p-2 rounded-md bg-black/60 hover:bg-black/70 text-white border border-white/20 shadow transition disabled:opacity-50 disabled:pointer-events-none"
-            aria-label="Изменить аватар"
-            onClick={onPick}
-            disabled={uploading}
-          >
-            {uploading ? (
-              <span className="w-4 h-4 inline-block animate-spin border-2 border-white/30 border-t-white rounded-full" />
-            ) : (
-              <Camera className="w-4 h-4" />
-            )}
-          </button>
-          {(avatarError || avatarSuccess) && (
-            <div className="absolute -bottom-5 left-0 w-full text-center text-[11px] font-medium select-none">
-              {avatarError && <span className="text-red-400">{avatarError}</span>}
-              {avatarSuccess && <span className="text-green-400">{avatarSuccess}</span>}
-            </div>
-          )}
-        </>
-      )}
     </div>
   </div>
 )
@@ -170,69 +153,307 @@ const LevelPanel: React.FC<{ profile: UserProfile; variant?: 'desktop'|'mobile'|
   )
 }
 
-export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit, onAvatarUpdated, onOpenMessages }) => {
-  // Avatar upload logic (build tag removed per design cleanup)
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const [uploading, setUploading] = useState(false)
-  const [avatarError, setAvatarError] = useState<string | null>(null)
-  const [avatarSuccess, setAvatarSuccess] = useState<string | null>(null)
+interface FriendActionControlsProps {
+  status?: FriendshipStatus
+  loading?: boolean
+  isAuthenticated?: boolean
+  targetName?: string | null
+  incomingRequest?: FriendRequestView | null
+  onSendRequest?: (message?: string) => Promise<void>
+  onAcceptRequest?: () => Promise<void>
+  onDeclineRequest?: () => Promise<void>
+  onRemoveFriend?: () => Promise<void>
+  align?: 'start' | 'center' | 'end'
+}
 
-  useEffect(() => { if (avatarSuccess) { const t = setTimeout(()=>setAvatarSuccess(null), 2500); return ()=>clearTimeout(t) } }, [avatarSuccess])
+const FriendActionControls: React.FC<FriendActionControlsProps> = ({
+  status,
+  loading,
+  isAuthenticated,
+  targetName,
+  incomingRequest,
+  onSendRequest,
+  onAcceptRequest,
+  onDeclineRequest,
+  onRemoveFriend,
+  align = 'end',
+}) => {
+  const [pending, setPending] = useState(false)
+  const [pendingType, setPendingType] = useState<string | null>(null)
+  const [statusNote, setStatusNote] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [requestDialogOpen, setRequestDialogOpen] = useState(false)
+  const [requestMessage, setRequestMessage] = useState('')
+  const [requestMessageError, setRequestMessageError] = useState<string | null>(null)
 
-  const validateAvatar = (file: File): string | null => {
-    if (file.size > 5 * 1024 * 1024) return 'Файл >5MB'
-    if (!file.type.startsWith('image/')) return 'Не изображение'
-    const allowed = ['image/jpeg','image/png','image/webp']
-    if (!allowed.includes(file.type)) return 'JPEG/PNG/WebP'
+  if (!status || status === 'self') {
     return null
   }
 
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const v = validateAvatar(file)
-    if (v) { setAvatarError(v); if (fileInputRef.current) fileInputRef.current.value=''; return }
-    setAvatarError(null)
-    setAvatarSuccess(null)
-    setUploading(true)
+  const friendlyName = targetName || 'пользователем'
+  const textAlignClass = align === 'center' ? 'text-center' : align === 'start' ? 'text-left' : 'text-right'
+  const subtitle = (() => {
+    switch (status) {
+      case 'friends':
+        return `Вы и ${friendlyName} дружите.`
+      case 'incoming':
+        return `${friendlyName} отправил(а) вам заявку.`
+      case 'outgoing':
+        return `Вы отправили заявку ${friendlyName}.`
+      case 'none':
+        return `Добавьте ${friendlyName} в друзья, чтобы общаться и следить за обновлениями.`
+      default:
+        return null
+    }
+  })()
+
+  const handleAction = async (runner?: () => Promise<void>, successMessage?: string, type?: string) => {
+    if (!runner) return
+    setPending(true)
+    setPendingType(type ?? null)
+    setStatusNote(null)
     try {
-      const res = await profileService.uploadAvatar(file)
-      if (res.success) {
-        const busted = res.avatarUrl ? `${res.avatarUrl}${res.avatarUrl.includes('?') ? '&' : '?'}v=${Date.now()}` : ''
-        setAvatarSuccess('Готово')
-        onAvatarUpdated?.(busted)
-      } else {
-        setAvatarError(res.message || 'Ошибка')
-      }
-    } catch (ex: any) {
-      setAvatarError(ex?.message || 'Сбой')
+      await runner()
+      setStatusNote({ type: 'success', message: successMessage ?? 'Действие выполнено.' })
+    } catch (err: any) {
+      setStatusNote({ type: 'error', message: err?.message || 'Не удалось выполнить действие.' })
     } finally {
-      setUploading(false)
-      if (fileInputRef.current) fileInputRef.current.value=''
+      setPending(false)
+      setPendingType(null)
     }
   }
 
-  // Computed avatar URL with fallback construction if backend didn't yet return avatar in profile
+  const disabled = pending || loading
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex flex-col gap-2 w-full">
+        {subtitle && <div className={`text-xs text-slate-400 ${textAlignClass}`}>{subtitle}</div>}
+        <Button asChild className="w-full">
+          <Link to="/login">Войти, чтобы добавлять в друзья</Link>
+        </Button>
+      </div>
+    )
+  }
+
+  const renderButtons = () => {
+    switch (status) {
+      case 'friends':
+        return (
+          <Button
+            variant="outline"
+            className="w-full"
+            disabled={disabled || !onRemoveFriend}
+            onClick={() => {
+              if (!onRemoveFriend) return
+              void handleAction(onRemoveFriend, 'Пользователь удалён из друзей.', 'remove')
+            }}
+          >
+            {pending && pendingType === 'remove' && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Удалить из друзей
+          </Button>
+        )
+      case 'incoming':
+        return (
+          <div className="flex flex-col gap-2">
+            <Button
+              className="w-full"
+              disabled={disabled || !onAcceptRequest || !incomingRequest}
+              onClick={() => {
+                if (!onAcceptRequest) return
+                void handleAction(onAcceptRequest, 'Заявка принята.', 'accept')
+              }}
+            >
+              {pending && pendingType === 'accept' && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Принять заявку
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full"
+              disabled={disabled || !onDeclineRequest || !incomingRequest}
+              onClick={() => {
+                if (!onDeclineRequest) return
+                void handleAction(onDeclineRequest, 'Заявка отклонена.', 'decline')
+              }}
+            >
+              {pending && pendingType === 'decline' && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Отклонить
+            </Button>
+          </div>
+        )
+      case 'outgoing':
+        return (
+          <div className={`rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300 ${textAlignClass}`}>
+            Заявка отправлена. Ожидайте ответа.
+          </div>
+        )
+      case 'none':
+      default:
+        return (
+          <>
+            <Button
+              className="w-full"
+              disabled={disabled || !onSendRequest}
+              onClick={() => {
+                if (!onSendRequest) return
+                void handleAction(() => onSendRequest(), 'Заявка отправлена.', 'send')
+              }}
+            >
+              {pending && pendingType === 'send' && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Добавить в друзья
+            </Button>
+            {onSendRequest && (
+              <>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={disabled}
+                  onClick={() => {
+                    setRequestDialogOpen(true)
+                    setRequestMessageError(null)
+                  }}
+                >
+                  С сообщением...
+                </Button>
+                <Dialog
+                  open={requestDialogOpen}
+                  onOpenChange={(open) => {
+                    setRequestDialogOpen(open)
+                    if (!open) {
+                      setRequestMessage('')
+                      setRequestMessageError(null)
+                    }
+                  }}
+                >
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Заявка с сообщением</DialogTitle>
+                      <DialogDescription>
+                        Расскажите, почему вы хотите добавить этого пользователя в друзья.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <Textarea
+                      value={requestMessage}
+                      onChange={(event) => {
+                        setRequestMessage(event.target.value)
+                        if (requestMessageError) {
+                          setRequestMessageError(null)
+                        }
+                      }}
+                      placeholder="Напишите короткое приветствие"
+                      maxLength={500}
+                    />
+                    {requestMessageError && (
+                      <p className="text-xs text-red-400">{requestMessageError}</p>
+                    )}
+                    <DialogFooter>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setRequestDialogOpen(false)
+                          setRequestMessage('')
+                          setRequestMessageError(null)
+                        }}
+                      >
+                        Отмена
+                      </Button>
+                      <Button
+                        disabled={pending || !requestMessage.trim()}
+                        onClick={() => {
+                          if (!requestMessage.trim()) {
+                            setRequestMessageError('Введите сообщение')
+                            return
+                          }
+                          if (!onSendRequest) return
+                          void handleAction(async () => {
+                            await onSendRequest(requestMessage.trim())
+                            setRequestDialogOpen(false)
+                            setRequestMessage('')
+                            setRequestMessageError(null)
+                          }, 'Заявка отправлена.', 'send-with-message')
+                        }}
+                      >
+                        {pending && pendingType === 'send-with-message' && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Отправить
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </>
+            )}
+          </>
+        )
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 w-full">
+      {subtitle && <div className={`text-xs text-slate-400 ${textAlignClass}`}>{subtitle}</div>}
+      {loading && (
+        <Button className="w-full" disabled>
+          <Loader2 className="w-4 h-4 mr-2 animate-spin" />Загрузка...
+        </Button>
+      )}
+      {!loading && renderButtons()}
+      {statusNote && (
+        <div className={`text-xs ${textAlignClass} ${statusNote.type === 'success' ? 'text-emerald-400' : 'text-red-400'}`}>
+          {statusNote.message}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export const ProfileHero: React.FC<ProfileHeroProps> = ({
+  profile,
+  isOwn,
+  onEdit,
+  onAvatarUpdated,
+  onOpenMessages,
+  friendshipStatus,
+  friendActionLoading,
+  isAuthenticated,
+  friendTargetName,
+  incomingRequestForTarget,
+  onSendFriendRequest,
+  onAcceptFriendRequest,
+  onDeclineFriendRequest,
+  onRemoveFriend,
+}) => {
+  const safeBio = profile.bio || ''
+  const [bioExpanded, setBioExpanded] = useState(false)
+  const [canToggleBio, setCanToggleBio] = useState(false)
+  const bioMeasureRef = useRef<HTMLDivElement | null>(null)
+
+  const hasBio = safeBio.length > 0
+
   const computedAvatarUrl = useMemo(() => {
-    const base = profile.avatar?.trim()
-    if (base) return base
-    // heuristic fallback path (adjust if gateway path differs)
-    // We'll attempt /images/avatars/{userId}
-    const userId = (profile as any).id || (profile as any).userId
-    if (!userId) return '/icon.png'
-    const guess = `/images/avatars/${userId}`
-    return guess
-  }, [profile.avatar, (profile as any).id])
+    const avatar = profile.avatar?.trim()
+    if (avatar) return avatar
+    const id = Number(profile.id)
+    if (!Number.isNaN(id)) {
+      return `/images/avatars/${id}`
+    }
+    return '/icon.png'
+  }, [profile.avatar, profile.id])
 
-  useEffect(() => {}, [profile.avatar, computedAvatarUrl])
+  useEffect(() => {
+    if (!hasBio) {
+      setCanToggleBio(false)
+      return
+    }
+    const el = bioMeasureRef.current
+    if (!el) return
+    const style = window.getComputedStyle(el)
+    const lineHeight = parseFloat(style.lineHeight || '0') || 0
+    if (lineHeight > 0) {
+      const lines = Math.round(el.scrollHeight / lineHeight)
+      setCanToggleBio(lines > 3)
+    } else {
+      setCanToggleBio(el.scrollHeight > 54)
+    }
+  }, [safeBio, hasBio])
 
-  // If backend does not yet inject avatar into profile, try fetching avatar meta explicitly
   useEffect(() => {
     let cancelled = false
     if (!profile.avatar) {
-      const userId = (profile as any).id || (profile as any).userId
-      if (userId) {
-        apiClient.getUserAvatar(userId).then(url => {
+      const id = Number(profile.id)
+      if (!Number.isNaN(id)) {
+        apiClient.getUserAvatar(id).then(url => {
           if (!cancelled && url) {
             const busted = `${url}${url.includes('?') ? '&' : '?'}v=${Date.now()}`
             onAvatarUpdated?.(busted)
@@ -240,48 +461,27 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit
         })
       }
     }
-    return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile.avatar, (profile as any).id])
-
-
-  const [bioExpanded, setBioExpanded] = useState(false)
-  const safeBio = profile.bio || ''
-  const hasBio = safeBio.length > 0
-  // Measure bio height (mobile) to decide if toggle is needed (> 3 lines)
-  const bioMeasureRef = useRef<HTMLDivElement | null>(null)
-  const [canToggleBio, setCanToggleBio] = useState(false)
-  useEffect(() => {
-    if (!hasBio) { setCanToggleBio(false); return }
-    const el = bioMeasureRef.current
-    if (!el) return
-    // line-clamp-4 approximates 4 * line-height; we want toggle only if content > 3 lines
-    // We'll compute lines by dividing scrollHeight by computed line-height
-    const style = window.getComputedStyle(el)
-    const lineHeight = parseFloat(style.lineHeight || '0') || 0
-    if (lineHeight > 0) {
-      const lines = Math.round(el.scrollHeight / lineHeight)
-      setCanToggleBio(lines > 3)
-    } else {
-      setCanToggleBio(el.scrollHeight > 0 && el.scrollHeight > 3 * 18)
+    return () => {
+      cancelled = true
     }
-  }, [safeBio, hasBio])
+  }, [profile.avatar, profile.id, onAvatarUpdated])
+
+  const friendControlsProps = {
+    status: friendshipStatus,
+    loading: friendActionLoading,
+    isAuthenticated,
+    targetName: friendTargetName,
+    incomingRequest: incomingRequestForTarget,
+    onSendRequest: onSendFriendRequest,
+    onAcceptRequest: onAcceptFriendRequest,
+    onDeclineRequest: onDeclineFriendRequest,
+    onRemoveFriend,
+  }
 
   return (
     <GlassPanel className="w-full">
-      {/* Desktop / Large layout */}
       <div className="hidden md:flex relative px-10 pt-8 pb-8 flex-row gap-10">
-        <AvatarSection
-          profile={profile}
-          isOwn={isOwn}
-          uploading={uploading}
-          avatarError={avatarError}
-          avatarSuccess={avatarSuccess}
-          fileInputRef={fileInputRef}
-          onPick={() => fileInputRef.current?.click()}
-          onChange={handleAvatarChange}
-          computedAvatarUrl={computedAvatarUrl}
-        />
+        <AvatarSection profile={profile} computedAvatarUrl={computedAvatarUrl} />
         <div className="flex-1 flex flex-col">
           <div className="flex items-start justify-between gap-6">
             <div className="space-y-2">
@@ -296,21 +496,32 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit
                 <span className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] tracking-wide uppercase ${profile.isOnline ? 'bg-primary/20 text-primary font-medium' : 'bg-slate-600/30 text-slate-300'}`}>{profile.isOnline ? 'В СЕТИ' : 'ОФЛАЙН'}</span>
               </div>
             </div>
-            <div className="flex flex-col items-end gap-3">
-              {!isOwn && onOpenMessages && (
-                <Button
-                  size="sm"
-                  className="bg-primary/30 hover:bg-primary/40 border border-primary/40 text-white shadow-sm hover:shadow transition"
-                  onClick={onOpenMessages}
-                >
-                  <MessageCircle className="w-4 h-4 mr-1" /> Написать сообщение
-                </Button>
-              )}
-              {isOwn && (
-                <Button size="sm" variant="outline" className="bg-primary/25 hover:bg-primary/35 border-primary/40 text-white shadow-sm hover:shadow transition" onClick={onEdit}>
-                  <Edit className="w-4 h-4 mr-1" /> Редактировать профиль
-                </Button>
-              )}
+            <div className="flex flex-col items-end gap-3 w-full max-w-xs">
+              <div className="flex flex-col gap-2 items-stretch w-full min-w-[220px]">
+                {isOwn ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="bg-primary/25 hover:bg-primary/35 border-primary/40 text-white shadow-sm hover:shadow transition"
+                    onClick={onEdit}
+                  >
+                    <Edit className="w-4 h-4 mr-1" /> Редактировать профиль
+                  </Button>
+                ) : (
+                  <>
+                    {onOpenMessages && (
+                      <Button
+                        size="sm"
+                        className="w-full bg-primary/30 hover:bg-primary/40 border border-primary/40 text-white shadow-sm hover:shadow transition"
+                        onClick={onOpenMessages}
+                      >
+                        <MessageCircle className="w-4 h-4 mr-1" /> Написать сообщение
+                      </Button>
+                    )}
+                    <FriendActionControls {...friendControlsProps} align="end" />
+                  </>
+                )}
+              </div>
             </div>
           </div>
           {hasBio && (
@@ -322,7 +533,6 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit
         <LevelPanel profile={profile} />
       </div>
 
-      {/* Mobile layout (single-column refined) */}
       <div className="md:hidden px-4 pt-6 pb-6 flex flex-col gap-6">
         <div className="flex flex-col items-center text-center relative">
           <div className="relative">
@@ -333,23 +543,6 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit
                 {profile.username.charAt(0).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            {/* Move level badge out of overlap: render below avatar normally */}
-            {isOwn && (
-              <button
-                className="absolute top-1 right-1 p-2 rounded-md bg-black/60 hover:bg-black/70 text-white border border-white/20 shadow transition"
-                aria-label="Изменить аватар"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Camera className="w-4 h-4" />
-              </button>
-            )}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              className="hidden"
-              onChange={handleAvatarChange}
-            />
           </div>
           <div className="mt-4 space-y-2 w-full">
             <h1 className="text-2xl font-semibold leading-snug text-white break-words">
@@ -361,25 +554,43 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit
             <div className="flex flex-wrap justify-center gap-2 pt-1 text-[11px]">
               <span className="px-2 py-0.5 rounded bg-white/10 border border-white/10 uppercase tracking-wide text-slate-300">{profile.role}</span>
               <span className={`px-2 py-0.5 rounded uppercase tracking-wide ${profile.isOnline ? 'bg-primary/20 text-primary font-medium' : 'bg-slate-600/30 text-slate-300'}`}>{profile.isOnline ? 'В СЕТИ' : 'ОФЛАЙН'}</span>
-              {isOwn && (
-                <Button size="sm" variant="outline" className="h-7 px-3 bg-primary/25 border-primary/40 text-white text-[11px]" onClick={onEdit}>
-                  <Edit className="w-3 h-3 mr-1" /> Редактировать
-                </Button>
-              )}
-              {!isOwn && onOpenMessages && (
-                <Button size="sm" className="h-7 px-3 bg-primary/30 border border-primary/40 text-white text-[11px]" onClick={onOpenMessages}>
-                  <MessageCircle className="w-3 h-3 mr-1" /> Написать
-                </Button>
-              )}
             </div>
             <div className="flex justify-center pt-2">
               <LevelPanel profile={profile} variant='badge' />
             </div>
           </div>
         </div>
+        <div className="flex flex-col gap-2 w-full max-w-sm mx-auto items-stretch">
+          {isOwn ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full bg-primary/25 border-primary/40 text-white"
+              onClick={onEdit}
+            >
+              <Edit className="w-3 h-3 mr-1" /> Редактировать
+            </Button>
+          ) : (
+            <>
+              {onOpenMessages && (
+                <Button
+                  size="sm"
+                  className="w-full bg-primary/30 border border-primary/40 text-white"
+                  onClick={onOpenMessages}
+                >
+                  <MessageCircle className="w-3 h-3 mr-1" /> Написать сообщение
+                </Button>
+              )}
+              <FriendActionControls {...friendControlsProps} align="center" />
+            </>
+          )}
+        </div>
         {hasBio && (
           <div className="mt-1">
-            <div ref={bioMeasureRef} className={`relative text-slate-300 text-sm leading-relaxed markdown-body ${bioExpanded ? '' : 'line-clamp-4'}`}>
+            <div
+              ref={bioMeasureRef}
+              className={`relative text-slate-300 text-sm leading-relaxed markdown-body ${bioExpanded ? '' : 'line-clamp-4'}`}
+            >
               <MarkdownRenderer value={safeBio} />
               {!bioExpanded && canToggleBio && (
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-neutral-950/95 via-neutral-950/60 to-transparent" />
@@ -387,11 +598,12 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({ profile, isOwn, onEdit
             </div>
             {canToggleBio && (
               <button
-                onClick={() => setBioExpanded(v=>!v)}
+                onClick={() => setBioExpanded(v => !v)}
                 className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium"
                 aria-expanded={bioExpanded}
               >
-                {bioExpanded ? 'Свернуть' : 'Читать полностью'} <ChevronDown className={`w-4 h-4 transition-transform ${bioExpanded ? 'rotate-180' : ''}`} />
+                {bioExpanded ? 'Свернуть' : 'Читать полностью'}{' '}
+                <ChevronDown className={`w-4 h-4 transition-transform ${bioExpanded ? 'rotate-180' : ''}`} />
               </button>
             )}
           </div>

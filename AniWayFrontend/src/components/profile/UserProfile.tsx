@@ -38,7 +38,6 @@ import { apiClient } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import useFriendData from '@/hooks/useFriendData';
 import useUserMiniBatch from '@/hooks/useUserMiniBatch';
-import { ProfileFriendActions } from './ProfileFriendActions';
 import { ProfileFriendList } from './ProfileFriendList';
 import { ProfileFriendRequests } from './ProfileFriendRequests';
 // Added level overview section component dependencies
@@ -102,7 +101,6 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
     outgoingRequests,
     status: friendshipStatus,
     incomingRequestForTarget,
-    outgoingRequestForTarget,
     refresh: refreshFriendData,
     loading: friendLoading,
     error: friendError,
@@ -519,24 +517,17 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
               // Skip immediate refetch to avoid loop (backend doesn't yet return avatar). Can be re-enabled later.
             }}
             onOpenMessages={!isOwnProfile ? handleOpenMessages : undefined}
+              friendshipStatus={friendshipStatus}
+              friendActionLoading={friendLoading}
+              isAuthenticated={!!currentUser}
+              friendTargetName={targetUserMini?.displayName || targetUserMini?.username}
+              incomingRequestForTarget={incomingRequestForTarget}
+              onSendFriendRequest={!isOwnProfile && currentUser ? sendFriendRequest : undefined}
+              onAcceptFriendRequest={!isOwnProfile && friendshipStatus === 'incoming' && incomingRequestForTarget ? () => acceptFriendRequest(incomingRequestForTarget.id) : undefined}
+              onDeclineFriendRequest={!isOwnProfile && friendshipStatus === 'incoming' && incomingRequestForTarget ? () => declineFriendRequest(incomingRequestForTarget.id) : undefined}
+              onRemoveFriend={!isOwnProfile && friendshipStatus === 'friends' && targetUserMini ? () => removeFriend(targetUserMini.id) : undefined}
           />
           <ProfileStatsStrip profile={profile} extra={{ favorites: undefined, achievements: achievements.length, reviewsCount }} />
-        </div>
-
-        <div className="mb-6 animate-fade-in">
-          <ProfileFriendActions
-            isOwnProfile={isOwnProfile}
-            targetUser={targetUserMini}
-            status={friendshipStatus}
-            incomingRequestForTarget={incomingRequestForTarget}
-            outgoingRequestForTarget={outgoingRequestForTarget}
-            onSendRequest={sendFriendRequest}
-            onAcceptRequest={acceptFriendRequest}
-            onDeclineRequest={declineFriendRequest}
-            onRemoveFriend={removeFriend}
-            isAuthenticated={!!currentUser}
-            loading={friendLoading}
-          />
         </div>
 
         {/* Desktop Layout: Табы занимают всю ширину */}
