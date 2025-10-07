@@ -2,23 +2,13 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { Star, Eye, Bookmark, Flame, ShieldCheck } from 'lucide-react'
 import { MangaResponseDTO } from '@/types'
-import { getStatusColor, getStatusText, cn } from '@/lib/utils'
+import { getStatusColor, getStatusText, getTypeText, cn } from '@/lib/utils'
 import { computeMangaBadges } from '@/utils/mangaBadges'
 import { useBookmarks } from '@/hooks/useBookmarks'
 import { useAuth } from '@/contexts/AuthContext'
 import { useReadingProgress } from '@/hooks/useProgress'
 import { useRating } from '@/hooks/useRating'
 import { useQueryClient } from '@tanstack/react-query'
-
-const CARD_TYPE_LABELS: Record<MangaResponseDTO['type'], string> = {
-  MANGA: 'манга',
-  MANHWA: 'манхва',
-  MANHUA: 'маньхуа',
-  WESTERN_COMIC: 'западный комикс',
-  RUSSIAN_COMIC: 'русский комикс',
-  OEL: 'oel',
-  OTHER: 'другое'
-}
 
 interface MangaCardProps {
   manga: MangaResponseDTO
@@ -113,7 +103,7 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
   const rawGenres = manga.genre ? manga.genre.split(',').map(g=>g.trim()).filter(Boolean) : []
   const primaryGenres = rawGenres.slice(0,2)
   const hiddenGenresCount = rawGenres.length - primaryGenres.length
-  const typeLabel = CARD_TYPE_LABELS[manga.type] || 'манга'
+  const typeLabel = getTypeText(manga.type)
   const statusLabel = getStatusText(manga.status)
   const badgeClass = 'inline-flex items-center gap-1 rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] leading-none text-white/75 whitespace-nowrap'
   const releaseYear = (() => {

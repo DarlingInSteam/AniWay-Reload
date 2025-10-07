@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { formatDate, getStatusColor, getStatusText, cn } from '@/lib/utils'
+import { formatDate, getStatusColor, getStatusText, getTypeText, cn } from '@/lib/utils'
 import { formatChapterTitle, formatChapterNumber, formatVolumeNumber } from '@/lib/chapterUtils'
 import { BookmarkControls } from '../components/bookmarks/BookmarkControls'
 import { ReadingProgressBar, LastReadChapter } from '../components/progress/ReadingProgress'
@@ -265,20 +265,6 @@ export function MangaPage() {
   // Получаем теги из API
   const tags = manga.tags ? manga.tags.split(',').map(t => t.trim()) : []
 
-  // Функция для получения отображаемого типа
-  const getTypeDisplay = (type?: string) => {
-    switch (type) {
-      case 'MANGA': return 'Манга'
-      case 'MANHWA': return 'Манхва'
-      case 'MANHUA': return 'Маньхуа'
-      case 'WESTERN_COMIC': return 'Западный комикс'
-      case 'RUSSIAN_COMIC': return 'Русский комикс'
-      case 'OEL': return 'OEL'
-      case 'OTHER': return 'Другое'
-      default: return 'Манга'
-    }
-  }
-
   // Фейковая статистика рейтингов
   const ratingStats = [
     { rating: 10, count: 156 },
@@ -376,7 +362,7 @@ export function MangaPage() {
                   <h1 className="text-xl md:text-2xl font-bold text-white mb-2">{manga.title}</h1>
                   {/* Mobile - Type and Year after title */}
                   <div className="lg:hidden flex items-center justify-center gap-3 text-sm text-muted-foreground">
-                    <span>{getTypeDisplay(manga.type)}</span>
+                    <span>{getTypeText(manga.type)}</span>
                     <span>•</span>
                     <span>{new Date(manga.releaseDate).getFullYear()}</span>
                   </div>
@@ -547,7 +533,7 @@ export function MangaPage() {
                         <div className="flex flex-col md:flex-row md:items-center gap-2">
                           <div className="text-muted-foreground text-sm min-w-[150px]">Тип</div>
                           <div className="text-white font-medium">
-                            {getTypeDisplay(manga.type)}
+                            {getTypeText(manga.type)}
                           </div>
                         </div>
 

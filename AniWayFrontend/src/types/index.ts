@@ -11,7 +11,7 @@ export interface MangaResponseDTO {
   type: 'MANGA' | 'MANHWA' | 'MANHUA' | 'WESTERN_COMIC' | 'RUSSIAN_COMIC' | 'OEL' | 'OTHER'
   ageLimit?: number
   isLicensed?: boolean
-  status: 'ONGOING' | 'COMPLETED' | 'HIATUS' | 'CANCELLED'
+  status: 'ONGOING' | 'COMPLETED' | 'ANNOUNCED' | 'HIATUS' | 'CANCELLED'
   description: string
   releaseDate: string
   coverImageUrl: string

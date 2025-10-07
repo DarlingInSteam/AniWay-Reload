@@ -607,31 +607,40 @@ public class MelonIntegrationService {
                 try {
                     switch (typeStr.toLowerCase().trim()) {
                         case "manhwa":
+                        case "манхва":
                             manga.setType(Manga.MangaType.MANHWA);
                             break;
                         case "manhua":
+                        case "маньхуа":
                             manga.setType(Manga.MangaType.MANHUA);
                             break;
                         case "western_comic":
                         case "western comic":
+                        case "комикс западный":
                             manga.setType(Manga.MangaType.WESTERN_COMIC);
                             break;
                         case "russian_comic":
                         case "russian comic":
+                        case "руманга":
                             manga.setType(Manga.MangaType.RUSSIAN_COMIC);
                             break;
                         case "oel":
+                        case "oel-манга":
+                        case "oel-manga":
                             manga.setType(Manga.MangaType.OEL);
                             break;
                         case "manga":
+                        case "манга":
                             manga.setType(Manga.MangaType.MANGA);
                             break;
                         default:
-                            manga.setType(Manga.MangaType.OTHER);
+                            // Для неизвестных типов логируем и ставим MANGA
+                            System.out.println("DEBUG: Unknown type '" + typeStr + "', using MANGA");
+                            manga.setType(Manga.MangaType.MANGA);
                     }
                     System.out.println("DEBUG: Set type to: " + manga.getType());
                 } catch (Exception e) {
-                    manga.setType(Manga.MangaType.OTHER);
+                    manga.setType(Manga.MangaType.MANGA);
                 }
             } else {
                 // Если тип не получен из парсера, устанавливаем MANGA по умолчанию
@@ -667,14 +676,25 @@ public class MelonIntegrationService {
                             break;
                         case "completed":
                         case "завершен":
+                        case "завершён":
                             manga.setStatus(Manga.MangaStatus.COMPLETED);
+                            break;
+                        case "announced":
+                        case "анонс":
+                        case "анонсирован":
+                            manga.setStatus(Manga.MangaStatus.ANNOUNCED);
                             break;
                         case "hiatus":
                         case "заморожен":
+                        case "приостановлен":
                             manga.setStatus(Manga.MangaStatus.HIATUS);
                             break;
                         case "cancelled":
+                        case "dropped":
                         case "отменен":
+                        case "отменён":
+                        case "выпуск прекращён":
+                        case "выпуск прекращен":
                             manga.setStatus(Manga.MangaStatus.CANCELLED);
                             break;
                         default:
