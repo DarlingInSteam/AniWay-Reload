@@ -235,6 +235,7 @@ class Parser(MangaParser):
                 except Exception as e:
                     print(f"[WARNING] [{thread_id}] Failed to copy headers: {e}", flush=True)
             
+            print(f"[CRITICAL_DEBUG] [{thread_id}] Adding standard image headers...", flush=True)
             # Добавляем стандартные headers для изображений
             session.headers.update({
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -242,16 +243,23 @@ class Parser(MangaParser):
                 'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
                 'Referer': 'https://mangalib.me/',
             })
+            print(f"[CRITICAL_DEBUG] [{thread_id}] ✅ Headers updated!", flush=True)
             
             # Получаем прокси (опционально)
+            print(f"[CRITICAL_DEBUG] [{thread_id}] Getting proxy from ProxyRotator...", flush=True)
             proxies = None
             if hasattr(self, '_ProxyRotator') and self._ProxyRotator:
                 proxy = self._ProxyRotator.get_next_proxy()
+                print(f"[CRITICAL_DEBUG] [{thread_id}] Got proxy: {proxy}", flush=True)
                 if proxy and isinstance(proxy, dict):
                     proxies = proxy
+            else:
+                print(f"[CRITICAL_DEBUG] [{thread_id}] No ProxyRotator, using direct connection", flush=True)
             
             # ПАРАЛЛЕЛЬНЫЙ HTTP запрос через независимую сессию!
+            print(f"[CRITICAL_DEBUG] [{thread_id}] 🌐 Starting HTTP GET request...", flush=True)
             response = session.get(url, timeout=30, proxies=proxies)
+            print(f"[CRITICAL_DEBUG] [{thread_id}] ✅ Got response: {response.status_code}, size: {len(response.content)}", flush=True)
             
             if response.status_code == 200 and len(response.content) > 1000:
                 with open(image_path, "wb") as f:
