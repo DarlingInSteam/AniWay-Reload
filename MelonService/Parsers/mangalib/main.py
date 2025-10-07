@@ -382,15 +382,32 @@ class Parser(MangaParser):
         """
         
         URL = f"https://{self.__API}/api/manga/{self.__TitleSlug}?fields[]=eng_name&fields[]=otherNames&fields[]=summary&fields[]=releaseDate&fields[]=type_id&fields[]=caution&fields[]=genres&fields[]=tags&fields[]=franchise&fields[]=authors&fields[]=manga_status_id&fields[]=status_id"
+        
+        # DEBUG: Логируем запрос
+        print(f"[DEBUG] 🔍 Requesting title data for: {self.__TitleSlug}")
+        print(f"[DEBUG] 🌐 URL: {URL}")
+        
         Response = self._Requestor.get(URL)
+        
+        # DEBUG: Логируем ответ
+        print(f"[DEBUG] 📡 Response status: {Response.status_code}")
+        if hasattr(Response, 'text'):
+            response_preview = Response.text[:500] if hasattr(Response.text, '__getitem__') else str(Response.text)[:500]
+            print(f"[DEBUG] 📄 Response preview: {response_preview}")
 
         if Response.status_code == 200:
             Response = Response.json["data"]
             sleep(self._Settings.common.delay)
 
-        elif Response.status_code == 451: self._Portals.request_error(Response, "Account banned.")
-        elif Response.status_code == 404: self._Portals.title_not_found(self._Title)
-        else: self._Portals.request_error(Response, "Unable to request title data.")
+        elif Response.status_code == 451: 
+            self._Portals.request_error(Response, "Account banned.")
+            return None
+        elif Response.status_code == 404: 
+            self._Portals.title_not_found(self._Title)
+            return None
+        else: 
+            self._Portals.request_error(Response, "Unable to request title data.")
+            return None
 
         return Response
 
@@ -534,12 +551,23 @@ class Parser(MangaParser):
     def parse(self):
         """Получает основные данные тайтла."""
 
+        print(f"[DEBUG] 🚀 Starting parse() for title: {self._Title.slug}")
+        
         self._Requestor.config.add_header("Site-Id", str(self.__Sites[self._Manifest.site]))
 
-        if self._Title.id and self._Title.slug: self.__TitleSlug = f"{self._Title.id}--{self._Title.slug}"
-        else: self.__TitleSlug = self._Title.slug
+        if self._Title.id and self._Title.slug: 
+            self.__TitleSlug = f"{self._Title.id}--{self._Title.slug}"
+        else: 
+            self.__TitleSlug = self._Title.slug
+
+        print(f"[DEBUG] 📛 Using TitleSlug: {self.__TitleSlug}")
 
         Data = self.__GetTitleData()
+        
+        print(f"[DEBUG] 📦 GetTitleData returned: {type(Data)}, is None: {Data is None}")
+        if Data:
+            print(f"[DEBUG] ✅ Data keys: {list(Data.keys())[:10] if isinstance(Data, dict) else 'NOT A DICT'}")
+        
         self._SystemObjects.manager.get_parser_settings()
 
         if Data:
