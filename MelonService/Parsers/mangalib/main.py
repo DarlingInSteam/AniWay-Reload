@@ -182,20 +182,29 @@ class Parser(MangaParser):
             return filename + filetype
         
         try:
-            # Получаем cookies и headers из основного WebRequestor (thread-safe read)
+            # Получаем основной WebRequestor
             requestor = self._ImagesDownloader._ImagesDownloader__Requestor
             
             # Создаем НЕЗАВИСИМУЮ сессию requests для этого потока
             session = requests.Session()
             
-            # Копируем cookies из WebRequestor (RequestsCookieJar можно итерировать)
-            if hasattr(requestor, 'cookies') and requestor.cookies:
-                for cookie in requestor.cookies:
-                    session.cookies.set_cookie(cookie)
+            # Копируем cookies из WebRequestor Session (thread-safe read)
+            # Проверяем разные возможные атрибуты WebRequestor
+            source_session = None
+            if hasattr(requestor, '_WebRequestor__Session'):
+                source_session = requestor._WebRequestor__Session
+            elif hasattr(requestor, 'session'):
+                source_session = requestor.session
+            elif hasattr(requestor, '_session'):
+                source_session = requestor._session
             
-            # Копируем headers
-            if hasattr(requestor, 'config') and hasattr(requestor.config, 'headers'):
-                session.headers.update(requestor.config.headers)
+            if source_session and hasattr(source_session, 'cookies'):
+                # RequestsCookieJar.update() принимает другой CookieJar
+                session.cookies.update(source_session.cookies)
+            
+            # Копируем headers из source session
+            if source_session and hasattr(source_session, 'headers'):
+                session.headers.update(source_session.headers)
             
             # Добавляем стандартные headers для изображений
             session.headers.update({
@@ -209,8 +218,8 @@ class Parser(MangaParser):
             proxies = None
             if hasattr(self, '_ProxyRotator') and self._ProxyRotator:
                 proxy = self._ProxyRotator.get_next_proxy()
-                if proxy:
-                    proxies = {'http': proxy, 'https': proxy}
+                if proxy and isinstance(proxy, dict):
+                    proxies = proxy
             
             # ПАРАЛЛЕЛЬНЫЙ HTTP запрос через независимую сессию!
             response = session.get(url, timeout=30, proxies=proxies)
@@ -222,6 +231,8 @@ class Parser(MangaParser):
             
         except Exception as e:
             print(f"[WARNING] [{thread_id}] Failed to download {url}: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
         finally:
             # Закрываем сессию
             if 'session' in locals():
