@@ -884,6 +884,10 @@ class BaseTitle:
 	def _DownloadChapterImages(self):
 		"""Скачивает изображения глав."""
 		
+		print(f"=" * 80, flush=True)
+		print(f"[CRITICAL_DEBUG] _DownloadChapterImages() CALLED!", flush=True)
+		print(f"=" * 80, flush=True)
+		
 		# Устанавливаем общее количество изображений для отслеживания прогресса
 		total_images = self._CountChapterImages()
 		if total_images > 0:
