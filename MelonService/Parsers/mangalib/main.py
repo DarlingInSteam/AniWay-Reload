@@ -182,9 +182,13 @@ class Parser(MangaParser):
         
         # Скачиваем изображение
         # Используем requestor из ImagesDownloader (name mangling: __Requestor -> _ImagesDownloader__Requestor)
+        # КРИТИЧНО: requestor НЕ thread-safe, поэтому используем Lock
         try:
             requestor = self._ImagesDownloader._ImagesDownloader__Requestor
-            response = requestor.get(url)
+            
+            # Thread-safe HTTP запрос
+            with self._requestor_lock:
+                response = requestor.get(url)
             
             if response.status_code == 200 and len(response.content) > 1000:
                 with open(image_path, "wb") as f:
@@ -199,6 +203,7 @@ class Parser(MangaParser):
     
     def _PostInitMethod(self):
         """Метод, выполняющийся после инициализации объекта."""
+        from threading import Lock
 
         self.__TitleSlug = None
         self.__API = "api.cdnlibs.org"
@@ -207,6 +212,9 @@ class Parser(MangaParser):
             "slashlib.me": 2,
             "hentailib.me": 4
         }
+        
+        # Lock для thread-safe HTTP запросов (requestor не потокобезопасный)
+        self._requestor_lock = Lock()
         
         # КРИТИЧЕСКИ ВАЖНО: Инициализация параллельного загрузчика в __init__, а не в parse()
         # Потому что build может вызываться без parse (когда JSON уже существует)
