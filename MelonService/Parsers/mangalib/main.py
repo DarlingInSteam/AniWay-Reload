@@ -157,21 +157,17 @@ class Parser(MangaParser):
         return WebRequestorObject
     
     def _download_image_wrapper(self, url: str) -> str | None:
-        """Thread-safe обертка для загрузки изображения с настоящим параллелизмом через httpx.
+        """Thread-safe обертка для загрузки изображения через WebRequestor с Lock.
         
         :param url: URL изображения
         :return: Имя файла если успешно, None если ошибка
         """
         import os
         from pathlib import Path
-        import httpx
         import threading
         
         thread_id = threading.current_thread().name
         print(f"[DEBUG] [{thread_id}] wrapper STARTED for {url[:50]}...", flush=True)
-        
-        # Используем ПРЯМОЙ запрос вместо temp_image, чтобы избежать race condition
-        # в глобальном счетчике ImagesDownloader.__download_counter
         
         directory = self._SystemObjects.temper.parser_temp
         
@@ -188,41 +184,17 @@ class Parser(MangaParser):
             print(f"[DEBUG] [{thread_id}] Cache HIT for {filename}{filetype}", flush=True)
             return filename + filetype
         
-        print(f"[DEBUG] [{thread_id}] Cache MISS, downloading...", flush=True)
+        print(f"[DEBUG] [{thread_id}] Cache MISS, downloading via WebRequestor...", flush=True)
         
-        # Скачиваем изображение через httpx (thread-safe HTTP клиент)
-        # httpx нативно поддерживает многопоточность, в отличие от старого WebRequestor
+        # Скачиваем через старый WebRequestor (он работает), но с Lock для thread-safety
         try:
-            # Получаем прокси от ProxyRotator (если есть)
-            print(f"[DEBUG] [{thread_id}] Getting proxy...", flush=True)
-            proxy = None
-            if hasattr(self, '_ProxyRotator') and self._ProxyRotator:
-                proxy = self._ProxyRotator.get_next_proxy()
-                print(f"[DEBUG] [{thread_id}] Got proxy: {proxy}", flush=True)
+            requestor = self._ImagesDownloader._ImagesDownloader__Requestor
             
-            print(f"[DEBUG] [{thread_id}] Creating httpx.Client...", flush=True)
-            
-            # Настройки для httpx клиента
-            client_kwargs = {
-                'timeout': 30.0,
-                'follow_redirects': True,
-                'headers': {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                    'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
-                    'Referer': 'https://mangalib.me/',
-                }
-            }
-            
-            if proxy:
-                client_kwargs['proxies'] = proxy
-            
-            print(f"[DEBUG] [{thread_id}] About to enter httpx.Client context...", flush=True)
-            
-            # Thread-safe HTTP запрос через httpx
-            with httpx.Client(**client_kwargs) as client:
-                print(f"[DEBUG] [{thread_id}] Inside httpx.Client context, calling get()...", flush=True)
-                response = client.get(url)
+            print(f"[DEBUG] [{thread_id}] Acquiring lock...", flush=True)
+            # КРИТИЧНО: WebRequestor НЕ thread-safe, используем Lock
+            with self._requestor_lock:
+                print(f"[DEBUG] [{thread_id}] Lock acquired, calling requestor.get()...", flush=True)
+                response = requestor.get(url)
                 print(f"[DEBUG] [{thread_id}] Got response: {response.status_code}", flush=True)
             
             if response.status_code == 200 and len(response.content) > 1000:
@@ -234,7 +206,6 @@ class Parser(MangaParser):
                 print(f"[DEBUG] [{thread_id}] FAIL: Bad status or size {response.status_code}/{len(response.content)}", flush=True)
             
         except Exception as e:
-            # Логируем ошибку но не падаем
             print(f"[WARNING] [{thread_id}] Failed to download {url}: {e}", flush=True)
             import traceback
             traceback.print_exc()
@@ -244,6 +215,7 @@ class Parser(MangaParser):
     
     def _PostInitMethod(self):
         """Метод, выполняющийся после инициализации объекта."""
+        from threading import Lock
         
         print(f"[CRITICAL_DEBUG] _PostInitMethod() CALLED!", flush=True)
 
@@ -254,6 +226,9 @@ class Parser(MangaParser):
             "slashlib.me": 2,
             "hentailib.me": 4
         }
+        
+        # Lock для thread-safe HTTP запросов (WebRequestor не потокобезопасный)
+        self._requestor_lock = Lock()
         
         print(f"[CRITICAL_DEBUG] About to initialize AdaptiveParallelDownloader...", flush=True)
         
