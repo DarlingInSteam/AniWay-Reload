@@ -164,14 +164,24 @@ class Parser(MangaParser):
         """
         result = self._ImagesDownloader.temp_image(url)
         
+        # DEBUG: Посмотрим что возвращает temp_image
+        print(f"[DEBUG] temp_image returned: type={type(result)}, value={result}", flush=True)
+        if hasattr(result, '__dict__'):
+            print(f"[DEBUG] result attributes: {result.__dict__}", flush=True)
+        
         # ExecutionStatus имеет атрибут code: 0 = успех, иначе ошибка
         # И атрибут note с именем файла при успехе
-        if hasattr(result, 'code') and result.code == 0:
-            if hasattr(result, 'note'):
-                return result.note
-            # Если note нет, но code=0, считаем успехом
-            return "success"
+        if hasattr(result, 'code'):
+            print(f"[DEBUG] result.code = {result.code}", flush=True)
+            if result.code == 0:
+                if hasattr(result, 'note'):
+                    print(f"[DEBUG] result.note = {result.note}", flush=True)
+                    return result.note
+                # Если note нет, но code=0, считаем успехом
+                print(f"[DEBUG] code=0 but no note, returning 'success'", flush=True)
+                return "success"
         
+        print(f"[DEBUG] temp_image wrapper returning None", flush=True)
         return None
     
     def _PostInitMethod(self):
