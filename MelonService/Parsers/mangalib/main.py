@@ -72,14 +72,20 @@ class Parser(MangaParser):
             if https_proxy:
                 proxies['https'] = https_proxy
             
-            # Добавляем прокси в WebRequestor
+            # Устанавливаем прокси напрямую в requests.Session
+            # Старая версия dublib использует внутренний объект session
             try:
-                WebRequestorObject.add_proxies(proxies)
-                print(f"[INFO] ✅ Proxy configured from environment: {http_proxy or https_proxy}")
-            except AttributeError:
-                # Если метод add_proxies не существует, пробуем напрямую
-                WebRequestorObject.proxies = proxies
-                print(f"[INFO] ✅ Proxy set directly: {http_proxy or https_proxy}")
+                # Пробуем получить доступ к внутреннему session объекту
+                if hasattr(WebRequestorObject, '_WebRequestor__Session'):
+                    WebRequestorObject._WebRequestor__Session.proxies.update(proxies)
+                    print(f"[INFO] ✅ Proxy configured via Session (private): {http_proxy or https_proxy}")
+                elif hasattr(WebRequestorObject, 'session'):
+                    WebRequestorObject.session.proxies.update(proxies)
+                    print(f"[INFO] ✅ Proxy configured via Session (public): {http_proxy or https_proxy}")
+                else:
+                    print(f"[WARNING] ⚠️  Could not find Session object in WebRequestor")
+            except Exception as e:
+                print(f"[WARNING] ⚠️  Failed to configure proxy: {e}")
 
         return WebRequestorObject
     
