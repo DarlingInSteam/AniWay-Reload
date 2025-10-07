@@ -244,6 +244,8 @@ class Parser(MangaParser):
     
     def _PostInitMethod(self):
         """Метод, выполняющийся после инициализации объекта."""
+        
+        print(f"[CRITICAL_DEBUG] _PostInitMethod() CALLED!", flush=True)
 
         self.__TitleSlug = None
         self.__API = "api.cdnlibs.org"
@@ -253,10 +255,15 @@ class Parser(MangaParser):
             "hentailib.me": 4
         }
         
+        print(f"[CRITICAL_DEBUG] About to initialize AdaptiveParallelDownloader...", flush=True)
+        
         # КРИТИЧЕСКИ ВАЖНО: Инициализация параллельного загрузчика в __init__, а не в parse()
         # Потому что build может вызываться без parse (когда JSON уже существует)
         proxy_count = self._get_proxy_count()
         image_delay = getattr(self._Settings.common, 'image_delay', 0.2)
+        
+        print(f"[CRITICAL_DEBUG] proxy_count={proxy_count}, image_delay={image_delay}", flush=True)
+        
         self._parallel_downloader = AdaptiveParallelDownloader(
             proxy_count=proxy_count,
             download_func=self._download_image_wrapper,
@@ -264,6 +271,8 @@ class Parser(MangaParser):
             max_retries=3,
             base_delay=image_delay
         )
+        
+        print(f"[CRITICAL_DEBUG] AdaptiveParallelDownloader CREATED successfully!", flush=True)
 
     def __IsSlideLink(self, link: str, servers: list[str]) -> bool:
         """
