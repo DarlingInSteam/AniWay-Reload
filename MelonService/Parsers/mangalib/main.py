@@ -157,18 +157,17 @@ class Parser(MangaParser):
         return WebRequestorObject
     
     def _download_image_wrapper(self, url: str) -> str | None:
-        """Thread-safe обертка для загрузки изображения через httpx с cookies от WebRequestor.
+        """Thread-safe обертка с независимой сессией requests для каждого потока.
         
         :param url: URL изображения
         :return: Имя файла если успешно, None если ошибка
         """
         import os
         from pathlib import Path
-        import httpx
         import threading
+        import requests
         
         thread_id = threading.current_thread().name
-        print(f"[DEBUG] [{thread_id}] wrapper STARTED for {url[:50]}...", flush=True)
         
         directory = self._SystemObjects.temper.parser_temp
         
@@ -178,69 +177,56 @@ class Parser(MangaParser):
         filename = parsed_url.stem
         image_path = f"{directory}/{filename}{filetype}"
         
-        print(f"[DEBUG] [{thread_id}] Checking cache for {filename}{filetype}", flush=True)
-        
         # Если файл уже существует и не FORCE_MODE, возвращаем имя
         if os.path.exists(image_path) and not self._SystemObjects.FORCE_MODE:
-            print(f"[DEBUG] [{thread_id}] Cache HIT for {filename}{filetype}", flush=True)
             return filename + filetype
         
-        print(f"[DEBUG] [{thread_id}] Cache MISS, downloading via httpx with WebRequestor cookies...", flush=True)
-        
         try:
-            # Получаем cookies из WebRequestor (это ключ к решению 403!)
+            # Получаем cookies и headers из основного WebRequestor (thread-safe read)
             requestor = self._ImagesDownloader._ImagesDownloader__Requestor
-            cookies_dict = requestor.cookies or {}
             
-            print(f"[DEBUG] [{thread_id}] Got {len(cookies_dict)} cookies from WebRequestor", flush=True)
+            # Создаем НЕЗАВИСИМУЮ сессию requests для этого потока
+            session = requests.Session()
             
-            # Получаем прокси от ProxyRotator (если есть)
-            proxy = None
+            # Копируем cookies из WebRequestor (RequestsCookieJar можно итерировать)
+            if hasattr(requestor, 'cookies') and requestor.cookies:
+                for cookie in requestor.cookies:
+                    session.cookies.set_cookie(cookie)
+            
+            # Копируем headers
+            if hasattr(requestor, 'config') and hasattr(requestor.config, 'headers'):
+                session.headers.update(requestor.config.headers)
+            
+            # Добавляем стандартные headers для изображений
+            session.headers.update({
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
+                'Referer': 'https://mangalib.me/',
+            })
+            
+            # Получаем прокси (опционально)
+            proxies = None
             if hasattr(self, '_ProxyRotator') and self._ProxyRotator:
                 proxy = self._ProxyRotator.get_next_proxy()
+                if proxy:
+                    proxies = {'http': proxy, 'https': proxy}
             
-            # Настройки для httpx клиента (копируем headers от WebRequestor)
-            client_kwargs = {
-                'timeout': 30.0,
-                'follow_redirects': True,
-                'cookies': cookies_dict,  # КРИТИЧНО: используем cookies от WebRequestor!
-                'headers': {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
-                    'Accept-Encoding': 'gzip, deflate, br',
-                    'Referer': 'https://mangalib.me/',
-                    'Sec-Fetch-Dest': 'image',
-                    'Sec-Fetch-Mode': 'no-cors',
-                    'Sec-Fetch-Site': 'cross-site',
-                }
-            }
-            
-            if proxy:
-                client_kwargs['proxies'] = proxy
-            
-            print(f"[DEBUG] [{thread_id}] Creating httpx.Client with cookies...", flush=True)
-            
-            # Thread-safe HTTP запрос через httpx (с cookies!)
-            with httpx.Client(**client_kwargs) as client:
-                print(f"[DEBUG] [{thread_id}] Calling client.get()...", flush=True)
-                response = client.get(url)
-                print(f"[DEBUG] [{thread_id}] Got response: {response.status_code}", flush=True)
+            # ПАРАЛЛЕЛЬНЫЙ HTTP запрос через независимую сессию!
+            response = session.get(url, timeout=30, proxies=proxies)
             
             if response.status_code == 200 and len(response.content) > 1000:
                 with open(image_path, "wb") as f:
                     f.write(response.content)
-                print(f"[DEBUG] [{thread_id}] SUCCESS: Saved {filename}{filetype}", flush=True)
                 return filename + filetype
-            else:
-                print(f"[DEBUG] [{thread_id}] FAIL: Bad status or size {response.status_code}/{len(response.content)}", flush=True)
             
         except Exception as e:
             print(f"[WARNING] [{thread_id}] Failed to download {url}: {e}", flush=True)
-            import traceback
-            traceback.print_exc()
+        finally:
+            # Закрываем сессию
+            if 'session' in locals():
+                session.close()
         
-        print(f"[DEBUG] [{thread_id}] wrapper FINISHED, returning None", flush=True)
         return None
     
     def _PostInitMethod(self):
@@ -265,6 +251,7 @@ class Parser(MangaParser):
         
         print(f"[CRITICAL_DEBUG] proxy_count={proxy_count}, image_delay={image_delay}", flush=True)
         
+        # НЕ НУЖЕН Lock — каждый поток создает свою сессию requests!
         self._parallel_downloader = AdaptiveParallelDownloader(
             proxy_count=proxy_count,
             download_func=self._download_image_wrapper,
