@@ -195,9 +195,14 @@ public class AutoParsingService {
                 String parseTaskId = null; // parseTaskId от MelonService (parse фаза)
                 
                 try {
+                    // MangaLib изменил формат: slug может быть "7580--i-alone-level-up"
+                    // Для проверки дубликатов нормализуем до "i-alone-level-up"
+                    String normalizedSlug = normalizeSlug(slug);
+                    
                     // Проверяем, существует ли уже манга с таким slug
-                    if (mangaRepository.existsByMelonSlug(slug)) {
-                        logger.info("Манга с slug '{}' уже импортирована, пропускаем", slug);
+                    if (mangaRepository.existsByMelonSlug(normalizedSlug)) {
+                        logger.info("Манга с slug '{}' (normalized: '{}') уже импортирована, пропускаем", 
+                            slug, normalizedSlug);
                         task.skippedSlugs.add(slug);
                         task.processedSlugs++;
                         task.progress = (task.processedSlugs * 100) / task.totalSlugs;
@@ -364,6 +369,33 @@ public class AutoParsingService {
                     taskId, minutes, status != null ? status.get("progress") : "?");
             }
         }
+    }
+
+    /**
+     * Нормализует slug, убирая префикс ID-- если он есть.
+     * MangaLib изменил формат: теперь slug'и имеют формат "ID--slug" (например "7580--i-alone-level-up")
+     * Для проверки дубликатов нужно сравнивать только часть после "--"
+     * 
+     * @param slug исходный slug (может быть "7580--i-alone-level-up" или "i-alone-level-up")
+     * @return нормализованный slug без ID (всегда "i-alone-level-up")
+     */
+    private String normalizeSlug(String slug) {
+        if (slug == null || slug.isEmpty()) {
+            return slug;
+        }
+        
+        // Проверяем формат "ID--slug"
+        if (slug.contains("--")) {
+            String[] parts = slug.split("--", 2);
+            // Если первая часть - число (ID), возвращаем вторую часть (slug)
+            if (parts.length == 2 && parts[0].matches("\\d+")) {
+                logger.debug("Нормализация slug: '{}' -> '{}'", slug, parts[1]);
+                return parts[1];
+            }
+        }
+        
+        // Если формат не "ID--slug", возвращаем как есть
+        return slug;
     }
 
     /**

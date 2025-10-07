@@ -87,6 +87,33 @@ public class MelonIntegrationService {
     }
 
     /**
+     * Нормализует slug для MangaLib, убирая префикс ID-- если он есть.
+     * MangaLib изменил формат: теперь slug'и имеют формат "ID--slug" (например "7580--i-alone-level-up")
+     * Для совместимости с существующими записями в БД нормализуем до "i-alone-level-up"
+     * 
+     * @param slug исходный slug (может быть "7580--i-alone-level-up" или "i-alone-level-up")
+     * @return нормализованный slug без ID (всегда "i-alone-level-up")
+     */
+    private String normalizeSlugForMangaLib(String slug) {
+        if (slug == null || slug.isEmpty()) {
+            return slug;
+        }
+        
+        // Проверяем формат "ID--slug"
+        if (slug.contains("--")) {
+            String[] parts = slug.split("--", 2);
+            // Если первая часть - число (ID), возвращаем вторую часть (slug)
+            if (parts.length == 2 && parts[0].matches("\\d+")) {
+                logger.debug("Нормализация MangaLib slug: '{}' -> '{}'", slug, parts[1]);
+                return parts[1];
+            }
+        }
+        
+        // Если формат не "ID--slug", возвращаем как есть
+        return slug;
+    }
+
+    /**
      * Запускает парсинг манги через MelonService
      */
     public Map<String, Object> startParsing(String slug) {
@@ -1010,8 +1037,12 @@ public class MelonIntegrationService {
     private Manga createMangaFromData(Map<String, Object> mangaInfo, String filename) {
         Manga manga = new Manga();
 
+        // MangaLib изменил формат slug: теперь может быть "7580--i-alone-level-up"
+        // Нормализуем до "i-alone-level-up" для совместимости с существующими записями
+        String normalizedSlug = normalizeSlugForMangaLib(filename);
+        
         // КРИТИЧНО: Устанавливаем melonSlug для проверки дубликатов и автообновления
-        manga.setMelonSlug(filename);
+        manga.setMelonSlug(normalizedSlug);
 
         // Обрабатываем title - используем localized_name (русское название)
         String title = (String) mangaInfo.get("localized_name");
