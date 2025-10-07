@@ -906,9 +906,22 @@ async def get_catalog(page: int, parser: str = "mangalib", limit: int = 60):
         # Запрос к MangaLib API для получения каталога
         # Правильный формат как в парсере: fields[]=value&fields[]=value2
         api_url = f"https://api.cdnlibs.org/api/manga?fields[]=rate_avg&fields[]=rate&fields[]=releaseDate&page={page}"
+        
+        # Имитируем настоящий браузер с полным набором заголовков
         headers = {
             "Site-Id": site_id,
-            "User-Agent": "Mozilla/5.0"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Origin": f"https://{parser}.me",
+            "Referer": f"https://{parser}.me/manga-list",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "cross-site",
+            "Sec-Ch-Ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+            "Sec-Ch-Ua-Mobile": "?0",
+            "Sec-Ch-Ua-Platform": '"Windows"'
         }
         
         # Запрос без params, всё в URL
@@ -977,7 +990,23 @@ async def get_chapters_metadata_only_endpoint(slug: str, parser: str = "mangalib
         
         # Прямой запрос к MangaLib API для получения списка глав
         api_url = f"https://api.cdnlibs.org/api/manga/{slug}/chapters"
-        headers = {"Site-Id": site_id}
+        
+        # Имитируем настоящий браузер
+        headers = {
+            "Site-Id": site_id,
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Origin": f"https://{parser}.me",
+            "Referer": f"https://{parser}.me/{slug}",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "cross-site",
+            "Sec-Ch-Ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+            "Sec-Ch-Ua-Mobile": "?0",
+            "Sec-Ch-Ua-Platform": '"Windows"'
+        }
         
         response = requests.get(api_url, headers=headers, timeout=30)
         
