@@ -640,32 +640,38 @@ class Parser(MangaParser):
     def _get_proxy_count(self) -> int:
         """Определяет количество доступных прокси для адаптации параллельной загрузки."""
         
-        # Если прокси включены в настройках
+        # Сначала проверяем settings.json (приоритет 1)
         if hasattr(self._Settings, 'proxy') and hasattr(self._Settings.proxy, 'enable') and self._Settings.proxy.enable:
             if hasattr(self._Settings.proxy, 'proxies') and self._Settings.proxy.proxies:
                 proxy_count = len(self._Settings.proxy.proxies)
-                print(f"[INFO] 🌐 Detected {proxy_count} proxies from settings")
+                print(f"[INFO] 🌐 Detected {proxy_count} proxies from settings.json")
                 return proxy_count
         
-        # Пробуем найти ProxyRotator
+        # Пробуем найти ProxyRotator (приоритет 2) - ТОТ ЖЕ КОД ЧТО В _InitializeRequestor
         try:
-            from Source.Core.ProxyRotator import ProxyRotator
+            import sys
+            import os
+            from pathlib import Path
             
-            if hasattr(self, '_Requestor') and hasattr(self._Requestor, '_WebRequestor__Session'):
-                session = self._Requestor._WebRequestor__Session
+            # Добавляем путь к MelonService в sys.path для импорта proxy_rotator
+            melon_service_path = Path(__file__).parent.parent.parent
+            if str(melon_service_path) not in sys.path:
+                sys.path.insert(0, str(melon_service_path))
+            
+            from proxy_rotator import ProxyRotator
+            
+            # Создаём экземпляр ротатора для парсера
+            rotator = ProxyRotator(parser="mangalib")
+            
+            if rotator.enabled and rotator.get_proxy_count() > 0:
+                proxy_count = rotator.get_proxy_count()
+                print(f"[INFO] 🌐 Detected {proxy_count} proxies from ProxyRotator")
+                return proxy_count
                 
-                # Ищем ProxyRotator в адаптерах сессии
-                if hasattr(session, 'get_adapter'):
-                    try:
-                        adapter = session.get_adapter('https://')
-                        if hasattr(adapter, 'proxy_rotator') and adapter.proxy_rotator:
-                            proxy_count = len(adapter.proxy_rotator.proxies)
-                            print(f"[INFO] 🌐 Detected {proxy_count} proxies from ProxyRotator")
-                            return proxy_count
-                    except:
-                        pass
         except ImportError:
             pass
+        except Exception as e:
+            print(f"[WARNING] ⚠️  Error detecting ProxyRotator: {e}")
         
         # По умолчанию считаем что 1 прокси (или прямое подключение)
         print(f"[INFO] 🌐 No proxies detected, using 1 worker")
