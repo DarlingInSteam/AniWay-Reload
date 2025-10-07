@@ -739,9 +739,22 @@ async def execute_parse_task(task_id: str, slug: str, parser: str):
         if result["success"]:
             update_task_status(task_id, "IMPORTING_MANGA", 80, "Парсинг завершен, проверяем результат...")
             
-            # Проверяем, создался ли JSON файл
-            json_path = get_melon_base_path() / "Output" / parser / "titles" / f"{slug}.json"
+            # ВАЖНО: Нормализуем slug для проверки JSON файла
+            # MelonService сохраняет файлы БЕЗ ID: "sweet-home-kim-carnby-.json"
+            # Но slug может прийти с ID: "3754--sweet-home-kim-carnby-"
+            normalized_slug = slug
+            if "--" in slug:
+                parts = slug.split("--", 1)
+                if len(parts) == 2 and parts[0].isdigit():
+                    normalized_slug = parts[1]
+                    logger.info(f"🔧 Нормализация slug для проверки JSON: '{slug}' → '{normalized_slug}'")
+            
+            # Проверяем, создался ли JSON файл (с нормализованным slug)
+            json_path = get_melon_base_path() / "Output" / parser / "titles" / f"{normalized_slug}.json"
+            logger.info(f"🔍 Проверка JSON файла: {json_path}")
+            
             if json_path.exists():
+                logger.info(f"✅ JSON файл найден: {json_path}")
                 # Читаем информацию о манге
                 with open(json_path, 'r', encoding='utf-8') as f:
                     manga_data = json.load(f)
@@ -752,16 +765,22 @@ async def execute_parse_task(task_id: str, slug: str, parser: str):
                     100,
                     "Парсинг успешно завершен",
                     {
-                        "filename": slug,
+                        "filename": normalized_slug,  # Используем нормализованный slug
                         "title": manga_data.get("localized_name") or manga_data.get("eng_name") or manga_data.get("title", ""),
                         "chapters": sum(len(chapters) for chapters in manga_data.get("content", {}).values()),
                         "branches": len(manga_data.get("content", {}))
                     }
                 )
                 
-                # Автоматически запускаем build после успешного парсинга
-                asyncio.create_task(execute_build_task(task_id, slug, parser, None, "simple"))
+                # Автоматически запускаем build после успешного парсинга (с нормализованным slug)
+                asyncio.create_task(execute_build_task(task_id, normalized_slug, parser, None, "simple"))
             else:
+                logger.error(f"❌ JSON файл НЕ найден: {json_path}")
+                # Логируем доступные файлы для диагностики
+                titles_dir = get_melon_base_path() / "Output" / parser / "titles"
+                if titles_dir.exists():
+                    available_files = [f.stem for f in titles_dir.glob("*.json")]
+                    logger.error(f"📂 Доступные файлы: {available_files}")
                 update_task_status(task_id, "FAILED", 100, "Парсинг выполнен, но JSON файл не найден")
         else:
             update_task_status(
