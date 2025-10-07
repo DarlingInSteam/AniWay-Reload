@@ -133,6 +133,16 @@ class MangaBuilder(BaseBuilder):
 		"""
 
 		TargetBranch: "Branch" = self._SelectBranch(title.branches, branch_id)
+		
+		# Проверка на случай отсутствия веток/глав (например, для 18+ контента без авторизации)
+		if TargetBranch is None:
+			self._SystemObjects.logger.warning("No branches found in title. Title may have no chapters (e.g. 18+ content without authentication).")
+			return
+		
+		if not TargetBranch.chapters:
+			self._SystemObjects.logger.warning(f"Branch {TargetBranch.id} has no chapters. Skipping build.")
+			return
+		
 		self._SystemObjects.logger.info(f"Building branch {TargetBranch.id}...")
 		for CurrentChapter in TargetBranch.chapters: self.build_chapter(title, CurrentChapter.id)
 

@@ -7,7 +7,7 @@
 		"pretty": false,
 		"use_id_as_filename": false,
 		"sizing_images": false,
-		"retries": 2,
+		"retries": 3,
 		"delay": 0.5
 	},
 	"filters": {
@@ -44,7 +44,7 @@
 		]
 	},
 	"custom": {
-		"token": "",
+		"token": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiIxIiwianRpIjoiZGIzZjYxMjVhNDhiNDVhMWY2YWMwZDFjNTgwZThkMjA4MjI3NGExMmM2ZmQ5NTM2NTYyMmRlNDU0YTM3MGM3MWJkZTI0N2ZmOWYwNDFkYjciLCJpYXQiOjE3NTk4Mzg5NzEuNTc3NjMyLCJuYmYiOjE3NTk4Mzg5NzEuNTc3NjMzLCJleHAiOjE3NjI1MTczNzEuNTczNzE0LCJzdWIiOiI1MjI4ODIxIiwic2NvcGVzIjpbXX0.8kqNAqpTkc-x9AqdC4I5UtI_8fLkyyVKvCMdoNulln8zVuMwOv4fm-r2Osv0lMYjdsYlzW-Zw5Brg7o4S1TTVKCtuZdAtbP4aDKEMOq1IG_YJfBLpizU3iAFYyEDWbiclViUw9NK2dB-QgWOdF_32WTY2SMIwkmd99tyWK7iy-rycNJdGSdyPK4ykOXUHvI_Qjj8BkYhhy8lg9pwAm0BuFqkNF-Nw98guW_Ftkr5SLTf32_f8WbQ3Iaqy_44b0UdUdpYfGZgJw_zh0pmX3GT5qKEWVYUoOtbIwAGQ-MmP_VSBsOd4h_W7fO6zUuj02ItvTSD0-J5Dy06zvVqMPlBVk4Nsu3TXuYSSz0boNLYVz1Pxw1oEORk-xWubJ9yFr_9COPdsHgWA-P8PRG_Gdh2bb-XNGmKbfkicXXlulBuerQqXBIV15xLijxspjgOa_BHVf-Bjhxeq-qwhhxQeRinHuee3A-Fq3n7hTBZfze1SSGE6vvn-heevgetp-90RfnPFqCkb928ETPE21vbOOfdxtOrKvJY0aGFkxlhAsxIViQAEOfTKx1bDF1xJ_y-42Rw8eiXZl5JOMYp0G-XlUJpoUxFtxVgfFMweGqKg6mt17s61MCznALjlm0gdnT4Z8sBcGtMNgniQmdYsOxpUSOEgQ5a3ay_YG8Pr-iEjG6PtRE",
 		"server": "main",
 		"add_moderation_status": false,
 		"add_free_publication_date": false
