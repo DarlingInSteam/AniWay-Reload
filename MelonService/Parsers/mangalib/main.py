@@ -684,8 +684,14 @@ class Parser(MangaParser):
         :return: Список имён файлов (или None для неудачных загрузок) в том же порядке
         """
         
+        print(f"[INFO] [DEBUG] ✅ batch_download_images() CALLED with {len(urls)} URLs")
+        print(f"[INFO] [DEBUG] _parallel_downloader initialized: {hasattr(self, '_parallel_downloader')}")
+        
         if not urls:
+            print(f"[INFO] [DEBUG] ⚠️ No URLs provided, returning empty list")
             return []
+        
+        print(f"[INFO] [DEBUG] 🚀 Starting parallel download with {len(urls)} images...")
         
         # Используем параллельный загрузчик
         results = self._parallel_downloader.download_batch(urls)

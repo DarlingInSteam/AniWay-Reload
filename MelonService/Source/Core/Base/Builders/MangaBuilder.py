@@ -106,6 +106,22 @@ class MangaBuilder(BaseBuilder):
 		# НОВОЕ: Параллельная загрузка всех изображений главы
 		Parser: "MangaParser" = title.parser
 		
+		# DEBUG: Проверка парсера
+		print(f"[DEBUG] Parser type: {type(Parser).__name__}")
+		print(f"[DEBUG] Parser has batch_download_images: {hasattr(Parser, 'batch_download_images')}")
+		if hasattr(Parser, '__class__'):
+			print(f"[DEBUG] Parser methods: {[m for m in dir(Parser) if not m.startswith('_') and 'download' in m.lower()]}")
+		
+		# КРИТИЧЕСКИ ВАЖНО: Если парсер загружен из JSON, нужно инициализировать _parallel_downloader
+		if hasattr(Parser, 'batch_download_images'):
+			# Проверяем, инициализирован ли _parallel_downloader
+			if not hasattr(Parser, '_parallel_downloader') or Parser._parallel_downloader is None:
+				print(f"[WARNING] _parallel_downloader not initialized, calling _PostInitMethod()...")
+				if hasattr(Parser, '_PostInitMethod'):
+					Parser._PostInitMethod()
+				else:
+					print(f"[ERROR] Parser doesn't have _PostInitMethod()!")
+		
 		# Проверяем, есть ли у парсера метод batch_download_images
 		if hasattr(Parser, 'batch_download_images'):
 			print(f"[INFO] 🚀 Starting parallel download of {SlidesCount} images...")
