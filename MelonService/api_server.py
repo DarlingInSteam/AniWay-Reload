@@ -782,8 +782,18 @@ async def execute_build_task(task_id: str, slug: str, parser: str, target_langua
         # Применяем патч перед каждым выполнением build команды
         ensure_cross_device_patch()
         
-        # Команда билда
-        command = ["python", "main.py", "build-manga", slug, "--use", parser]
+        # ВАЖНО: Нормализуем slug (убираем ID, если есть)
+        # MelonService сохраняет файлы БЕЗ ID: "sweet-home-kim-carnby-.json"
+        # Но MangaService может передать slug с ID: "3754--sweet-home-kim-carnby-"
+        normalized_slug = slug
+        if "--" in slug:
+            parts = slug.split("--", 1)
+            if len(parts) == 2 and parts[0].isdigit():
+                normalized_slug = parts[1]
+                logger.info(f"🔧 Нормализация slug для билда: '{slug}' → '{normalized_slug}'")
+        
+        # Команда билда с нормализованным slug
+        command = ["python", "main.py", "build-manga", normalized_slug, "--use", parser]
         
         if build_type == "simple":
             command.append("-simple")
