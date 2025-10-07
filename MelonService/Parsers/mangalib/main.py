@@ -165,6 +165,10 @@ class Parser(MangaParser):
         import os
         from pathlib import Path
         import httpx
+        import threading
+        
+        thread_id = threading.current_thread().name
+        print(f"[DEBUG] [{thread_id}] wrapper STARTED for {url[:50]}...", flush=True)
         
         # Используем ПРЯМОЙ запрос вместо temp_image, чтобы избежать race condition
         # в глобальном счетчике ImagesDownloader.__download_counter
@@ -177,17 +181,26 @@ class Parser(MangaParser):
         filename = parsed_url.stem
         image_path = f"{directory}/{filename}{filetype}"
         
+        print(f"[DEBUG] [{thread_id}] Checking cache for {filename}{filetype}", flush=True)
+        
         # Если файл уже существует и не FORCE_MODE, возвращаем имя
         if os.path.exists(image_path) and not self._SystemObjects.FORCE_MODE:
+            print(f"[DEBUG] [{thread_id}] Cache HIT for {filename}{filetype}", flush=True)
             return filename + filetype
+        
+        print(f"[DEBUG] [{thread_id}] Cache MISS, downloading...", flush=True)
         
         # Скачиваем изображение через httpx (thread-safe HTTP клиент)
         # httpx нативно поддерживает многопоточность, в отличие от старого WebRequestor
         try:
             # Получаем прокси от ProxyRotator (если есть)
+            print(f"[DEBUG] [{thread_id}] Getting proxy...", flush=True)
             proxy = None
             if hasattr(self, '_ProxyRotator') and self._ProxyRotator:
                 proxy = self._ProxyRotator.get_next_proxy()
+                print(f"[DEBUG] [{thread_id}] Got proxy: {proxy}", flush=True)
+            
+            print(f"[DEBUG] [{thread_id}] Creating httpx.Client...", flush=True)
             
             # Настройки для httpx клиента
             client_kwargs = {
@@ -204,19 +217,29 @@ class Parser(MangaParser):
             if proxy:
                 client_kwargs['proxies'] = proxy
             
+            print(f"[DEBUG] [{thread_id}] About to enter httpx.Client context...", flush=True)
+            
             # Thread-safe HTTP запрос через httpx
             with httpx.Client(**client_kwargs) as client:
+                print(f"[DEBUG] [{thread_id}] Inside httpx.Client context, calling get()...", flush=True)
                 response = client.get(url)
+                print(f"[DEBUG] [{thread_id}] Got response: {response.status_code}", flush=True)
             
             if response.status_code == 200 and len(response.content) > 1000:
                 with open(image_path, "wb") as f:
                     f.write(response.content)
+                print(f"[DEBUG] [{thread_id}] SUCCESS: Saved {filename}{filetype}", flush=True)
                 return filename + filetype
+            else:
+                print(f"[DEBUG] [{thread_id}] FAIL: Bad status or size {response.status_code}/{len(response.content)}", flush=True)
             
         except Exception as e:
             # Логируем ошибку но не падаем
-            print(f"[WARNING] Failed to download {url}: {e}", flush=True)
+            print(f"[WARNING] [{thread_id}] Failed to download {url}: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
         
+        print(f"[DEBUG] [{thread_id}] wrapper FINISHED, returning None", flush=True)
         return None
     
     def _PostInitMethod(self):
