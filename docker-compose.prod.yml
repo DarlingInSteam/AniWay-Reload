@@ -209,10 +209,22 @@ services:
       dockerfile: Dockerfile
     environment:
       - PYTHONUNBUFFERED=1
-      # Прокси для обхода блокировки MangaLib API
+      # PROXY ROTATION SUPPORT:
+      # - Если прокси один - просто указываем HTTP_PROXY/HTTPS_PROXY
+      # - Если прокси несколько - settings.json будет ротировать их
+      # - Текущая конфигурация: 1 прокси (ротация не происходит)
       - HTTP_PROXY=http://PS20z2:fFNHVg@168.80.1.136:8000
       - HTTPS_PROXY=http://PS20z2:fFNHVg@168.80.1.136:8000
       - NO_PROXY=localhost,127.0.0.1,manga-service,chapter-service,auth-service
+      # 
+      # ДЛЯ МНОЖЕСТВЕННЫХ ПРОКСИ:
+      # 1. Добавьте их в MelonService/Parsers/mangalib/settings.json:
+      #    "proxies": [
+      #      {"host": "168.80.1.136", "port": 8000, "login": "PS20z2", "password": "fFNHVg"},
+      #      {"host": "another.proxy.com", "port": 8000, "login": "user2", "password": "pass2"}
+      #    ]
+      # 2. Удалите или закомментируйте HTTP_PROXY/HTTPS_PROXY выше
+      # 3. Ротация будет происходить автоматически внутри api_server.py и main.py
     ports:
       - "8084:8084"
     volumes:

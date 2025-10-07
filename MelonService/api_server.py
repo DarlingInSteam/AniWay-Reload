@@ -29,58 +29,37 @@ def strip_ansi_codes(text: str) -> str:
     return ANSI_ESCAPE_PATTERN.sub('', text)
 
 # =========================================================================================
-# ПРОКСИ КОНФИГУРАЦИЯ (читаем из settings.json парсера mangalib)
+# ПРОКСИ КОНФИГУРАЦИЯ С РОТАЦИЕЙ (импортируем ProxyRotator)
 # =========================================================================================
-def load_proxy_settings(parser: str = "mangalib") -> Optional[Dict[str, str]]:
-    """
-    Загружает настройки прокси из settings.json парсера.
-    Возвращает dict с прокси для requests или None.
-    """
-    try:
-        settings_path = Path(__file__).parent / "Parsers" / parser / "settings.json"
-        if not settings_path.exists():
-            logger.warning(f"Settings file not found: {settings_path}")
-            return None
-        
-        with open(settings_path, 'r', encoding='utf-8') as f:
-            settings = json.load(f)
-        
-        proxy_config = settings.get("proxy", {})
-        
-        if not proxy_config.get("enable", False):
-            logger.info(f"Proxy disabled in {parser} settings.json")
-            return None
-        
-        host = proxy_config.get("host", "")
-        port = proxy_config.get("port", "")
-        login = proxy_config.get("login", "")
-        password = proxy_config.get("password", "")
-        
-        if not host or not port:
-            logger.warning(f"Proxy enabled but host/port not set in {parser} settings.json")
-            return None
-        
-        # Формируем URL прокси
-        if login and password:
-            proxy_url = f"http://{login}:{password}@{host}:{port}"
-        else:
-            proxy_url = f"http://{host}:{port}"
-        
-        logger.info(f"Proxy loaded from {parser} settings: {host}:{port}")
-        
-        return {
-            'http': proxy_url,
-            'https': proxy_url
-        }
-        
-    except Exception as e:
-        logger.error(f"Error loading proxy settings: {e}")
-        return None
+from proxy_rotator import get_proxy_rotator
 
-# Загружаем прокси при старте
-PROXY_SETTINGS = load_proxy_settings("mangalib")
-if PROXY_SETTINGS:
-    logger.info(f"✅ Proxy configured and ready to use")
+# Инициализируем глобальный ротатор прокси
+PROXY_ROTATOR = get_proxy_rotator("mangalib")
+logger.info(f"Proxy rotator initialized: {PROXY_ROTATOR}")
+
+def get_proxy_for_request() -> Optional[Dict[str, str]]:
+    """
+    Возвращает прокси для следующего запроса (с ротацией).
+    Если прокси один - ротация не происходит.
+    Если прокси несколько - происходит ротация согласно стратегии.
+    
+    Returns:
+        dict с прокси {'http': '...', 'https': '...'} или None
+    """
+    if PROXY_ROTATOR.get_proxy_count() == 0:
+        return None
+    
+    # Если прокси один - всегда возвращаем его (без ротации)
+    if PROXY_ROTATOR.get_proxy_count() == 1:
+        return PROXY_ROTATOR.get_current_proxy()
+    
+    # Если прокси несколько - ротация по стратегии
+    return PROXY_ROTATOR.get_next_proxy()
+
+# Проверка и логирование статуса прокси
+if PROXY_ROTATOR.enabled:
+    proxy_count = PROXY_ROTATOR.get_proxy_count()
+    logger.info(f"✅ Proxy rotation enabled: {proxy_count} proxy(ies), strategy={PROXY_ROTATOR.rotation_strategy}")
 else:
     logger.info("ℹ️  No proxy configured (requests will go directly)")
 # =========================================================================================
@@ -981,8 +960,9 @@ async def get_catalog(page: int, parser: str = "mangalib", limit: int = 60):
             "Sec-Ch-Ua-Platform": '"Windows"'
         }
         
-        # Запрос без params, всё в URL
-        response = requests.get(api_url, headers=headers, proxies=PROXY_SETTINGS, timeout=30)
+        # Запрос без params, всё в URL (используем ротацию прокси)
+        current_proxy = get_proxy_for_request()
+        response = requests.get(api_url, headers=headers, proxies=current_proxy, timeout=30)
         
         # Логируем запрос для отладки
         logger.debug(f"Request URL: {response.url}")
@@ -1066,7 +1046,9 @@ async def get_chapters_metadata_only_endpoint(slug: str, parser: str = "mangalib
             "Sec-Ch-Ua-Platform": '"Windows"'
         }
         
-        response = requests.get(api_url, headers=headers, proxies=PROXY_SETTINGS, timeout=30)
+        # Используем ротацию прокси
+        current_proxy = get_proxy_for_request()
+        response = requests.get(api_url, headers=headers, proxies=current_proxy, timeout=30)
         
         if response.status_code == 200:
             data = response.json().get("data", [])

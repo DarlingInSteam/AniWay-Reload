@@ -60,32 +60,96 @@ class Parser(MangaParser):
         if self._Settings.custom["token"]: 
             WebRequestorObject.config.add_header("Authorization", self._Settings.custom["token"])
         
-        # ФИКС: Добавляем прокси из переменных окружения (для обхода 403)
-        import os
-        http_proxy = os.getenv("HTTP_PROXY") or os.getenv("http_proxy")
-        https_proxy = os.getenv("HTTPS_PROXY") or os.getenv("https_proxy")
+        # PROXY ROTATION SUPPORT:
+        # Приоритет конфигурации прокси:
+        # 1. ProxyRotator из settings.json (если включен и есть прокси)
+        # 2. Переменные окружения HTTP_PROXY/HTTPS_PROXY
+        # 3. Без прокси
         
-        if http_proxy or https_proxy:
-            proxies = {}
-            if http_proxy:
-                proxies['http'] = http_proxy
-            if https_proxy:
-                proxies['https'] = https_proxy
+        import sys
+        import os
+        from pathlib import Path
+        
+        # Добавляем путь к MelonService в sys.path для импорта proxy_rotator
+        melon_service_path = Path(__file__).parent.parent.parent
+        if str(melon_service_path) not in sys.path:
+            sys.path.insert(0, str(melon_service_path))
+        
+        try:
+            from proxy_rotator import ProxyRotator
             
-            # Устанавливаем прокси напрямую в requests.Session
-            # Старая версия dublib использует внутренний объект session
-            try:
-                # Пробуем получить доступ к внутреннему session объекту
-                if hasattr(WebRequestorObject, '_WebRequestor__Session'):
-                    WebRequestorObject._WebRequestor__Session.proxies.update(proxies)
-                    print(f"[INFO] ✅ Proxy configured via Session (private): {http_proxy or https_proxy}")
-                elif hasattr(WebRequestorObject, 'session'):
-                    WebRequestorObject.session.proxies.update(proxies)
-                    print(f"[INFO] ✅ Proxy configured via Session (public): {http_proxy or https_proxy}")
+            # Создаём экземпляр ротатора для парсера
+            rotator = ProxyRotator(parser="mangalib")
+            
+            if rotator.enabled and rotator.get_proxy_count() > 0:
+                # Получаем прокси (с ротацией если их несколько)
+                if rotator.get_proxy_count() == 1:
+                    proxy_dict = rotator.get_current_proxy()
+                    print(f"[INFO] 🔒 Single proxy mode (no rotation): {rotator.get_proxy_count()} proxy")
                 else:
-                    print(f"[WARNING] ⚠️  Could not find Session object in WebRequestor")
-            except Exception as e:
-                print(f"[WARNING] ⚠️  Failed to configure proxy: {e}")
+                    proxy_dict = rotator.get_next_proxy()
+                    print(f"[INFO] 🔄 Proxy rotation enabled: {rotator.get_proxy_count()} proxies, strategy={rotator.rotation_strategy}")
+                
+                if proxy_dict:
+                    try:
+                        if hasattr(WebRequestorObject, '_WebRequestor__Session'):
+                            WebRequestorObject._WebRequestor__Session.proxies.update(proxy_dict)
+                            print(f"[INFO] ✅ Proxy configured via ProxyRotator")
+                        elif hasattr(WebRequestorObject, 'session'):
+                            WebRequestorObject.session.proxies.update(proxy_dict)
+                            print(f"[INFO] ✅ Proxy configured via ProxyRotator (public session)")
+                    except Exception as e:
+                        print(f"[WARNING] ⚠️  Failed to set proxy from ProxyRotator: {e}")
+            else:
+                print(f"[INFO] ℹ️  ProxyRotator disabled, checking environment variables...")
+                
+                # Fallback: переменные окружения
+                http_proxy = os.getenv("HTTP_PROXY") or os.getenv("http_proxy")
+                https_proxy = os.getenv("HTTPS_PROXY") or os.getenv("https_proxy")
+                
+                if http_proxy or https_proxy:
+                    proxies = {}
+                    if http_proxy:
+                        proxies['http'] = http_proxy
+                    if https_proxy:
+                        proxies['https'] = https_proxy
+                    
+                    try:
+                        if hasattr(WebRequestorObject, '_WebRequestor__Session'):
+                            WebRequestorObject._WebRequestor__Session.proxies.update(proxies)
+                            print(f"[INFO] ✅ Proxy configured from env vars: {http_proxy or https_proxy}")
+                        elif hasattr(WebRequestorObject, 'session'):
+                            WebRequestorObject.session.proxies.update(proxies)
+                            print(f"[INFO] ✅ Proxy configured from env vars (public session)")
+                    except Exception as e:
+                        print(f"[WARNING] ⚠️  Failed to configure proxy from env: {e}")
+                else:
+                    print(f"[INFO] ℹ️  No proxy configured (direct connection)")
+        
+        except ImportError as e:
+            print(f"[WARNING] ⚠️  ProxyRotator not available: {e}")
+            print(f"[INFO] ℹ️  Falling back to environment variables...")
+            
+            # Fallback на переменные окружения
+            http_proxy = os.getenv("HTTP_PROXY") or os.getenv("http_proxy")
+            https_proxy = os.getenv("HTTPS_PROXY") or os.getenv("https_proxy")
+            
+            if http_proxy or https_proxy:
+                proxies = {}
+                if http_proxy:
+                    proxies['http'] = http_proxy
+                if https_proxy:
+                    proxies['https'] = https_proxy
+                
+                try:
+                    if hasattr(WebRequestorObject, '_WebRequestor__Session'):
+                        WebRequestorObject._WebRequestor__Session.proxies.update(proxies)
+                        print(f"[INFO] ✅ Proxy configured from env vars: {http_proxy or https_proxy}")
+                    elif hasattr(WebRequestorObject, 'session'):
+                        WebRequestorObject.session.proxies.update(proxies)
+                        print(f"[INFO] ✅ Proxy configured from env vars (public)")
+                except Exception as e:
+                    print(f"[WARNING] ⚠️  Failed to configure proxy: {e}")
 
         return WebRequestorObject
     

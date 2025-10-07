@@ -7,8 +7,8 @@
 		"pretty": false,
 		"use_id_as_filename": false,
 		"sizing_images": false,
-		"retries": 1,
-		"delay": 1
+		"retries": 3,
+		"delay": 2
 	},
 	"filters": {
 		"text_regexs": [],
@@ -21,10 +21,15 @@
 	},
 	"proxy": {
 		"enable": true,
-		"host": "168.80.1.136",
-		"port": 8000,
-		"login": "PS20z2",
-		"password": "fFNHVg"
+		"rotation": "round-robin",
+		"proxies": [
+			{
+				"host": "168.80.1.136",
+				"port": 8000,
+				"login": "PS20z2",
+				"password": "fFNHVg"
+			}
+		]
 	},
 	"custom": {
 		"token": "",
