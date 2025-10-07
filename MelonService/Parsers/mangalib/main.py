@@ -198,23 +198,42 @@ class Parser(MangaParser):
             session = requests.Session()
             print(f"[CRITICAL_DEBUG] [{thread_id}] Session created!", flush=True)
             
+            print(f"[CRITICAL_DEBUG] [{thread_id}] Looking for source session...", flush=True)
             # Копируем cookies из WebRequestor Session (thread-safe read)
             # Проверяем разные возможные атрибуты WebRequestor
             source_session = None
             if hasattr(requestor, '_WebRequestor__Session'):
                 source_session = requestor._WebRequestor__Session
+                print(f"[CRITICAL_DEBUG] [{thread_id}] Found _WebRequestor__Session", flush=True)
             elif hasattr(requestor, 'session'):
                 source_session = requestor.session
+                print(f"[CRITICAL_DEBUG] [{thread_id}] Found session", flush=True)
             elif hasattr(requestor, '_session'):
                 source_session = requestor._session
+                print(f"[CRITICAL_DEBUG] [{thread_id}] Found _session", flush=True)
             
             if source_session and hasattr(source_session, 'cookies'):
-                # RequestsCookieJar.update() принимает другой CookieJar
-                session.cookies.update(source_session.cookies)
+                print(f"[CRITICAL_DEBUG] [{thread_id}] Copying cookies... (getting dict first)", flush=True)
+                # КРИТИЧНО: НЕ используем update() напрямую - это вызывает deadlock!
+                # Сначала получаем dict, потом обновляем
+                try:
+                    cookies_dict = dict(source_session.cookies)
+                    print(f"[CRITICAL_DEBUG] [{thread_id}] Got {len(cookies_dict)} cookies as dict", flush=True)
+                    for name, value in cookies_dict.items():
+                        session.cookies.set(name, value)
+                    print(f"[CRITICAL_DEBUG] [{thread_id}] ✅ Cookies copied!", flush=True)
+                except Exception as e:
+                    print(f"[WARNING] [{thread_id}] Failed to copy cookies: {e}", flush=True)
             
             # Копируем headers из source session
             if source_session and hasattr(source_session, 'headers'):
-                session.headers.update(source_session.headers)
+                print(f"[CRITICAL_DEBUG] [{thread_id}] Copying headers...", flush=True)
+                try:
+                    headers_dict = dict(source_session.headers)
+                    session.headers.update(headers_dict)
+                    print(f"[CRITICAL_DEBUG] [{thread_id}] ✅ Headers copied!", flush=True)
+                except Exception as e:
+                    print(f"[WARNING] [{thread_id}] Failed to copy headers: {e}", flush=True)
             
             # Добавляем стандартные headers для изображений
             session.headers.update({
