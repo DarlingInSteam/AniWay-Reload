@@ -622,9 +622,9 @@ class Parser(MangaParser):
         # MangaLib изменил структуру: теперь slug'и из API имеют формат "ID--slug"
         # Проверяем, содержит ли slug ID (формат: "7580--i-alone-level-up")
         
-        # Сохраняем ОРИГИНАЛЬНЫЙ slug для имени файла (может содержать ID--slug)
-        original_slug_with_id = self._Title.slug
-        clean_slug_for_api = self._Title.slug
+        # Сохраняем slug для обработки
+        slug_with_id = self._Title.slug
+        clean_slug = self._Title.slug
         extracted_id = None
         
         if "--" in self._Title.slug:
@@ -632,14 +632,16 @@ class Parser(MangaParser):
             parts = self._Title.slug.split("--", 1)
             if len(parts) == 2 and parts[0].isdigit():
                 extracted_id = int(parts[0])
-                clean_slug_for_api = parts[1]
-                print(f"[DEBUG] 📌 Extracted from slug_url: ID={extracted_id}, slug={clean_slug_for_api}")
+                clean_slug = parts[1]
+                print(f"[DEBUG] Extracted: ID={extracted_id}, slug={clean_slug}")
         
-        # Используем чистый slug для API запросов
-        self.__TitleSlug = clean_slug_for_api
+        # API требует полный slug (ID--slug)
+        self.__TitleSlug = slug_with_id
+        # Файл сохраняется без ID
+        self._Title.set_slug(clean_slug)
 
-        print(f"[DEBUG] 📛 Using TitleSlug for API: {self.__TitleSlug}")
-        print(f"[DEBUG] � Original slug for filename: {original_slug_with_id}")
+        print(f"[DEBUG] TitleSlug (API): {self.__TitleSlug}")
+        print(f"[DEBUG] Title.slug (file): {self._Title.slug}")
 
         Data = self.__GetTitleData()
         
@@ -651,21 +653,18 @@ class Parser(MangaParser):
 
         if Data:
             self._Title.set_site(self.__CheckCorrectDomain(Data))
-            self._Title.set_id(Data["id"])
-            # ВАЖНО: НЕ перезаписываем slug! Оставляем оригинальный с ID для имени файла
-            # self._Title.set_slug(Data["slug"])  # <-- ЗАКОММЕНТИРОВАНО
-            # Если ID не был извлечён из slug_url, устанавливаем из API
-            if extracted_id is None:
-                self._Title.set_id(Data["id"])
-            else:
-                # Проверяем совпадение ID
-                if extracted_id != Data["id"]:
-                    print(f"[WARNING] ⚠️  ID mismatch: extracted={extracted_id}, API={Data['id']}")
-                    self._Title.set_id(Data["id"])  # Доверяем API
             
-            # Slug НЕ перезаписываем - оставляем оригинальный с ID для правильного имени файла
-            print(f"[DEBUG] 💾 Final slug (for filename): {self._Title.slug}")
-            print(f"[DEBUG] 🆔 Final ID: {self._Title.id}")
+            # ID устанавливаем из извлечённого или из API
+            if extracted_id is not None:
+                self._Title.set_id(extracted_id)
+                if extracted_id != Data["id"]:
+                    print(f"[WARNING] ID mismatch: extracted={extracted_id}, API={Data['id']} (using extracted)")
+            else:
+                self._Title.set_id(Data["id"])
+            
+            # Slug УЖЕ установлен выше (чистый, без ID)
+            print(f"[DEBUG] Final slug (file): {self._Title.slug}")
+            print(f"[DEBUG] Final ID: {self._Title.id}")
             
             self._Title.set_content_language("rus")
             self._Title.set_localized_name(Data["rus_name"])
