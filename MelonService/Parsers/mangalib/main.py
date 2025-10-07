@@ -164,11 +164,7 @@ class Parser(MangaParser):
         """
         import os
         from pathlib import Path
-        import threading
         import requests
-        
-        thread_id = threading.current_thread().name
-        print(f"[CRITICAL_DEBUG] [{thread_id}] ⭐ WRAPPER CALLED for {url[:80]}...", flush=True)
         
         directory = self._SystemObjects.temper.parser_temp
         
@@ -178,64 +174,43 @@ class Parser(MangaParser):
         filename = parsed_url.stem
         image_path = f"{directory}/{filename}{filetype}"
         
-        print(f"[CRITICAL_DEBUG] [{thread_id}] Checking cache: {image_path}", flush=True)
-        
         # Если файл уже существует и не FORCE_MODE, возвращаем имя
         if os.path.exists(image_path) and not self._SystemObjects.FORCE_MODE:
-            print(f"[CRITICAL_DEBUG] [{thread_id}] ✅ Cache HIT", flush=True)
             return filename + filetype
         
-        print(f"[CRITICAL_DEBUG] [{thread_id}] 📥 Cache MISS, starting download...", flush=True)
-        
         try:
-            print(f"[CRITICAL_DEBUG] [{thread_id}] Getting requestor...", flush=True)
             # Получаем основной WebRequestor
             requestor = self._ImagesDownloader._ImagesDownloader__Requestor
-            print(f"[CRITICAL_DEBUG] [{thread_id}] Got requestor: {type(requestor)}", flush=True)
             
             # Создаем НЕЗАВИСИМУЮ сессию requests для этого потока
-            print(f"[CRITICAL_DEBUG] [{thread_id}] Creating requests.Session()...", flush=True)
             session = requests.Session()
-            print(f"[CRITICAL_DEBUG] [{thread_id}] Session created!", flush=True)
             
-            print(f"[CRITICAL_DEBUG] [{thread_id}] Looking for source session...", flush=True)
             # Копируем cookies из WebRequestor Session (thread-safe read)
-            # Проверяем разные возможные атрибуты WebRequestor
             source_session = None
             if hasattr(requestor, '_WebRequestor__Session'):
                 source_session = requestor._WebRequestor__Session
-                print(f"[CRITICAL_DEBUG] [{thread_id}] Found _WebRequestor__Session", flush=True)
             elif hasattr(requestor, 'session'):
                 source_session = requestor.session
-                print(f"[CRITICAL_DEBUG] [{thread_id}] Found session", flush=True)
             elif hasattr(requestor, '_session'):
                 source_session = requestor._session
-                print(f"[CRITICAL_DEBUG] [{thread_id}] Found _session", flush=True)
             
             if source_session and hasattr(source_session, 'cookies'):
-                print(f"[CRITICAL_DEBUG] [{thread_id}] Copying cookies... (getting dict first)", flush=True)
-                # КРИТИЧНО: НЕ используем update() напрямую - это вызывает deadlock!
-                # Сначала получаем dict, потом обновляем
                 try:
+                    # КРИТИЧНО: НЕ используем update() напрямую - это вызывает deadlock!
                     cookies_dict = dict(source_session.cookies)
-                    print(f"[CRITICAL_DEBUG] [{thread_id}] Got {len(cookies_dict)} cookies as dict", flush=True)
                     for name, value in cookies_dict.items():
                         session.cookies.set(name, value)
-                    print(f"[CRITICAL_DEBUG] [{thread_id}] ✅ Cookies copied!", flush=True)
-                except Exception as e:
-                    print(f"[WARNING] [{thread_id}] Failed to copy cookies: {e}", flush=True)
+                except Exception:
+                    pass
             
             # Копируем headers из source session
             if source_session and hasattr(source_session, 'headers'):
-                print(f"[CRITICAL_DEBUG] [{thread_id}] Copying headers...", flush=True)
                 try:
                     headers_dict = dict(source_session.headers)
                     session.headers.update(headers_dict)
-                    print(f"[CRITICAL_DEBUG] [{thread_id}] ✅ Headers copied!", flush=True)
-                except Exception as e:
-                    print(f"[WARNING] [{thread_id}] Failed to copy headers: {e}", flush=True)
+                except Exception:
+                    pass
             
-            print(f"[CRITICAL_DEBUG] [{thread_id}] Adding standard image headers...", flush=True)
             # Добавляем стандартные headers для изображений
             session.headers.update({
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -243,33 +218,33 @@ class Parser(MangaParser):
                 'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
                 'Referer': 'https://mangalib.me/',
             })
-            print(f"[CRITICAL_DEBUG] [{thread_id}] ✅ Headers updated!", flush=True)
             
             # Получаем прокси (опционально)
-            print(f"[CRITICAL_DEBUG] [{thread_id}] Getting proxy from ProxyRotator...", flush=True)
             proxies = None
             if hasattr(self, '_ProxyRotator') and self._ProxyRotator:
                 proxy = self._ProxyRotator.get_next_proxy()
-                print(f"[CRITICAL_DEBUG] [{thread_id}] Got proxy: {proxy}", flush=True)
                 if proxy and isinstance(proxy, dict):
                     proxies = proxy
-            else:
-                print(f"[CRITICAL_DEBUG] [{thread_id}] No ProxyRotator, using direct connection", flush=True)
             
             # ПАРАЛЛЕЛЬНЫЙ HTTP запрос через независимую сессию!
-            print(f"[CRITICAL_DEBUG] [{thread_id}] 🌐 Starting HTTP GET request...", flush=True)
-            response = session.get(url, timeout=30, proxies=proxies)
-            print(f"[CRITICAL_DEBUG] [{thread_id}] ✅ Got response: {response.status_code}, size: {len(response.content)}", flush=True)
+            # stream=True для защиты от IncompleteRead на больших файлах
+            response = session.get(url, timeout=30, proxies=proxies, stream=True)
             
-            if response.status_code == 200 and len(response.content) > 1000:
-                with open(image_path, "wb") as f:
-                    f.write(response.content)
-                return filename + filetype
+            if response.status_code == 200:
+                # Читаем контент по частям, защита от IncompleteRead
+                content = b""
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        content += chunk
+                
+                if len(content) > 1000:
+                    with open(image_path, "wb") as f:
+                        f.write(content)
+                    return filename + filetype
             
         except Exception as e:
-            print(f"[WARNING] [{thread_id}] Failed to download {url}: {e}", flush=True)
-            import traceback
-            traceback.print_exc()
+            # Тихо пропускаем ошибки, retry механизм обработает
+            pass
         finally:
             # Закрываем сессию
             if 'session' in locals():
