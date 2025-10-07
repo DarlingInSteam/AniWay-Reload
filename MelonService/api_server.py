@@ -28,6 +28,63 @@ def strip_ansi_codes(text: str) -> str:
     """Удаляет ANSI escape коды из текста"""
     return ANSI_ESCAPE_PATTERN.sub('', text)
 
+# =========================================================================================
+# ПРОКСИ КОНФИГУРАЦИЯ (читаем из settings.json парсера mangalib)
+# =========================================================================================
+def load_proxy_settings(parser: str = "mangalib") -> Optional[Dict[str, str]]:
+    """
+    Загружает настройки прокси из settings.json парсера.
+    Возвращает dict с прокси для requests или None.
+    """
+    try:
+        settings_path = Path(__file__).parent / "Parsers" / parser / "settings.json"
+        if not settings_path.exists():
+            logger.warning(f"Settings file not found: {settings_path}")
+            return None
+        
+        with open(settings_path, 'r', encoding='utf-8') as f:
+            settings = json.load(f)
+        
+        proxy_config = settings.get("proxy", {})
+        
+        if not proxy_config.get("enable", False):
+            logger.info(f"Proxy disabled in {parser} settings.json")
+            return None
+        
+        host = proxy_config.get("host", "")
+        port = proxy_config.get("port", "")
+        login = proxy_config.get("login", "")
+        password = proxy_config.get("password", "")
+        
+        if not host or not port:
+            logger.warning(f"Proxy enabled but host/port not set in {parser} settings.json")
+            return None
+        
+        # Формируем URL прокси
+        if login and password:
+            proxy_url = f"http://{login}:{password}@{host}:{port}"
+        else:
+            proxy_url = f"http://{host}:{port}"
+        
+        logger.info(f"Proxy loaded from {parser} settings: {host}:{port}")
+        
+        return {
+            'http': proxy_url,
+            'https': proxy_url
+        }
+        
+    except Exception as e:
+        logger.error(f"Error loading proxy settings: {e}")
+        return None
+
+# Загружаем прокси при старте
+PROXY_SETTINGS = load_proxy_settings("mangalib")
+if PROXY_SETTINGS:
+    logger.info(f"✅ Proxy configured and ready to use")
+else:
+    logger.info("ℹ️  No proxy configured (requests will go directly)")
+# =========================================================================================
+
 app = FastAPI()
 
 # CORS middleware
@@ -925,7 +982,7 @@ async def get_catalog(page: int, parser: str = "mangalib", limit: int = 60):
         }
         
         # Запрос без params, всё в URL
-        response = requests.get(api_url, headers=headers, timeout=30)
+        response = requests.get(api_url, headers=headers, proxies=PROXY_SETTINGS, timeout=30)
         
         # Логируем запрос для отладки
         logger.debug(f"Request URL: {response.url}")
@@ -1008,7 +1065,7 @@ async def get_chapters_metadata_only_endpoint(slug: str, parser: str = "mangalib
             "Sec-Ch-Ua-Platform": '"Windows"'
         }
         
-        response = requests.get(api_url, headers=headers, timeout=30)
+        response = requests.get(api_url, headers=headers, proxies=PROXY_SETTINGS, timeout=30)
         
         if response.status_code == 200:
             data = response.json().get("data", [])
