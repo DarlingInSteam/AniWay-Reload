@@ -889,13 +889,35 @@ class BaseTitle:
 		if total_images > 0:
 			ImagesDownloader.set_total_images(total_images)
 		
-		# Скачиваем изображения для каждой главы
-		for branch in self._Branches:
-			for chapter in branch.chapters:
-				if self.format == "melon-manga" and hasattr(chapter, 'slides') and chapter.slides:
-					for slide in chapter.slides:
-						if 'link' in slide:
-							self._Parser.image(slide['link'])
+		# НОВОЕ: Проверяем есть ли у парсера batch_download_images (параллельная загрузка)
+		if hasattr(self._Parser, 'batch_download_images'):
+			print(f"[INFO] 🚀 Using parallel batch download for {total_images} images...")
+			
+			# Собираем ВСЕ URLs из всех глав для параллельной загрузки
+			all_urls = []
+			for branch in self._Branches:
+				for chapter in branch.chapters:
+					if self.format == "melon-manga" and hasattr(chapter, 'slides') and chapter.slides:
+						for slide in chapter.slides:
+							if 'link' in slide:
+								all_urls.append(slide['link'])
+			
+			# Параллельная загрузка ВСЕХ изображений сразу! 🚀
+			if all_urls:
+				self._Parser.batch_download_images(all_urls)
+				print(f"[INFO] ✅ Parallel batch download completed: {len(all_urls)} images")
+		
+		else:
+			# FALLBACK: Старый последовательный метод
+			print(f"[INFO] ⚠️  batch_download_images not available, using sequential download...")
+			
+			# Скачиваем изображения для каждой главы последовательно
+			for branch in self._Branches:
+				for chapter in branch.chapters:
+					if self.format == "melon-manga" and hasattr(chapter, 'slides') and chapter.slides:
+						for slide in chapter.slides:
+							if 'link' in slide:
+								self._Parser.image(slide['link'])
 
 	def open(self, identificator: int | str, selector_type: By = By.Filename):
 		"""
