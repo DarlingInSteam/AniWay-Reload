@@ -593,6 +593,9 @@ class Parser(MangaParser):
             url – ссылка на изображение.
         """
 
+        # Используем отдельный delay для изображений (меньше чем для API)
+        image_delay = getattr(self._Settings.common, 'image_delay', 0.1)
+
         Result = self._ImagesDownloader.temp_image(url)
         
         if not Result:
@@ -601,14 +604,14 @@ class Parser(MangaParser):
             if self.__IsSlideLink(url, Servers):
                 OriginalServer, ImageURI = self.__ParseSlideLink(url, Servers)
                 Servers.remove(OriginalServer)
-                sleep(self._Settings.common.delay)
+                sleep(image_delay)
 
                 for Server in Servers:
                     Link = Server + ImageURI
                     Result = self._ImagesDownloader.temp_image(Link)
                     
                     if Result: break
-                    elif Server != Servers[-1]: sleep(self._Settings.common.delay)
+                    elif Server != Servers[-1]: sleep(image_delay)
 
         return Result
 
