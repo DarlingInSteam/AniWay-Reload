@@ -157,31 +157,42 @@ class Parser(MangaParser):
         return WebRequestorObject
     
     def _download_image_wrapper(self, url: str) -> str | None:
-        """Обертка для temp_image, возвращающая имя файла вместо ExecutionStatus.
+        """Thread-safe обертка для загрузки изображения БЕЗ использования глобального счетчика.
         
         :param url: URL изображения
         :return: Имя файла если успешно, None если ошибка
         """
-        result = self._ImagesDownloader.temp_image(url)
+        import os
+        from pathlib import Path
         
-        # DEBUG: Посмотрим что возвращает temp_image
-        print(f"[DEBUG] temp_image returned: type={type(result)}, value={result}", flush=True)
-        if hasattr(result, '__dict__'):
-            print(f"[DEBUG] result attributes: {result.__dict__}", flush=True)
+        # Используем ПРЯМОЙ запрос вместо temp_image, чтобы избежать race condition
+        # в глобальном счетчике ImagesDownloader.__download_counter
         
-        # ExecutionStatus имеет атрибут code: 0 = успех, иначе ошибка
-        # И атрибут note с именем файла при успехе
-        if hasattr(result, 'code'):
-            print(f"[DEBUG] result.code = {result.code}", flush=True)
-            if result.code == 0:
-                if hasattr(result, 'note'):
-                    print(f"[DEBUG] result.note = {result.note}", flush=True)
-                    return result.note
-                # Если note нет, но code=0, считаем успехом
-                print(f"[DEBUG] code=0 but no note, returning 'success'", flush=True)
-                return "success"
+        directory = self._SystemObjects.temper.parser_temp
         
-        print(f"[DEBUG] temp_image wrapper returning None", flush=True)
+        # Определяем имя файла из URL
+        parsed_url = Path(url)
+        filetype = parsed_url.suffix
+        filename = parsed_url.stem
+        image_path = f"{directory}/{filename}{filetype}"
+        
+        # Если файл уже существует и не FORCE_MODE, возвращаем имя
+        if os.path.exists(image_path) and not self._SystemObjects.FORCE_MODE:
+            return filename + filetype
+        
+        # Скачиваем изображение
+        try:
+            response = self._WebRequestor.get(url)
+            
+            if response.status_code == 200 and len(response.content) > 1000:
+                with open(image_path, "wb") as f:
+                    f.write(response.content)
+                return filename + filetype
+            
+        except Exception as e:
+            # Логируем ошибку но не падаем
+            print(f"[WARNING] Failed to download {url}: {e}", flush=True)
+        
         return None
     
     def _PostInitMethod(self):
