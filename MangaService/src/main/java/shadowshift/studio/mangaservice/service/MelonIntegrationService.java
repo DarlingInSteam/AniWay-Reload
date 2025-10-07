@@ -227,8 +227,10 @@ public class MelonIntegrationService {
                     String importTaskId = importTaskService.createTask(fullTaskId).getTaskId();
                     logger.info("Создана задача импорта: importTaskId={} для fullTaskId={}", importTaskId, fullTaskId);
                     
-                    // Импортируем мангу в БД (синхронно, чтобы дождаться завершения)
-                    importMangaWithProgressAsync(importTaskId, slug, null).get();
+                    // КРИТИЧНО: Импортируем мангу используя normalizedSlug (без ID), не оригинальный slug!
+                    // MelonService сохраняет файлы БЕЗ ID (например: "made-of-stardust.json")
+                    // Поэтому getMangaInfo() должен искать нормализованный файл
+                    importMangaWithProgressAsync(importTaskId, normalizedSlug, null).get();
                     logger.info("Импорт завершен для slug={}, очищаем данные из MelonService", slug);
                     
                     // После успешного импорта - удаляем из MelonService

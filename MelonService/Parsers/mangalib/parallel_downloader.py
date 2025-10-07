@@ -135,7 +135,9 @@ class AdaptiveParallelDownloader:
                         current = self._downloaded
                         total = self._total
                     
-                    if current % 10 == 0 or current == total:
+                    # Показываем прогресс: каждые 10 изображений ИЛИ каждые 25% для маленьких батчей
+                    progress_step = max(1, min(10, total // 4))  # Минимум каждое изображение, максимум каждые 10
+                    if current % progress_step == 0 or current == total:
                         logger.info(
                             f"📥 Downloaded {current}/{total} images "
                             f"({current/total*100:.1f}%)"
