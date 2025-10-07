@@ -1004,8 +1004,9 @@ async def get_catalog(page: int, parser: str = "mangalib", limit: int = 60):
         # Формируем список slug'ов
         slugs = []
         for manga in manga_list[:limit]:  # Ограничиваем до limit элементов
-            # Разные варианты полей со slug
-            slug = manga.get("slug", manga.get("slug_url", manga.get("eng_name", "")))
+            # MangaLib изменил структуру URL: теперь используется slug_url (формат: ID--slug)
+            # Приоритет: slug_url > slug > eng_name
+            slug = manga.get("slug_url", manga.get("slug", manga.get("eng_name", "")))
             if slug:
                 slugs.append(slug)
         

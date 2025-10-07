@@ -555,6 +555,16 @@ class Parser(MangaParser):
         
         self._Requestor.config.add_header("Site-Id", str(self.__Sites[self._Manifest.site]))
 
+        # MangaLib изменил структуру: теперь slug'и из API имеют формат "ID--slug"
+        # Проверяем, содержит ли slug ID (формат: "7580--i-alone-level-up")
+        if "--" in self._Title.slug and not self._Title.id:
+            # Извлекаем ID и slug из формата "ID--slug"
+            parts = self._Title.slug.split("--", 1)
+            if len(parts) == 2 and parts[0].isdigit():
+                self._Title.set_id(int(parts[0]))
+                self._Title.set_slug(parts[1])
+                print(f"[DEBUG] 📌 Extracted from slug_url: ID={self._Title.id}, slug={self._Title.slug}")
+        
         if self._Title.id and self._Title.slug: 
             self.__TitleSlug = f"{self._Title.id}--{self._Title.slug}"
         else: 
