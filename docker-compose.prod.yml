@@ -51,20 +51,21 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://auth-postgres:5432/authdb
       - SPRING_DATASOURCE_USERNAME=authuser
       - SPRING_DATASOURCE_PASSWORD=authpass123
-      # --- Email verification / SMTP (set real secrets via .env or CI vars) ---
-      - MAIL_HOST=${MAIL_HOST:-smtp.gmail.com}
-      - MAIL_PORT=${MAIL_PORT:-587}
-      - MAIL_USERNAME=${MAIL_USERNAME:-artempronko241@gmail.com}
-      - MAIL_PASSWORD=${MAIL_PASSWORD:-CHANGE_ME_APP_PASSWORD}
-      - MAIL_AUTH=${MAIL_AUTH:-true}
-      - MAIL_STARTTLS=${MAIL_STARTTLS:-true}
-      - MAIL_STARTTLS_REQUIRED=${MAIL_STARTTLS_REQUIRED:-true}
-      - MAIL_SSL_TRUST=${MAIL_SSL_TRUST:-smtp.gmail.com}
-      - MAIL_CONNECTION_TIMEOUT=${MAIL_CONNECTION_TIMEOUT:-5000}
-      - MAIL_TIMEOUT=${MAIL_TIMEOUT:-5000}
-      - MAIL_WRITE_TIMEOUT=${MAIL_WRITE_TIMEOUT:-5000}
-      - EMAIL_VERIFICATION_ENABLED=${EMAIL_VERIFICATION_ENABLED:-true}
-      - EMAIL_VERIFICATION_FROM=${EMAIL_VERIFICATION_FROM:-artempronko241@gmail.com}
+      # --- Resend SMTP Configuration ---
+      - MAIL_HOST=smtp.resend.com
+      - MAIL_PORT=587
+      - MAIL_USERNAME=resend
+      - MAIL_PASSWORD=re_WKeXb53h_3S5tUGdRH6YEWDHS7FVoaLDx
+      - MAIL_AUTH=true
+      - MAIL_STARTTLS=true
+      - MAIL_STARTTLS_REQUIRED=true
+      - MAIL_SSL_TRUST=smtp.resend.com
+      - MAIL_CONNECTION_TIMEOUT=5000
+      - MAIL_TIMEOUT=5000
+      - MAIL_WRITE_TIMEOUT=5000
+      - MAIL_DEBUG=false
+      - EMAIL_VERIFICATION_ENABLED=true
+      - EMAIL_VERIFICATION_FROM=noreply@aniway.space
     restart: unless-stopped
     depends_on:
       - auth-postgres
