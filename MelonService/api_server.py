@@ -901,16 +901,32 @@ async def get_manga_info(filename: str):
     """Получение информации о манге"""
     try:
         output_path = get_melon_base_path() / "Output"
+        logger.info(f"🔍 Поиск manga-info для filename='{filename}'")
+        logger.info(f"📂 Output path: {output_path}")
         
         for parser_dir in output_path.iterdir():
             if parser_dir.is_dir():
                 json_file = parser_dir / "titles" / f"{filename}.json"
+                logger.info(f"🔎 Проверяем файл: {json_file} (exists={json_file.exists()})")
+                
                 if json_file.exists():
+                    logger.info(f"✅ Файл найден: {json_file}")
                     with open(json_file, 'r', encoding='utf-8') as f:
                         return json.load(f)
         
-        raise HTTPException(status_code=404, detail=f"Манга '{filename}' не найдена")
+        # Логируем все доступные файлы для диагностики
+        all_files = []
+        for parser_dir in output_path.iterdir():
+            if parser_dir.is_dir():
+                titles_dir = parser_dir / "titles"
+                if titles_dir.exists():
+                    all_files.extend([f.stem for f in titles_dir.glob("*.json")])
+        
+        logger.error(f"❌ Файл '{filename}.json' не найден. Доступные файлы: {all_files}")
+        raise HTTPException(status_code=404, detail=f"Манга '{filename}' не найдена. Доступные: {all_files}")
     
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting manga info for {filename}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

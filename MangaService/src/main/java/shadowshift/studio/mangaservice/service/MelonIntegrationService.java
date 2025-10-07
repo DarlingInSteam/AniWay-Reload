@@ -177,6 +177,12 @@ public class MelonIntegrationService {
 
     // Публичный метод для запуска логики полного парсинга (вызывается из FullParsingTaskRunner)
     public void runFullParsingTaskLogic(String fullTaskId, String parseTaskId, String slug) {
+        // ВАЖНО: Нормализуем slug в самом начале (убираем ID)
+        // MelonService сохраняет файлы БЕЗ ID: "sweet-home-kim-carnby-.json"
+        // Но slug из каталога приходит с ID: "3754--sweet-home-kim-carnby-"
+        String normalizedSlug = normalizeSlugForMangaLib(slug);
+        logger.info("🔧 Нормализация slug: original='{}', normalized='{}'", slug, normalizedSlug);
+        
         try {
             updateFullParsingTask(fullTaskId, "running", 5, "Ожидание завершения парсинга JSON...", null);
             Map<String, Object> finalStatus = waitForTaskCompletion(parseTaskId);
@@ -185,8 +191,9 @@ public class MelonIntegrationService {
                     "Парсинг завершился неуспешно: " + finalStatus.get("message"), finalStatus);
                 return;
             }
+            
             updateFullParsingTask(fullTaskId, "running", 50, "Парсинг JSON завершен, запускаем скачивание изображений...", null);
-            Map<String, Object> buildResult = buildManga(slug, null);
+            Map<String, Object> buildResult = buildManga(normalizedSlug, null);
             if (buildResult == null || !buildResult.containsKey("task_id")) {
                 updateFullParsingTask(fullTaskId, "failed", 100,
                     "Не удалось запустить скачивание изображений", buildResult);
@@ -210,11 +217,8 @@ public class MelonIntegrationService {
                 logger.info("Билд завершен для slug={}, запускаем импорт", slug);
                 
                 try {
-                    // ВАЖНО: MelonService сохраняет JSON файлы БЕЗ ID (чистый slug)
-                    // Но slug из каталога приходит в формате ID--slug (например "3754--sweet-home-kim-carnby-")
-                    // Поэтому нормализуем slug перед запросом getMangaInfo
-                    String normalizedSlug = normalizeSlugForMangaLib(slug);
-                    logger.info("Запрос manga-info: slug='{}', normalized='{}'", slug, normalizedSlug);
+                    // Используем ранее нормализованный slug (объявлен в начале метода)
+                    logger.info("📥 Запрос manga-info для normalized slug='{}'", normalizedSlug);
                     
                     // Получаем mangaInfo ДО удаления манги из MelonService
                     Map<String, Object> mangaInfo = getMangaInfo(normalizedSlug);
