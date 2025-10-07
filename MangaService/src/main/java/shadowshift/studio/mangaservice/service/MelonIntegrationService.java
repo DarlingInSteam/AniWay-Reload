@@ -297,8 +297,35 @@ public class MelonIntegrationService {
      */
     public Map<String, Object> getTaskStatus(String taskId) {
         String url = melonServiceUrl + "/status/" + taskId;
-        ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
-        return response.getBody();
+        
+        try {
+            ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+            Map<String, Object> body = response.getBody();
+            
+            if (body != null) {
+                return body;
+            } else {
+                logger.warn("Пустой ответ при запросе статуса задачи: {}", taskId);
+                return Map.of(
+                    "status", "unknown",
+                    "message", "Пустой ответ от MelonService"
+                );
+            }
+            
+        } catch (org.springframework.web.client.HttpClientErrorException.NotFound e) {
+            logger.warn("Задача не найдена в MelonService: {} (возможно, еще не создана или уже удалена)", taskId);
+            return Map.of(
+                "status", "not_found",
+                "message", "Задача не найдена в MelonService"
+            );
+            
+        } catch (Exception e) {
+            logger.error("Ошибка получения статуса задачи {}: {}", taskId, e.getMessage());
+            return Map.of(
+                "status", "error",
+                "message", "Ошибка получения статуса: " + e.getMessage()
+            );
+        }
     }
 
     /**
@@ -341,12 +368,58 @@ public class MelonIntegrationService {
     }
 
     /**
-     * Получает информацию о спаршенной манге
+     * Получает информацию о спаршенной манге с retry логикой.
+     * Пытается получить JSON данные несколько раз с задержкой,
+     * т.к. при массовом парсинге MelonService может не успевать создавать файлы.
      */
     public Map<String, Object> getMangaInfo(String filename) {
         String url = melonServiceUrl + "/manga-info/" + filename;
-        ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
-        return response.getBody();
+        
+        int maxRetries = 5;
+        int retryDelayMs = 3000; // 3 секунды между попытками
+        
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                logger.info("Получение manga-info для '{}' (попытка {}/{})", filename, attempt, maxRetries);
+                ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+                Map<String, Object> body = response.getBody();
+                
+                if (body != null) {
+                    logger.info("Успешно получен manga-info для '{}'", filename);
+                    return body;
+                } else {
+                    logger.warn("Пустой ответ при получении manga-info для '{}', попытка {}/{}", 
+                        filename, attempt, maxRetries);
+                }
+                
+            } catch (org.springframework.web.client.HttpClientErrorException.NotFound e) {
+                logger.warn("JSON файл не найден для '{}' (попытка {}/{}): {}. " +
+                    "Возможно, MelonService еще не завершил создание файла. Повторная попытка через {}ms...",
+                    filename, attempt, maxRetries, e.getMessage(), retryDelayMs);
+                    
+            } catch (Exception e) {
+                logger.error("Ошибка получения manga-info для '{}' (попытка {}/{}): {}", 
+                    filename, attempt, maxRetries, e.getMessage());
+            }
+            
+            // Если не последняя попытка - ждем перед retry
+            if (attempt < maxRetries) {
+                try {
+                    Thread.sleep(retryDelayMs);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    logger.error("Прервано ожидание retry для '{}'", filename);
+                    break;
+                }
+            }
+        }
+        
+        // Если все попытки исчерпаны - возвращаем пустой результат
+        logger.error("Не удалось получить manga-info для '{}' после {} попыток", filename, maxRetries);
+        return Map.of(
+            "error", "Не удалось получить manga-info после " + maxRetries + " попыток",
+            "filename", filename
+        );
     }
 
     /**
