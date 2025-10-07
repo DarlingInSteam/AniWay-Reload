@@ -210,8 +210,14 @@ public class MelonIntegrationService {
                 logger.info("Билд завершен для slug={}, запускаем импорт", slug);
                 
                 try {
+                    // ВАЖНО: MelonService сохраняет JSON файлы БЕЗ ID (чистый slug)
+                    // Но slug из каталога приходит в формате ID--slug (например "3754--sweet-home-kim-carnby-")
+                    // Поэтому нормализуем slug перед запросом getMangaInfo
+                    String normalizedSlug = normalizeSlugForMangaLib(slug);
+                    logger.info("Запрос manga-info: slug='{}', normalized='{}'", slug, normalizedSlug);
+                    
                     // Получаем mangaInfo ДО удаления манги из MelonService
-                    Map<String, Object> mangaInfo = getMangaInfo(slug);
+                    Map<String, Object> mangaInfo = getMangaInfo(normalizedSlug);
                     
                     // Создаем задачу импорта
                     String importTaskId = importTaskService.createTask(fullTaskId).getTaskId();
@@ -222,12 +228,14 @@ public class MelonIntegrationService {
                     logger.info("Импорт завершен для slug={}, очищаем данные из MelonService", slug);
                     
                     // После успешного импорта - удаляем из MelonService
+                    // ВАЖНО: используем нормализованный slug (без ID)
                     updateFullParsingTask(fullTaskId, "running", 95, "Импорт завершен, очистка данных из MelonService...", null);
-                    Map<String, Object> deleteResult = deleteManga(slug);
+                    Map<String, Object> deleteResult = deleteManga(normalizedSlug);
                     if (deleteResult != null && Boolean.TRUE.equals(deleteResult.get("success"))) {
-                        logger.info("Данные успешно удалены из MelonService для slug={}", slug);
+                        logger.info("Данные успешно удалены из MelonService для slug={} (normalized={})", slug, normalizedSlug);
                     } else {
-                        logger.warn("Не удалось удалить данные из MelonService для slug={}: {}", slug, deleteResult);
+                        logger.warn("Не удалось удалить данные из MelonService для slug={} (normalized={}): {}", 
+                            slug, normalizedSlug, deleteResult);
                     }
                     
                     // Формируем результат (mangaInfo уже получен ранее)

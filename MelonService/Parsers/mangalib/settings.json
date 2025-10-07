@@ -28,6 +28,18 @@
 				"port": 8000,
 				"login": "PS20z2",
 				"password": "fFNHVg"
+			},
+			{
+				"host": "45.10.82.163",
+				"port": 8000,
+				"login": "aMLawA",
+				"password": "PUShSd"
+			},
+			{
+				"host": "45.10.82.201",
+				"port": 8000,
+				"login": "aMLawA",
+				"password": "PUShSd"
 			}
 		]
 	},
