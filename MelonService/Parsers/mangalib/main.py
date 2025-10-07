@@ -181,8 +181,10 @@ class Parser(MangaParser):
             return filename + filetype
         
         # Скачиваем изображение
+        # Используем requestor из ImagesDownloader (name mangling: __Requestor -> _ImagesDownloader__Requestor)
         try:
-            response = self._WebRequestor.get(url)
+            requestor = self._ImagesDownloader._ImagesDownloader__Requestor
+            response = requestor.get(url)
             
             if response.status_code == 200 and len(response.content) > 1000:
                 with open(image_path, "wb") as f:
