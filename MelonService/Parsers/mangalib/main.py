@@ -168,6 +168,7 @@ class Parser(MangaParser):
         import requests
         
         thread_id = threading.current_thread().name
+        print(f"[CRITICAL_DEBUG] [{thread_id}] ⭐ WRAPPER CALLED for {url[:80]}...", flush=True)
         
         directory = self._SystemObjects.temper.parser_temp
         
@@ -177,16 +178,25 @@ class Parser(MangaParser):
         filename = parsed_url.stem
         image_path = f"{directory}/{filename}{filetype}"
         
+        print(f"[CRITICAL_DEBUG] [{thread_id}] Checking cache: {image_path}", flush=True)
+        
         # Если файл уже существует и не FORCE_MODE, возвращаем имя
         if os.path.exists(image_path) and not self._SystemObjects.FORCE_MODE:
+            print(f"[CRITICAL_DEBUG] [{thread_id}] ✅ Cache HIT", flush=True)
             return filename + filetype
         
+        print(f"[CRITICAL_DEBUG] [{thread_id}] 📥 Cache MISS, starting download...", flush=True)
+        
         try:
+            print(f"[CRITICAL_DEBUG] [{thread_id}] Getting requestor...", flush=True)
             # Получаем основной WebRequestor
             requestor = self._ImagesDownloader._ImagesDownloader__Requestor
+            print(f"[CRITICAL_DEBUG] [{thread_id}] Got requestor: {type(requestor)}", flush=True)
             
             # Создаем НЕЗАВИСИМУЮ сессию requests для этого потока
+            print(f"[CRITICAL_DEBUG] [{thread_id}] Creating requests.Session()...", flush=True)
             session = requests.Session()
+            print(f"[CRITICAL_DEBUG] [{thread_id}] Session created!", flush=True)
             
             # Копируем cookies из WebRequestor Session (thread-safe read)
             # Проверяем разные возможные атрибуты WebRequestor
