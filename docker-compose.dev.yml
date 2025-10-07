@@ -140,6 +140,10 @@ services:
       - melon_temp:/app/Temp
     environment:
       - PYTHONPATH=/app
+      # Прокси для обхода блокировки MangaLib API
+      - HTTP_PROXY=http://PS20z2:fFNHVg@168.80.1.136:8000
+      - HTTPS_PROXY=http://PS20z2:fFNHVg@168.80.1.136:8000
+      - NO_PROXY=localhost,127.0.0.1,manga-service,chapter-service,auth-service
     networks:
       - aniway-network
     restart: unless-stopped

@@ -60,34 +60,26 @@ class Parser(MangaParser):
         if self._Settings.custom["token"]: 
             WebRequestorObject.config.add_header("Authorization", self._Settings.custom["token"])
         
-        # ЯВНО добавляем прокси из settings.json (ФИКС для 403 ошибки)
-        # Используем доступ через словарь, т.к. ParserSettings не имеет атрибута proxy
-        try:
-            # Пытаемся получить настройки прокси через raw settings dict
-            proxy_settings = self._Settings._Raw.get("proxy", {})
+        # ФИКС: Добавляем прокси из переменных окружения (для обхода 403)
+        import os
+        http_proxy = os.getenv("HTTP_PROXY") or os.getenv("http_proxy")
+        https_proxy = os.getenv("HTTPS_PROXY") or os.getenv("https_proxy")
+        
+        if http_proxy or https_proxy:
+            proxies = {}
+            if http_proxy:
+                proxies['http'] = http_proxy
+            if https_proxy:
+                proxies['https'] = https_proxy
             
-            if proxy_settings.get("enable", False):
-                proxy_host = proxy_settings.get("host", "")
-                proxy_port = proxy_settings.get("port", "")
-                proxy_login = proxy_settings.get("login", "")
-                proxy_password = proxy_settings.get("password", "")
-                
-                if not proxy_host or not proxy_port:
-                    self._Logging.warning("⚠️  Proxy enabled but host/port not configured")
-                else:
-                    # Формируем прокси в формате для requests
-                    if proxy_login and proxy_password:
-                        proxy_url = f"http://{proxy_login}:{proxy_password}@{proxy_host}:{proxy_port}"
-                    else:
-                        proxy_url = f"http://{proxy_host}:{proxy_port}"
-                    
-                    # Добавляем прокси в WebRequestor
-                    WebRequestorObject.add_proxies({'http': proxy_url, 'https': proxy_url})
-                    
-                    # Логируем использование прокси
-                    self._Logging.info(f"✅ Proxy configured: {proxy_host}:{proxy_port}")
-        except Exception as e:
-            self._Logging.warning(f"⚠️  Failed to configure proxy: {e}")
+            # Добавляем прокси в WebRequestor
+            try:
+                WebRequestorObject.add_proxies(proxies)
+                print(f"[INFO] ✅ Proxy configured from environment: {http_proxy or https_proxy}")
+            except AttributeError:
+                # Если метод add_proxies не существует, пробуем напрямую
+                WebRequestorObject.proxies = proxies
+                print(f"[INFO] ✅ Proxy set directly: {http_proxy or https_proxy}")
 
         return WebRequestorObject
     
