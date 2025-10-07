@@ -156,6 +156,24 @@ class Parser(MangaParser):
 
         return WebRequestorObject
     
+    def _download_image_wrapper(self, url: str) -> str | None:
+        """Обертка для temp_image, возвращающая имя файла вместо ExecutionStatus.
+        
+        :param url: URL изображения
+        :return: Имя файла если успешно, None если ошибка
+        """
+        result = self._ImagesDownloader.temp_image(url)
+        
+        # ExecutionStatus имеет атрибут code: 0 = успех, иначе ошибка
+        # И атрибут note с именем файла при успехе
+        if hasattr(result, 'code') and result.code == 0:
+            if hasattr(result, 'note'):
+                return result.note
+            # Если note нет, но code=0, считаем успехом
+            return "success"
+        
+        return None
+    
     def _PostInitMethod(self):
         """Метод, выполняющийся после инициализации объекта."""
 
@@ -173,7 +191,7 @@ class Parser(MangaParser):
         image_delay = getattr(self._Settings.common, 'image_delay', 0.2)
         self._parallel_downloader = AdaptiveParallelDownloader(
             proxy_count=proxy_count,
-            download_func=self._ImagesDownloader.temp_image,
+            download_func=self._download_image_wrapper,
             max_workers_per_proxy=2,
             max_retries=3,
             base_delay=image_delay
