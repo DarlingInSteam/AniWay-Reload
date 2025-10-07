@@ -55,7 +55,29 @@ class Parser(MangaParser):
         """Инициализирует модуль WEB-запросов."""
 
         WebRequestorObject = super()._InitializeRequestor()
-        if self._Settings.custom["token"]: WebRequestorObject.config.add_header("Authorization", self._Settings.custom["token"])
+        
+        # Добавляем авторизационный токен если есть
+        if self._Settings.custom["token"]: 
+            WebRequestorObject.config.add_header("Authorization", self._Settings.custom["token"])
+        
+        # ЯВНО добавляем прокси из settings.json (ФИКС для 403 ошибки)
+        if self._Settings.proxy.enable:
+            proxy_host = self._Settings.proxy.host
+            proxy_port = self._Settings.proxy.port
+            proxy_login = getattr(self._Settings.proxy, 'login', None)
+            proxy_password = getattr(self._Settings.proxy, 'password', None)
+            
+            # Формируем прокси в формате для requests
+            if proxy_login and proxy_password:
+                proxy_url = f"http://{proxy_login}:{proxy_password}@{proxy_host}:{proxy_port}"
+            else:
+                proxy_url = f"http://{proxy_host}:{proxy_port}"
+            
+            # Добавляем прокси в WebRequestor
+            WebRequestorObject.add_proxies({'http': proxy_url, 'https': proxy_url})
+            
+            # Логируем использование прокси
+            self._Logging.info(f"✅ Proxy configured: {proxy_host}:{proxy_port}")
 
         return WebRequestorObject
     
