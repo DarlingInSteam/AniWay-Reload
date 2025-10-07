@@ -8,6 +8,9 @@ from dublib.WebRequestor import WebRequestor
 from datetime import datetime
 from time import sleep
 
+# Параллельный загрузчик изображений
+from .parallel_downloader import AdaptiveParallelDownloader
+
 class Parser(MangaParser):
     def amend(self, branch: Branch, chapter: Chapter):
         """
@@ -163,6 +166,18 @@ class Parser(MangaParser):
             "slashlib.me": 2,
             "hentailib.me": 4
         }
+        
+        # КРИТИЧЕСКИ ВАЖНО: Инициализация параллельного загрузчика в __init__, а не в parse()
+        # Потому что build может вызываться без parse (когда JSON уже существует)
+        proxy_count = self._get_proxy_count()
+        image_delay = getattr(self._Settings.common, 'image_delay', 0.2)
+        self._parallel_downloader = AdaptiveParallelDownloader(
+            proxy_count=proxy_count,
+            download_func=self._ImagesDownloader.temp_image,
+            max_workers_per_proxy=2,
+            max_retries=3,
+            base_delay=image_delay
+        )
 
     def __IsSlideLink(self, link: str, servers: list[str]) -> bool:
         """
@@ -621,6 +636,87 @@ class Parser(MangaParser):
                     sleep(image_delay)
 
         return Result
+
+    def _get_proxy_count(self) -> int:
+        """Определяет количество доступных прокси для адаптации параллельной загрузки."""
+        
+        # Если прокси включены в настройках
+        if hasattr(self._Settings, 'proxy') and hasattr(self._Settings.proxy, 'enable') and self._Settings.proxy.enable:
+            if hasattr(self._Settings.proxy, 'proxies') and self._Settings.proxy.proxies:
+                proxy_count = len(self._Settings.proxy.proxies)
+                print(f"[INFO] 🌐 Detected {proxy_count} proxies from settings")
+                return proxy_count
+        
+        # Пробуем найти ProxyRotator
+        try:
+            from Source.Core.ProxyRotator import ProxyRotator
+            
+            if hasattr(self, '_Requestor') and hasattr(self._Requestor, '_WebRequestor__Session'):
+                session = self._Requestor._WebRequestor__Session
+                
+                # Ищем ProxyRotator в адаптерах сессии
+                if hasattr(session, 'get_adapter'):
+                    try:
+                        adapter = session.get_adapter('https://')
+                        if hasattr(adapter, 'proxy_rotator') and adapter.proxy_rotator:
+                            proxy_count = len(adapter.proxy_rotator.proxies)
+                            print(f"[INFO] 🌐 Detected {proxy_count} proxies from ProxyRotator")
+                            return proxy_count
+                    except:
+                        pass
+        except ImportError:
+            pass
+        
+        # По умолчанию считаем что 1 прокси (или прямое подключение)
+        print(f"[INFO] 🌐 No proxies detected, using 1 worker")
+        return 1
+
+    def batch_download_images(self, urls: list[str]) -> list[str | None]:
+        """Параллельная загрузка батча изображений.
+        
+        :param urls: Список URL изображений
+        :return: Список имён файлов (или None для неудачных загрузок) в том же порядке
+        """
+        
+        if not urls:
+            return []
+        
+        # Используем параллельный загрузчик
+        results = self._parallel_downloader.download_batch(urls)
+        
+        # Преобразуем результаты в список имён файлов (сохраняя порядок)
+        filenames = []
+        for result in results:
+            if result['success']:
+                filenames.append(result['filename'])
+            else:
+                # Для неудачных загрузок пробуем альтернативные серверы
+                fallback_result = self._try_alternative_servers(result['url'])
+                filenames.append(fallback_result)
+        
+        return filenames
+
+    def _try_alternative_servers(self, url: str) -> str | None:
+        """Попытка загрузить изображение с альтернативных серверов (fallback)."""
+        
+        Servers = self.__GetImagesServers(all_sites=True)
+        
+        if self.__IsSlideLink(url, Servers):
+            OriginalServer, ImageURI = self.__ParseSlideLink(url, Servers)
+            
+            try:
+                Servers.remove(OriginalServer)
+            except ValueError:
+                pass
+            
+            for Server in Servers:
+                Link = Server + ImageURI
+                Result = self._ImagesDownloader.temp_image(Link)
+                
+                if Result:
+                    return Result
+        
+        return None
 
     def parse(self):
         """Получает основные данные тайтла."""
