@@ -157,13 +157,14 @@ class Parser(MangaParser):
         return WebRequestorObject
     
     def _download_image_wrapper(self, url: str) -> str | None:
-        """Thread-safe обертка для загрузки изображения БЕЗ использования глобального счетчика.
+        """Thread-safe обертка для загрузки изображения с настоящим параллелизмом через httpx.
         
         :param url: URL изображения
         :return: Имя файла если успешно, None если ошибка
         """
         import os
         from pathlib import Path
+        import httpx
         
         # Используем ПРЯМОЙ запрос вместо temp_image, чтобы избежать race condition
         # в глобальном счетчике ImagesDownloader.__download_counter
@@ -180,15 +181,32 @@ class Parser(MangaParser):
         if os.path.exists(image_path) and not self._SystemObjects.FORCE_MODE:
             return filename + filetype
         
-        # Скачиваем изображение
-        # Используем requestor из ImagesDownloader (name mangling: __Requestor -> _ImagesDownloader__Requestor)
-        # КРИТИЧНО: requestor НЕ thread-safe, поэтому используем Lock
+        # Скачиваем изображение через httpx (thread-safe HTTP клиент)
+        # httpx нативно поддерживает многопоточность, в отличие от старого WebRequestor
         try:
-            requestor = self._ImagesDownloader._ImagesDownloader__Requestor
+            # Получаем прокси от ProxyRotator (если есть)
+            proxy = None
+            if hasattr(self, '_ProxyRotator') and self._ProxyRotator:
+                proxy = self._ProxyRotator.get_next_proxy()
             
-            # Thread-safe HTTP запрос
-            with self._requestor_lock:
-                response = requestor.get(url)
+            # Настройки для httpx клиента
+            client_kwargs = {
+                'timeout': 30.0,
+                'follow_redirects': True,
+                'headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
+                    'Referer': 'https://mangalib.me/',
+                }
+            }
+            
+            if proxy:
+                client_kwargs['proxies'] = proxy
+            
+            # Thread-safe HTTP запрос через httpx
+            with httpx.Client(**client_kwargs) as client:
+                response = client.get(url)
             
             if response.status_code == 200 and len(response.content) > 1000:
                 with open(image_path, "wb") as f:
@@ -203,7 +221,6 @@ class Parser(MangaParser):
     
     def _PostInitMethod(self):
         """Метод, выполняющийся после инициализации объекта."""
-        from threading import Lock
 
         self.__TitleSlug = None
         self.__API = "api.cdnlibs.org"
@@ -212,9 +229,6 @@ class Parser(MangaParser):
             "slashlib.me": 2,
             "hentailib.me": 4
         }
-        
-        # Lock для thread-safe HTTP запросов (requestor не потокобезопасный)
-        self._requestor_lock = Lock()
         
         # КРИТИЧЕСКИ ВАЖНО: Инициализация параллельного загрузчика в __init__, а не в parse()
         # Потому что build может вызываться без parse (когда JSON уже существует)
