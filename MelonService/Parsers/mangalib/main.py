@@ -292,6 +292,25 @@ class Parser(MangaParser):
         
         print(f"[CRITICAL_DEBUG] About to initialize AdaptiveParallelDownloader...", flush=True)
         
+        # Инициализируем ProxyRotator если доступен
+        self._ProxyRotator = None
+        try:
+            import sys
+            from pathlib import Path
+            
+            melon_service_path = Path(__file__).parent.parent.parent
+            if str(melon_service_path) not in sys.path:
+                sys.path.insert(0, str(melon_service_path))
+            
+            from proxy_rotator import ProxyRotator
+            rotator = ProxyRotator(parser="mangalib")
+            
+            if rotator.enabled and rotator.get_proxy_count() > 0:
+                self._ProxyRotator = rotator
+                print(f"[INFO] ✅ ProxyRotator initialized: {rotator.get_proxy_count()} proxies", flush=True)
+        except Exception as e:
+            print(f"[WARNING] ProxyRotator not available: {e}", flush=True)
+        
         # КРИТИЧЕСКИ ВАЖНО: Инициализация параллельного загрузчика в __init__, а не в parse()
         # Потому что build может вызываться без parse (когда JSON уже существует)
         proxy_count = self._get_proxy_count()
