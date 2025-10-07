@@ -157,13 +157,14 @@ class Parser(MangaParser):
         return WebRequestorObject
     
     def _download_image_wrapper(self, url: str) -> str | None:
-        """Thread-safe обертка для загрузки изображения через WebRequestor с Lock.
+        """Thread-safe обертка для загрузки изображения через httpx с cookies от WebRequestor.
         
         :param url: URL изображения
         :return: Имя файла если успешно, None если ошибка
         """
         import os
         from pathlib import Path
+        import httpx
         import threading
         
         thread_id = threading.current_thread().name
@@ -184,17 +185,46 @@ class Parser(MangaParser):
             print(f"[DEBUG] [{thread_id}] Cache HIT for {filename}{filetype}", flush=True)
             return filename + filetype
         
-        print(f"[DEBUG] [{thread_id}] Cache MISS, downloading via WebRequestor...", flush=True)
+        print(f"[DEBUG] [{thread_id}] Cache MISS, downloading via httpx with WebRequestor cookies...", flush=True)
         
-        # Скачиваем через старый WebRequestor (он работает), но с Lock для thread-safety
         try:
+            # Получаем cookies из WebRequestor (это ключ к решению 403!)
             requestor = self._ImagesDownloader._ImagesDownloader__Requestor
+            cookies_dict = requestor.cookies or {}
             
-            print(f"[DEBUG] [{thread_id}] Acquiring lock...", flush=True)
-            # КРИТИЧНО: WebRequestor НЕ thread-safe, используем Lock
-            with self._requestor_lock:
-                print(f"[DEBUG] [{thread_id}] Lock acquired, calling requestor.get()...", flush=True)
-                response = requestor.get(url)
+            print(f"[DEBUG] [{thread_id}] Got {len(cookies_dict)} cookies from WebRequestor", flush=True)
+            
+            # Получаем прокси от ProxyRotator (если есть)
+            proxy = None
+            if hasattr(self, '_ProxyRotator') and self._ProxyRotator:
+                proxy = self._ProxyRotator.get_next_proxy()
+            
+            # Настройки для httpx клиента (копируем headers от WebRequestor)
+            client_kwargs = {
+                'timeout': 30.0,
+                'follow_redirects': True,
+                'cookies': cookies_dict,  # КРИТИЧНО: используем cookies от WebRequestor!
+                'headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Referer': 'https://mangalib.me/',
+                    'Sec-Fetch-Dest': 'image',
+                    'Sec-Fetch-Mode': 'no-cors',
+                    'Sec-Fetch-Site': 'cross-site',
+                }
+            }
+            
+            if proxy:
+                client_kwargs['proxies'] = proxy
+            
+            print(f"[DEBUG] [{thread_id}] Creating httpx.Client with cookies...", flush=True)
+            
+            # Thread-safe HTTP запрос через httpx (с cookies!)
+            with httpx.Client(**client_kwargs) as client:
+                print(f"[DEBUG] [{thread_id}] Calling client.get()...", flush=True)
+                response = client.get(url)
                 print(f"[DEBUG] [{thread_id}] Got response: {response.status_code}", flush=True)
             
             if response.status_code == 200 and len(response.content) > 1000:
@@ -215,7 +245,6 @@ class Parser(MangaParser):
     
     def _PostInitMethod(self):
         """Метод, выполняющийся после инициализации объекта."""
-        from threading import Lock
         
         print(f"[CRITICAL_DEBUG] _PostInitMethod() CALLED!", flush=True)
 
@@ -226,9 +255,6 @@ class Parser(MangaParser):
             "slashlib.me": 2,
             "hentailib.me": 4
         }
-        
-        # Lock для thread-safe HTTP запросов (WebRequestor не потокобезопасный)
-        self._requestor_lock = Lock()
         
         print(f"[CRITICAL_DEBUG] About to initialize AdaptiveParallelDownloader...", flush=True)
         
