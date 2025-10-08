@@ -335,7 +335,8 @@ def com_parse(system_objects: SystemObjects, command: ParsedCommandData):
 			Title.merge()
 			Title.amend()
 			if command.check_flag("skip-images"):
-				system_objects.logger.info("Skipping images download per -skip-images flag.", stdout = True)
+				system_objects.logger.info("Skipping chapter images per -skip-images flag; downloading covers only.", stdout = True)
+				Title.download_covers()
 			else:
 				Title.download_images()
 			Title.save(end_timer = True)

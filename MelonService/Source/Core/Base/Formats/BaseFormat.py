@@ -862,11 +862,18 @@ class BaseTitle:
 
 		self._SystemObjects.logger.amending_end(self, AmendedChaptersCount)
 
+	def download_covers(self):
+		"""Скачивает только обложки тайтла."""
+
+		if self.covers:
+			self._DownloadCovers()
+
 	def download_images(self):
 		"""Скачивает изображения из данных тайтла."""
 
-		if self.covers: self._DownloadCovers()
-		if self._Persons: self._DownloadPersonsImages()
+		self.download_covers()
+		if self._Persons:
+			self._DownloadPersonsImages()
 		self._DownloadChapterImages()
 
 	def _CountChapterImages(self) -> int:
