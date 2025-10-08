@@ -9,6 +9,7 @@ import { AlertCircle, Download, CheckCircle, XCircle, Clock, Loader2, RefreshCw,
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { toast } from 'sonner'
 import { RealTimeProgress } from '@/components/common/RealTimeProgress'
+import type { ParsingMetrics } from '@/types'
 
 interface ParsedManga {
   filename: string
@@ -30,6 +31,7 @@ interface ParsingTask {
   startTime: Date
   endTime?: Date
   result?: any
+   metrics?: ParsingMetrics
 }
 
 export function MangaParser() {
@@ -38,29 +40,162 @@ export function MangaParser() {
   const [currentTask, setCurrentTask] = useState<ParsingTask | null>(null)
   const [parsedManga, setParsedManga] = useState<ParsedManga[]>([])
 
-  // Обновляем статус текущей задачи парсинга
+  // Восстанавливаем активную задачу после перезагрузки страницы
   useEffect(() => {
-    const fetchStatus = async () => {
-      if (currentTask && currentTask.taskId && (currentTask.status === 'pending' || currentTask.status === 'running')) {
-        try {
-          const response = await fetch(`/api/parser/status/${currentTask.taskId}`)
-          const data = await response.json()
+    const restoreTask = async () => {
+      if (typeof window === 'undefined') return
 
-          if (response.ok) {
-            setCurrentTask(prev => prev ? { ...prev, ...data } : null)
-          } else {
-            toast.error(data.error || 'Ошибка получения статуса задачи')
-          }
-        } catch (error) {
-          console.error('Ошибка получения статуса:', error)
+      const stored = window.localStorage.getItem('currentParsingTask')
+      if (!stored) return
+
+      try {
+        const parsed = JSON.parse(stored) as { taskId?: string; slug?: string }
+        if (!parsed?.taskId) return
+
+        // Показываем placeholder пока получаем фактический статус
+        setCurrentTask(prev => prev ?? {
+          taskId: parsed.taskId!,
+          slug: parsed.slug ?? 'Неизвестно',
+          status: 'pending',
+          progress: 0,
+          stage: 'Восстановление статуса...',
+          startTime: new Date()
+        })
+
+        const response = await fetch(`/api/parser/status/${parsed.taskId}`)
+        if (!response.ok) {
+          window.localStorage.removeItem('currentParsingTask')
+          return
         }
+
+        const data = await response.json()
+        setCurrentTask(prev => {
+          if (!prev) {
+            return null
+          }
+
+          const rawStatus = typeof data.status === 'string' ? data.status.toLowerCase() : undefined
+          const allowedStatuses: ParsingTask['status'][] = ['pending', 'running', 'completed', 'failed']
+          const nextStatus = rawStatus && allowedStatuses.includes(rawStatus as ParsingTask['status'])
+            ? rawStatus as ParsingTask['status']
+            : prev.status
+
+          const isFinished = nextStatus === 'completed' || nextStatus === 'failed'
+
+          return {
+            ...prev,
+            slug: prev.slug || (data.result && typeof data.result.filename === 'string' ? data.result.filename : prev.slug),
+            status: nextStatus,
+            progress: typeof data.progress === 'number' ? data.progress : prev.progress,
+            stage: typeof data.message === 'string' ? data.message : prev.stage,
+            error: data.error ?? prev.error,
+            result: data.result ?? prev.result,
+            metrics: data.metrics ?? prev.metrics,
+            endTime: isFinished ? new Date() : prev.endTime
+          }
+        })
+      } catch (error) {
+        console.error('Ошибка восстановления задачи парсинга:', error)
+        window.localStorage.removeItem('currentParsingTask')
       }
     }
 
-    const interval = setInterval(fetchStatus, 2000)
+    restoreTask()
+  }, [])
 
-    return () => clearInterval(interval)
+  // Периодически обновляем статус активной задачи
+  useEffect(() => {
+    if (!currentTask?.taskId) {
+      return
+    }
+
+    const normalizedStatus = currentTask.status?.toLowerCase?.()
+    const isActive = normalizedStatus === 'pending' || normalizedStatus === 'running'
+    if (!isActive) {
+      return
+    }
+
+    let isCancelled = false
+
+    const fetchStatus = async () => {
+      try {
+        const response = await fetch(`/api/parser/status/${currentTask.taskId}`)
+
+        if (!response.ok) {
+          if (response.status === 404) {
+            if (typeof window !== 'undefined') {
+              window.localStorage.removeItem('currentParsingTask')
+            }
+            setCurrentTask(null)
+          } else {
+            const errorPayload = await response.json()
+            toast.error(errorPayload.error || 'Ошибка получения статуса задачи')
+          }
+          return
+        }
+
+        const data = await response.json()
+        if (isCancelled) {
+          return
+        }
+
+        setCurrentTask(prev => {
+          if (!prev) {
+            return prev
+          }
+
+          const rawStatus = typeof data.status === 'string' ? data.status.toLowerCase() : undefined
+          const allowedStatuses: ParsingTask['status'][] = ['pending', 'running', 'completed', 'failed']
+          const nextStatus = rawStatus && allowedStatuses.includes(rawStatus as ParsingTask['status'])
+            ? rawStatus as ParsingTask['status']
+            : prev.status
+          const isFinished = nextStatus === 'completed' || nextStatus === 'failed'
+
+          return {
+            ...prev,
+            slug: prev.slug || (data.result && typeof data.result.filename === 'string' ? data.result.filename : prev.slug),
+            status: nextStatus,
+            progress: typeof data.progress === 'number' ? data.progress : prev.progress,
+            stage: typeof data.message === 'string' ? data.message : prev.stage,
+            error: data.error ?? prev.error,
+            result: data.result ?? prev.result,
+            metrics: data.metrics ?? prev.metrics,
+            endTime: isFinished ? new Date() : prev.endTime
+          }
+        })
+      } catch (error) {
+        console.error('Ошибка получения статуса:', error)
+      }
+    }
+
+    fetchStatus()
+    const interval = window.setInterval(fetchStatus, 2000)
+
+    return () => {
+      isCancelled = true
+      clearInterval(interval)
+    }
   }, [currentTask?.taskId, currentTask?.status])
+
+  // Сохраняем активную задачу в localStorage, чтобы пережить перезагрузку
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    if (!currentTask?.taskId) {
+      window.localStorage.removeItem('currentParsingTask')
+      return
+    }
+
+    const status = currentTask.status?.toLowerCase?.()
+    if (status === 'pending' || status === 'running') {
+      window.localStorage.setItem('currentParsingTask', JSON.stringify({
+        taskId: currentTask.taskId,
+        slug: currentTask.slug
+      }))
+    } else {
+      window.localStorage.removeItem('currentParsingTask')
+    }
+  }, [currentTask?.taskId, currentTask?.status, currentTask?.slug])
 
   const startParsing = async () => {
     if (!slug.trim()) {
@@ -86,10 +221,17 @@ export function MangaParser() {
           status: 'pending',
           progress: 0,
           stage: 'Инициализация...',
-          startTime: new Date()
+          startTime: new Date(),
+          metrics: undefined
         }
 
         setCurrentTask(newTask)
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem('currentParsingTask', JSON.stringify({
+            taskId: newTask.taskId,
+            slug: newTask.slug
+          }))
+        }
         setSlug('')
         toast.success('Парсинг запущен')
       } else {
@@ -114,7 +256,17 @@ export function MangaParser() {
         const data = await response.json()
 
         if (response.ok) {
-          setCurrentTask(prev => prev ? { ...prev, status: 'pending', progress: 0, stage: 'Инициализация...' } : null)
+          setCurrentTask(prev => prev ? {
+            ...prev,
+            status: 'pending',
+            progress: 0,
+            stage: 'Инициализация...',
+            error: undefined,
+            result: undefined,
+            metrics: undefined,
+            endTime: undefined,
+            startTime: new Date()
+          } : null)
           toast.success('Задача успешно перезапущена')
         } else {
           toast.error(data.error || 'Ошибка перезапуска задачи')
@@ -310,6 +462,105 @@ export function MangaParser() {
         </Card>
       )}
 
+      {/* Блок с метриками */}
+      {currentTask?.metrics?.aggregate && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Статистика парсинга</CardTitle>
+            <CardDescription>
+              Усредненные и суммарные показатели по текущей задаче
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-muted/50 rounded-lg p-4">
+                <p className="text-sm text-muted-foreground">Глав обработано</p>
+                <p className="text-lg font-semibold text-white">{currentTask.metrics.aggregate.chapters}</p>
+              </div>
+              <div className="bg-muted/50 rounded-lg p-4">
+                <p className="text-sm text-muted-foreground">Всего изображений</p>
+                <p className="text-lg font-semibold text-white">{currentTask.metrics.aggregate.total_images}</p>
+              </div>
+              <div className="bg-muted/50 rounded-lg p-4">
+                <p className="text-sm text-muted-foreground">Среднее время на главу</p>
+                <p className="text-lg font-semibold text-white">
+                  {currentTask.metrics.aggregate.avg_duration_seconds != null
+                    ? `${currentTask.metrics.aggregate.avg_duration_seconds.toFixed(2)} с`
+                    : '—'}
+                </p>
+              </div>
+              <div className="bg-muted/50 rounded-lg p-4">
+                <p className="text-sm text-muted-foreground">Скорость обработки</p>
+                <p className="text-lg font-semibold text-white">
+                  {currentTask.metrics.aggregate.images_per_second != null
+                    ? `${currentTask.metrics.aggregate.images_per_second.toFixed(2)} img/s`
+                    : '—'}
+                </p>
+              </div>
+            </div>
+
+            {currentTask.metrics.command?.duration_seconds != null && (
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-muted/50 rounded-lg p-4">
+                  <p className="text-sm text-muted-foreground">Время запуска</p>
+                  <p className="text-xs text-white">
+                    {currentTask.metrics.command.started_at
+                      ? new Date(currentTask.metrics.command.started_at).toLocaleString()
+                      : '—'}
+                  </p>
+                </div>
+                <div className="bg-muted/50 rounded-lg p-4">
+                  <p className="text-sm text-muted-foreground">Время завершения</p>
+                  <p className="text-xs text-white">
+                    {currentTask.metrics.command.completed_at
+                      ? new Date(currentTask.metrics.command.completed_at).toLocaleString()
+                      : '—'}
+                  </p>
+                </div>
+                <div className="bg-muted/50 rounded-lg p-4">
+                  <p className="text-sm text-muted-foreground">Длительность</p>
+                  <p className="text-lg font-semibold text-white">
+                    {currentTask.metrics.command.duration_seconds.toFixed(1)} с
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {currentTask.metrics.chapters && currentTask.metrics.chapters.length > 0 && (
+              <div className="space-y-2">
+                <h5 className="text-sm font-semibold text-white">Подробно по главам</h5>
+                <div className="max-h-64 overflow-auto rounded-lg border border-border divide-y divide-border">
+                  {currentTask.metrics.chapters.map((chapter, index) => (
+                    <div key={`${chapter.chapter_id ?? index}-${chapter.started_at ?? index}`} className="grid grid-cols-[1fr,auto,auto] gap-3 px-4 py-3 text-sm">
+                      <div>
+                        <p className="text-white font-medium">{chapter.chapter_id ?? `Глава ${index + 1}`}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {chapter.started_at ? new Date(chapter.started_at).toLocaleTimeString() : '—'}
+                          {' '}
+                          →
+                          {' '}
+                          {chapter.completed_at ? new Date(chapter.completed_at).toLocaleTimeString() : '—'}
+                        </p>
+                      </div>
+                      <div className="text-right text-muted-foreground">
+                        <p>{chapter.images ?? '—'} изображений</p>
+                        <p className="text-xs">ожидалось {chapter.expected_images ?? '—'}</p>
+                      </div>
+                      <div className="text-right text-white font-semibold">
+                        <p>{chapter.duration_seconds != null ? `${chapter.duration_seconds.toFixed(2)} с` : '—'}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {chapter.images_per_second != null ? `${chapter.images_per_second.toFixed(2)} img/s` : '—'}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* История парсинга */}
       <Card>
         <CardHeader>
@@ -374,14 +625,60 @@ export function MangaParser() {
         <RealTimeProgress
           taskId={currentTask.taskId}
           title={`Парсинг: ${currentTask.slug}`}
+          onProgressUpdate={(data) => {
+            setCurrentTask(prev => {
+              if (!prev) return prev
+
+              const normalizedStatus = typeof data.status === 'string' ? data.status.toLowerCase() : prev.status
+              const allowedStatuses: ParsingTask['status'][] = ['pending', 'running', 'completed', 'failed']
+              const nextStatus = allowedStatuses.includes(normalizedStatus as ParsingTask['status'])
+                ? normalizedStatus as ParsingTask['status']
+                : prev.status
+              const isFinished = nextStatus === 'completed' || nextStatus === 'failed'
+
+              return {
+                ...prev,
+                status: nextStatus,
+                progress: typeof data.progress === 'number' ? data.progress : prev.progress,
+                stage: typeof data.message === 'string' ? data.message : prev.stage,
+                result: data.result ?? prev.result,
+                metrics: data.metrics ?? prev.metrics,
+                endTime: isFinished ? new Date() : prev.endTime
+              }
+            })
+
+            if (typeof window !== 'undefined') {
+              const normalizedStatus = typeof data.status === 'string' ? data.status.toLowerCase() : undefined
+              if (normalizedStatus === 'completed' || normalizedStatus === 'failed') {
+                window.localStorage.removeItem('currentParsingTask')
+              }
+            }
+          }}
           onComplete={(result) => {
-            setCurrentTask(prev => prev ? { ...prev, status: 'completed', result, endTime: new Date() } : null)
+            setCurrentTask(prev => prev ? {
+              ...prev,
+              status: 'completed',
+              result,
+              metrics: (result && typeof result === 'object' ? result.metrics : undefined) ?? prev.metrics,
+              endTime: new Date()
+            } : null)
+            if (typeof window !== 'undefined') {
+              window.localStorage.removeItem('currentParsingTask')
+            }
             toast.success('Парсинг завершен успешно!')
             // Обновляем список спаршенной манги
             setParsedManga(prev => [...prev, result])
           }}
           onError={(error) => {
-            setCurrentTask(prev => prev ? { ...prev, status: 'failed', error, endTime: new Date() } : null)
+            setCurrentTask(prev => prev ? {
+              ...prev,
+              status: 'failed',
+              error,
+              endTime: new Date()
+            } : null)
+            if (typeof window !== 'undefined') {
+              window.localStorage.removeItem('currentParsingTask')
+            }
             toast.error('Ошибка парсинга: ' + error)
           }}
         />

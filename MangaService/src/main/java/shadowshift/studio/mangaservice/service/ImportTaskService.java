@@ -6,6 +6,7 @@ import shadowshift.studio.mangaservice.websocket.ProgressWebSocketHandler;
 import java.time.LocalDateTime;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CompletableFuture;
+import java.util.Collections;
 import java.util.Map;
 import java.util.HashMap;
 
@@ -72,6 +73,7 @@ public class ImportTaskService {
         private int totalPages;
         private int importedPages;
         private String errorMessage;
+    private Map<String, Object> metrics;
 
         /**
          * Конструктор для создания задачи импорта.
@@ -85,6 +87,7 @@ public class ImportTaskService {
             this.message = "Импорт поставлен в очередь";
             this.createdAt = LocalDateTime.now();
             this.updatedAt = LocalDateTime.now();
+            this.metrics = new HashMap<>();
         }
 
         /**
@@ -258,6 +261,26 @@ public class ImportTaskService {
         public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
 
         /**
+         * Возвращает метрики выполнения задачи.
+         *
+         * @return карта метрик
+         */
+        public Map<String, Object> getMetrics() {
+            return metrics != null ? Collections.unmodifiableMap(metrics) : Collections.emptyMap();
+        }
+
+        /**
+         * Устанавливает метрики выполнения задачи.
+         *
+         * @param metrics карта метрик
+         */
+        public void setMetrics(Map<String, Object> metrics) {
+            if (metrics != null) {
+                this.metrics = new HashMap<>(metrics);
+            }
+        }
+
+        /**
          * Обновляет прогресс задачи на основе импортированных глав.
          */
         public void updateProgress() {
@@ -287,6 +310,7 @@ public class ImportTaskService {
             result.put("totalPages", totalPages);
             result.put("importedPages", importedPages);
             result.put("errorMessage", errorMessage != null ? errorMessage : "");
+            result.put("metrics", getMetrics());
             return result;
         }
     }
@@ -324,11 +348,27 @@ public class ImportTaskService {
      * @param message новое сообщение
      */
     public void updateTask(String taskId, TaskStatus status, int progress, String message) {
+        updateTask(taskId, status, progress, message, null);
+    }
+
+    /**
+     * Обновляет статус, прогресс, сообщение и метрики задачи.
+     *
+     * @param taskId идентификатор задачи
+     * @param status новый статус
+     * @param progress новый прогресс
+     * @param message новое сообщение
+     * @param metrics метрики задачи (опционально)
+     */
+    public void updateTask(String taskId, TaskStatus status, int progress, String message, Map<String, Object> metrics) {
         ImportTask task = tasks.get(taskId);
         if (task != null) {
             task.setStatus(status);
             task.setProgress(progress);
             task.setMessage(message);
+            if (metrics != null) {
+                task.setMetrics(metrics);
+            }
 
             // Отправляем обновление через WebSocket
             sendWebSocketUpdate(taskId, task);
@@ -432,6 +472,7 @@ public class ImportTaskService {
             progressData.put("progress", task.getProgress());
             progressData.put("message", task.getMessage());
             progressData.put("updated_at", task.getUpdatedAt().toString());
+            progressData.put("metrics", task.getMetrics());
             // Отправляем прогресс
             webSocketHandler.sendProgressUpdate(taskId, progressData);
             // Можно добавить лог-сообщение при завершении или ошибке

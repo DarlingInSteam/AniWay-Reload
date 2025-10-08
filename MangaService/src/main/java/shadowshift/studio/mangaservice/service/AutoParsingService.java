@@ -112,6 +112,52 @@ public class AutoParsingService {
     }
 
     /**
+     * Отменяет задачу автопарсинга
+     */
+    public Map<String, Object> cancelAutoParseTask(String taskId) {
+        AutoParseTask task = autoParsingTasks.get(taskId);
+        if (task == null) {
+            return Map.of("error", "Задача не найдена");
+        }
+
+        if ("completed".equals(task.status) || "failed".equals(task.status) || "cancelled".equals(task.status)) {
+            return Map.of(
+                "cancelled", false,
+                "status", task.status,
+                "message", "Задача уже завершена"
+            );
+        }
+
+        task.status = "cancelled";
+        task.endTime = new Date();
+        task.message = "Задача отменена пользователем";
+        
+        logger.info("Задача автопарсинга {} отменена пользователем", taskId);
+        
+        // Пытаемся отменить связанные задачи в MelonService
+        // Находим все связанные taskId и пытаемся их отменить
+        List<String> childTaskIds = parseTaskToAutoParseTask.entrySet().stream()
+            .filter(entry -> taskId.equals(entry.getValue()))
+            .map(Map.Entry::getKey)
+            .toList();
+        
+        for (String childTaskId : childTaskIds) {
+            try {
+                logger.info("Отмена связанной задачи в MelonService: {}", childTaskId);
+                melonService.cancelMelonTask(childTaskId);
+            } catch (Exception e) {
+                logger.warn("Не удалось отменить задачу {}: {}", childTaskId, e.getMessage());
+            }
+        }
+
+        return Map.of(
+            "cancelled", true,
+            "status", "cancelled",
+            "message", "Задача отменена"
+        );
+    }
+
+    /**
      * Добавляет лог-сообщение в задачу автопарсинга
      * Поддерживает как прямой taskId автопарсинга, так и parseTaskId отдельной манги
      */
@@ -190,6 +236,12 @@ public class AutoParsingService {
             logger.info("Получено {} манг из каталога", slugs.size());
 
             for (int i = 0; i < slugs.size(); i++) {
+                // Проверяем, не отменена ли задача
+                if ("cancelled".equals(task.status)) {
+                    logger.info("Задача автопарсинга {} отменена, прерываем цикл", taskId);
+                    break;
+                }
+                
                 String slug = slugs.get(i);
                 String fullParsingTaskId = null; // fullParsingTaskId от MelonIntegrationService
                 String parseTaskId = null; // parseTaskId от MelonService (parse фаза)
@@ -311,8 +363,21 @@ public class AutoParsingService {
      */
     private boolean waitForFullParsingCompletion(String taskId) throws InterruptedException {
         int attempts = 0;
+        AutoParseTask autoParseTask = null;
+        
+        // Находим родительскую задачу автопарсинга
+        String autoParsingTaskId = parseTaskToAutoParseTask.get(taskId);
+        if (autoParsingTaskId != null) {
+            autoParseTask = autoParsingTasks.get(autoParsingTaskId);
+        }
 
         while (true) {
+            // Проверяем, не отменена ли задача автопарсинга
+            if (autoParseTask != null && "cancelled".equals(autoParseTask.status)) {
+                logger.info("Задача автопарсинга отменена, прерываем ожидание парсинга {}", taskId);
+                return false;
+            }
+            
             Thread.sleep(2000); // проверка каждые 2 секунды
             
             Map<String, Object> status = melonService.getFullParsingTaskStatus(taskId);
@@ -322,8 +387,8 @@ public class AutoParsingService {
                 return true;
             }
             
-            if (status != null && "failed".equals(status.get("status"))) {
-                logger.error("Полный парсинг завершился с ошибкой после {} попыток: {}", attempts, status.get("message"));
+            if (status != null && ("failed".equals(status.get("status")) || "cancelled".equals(status.get("status")))) {
+                logger.error("Полный парсинг завершился с ошибкой/отменен после {} попыток: {}", attempts, status.get("message"));
                 return false;
             }
             

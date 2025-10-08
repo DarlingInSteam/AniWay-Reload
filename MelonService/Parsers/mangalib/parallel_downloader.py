@@ -25,13 +25,14 @@ class AdaptiveParallelDownloader:
     """
     
     def __init__(
-        self, 
+        self,
         proxy_count: int,
         download_func: Callable[[str], Optional[str]],
         max_workers_per_proxy: int = 2,
         max_retries: int = 3,
         base_delay: float = 0.2,
-        retry_delay: float = 1.0
+        retry_delay: float = 1.0,
+        max_total_workers: Optional[int] = None
     ):
         """
         Инициализация загрузчика.
@@ -41,17 +42,30 @@ class AdaptiveParallelDownloader:
         :param max_workers_per_proxy: Максимум потоков на один прокси (по умолчанию 2)
         :param max_retries: Количество повторных попыток при ошибке
         :param base_delay: Базовая задержка между запросами (сек)
-        :param retry_delay: Задержка перед повтором при ошибке (сек)
+    :param retry_delay: Задержка перед повтором при ошибке (сек)
+    :param max_total_workers: Жесткий предел на количество потоков (переопределяет авторасчет)
         """
-        # Рассчитываем оптимальное количество воркеров
-        # Формула: min(proxy_count * workers_per_proxy, 10) - не больше 10 потоков
-        self.max_workers = min(proxy_count * max_workers_per_proxy, 10)
-        
-        # Если прокси мало, ограничиваем ещё сильнее
-        if proxy_count <= 3:
-            self.max_workers = min(self.max_workers, 3)
+        computed_workers = max(1, proxy_count * max_workers_per_proxy)
+        computed_workers = min(computed_workers, 16)
+
+        if proxy_count == 1:
+            computed_workers = min(computed_workers, max(2, max_workers_per_proxy + 1))
+        elif proxy_count == 2:
+            computed_workers = min(computed_workers, 4)
+        elif proxy_count == 3:
+            computed_workers = min(computed_workers, 6)
         elif proxy_count <= 5:
-            self.max_workers = min(self.max_workers, 5)
+            computed_workers = min(computed_workers, 8)
+
+        if max_total_workers is not None:
+            try:
+                override_value = int(max_total_workers)
+                if override_value > 0:
+                    computed_workers = max(1, min(override_value, 32))
+            except (TypeError, ValueError):
+                logger.warning(f"⚠️ Invalid max_total_workers override: {max_total_workers}")
+
+        self.max_workers = computed_workers
         
         self.download_func = download_func
         self.max_retries = max_retries
@@ -69,9 +83,10 @@ class AdaptiveParallelDownloader:
         self._current_delay = base_delay
         self._last_429_time = 0
         
+        override_note = f", override={max_total_workers}" if max_total_workers else ""
         logger.info(
-            f"🚀 ParallelDownloader initialized: {self.max_workers} workers "
-            f"for {proxy_count} proxies (ratio: {max_workers_per_proxy}:1)"
+            f"🚀 ParallelDownloader initialized: {self.max_workers} workers for {proxy_count} proxies "
+            f"(ratio: {max_workers_per_proxy}:1, delay={base_delay}s{override_note})"
         )
     
     def _adaptive_delay(self):

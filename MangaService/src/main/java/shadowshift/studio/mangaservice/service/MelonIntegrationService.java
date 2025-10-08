@@ -284,7 +284,8 @@ public class MelonIntegrationService {
      * Обновляет статус задачи полного парсинга и отправляет через WebSocket
      */
     private void updateFullParsingTask(String taskId, String status, int progress, String message, Map<String, Object> result) {
-        Map<String, Object> task = new HashMap<>();
+        Map<String, Object> existingTask = fullParsingTasks.get(taskId);
+        Map<String, Object> task = existingTask != null ? new HashMap<>(existingTask) : new HashMap<>();
         task.put("task_id", taskId);
         task.put("status", status);
         task.put("progress", progress);
@@ -292,6 +293,10 @@ public class MelonIntegrationService {
         task.put("updated_at", java.time.LocalDateTime.now().toString());
         if (result != null) {
             task.put("result", result);
+            Object metrics = result.get("metrics");
+            if (metrics != null) {
+                task.put("metrics", metrics);
+            }
         }
         fullParsingTasks.put(taskId, task);
 
@@ -1771,5 +1776,46 @@ public class MelonIntegrationService {
             .trim();
 
         return markdown;
+    }
+
+    /**
+     * Отменяет задачу в MelonService
+     */
+    public Map<String, Object> cancelMelonTask(String taskId) {
+        String url = melonServiceUrl + "/tasks/" + taskId + "/cancel";
+        
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+            
+            ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
+            Map<String, Object> body = response.getBody();
+            
+            if (body != null) {
+                logger.info("Задача {} отменена в MelonService: {}", taskId, body);
+                return body;
+            } else {
+                logger.warn("Пустой ответ при отмене задачи: {}", taskId);
+                return Map.of(
+                    "cancelled", false,
+                    "message", "Пустой ответ от MelonService"
+                );
+            }
+            
+        } catch (org.springframework.web.client.HttpClientErrorException.NotFound e) {
+            logger.warn("Задача не найдена в MelonService: {}", taskId);
+            return Map.of(
+                "cancelled", false,
+                "message", "Задача не найдена в MelonService"
+            );
+            
+        } catch (Exception e) {
+            logger.error("Ошибка отмены задачи {}: {}", taskId, e.getMessage());
+            return Map.of(
+                "cancelled", false,
+                "message", "Ошибка отмены: " + e.getMessage()
+            );
+        }
     }
 }

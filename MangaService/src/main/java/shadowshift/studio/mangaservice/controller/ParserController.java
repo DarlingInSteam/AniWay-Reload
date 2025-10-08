@@ -279,6 +279,24 @@ public class ParserController {
     }
 
     /**
+     * Отменяет задачу автопарсинга.
+     *
+     * @param taskId идентификатор задачи
+     * @return ResponseEntity с результатом отмены
+     */
+    @PostMapping("/auto-parse/cancel/{taskId}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> cancelAutoParse(@PathVariable String taskId) {
+        try {
+            Map<String, Object> result = autoParsingService.cancelAutoParseTask(taskId);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                .body(Map.of("error", "Ошибка отмены задачи: " + e.getMessage()));
+        }
+    }
+
+    /**
      * Запускает автоматическое обновление всех манг в системе.
      * Проверяет наличие новых глав и импортирует их.
      *

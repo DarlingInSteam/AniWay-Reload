@@ -290,8 +290,21 @@ class Parser(MangaParser):
         # Потому что build может вызываться без parse (когда JSON уже существует)
         proxy_count = self._get_proxy_count()
         image_delay = getattr(self._Settings.common, 'image_delay', 0.2)
-        
-        print(f"[CRITICAL_DEBUG] proxy_count={proxy_count}, image_delay={image_delay}", flush=True)
+
+        max_workers_override = getattr(self._Settings.common, 'image_max_workers', None)
+        if max_workers_override is None:
+            try:
+                import os
+                env_override = os.getenv("MELON_IMAGE_MAX_WORKERS")
+                if env_override is not None:
+                    max_workers_override = int(env_override)
+            except ValueError:
+                print(f"[WARNING] Invalid MELON_IMAGE_MAX_WORKERS value, skipping override", flush=True)
+
+        print(
+            f"[CRITICAL_DEBUG] proxy_count={proxy_count}, image_delay={image_delay}, override={max_workers_override}",
+            flush=True
+        )
         
         # НЕ НУЖЕН Lock — каждый поток создает свою сессию requests!
         self._parallel_downloader = AdaptiveParallelDownloader(
@@ -299,7 +312,8 @@ class Parser(MangaParser):
             download_func=self._download_image_wrapper,
             max_workers_per_proxy=2,
             max_retries=3,
-            base_delay=image_delay
+            base_delay=image_delay,
+            max_total_workers=max_workers_override
         )
         
         print(f"[CRITICAL_DEBUG] AdaptiveParallelDownloader CREATED successfully!", flush=True)

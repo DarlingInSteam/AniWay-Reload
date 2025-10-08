@@ -171,7 +171,7 @@ export function MangaManagement() {
         if (response.ok) {
           setAutoParseTask(data)
 
-          if (data.status === 'completed' || data.status === 'failed') {
+          if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
             clearInterval(interval)
             setIsAutoParsing(false)
             
@@ -179,6 +179,8 @@ export function MangaManagement() {
               const importedCount = data.imported_slugs?.length || 0
               const skippedCount = data.skipped_slugs?.length || 0
               toast.success(`Автопарсинг завершен! Импортировано: ${importedCount}, пропущено: ${skippedCount}`)
+            } else if (data.status === 'cancelled') {
+              toast.warning('Автопарсинг отменен')
             } else {
               toast.error('Автопарсинг завершился с ошибкой')
             }
@@ -190,6 +192,31 @@ export function MangaManagement() {
     }, 2000)
 
     return () => clearInterval(interval)
+  }
+
+  // Отмена автопарсинга
+  const cancelAutoParsing = async () => {
+    if (!autoParseTask?.task_id) {
+      toast.error('Нет активной задачи для отмены')
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/parser/auto-parse/cancel/${autoParseTask.task_id}`, {
+        method: 'POST'
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.cancelled) {
+        toast.success('Автопарсинг отменяется...')
+        // Статус обновится через polling
+      } else {
+        toast.error(data.message || 'Не удалось отменить задачу')
+      }
+    } catch (error) {
+      toast.error('Ошибка соединения с сервером')
+    }
   }
 
   // Автообновление манги
@@ -322,26 +349,39 @@ export function MangaManagement() {
             </p>
           </div>
 
-          <Button
-            onClick={startAutoParsing}
-            disabled={isAutoParsing}
-            className="w-full"
-          >
-            {isAutoParsing ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Парсинг выполняется...
-              </>
-            ) : (
-              <>
-                <Download className="h-4 w-4 mr-2" />
-                {parseLimit 
-                  ? `Запустить автопарсинг (страница ${catalogPage}, лимит: ${parseLimit})` 
-                  : `Запустить автопарсинг (страница ${catalogPage})`
-                }
-              </>
+          <div className="flex gap-2">
+            <Button
+              onClick={startAutoParsing}
+              disabled={isAutoParsing}
+              className="flex-1"
+            >
+              {isAutoParsing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Парсинг выполняется...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" />
+                  {parseLimit 
+                    ? `Запустить автопарсинг (страница ${catalogPage}, лимит: ${parseLimit})` 
+                    : `Запустить автопарсинг (страница ${catalogPage})`
+                  }
+                </>
+              )}
+            </Button>
+            
+            {isAutoParsing && autoParseTask?.status === 'running' && (
+              <Button
+                onClick={cancelAutoParsing}
+                variant="destructive"
+                className="px-8"
+              >
+                <XCircle className="h-4 w-4 mr-2" />
+                Отменить
+              </Button>
             )}
-          </Button>
+          </div>
 
           {/* Статус автопарсинга */}
           {autoParseTask && (

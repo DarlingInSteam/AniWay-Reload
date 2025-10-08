@@ -83,6 +83,39 @@ export interface PageResponse<T> {
   numberOfElements: number
 }
 
+export interface ChapterMetricsEntry {
+  chapter_id?: string
+  images?: number
+  expected_images?: number | null
+  duration_seconds?: number | null
+  started_at?: string | null
+  completed_at?: string | null
+  images_per_second?: number | null
+}
+
+export interface ParsingAggregateMetrics {
+  chapters: number
+  total_images: number
+  total_duration_seconds: number
+  avg_duration_seconds: number | null
+  median_duration_seconds: number | null
+  min_duration_seconds: number | null
+  max_duration_seconds: number | null
+  images_per_second: number | null
+}
+
+export interface CommandMetrics {
+  started_at?: string
+  completed_at?: string
+  duration_seconds?: number
+}
+
+export interface ParsingMetrics {
+  chapters?: ChapterMetricsEntry[]
+  aggregate?: ParsingAggregateMetrics
+  command?: CommandMetrics
+}
+
 // Типы для прогресса парсинга
 export interface ProgressData {
   task_id: string
@@ -91,6 +124,7 @@ export interface ProgressData {
   message: string
   updated_at: string
   result?: any
+  metrics?: ParsingMetrics
 }
 
 // Типы для WebSocket сообщений

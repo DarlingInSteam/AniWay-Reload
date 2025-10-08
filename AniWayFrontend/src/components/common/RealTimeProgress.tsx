@@ -5,31 +5,18 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Loader2, CheckCircle, XCircle, Clock, Terminal, Minimize2, Maximize2 } from 'lucide-react'
 import { useProgressWebSocket } from '@/hooks/useProgressWebSocket'
-
-interface ProgressData {
-  task_id: string
-  status: string
-  progress: number
-  message: string
-  updated_at: string
-  result?: any
-}
-
-interface LogMessage {
-  level: string
-  message: string
-  timestamp: number
-}
+import type { ProgressData, LogMessage } from '@/types'
 
 interface RealTimeProgressProps {
   taskId: string
   title: string
   onComplete?: (result: any) => void
   onError?: (error: string) => void
+  onProgressUpdate?: (data: ProgressData) => void
   className?: string
 }
 
-export function RealTimeProgress({ taskId, title, onComplete, onError, className }: RealTimeProgressProps) {
+export function RealTimeProgress({ taskId, title, onComplete, onError, onProgressUpdate, className }: RealTimeProgressProps) {
   const [progressData, setProgressData] = useState<ProgressData | null>(null)
   const [logs, setLogs] = useState<LogMessage[]>([])
   const [isMinimized, setIsMinimized] = useState(false)
@@ -39,14 +26,26 @@ export function RealTimeProgress({ taskId, title, onComplete, onError, className
     onProgress: (data) => {
       console.log('onProgress called:', data)
       if (data.task_id === taskId) {
-        setProgressData(data)
+        const merged: ProgressData = {
+          task_id: data.task_id,
+          status: data.status,
+          progress: data.progress,
+          message: data.message,
+          updated_at: data.updated_at,
+          result: data.result ?? progressData?.result,
+          metrics: data.metrics ?? progressData?.metrics
+        }
+
+        setProgressData(merged)
+        onProgressUpdate?.(merged)
+
         // Вызываем колбэки при завершении
-        if (data.status === 'completed' && onComplete) {
-          console.log('onComplete called:', data.result)
-          onComplete(data.result)
-        } else if (data.status === 'failed' && onError) {
-          console.log('onError called:', data.message)
-          onError(data.message)
+        if (merged.status === 'completed' && onComplete) {
+          console.log('onComplete called:', merged.result)
+          onComplete(merged.result)
+        } else if (merged.status === 'failed' && onError) {
+          console.log('onError called:', merged.message)
+          onError(merged.message)
         }
       }
     },
@@ -71,7 +70,7 @@ export function RealTimeProgress({ taskId, title, onComplete, onError, className
         unsubscribeFromTask(taskId)
       }
     }
-  }, [isConnected, taskId])
+  }, [isConnected, taskId, subscribeToTask, unsubscribeFromTask])
 
   const getStatusIcon = () => {
     if (!progressData) return <Clock className="h-4 w-4 text-yellow-500" />
