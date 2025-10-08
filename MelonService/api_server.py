@@ -875,6 +875,7 @@ async def get_all_tasks():
             "completed_slugs": getattr(task, 'completed_slugs', 0),
             "failed_slugs": getattr(task, 'failed_slugs', 0),
             "current_slug": getattr(task, 'current_slug', None),
+            "slug": getattr(task, 'current_slug', None),
         }
         tasks.append(task_dict)
     
@@ -916,7 +917,8 @@ async def parse_manga(request: ParseRequest, background_tasks: BackgroundTasks):
         updated_at=datetime.now().isoformat(),
         total_slugs=1,
         completed_slugs=0,
-        failed_slugs=0
+        failed_slugs=0,
+        current_slug=request.slug
     )
     
     tasks_storage[task_id] = task
@@ -941,7 +943,8 @@ async def build_manga(request: BuildRequest, background_tasks: BackgroundTasks):
         updated_at=datetime.now().isoformat(),
         total_slugs=1,
         completed_slugs=0,
-        failed_slugs=0
+        failed_slugs=0,
+        current_slug=request.slug
     )
     
     tasks_storage[task_id] = task
@@ -1041,6 +1044,9 @@ async def get_task_status(task_id: str):
     # Добавляем информацию о состоянии билда, если доступна
     if task_id in build_states:
         result["build_state"] = build_states[task_id]
+
+    if task_id in task_logs:
+        result["logs"] = [log.dict() for log in task_logs[task_id][-200:]]
     
     return result
 

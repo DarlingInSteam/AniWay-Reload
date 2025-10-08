@@ -14,9 +14,73 @@ interface RealTimeProgressProps {
   onError?: (error: string) => void
   onProgressUpdate?: (data: ProgressData) => void
   className?: string
+  initialProgress?: ProgressData | null
+  initialLogs?: LogMessage[]
+  onLogMessage?: (log: LogMessage) => void
 }
 
-export function RealTimeProgress({ taskId, title, onComplete, onError, onProgressUpdate, className }: RealTimeProgressProps) {
+const ensureTimestamp = (value: number | string | undefined): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value)
+    if (!Number.isNaN(parsed)) {
+      return parsed
+    }
+  }
+
+  return Date.now()
+}
+
+const normalizeLogMessage = (log: LogMessage | any): LogMessage => {
+  if (!log || typeof log !== 'object') {
+    return {
+      level: 'INFO',
+      message: String(log ?? ''),
+      timestamp: Date.now()
+    }
+  }
+
+  const level = typeof log.level === 'string' ? log.level.toUpperCase() : 'INFO'
+  const message = typeof log.message === 'string' ? log.message : JSON.stringify(log.message ?? log)
+  const timestamp = ensureTimestamp((log as any).timestamp ?? (log as any).created_at)
+
+  return { level, message, timestamp }
+}
+
+const mergeLogs = (existing: LogMessage[], incoming: LogMessage[]): LogMessage[] => {
+  if (incoming.length === 0) {
+    return existing
+  }
+
+  const logMap = new Map<string, LogMessage>()
+
+  const register = (log: LogMessage) => {
+    const key = `${log.level}-${log.message}-${log.timestamp}`
+    logMap.set(key, log)
+  }
+
+  existing.forEach(register)
+  incoming.forEach(register)
+
+  return Array.from(logMap.values())
+    .sort((a, b) => a.timestamp - b.timestamp)
+    .slice(-200)
+}
+
+export function RealTimeProgress({
+  taskId,
+  title,
+  onComplete,
+  onError,
+  onProgressUpdate,
+  className,
+  initialProgress,
+  initialLogs,
+  onLogMessage
+}: RealTimeProgressProps) {
   const [progressData, setProgressData] = useState<ProgressData | null>(null)
   const [logs, setLogs] = useState<LogMessage[]>([])
   const [isMinimized, setIsMinimized] = useState(false)
@@ -52,7 +116,9 @@ export function RealTimeProgress({ taskId, title, onComplete, onError, onProgres
     },
     onLog: (log) => {
       console.log('onLog called:', log)
-      setLogs(prev => [...prev, log].slice(-100)) // Ограничиваем количество логов
+      const normalized = normalizeLogMessage(log)
+      setLogs(prev => mergeLogs(prev, [normalized]).slice(-100))
+      onLogMessage?.(normalized)
     },
     onConnect: () => {
       if (taskId) {
@@ -82,12 +148,43 @@ export function RealTimeProgress({ taskId, title, onComplete, onError, onProgres
       }
 
       if (parsed.logs && Array.isArray(parsed.logs)) {
-        setLogs(parsed.logs.slice(-100))
+        setLogs(parsed.logs.slice(-100).map(normalizeLogMessage))
       }
     } catch (error) {
       console.error('Не удалось восстановить прогресс задачи из localStorage:', error)
     }
   }, [storageKey, taskId])
+
+  useEffect(() => {
+    if (!initialProgress) {
+      return
+    }
+
+    setProgressData(prev => {
+      if (!prev) {
+        return initialProgress
+      }
+
+      if (
+        initialProgress.updated_at !== prev.updated_at ||
+        initialProgress.status !== prev.status ||
+        initialProgress.progress !== prev.progress ||
+        initialProgress.message !== prev.message
+      ) {
+        return { ...prev, ...initialProgress }
+      }
+
+      return prev
+    })
+  }, [initialProgress])
+
+  useEffect(() => {
+    if (!initialLogs || initialLogs.length === 0) {
+      return
+    }
+
+    setLogs(prev => mergeLogs(prev, initialLogs.map(normalizeLogMessage)))
+  }, [initialLogs])
 
   useEffect(() => {
     if (typeof window === 'undefined' || !taskId) {

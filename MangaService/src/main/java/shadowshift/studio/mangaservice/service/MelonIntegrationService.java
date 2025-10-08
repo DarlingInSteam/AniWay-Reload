@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Async;
@@ -372,6 +373,28 @@ public class MelonIntegrationService {
                 "message", "Ошибка получения статуса: " + e.getMessage()
             );
         }
+    }
+
+    public List<Map<String, Object>> listTasks() {
+        String url = melonServiceUrl + "/tasks";
+
+        try {
+            ResponseEntity<List<Map<String, Object>>> response = restTemplate.exchange(
+                url,
+                HttpMethod.GET,
+                null,
+                new ParameterizedTypeReference<List<Map<String, Object>>>() {}
+            );
+
+            List<Map<String, Object>> body = response.getBody();
+            if (body != null) {
+                return body;
+            }
+        } catch (Exception e) {
+            logger.error("Ошибка получения списка задач из MelonService: {}", e.getMessage());
+        }
+
+        return Collections.emptyList();
     }
 
     /**

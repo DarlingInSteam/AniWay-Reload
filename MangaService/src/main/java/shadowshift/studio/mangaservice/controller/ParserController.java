@@ -116,6 +116,21 @@ public class ParserController {
     }
 
     /**
+     * Возвращает список задач парсинга на MelonService.
+     */
+    @GetMapping("/tasks")
+    @ResponseBody
+    public ResponseEntity<List<Map<String, Object>>> listTasks() {
+        try {
+            List<Map<String, Object>> tasks = melonService.listTasks();
+            return ResponseEntity.ok(tasks);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                .body(List.of(Map.of("error", "Ошибка получения списка задач: " + e.getMessage())));
+        }
+    }
+
+    /**
      * Строит архив манги из распарсенных данных.
      *
      * @param filename имя файла с данными манги

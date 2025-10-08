@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -9,7 +9,7 @@ import { AlertCircle, Download, CheckCircle, XCircle, Clock, Loader2, RefreshCw,
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { toast } from 'sonner'
 import { RealTimeProgress } from '@/components/common/RealTimeProgress'
-import type { ParsingMetrics } from '@/types'
+import type { ParsingMetrics, ProgressData, LogMessage } from '@/types'
 
 interface ParsedManga {
   filename: string
@@ -31,7 +31,139 @@ interface ParsingTask {
   startTime: Date
   endTime?: Date
   result?: any
-   metrics?: ParsingMetrics
+  metrics?: ParsingMetrics
+  logs?: LogMessage[]
+}
+
+interface TaskSummary {
+  taskId: string
+  status: ParsingTask['status']
+  slug?: string
+  message?: string
+  progress?: number
+  createdAt?: string
+  updatedAt?: string
+}
+
+const ensureTimestamp = (value: unknown): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value)
+    if (!Number.isNaN(parsed)) {
+      return parsed
+    }
+  }
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.getTime()
+  }
+
+  return Date.now()
+}
+
+const normalizeTaskStatus = (
+  status: unknown,
+  fallback: ParsingTask['status'] = 'pending'
+): ParsingTask['status'] => {
+  if (typeof status !== 'string') {
+    return fallback
+  }
+
+  const normalized = status.trim().toUpperCase()
+
+  if (normalized === 'PENDING') return 'pending'
+  if (normalized === 'RUNNING') return 'running'
+  if (normalized === 'COMPLETED' || normalized === 'SUCCESS' || normalized === 'DONE') return 'completed'
+  if (normalized === 'FAILED' || normalized === 'ERROR' || normalized === 'CANCELLED') return 'failed'
+
+  if (
+    normalized.includes('RUNNING') ||
+    normalized.startsWith('IMPORT') ||
+    normalized.startsWith('PARSE') ||
+    normalized.startsWith('BUILD') ||
+    normalized.startsWith('DOWNLOAD')
+  ) {
+    return 'running'
+  }
+
+  return fallback
+}
+
+const normalizeLogEntries = (entries: unknown): LogMessage[] => {
+  if (!Array.isArray(entries)) {
+    return []
+  }
+
+  return entries
+    .map((entry): LogMessage | null => {
+      if (!entry || typeof entry !== 'object') {
+        return null
+      }
+
+      const level = typeof (entry as any).level === 'string'
+        ? (entry as any).level.toUpperCase()
+        : 'INFO'
+
+      const messageValue = (entry as any).message
+      const message = typeof messageValue === 'string'
+        ? messageValue
+        : JSON.stringify(messageValue ?? entry)
+
+      const timestampValue = (entry as any).timestamp ?? (entry as any).created_at ?? (entry as any).time
+      const timestamp = ensureTimestamp(timestampValue)
+
+      return { level, message, timestamp }
+    })
+    .filter((log): log is LogMessage => log !== null)
+    .sort((a, b) => a.timestamp - b.timestamp)
+}
+
+const mergeLogArrays = (existing: LogMessage[] = [], incoming: LogMessage[] = []): LogMessage[] => {
+  if (incoming.length === 0) {
+    return existing
+  }
+
+  const logMap = new Map<string, LogMessage>()
+
+  const register = (log: LogMessage) => {
+    const key = `${log.level}-${log.message}-${log.timestamp}`
+    logMap.set(key, log)
+  }
+
+  existing.forEach(register)
+  incoming.forEach(register)
+
+  return Array.from(logMap.values())
+    .sort((a, b) => a.timestamp - b.timestamp)
+    .slice(-200)
+}
+
+const extractPrimaryResult = (payload: any) => {
+  if (!payload) {
+    return undefined
+  }
+
+  if (payload.result && typeof payload.result === 'object') {
+    return payload.result
+  }
+
+  if (Array.isArray(payload.results) && payload.results.length > 0) {
+    return payload.results[payload.results.length - 1]
+  }
+
+  return undefined
+}
+
+const selectSlug = (...values: Array<unknown>): string | undefined => {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim()
+    }
+  }
+  return undefined
 }
 
 export function MangaParser() {
@@ -39,69 +171,242 @@ export function MangaParser() {
   const [isLoading, setIsLoading] = useState(false)
   const [currentTask, setCurrentTask] = useState<ParsingTask | null>(null)
   const [parsedManga, setParsedManga] = useState<ParsedManga[]>([])
+  const [taskSummaries, setTaskSummaries] = useState<TaskSummary[]>([])
+
+  const applyTaskPayload = useCallback((taskId: string, payload: any, fallbackSlug?: string) => {
+    const logs = normalizeLogEntries(payload?.logs)
+    const status = normalizeTaskStatus(payload?.status, 'pending')
+    const resultPayload = extractPrimaryResult(payload)
+    const slugCandidate = selectSlug(
+      payload?.slug,
+      payload?.current_slug,
+      resultPayload?.filename,
+      payload?.result?.filename,
+      fallbackSlug
+    )
+    const createdAt = typeof payload?.created_at === 'string' ? payload.created_at : undefined
+    const updatedAt = typeof payload?.updated_at === 'string' ? payload.updated_at : undefined
+
+    setCurrentTask(prevState => {
+      const prev = prevState && prevState.taskId === taskId ? prevState : null
+      const mergedLogs = mergeLogArrays(prev?.logs ?? [], logs)
+      const progressValue = typeof payload?.progress === 'number' ? payload.progress : prev?.progress ?? 0
+      const stageMessage = typeof payload?.message === 'string' ? payload.message : prev?.stage ?? '—'
+      const errorMessage = typeof payload?.error === 'string' ? payload.error : prev?.error
+      const metricsPayload: ParsingMetrics | undefined =
+        (payload?.metrics as ParsingMetrics | undefined) ??
+        (resultPayload?.metrics as ParsingMetrics | undefined) ??
+        prev?.metrics
+
+      const normalizedStatus = normalizeTaskStatus(payload?.status, prev?.status ?? status)
+      const startTime = prev?.startTime ?? (createdAt ? new Date(createdAt) : new Date())
+      const isFinished = normalizedStatus === 'completed' || normalizedStatus === 'failed'
+      const endTime = isFinished
+        ? (updatedAt ? new Date(updatedAt) : prev?.endTime ?? new Date())
+        : prev?.endTime
+      const resolvedSlug = selectSlug(slugCandidate, prev?.slug, fallbackSlug, `Задача ${taskId}`) ?? `Задача ${taskId}`
+
+      return {
+        taskId,
+        slug: resolvedSlug,
+        status: normalizedStatus,
+        progress: progressValue,
+        stage: stageMessage,
+        error: errorMessage,
+        startTime,
+        endTime,
+        result: resultPayload ?? prev?.result,
+        metrics: metricsPayload,
+        logs: mergedLogs
+      }
+    })
+
+    setTaskSummaries(prev => {
+      const filtered = prev.filter(item => item.taskId !== taskId)
+      const summary: TaskSummary = {
+        taskId,
+        status,
+        slug: selectSlug(slugCandidate, fallbackSlug),
+        message: typeof payload?.message === 'string' ? payload.message : undefined,
+        progress: typeof payload?.progress === 'number' ? payload.progress : undefined,
+        createdAt,
+        updatedAt
+      }
+
+      const next = [summary, ...filtered]
+      next.sort((a, b) => {
+        const timestampA = a.updatedAt ? Date.parse(a.updatedAt) : a.createdAt ? Date.parse(a.createdAt) : 0
+        const timestampB = b.updatedAt ? Date.parse(b.updatedAt) : b.createdAt ? Date.parse(b.createdAt) : 0
+        return (Number.isNaN(timestampB) ? 0 : timestampB) - (Number.isNaN(timestampA) ? 0 : timestampA)
+      })
+
+      return next
+    })
+
+    if (status === 'completed' && resultPayload && resultPayload.filename) {
+      setParsedManga(prev => {
+        const alreadyExists = prev.some(item => item.filename === resultPayload.filename)
+        if (alreadyExists) {
+          return prev
+        }
+
+        return [
+          ...prev,
+          {
+            filename: resultPayload.filename,
+            title: resultPayload.title ?? resultPayload.filename,
+            author: resultPayload.author ?? 'Неизвестно',
+            chaptersCount: resultPayload.chaptersCount ?? resultPayload.chapters ?? 0,
+            size: resultPayload.size ?? '—',
+            createdAt: updatedAt ?? new Date().toISOString(),
+            branches: resultPayload.branches
+          }
+        ]
+      })
+    }
+  }, [])
+
+  const hydrateTask = useCallback(async (taskId: string, fallbackSlug?: string) => {
+    try {
+      const response = await fetch(`/api/parser/status/${taskId}`)
+      if (!response.ok) {
+        if (response.status === 404 && typeof window !== 'undefined') {
+          window.localStorage.removeItem('currentParsingTask')
+        }
+        return null
+      }
+
+      const payload = await response.json()
+      applyTaskPayload(taskId, payload, fallbackSlug)
+      return payload
+    } catch (error) {
+      console.error('Ошибка получения статуса задачи:', error)
+      return null
+    }
+  }, [applyTaskPayload])
+
+  const handleTaskSwitch = useCallback(async (taskId: string) => {
+    if (!taskId || currentTask?.taskId === taskId) {
+      return
+    }
+
+    const summary = taskSummaries.find(task => task.taskId === taskId)
+
+    setCurrentTask({
+      taskId,
+      slug: summary?.slug ?? 'Неизвестно',
+      status: 'pending',
+      progress: 0,
+      stage: 'Загрузка статуса...',
+      startTime: new Date(),
+      logs: []
+    })
+
+    await hydrateTask(taskId, summary?.slug)
+  }, [currentTask?.taskId, hydrateTask, taskSummaries])
+
+  const refreshTaskSummaries = useCallback(async (): Promise<TaskSummary[]> => {
+    try {
+      const response = await fetch('/api/parser/tasks')
+      if (!response.ok) {
+        console.error('Ошибка получения списка задач:', response.statusText)
+        return []
+      }
+
+      const payload = await response.json()
+      const summaries: TaskSummary[] = []
+
+      if (Array.isArray(payload)) {
+        for (const item of payload) {
+          const rawId = item?.task_id ?? item?.taskId
+          if (!rawId) {
+            continue
+          }
+
+          const summary: TaskSummary = {
+            taskId: String(rawId),
+            status: normalizeTaskStatus(item?.status, 'pending'),
+            slug: selectSlug(item?.slug, item?.current_slug),
+            message: typeof item?.message === 'string' ? item.message : undefined,
+            progress: typeof item?.progress === 'number' ? item.progress : undefined,
+            createdAt: typeof item?.created_at === 'string' ? item.created_at : undefined,
+            updatedAt: typeof item?.updated_at === 'string' ? item.updated_at : undefined
+          }
+
+          summaries.push(summary)
+        }
+
+        summaries.sort((a, b) => {
+          const timestampA = a.updatedAt ? Date.parse(a.updatedAt) : a.createdAt ? Date.parse(a.createdAt) : 0
+          const timestampB = b.updatedAt ? Date.parse(b.updatedAt) : b.createdAt ? Date.parse(b.createdAt) : 0
+          return (Number.isNaN(timestampB) ? 0 : timestampB) - (Number.isNaN(timestampA) ? 0 : timestampA)
+        })
+      }
+
+      setTaskSummaries(summaries)
+      return summaries
+    } catch (error) {
+      console.error('Ошибка получения списка задач:', error)
+      return []
+    }
+  }, [])
 
   // Восстанавливаем активную задачу после перезагрузки страницы
   useEffect(() => {
-    const restoreTask = async () => {
-      if (typeof window === 'undefined') return
+    const bootstrap = async () => {
+      if (typeof window === 'undefined') {
+        return
+      }
+
+      let storedTaskId: string | undefined
+      let storedSlug: string | undefined
 
       const stored = window.localStorage.getItem('currentParsingTask')
-      if (!stored) return
-
-      try {
-        const parsed = JSON.parse(stored) as { taskId?: string; slug?: string }
-        if (!parsed?.taskId) return
-
-        // Показываем placeholder пока получаем фактический статус
-        setCurrentTask(prev => prev ?? {
-          taskId: parsed.taskId!,
-          slug: parsed.slug ?? 'Неизвестно',
-          status: 'pending',
-          progress: 0,
-          stage: 'Восстановление статуса...',
-          startTime: new Date()
-        })
-
-        const response = await fetch(`/api/parser/status/${parsed.taskId}`)
-        if (!response.ok) {
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored) as { taskId?: string; slug?: string }
+          storedTaskId = parsed?.taskId ?? undefined
+          storedSlug = parsed?.slug ?? undefined
+        } catch (error) {
+          console.error('Не удалось прочитать сохраненную задачу из localStorage:', error)
           window.localStorage.removeItem('currentParsingTask')
-          return
         }
-
-        const data = await response.json()
-        setCurrentTask(prev => {
-          if (!prev) {
-            return null
-          }
-
-          const rawStatus = typeof data.status === 'string' ? data.status.toLowerCase() : undefined
-          const allowedStatuses: ParsingTask['status'][] = ['pending', 'running', 'completed', 'failed']
-          const nextStatus = rawStatus && allowedStatuses.includes(rawStatus as ParsingTask['status'])
-            ? rawStatus as ParsingTask['status']
-            : prev.status
-
-          const isFinished = nextStatus === 'completed' || nextStatus === 'failed'
-
-          return {
-            ...prev,
-            slug: prev.slug || (data.result && typeof data.result.filename === 'string' ? data.result.filename : prev.slug),
-            status: nextStatus,
-            progress: typeof data.progress === 'number' ? data.progress : prev.progress,
-            stage: typeof data.message === 'string' ? data.message : prev.stage,
-            error: data.error ?? prev.error,
-            result: data.result ?? prev.result,
-            metrics: data.metrics ?? prev.metrics,
-            endTime: isFinished ? new Date() : prev.endTime
-          }
-        })
-      } catch (error) {
-        console.error('Ошибка восстановления задачи парсинга:', error)
-        window.localStorage.removeItem('currentParsingTask')
       }
+
+      const summaries = await refreshTaskSummaries()
+
+      let targetTaskId = storedTaskId
+      let targetSlug = storedSlug
+
+      if (!targetTaskId) {
+        const activeTask = summaries.find(summary => summary.status === 'running' || summary.status === 'pending')
+        if (activeTask) {
+          targetTaskId = activeTask.taskId
+          targetSlug = activeTask.slug
+        } else if (summaries.length > 0) {
+          targetTaskId = summaries[0].taskId
+          targetSlug = summaries[0].slug
+        }
+      }
+
+      if (!targetTaskId) {
+        return
+      }
+
+      setCurrentTask(prev => prev ?? {
+        taskId: targetTaskId!,
+        slug: targetSlug ?? 'Неизвестно',
+        status: 'pending',
+        progress: 0,
+        stage: 'Восстановление статуса...',
+        startTime: new Date()
+      })
+
+      await hydrateTask(targetTaskId, targetSlug)
     }
 
-    restoreTask()
-  }, [])
+    bootstrap()
+  }, [hydrateTask, refreshTaskSummaries])
 
   // Периодически обновляем статус активной задачи
   useEffect(() => {
@@ -109,12 +414,7 @@ export function MangaParser() {
       return
     }
 
-    const normalizedStatus = currentTask.status?.toLowerCase?.()
-    const isActive = normalizedStatus === 'pending' || normalizedStatus === 'running'
-    if (!isActive) {
-      return
-    }
-
+    const isActive = currentTask.status === 'pending' || currentTask.status === 'running'
     let isCancelled = false
 
     const fetchStatus = async () => {
@@ -128,7 +428,7 @@ export function MangaParser() {
             }
             setCurrentTask(null)
           } else {
-            const errorPayload = await response.json()
+            const errorPayload = await response.json().catch(() => ({}))
             toast.error(errorPayload.error || 'Ошибка получения статуса задачи')
           }
           return
@@ -139,43 +439,37 @@ export function MangaParser() {
           return
         }
 
-        setCurrentTask(prev => {
-          if (!prev) {
-            return prev
-          }
-
-          const rawStatus = typeof data.status === 'string' ? data.status.toLowerCase() : undefined
-          const allowedStatuses: ParsingTask['status'][] = ['pending', 'running', 'completed', 'failed']
-          const nextStatus = rawStatus && allowedStatuses.includes(rawStatus as ParsingTask['status'])
-            ? rawStatus as ParsingTask['status']
-            : prev.status
-          const isFinished = nextStatus === 'completed' || nextStatus === 'failed'
-
-          return {
-            ...prev,
-            slug: prev.slug || (data.result && typeof data.result.filename === 'string' ? data.result.filename : prev.slug),
-            status: nextStatus,
-            progress: typeof data.progress === 'number' ? data.progress : prev.progress,
-            stage: typeof data.message === 'string' ? data.message : prev.stage,
-            error: data.error ?? prev.error,
-            result: data.result ?? prev.result,
-            metrics: data.metrics ?? prev.metrics,
-            endTime: isFinished ? new Date() : prev.endTime
-          }
-        })
+        applyTaskPayload(currentTask.taskId, data, currentTask.slug)
       } catch (error) {
         console.error('Ошибка получения статуса:', error)
       }
     }
 
     fetchStatus()
+
+    if (!isActive) {
+      return () => {
+        isCancelled = true
+      }
+    }
+
     const interval = window.setInterval(fetchStatus, 2000)
 
     return () => {
       isCancelled = true
       clearInterval(interval)
     }
-  }, [currentTask?.taskId, currentTask?.status])
+  }, [applyTaskPayload, currentTask?.slug, currentTask?.status, currentTask?.taskId])
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      refreshTaskSummaries()
+    }, 15000)
+
+    return () => {
+      clearInterval(interval)
+    }
+  }, [refreshTaskSummaries])
 
   // Сохраняем активную задачу в localStorage, чтобы пережить перезагрузку
   useEffect(() => {
@@ -222,10 +516,25 @@ export function MangaParser() {
           progress: 0,
           stage: 'Инициализация...',
           startTime: new Date(),
-          metrics: undefined
+          metrics: undefined,
+          logs: []
         }
 
         setCurrentTask(newTask)
+        setTaskSummaries(prev => {
+          const summary: TaskSummary = {
+            taskId: newTask.taskId,
+            status: 'pending',
+            slug: newTask.slug,
+            message: newTask.stage,
+            progress: 0,
+            createdAt: newTask.startTime.toISOString(),
+            updatedAt: newTask.startTime.toISOString()
+          }
+
+          const filtered = prev.filter(item => item.taskId !== newTask.taskId)
+          return [summary, ...filtered]
+        })
         if (typeof window !== 'undefined') {
           window.localStorage.setItem('currentParsingTask', JSON.stringify({
             taskId: newTask.taskId,
@@ -246,6 +555,7 @@ export function MangaParser() {
 
   const handleRetry = async () => {
     if (currentTask) {
+      const retryTaskId = currentTask.taskId
       setIsLoading(true)
 
       try {
@@ -264,9 +574,22 @@ export function MangaParser() {
             error: undefined,
             result: undefined,
             metrics: undefined,
+            logs: [],
             endTime: undefined,
             startTime: new Date()
           } : null)
+          setTaskSummaries(prev => {
+            const now = new Date().toISOString()
+            return prev.map(item => item.taskId === retryTaskId
+              ? {
+                  ...item,
+                  status: 'pending',
+                  message: 'Инициализация...',
+                  progress: 0,
+                  updatedAt: now
+                }
+              : item)
+          })
           toast.success('Задача успешно перезапущена')
         } else {
           toast.error(data.error || 'Ошибка перезапуска задачи')
@@ -347,6 +670,25 @@ export function MangaParser() {
             <CardDescription>
               Статус и прогресс задачи парсинга
             </CardDescription>
+            {taskSummaries.length > 1 && (
+              <div className="space-y-1">
+                <Label htmlFor="task-selector" className="text-xs text-muted-foreground">
+                  Выберите задачу
+                </Label>
+                <select
+                  id="task-selector"
+                  value={currentTask.taskId}
+                  onChange={(event) => handleTaskSwitch(event.target.value)}
+                  className="w-full rounded-md border border-border bg-background/60 px-3 py-2 text-sm text-white"
+                >
+                  {taskSummaries.map(summary => (
+                    <option key={summary.taskId} value={summary.taskId}>
+                      {summary.slug ?? summary.taskId} · {summary.status}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
@@ -459,6 +801,25 @@ export function MangaParser() {
                 )}
                 {currentTask.status === 'failed' ? 'Повторить' : 'Запустить заново'}
               </Button>
+            )}
+
+            {currentTask.logs && currentTask.logs.length > 0 && (
+              <div className="space-y-2">
+                <h5 className="text-sm font-semibold text-white">Логи задачи</h5>
+                <div className="max-h-64 overflow-auto rounded-lg border border-border bg-black/40 p-3">
+                  <div className="space-y-1 text-xs font-mono">
+                    {currentTask.logs.slice(-120).map((log, index) => (
+                      <div key={`${log.timestamp}-${index}`} className="flex gap-2">
+                        <span className="text-muted-foreground shrink-0">
+                          {new Date(log.timestamp).toLocaleTimeString()}
+                        </span>
+                        <span className="shrink-0 text-blue-300">[{log.level}]</span>
+                        <span className="text-white break-words">{log.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -629,15 +990,23 @@ export function MangaParser() {
         <RealTimeProgress
           taskId={currentTask.taskId}
           title={`Парсинг: ${currentTask.slug}`}
+          initialProgress={{
+            task_id: currentTask.taskId,
+            status: currentTask.status,
+            progress: currentTask.progress,
+            message: currentTask.stage,
+            updated_at: (currentTask.endTime ?? new Date()).toISOString(),
+            result: currentTask.result,
+            metrics: currentTask.metrics
+          }}
+          initialLogs={currentTask.logs}
           onProgressUpdate={(data) => {
+            const normalizedForStorage = normalizeTaskStatus(data.status, currentTask?.status ?? 'pending')
             setCurrentTask(prev => {
               if (!prev) return prev
 
-              const normalizedStatus = typeof data.status === 'string' ? data.status.toLowerCase() : prev.status
-              const allowedStatuses: ParsingTask['status'][] = ['pending', 'running', 'completed', 'failed']
-              const nextStatus = allowedStatuses.includes(normalizedStatus as ParsingTask['status'])
-                ? normalizedStatus as ParsingTask['status']
-                : prev.status
+              const normalizedStatus = normalizeTaskStatus(data.status, prev.status)
+              const nextStatus = normalizedStatus
               const isFinished = nextStatus === 'completed' || nextStatus === 'failed'
 
               return {
@@ -652,8 +1021,7 @@ export function MangaParser() {
             })
 
             if (typeof window !== 'undefined') {
-              const normalizedStatus = typeof data.status === 'string' ? data.status.toLowerCase() : undefined
-              if (normalizedStatus === 'completed' || normalizedStatus === 'failed') {
+              if (normalizedForStorage === 'completed' || normalizedForStorage === 'failed') {
                 window.localStorage.removeItem('currentParsingTask')
               }
             }
@@ -671,7 +1039,33 @@ export function MangaParser() {
             }
             toast.success('Парсинг завершен успешно!')
             // Обновляем список спаршенной манги
-            setParsedManga(prev => [...prev, result])
+            setParsedManga(prev => {
+              if (!result || typeof result !== 'object') {
+                return prev
+              }
+
+              const filename = (result as any).filename
+              if (typeof filename !== 'string' || filename.length === 0) {
+                return prev
+              }
+
+              if (prev.some(item => item.filename === filename)) {
+                return prev
+              }
+
+              return [
+                ...prev,
+                {
+                  filename,
+                  title: (result as any).title ?? filename,
+                  author: (result as any).author ?? 'Неизвестно',
+                  chaptersCount: (result as any).chaptersCount ?? (result as any).chapters ?? 0,
+                  size: (result as any).size ?? '—',
+                  createdAt: new Date().toISOString(),
+                  branches: (result as any).branches
+                }
+              ]
+            })
           }}
           onError={(error) => {
             setCurrentTask(prev => prev ? {
@@ -684,6 +1078,13 @@ export function MangaParser() {
               window.localStorage.removeItem('currentParsingTask')
             }
             toast.error('Ошибка парсинга: ' + error)
+          }}
+          onLogMessage={(log: LogMessage) => {
+            setCurrentTask(prev => {
+              if (!prev) return prev
+              const merged = mergeLogArrays(prev.logs ?? [], [log])
+              return { ...prev, logs: merged }
+            })
           }}
         />
       )}
