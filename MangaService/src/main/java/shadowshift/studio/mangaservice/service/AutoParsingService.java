@@ -23,15 +23,14 @@ import java.util.concurrent.CompletableFuture;
 public class AutoParsingService {
 
     private static final Logger logger = LoggerFactory.getLogger(AutoParsingService.class);
+    private static final Duration FULL_PARSING_POLL_INTERVAL = Duration.ofSeconds(2);
+    private static final int MAX_MISSING_FULL_STATUS_ATTEMPTS = 30;
 
     @Autowired
     private MelonIntegrationService melonService;
 
     @Autowired
     private MangaRepository mangaRepository;
-
-    @Autowired
-    private ImportTaskService importTaskService;
 
     @Autowired
     private ApplicationContext applicationContext;
@@ -168,6 +167,7 @@ public class AutoParsingService {
             } catch (Exception e) {
                 logger.warn("Не удалось отменить задачу {}: {}", childTaskId, e.getMessage());
             }
+            parseTaskToAutoParseTask.remove(childTaskId);
         }
 
         return Map.of(
@@ -445,6 +445,7 @@ public class AutoParsingService {
      */
     private Map<String, Object> waitForFullParsingCompletion(String taskId) throws InterruptedException {
         int attempts = 0;
+        int missingStatusAttempts = 0;
         AutoParseTask autoParseTask = null;
         
         // Находим родительскую задачу автопарсинга
@@ -462,33 +463,81 @@ public class AutoParsingService {
                     "message", "Задача автопарсинга отменена пользователем"
                 );
             }
-            
-            Thread.sleep(2000); // проверка каждые 2 секунды
-            
+
+            sleepForFullParsing(getFullParsingPollInterval());
+            attempts++;
+
             Map<String, Object> status = melonService.getFullParsingTaskStatus(taskId);
-            
-            if (status != null) {
-                String statusValue = String.valueOf(status.get("status"));
+            String statusValue = status != null ? String.valueOf(status.get("status")) : null;
+
+            if (statusValue != null) {
                 if ("completed".equalsIgnoreCase(statusValue)) {
-                    logger.info("Полный парсинг завершен успешно после {} попыток ({}s)", attempts, attempts * 2);
+                    logger.info("Полный парсинг завершен успешно после {} попыток ({}s)",
+                        attempts, attempts * getFullParsingPollInterval().getSeconds());
                     return status;
                 }
 
                 if ("failed".equalsIgnoreCase(statusValue) || "cancelled".equalsIgnoreCase(statusValue)) {
-                    logger.error("Полный парсинг завершился с ошибкой/отменен после {} попыток: {}", attempts, status.get("message"));
+                    logger.error("Полный парсинг завершился с ошибкой/отменен после {} попыток: {}",
+                        attempts, status.get("message"));
                     return status;
                 }
             }
-            
-            attempts++;
-            
+
+            if (isMissingFullParsingStatus(status, statusValue)) {
+                missingStatusAttempts++;
+
+                if (missingStatusAttempts >= getMaxMissingFullStatusAttempts()) {
+                    logger.warn("Статус полного парсинга {} недоступен после {} попыток. Предполагаем потерю задачи.",
+                        taskId, missingStatusAttempts);
+                    String message = status != null && status.get("message") != null
+                        ? String.valueOf(status.get("message"))
+                        : "Не удалось получить статус полного парсинга (возможно, MelonService был перезапущен)";
+                    return Map.of(
+                        "status", "failed",
+                        "message", message
+                    );
+                }
+            } else {
+                missingStatusAttempts = 0;
+            }
+
             // Логируем прогресс каждые 30 проверок (1 минута)
             if (attempts % 30 == 0) {
-                int minutes = attempts * 2 / 60;
+                long minutes = attempts * getFullParsingPollInterval().toMillis() / 60000;
                 logger.info("Ожидание парсинга {}: {} минут, прогресс: {}%",
                     taskId, minutes, status != null ? status.get("progress") : "?");
             }
         }
+    }
+
+    protected Duration getFullParsingPollInterval() {
+        return FULL_PARSING_POLL_INTERVAL;
+    }
+
+    protected int getMaxMissingFullStatusAttempts() {
+        return MAX_MISSING_FULL_STATUS_ATTEMPTS;
+    }
+
+    protected void sleepForFullParsing(Duration interval) throws InterruptedException {
+        long millis = Math.max(1L, interval.toMillis());
+        Thread.sleep(millis);
+    }
+
+    private boolean isMissingFullParsingStatus(Map<String, Object> status, String statusValue) {
+        if (status == null) {
+            return true;
+        }
+        if (statusValue == null || statusValue.isBlank()) {
+            return true;
+        }
+        if ("not_found".equalsIgnoreCase(statusValue)) {
+            return true;
+        }
+        if (!status.containsKey("status") && status.containsKey("error")) {
+            return true;
+        }
+        return false;
     }
 
     private void addMangaMetric(AutoParseTask task, Map<String, Object> metric) {

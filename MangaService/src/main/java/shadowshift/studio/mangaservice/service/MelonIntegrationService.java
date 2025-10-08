@@ -36,6 +36,8 @@ import java.util.stream.Collectors;
 public class MelonIntegrationService {
 
     private static final Logger logger = LoggerFactory.getLogger(MelonIntegrationService.class);
+    private static final Duration TASK_STATUS_POLL_INTERVAL = Duration.ofSeconds(2);
+    private static final int MAX_MISSING_TASK_STATUS_ATTEMPTS = 15;
 
     @Autowired
     private RestTemplate restTemplate;
@@ -363,26 +365,80 @@ public class MelonIntegrationService {
      * Ожидает завершения задачи парсинга
      */
     private Map<String, Object> waitForTaskCompletion(String taskId) throws InterruptedException {
-        Map<String, Object> status;
+        Map<String, Object> status = null;
         int attempts = 0; // БЕЗ таймаута - некоторые манги парсятся 100+ минут
+        int missingStatusAttempts = 0;
 
-        do {
-            Thread.sleep(2000); // жде�� 2 секунды
-            status = getTaskStatus(taskId);
+        while (true) {
+            sleep(getTaskStatusPollInterval());
             attempts++;
 
-            // Логируем каждые 30 проверок (1 минута)
-            if (attempts % 30 == 0) {
-                int minutes = attempts * 2 / 60;
-                logger.info("Ожидание задачи {}: {}min, статус: {}", 
-                    taskId, minutes, status != null ? status.get("status") : "null");
+            status = getTaskStatus(taskId);
+            String statusValue = status != null ? String.valueOf(status.get("status")) : null;
+
+            if (isTerminalTaskStatus(statusValue)) {
+                return status;
             }
 
-        } while (status != null &&
-                !"completed".equalsIgnoreCase(String.valueOf(status.get("status"))) &&
-                !"failed".equalsIgnoreCase(String.valueOf(status.get("status"))));
+            if (isMissingTaskStatus(status, statusValue)) {
+                missingStatusAttempts++;
 
-        return status != null ? status : Map.of("status", "failed", "message", "Не удалось получить статус задачи");
+                if (missingStatusAttempts >= getMaxMissingTaskStatusAttempts()) {
+                    logger.warn("Статус задачи {} недоступен после {} попыток. Предполагаем потерю задачи.",
+                        taskId, missingStatusAttempts);
+                    String message = status != null && status.get("message") != null
+                        ? String.valueOf(status.get("message"))
+                        : "MelonService не предоставляет статус задачи (возможно, сервис был перезапущен)";
+                    return Map.of(
+                        "status", "failed",
+                        "message", message
+                    );
+                }
+            } else {
+                missingStatusAttempts = 0;
+            }
+
+            if (attempts % 30 == 0) {
+                long minutes = attempts * getTaskStatusPollInterval().toMillis() / 60000;
+                logger.info("Ожидание задачи {}: {}min, статус: {}",
+                    taskId, minutes, statusValue != null ? statusValue : "null");
+            }
+        }
+    }
+
+    protected Duration getTaskStatusPollInterval() {
+        return TASK_STATUS_POLL_INTERVAL;
+    }
+
+    protected int getMaxMissingTaskStatusAttempts() {
+        return MAX_MISSING_TASK_STATUS_ATTEMPTS;
+    }
+
+    protected void sleep(Duration interval) throws InterruptedException {
+        long millis = Math.max(1L, interval.toMillis());
+        Thread.sleep(millis);
+    }
+
+    private boolean isTerminalTaskStatus(String statusValue) {
+        if (statusValue == null) {
+            return false;
+        }
+        return "completed".equalsIgnoreCase(statusValue)
+            || "failed".equalsIgnoreCase(statusValue)
+            || "cancelled".equalsIgnoreCase(statusValue);
+    }
+
+    private boolean isMissingTaskStatus(Map<String, Object> status, String statusValue) {
+        if (status == null) {
+            return true;
+        }
+        if (statusValue == null || statusValue.isBlank()) {
+            return true;
+        }
+
+        return "not_found".equalsIgnoreCase(statusValue)
+            || "error".equalsIgnoreCase(statusValue)
+            || "unknown".equalsIgnoreCase(statusValue);
     }
 
     /**
