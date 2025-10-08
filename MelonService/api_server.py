@@ -1094,36 +1094,8 @@ async def execute_parse_task(task_id: str, slug: str, parser: str):
                         "metrics": metrics_payload
                     },
                     metrics=metrics_payload
-
-
-                    @app.post("/tasks/{task_id}/cancel")
-                    async def cancel_task(task_id: str):
-                        """Отмена выполняющейся задачи"""
-                        if task_id not in tasks_storage:
-                            raise HTTPException(status_code=404, detail="Task not found")
-
-                        task = tasks_storage[task_id]
-
-                        if task.status in ["COMPLETED", "FAILED", "CANCELLED"]:
-                            return {
-                                "cancelled": False,
-                                "status": task.status,
-                                "message": "Task already finished"
-                            }
-
-                        process = await get_running_process(task_id)
-                        if process:
-                            await terminate_process(process)
-
-                        log_task_message(task_id, "INFO", "⚠️ Задача отменена пользователем")
-                        update_task_status(task_id, "CANCELLED", task.progress, "Задача отменена пользователем", error="Cancelled by user")
-
-                        if task_id in build_states:
-                            del build_states[task_id]
-
-                        return {"cancelled": True, "status": "CANCELLED"}
                 )
-                
+
                 # Автоматически запускаем build после успешного парсинга (с нормализованным slug)
                 asyncio.create_task(execute_build_task(task_id, normalized_slug, parser, None, "simple"))
             else:
@@ -1213,6 +1185,34 @@ async def execute_build_task(task_id: str, slug: str, parser: str, target_langua
     except Exception as e:
         logger.error(f"Critical error in build task {task_id}: {str(e)}")
         update_task_status(task_id, "FAILED", 100, f"Критическая ошибка: {str(e)}")
+
+
+@app.post("/tasks/{task_id}/cancel")
+async def cancel_task(task_id: str):
+    """Отмена выполняющейся задачи"""
+    if task_id not in tasks_storage:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    task = tasks_storage[task_id]
+
+    if task.status in ["COMPLETED", "FAILED", "CANCELLED"]:
+        return {
+            "cancelled": False,
+            "status": task.status,
+            "message": "Task already finished"
+        }
+
+    process = await get_running_process(task_id)
+    if process:
+        await terminate_process(process)
+
+    log_task_message(task_id, "INFO", "⚠️ Задача отменена пользователем")
+    update_task_status(task_id, "CANCELLED", task.progress, "Задача отменена пользователем", error="Cancelled by user")
+
+    if task_id in build_states:
+        del build_states[task_id]
+
+    return {"cancelled": True, "status": "CANCELLED"}
 
 @app.get("/list-parsed")
 async def list_parsed_manga():
