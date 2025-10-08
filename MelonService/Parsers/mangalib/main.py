@@ -647,16 +647,33 @@ class Parser(MangaParser):
         """
 
         Type = None
-        TypesDeterminations = {
+
+        TypeData = data.get("type") or {}
+        SiteTypeLabel = TypeData.get("label") or ""
+        SiteTypeId = TypeData.get("id")
+
+        TypeById = {
+            9: Types.western_comic,   # Комикс
+            4: Types.oel,             # OEL-манга
+            8: Types.russian_comic,   # Руманга
+        }
+
+        TypeByLabel = {
             "Манга": Types.manga,
             "Манхва": Types.manhwa,
             "Маньхуа": Types.manhua,
             "Руманга": Types.russian_comic,
+            "Комикс": Types.western_comic,
             "Комикс западный": Types.western_comic,
-            "OEL-манга": Types.oel
+            "OEL-манга": Types.oel,
         }
-        SiteType = data["type"]["label"]
-        if SiteType in TypesDeterminations.keys(): Type = TypesDeterminations[SiteType]
+
+        if SiteTypeId in TypeById:
+            Type = TypeById[SiteTypeId]
+        else:
+            NormalizedLabel = SiteTypeLabel.strip()
+            if NormalizedLabel in TypeByLabel:
+                Type = TypeByLabel[NormalizedLabel]
 
         return Type
 
