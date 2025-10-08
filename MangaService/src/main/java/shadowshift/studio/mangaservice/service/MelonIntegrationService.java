@@ -739,49 +739,11 @@ public class MelonIntegrationService {
             }
 
             // Обрабатываем статус
-            String statusStr = (String) mangaInfo.get("status");
-            System.out.println("DEBUG: status from parser = " + statusStr);
-            if (statusStr != null && !statusStr.trim().isEmpty()) {
-                try {
-                    switch (statusStr.toLowerCase().trim()) {
-                        case "ongoing":
-                        case "продолжается":
-                            manga.setStatus(Manga.MangaStatus.ONGOING);
-                            break;
-                        case "completed":
-                        case "завершен":
-                        case "завершён":
-                            manga.setStatus(Manga.MangaStatus.COMPLETED);
-                            break;
-                        case "announced":
-                        case "анонс":
-                        case "анонсирован":
-                            manga.setStatus(Manga.MangaStatus.ANNOUNCED);
-                            break;
-                        case "hiatus":
-                        case "заморожен":
-                        case "приостановлен":
-                            manga.setStatus(Manga.MangaStatus.HIATUS);
-                            break;
-                        case "cancelled":
-                        case "dropped":
-                        case "отменен":
-                        case "отменён":
-                        case "выпуск прекращён":
-                        case "выпуск прекращен":
-                            manga.setStatus(Manga.MangaStatus.CANCELLED);
-                            break;
-                        default:
-                            manga.setStatus(Manga.MangaStatus.ONGOING);
-                    }
-                    System.out.println("DEBUG: Set status to: " + manga.getStatus());
-                } catch (Exception e) {
-                    manga.setStatus(Manga.MangaStatus.ONGOING);
-                }
-            } else {
-                manga.setStatus(Manga.MangaStatus.ONGOING);
-                System.out.println("DEBUG: No status from parser, set default ONGOING");
-            }
+            Object statusRaw = mangaInfo.get("status");
+            System.out.println("DEBUG: status from parser = " + statusRaw);
+            Manga.MangaStatus resolvedStatus = resolveMangaStatus(statusRaw);
+            manga.setStatus(resolvedStatus);
+            System.out.println("DEBUG: Set status to: " + manga.getStatus());
 
             // Обрабатываем жанры
             List<String> genres = (List<String>) mangaInfo.get("genres");
@@ -1184,7 +1146,11 @@ public class MelonIntegrationService {
             manga.setDescription(description);
         }
 
-        manga.setStatus(Manga.MangaStatus.ONGOING);
+        Object statusRaw = mangaInfo.get("status");
+        System.out.println("DEBUG: status from parser (async flow) = " + statusRaw);
+        Manga.MangaStatus asyncResolvedStatus = resolveMangaStatus(statusRaw);
+        manga.setStatus(asyncResolvedStatus);
+        System.out.println("DEBUG: Async flow set status to: " + manga.getStatus());
 
         // Обрабатываем жанры
         List<String> genres = (List<String>) mangaInfo.get("genres");
@@ -1403,6 +1369,65 @@ public class MelonIntegrationService {
         }
 
         return manga;
+    }
+
+    private Manga.MangaStatus resolveMangaStatus(Object statusRaw) {
+        if (statusRaw == null) {
+            return Manga.MangaStatus.ONGOING;
+        }
+
+        String statusStr;
+        if (statusRaw instanceof String) {
+            statusStr = ((String) statusRaw).trim();
+        } else {
+            statusStr = statusRaw.toString().trim();
+        }
+
+        if (statusStr.isEmpty()) {
+            return Manga.MangaStatus.ONGOING;
+        }
+
+        String normalized = statusStr.toLowerCase(Locale.ROOT);
+
+        switch (normalized) {
+            case "ongoing":
+            case "продолжается":
+            case "продолжается выпуск":
+                return Manga.MangaStatus.ONGOING;
+            case "completed":
+            case "завершен":
+            case "завершён":
+            case "завершена":
+            case "завершено":
+                return Manga.MangaStatus.COMPLETED;
+            case "announced":
+            case "анонс":
+            case "анонсирован":
+            case "анонсировано":
+                return Manga.MangaStatus.ANNOUNCED;
+            case "hiatus":
+            case "заморожен":
+            case "заморожена":
+            case "заморожено":
+            case "приостановлен":
+            case "приостановлена":
+            case "приостановлено":
+                return Manga.MangaStatus.HIATUS;
+            case "cancelled":
+            case "canceled":
+            case "dropped":
+            case "отменен":
+            case "отменён":
+            case "отменена":
+            case "отменено":
+            case "выпуск прекращён":
+            case "выпуск прекращен":
+            case "выпуск прекращена":
+            case "выпуск прекращено":
+                return Manga.MangaStatus.CANCELLED;
+            default:
+                return Manga.MangaStatus.ONGOING;
+        }
     }
 
     private void setFallbackCoverFromJson(Manga manga, Map<String, Object> mangaInfo) {
