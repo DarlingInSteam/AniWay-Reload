@@ -43,6 +43,51 @@ const AUTO_PARSE_STORAGE_KEY = 'autoParseTaskState'
 const AUTO_UPDATE_STORAGE_KEY = 'autoUpdateTaskState'
 const AUTO_TASK_POLL_INTERVAL = 2000
 const FINAL_AUTO_STATUSES = new Set(['completed', 'failed', 'cancelled'])
+const LOG_DISPLAY_TIMEZONE = 'Asia/Novosibirsk'
+const LOG_TIMEZONE_LABEL = 'НСК'
+
+const LOG_TIME_FORMATTER = new Intl.DateTimeFormat('ru-RU', {
+  timeZone: LOG_DISPLAY_TIMEZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false
+})
+
+const tryConvertTimestampToNovosibirsk = (timestamp: string): string | null => {
+  const isoWithZone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(timestamp) ? timestamp : `${timestamp}Z`
+  const date = new Date(isoWithZone)
+
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  const formatted = LOG_TIME_FORMATTER
+    .format(date)
+    .replace(',', '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  return formatted
+}
+
+const formatLogLineForDisplay = (log: string): string => {
+  const match = log.match(/^\[(\d{4}-\d{2}-\d{2}T[0-9:.+-]+)\]/)
+
+  if (!match) {
+    return log
+  }
+
+  const converted = tryConvertTimestampToNovosibirsk(match[1])
+  if (!converted) {
+    return log
+  }
+
+  return log.replace(match[0], `[${converted} ${LOG_TIMEZONE_LABEL}]`)
+}
 
 const isTaskActive = (status?: string | null): boolean => {
   if (!status) {
@@ -151,14 +196,18 @@ function LogViewer({ logs }: { logs?: string[] }) {
           scrollBehavior: autoScroll ? 'smooth' : 'auto',
         }}
       >
-        {logs.map((log, index) => (
-          <div
-            key={index}
-            className={`${getLogColor(log)} leading-relaxed hover:bg-gray-900 px-2 py-1 rounded transition-colors`}
-          >
-            {log}
-          </div>
-        ))}
+        {logs.map((log, index) => {
+          const formattedLog = formatLogLineForDisplay(log)
+          return (
+            <div
+              key={index}
+              className={`${getLogColor(log)} leading-relaxed hover:bg-gray-900 px-2 py-1 rounded transition-colors`}
+              title={log}
+            >
+              {formattedLog}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
