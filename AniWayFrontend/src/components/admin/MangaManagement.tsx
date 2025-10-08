@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -8,6 +8,25 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Download, RefreshCw, Loader2, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
+
+interface AutoParseMangaMetric {
+  index: number
+  slug: string
+  normalized_slug?: string
+  status: string
+  started_at?: string
+  completed_at?: string
+  duration_ms: number
+  duration_formatted?: string
+  title?: string
+  reason?: string
+  error_message?: string
+  final_message?: string
+  import_task_id?: string
+  full_parsing_task_id?: string
+  parse_task_id?: string
+  metrics?: Record<string, unknown>
+}
 
 interface AutoParseTask {
   task_id: string
@@ -20,7 +39,12 @@ interface AutoParseTask {
   imported_slugs: string[]
   failed_slugs: string[]
   start_time: string
-  end_time?: string
+  end_time?: string | null
+  duration_ms?: number
+  duration_formatted?: string
+  page?: number
+  limit?: number | null
+  manga_metrics: AutoParseMangaMetric[]
   logs?: string[]  // Логи в реальном времени
 }
 
@@ -89,6 +113,113 @@ const formatLogLineForDisplay = (log: string): string => {
   return log.replace(match[0], `[${converted} ${LOG_TIMEZONE_LABEL}]`)
 }
 
+const ensureIsoString = (value: unknown): string | null => {
+  if (!value) {
+    return null
+  }
+
+  if (typeof value === 'string') {
+    return value
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString()
+  }
+
+  if (typeof value === 'number') {
+    return new Date(value).toISOString()
+  }
+
+  return null
+}
+
+const formatTimestampLabel = (value?: string | Date | null): string => {
+  const iso = ensureIsoString(value)
+  if (!iso) {
+    return '—'
+  }
+
+  const converted = tryConvertTimestampToNovosibirsk(iso)
+  if (converted) {
+    return `${converted} ${LOG_TIMEZONE_LABEL}`
+  }
+
+  const fallbackDate = new Date(iso)
+  if (!Number.isNaN(fallbackDate.getTime())) {
+    return `${LOG_TIME_FORMATTER.format(fallbackDate)} ${LOG_TIMEZONE_LABEL}`
+  }
+
+  return iso
+}
+
+const toNumber = (value: unknown): number | undefined => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    if (!Number.isNaN(parsed)) {
+      return parsed
+    }
+  }
+
+  return undefined
+}
+
+const formatDurationFromMs = (value?: number | null, fallback?: string): string => {
+  if (typeof fallback === 'string' && fallback.length > 0) {
+    return fallback
+  }
+
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return '—'
+  }
+
+  const totalSeconds = Math.max(0, Math.floor(value / 1000))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+
+  return [hours, minutes, seconds]
+    .map((v) => v.toString().padStart(2, '0'))
+    .join(':')
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  completed: 'Готово',
+  failed: 'Ошибка',
+  running: 'Выполняется',
+  pending: 'В очереди',
+  cancelled: 'Отменено',
+  skipped: 'Пропущено'
+}
+
+const STATUS_BADGE_CLASSES: Record<string, string> = {
+  completed: 'bg-emerald-500/20 text-emerald-200 border-emerald-500/40',
+  failed: 'bg-red-500/20 text-red-200 border-red-500/40',
+  running: 'bg-blue-500/20 text-blue-200 border-blue-500/40',
+  pending: 'bg-slate-500/20 text-slate-200 border-slate-500/40',
+  cancelled: 'bg-yellow-500/20 text-yellow-200 border-yellow-500/40',
+  skipped: 'bg-zinc-500/20 text-zinc-200 border-zinc-500/40'
+}
+
+const getStatusLabel = (status?: string): string => {
+  if (!status) {
+    return '—'
+  }
+  const normalized = status.toLowerCase()
+  return STATUS_LABELS[normalized] ?? status
+}
+
+const getStatusBadgeClass = (status?: string): string => {
+  if (!status) {
+    return STATUS_BADGE_CLASSES.pending
+  }
+  const normalized = status.toLowerCase()
+  return STATUS_BADGE_CLASSES[normalized] ?? STATUS_BADGE_CLASSES.pending
+}
+
 const isTaskActive = (status?: string | null): boolean => {
   if (!status) {
     return false
@@ -98,8 +229,58 @@ const isTaskActive = (status?: string | null): boolean => {
   return normalized === 'pending' || normalized === 'running'
 }
 
+const normalizeAutoParseMetric = (payload: unknown, fallbackIndex: number): AutoParseMangaMetric => {
+  const raw = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {}
+
+  const startedAt = ensureIsoString(raw.started_at) ?? undefined
+  const completedAt = ensureIsoString(raw.completed_at) ?? undefined
+  const explicitDuration = toNumber(raw.duration_ms)
+  const inferredDuration = startedAt && completedAt
+    ? Math.max(0, new Date(completedAt).getTime() - new Date(startedAt).getTime())
+    : undefined
+  const durationMs = explicitDuration ?? inferredDuration ?? 0
+
+  const metricsPayload = raw.metrics && typeof raw.metrics === 'object'
+    ? raw.metrics as Record<string, unknown>
+    : undefined
+
+  return {
+    index: toNumber(raw.index) ?? fallbackIndex + 1,
+    slug: typeof raw.slug === 'string' ? raw.slug : '',
+    normalized_slug: typeof raw.normalized_slug === 'string' ? raw.normalized_slug : undefined,
+    status: typeof raw.status === 'string' ? raw.status : 'unknown',
+    started_at: startedAt,
+    completed_at: completedAt,
+    duration_ms: durationMs,
+    duration_formatted: formatDurationFromMs(durationMs, typeof raw.duration_formatted === 'string' ? raw.duration_formatted : undefined),
+    title: typeof raw.title === 'string' ? raw.title : undefined,
+    reason: typeof raw.reason === 'string' ? raw.reason : undefined,
+    error_message: typeof raw.error_message === 'string' ? raw.error_message : undefined,
+    final_message: typeof raw.final_message === 'string' ? raw.final_message : undefined,
+    import_task_id: typeof raw.import_task_id === 'string' ? raw.import_task_id : undefined,
+    full_parsing_task_id: typeof raw.full_parsing_task_id === 'string' ? raw.full_parsing_task_id : undefined,
+    parse_task_id: typeof raw.parse_task_id === 'string' ? raw.parse_task_id : undefined,
+    metrics: metricsPayload
+  }
+}
+
 const normalizeAutoParseTask = (payload: Partial<AutoParseTask> | null | undefined): AutoParseTask => {
-  const base: AutoParseTask = {
+  const normalizedStart = ensureIsoString(payload?.start_time) ?? new Date().toISOString()
+  const normalizedEnd = ensureIsoString(payload?.end_time)
+
+  const explicitDurationMs = toNumber(payload?.duration_ms)
+  const inferredDurationMs = normalizedEnd
+    ? Math.max(0, new Date(normalizedEnd).getTime() - new Date(normalizedStart).getTime())
+    : undefined
+  const durationMs = explicitDurationMs ?? inferredDurationMs ?? 0
+
+  const metricsList = Array.isArray(payload?.manga_metrics)
+    ? payload!.manga_metrics.map((entry, index) => normalizeAutoParseMetric(entry, index))
+    : []
+
+  const durationFormatted = formatDurationFromMs(durationMs, typeof payload?.duration_formatted === 'string' ? payload.duration_formatted : undefined)
+
+  return {
     task_id: String(payload?.task_id ?? ''),
     status: String(payload?.status ?? 'pending'),
     progress: typeof payload?.progress === 'number' ? payload.progress : 0,
@@ -109,12 +290,15 @@ const normalizeAutoParseTask = (payload: Partial<AutoParseTask> | null | undefin
     skipped_slugs: Array.isArray(payload?.skipped_slugs) ? payload!.skipped_slugs : [],
     imported_slugs: Array.isArray(payload?.imported_slugs) ? payload!.imported_slugs : [],
     failed_slugs: Array.isArray(payload?.failed_slugs) ? payload!.failed_slugs : [],
-    start_time: typeof payload?.start_time === 'string' ? payload.start_time : new Date().toISOString(),
-    end_time: typeof payload?.end_time === 'string' ? payload.end_time : undefined,
+    start_time: normalizedStart,
+    end_time: normalizedEnd,
+    duration_ms: durationMs,
+    duration_formatted: durationFormatted,
+    page: toNumber(payload?.page) ?? undefined,
+    limit: toNumber(payload?.limit) ?? null,
+    manga_metrics: metricsList,
     logs: Array.isArray(payload?.logs) ? payload!.logs : []
   }
-
-  return base
 }
 
 const normalizeAutoUpdateTask = (payload: Partial<AutoUpdateTask> | null | undefined): AutoUpdateTask => {
@@ -228,6 +412,77 @@ export function MangaManagement() {
   const autoUpdateTaskRef = useRef<AutoUpdateTask | null>(null)
   const autoParsePrevStatusRef = useRef<string | null>(null)
   const autoUpdatePrevStatusRef = useRef<string | null>(null)
+
+  const autoParseSummary = useMemo(() => {
+    const metrics = autoParseTask?.manga_metrics ?? []
+
+    if (!metrics.length) {
+      return {
+        total: 0,
+        completed: 0,
+        failed: 0,
+        skipped: 0,
+        cancelled: 0,
+        totalChapters: 0,
+        importedChapters: 0,
+        totalPages: 0,
+        importedPages: 0
+      }
+    }
+
+    let completed = 0
+    let failed = 0
+    let skipped = 0
+    let cancelled = 0
+    let totalChapters = 0
+    let importedChapters = 0
+    let totalPages = 0
+    let importedPages = 0
+
+    metrics.forEach((metric) => {
+      const status = metric.status?.toLowerCase() ?? 'unknown'
+      if (status === 'completed') {
+        completed += 1
+      } else if (status === 'failed') {
+        failed += 1
+      } else if (status === 'skipped') {
+        skipped += 1
+      } else if (status === 'cancelled') {
+        cancelled += 1
+      }
+
+      const detail = metric.metrics ?? {}
+      const totalCh = toNumber(detail['total_chapters'])
+      const importedCh = toNumber(detail['imported_chapters'])
+      const totalPg = toNumber(detail['total_pages'])
+      const importedPg = toNumber(detail['imported_pages'])
+
+      if (typeof totalCh === 'number') {
+        totalChapters += totalCh
+      }
+      if (typeof importedCh === 'number') {
+        importedChapters += importedCh
+      }
+      if (typeof totalPg === 'number') {
+        totalPages += totalPg
+      }
+      if (typeof importedPg === 'number') {
+        importedPages += importedPg
+      }
+    })
+
+    return {
+      total: metrics.length,
+      completed,
+      failed,
+      skipped,
+      cancelled,
+      totalChapters,
+      importedChapters,
+      totalPages,
+      importedPages
+    }
+  }, [autoParseTask?.manga_metrics])
 
   const persistAutoParseTask = useCallback((task: AutoParseTask | null) => {
     if (typeof window === 'undefined') {
@@ -716,6 +971,142 @@ export function MangaManagement() {
                   <span className="ml-2 text-red-500">{autoParseTask.failed_slugs?.length || 0}</span>
                 </div>
               </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs text-muted-foreground">
+                <div>
+                  Начало: <span className="text-white">{formatTimestampLabel(autoParseTask.start_time)}</span>
+                </div>
+                <div>
+                  Завершение: <span className="text-white">{formatTimestampLabel(autoParseTask.end_time ?? null)}</span>
+                </div>
+                <div>
+                  Длительность: <span className="text-white">{formatDurationFromMs(autoParseTask.duration_ms, autoParseTask.duration_formatted)}</span>
+                </div>
+                <div>
+                  Страница каталога: <span className="text-white">{autoParseTask.page ?? '—'}</span>
+                </div>
+                <div>
+                  Лимит: <span className="text-white">{autoParseTask.limit ?? 'все'}</span>
+                </div>
+                <div>
+                  Тайтлов обработано: <span className="text-white">{autoParseSummary.total}</span>
+                </div>
+              </div>
+
+              {autoParseSummary.total > 0 && (
+                <div className="space-y-2 text-xs">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline" className={`text-[0.7rem] ${getStatusBadgeClass('completed')}`}>
+                      Готово: {autoParseSummary.completed}
+                    </Badge>
+                    <Badge variant="outline" className={`text-[0.7rem] ${getStatusBadgeClass('failed')}`}>
+                      Ошибок: {autoParseSummary.failed}
+                    </Badge>
+                    <Badge variant="outline" className={`text-[0.7rem] ${getStatusBadgeClass('skipped')}`}>
+                      Пропущено: {autoParseSummary.skipped}
+                    </Badge>
+                    <Badge variant="outline" className={`text-[0.7rem] ${getStatusBadgeClass('cancelled')}`}>
+                      Отменено: {autoParseSummary.cancelled}
+                    </Badge>
+                  </div>
+                  <div className="flex flex-wrap gap-4 text-muted-foreground">
+                    <span>
+                      Глав: <span className="text-white">{autoParseSummary.importedChapters}</span>
+                      {autoParseSummary.totalChapters > 0 ? ` / ${autoParseSummary.totalChapters}` : ''}
+                    </span>
+                    <span>
+                      Страниц: <span className="text-white">{autoParseSummary.importedPages}</span>
+                      {autoParseSummary.totalPages > 0 ? ` / ${autoParseSummary.totalPages}` : ''}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {autoParseTask.manga_metrics.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium text-white">Результаты по тайтлам</Label>
+                    <Badge variant="outline" className="text-xs">
+                      {autoParseTask.manga_metrics.length}
+                    </Badge>
+                  </div>
+                  <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                    {autoParseTask.manga_metrics.map((metric) => {
+                      const detail = metric.metrics ?? {}
+                      const totalCh = toNumber(detail['total_chapters'])
+                      const importedCh = toNumber(detail['imported_chapters'])
+                      const totalPg = toNumber(detail['total_pages'])
+                      const importedPg = toNumber(detail['imported_pages'])
+                      const importDuration = formatDurationFromMs(
+                        toNumber(detail['duration_ms']),
+                        typeof detail['duration_formatted'] === 'string' ? detail['duration_formatted'] as string : undefined
+                      )
+                      const reasonLabel = metric.reason === 'already_imported'
+                        ? 'Уже импортировано'
+                        : metric.reason
+                      const key = metric.full_parsing_task_id
+                        ?? metric.import_task_id
+                        ?? (metric.slug ? `${metric.slug}-${metric.index}` : String(metric.index))
+
+                      return (
+                        <div
+                          key={key}
+                          className="border border-border/60 bg-background/80 rounded-lg p-3 shadow-sm space-y-2"
+                        >
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="space-y-1">
+                              <div className="text-sm font-semibold text-white">
+                                {metric.title || metric.normalized_slug || metric.slug || `Тайтл #${metric.index}`}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                Slug: {metric.normalized_slug || metric.slug || '—'}
+                              </div>
+                            </div>
+                            <Badge variant="outline" className={`text-xs ${getStatusBadgeClass(metric.status)}`}>
+                              {getStatusLabel(metric.status)}
+                            </Badge>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-1 text-xs text-muted-foreground">
+                            <div>
+                              Начало: <span className="text-white">{formatTimestampLabel(metric.started_at ?? null)}</span>
+                            </div>
+                            <div>
+                              Завершение: <span className="text-white">{formatTimestampLabel(metric.completed_at ?? null)}</span>
+                            </div>
+                            <div>
+                              Суммарно: <span className="text-white">{formatDurationFromMs(metric.duration_ms, metric.duration_formatted)}</span>
+                            </div>
+                            {(typeof importedCh === 'number' || typeof totalCh === 'number') && (
+                              <div>
+                                Глав: <span className="text-white">{importedCh ?? 0}</span>
+                                {typeof totalCh === 'number' ? ` / ${totalCh}` : ''}
+                              </div>
+                            )}
+                            {(typeof importedPg === 'number' || typeof totalPg === 'number') && (
+                              <div>
+                                Страниц: <span className="text-white">{importedPg ?? 0}</span>
+                                {typeof totalPg === 'number' ? ` / ${totalPg}` : ''}
+                              </div>
+                            )}
+                            {(importDuration && importDuration !== '—') && (
+                              <div>
+                                Импорт: <span className="text-white">{importDuration}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {(metric.error_message || reasonLabel || metric.final_message) && (
+                            <div className="text-xs text-red-300">
+                              {metric.error_message || reasonLabel || metric.final_message}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
               {(autoParseTask.failed_slugs?.length || 0) > 0 && (
                 <Alert variant="destructive">

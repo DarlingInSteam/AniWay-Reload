@@ -3,9 +3,9 @@ package shadowshift.studio.mangaservice.service;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 import shadowshift.studio.mangaservice.websocket.ProgressWebSocketHandler;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CompletableFuture;
 import java.util.Collections;
 import java.util.Map;
 import java.util.HashMap;
@@ -402,6 +402,9 @@ public class ImportTaskService {
             task.setProgress(100);
             task.setMessage("Импорт завершен успешно");
 
+            LocalDateTime completedAt = task.getUpdatedAt();
+            task.setMetrics(buildMetricsSnapshot(task, completedAt, "completed", null));
+
             // Отправляем обновление через WebSocket
             sendWebSocketUpdate(taskId, task);
         }
@@ -419,6 +422,9 @@ public class ImportTaskService {
             task.setStatus(TaskStatus.FAILED);
             task.setMessage("Ошибка импорта: " + errorMessage);
             task.setErrorMessage(errorMessage);
+
+            LocalDateTime failedAt = task.getUpdatedAt();
+            task.setMetrics(buildMetricsSnapshot(task, failedAt, "failed", errorMessage));
 
             // Отправляем обновление через WebSocket
             sendWebSocketUpdate(taskId, task);
@@ -482,5 +488,43 @@ public class ImportTaskService {
                 webSocketHandler.sendLogMessage(taskId, "ERROR", task.getErrorMessage());
             }
         }
+    }
+
+    private Map<String, Object> buildMetricsSnapshot(ImportTask task, LocalDateTime finishedAt, String status, String errorMessage) {
+        Map<String, Object> metrics = new HashMap<>();
+        LocalDateTime startedAt = task.getCreatedAt();
+        Duration duration = Duration.between(startedAt, finishedAt != null ? finishedAt : LocalDateTime.now());
+
+        metrics.put("status", status);
+        metrics.put("started_at", startedAt.toString());
+        metrics.put("finished_at", (finishedAt != null ? finishedAt : LocalDateTime.now()).toString());
+        metrics.put("duration_ms", duration.toMillis());
+        metrics.put("duration_seconds", duration.getSeconds());
+        metrics.put("duration_formatted", formatDuration(duration));
+        metrics.put("total_chapters", task.getTotalChapters());
+        metrics.put("imported_chapters", task.getImportedChapters());
+        metrics.put("total_pages", task.getTotalPages());
+        metrics.put("imported_pages", task.getImportedPages());
+
+        if (task.getMangaId() != null) {
+            metrics.put("manga_id", task.getMangaId());
+        }
+        if (task.getTitle() != null) {
+            metrics.put("title", task.getTitle());
+        }
+        if (errorMessage != null && !errorMessage.isBlank()) {
+            metrics.put("error_message", errorMessage);
+        }
+
+        return metrics;
+    }
+
+    private String formatDuration(Duration duration) {
+        long seconds = duration.getSeconds();
+        long absSeconds = Math.abs(seconds);
+        long hours = absSeconds / 3600;
+        long minutes = (absSeconds % 3600) / 60;
+        long secs = absSeconds % 60;
+        return String.format("%02d:%02d:%02d", hours, minutes, secs);
     }
 }

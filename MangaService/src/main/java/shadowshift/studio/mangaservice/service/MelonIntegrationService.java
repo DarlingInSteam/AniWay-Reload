@@ -19,7 +19,9 @@ import shadowshift.studio.mangaservice.entity.Tag;
 import shadowshift.studio.mangaservice.repository.MangaRepository;
 import shadowshift.studio.mangaservice.websocket.ProgressWebSocketHandler;
 
+import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -287,23 +289,67 @@ public class MelonIntegrationService {
     private void updateFullParsingTask(String taskId, String status, int progress, String message, Map<String, Object> result) {
         Map<String, Object> existingTask = fullParsingTasks.get(taskId);
         Map<String, Object> task = existingTask != null ? new HashMap<>(existingTask) : new HashMap<>();
+        LocalDateTime now = LocalDateTime.now();
+
         task.put("task_id", taskId);
         task.put("status", status);
         task.put("progress", progress);
         task.put("message", message);
-        task.put("updated_at", java.time.LocalDateTime.now().toString());
+        task.put("updated_at", now.toString());
+
+        if (!task.containsKey("started_at")) {
+            task.put("started_at", now.toString());
+        }
+
+        LocalDateTime startedAt = parseDateTime(task.get("started_at"));
+        Duration elapsed = Duration.between(startedAt, now);
+        task.put("duration_ms", elapsed.toMillis());
+        task.put("duration_seconds", elapsed.getSeconds());
+        task.put("duration_formatted", formatDuration(elapsed));
+
+        if ("completed".equalsIgnoreCase(status) || "failed".equalsIgnoreCase(status) || "cancelled".equalsIgnoreCase(status)) {
+            task.put("finished_at", now.toString());
+        }
+
         if (result != null) {
             task.put("result", result);
             Object metrics = result.get("metrics");
             if (metrics != null) {
                 task.put("metrics", metrics);
             }
+            if (result.containsKey("import_task_id")) {
+                task.put("import_task_id", result.get("import_task_id"));
+            }
         }
+
         fullParsingTasks.put(taskId, task);
 
         // Отправляем обновление прогресса через WebSocket
         webSocketHandler.sendProgressUpdate(taskId, task);
         webSocketHandler.sendLogMessage(taskId, "INFO", message);
+    }
+
+    private LocalDateTime parseDateTime(Object value) {
+        if (value instanceof LocalDateTime ldt) {
+            return ldt;
+        }
+        if (value instanceof String str) {
+            try {
+                return LocalDateTime.parse(str);
+            } catch (Exception ignored) {
+                // fall through
+            }
+        }
+        return LocalDateTime.now();
+    }
+
+    private String formatDuration(Duration duration) {
+        long seconds = duration.getSeconds();
+        long absSeconds = Math.abs(seconds);
+        long hours = absSeconds / 3600;
+        long minutes = (absSeconds % 3600) / 60;
+        long secs = absSeconds % 60;
+        return String.format("%02d:%02d:%02d", hours, minutes, secs);
     }
 
     /**

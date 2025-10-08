@@ -8,6 +8,8 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import shadowshift.studio.mangaservice.repository.MangaRepository;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
@@ -60,6 +62,7 @@ public class AutoParsingService {
         task.importedSlugs = new ArrayList<>();
         task.failedSlugs = new ArrayList<>();
         task.logs = new ArrayList<>();  // Инициализация списка логов
+    task.mangaMetrics = Collections.synchronizedList(new ArrayList<>());
         task.message = "Получение списка манг из каталога...";
         task.progress = 0;
         task.startTime = new Date();
@@ -103,9 +106,26 @@ public class AutoParsingService {
         result.put("failed_slugs", task.failedSlugs);
         result.put("logs", task.logs);  // Добавляем логи в ответ
         result.put("start_time", task.startTime);
+        result.put("page", task.page);
+        if (task.limit != null) {
+            result.put("limit", task.limit);
+        }
         
         if (task.endTime != null) {
             result.put("end_time", task.endTime);
+        }
+
+        long currentTime = task.endTime != null ? task.endTime.getTime() : System.currentTimeMillis();
+        long durationMs = Math.max(0, currentTime - task.startTime.getTime());
+        result.put("duration_ms", durationMs);
+        result.put("duration_formatted", formatDuration(durationMs));
+
+        if (task.mangaMetrics != null) {
+            synchronized (task.mangaMetrics) {
+                result.put("manga_metrics", new ArrayList<>(task.mangaMetrics));
+            }
+        } else {
+            result.put("manga_metrics", Collections.emptyList());
         }
 
         return result;
@@ -236,26 +256,38 @@ public class AutoParsingService {
             logger.info("Получено {} манг из каталога", slugs.size());
 
             for (int i = 0; i < slugs.size(); i++) {
-                // Проверяем, не отменена ли задача
                 if ("cancelled".equals(task.status)) {
                     logger.info("Задача автопарсинга {} отменена, прерываем цикл", taskId);
                     break;
                 }
-                
+
                 String slug = slugs.get(i);
-                String fullParsingTaskId = null; // fullParsingTaskId от MelonIntegrationService
-                String parseTaskId = null; // parseTaskId от MelonService (parse фаза)
-                
+                String normalizedSlug = normalizeSlug(slug);
+                long slugStartMillis = System.currentTimeMillis();
+                Map<String, Object> mangaMetric = new LinkedHashMap<>();
+                mangaMetric.put("index", i + 1);
+                mangaMetric.put("slug", slug);
+                mangaMetric.put("normalized_slug", normalizedSlug);
+                mangaMetric.put("started_at", toIsoString(slugStartMillis));
+
+                String fullParsingTaskId = null;
+                String parseTaskId = null;
+                boolean metricRecorded = false;
+
                 try {
-                    // MangaLib изменил формат: slug может быть "7580--i-alone-level-up"
-                    // Для проверки дубликатов нормализуем до "i-alone-level-up"
-                    String normalizedSlug = normalizeSlug(slug);
-                    
-                    // Проверяем, существует ли уже манга с таким slug
                     if (mangaRepository.existsByMelonSlug(normalizedSlug)) {
-                        logger.info("Манга с slug '{}' (normalized: '{}') уже импортирована, пропускаем", 
+                        logger.info("Манга с slug '{}' (normalized: '{}') уже импортирована, пропускаем",
                             slug, normalizedSlug);
                         task.skippedSlugs.add(slug);
+
+                        mangaMetric.put("status", "skipped");
+                        mangaMetric.put("reason", "already_imported");
+                        mangaMetric.put("completed_at", toIsoString(System.currentTimeMillis()));
+                        mangaMetric.put("duration_ms", 0L);
+                        mangaMetric.put("duration_formatted", formatDuration(0));
+                        addMangaMetric(task, mangaMetric);
+                        metricRecorded = true;
+
                         task.processedSlugs++;
                         task.progress = (task.processedSlugs * 100) / task.totalSlugs;
                         task.message = String.format("Обработано: %d/%d (пропущено: %d, импортировано: %d)",
@@ -263,64 +295,104 @@ public class AutoParsingService {
                         continue;
                     }
 
-                    // Запускаем полный парсинг (парсинг + билдинг)
                     task.message = String.format("Парсинг манги %d/%d: %s", i + 1, slugs.size(), slug);
                     logger.info("Запуск парсинга для slug: {}", slug);
-                    
+
                     Map<String, Object> parseResult = melonService.startFullParsing(slug);
-                    
+
                     if (parseResult != null && parseResult.containsKey("task_id")) {
                         fullParsingTaskId = (String) parseResult.get("task_id");
-                        
-                        // Извлекаем также parseTaskId (ID фазы парсинга в MelonService)
+                        mangaMetric.put("full_parsing_task_id", fullParsingTaskId);
+
                         if (parseResult.containsKey("parse_task_id")) {
                             parseTaskId = (String) parseResult.get("parse_task_id");
-                            // Связываем parseTaskId с нашим autoParsingTaskId
+                            mangaMetric.put("parse_task_id", parseTaskId);
                             parseTaskToAutoParseTask.put(parseTaskId, taskId);
                             logger.info("Связали parseTaskId={} с autoParsingTaskId={}", parseTaskId, taskId);
                         }
-                        
-                        // Связываем fullParsingTaskId с текущим taskId автопарсинга
-                        // Теперь логи от MelonService для этого fullParsingTaskId будут попадать в нашу задачу
+
                         parseTaskToAutoParseTask.put(fullParsingTaskId, taskId);
                         logger.info("Связали fullParsingTaskId={} с autoParsingTaskId={}", fullParsingTaskId, taskId);
-                        
-                        // Регистрируем связь в MelonIntegrationService, чтобы при создании buildTaskId
-                        // он тоже автоматически был связан с autoParsingTaskId
+
                         melonService.registerAutoParsingLink(fullParsingTaskId, taskId);
-                        
-                        // Ждем завершения ПОЛНОГО парсинга (парсинг → билд → импорт → очистка)
-                        // runFullParsingTaskLogic() уже делает ВСЁ: парсит, билдит, импортирует, очищает
-                        boolean completed = waitForFullParsingCompletion(fullParsingTaskId);
-                        
+
+                        Map<String, Object> finalStatus = waitForFullParsingCompletion(fullParsingTaskId);
+                        boolean completed = finalStatus != null &&
+                            "completed".equalsIgnoreCase(String.valueOf(finalStatus.get("status")));
+
+                        long slugEndMillis = System.currentTimeMillis();
+                        long durationMs = Math.max(0, slugEndMillis - slugStartMillis);
+                        mangaMetric.put("completed_at", toIsoString(slugEndMillis));
+                        mangaMetric.put("duration_ms", durationMs);
+                        mangaMetric.put("duration_formatted", formatDuration(durationMs));
+
                         if (completed) {
-                            // Полный парсинг завершен успешно! 
-                            // runFullParsingTaskLogic() уже импортировал мангу и очистил данные из MelonService
-                            // Повторный импорт и очистка НЕ НУЖНЫ
                             task.importedSlugs.add(slug);
+                            mangaMetric.put("status", "completed");
                             logger.info("Манга '{}' успешно обработана через полный парсинг (импорт и очистка выполнены автоматически)", slug);
                         } else {
-                            logger.error("Полный парсинг не завершен для slug: {}", slug);
                             task.failedSlugs.add(slug);
+                            String statusValue = finalStatus != null ? String.valueOf(finalStatus.get("status")) : "failed";
+                            mangaMetric.put("status", statusValue);
+                            if (finalStatus != null && finalStatus.get("message") != null) {
+                                mangaMetric.put("error_message", finalStatus.get("message"));
+                            }
+                            logger.error("Полный парсинг не завершен для slug: {}", slug);
                         }
-                        
-                        // Очищаем маппинг после завершения обработки манги
-                        if (parseTaskId != null) {
-                            parseTaskToAutoParseTask.remove(parseTaskId);
-                            logger.debug("Удален маппинг для parseTaskId={}", parseTaskId);
+
+                        if (finalStatus != null) {
+                            if (finalStatus.get("status") != null) {
+                                mangaMetric.put("full_parsing_status", finalStatus.get("status"));
+                            }
+                            if (finalStatus.get("message") != null) {
+                                mangaMetric.put("final_message", finalStatus.get("message"));
+                            }
+
+                            Map<String, Object> topMetrics = asStringObjectMap(finalStatus.get("metrics"));
+                            if (!topMetrics.isEmpty()) {
+                                mangaMetric.put("metrics", topMetrics);
+                            }
+
+                            Map<String, Object> resultData = asStringObjectMap(finalStatus.get("result"));
+                            if (!resultData.isEmpty()) {
+                                if (resultData.get("title") != null) {
+                                    mangaMetric.put("title", resultData.get("title"));
+                                }
+                                if (resultData.get("import_task_id") != null) {
+                                    mangaMetric.put("import_task_id", resultData.get("import_task_id"));
+                                }
+
+                                Map<String, Object> innerMetrics = asStringObjectMap(resultData.get("metrics"));
+                                if (!innerMetrics.isEmpty()) {
+                                    mangaMetric.put("metrics", innerMetrics);
+                                }
+                            }
                         }
-                        parseTaskToAutoParseTask.remove(fullParsingTaskId);
-                        logger.debug("Удален маппинг для fullParsingTaskId={}", fullParsingTaskId);
+
+                        addMangaMetric(task, mangaMetric);
+                        metricRecorded = true;
+
                     } else {
                         logger.error("Не удалось запустить парсинг для slug: {}", slug);
                         task.failedSlugs.add(slug);
+
+                        long slugEndMillis = System.currentTimeMillis();
+                        long durationMs = Math.max(0, slugEndMillis - slugStartMillis);
+                        mangaMetric.put("status", "failed");
+                        mangaMetric.put("completed_at", toIsoString(slugEndMillis));
+                        mangaMetric.put("duration_ms", durationMs);
+                        mangaMetric.put("duration_formatted", formatDuration(durationMs));
+                        mangaMetric.put("error_message", "Не удалось запустить парсинг");
+                        addMangaMetric(task, mangaMetric);
+                        metricRecorded = true;
                     }
 
                 } catch (Exception e) {
                     logger.error("Ошибка обработки slug '{}': {}", slug, e.getMessage(), e);
                     task.failedSlugs.add(slug);
+                    mangaMetric.put("status", "failed");
+                    mangaMetric.put("error_message", e.getMessage());
                 } finally {
-                    // Гарантированно очищаем маппинг даже при ошибке
                     if (parseTaskId != null) {
                         parseTaskToAutoParseTask.remove(parseTaskId);
                         logger.debug("Очистка маппинга для parseTaskId={} в finally", parseTaskId);
@@ -329,12 +401,22 @@ public class AutoParsingService {
                         parseTaskToAutoParseTask.remove(fullParsingTaskId);
                         logger.debug("Очистка маппинга для fullParsingTaskId={} в finally", fullParsingTaskId);
                     }
+
+                    if (!metricRecorded) {
+                        long slugEndMillis = System.currentTimeMillis();
+                        long durationMs = Math.max(0, slugEndMillis - slugStartMillis);
+                        mangaMetric.putIfAbsent("completed_at", toIsoString(slugEndMillis));
+                        mangaMetric.putIfAbsent("duration_ms", durationMs);
+                        mangaMetric.putIfAbsent("duration_formatted", formatDuration(durationMs));
+                        mangaMetric.putIfAbsent("status", "failed");
+                        addMangaMetric(task, mangaMetric);
+                    }
                 }
 
                 task.processedSlugs++;
                 task.progress = (task.processedSlugs * 100) / task.totalSlugs;
                 task.message = String.format("Обработано: %d/%d (пропущено: %d, импортировано: %d, ошибок: %d)",
-                    task.processedSlugs, task.totalSlugs, task.skippedSlugs.size(), 
+                    task.processedSlugs, task.totalSlugs, task.skippedSlugs.size(),
                     task.importedSlugs.size(), task.failedSlugs.size());
             }
 
@@ -361,7 +443,7 @@ public class AutoParsingService {
      * Ждет завершения полного парсинга (parse + build)
      * БЕЗ таймаута - некоторые манги с большим количеством глав могут парситься 100+ минут
      */
-    private boolean waitForFullParsingCompletion(String taskId) throws InterruptedException {
+    private Map<String, Object> waitForFullParsingCompletion(String taskId) throws InterruptedException {
         int attempts = 0;
         AutoParseTask autoParseTask = null;
         
@@ -375,21 +457,27 @@ public class AutoParsingService {
             // Проверяем, не отменена ли задача автопарсинга
             if (autoParseTask != null && "cancelled".equals(autoParseTask.status)) {
                 logger.info("Задача автопарсинга отменена, прерываем ожидание парсинга {}", taskId);
-                return false;
+                return Map.of(
+                    "status", "cancelled",
+                    "message", "Задача автопарсинга отменена пользователем"
+                );
             }
             
             Thread.sleep(2000); // проверка каждые 2 секунды
             
             Map<String, Object> status = melonService.getFullParsingTaskStatus(taskId);
             
-            if (status != null && "completed".equals(status.get("status"))) {
-                logger.info("Полный парсинг завершен успешно после {} попыток ({}s)", attempts, attempts * 2);
-                return true;
-            }
-            
-            if (status != null && ("failed".equals(status.get("status")) || "cancelled".equals(status.get("status")))) {
-                logger.error("Полный парсинг завершился с ошибкой/отменен после {} попыток: {}", attempts, status.get("message"));
-                return false;
+            if (status != null) {
+                String statusValue = String.valueOf(status.get("status"));
+                if ("completed".equalsIgnoreCase(statusValue)) {
+                    logger.info("Полный парсинг завершен успешно после {} попыток ({}s)", attempts, attempts * 2);
+                    return status;
+                }
+
+                if ("failed".equalsIgnoreCase(statusValue) || "cancelled".equalsIgnoreCase(statusValue)) {
+                    logger.error("Полный парсинг завершился с ошибкой/отменен после {} попыток: {}", attempts, status.get("message"));
+                    return status;
+                }
             }
             
             attempts++;
@@ -397,43 +485,50 @@ public class AutoParsingService {
             // Логируем прогресс каждые 30 проверок (1 минута)
             if (attempts % 30 == 0) {
                 int minutes = attempts * 2 / 60;
-                logger.info("Ожидание парсинга {}: {} минут, прогресс: {}%", 
+                logger.info("Ожидание парсинга {}: {} минут, прогресс: {}%",
                     taskId, minutes, status != null ? status.get("progress") : "?");
             }
         }
     }
 
-    /**
-     * Ждет завершения импорта
-     * БЕЗ таймаута - импорт больших манг может занимать много времени
-     */
-    private boolean waitForImportCompletion(String taskId) throws InterruptedException {
-        int attempts = 0;
-
-        while (true) {
-            Thread.sleep(2000); // проверка каждые 2 секунды
-            
-            Map<String, Object> status = melonService.getImportTaskStatus(taskId);
-            
-            if (status != null && "completed".equals(status.get("status"))) {
-                logger.info("Импорт завершен успешно после {} попыток ({}s)", attempts, attempts * 2);
-                return true;
-            }
-            
-            if (status != null && "failed".equals(status.get("status"))) {
-                logger.error("Импорт завершился с ошибкой после {} попыток: {}", attempts, status.get("message"));
-                return false;
-            }
-            
-            attempts++;
-            
-            // Логируем прогресс каждые 30 проверок (1 минута)
-            if (attempts % 30 == 0) {
-                int minutes = attempts * 2 / 60;
-                logger.info("Ожидание импорта {}: {} минут, прогресс: {}%", 
-                    taskId, minutes, status != null ? status.get("progress") : "?");
-            }
+    private void addMangaMetric(AutoParseTask task, Map<String, Object> metric) {
+        if (task.mangaMetrics == null) {
+            task.mangaMetrics = Collections.synchronizedList(new ArrayList<>());
         }
+
+        synchronized (task.mangaMetrics) {
+            task.mangaMetrics.add(metric);
+        }
+    }
+
+    private String toIsoString(long epochMillis) {
+        return Instant.ofEpochMilli(epochMillis).toString();
+    }
+
+    private String formatDuration(long millis) {
+        Duration duration = Duration.ofMillis(Math.max(0, millis));
+        long seconds = duration.getSeconds();
+        long hours = seconds / 3600;
+        long minutes = (seconds % 3600) / 60;
+        long secs = seconds % 60;
+        return String.format("%02d:%02d:%02d", hours, minutes, secs);
+    }
+
+    private Map<String, Object> asStringObjectMap(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> result = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (entry.getKey() != null) {
+                    String key = String.valueOf(entry.getKey());
+                    if ("manga_info".equals(key)) {
+                        continue; // избегаем передачи тяжелого JSON
+                    }
+                    result.put(key, entry.getValue());
+                }
+            }
+            return result;
+        }
+        return Collections.emptyMap();
     }
 
     /**
@@ -477,6 +572,7 @@ public class AutoParsingService {
         List<String> importedSlugs;
         List<String> failedSlugs;
         List<String> logs;  // Логи из MelonService в реальном времени
+        List<Map<String, Object>> mangaMetrics;
         Date startTime;
         Date endTime;
         Integer page;   // Номер страницы каталога
