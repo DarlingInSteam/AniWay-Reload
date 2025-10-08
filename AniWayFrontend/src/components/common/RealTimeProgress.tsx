@@ -21,6 +21,7 @@ export function RealTimeProgress({ taskId, title, onComplete, onError, onProgres
   const [logs, setLogs] = useState<LogMessage[]>([])
   const [isMinimized, setIsMinimized] = useState(false)
   const [showLogs, setShowLogs] = useState(false)
+  const storageKey = `parser-progress:${taskId}`
 
   const { isConnected, subscribeToTask, unsubscribeFromTask } = useProgressWebSocket({
     onProgress: (data) => {
@@ -59,6 +60,65 @@ export function RealTimeProgress({ taskId, title, onComplete, onError, onProgres
       }
     }
   })
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !taskId) {
+      return
+    }
+
+    try {
+      const stored = window.localStorage.getItem(storageKey)
+      if (!stored) {
+        return
+      }
+
+      const parsed = JSON.parse(stored) as {
+        progressData?: ProgressData | null
+        logs?: LogMessage[]
+      }
+
+      if (parsed.progressData) {
+        setProgressData(parsed.progressData)
+      }
+
+      if (parsed.logs && Array.isArray(parsed.logs)) {
+        setLogs(parsed.logs.slice(-100))
+      }
+    } catch (error) {
+      console.error('Не удалось восстановить прогресс задачи из localStorage:', error)
+    }
+  }, [storageKey, taskId])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !taskId) {
+      return
+    }
+
+    if (!progressData && logs.length === 0) {
+      window.localStorage.removeItem(storageKey)
+      return
+    }
+
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify({
+        progressData,
+        logs
+      }))
+    } catch (error) {
+      console.error('Не удалось сохранить прогресс задачи в localStorage:', error)
+    }
+  }, [storageKey, taskId, progressData, logs])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !taskId) {
+      return
+    }
+
+    const status = progressData?.status?.toLowerCase?.()
+    if (status === 'completed' || status === 'failed') {
+      window.localStorage.removeItem(storageKey)
+    }
+  }, [storageKey, taskId, progressData?.status])
 
   useEffect(() => {
     if (isConnected && taskId) {

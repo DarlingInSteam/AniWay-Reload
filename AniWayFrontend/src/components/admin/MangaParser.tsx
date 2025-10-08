@@ -283,6 +283,8 @@ export function MangaParser() {
     window.open(`/manga/${manga.filename}`, '_blank')
   }
 
+  const activeMetrics: ParsingMetrics | undefined = currentTask?.metrics ?? (currentTask?.result?.metrics as ParsingMetrics | undefined)
+
   return (
     <div className="space-y-6">
       {/* Форма запуска парсинга */}
@@ -463,7 +465,7 @@ export function MangaParser() {
       )}
 
       {/* Блок с метриками */}
-      {currentTask?.metrics?.aggregate && (
+      {activeMetrics?.aggregate && (
         <Card>
           <CardHeader>
             <CardTitle>Статистика парсинга</CardTitle>
@@ -475,62 +477,64 @@ export function MangaParser() {
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-muted/50 rounded-lg p-4">
                 <p className="text-sm text-muted-foreground">Глав обработано</p>
-                <p className="text-lg font-semibold text-white">{currentTask.metrics.aggregate.chapters}</p>
+                <p className="text-lg font-semibold text-white">{activeMetrics.aggregate.chapters}</p>
               </div>
               <div className="bg-muted/50 rounded-lg p-4">
                 <p className="text-sm text-muted-foreground">Всего изображений</p>
-                <p className="text-lg font-semibold text-white">{currentTask.metrics.aggregate.total_images}</p>
+                <p className="text-lg font-semibold text-white">{activeMetrics.aggregate.total_images}</p>
               </div>
               <div className="bg-muted/50 rounded-lg p-4">
                 <p className="text-sm text-muted-foreground">Среднее время на главу</p>
                 <p className="text-lg font-semibold text-white">
-                  {currentTask.metrics.aggregate.avg_duration_seconds != null
-                    ? `${currentTask.metrics.aggregate.avg_duration_seconds.toFixed(2)} с`
+                  {activeMetrics.aggregate.avg_duration_seconds != null
+                    ? `${activeMetrics.aggregate.avg_duration_seconds.toFixed(2)} с`
                     : '—'}
                 </p>
               </div>
               <div className="bg-muted/50 rounded-lg p-4">
                 <p className="text-sm text-muted-foreground">Скорость обработки</p>
                 <p className="text-lg font-semibold text-white">
-                  {currentTask.metrics.aggregate.images_per_second != null
-                    ? `${currentTask.metrics.aggregate.images_per_second.toFixed(2)} img/s`
+                  {activeMetrics.aggregate.images_per_second != null
+                    ? `${activeMetrics.aggregate.images_per_second.toFixed(2)} img/s`
                     : '—'}
                 </p>
               </div>
             </div>
 
-            {currentTask.metrics.command?.duration_seconds != null && (
+            {activeMetrics.command?.duration_seconds != null && (
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-muted/50 rounded-lg p-4">
                   <p className="text-sm text-muted-foreground">Время запуска</p>
                   <p className="text-xs text-white">
-                    {currentTask.metrics.command.started_at
-                      ? new Date(currentTask.metrics.command.started_at).toLocaleString()
+                    {activeMetrics.command?.started_at
+                      ? new Date(activeMetrics.command.started_at).toLocaleString()
                       : '—'}
                   </p>
                 </div>
                 <div className="bg-muted/50 rounded-lg p-4">
                   <p className="text-sm text-muted-foreground">Время завершения</p>
                   <p className="text-xs text-white">
-                    {currentTask.metrics.command.completed_at
-                      ? new Date(currentTask.metrics.command.completed_at).toLocaleString()
+                    {activeMetrics.command?.completed_at
+                      ? new Date(activeMetrics.command.completed_at).toLocaleString()
                       : '—'}
                   </p>
                 </div>
                 <div className="bg-muted/50 rounded-lg p-4">
                   <p className="text-sm text-muted-foreground">Длительность</p>
                   <p className="text-lg font-semibold text-white">
-                    {currentTask.metrics.command.duration_seconds.toFixed(1)} с
+                    {activeMetrics.command?.duration_seconds != null
+                      ? `${activeMetrics.command.duration_seconds.toFixed(1)} с`
+                      : '—'}
                   </p>
                 </div>
               </div>
             )}
 
-            {currentTask.metrics.chapters && currentTask.metrics.chapters.length > 0 && (
+            {activeMetrics.chapters && activeMetrics.chapters.length > 0 && (
               <div className="space-y-2">
                 <h5 className="text-sm font-semibold text-white">Подробно по главам</h5>
                 <div className="max-h-64 overflow-auto rounded-lg border border-border divide-y divide-border">
-                  {currentTask.metrics.chapters.map((chapter, index) => (
+                  {activeMetrics.chapters.map((chapter, index) => (
                     <div key={`${chapter.chapter_id ?? index}-${chapter.started_at ?? index}`} className="grid grid-cols-[1fr,auto,auto] gap-3 px-4 py-3 text-sm">
                       <div>
                         <p className="text-white font-medium">{chapter.chapter_id ?? `Глава ${index + 1}`}</p>
