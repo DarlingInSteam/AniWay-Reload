@@ -45,6 +45,9 @@ interface TaskSummary {
   updatedAt?: string
 }
 
+const MANUAL_TASKS_STORAGE_KEY = 'manualParsingTasks'
+const FINAL_STATUSES = new Set<ParsingTask['status']>(['completed', 'failed'])
+
 const ensureTimestamp = (value: unknown): number => {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value
@@ -172,6 +175,65 @@ export function MangaParser() {
   const [currentTask, setCurrentTask] = useState<ParsingTask | null>(null)
   const [parsedManga, setParsedManga] = useState<ParsedManga[]>([])
   const [taskSummaries, setTaskSummaries] = useState<TaskSummary[]>([])
+  const [manualTaskIds, setManualTaskIds] = useState<string[]>([])
+  const [manualIdsInitialized, setManualIdsInitialized] = useState(false)
+
+  const persistManualTaskIds = useCallback((ids: string[]) => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      window.localStorage.setItem(MANUAL_TASKS_STORAGE_KEY, JSON.stringify(ids))
+    } catch (error) {
+      console.error('Не удалось сохранить список ручных задач парсинга:', error)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      setManualIdsInitialized(true)
+      return
+    }
+
+    try {
+      const stored = window.localStorage.getItem(MANUAL_TASKS_STORAGE_KEY)
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (Array.isArray(parsed)) {
+          const filtered = parsed.filter((value): value is string => typeof value === 'string')
+          setManualTaskIds(Array.from(new Set(filtered)))
+        }
+      }
+    } catch (error) {
+      console.error('Не удалось загрузить список ручных задач парсинга из localStorage:', error)
+      window.localStorage.removeItem(MANUAL_TASKS_STORAGE_KEY)
+    } finally {
+      setManualIdsInitialized(true)
+    }
+  }, [])
+
+  const registerManualTaskId = useCallback((taskId: string) => {
+    setManualTaskIds(prev => {
+      if (prev.includes(taskId)) {
+        return prev
+      }
+      const next = [...prev, taskId]
+      persistManualTaskIds(next)
+      return next
+    })
+  }, [persistManualTaskIds])
+
+  const unregisterManualTaskId = useCallback((taskId: string) => {
+    setManualTaskIds(prev => {
+      if (!prev.includes(taskId)) {
+        return prev
+      }
+      const next = prev.filter(id => id !== taskId)
+      persistManualTaskIds(next)
+      return next
+    })
+  }, [persistManualTaskIds])
 
   const applyTaskPayload = useCallback((taskId: string, payload: any, fallbackSlug?: string) => {
     const logs = normalizeLogEntries(payload?.logs)
@@ -243,6 +305,10 @@ export function MangaParser() {
       return next
     })
 
+    if (FINAL_STATUSES.has(status)) {
+      unregisterManualTaskId(taskId)
+    }
+
     if (status === 'completed' && resultPayload && resultPayload.filename) {
       setParsedManga(prev => {
         const alreadyExists = prev.some(item => item.filename === resultPayload.filename)
@@ -264,7 +330,7 @@ export function MangaParser() {
         ]
       })
     }
-  }, [])
+  }, [unregisterManualTaskId])
 
   const hydrateTask = useCallback(async (taskId: string, fallbackSlug?: string) => {
     try {
@@ -343,17 +409,29 @@ export function MangaParser() {
         })
       }
 
-      setTaskSummaries(summaries)
-      return summaries
+      const allowedIds = new Set<string>(manualTaskIds)
+      if (currentTask?.taskId) {
+        allowedIds.add(currentTask.taskId)
+      }
+
+      const filteredSummaries = allowedIds.size > 0
+        ? summaries.filter(summary => allowedIds.has(summary.taskId))
+        : []
+
+      setTaskSummaries(filteredSummaries)
+      return filteredSummaries
     } catch (error) {
       console.error('Ошибка получения списка задач:', error)
       return []
     }
-  }, [])
+  }, [currentTask?.taskId, manualTaskIds])
 
   // Восстанавливаем активную задачу после перезагрузки страницы
   useEffect(() => {
     const bootstrap = async () => {
+      if (!manualIdsInitialized) {
+        return
+      }
       if (typeof window === 'undefined') {
         return
       }
@@ -371,6 +449,12 @@ export function MangaParser() {
           console.error('Не удалось прочитать сохраненную задачу из localStorage:', error)
           window.localStorage.removeItem('currentParsingTask')
         }
+      }
+
+      if (storedTaskId && !manualTaskIds.includes(storedTaskId)) {
+        window.localStorage.removeItem('currentParsingTask')
+        storedTaskId = undefined
+        storedSlug = undefined
       }
 
       const summaries = await refreshTaskSummaries()
@@ -406,7 +490,7 @@ export function MangaParser() {
     }
 
     bootstrap()
-  }, [hydrateTask, refreshTaskSummaries])
+  }, [hydrateTask, manualIdsInitialized, manualTaskIds, refreshTaskSummaries])
 
   // Периодически обновляем статус активной задачи
   useEffect(() => {
@@ -488,8 +572,11 @@ export function MangaParser() {
       }))
     } else {
       window.localStorage.removeItem('currentParsingTask')
+      if (currentTask.taskId) {
+        unregisterManualTaskId(currentTask.taskId)
+      }
     }
-  }, [currentTask?.taskId, currentTask?.status, currentTask?.slug])
+  }, [currentTask?.slug, currentTask?.status, currentTask?.taskId, unregisterManualTaskId])
 
   const startParsing = async () => {
     if (!slug.trim()) {
@@ -521,6 +608,7 @@ export function MangaParser() {
         }
 
         setCurrentTask(newTask)
+        registerManualTaskId(newTask.taskId)
         setTaskSummaries(prev => {
           const summary: TaskSummary = {
             taskId: newTask.taskId,
@@ -578,6 +666,7 @@ export function MangaParser() {
             endTime: undefined,
             startTime: new Date()
           } : null)
+          registerManualTaskId(retryTaskId)
           setTaskSummaries(prev => {
             const now = new Date().toISOString()
             return prev.map(item => item.taskId === retryTaskId
@@ -1023,6 +1112,9 @@ export function MangaParser() {
             if (typeof window !== 'undefined') {
               if (normalizedForStorage === 'completed' || normalizedForStorage === 'failed') {
                 window.localStorage.removeItem('currentParsingTask')
+                if (currentTask?.taskId) {
+                  unregisterManualTaskId(currentTask.taskId)
+                }
               }
             }
           }}
@@ -1036,6 +1128,9 @@ export function MangaParser() {
             } : null)
             if (typeof window !== 'undefined') {
               window.localStorage.removeItem('currentParsingTask')
+            }
+            if (currentTask?.taskId) {
+              unregisterManualTaskId(currentTask.taskId)
             }
             toast.success('Парсинг завершен успешно!')
             // Обновляем список спаршенной манги
@@ -1076,6 +1171,9 @@ export function MangaParser() {
             } : null)
             if (typeof window !== 'undefined') {
               window.localStorage.removeItem('currentParsingTask')
+            }
+            if (currentTask?.taskId) {
+              unregisterManualTaskId(currentTask.taskId)
             }
             toast.error('Ошибка парсинга: ' + error)
           }}

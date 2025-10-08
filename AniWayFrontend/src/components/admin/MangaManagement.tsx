@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -37,6 +37,58 @@ interface AutoUpdateTask {
   start_time: string
   end_time?: string
   logs?: string[]  // Логи в реальном времени
+}
+
+const AUTO_PARSE_STORAGE_KEY = 'autoParseTaskState'
+const AUTO_UPDATE_STORAGE_KEY = 'autoUpdateTaskState'
+const AUTO_TASK_POLL_INTERVAL = 2000
+const FINAL_AUTO_STATUSES = new Set(['completed', 'failed', 'cancelled'])
+
+const isTaskActive = (status?: string | null): boolean => {
+  if (!status) {
+    return false
+  }
+
+  const normalized = status.toLowerCase()
+  return normalized === 'pending' || normalized === 'running'
+}
+
+const normalizeAutoParseTask = (payload: Partial<AutoParseTask> | null | undefined): AutoParseTask => {
+  const base: AutoParseTask = {
+    task_id: String(payload?.task_id ?? ''),
+    status: String(payload?.status ?? 'pending'),
+    progress: typeof payload?.progress === 'number' ? payload.progress : 0,
+    message: typeof payload?.message === 'string' ? payload.message : '',
+    total_slugs: typeof payload?.total_slugs === 'number' ? payload.total_slugs : 0,
+    processed_slugs: typeof payload?.processed_slugs === 'number' ? payload.processed_slugs : 0,
+    skipped_slugs: Array.isArray(payload?.skipped_slugs) ? payload!.skipped_slugs : [],
+    imported_slugs: Array.isArray(payload?.imported_slugs) ? payload!.imported_slugs : [],
+    failed_slugs: Array.isArray(payload?.failed_slugs) ? payload!.failed_slugs : [],
+    start_time: typeof payload?.start_time === 'string' ? payload.start_time : new Date().toISOString(),
+    end_time: typeof payload?.end_time === 'string' ? payload.end_time : undefined,
+    logs: Array.isArray(payload?.logs) ? payload!.logs : []
+  }
+
+  return base
+}
+
+const normalizeAutoUpdateTask = (payload: Partial<AutoUpdateTask> | null | undefined): AutoUpdateTask => {
+  const base: AutoUpdateTask = {
+    task_id: String(payload?.task_id ?? ''),
+    status: String(payload?.status ?? 'pending'),
+    progress: typeof payload?.progress === 'number' ? payload.progress : 0,
+    message: typeof payload?.message === 'string' ? payload.message : '',
+    total_mangas: typeof payload?.total_mangas === 'number' ? payload.total_mangas : 0,
+    processed_mangas: typeof payload?.processed_mangas === 'number' ? payload.processed_mangas : 0,
+    updated_mangas: Array.isArray(payload?.updated_mangas) ? payload!.updated_mangas : [],
+    failed_mangas: Array.isArray(payload?.failed_mangas) ? payload!.failed_mangas : [],
+    new_chapters_count: typeof payload?.new_chapters_count === 'number' ? payload.new_chapters_count : 0,
+    start_time: typeof payload?.start_time === 'string' ? payload.start_time : new Date().toISOString(),
+    end_time: typeof payload?.end_time === 'string' ? payload.end_time : undefined,
+    logs: Array.isArray(payload?.logs) ? payload!.logs : []
+  }
+
+  return base
 }
 
 // Компонент для отображения логов в реальном времени
@@ -120,6 +172,222 @@ export function MangaManagement() {
   const [isAutoParsing, setIsAutoParsing] = useState(false)
   const [isAutoUpdating, setIsAutoUpdating] = useState(false)
 
+  const autoParseIntervalRef = useRef<number | null>(null)
+  const autoUpdateIntervalRef = useRef<number | null>(null)
+  const autoParseTaskRef = useRef<AutoParseTask | null>(null)
+  const autoUpdateTaskRef = useRef<AutoUpdateTask | null>(null)
+  const autoParsePrevStatusRef = useRef<string | null>(null)
+  const autoUpdatePrevStatusRef = useRef<string | null>(null)
+
+  const persistAutoParseTask = useCallback((task: AutoParseTask | null) => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    if (!task || !task.task_id) {
+      window.localStorage.removeItem(AUTO_PARSE_STORAGE_KEY)
+      return
+    }
+
+    try {
+      window.localStorage.setItem(AUTO_PARSE_STORAGE_KEY, JSON.stringify(task))
+    } catch (error) {
+      console.error('Не удалось сохранить состояние автопарсинга:', error)
+    }
+  }, [])
+
+  const persistAutoUpdateTask = useCallback((task: AutoUpdateTask | null) => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    if (!task || !task.task_id) {
+      window.localStorage.removeItem(AUTO_UPDATE_STORAGE_KEY)
+      return
+    }
+
+    try {
+      window.localStorage.setItem(AUTO_UPDATE_STORAGE_KEY, JSON.stringify(task))
+    } catch (error) {
+      console.error('Не удалось сохранить состояние автообновления:', error)
+    }
+  }, [])
+
+  useEffect(() => {
+    autoParseTaskRef.current = autoParseTask
+    if (autoParseTask) {
+      persistAutoParseTask(autoParseTask)
+    } else {
+      persistAutoParseTask(null)
+    }
+  }, [autoParseTask, persistAutoParseTask])
+
+  useEffect(() => {
+    autoUpdateTaskRef.current = autoUpdateTask
+    if (autoUpdateTask) {
+      persistAutoUpdateTask(autoUpdateTask)
+    } else {
+      persistAutoUpdateTask(null)
+    }
+  }, [autoUpdateTask, persistAutoUpdateTask])
+
+  const startAutoParsePolling = useCallback((taskId: string) => {
+    if (!taskId) {
+      return
+    }
+
+    const fetchStatus = async () => {
+      try {
+        const response = await fetch(`/api/parser/auto-parse/status/${taskId}`)
+        const data = await response.json()
+
+        if (response.ok) {
+          const normalized = normalizeAutoParseTask({ ...(autoParseTaskRef.current ?? undefined), ...data, task_id: taskId })
+          setAutoParseTask(normalized)
+          const running = isTaskActive(normalized.status)
+          setIsAutoParsing(running)
+
+          if (!running && autoParseIntervalRef.current) {
+            window.clearInterval(autoParseIntervalRef.current)
+            autoParseIntervalRef.current = null
+          }
+        } else {
+          console.error('Ошибка получения статуса автопарсинга:', data?.error ?? response.statusText)
+        }
+      } catch (error) {
+        console.error('Ошибка получения статуса автопарсинга:', error)
+      }
+    }
+
+    if (autoParseIntervalRef.current) {
+      window.clearInterval(autoParseIntervalRef.current)
+    }
+
+    fetchStatus()
+    autoParseIntervalRef.current = window.setInterval(fetchStatus, AUTO_TASK_POLL_INTERVAL)
+  }, [])
+
+  const startAutoUpdatePolling = useCallback((taskId: string) => {
+    if (!taskId) {
+      return
+    }
+
+    const fetchStatus = async () => {
+      try {
+        const response = await fetch(`/api/parser/auto-update/status/${taskId}`)
+        const data = await response.json()
+
+        if (response.ok) {
+          const normalized = normalizeAutoUpdateTask({ ...(autoUpdateTaskRef.current ?? undefined), ...data, task_id: taskId })
+          setAutoUpdateTask(normalized)
+          const running = isTaskActive(normalized.status)
+          setIsAutoUpdating(running)
+
+          if (!running && autoUpdateIntervalRef.current) {
+            window.clearInterval(autoUpdateIntervalRef.current)
+            autoUpdateIntervalRef.current = null
+          }
+        } else {
+          console.error('Ошибка получения статуса автообновления:', data?.error ?? response.statusText)
+        }
+      } catch (error) {
+        console.error('Ошибка получения статуса автообновления:', error)
+      }
+    }
+
+    if (autoUpdateIntervalRef.current) {
+      window.clearInterval(autoUpdateIntervalRef.current)
+    }
+
+    fetchStatus()
+    autoUpdateIntervalRef.current = window.setInterval(fetchStatus, AUTO_TASK_POLL_INTERVAL)
+  }, [])
+
+  useEffect(() => () => {
+    if (autoParseIntervalRef.current) {
+      window.clearInterval(autoParseIntervalRef.current)
+      autoParseIntervalRef.current = null
+    }
+    if (autoUpdateIntervalRef.current) {
+      window.clearInterval(autoUpdateIntervalRef.current)
+      autoUpdateIntervalRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    const currentStatus = autoParseTask?.status ?? null
+    const previousStatus = autoParsePrevStatusRef.current
+
+    if (currentStatus && currentStatus !== previousStatus && FINAL_AUTO_STATUSES.has(currentStatus.toLowerCase())) {
+      if (currentStatus.toLowerCase() === 'completed') {
+        const imported = autoParseTask?.imported_slugs?.length ?? 0
+        const skipped = autoParseTask?.skipped_slugs?.length ?? 0
+        toast.success(`Автопарсинг завершен! Импортировано: ${imported}, пропущено: ${skipped}`)
+      } else if (currentStatus.toLowerCase() === 'cancelled') {
+        toast.warning('Автопарсинг отменен')
+      } else if (currentStatus.toLowerCase() === 'failed') {
+        toast.error('Автопарсинг завершился с ошибкой')
+      }
+    }
+
+    autoParsePrevStatusRef.current = currentStatus
+  }, [autoParseTask])
+
+  useEffect(() => {
+    const currentStatus = autoUpdateTask?.status ?? null
+    const previousStatus = autoUpdatePrevStatusRef.current
+
+    if (currentStatus && currentStatus !== previousStatus && FINAL_AUTO_STATUSES.has(currentStatus.toLowerCase())) {
+      if (currentStatus.toLowerCase() === 'completed') {
+        const updated = autoUpdateTask?.updated_mangas?.length ?? 0
+        const newChapters = autoUpdateTask?.new_chapters_count ?? 0
+        toast.success(`Автообновление завершено! Обновлено манг: ${updated}, добавлено глав: ${newChapters}`)
+      } else if (currentStatus.toLowerCase() === 'failed') {
+        toast.error('Автообновление завершилось с ошибкой')
+      }
+    }
+
+    autoUpdatePrevStatusRef.current = currentStatus
+  }, [autoUpdateTask])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      const storedAutoParse = window.localStorage.getItem(AUTO_PARSE_STORAGE_KEY)
+      if (storedAutoParse) {
+        const parsed = normalizeAutoParseTask(JSON.parse(storedAutoParse))
+        if (parsed.task_id) {
+          setAutoParseTask(parsed)
+          autoParseTaskRef.current = parsed
+          if (isTaskActive(parsed.status)) {
+            setIsAutoParsing(true)
+            startAutoParsePolling(parsed.task_id)
+          }
+        }
+      }
+
+      const storedAutoUpdate = window.localStorage.getItem(AUTO_UPDATE_STORAGE_KEY)
+      if (storedAutoUpdate) {
+        const parsed = normalizeAutoUpdateTask(JSON.parse(storedAutoUpdate))
+        if (parsed.task_id) {
+          setAutoUpdateTask(parsed)
+          autoUpdateTaskRef.current = parsed
+          if (isTaskActive(parsed.status)) {
+            setIsAutoUpdating(true)
+            startAutoUpdatePolling(parsed.task_id)
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Не удалось восстановить состояние автоматизации из localStorage:', error)
+      window.localStorage.removeItem(AUTO_PARSE_STORAGE_KEY)
+      window.localStorage.removeItem(AUTO_UPDATE_STORAGE_KEY)
+    }
+  }, [startAutoParsePolling, startAutoUpdatePolling])
+
   // Автопарсинг манги из каталога
   const startAutoParsing = async () => {
     if (catalogPage <= 0) {
@@ -148,9 +416,17 @@ export function MangaManagement() {
       const data = await response.json()
 
       if (response.ok) {
-        setAutoParseTask(data)
+        const taskId = String(data.task_id ?? data.taskId ?? '')
+        const normalized = normalizeAutoParseTask({
+          ...data,
+          task_id: taskId,
+          start_time: data.start_time ?? new Date().toISOString()
+        })
+        setAutoParseTask(normalized)
+        autoParseTaskRef.current = normalized
+        setIsAutoParsing(true)
         toast.success('Автопарсинг запущен')
-        pollAutoParseStatus(data.task_id)
+        startAutoParsePolling(taskId)
       } else {
         toast.error(data.error || 'Ошибка запуска автопарсинга')
         setIsAutoParsing(false)
@@ -159,39 +435,6 @@ export function MangaManagement() {
       toast.error('Ошибка соединения с сервером')
       setIsAutoParsing(false)
     }
-  }
-
-  // Опрос статуса автопарсинга
-  const pollAutoParseStatus = async (taskId: string) => {
-    const interval = setInterval(async () => {
-      try {
-        const response = await fetch(`/api/parser/auto-parse/status/${taskId}`)
-        const data = await response.json()
-
-        if (response.ok) {
-          setAutoParseTask(data)
-
-          if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
-            clearInterval(interval)
-            setIsAutoParsing(false)
-            
-            if (data.status === 'completed') {
-              const importedCount = data.imported_slugs?.length || 0
-              const skippedCount = data.skipped_slugs?.length || 0
-              toast.success(`Автопарсинг завершен! Импортировано: ${importedCount}, пропущено: ${skippedCount}`)
-            } else if (data.status === 'cancelled') {
-              toast.warning('Автопарсинг отменен')
-            } else {
-              toast.error('Автопарсинг завершился с ошибкой')
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Ошибка получения статуса:', error)
-      }
-    }, 2000)
-
-    return () => clearInterval(interval)
   }
 
   // Отмена автопарсинга
@@ -231,9 +474,17 @@ export function MangaManagement() {
       const data = await response.json()
 
       if (response.ok) {
-        setAutoUpdateTask(data)
+        const taskId = String(data.task_id ?? data.taskId ?? '')
+        const normalized = normalizeAutoUpdateTask({
+          ...data,
+          task_id: taskId,
+          start_time: data.start_time ?? new Date().toISOString()
+        })
+        setAutoUpdateTask(normalized)
+        autoUpdateTaskRef.current = normalized
+        setIsAutoUpdating(true)
         toast.success('Автообновление запущено')
-        pollAutoUpdateStatus(data.task_id)
+        startAutoUpdatePolling(taskId)
       } else {
         toast.error(data.error || 'Ошибка запуска автообновления')
         setIsAutoUpdating(false)
@@ -242,37 +493,6 @@ export function MangaManagement() {
       toast.error('Ошибка соединения с сервером')
       setIsAutoUpdating(false)
     }
-  }
-
-  // Опрос статуса автообновления
-  const pollAutoUpdateStatus = async (taskId: string) => {
-    const interval = setInterval(async () => {
-      try {
-        const response = await fetch(`/api/parser/auto-update/status/${taskId}`)
-        const data = await response.json()
-
-        if (response.ok) {
-          setAutoUpdateTask(data)
-
-          if (data.status === 'completed' || data.status === 'failed') {
-            clearInterval(interval)
-            setIsAutoUpdating(false)
-
-            if (data.status === 'completed') {
-              const updatedCount = data.updated_mangas?.length || 0
-              const newChaptersCount = data.new_chapters_count || 0
-              toast.success(`Автообновление завершено! Обновлено манг: ${updatedCount}, добавлено глав: ${newChaptersCount}`)
-            } else {
-              toast.error('Автообновление завершилось с ошибкой')
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Ошибка получения статуса:', error)
-      }
-    }, 2000)
-
-    return () => clearInterval(interval)
   }
 
   const getStatusIcon = (status: string) => {
