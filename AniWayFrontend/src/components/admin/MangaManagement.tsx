@@ -171,6 +171,7 @@ export function MangaManagement() {
   const [autoUpdateTask, setAutoUpdateTask] = useState<AutoUpdateTask | null>(null)
   const [isAutoParsing, setIsAutoParsing] = useState(false)
   const [isAutoUpdating, setIsAutoUpdating] = useState(false)
+  const [automationHydrated, setAutomationHydrated] = useState(false)
 
   const autoParseIntervalRef = useRef<number | null>(null)
   const autoUpdateIntervalRef = useRef<number | null>(null)
@@ -215,21 +216,35 @@ export function MangaManagement() {
 
   useEffect(() => {
     autoParseTaskRef.current = autoParseTask
-    if (autoParseTask) {
+  }, [autoParseTask])
+
+  useEffect(() => {
+    autoUpdateTaskRef.current = autoUpdateTask
+  }, [autoUpdateTask])
+
+  useEffect(() => {
+    if (!automationHydrated) {
+      return
+    }
+
+    if (autoParseTask && autoParseTask.task_id) {
       persistAutoParseTask(autoParseTask)
     } else {
       persistAutoParseTask(null)
     }
-  }, [autoParseTask, persistAutoParseTask])
+  }, [automationHydrated, autoParseTask, persistAutoParseTask])
 
   useEffect(() => {
-    autoUpdateTaskRef.current = autoUpdateTask
-    if (autoUpdateTask) {
+    if (!automationHydrated) {
+      return
+    }
+
+    if (autoUpdateTask && autoUpdateTask.task_id) {
       persistAutoUpdateTask(autoUpdateTask)
     } else {
       persistAutoUpdateTask(null)
     }
-  }, [autoUpdateTask, persistAutoUpdateTask])
+  }, [automationHydrated, autoUpdateTask, persistAutoUpdateTask])
 
   const startAutoParsePolling = useCallback((taskId: string) => {
     if (!taskId) {
@@ -352,6 +367,7 @@ export function MangaManagement() {
 
   useEffect(() => {
     if (typeof window === 'undefined') {
+      setAutomationHydrated(true)
       return
     }
 
@@ -385,6 +401,8 @@ export function MangaManagement() {
       console.error('Не удалось восстановить состояние автоматизации из localStorage:', error)
       window.localStorage.removeItem(AUTO_PARSE_STORAGE_KEY)
       window.localStorage.removeItem(AUTO_UPDATE_STORAGE_KEY)
+    } finally {
+      setAutomationHydrated(true)
     }
   }, [startAutoParsePolling, startAutoUpdatePolling])
 
