@@ -675,52 +675,11 @@ public class MelonIntegrationService {
             }
 
             // Обрабатываем тип манги
-            String typeStr = (String) mangaInfo.get("type");
-            System.out.println("DEBUG: type from parser = " + typeStr);
-            if (typeStr != null && !typeStr.trim().isEmpty()) {
-                try {
-                    switch (typeStr.toLowerCase().trim()) {
-                        case "manhwa":
-                        case "манхва":
-                            manga.setType(Manga.MangaType.MANHWA);
-                            break;
-                        case "manhua":
-                        case "маньхуа":
-                            manga.setType(Manga.MangaType.MANHUA);
-                            break;
-                        case "western_comic":
-                        case "western comic":
-                        case "комикс западный":
-                            manga.setType(Manga.MangaType.WESTERN_COMIC);
-                            break;
-                        case "russian_comic":
-                        case "russian comic":
-                        case "руманга":
-                            manga.setType(Manga.MangaType.RUSSIAN_COMIC);
-                            break;
-                        case "oel":
-                        case "oel-манга":
-                        case "oel-manga":
-                            manga.setType(Manga.MangaType.OEL);
-                            break;
-                        case "manga":
-                        case "манга":
-                            manga.setType(Manga.MangaType.MANGA);
-                            break;
-                        default:
-                            // Для неизвестных типов логируем и ставим MANGA
-                            System.out.println("DEBUG: Unknown type '" + typeStr + "', using MANGA");
-                            manga.setType(Manga.MangaType.MANGA);
-                    }
-                    System.out.println("DEBUG: Set type to: " + manga.getType());
-                } catch (Exception e) {
-                    manga.setType(Manga.MangaType.MANGA);
-                }
-            } else {
-                // Если тип не получен из парсера, устанавливаем MANGA по умолчанию
-                manga.setType(Manga.MangaType.MANGA);
-                System.out.println("DEBUG: No type from parser, set default MANGA");
-            }
+            Object typeRaw = mangaInfo.get("type");
+            System.out.println("DEBUG: type from parser = " + typeRaw);
+            Manga.MangaType resolvedType = resolveMangaType(typeRaw);
+            manga.setType(resolvedType);
+            System.out.println("DEBUG: Set type to: " + manga.getType());
 
             // Обрабатываем возрастное ограничение
             Object ageLimit = mangaInfo.get("age_limit");
@@ -1194,21 +1153,11 @@ public class MelonIntegrationService {
         System.out.println("Full mangaInfo: " + mangaInfo);
 
         // Обрабатываем тип манги (manga/manhwa/manhua)
-        String type = (String) mangaInfo.get("type");
-        System.out.println("DEBUG: Raw type from parsing: " + type);
-        if (type != null && !type.trim().isEmpty()) {
-            try {
-                Manga.MangaType mangaType = Manga.MangaType.valueOf(type.trim().toUpperCase());
-                manga.setType(mangaType);
-                System.out.println("DEBUG: Set manga type to: " + mangaType);
-            } catch (IllegalArgumentException e) {
-                System.err.println("DEBUG: Unknown manga type: " + type + ", setting to MANGA");
-                manga.setType(Manga.MangaType.MANGA);
-            }
-        } else {
-            System.out.println("DEBUG: No type found, setting to MANGA by default");
-            manga.setType(Manga.MangaType.MANGA);
-        }
+        Object typeRaw = mangaInfo.get("type");
+        System.out.println("DEBUG: Raw type from parsing: " + typeRaw);
+        Manga.MangaType resolvedType = resolveMangaType(typeRaw);
+        manga.setType(resolvedType);
+        System.out.println("DEBUG: Set manga type to: " + resolvedType);
 
         // Обрабатываем английское название
         String engName = (String) mangaInfo.get("eng_name");
@@ -1369,6 +1318,108 @@ public class MelonIntegrationService {
         }
 
         return manga;
+    }
+
+    private Manga.MangaType resolveMangaType(Object typeRaw) {
+        if (typeRaw == null) {
+            return Manga.MangaType.MANGA;
+        }
+
+        List<String> candidates = new ArrayList<>();
+
+        if (typeRaw instanceof String str) {
+            candidates.add(str);
+        } else if (typeRaw instanceof Map<?, ?> map) {
+            String[] keys = {"slug", "code", "value", "label", "name", "title", "type"};
+            for (String key : keys) {
+                Object candidate = map.get(key);
+                if (candidate != null) {
+                    candidates.add(candidate.toString());
+                }
+            }
+
+            if (candidates.isEmpty()) {
+                candidates.add(typeRaw.toString());
+            }
+        } else {
+            candidates.add(typeRaw.toString());
+        }
+
+        for (String candidate : candidates) {
+            Manga.MangaType resolved = resolveTypeCandidate(candidate);
+            if (resolved != null) {
+                return resolved;
+            }
+        }
+
+        return Manga.MangaType.MANGA;
+    }
+
+    private Manga.MangaType resolveTypeCandidate(String rawValue) {
+        if (rawValue == null) {
+            return null;
+        }
+
+        String trimmed = rawValue.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+
+        String normalized = trimmed.toLowerCase(Locale.ROOT);
+        String collapsed = normalized
+            .replace('-', ' ')
+            .replace('_', ' ')
+            .replace('–', ' ')
+            .replace('—', ' ');
+        collapsed = collapsed.replaceAll("\\s+", " ").trim();
+
+        if (matchesTypeKeyword(normalized, collapsed, "manhwa", "манхва")) {
+            return Manga.MangaType.MANHWA;
+        }
+        if (matchesTypeKeyword(normalized, collapsed, "manhua", "маньхуа")) {
+            return Manga.MangaType.MANHUA;
+        }
+        if (matchesTypeKeyword(normalized, collapsed,
+            "western_comic", "western comic", "комикс западный", "западный комикс",
+            "comic", "комикс")) {
+            return Manga.MangaType.WESTERN_COMIC;
+        }
+        if (matchesTypeKeyword(normalized, collapsed, "russian_comic", "russian comic", "руманга", "русский комикс", "комикс русский")) {
+            return Manga.MangaType.RUSSIAN_COMIC;
+        }
+    if (matchesTypeKeyword(normalized, collapsed, "oel", "oel манга", "oel manga", "oel-манга")) {
+            return Manga.MangaType.OEL;
+        }
+        if (matchesTypeKeyword(normalized, collapsed, "indonesian_comic", "indonesian comic", "индонезийский комикс", "комикс индонезийский")) {
+            return Manga.MangaType.INDONESIAN_COMIC;
+        }
+        if (matchesTypeKeyword(normalized, collapsed, "other", "другое")) {
+            return Manga.MangaType.OTHER;
+        }
+        if (matchesTypeKeyword(normalized, collapsed, "manga", "манга")) {
+            return Manga.MangaType.MANGA;
+        }
+
+        return null;
+    }
+
+    private boolean matchesTypeKeyword(String normalized, String collapsed, String... options) {
+        if (options == null) {
+            return false;
+        }
+
+        for (String option : options) {
+            if (option == null) {
+                continue;
+            }
+            String candidate = option.toLowerCase(Locale.ROOT);
+            if (normalized.equals(candidate) || collapsed.equals(candidate)
+                || normalized.contains(candidate) || collapsed.contains(candidate)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private Manga.MangaStatus resolveMangaStatus(Object statusRaw) {

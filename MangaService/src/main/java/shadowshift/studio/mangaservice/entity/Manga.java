@@ -722,6 +722,10 @@ public class Manga {
          */
         OEL,
         /**
+         * Индонезийский комикс.
+         */
+        INDONESIAN_COMIC,
+        /**
          * Другой тип.
          */
         OTHER
