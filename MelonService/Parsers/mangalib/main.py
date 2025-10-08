@@ -830,21 +830,84 @@ class Parser(MangaParser):
             print(f"[INFO] [DEBUG] ⚠️ No URLs provided, returning empty list")
             return []
         
-        print(f"[INFO] [DEBUG] 🚀 Starting parallel download with {len(urls)} images...")
-        
-        # Используем параллельный загрузчик
-        results = self._parallel_downloader.download_batch(urls)
-        
+        worker_count = getattr(self._parallel_downloader, "max_workers", "unknown")
+        base_delay = getattr(self._parallel_downloader, "base_delay", "?")
+        max_retries = getattr(self._parallel_downloader, "max_retries", "?")
+
+        print(
+            f"[INFO] [DEBUG] 🚀 Starting parallel download with {len(urls)} images "
+            f"(workers={worker_count}, delay={base_delay}s, retries={max_retries})",
+            flush=True
+        )
+        print("[INFO] [DEBUG] ⏳ Waiting for worker pool to report progress...", flush=True)
+
+        import time
+
+        batch_started_at = time.perf_counter()
+        progress_state = {
+            "last_log_at": batch_started_at,
+            "last_downloaded": 0
+        }
+
+        report_every = max(10, len(urls) // 12) if len(urls) > 0 else 1
+        min_seconds_between_logs = 15.0
+
+        def progress_callback(downloaded: int, total: int):
+            if total <= 0:
+                return
+
+            now = time.perf_counter()
+            should_log = (
+                downloaded == total
+                or downloaded - progress_state["last_downloaded"] >= report_every
+                or (now - progress_state["last_log_at"]) >= min_seconds_between_logs
+            )
+
+            if not should_log:
+                return
+
+            percent = (downloaded / total) * 100
+            print(
+                f"[INFO] [DEBUG] 📥 Batch progress: {downloaded}/{total} images ({percent:.1f}%)",
+                flush=True
+            )
+            progress_state["last_log_at"] = now
+            progress_state["last_downloaded"] = downloaded
+
+        # Используем параллельный загрузчик с отслеживанием прогресса
+        results = self._parallel_downloader.download_batch(urls, progress_callback=progress_callback)
+
+        elapsed = max(time.perf_counter() - batch_started_at, 0.0001)
+
         # Преобразуем результаты в список имён файлов (сохраняя порядок)
         filenames = []
+        fallback_attempts = 0
+        successful_downloads = 0
+
         for result in results:
             if result['success']:
                 filenames.append(result['filename'])
+                successful_downloads += 1
             else:
+                fallback_attempts += 1
                 # Для неудачных загрузок пробуем альтернативные серверы
                 fallback_result = self._try_alternative_servers(result['url'])
                 filenames.append(fallback_result)
-        
+                if fallback_result:
+                    successful_downloads += 1
+
+        failed_after_fallback = len(urls) - successful_downloads
+        avg_speed = successful_downloads / elapsed
+
+        print(
+            "[INFO] [DEBUG] ✅ Batch finished: "
+            f"success={successful_downloads}/{len(urls)}, "
+            f"fallbacks_used={fallback_attempts}, "
+            f"failed_after_fallback={failed_after_fallback}, "
+            f"duration={elapsed:.1f}s ({avg_speed:.2f} img/s)",
+            flush=True
+        )
+
         return filenames
 
     def _try_alternative_servers(self, url: str) -> str | None:
