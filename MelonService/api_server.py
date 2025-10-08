@@ -623,7 +623,7 @@ async def execute_batch_parse_task(task_id: str, slugs: List[str], parser: str, 
                 logger.info(f"Batch parsing: processing {slug} ({i+1}/{total_slugs})")
                 
                 # Шаг 1: Парсинг
-                command = ["python", "main.py", "parse", slug, "--use", parser]
+                command = ["python", "main.py", "parse", slug, "-skip-images", "--use", parser]
                 result = await run_melon_command(command, task_id, timeout=1800)  # 30 минут таймаут
                 entry = get_result_entry(slug)
                 ensure_metrics(entry)
@@ -1059,7 +1059,7 @@ async def execute_parse_task(task_id: str, slug: str, parser: str):
         # Обновляем статус начала
         update_task_status(task_id, "IMPORTING_MANGA", 5, "Применены патчи")
         
-        command = ["python", "main.py", "parse", slug, "--use", parser]
+        command = ["python", "main.py", "parse", slug, "-skip-images", "--use", parser]
         result = await run_melon_command(command, task_id, timeout=1800)
         
         metrics_payload = result.get("metrics") if isinstance(result, dict) else None

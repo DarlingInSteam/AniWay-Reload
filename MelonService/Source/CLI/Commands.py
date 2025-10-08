@@ -334,7 +334,10 @@ def com_parse(system_objects: SystemObjects, command: ParsedCommandData):
 			Title.parse(Index, TotalCount)
 			Title.merge()
 			Title.amend()
-			Title.download_images()
+			if command.check_flag("skip-images"):
+				system_objects.logger.info("Skipping images download per -skip-images flag.", stdout = True)
+			else:
+				Title.download_images()
 			Title.save(end_timer = True)
 			ParsedCount += 1
 
