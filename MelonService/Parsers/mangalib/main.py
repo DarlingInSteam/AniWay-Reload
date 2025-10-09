@@ -33,16 +33,22 @@ class Parser(MangaParser):
                 continue
             break
         
-        # НОВОЕ: Выводим прогресс парсинга в stdout для захвата логов
-        chapter_name = f"{chapter.volume}.{chapter.number}" if chapter.volume else str(chapter.number)
-        if chapter.name:
-            chapter_name += f" - {chapter.name}"
-        print(f"[{current_chapter_index}/{total_chapters}] Chapter {chapter_name} parsing...")
-        
         # Логируем начало парсинга главы через Portals
         self._Portals.chapter_parsing_start(self._Title, chapter, current_chapter_index, total_chapters)
 
+        import time
+        start_time = time.time()
         Slides = self.__GetSlides(branch.id, chapter)
+        parse_time = time.time() - start_time
+        
+        # СИНИЙ ЛОГ: Прогресс парсинга с метриками
+        chapter_name = f"Vol.{chapter.volume} " if chapter.volume else ""
+        chapter_name += f"Ch.{chapter.number}"
+        if chapter.name:
+            chapter_name += f": {chapter.name}"
+        
+        slides_count = len(Slides)
+        self._SystemObjects.logger.info(f"\033[94m🔍 [{current_chapter_index}/{total_chapters}] {chapter_name} - {slides_count} pages ({parse_time:.2f}s)\033[0m")
 
         for Slide in Slides:
             chapter.add_slide(Slide["link"], Slide["width"], Slide["height"])
@@ -317,6 +323,9 @@ class Parser(MangaParser):
         )
         
         print(f"[CRITICAL_DEBUG] AdaptiveParallelDownloader CREATED successfully!", flush=True)
+        
+        # Кешируем сервер изображений для ускорения парсинга
+        self._cached_image_server = None
 
     def __IsSlideLink(self, link: str, servers: list[str]) -> bool:
         """
@@ -549,14 +558,19 @@ class Parser(MangaParser):
             self._Portals.chapter_skipped(self._Title, chapter, comment = "Not moderated.")
             return Slides
         
-        Server = self.__GetImagesServers(self._Settings.custom["server"])[0]
+        # Используем кешированный сервер вместо повторных запросов
+        if self._cached_image_server is None:
+            self._cached_image_server = self.__GetImagesServers(self._Settings.custom["server"])[0]
+        Server = self._cached_image_server
         Branch = "" if branch_id == str(self._Title.id) + "0" else f"&branch_id={branch_id}"
         URL = f"https://{self.__API}/api/manga/{self.__TitleSlug}/chapter?number={chapter.number}&volume={chapter.volume}{Branch}"
         Response = self._Requestor.get(URL)
         
         if Response.status_code == 200:
             Data = Response.json["data"].setdefault("pages", tuple())
-            sleep(self._Settings.common.delay)
+            # Используем специальную задержку для парсинга (отдельная настройка)
+            parse_delay = getattr(self._Settings.common, 'parse_delay', 0.1)
+            sleep(parse_delay)
 
             for SlideIndex in range(len(Data)):
                 Buffer = {
@@ -567,8 +581,9 @@ class Parser(MangaParser):
                 }
                 Slides.append(Buffer)
 
-                # Логируем загрузку каждого изображения
-                self._Portals.chapter_download_start(self._Title, chapter, SlideIndex + 1, len(Data))
+            # Логируем только один раз на всю главу (вместо каждого изображения)
+            if Data:
+                self._Portals.chapter_download_start(self._Title, chapter, len(Data), len(Data))
 
         else: self._Portals.request_error(Response, "Unable to request chapter content.", exception = False)
 
