@@ -116,6 +116,18 @@ class MangaBuilder(BaseBuilder):
 		WorkDirectory = f"{self._Temper.builder_temp}/{title.used_filename}"
 
 		Parser: "MangaParser" = title.parser
+
+		if SlidesCount == 0:
+			chapter_metadata = TargetChapter.to_dict()
+			skip_reason = chapter_metadata.get("empty_reason")
+			if not skip_reason and TargetChapter.is_paid:
+				skip_reason = "Платная глава — страницы недоступны"
+			if not skip_reason:
+				skip_reason = "Источник не вернул изображения для главы"
+
+			self._SystemObjects.logger.warning(f"Skipping build for {chapter_display}: {skip_reason}")
+			self._SystemObjects.logger.info(f"\033[94m📥 {chapter_display} - пропущена (0 страниц)\033[0m")
+			return
 		
 		# КРИТИЧЕСКИ ВАЖНО: Если парсер загружен из JSON, нужно инициализировать _parallel_downloader
 		if hasattr(Parser, 'batch_download_images'):

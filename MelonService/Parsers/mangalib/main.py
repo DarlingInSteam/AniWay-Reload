@@ -584,30 +584,128 @@ class Parser(MangaParser):
         if self._cached_image_server is None:
             self._cached_image_server = self.__GetImagesServers(self._Settings.custom["server"])[0]
         Server = self._cached_image_server
-        Branch = "" if branch_id == str(self._Title.id) + "0" else f"&branch_id={branch_id}"
-        URL = f"https://{self.__API}/api/manga/{self.__TitleSlug}/chapter?number={chapter.number}&volume={chapter.volume}{Branch}"
-        Response = self._Requestor.get(URL)
-        
-        if Response.status_code == 200:
-            Data = Response.json["data"].setdefault("pages", tuple())
-            # Используем специальную задержку для парсинга (отдельная настройка)
-            parse_delay = getattr(self._Settings.common, 'parse_delay', 0.1)
+
+        parse_delay = getattr(self._Settings.common, 'parse_delay', 0.1)
+
+        token = self._Settings.custom.get("token")
+        headers: dict[str, str] = {
+            "Referer": f"https://{self._Manifest.site}/"
+        }
+
+        site_id = self.__GetSiteID()
+        if site_id is not None:
+            headers["Site-Id"] = str(site_id)
+
+        if token:
+            headers["Authorization"] = token
+
+        default_branch_id = int(str(self._Title.id) + "0")
+        branch_query_value = branch_id if branch_id and branch_id != default_branch_id else None
+
+        base_endpoint = f"https://{self.__API}/api/manga/{self.__TitleSlug}/chapter"
+        url_variants: list[str] = []
+
+        query_params: list[str] = []
+        if chapter.number:
+            query_params.append(f"number={chapter.number}")
+        if chapter.volume:
+            query_params.append(f"volume={chapter.volume}")
+        if branch_query_value:
+            query_params.append(f"branch_id={branch_query_value}")
+
+        if query_params:
+            url_variants.append(f"{base_endpoint}?{'&'.join(query_params)}")
+
+        if chapter.id:
+            branch_suffix = f"?branch_id={branch_query_value}" if branch_query_value else ""
+            url_variants.append(f"{base_endpoint}/{chapter.id}{branch_suffix}")
+
+            id_query_params = [f"chapter_id={chapter.id}"]
+            if branch_query_value:
+                id_query_params.append(f"branch_id={branch_query_value}")
+            url_variants.append(f"{base_endpoint}?{'&'.join(id_query_params)}")
+
+            generic_id_query = [f"id={chapter.id}"]
+            if branch_query_value:
+                generic_id_query.append(f"branch_id={branch_query_value}")
+            url_variants.append(f"{base_endpoint}?{'&'.join(generic_id_query)}")
+
+        # Добавляем вариант без фильтров на случай, если номер/том отсутствуют
+        if not url_variants:
+            fallback_params = []
+            if branch_query_value:
+                fallback_params.append(f"branch_id={branch_query_value}")
+            if chapter.id:
+                fallback_params.append(f"id={chapter.id}")
+            if fallback_params:
+                url_variants.append(f"{base_endpoint}?{'&'.join(fallback_params)}")
+
+        # Удаляем дубликаты, сохраняя порядок
+        url_variants = list(dict.fromkeys(url_variants))
+
+        last_error: str | None = None
+        last_status: int | None = None
+        last_response = None
+
+        for url in url_variants:
+            Response = self._Requestor.get(url, headers=headers if headers else None)
+            last_response = Response
+            last_status = Response.status_code
+
+            if Response.status_code != 200:
+                last_error = f"HTTP {Response.status_code}"
+                continue
+
+            Payload = Response.json
+            Data = Payload.get("data") if isinstance(Payload, dict) else None
+
+            if not isinstance(Data, dict):
+                last_error = "No data in response"
+                continue
+
+            Pages = Data.get("pages")
+            if not Pages:
+                last_error = "Empty pages list"
+                continue
+
             sleep(parse_delay)
 
-            for SlideIndex in range(len(Data)):
+            for SlideIndex, Page in enumerate(Pages, start=1):
+                RelativeURL = Page.get("url")
+                if not RelativeURL:
+                    continue
+
                 Buffer = {
-                    "index": SlideIndex + 1,
-                    "link": Server + Data[SlideIndex]["url"].replace(" ", "%20"),
-                    "width": Data[SlideIndex]["width"],
-                    "height": Data[SlideIndex]["height"]
+                    "index": SlideIndex,
+                    "link": Server + RelativeURL.replace(" ", "%20"),
+                    "width": Page.get("width"),
+                    "height": Page.get("height")
                 }
                 Slides.append(Buffer)
 
-            # Логируем только один раз на всю главу (вместо каждого изображения)
-            if Data:
-                self._Portals.chapter_download_start(self._Title, chapter, len(Data), len(Data))
+            if Slides:
+                self._Portals.chapter_download_start(self._Title, chapter, len(Pages), len(Pages))
+                break
 
-        else: self._Portals.request_error(Response, "Unable to request chapter content.", exception = False)
+        if Slides:
+            return Slides
+
+        reason_parts: list[str] = []
+        if chapter.is_paid:
+            reason_parts.append("платная глава — доступ ограничен")
+        if last_error:
+            reason_parts.append(last_error)
+        elif last_status:
+            reason_parts.append(f"HTTP {last_status}")
+        else:
+            reason_parts.append("источник не вернул страницы")
+
+        reason_comment = "; ".join(reason_parts)
+        chapter.add_extra_data("empty_reason", reason_comment)
+        self._SystemObjects.logger.warning(f"Chapter {chapter.id} returned no slides ({reason_comment}).")
+        if last_response and last_response.status_code != 200:
+            self._Portals.request_error(last_response, "Unable to request chapter content.", exception=False)
+        self._Portals.chapter_skipped(self._Title, chapter, comment=reason_comment)
 
         return Slides
 

@@ -82,10 +82,42 @@ const LOG_TIME_FORMATTER = new Intl.DateTimeFormat('ru-RU', {
   hour12: false
 })
 
-const tryConvertTimestampToNovosibirsk = (timestamp: string): string | null => {
-  const isoWithZone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(timestamp) ? timestamp : `${timestamp}Z`
-  const date = new Date(isoWithZone)
+const normalizeTimestampForDate = (timestamp: string): string | null => {
+  if (typeof timestamp !== 'string') {
+    return null
+  }
 
+  let candidate = timestamp.trim()
+  if (!candidate) {
+    return null
+  }
+
+  // Заменяем запятые в миллисекундах на точки, чтобы браузер корректно распознал дробную часть
+  candidate = candidate.replace(/,/g, '.')
+
+  // Преобразуем пробел между датой и временем в "T", если ISO-разделитель отсутствует
+  if (/^\d{4}-\d{2}-\d{2}\s/.test(candidate)) {
+    candidate = `${candidate.slice(0, 10)}T${candidate.slice(11)}`
+  }
+
+  // Нормализуем таймзону вида +0700 → +07:00
+  candidate = candidate.replace(/([+-]\d{2})(\d{2})$/, (_match, hours: string, minutes: string) => `${hours}:${minutes}`)
+
+  const hasZone = /[zZ]|[+-]\d{2}:\d{2}$/.test(candidate)
+  if (!hasZone) {
+    candidate = `${candidate}Z`
+  }
+
+  return candidate
+}
+
+const tryConvertTimestampToNovosibirsk = (timestamp: string): string | null => {
+  const normalized = normalizeTimestampForDate(timestamp)
+  if (!normalized) {
+    return null
+  }
+
+  const date = new Date(normalized)
   if (Number.isNaN(date.getTime())) {
     return null
   }
@@ -100,7 +132,7 @@ const tryConvertTimestampToNovosibirsk = (timestamp: string): string | null => {
 }
 
 const formatLogLineForDisplay = (log: string): string => {
-  const match = log.match(/^\[(\d{4}-\d{2}-\d{2}T[0-9:.+-]+)\]/)
+  const match = log.match(/^\[(\d{4}-\d{2}-\d{2}[T\s][0-9:.,+-]+)\]/)
 
   if (!match) {
     return log
@@ -145,7 +177,8 @@ const formatTimestampLabel = (value?: string | Date | null): string => {
     return `${converted} ${LOG_TIMEZONE_LABEL}`
   }
 
-  const fallbackDate = new Date(iso)
+  const normalizedForFallback = normalizeTimestampForDate(iso) ?? iso
+  const fallbackDate = new Date(normalizedForFallback)
   if (!Number.isNaN(fallbackDate.getTime())) {
     return `${LOG_TIME_FORMATTER.format(fallbackDate)} ${LOG_TIMEZONE_LABEL}`
   }
