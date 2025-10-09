@@ -65,7 +65,7 @@ interface AutoUpdateTask {
 
 const AUTO_PARSE_STORAGE_KEY = 'autoParseTaskState'
 const AUTO_UPDATE_STORAGE_KEY = 'autoUpdateTaskState'
-const AUTO_TASK_POLL_INTERVAL = 2000
+const AUTO_TASK_POLL_INTERVAL = 1000 // Уменьшено с 2000ms до 1000ms для лучшего UX
 const FINAL_AUTO_STATUSES = new Set(['completed', 'failed', 'cancelled'])
 const LOG_DISPLAY_TIMEZONE = 'Asia/Novosibirsk'
 const LOG_TIMEZONE_LABEL = 'НСК'
