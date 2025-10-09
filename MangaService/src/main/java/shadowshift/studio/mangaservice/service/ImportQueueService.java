@@ -154,8 +154,8 @@ public class ImportQueueService {
                     CompletableFuture<Void> importFuture = melonIntegrationService
                         .importMangaWithProgressAsync(item.getImportTaskId(), item.getSlug(), item.getFilename());
                     
-                    // Ждем завершения импорта
-                    importFuture.get(30, TimeUnit.MINUTES); // таймаут 30 минут
+                    // Ждем завершения импорта - увеличено до 2 часов для больших манг
+                    importFuture.get(2, TimeUnit.HOURS); // таймаут 2 часа для больших манг
                     
                     // Успешно завершено
                     item.setStatus(ImportQueueItem.Status.COMPLETED);
@@ -167,7 +167,7 @@ public class ImportQueueService {
                         
                 } catch (TimeoutException e) {
                     item.setStatus(ImportQueueItem.Status.FAILED);
-                    item.setErrorMessage("Превышен таймаут импорта (30 минут)");
+                    item.setErrorMessage("Превышен таймаут импорта (2 часа) - возможно, манга слишком большая или медленный интернет");
                     item.setCompletedAt(LocalDateTime.now());
                     logger.error("Таймаут импорта для taskId={}: {}", item.getImportTaskId(), e.getMessage());
                     
@@ -186,8 +186,8 @@ public class ImportQueueService {
                     item.getStatus() == ImportQueueItem.Status.FAILED) {
                     completedImports.put(item.getImportTaskId(), item);
                     
-                    // Планируем удаление через 10 минут
-                    CompletableFuture.delayedExecutor(10, TimeUnit.MINUTES).execute(() -> {
+                    // Планируем удаление через 30 минут (увеличено для долгих процессов очистки)
+                    CompletableFuture.delayedExecutor(30, TimeUnit.MINUTES).execute(() -> {
                         completedImports.remove(item.getImportTaskId());
                         logger.debug("Удален завершенный импорт из кэша: {}", item.getImportTaskId());
                     });

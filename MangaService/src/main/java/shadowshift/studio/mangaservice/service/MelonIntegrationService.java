@@ -1933,7 +1933,7 @@ public class MelonIntegrationService {
             
             for (int i = 0; i < downloadFutures.size(); i++) {
                 try {
-                    PageData pageData = downloadFutures.get(i).get(60, TimeUnit.SECONDS); // 60 сек на страницу
+                    PageData pageData = downloadFutures.get(i).get(5, TimeUnit.MINUTES); // 5 минут на страницу для больших изображений
                     if (pageData != null) {
                         downloadedPages.add(pageData);
                     }

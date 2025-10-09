@@ -292,7 +292,7 @@ spring:
       # Настройки тайм-аутов
       httpclient:
         connect-timeout: 10000
-        response-timeout: 60000  # Увеличиваем до 60 секунд для долгих операций парсинга
+        response-timeout: 7200000  # Увеличиваем до 2 часов для долгих операций парсинга и импорта
 
 # Actuator для мониторинга
 management:

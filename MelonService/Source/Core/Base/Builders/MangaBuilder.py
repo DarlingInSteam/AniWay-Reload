@@ -98,7 +98,7 @@ class MangaBuilder(BaseBuilder):
 		# ДЕБАГ: Отслеживание вызовов build_chapter
 		import traceback
 		call_stack = ''.join(traceback.format_stack()[-3:-1]).strip()
-		self._SystemObjects.logger.debug(f"build_chapter({chapter_id}) called from: {call_stack}")
+		self._SystemObjects.logger.info(f"[DEBUG] build_chapter({chapter_id}) called from: {call_stack}")
 		
 		if not self._BuildSystem: self._BuildSystem = MangaBuildSystems.Simple
 
@@ -161,7 +161,7 @@ class MangaBuilder(BaseBuilder):
 				Index: int = Slide["index"]
 				
 				if downloaded_filename:
-					self._SystemObjects.logger.debug(f"Slave \"{Filename}\" downloaded ({idx}/{SlidesCount}).", stdout=False)
+					self._SystemObjects.logger.info(f"[DEBUG] Slave \"{Filename}\" downloaded ({idx}/{SlidesCount}).", stdout=False)
 					
 					# Перемещаем файл из temp в рабочую директорию
 					MovingStatus = self._Parser.images_downloader.move_from_temp(
@@ -183,13 +183,13 @@ class MangaBuilder(BaseBuilder):
 				Index: int = Slide["index"]
 				
 				if not os.path.exists(WorkDirectory): os.mkdir(WorkDirectory)
-				self._SystemObjects.logger.debug(f"[{Index}/{SlidesCount}] Downloading \"{Filename}\"...")
+				self._SystemObjects.logger.info(f"[DEBUG] [{Index}/{SlidesCount}] Downloading \"{Filename}\"...")
 				DownloadingStatus = Parser.image(Link)
 				DownloadingStatus.print_messages()
 
 				if not DownloadingStatus.has_errors:
-					self._SystemObjects.logger.debug(f"[{Index}/{SlidesCount}] \"{Filename}\" - Done.")
-					self._SystemObjects.logger.debug(f"Slide \"{Filename}\" downloaded.", stdout = False)
+					self._SystemObjects.logger.info(f"[DEBUG] [{Index}/{SlidesCount}] \"{Filename}\" - Done.")
+					self._SystemObjects.logger.info(f"[DEBUG] Slide \"{Filename}\" downloaded.", stdout = False)
 
 				else: self._SystemObjects.logger.error(f"Unable download slide \"{Filename}\". Response code: {DownloadingStatus.code}.")
 
@@ -220,7 +220,7 @@ class MangaBuilder(BaseBuilder):
 		
 		self._SystemObjects.logger.info(f"Building branch {TargetBranch.id}...")
 		chapter_ids = [ch.id for ch in TargetBranch.chapters]
-		self._SystemObjects.logger.debug(f"Branch {TargetBranch.id} has {len(chapter_ids)} chapters: {chapter_ids[:10]}{'...' if len(chapter_ids) > 10 else ''}")
+		self._SystemObjects.logger.info(f"[DEBUG] Branch {TargetBranch.id} has {len(chapter_ids)} chapters: {chapter_ids[:10]}{'...' if len(chapter_ids) > 10 else ''}")
 		
 		# Проверка на дубликаты в списке глав
 		if len(chapter_ids) != len(set(chapter_ids)):
