@@ -41,6 +41,18 @@
 				"port": 8000,
 				"login": "aMLawA",
 				"password": "PUShSd"
+			},
+			{
+				"host": "185.66.15.29",
+				"port": 9646,
+				"login": "9h0ZJo",
+				"password": "Cmrqjv"
+			},
+			{
+				"host": "81.177.22.104",
+				"port": 9975,
+				"login": "9h0ZJo",
+				"password": "Cmrqjv"
 			}
 		]
 	},

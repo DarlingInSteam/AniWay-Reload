@@ -83,12 +83,11 @@ class AdaptiveParallelDownloader:
         self._current_delay = base_delay
         self._last_429_time = 0
         
-        # Единоразовый лог инициализации воркеров (только если есть прокси или переопределение)
-        if proxy_count > 0 or max_total_workers:
-            override_note = f", override={max_total_workers}" if max_total_workers else ""
-            logger.info(
-                f"⚙️ Workers: {self.max_workers} active, {proxy_count} proxies, {base_delay}s delay{override_note}"
-            )
+        # Единоразовый лог инициализации воркеров (всегда показываем)
+        override_note = f", override={max_total_workers}" if max_total_workers else ""
+        logger.info(
+            f"⚙️ Workers: {self.max_workers} active, {proxy_count} proxies, {base_delay}s delay{override_note}"
+        )
     
     def _adaptive_delay(self):
         """Адаптивная задержка с учётом rate limiting."""

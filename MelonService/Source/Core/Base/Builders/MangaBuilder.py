@@ -137,8 +137,20 @@ class MangaBuilder(BaseBuilder):
 			download_time = time.time() - start_time
 			images_per_second = SlidesCount / download_time if download_time > 0 else 0
 			
+			# Подсчет успешных загрузок
+			successful = sum(1 for f in filenames if f is not None)
+			failed = SlidesCount - successful
+			
 			# СИНИЙ ЛОГ: Информация о скачанной главе с метриками
-			self._SystemObjects.logger.info(f"\033[94m📥 {chapter_display} - {SlidesCount} images ({images_per_second:.1f} img/sec)\033[0m")
+			if failed > 0:
+				self._SystemObjects.logger.info(f"\033[94m📥 {chapter_display} - {successful}/{SlidesCount} images ({images_per_second:.1f} img/sec, {failed} failed)\033[0m")
+			else:
+				self._SystemObjects.logger.info(f"\033[94m📥 {chapter_display} - {SlidesCount} images ({images_per_second:.1f} img/sec)\033[0m")
+			
+			# Дополнительная диагностика при низкой скорости
+			if images_per_second < 1.0 and SlidesCount > 3:
+				avg_time_per_image = download_time / SlidesCount
+				self._SystemObjects.logger.warning(f"⚠️ Slow download detected: {avg_time_per_image:.1f}s per image (might be large files or slow server)")
 			
 			# Обработка результатов и перемещение файлов
 			if not os.path.exists(WorkDirectory): 
