@@ -24,6 +24,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 /**
@@ -75,6 +77,19 @@ public class MelonIntegrationService {
 
     @Autowired
     private FullParsingTaskRunner fullParsingTaskRunner;
+    
+    @Autowired
+    private ImportQueueService importQueueService;
+    
+    // ExecutorService для параллельной обработки
+    private final ExecutorService executorService = Executors.newFixedThreadPool(10);
+    
+    @jakarta.annotation.PostConstruct
+    public void init() {
+        // Инициализируем очередь импорта
+        importQueueService.init();
+        logger.info("MelonIntegrationService инициализирован с очередью импорта");
+    }
     
     // Маппинг fullParsingTaskId -> autoParsingTaskId для связывания логов buildTask
     private final Map<String, String> fullParsingToAutoParsingTask = new HashMap<>();
@@ -235,19 +250,50 @@ public class MelonIntegrationService {
                     // КРИТИЧНО: Импортируем мангу используя normalizedSlug (без ID), не оригинальный slug!
                     // MelonService сохраняет файлы БЕЗ ID (например: "made-of-stardust.json")
                     // Поэтому getMangaInfo() должен искать нормализованный файл
-                    importMangaWithProgressAsync(importTaskId, normalizedSlug, null).get();
-                    logger.info("Импорт завершен для slug={}, очищаем данные из MelonService", slug);
                     
-                    // После успешного импорта - удаляем из MelonService
-                    // ВАЖНО: используем нормализованный slug (без ID)
-                    updateFullParsingTask(fullTaskId, "running", 95, "Импорт завершен, очистка данных из MelonService...", null);
-                    Map<String, Object> deleteResult = deleteManga(normalizedSlug);
-                    if (deleteResult != null && Boolean.TRUE.equals(deleteResult.get("success"))) {
-                        logger.info("Данные успешно удалены из MelonService для slug={} (normalized={})", slug, normalizedSlug);
-                    } else {
-                        logger.warn("Не удалось удалить данные из MelonService для slug={} (normalized={}): {}", 
-                            slug, normalizedSlug, deleteResult);
-                    }
+                    // ВАЖНО: НЕ используем .get() чтобы не блокировать автопарсинг!
+                    // Добавляем импорт в очередь с нормальным приоритетом
+                    importQueueService.queueImport(importTaskId, normalizedSlug, null, ImportQueueService.ImportQueueItem.Priority.NORMAL);
+                    
+                    // Создаем асинхронный обработчик для отслеживания завершения и очистки
+                    CompletableFuture.runAsync(() -> {
+                        try {
+                            // Ждем завершения импорта из очереди
+                            ImportQueueService.ImportQueueItem importItem;
+                            do {
+                                Thread.sleep(1000); // проверяем каждую секунду
+                                importItem = importQueueService.getImportStatus(importTaskId);
+                            } while (importItem != null && 
+                                    importItem.getStatus() != ImportQueueService.ImportQueueItem.Status.COMPLETED &&
+                                    importItem.getStatus() != ImportQueueService.ImportQueueItem.Status.FAILED);
+                            
+                            if (importItem != null && importItem.getStatus() == ImportQueueService.ImportQueueItem.Status.COMPLETED) {
+                                logger.info("Импорт завершен для slug={}, очищаем данные из MelonService", slug);
+                                
+                                // После успешного импорта - удаляем из MelonService
+                                updateFullParsingTask(fullTaskId, "running", 95, "Импорт завершен, очистка данных из MelonService...", null);
+                                Map<String, Object> deleteResult = deleteManga(normalizedSlug);
+                                if (deleteResult != null && Boolean.TRUE.equals(deleteResult.get("success"))) {
+                                    logger.info("Данные успешно удалены из MelonService для slug={}", normalizedSlug);
+                                    updateFullParsingTask(fullTaskId, "completed", 100, "Автопарсинг и импорт завершены успешно", null);
+                                } else {
+                                    logger.warn("Не удалось удалить данные из MelonService для slug={}", normalizedSlug);
+                                    updateFullParsingTask(fullTaskId, "completed", 100, "Импорт завершен, но не удалось очистить MelonService", null);
+                                }
+                            } else {
+                                String errorMsg = importItem != null ? importItem.getErrorMessage() : "Неизвестная ошибка";
+                                logger.error("Ошибка импорта для slug={}: {}", slug, errorMsg);
+                                updateFullParsingTask(fullTaskId, "failed", 90, "Ошибка импорта: " + errorMsg, null);
+                            }
+                        } catch (Exception e) {
+                            logger.error("Ошибка при отслеживании импорта для slug={}: {}", slug, e.getMessage());
+                            updateFullParsingTask(fullTaskId, "failed", 90, "Ошибка отслеживания импорта: " + e.getMessage(), null);
+                        }
+                    }, executorService);
+                    
+                    // Сразу переходим к следующему этапу, не дожидаясь импорта
+                    // Импорт теперь происходит в отдельной очереди
+                    logger.info("Импорт добавлен в очередь для slug={}, продолжаем автопарсинг", slug);
                     
                     // Формируем результат (mangaInfo уже получен ранее)
                     Map<String, Object> result = new HashMap<>();
@@ -1710,20 +1756,15 @@ public class MelonIntegrationService {
 
             try {
                 logger.info("--- Импорт главы {}/{} ---", i + 1, chapters.size());
-                // DEBUG: Выводим информацию о главе
-                System.out.println("=== CHAPTER DEBUG ===");
-                System.out.println("Chapter data: " + chapterData);
-
                 // Создаем запрос к ChapterService
                 Map<String, Object> chapterRequest = new HashMap<>();
                 chapterRequest.put("mangaId", mangaId);
 
-                // Улучшенная обработка номера главы
+                // Обработка номера главы
                 Object volumeObj = chapterData.get("volume");
                 Object numberObj = chapterData.get("number");
                 
-                System.out.println("Raw volume: " + volumeObj);
-                System.out.println("Raw number: " + numberObj);
+                logger.debug("Processing chapter - volume: {}, number: {}", volumeObj, numberObj);
 
                 // Формируем уникальный номер главы с учетом тома
                 double chapterNumber;
@@ -1736,7 +1777,7 @@ public class MelonIntegrationService {
                     volume = volumeObj != null ? Integer.parseInt(volumeObj.toString()) : 1;
                 } catch (NumberFormatException e) {
                     volume = 1;
-                    System.out.println("Failed to parse volume, using default: " + e.getMessage());
+                    logger.debug("Failed to parse volume, using default: {}", e.getMessage());
                 }
                 
                 try {
@@ -1746,8 +1787,6 @@ public class MelonIntegrationService {
                     // Формула: том * 1000 + номер главы
                     // Например: том 2, глава 12.5 = 2012.5
                     chapterNumber = volume * 1000 + originalNumber;
-                    
-                    System.out.println("Calculated chapter number: " + chapterNumber);
                 } catch (NumberFormatException e) {
                     // Если не можем распарсить как число, это специальная глава
                     isSpecialChapter = true;
@@ -1761,7 +1800,7 @@ public class MelonIntegrationService {
                     chapterNumber = volume * 1000 + 9000 + hashCode;
                     originalNumber = chapterNumber; // Для специальных глав оригинальный номер = вычисленному
                     
-                    System.out.println("Special chapter detected: '" + numberStr + "', calculated number: " + chapterNumber + ", error: " + e.getMessage());
+                    logger.debug("Special chapter detected: '{}', calculated number: {}", numberStr, chapterNumber);
                 }
 
                 chapterRequest.put("chapterNumber", chapterNumber);
@@ -1784,9 +1823,6 @@ public class MelonIntegrationService {
                     }
                 }
                 chapterRequest.put("title", title);
-
-                System.out.println("Final chapter request: " + chapterRequest);
-                System.out.println("=== END CHAPTER DEBUG ===");
 
                 HttpHeaders headers = new HttpHeaders();
                 headers.setContentType(MediaType.APPLICATION_JSON);
@@ -1828,7 +1864,7 @@ public class MelonIntegrationService {
     }
 
     /**
-     * Импортирует страницы главы из MelonService через HTTP API
+     * Импортирует страницы главы из MelonService через BATCH API для максимальной производительности
      */
     private void importChapterPagesFromMelonService(String taskId, Long chapterId, List<Map<String, Object>> slides,
                                                    String mangaFilename, String originalChapterName) {
@@ -1843,68 +1879,60 @@ public class MelonIntegrationService {
             return index1.compareTo(index2);
         });
 
-        // Импортируем страницы последовательно через HTTP API MelonService
-        for (Map<String, Object> slide : slides) {
-            Integer pageIndex = Integer.parseInt(slide.get("index").toString());
+        logger.info("=== БАТЧЕВЫЙ ИМПОРТ СТРАНИЦ ===");
+        logger.info("Глава ID: {}, количество страниц: {}", chapterId, slides.size());
 
-            // Формируем URL изображения в MelonService используя оригинальное название главы
-            String imageUrl = String.format("%s/images/%s/%s/%d",
-                melonServiceUrl, mangaFilename, originalChapterName, pageIndex);
-
-            System.out.println("Importing page from URL: " + imageUrl);
-
-            try {
-                // Скачиваем изображение из MelonService в MangaService
-                System.out.println("Downloading image from MelonService: " + imageUrl);
-                ResponseEntity<byte[]> imageResponse = restTemplate.getForEntity(imageUrl, byte[].class);
+        try {
+            // ЭТАП 1: Параллельно скачиваем все изображения из MelonService
+            List<CompletableFuture<PageData>> downloadFutures = new ArrayList<>();
+            
+            for (Map<String, Object> slide : slides) {
+                Integer pageIndex = Integer.parseInt(slide.get("index").toString());
+                String imageUrl = String.format("%s/images/%s/%s/%d",
+                    melonServiceUrl, mangaFilename, originalChapterName, pageIndex);
                 
-                if (!imageResponse.getStatusCode().is2xxSuccessful() || imageResponse.getBody() == null) {
-                    System.err.println("Failed to download image from MelonService: " + imageUrl + ", status: " + imageResponse.getStatusCode());
-                    continue;
-                }
-                
-                byte[] imageBytes = imageResponse.getBody();
-                System.out.println("Downloaded image size: " + imageBytes.length + " bytes");
-
-                // Создаем ByteArrayResource из скачанного изображения
-                String filename = "page_" + pageIndex + ".jpg";
-                ByteArrayResource imageResource = new ByteArrayResource(imageBytes) {
-                    @Override
-                    public String getFilename() {
-                        return filename;
+                CompletableFuture<PageData> downloadFuture = CompletableFuture.supplyAsync(() -> {
+                    try {
+                        logger.debug("Скачиваем страницу {} из: {}", pageIndex, imageUrl);
+                        ResponseEntity<byte[]> imageResponse = restTemplate.getForEntity(imageUrl, byte[].class);
+                        
+                        if (!imageResponse.getStatusCode().is2xxSuccessful() || imageResponse.getBody() == null) {
+                            logger.warn("Не удалось скачать страницу {}: {}", pageIndex, imageResponse.getStatusCode());
+                            return null;
+                        }
+                        
+                        byte[] imageBytes = imageResponse.getBody();
+                        logger.debug("Скачана страница {}, размер: {} байт", pageIndex, imageBytes.length);
+                        
+                        return new PageData(pageIndex, imageBytes);
+                    } catch (Exception e) {
+                        logger.error("Ошибка скачивания страницы {}: {}", pageIndex, e.getMessage());
+                        return null;
                     }
-                };
-
-                // Отправляем файл в ImageStorageService
-                MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-                body.add("file", imageResource);
-
-                HttpHeaders headers = new HttpHeaders();
-                headers.setContentType(MediaType.MULTIPART_FORM_DATA);
-                HttpEntity<MultiValueMap<String, Object>> entity = new HttpEntity<>(body, headers);
-
-                // Отправляем в ImageStorageService endpoint для загрузки файла
-                String uploadUrl = "http://image-storage-service:8083/api/images/chapter/" + chapterId + "/page/" + pageIndex;
-                ResponseEntity<Map> response = restTemplate.postForEntity(uploadUrl, entity, Map.class);
-
-                // Проверяем успешность импорта страницы
-                if (response.getStatusCode().is2xxSuccessful()) {
-                    importTaskService.incrementImportedPages(taskId);
-                    System.out.println("Successfully imported page " + pageIndex + " for chapter " + chapterId);
-                    // Небольшая пауза между страницами для стабильности
-                    Thread.sleep(50);
-                } else {
-                    System.err.println("Ошибка импорта страницы " + pageIndex + " для главы " + chapterId + ": HTTP " + response.getStatusCode());
-                }
+                }, executorService);
                 
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                System.err.println("Импорт страниц был прерван для главы " + chapterId);
-                break;
-            } catch (Exception e) {
-                System.err.println("Ошибка при обработке страницы " + pageIndex + " для главы " + chapterId + ": " + e.getMessage());
-                e.printStackTrace();
+                downloadFutures.add(downloadFuture);
             }
+            
+            // Ждем завершения всех скачиваний
+            List<PageData> downloadedPages = downloadFutures.stream()
+                .map(CompletableFuture::join)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+            
+            logger.info("Скачано {} из {} страниц", downloadedPages.size(), slides.size());
+            
+            if (downloadedPages.isEmpty()) {
+                logger.error("Не удалось скачать ни одной страницы для главы {}", chapterId);
+                return;
+            }
+            
+            // ЭТАП 2: Батчевая отправка в ImageStorage с сохранением порядка
+            uploadPagesBatch(taskId, chapterId, downloadedPages);
+            
+        } catch (Exception e) {
+            logger.error("Ошибка батчевого импорта страниц для главы {}: {}", chapterId, e.getMessage());
+            e.printStackTrace();
         }
         
         // После успешной загрузки всех страниц, обновляем pageCount в ChapterService
@@ -2017,6 +2045,79 @@ public class MelonIntegrationService {
                 "cancelled", false,
                 "message", "Ошибка отмены: " + e.getMessage()
             );
+        }
+    }
+    
+    /**
+     * Батчевая отправка страниц в ImageStorage с сохранением порядка
+     */
+    private void uploadPagesBatch(String taskId, Long chapterId, List<PageData> pages) {
+        if (pages == null || pages.isEmpty()) {
+            return;
+        }
+        
+        try {
+            // Сортируем страницы по номеру для гарантии порядка
+            pages.sort(Comparator.comparing(PageData::getPageIndex));
+            
+            // Подготавливаем multipart данные для батчевой отправки
+            MultiValueMap<String, Object> multipartData = new LinkedMultiValueMap<>();
+            
+            for (PageData pageData : pages) {
+                String filename = "page_" + pageData.getPageIndex() + ".jpg";
+                ByteArrayResource imageResource = new ByteArrayResource(pageData.getImageBytes()) {
+                    @Override
+                    public String getFilename() {
+                        return filename;
+                    }
+                };
+                multipartData.add("files", imageResource);
+            }
+            
+            // Отправляем батчевый запрос в ImageStorage
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            HttpEntity<MultiValueMap<String, Object>> entity = new HttpEntity<>(multipartData, headers);
+            
+            String batchUploadUrl = "http://image-storage-service:8083/api/images/chapter/" + chapterId + "/multiple-ordered?startPage=0";
+            
+            logger.info("Отправляем {} страниц батчево в ImageStorage", pages.size());
+            ResponseEntity<String> response = restTemplate.postForEntity(batchUploadUrl, entity, String.class);
+            
+            if (response.getStatusCode().is2xxSuccessful()) {
+                // Обновляем счетчики импорта
+                for (int i = 0; i < pages.size(); i++) {
+                    importTaskService.incrementImportedPages(taskId);
+                }
+                logger.info("Батчевая загрузка {} страниц завершена успешно для главы {}", pages.size(), chapterId);
+            } else {
+                logger.error("Ошибка батчевой загрузки для главы {}: HTTP {}", chapterId, response.getStatusCode());
+            }
+            
+        } catch (Exception e) {
+            logger.error("Ошибка при батчевой отправке страниц для главы {}: {}", chapterId, e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * Вспомогательный класс для хранения данных страницы
+     */
+    private static class PageData {
+        private final Integer pageIndex;
+        private final byte[] imageBytes;
+        
+        public PageData(Integer pageIndex, byte[] imageBytes) {
+            this.pageIndex = pageIndex;
+            this.imageBytes = imageBytes;
+        }
+        
+        public Integer getPageIndex() {
+            return pageIndex;
+        }
+        
+        public byte[] getImageBytes() {
+            return imageBytes;
         }
     }
 }
