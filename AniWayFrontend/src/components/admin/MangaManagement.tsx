@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Download, RefreshCw, Loader2, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
+import { ImportQueueMonitor } from './ImportQueueMonitor'
 
 interface AutoParseMangaMetric {
   index: number
@@ -1123,6 +1124,12 @@ export function MangaManagement() {
           )}
         </CardContent>
       </Card>
+
+      {/* Мониторинг очереди импорта */}
+      <ImportQueueMonitor 
+        isAutoParsing={isAutoParsing}
+        className="mb-6"
+      />
 
       {/* Автообновление */}
       <Card>
