@@ -1088,6 +1088,9 @@ async def get_task_status(task_id: str):
 async def execute_parse_task(task_id: str, slug: str, parser: str):
     """Выполняет задачу парсинга одной манги"""
     try:
+        # СИНИЙ ЛОГ: Начало парсинга
+        logger.info(f"\033[94m🔍 Starting parsing: {slug}\033[0m")
+        
         ensure_utf8_patch()
         ensure_cross_device_patch()
         
@@ -1163,6 +1166,9 @@ async def execute_parse_task(task_id: str, slug: str, parser: str):
 async def execute_build_task(task_id: str, slug: str, parser: str, target_language: str = None, build_type: str = "simple"):
     """Выполняет задачу билда одной манги"""
     try:
+        # СИНИЙ ЛОГ: Переход от парсинга к билдингу
+        logger.info(f"\033[94m🔨 Parsing completed → Starting build: {slug}\033[0m")
+        
         update_task_status(task_id, "IMPORTING_MANGA", 10, "Начинаем построение архива...")
         
         # Применяем патч перед каждым выполнением build команды

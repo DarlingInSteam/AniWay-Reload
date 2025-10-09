@@ -95,11 +95,6 @@ class MangaBuilder(BaseBuilder):
 			build_system – система сборки главы.
 		"""
 
-		# ДЕБАГ: Отслеживание вызовов build_chapter
-		import traceback
-		call_stack = ''.join(traceback.format_stack()[-3:-1]).strip()
-		self._SystemObjects.logger.info(f"[DEBUG] build_chapter({chapter_id}) called from: {call_stack}")
-		
 		if not self._BuildSystem: self._BuildSystem = MangaBuildSystems.Simple
 
 		TargetChapter: "Chapter" = self._FindChapter(title.branches, chapter_id)
@@ -116,41 +111,34 @@ class MangaBuilder(BaseBuilder):
 		chapter_display = " ".join(chapter_display_parts) if chapter_display_parts else f"Chapter {chapter_id}"
 		if hasattr(TargetChapter, 'name') and TargetChapter.name:
 			chapter_display += f": {TargetChapter.name}"
-			
-		self._SystemObjects.logger.info(f"Building {chapter_display}...")
 		SlidesCount = len(TargetChapter.slides)
 		WorkDirectory = f"{self._Temper.builder_temp}/{title.used_filename}"
 
-		# НОВОЕ: Параллельная загрузка всех изображений главы
 		Parser: "MangaParser" = title.parser
-		
-		# DEBUG: Проверка парсера (ИСПРАВЛЕНО: убрали print() чтобы избежать дублирования логов)
-		# Эти дебаг-логи нужны только для отладки, в продакшене их можно отключить
-		if False:  # Отключаем дебаг-логи для устранения дублирования
-			self._SystemObjects.logger.info(f"[DEBUG] Parser type: {type(Parser).__name__}")
-			self._SystemObjects.logger.info(f"[DEBUG] Parser has batch_download_images: {hasattr(Parser, 'batch_download_images')}")
-			if hasattr(Parser, '__class__'):
-				self._SystemObjects.logger.info(f"[DEBUG] Parser methods: {[m for m in dir(Parser) if not m.startswith('_') and 'download' in m.lower()]}")
 		
 		# КРИТИЧЕСКИ ВАЖНО: Если парсер загружен из JSON, нужно инициализировать _parallel_downloader
 		if hasattr(Parser, 'batch_download_images'):
-			# Проверяем, инициализирован ли _parallel_downloader
+			# Проверяем, инициализирован ли _parallel_downloader  
 			if not hasattr(Parser, '_parallel_downloader') or Parser._parallel_downloader is None:
-				self._SystemObjects.logger.warning("_parallel_downloader not initialized, calling _PostInitMethod()...")
 				if hasattr(Parser, '_PostInitMethod'):
 					Parser._PostInitMethod()
-				else:
-					self._SystemObjects.logger.error("Parser doesn't have _PostInitMethod()!")
 		
 		# Проверяем, есть ли у парсера метод batch_download_images
 		if hasattr(Parser, 'batch_download_images'):
-			self._SystemObjects.logger.info(f"🚀 Starting parallel download of {SlidesCount} images...")
+			import time
+			start_time = time.time()
 			
 			# Собираем все URL для параллельной загрузки
 			urls = [Slide["link"] for Slide in TargetChapter.slides]
 			
 			# Параллельная загрузка
 			filenames = Parser.batch_download_images(urls)
+			
+			download_time = time.time() - start_time
+			images_per_second = SlidesCount / download_time if download_time > 0 else 0
+			
+			# СИНИЙ ЛОГ: Информация о скачанной главе с метриками
+			self._SystemObjects.logger.info(f"\033[94m📥 {chapter_display} - {SlidesCount} images ({images_per_second:.1f} img/sec)\033[0m")
 			
 			# Обработка результатов и перемещение файлов
 			if not os.path.exists(WorkDirectory): 
@@ -161,8 +149,6 @@ class MangaBuilder(BaseBuilder):
 				Index: int = Slide["index"]
 				
 				if downloaded_filename:
-					self._SystemObjects.logger.info(f"[DEBUG] Slave \"{Filename}\" downloaded ({idx}/{SlidesCount}).", stdout=False)
-					
 					# Перемещаем файл из temp в рабочую директорию
 					MovingStatus = self._Parser.images_downloader.move_from_temp(
 						WorkDirectory, Filename, f"{Index}", is_full_filename=False
@@ -170,12 +156,11 @@ class MangaBuilder(BaseBuilder):
 					MovingStatus.print_messages()
 				else:
 					self._SystemObjects.logger.error(f"Unable download slide \"{Filename}\" ({idx}/{SlidesCount}).")
-			
-			self._SystemObjects.logger.info(f"✅ Chapter download completed: {SlidesCount} images")
 		
 		else:
 			# FALLBACK: Старый последовательный метод (если batch_download_images недоступен)
-			self._SystemObjects.logger.warning("⚠️  Parallel download not available, using sequential method...")
+			import time
+			start_time = time.time()
 			
 			for Slide in TargetChapter.slides:
 				Link: str = Slide["link"]
@@ -183,18 +168,22 @@ class MangaBuilder(BaseBuilder):
 				Index: int = Slide["index"]
 				
 				if not os.path.exists(WorkDirectory): os.mkdir(WorkDirectory)
-				self._SystemObjects.logger.info(f"[DEBUG] [{Index}/{SlidesCount}] Downloading \"{Filename}\"...")
 				DownloadingStatus = Parser.image(Link)
 				DownloadingStatus.print_messages()
 
 				if not DownloadingStatus.has_errors:
-					self._SystemObjects.logger.info(f"[DEBUG] [{Index}/{SlidesCount}] \"{Filename}\" - Done.")
-					self._SystemObjects.logger.info(f"[DEBUG] Slide \"{Filename}\" downloaded.", stdout = False)
-
-				else: self._SystemObjects.logger.error(f"Unable download slide \"{Filename}\". Response code: {DownloadingStatus.code}.")
+					pass  # Убрали лишние DEBUG логи
+				else: 
+					self._SystemObjects.logger.error(f"Unable download slide \"{Filename}\". Response code: {DownloadingStatus.code}.")
 
 				MovingStatus = self._Parser.images_downloader.move_from_temp(WorkDirectory, Filename, f"{Index}", is_full_filename = False)
 				MovingStatus.print_messages()
+			
+			download_time = time.time() - start_time
+			images_per_second = SlidesCount / download_time if download_time > 0 else 0
+			
+			# СИНИЙ ЛОГ: Информация о скачанной главе с метриками (последовательный метод)
+			self._SystemObjects.logger.info(f"\033[94m📥 {chapter_display} - {SlidesCount} images ({images_per_second:.1f} img/sec, sequential)\033[0m")
 		
 		# ИСПРАВЛЕНИЕ: Вызываем систему сборки ТОЛЬКО ОДИН РАЗ после скачивания всех изображений
 		self.__BuildSystemsMethods[self._BuildSystem](title, TargetChapter, WorkDirectory)
@@ -218,16 +207,30 @@ class MangaBuilder(BaseBuilder):
 			self._SystemObjects.logger.warning(f"Branch {TargetBranch.id} has no chapters. Skipping build.")
 			return
 		
-		self._SystemObjects.logger.info(f"Building branch {TargetBranch.id}...")
-		chapter_ids = [ch.id for ch in TargetBranch.chapters]
-		self._SystemObjects.logger.info(f"[DEBUG] Branch {TargetBranch.id} has {len(chapter_ids)} chapters: {chapter_ids[:10]}{'...' if len(chapter_ids) > 10 else ''}")
+		# Подсчет общего количества изображений в тайтле
+		total_images = sum(len(ch.slides) for ch in TargetBranch.chapters)
+		
+		# СИНИЙ ЛОГ: Переход к билдингу с общим количеством изображений  
+		self._SystemObjects.logger.info(f"\033[94m🔨 Starting build: {len(TargetBranch.chapters)} chapters, {total_images} images total\033[0m")
 		
 		# Проверка на дубликаты в списке глав
+		chapter_ids = [ch.id for ch in TargetBranch.chapters]
 		if len(chapter_ids) != len(set(chapter_ids)):
 			duplicates = [ch_id for ch_id in set(chapter_ids) if chapter_ids.count(ch_id) > 1]
-			self._SystemObjects.logger.warning(f"[DEBUG] Found duplicate chapter IDs in branch: {duplicates}")
+			self._SystemObjects.logger.warning(f"Found duplicate chapter IDs in branch: {duplicates}")
 		
-		for CurrentChapter in TargetBranch.chapters: self.build_chapter(title, CurrentChapter.id)
+		# Счетчик скачанных изображений
+		downloaded_images = 0
+		
+		for CurrentChapter in TargetBranch.chapters: 
+			self.build_chapter(title, CurrentChapter.id)
+			downloaded_images += len(CurrentChapter.slides)
+			
+			# СИНИЙ ЛОГ: Прогресс скачанных изображений
+			self._SystemObjects.logger.info(f"\033[94m📊 Downloaded: {downloaded_images}/{total_images} images ({downloaded_images/total_images*100:.1f}%)\033[0m")
+		
+		# СИНИЙ ЛОГ: Завершение билдинга и переход к импорту
+		self._SystemObjects.logger.info(f"\033[94m✅ Build completed → Starting import phase\033[0m")
 
 	def select_build_system(self, build_system: str | None):
 		"""

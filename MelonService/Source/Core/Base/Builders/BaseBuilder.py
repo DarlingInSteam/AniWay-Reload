@@ -74,20 +74,19 @@ class BaseBuilder:
 				if CurrentBranch.id == branch_id: return CurrentBranch
 		
 		# Если branch_id не указан, выбираем самую длинную ветку (с максимальным количеством глав)
-		self._SystemObjects.logger.info("[BRANCH SELECTION] Анализ веток для выбора самой длинной:")
-		
 		longest_branch = branches[0]
 		max_chapters = len(branches[0].chapters) if branches[0].chapters else 0
 		
 		for CurrentBranch in branches:
 			chapter_count = len(CurrentBranch.chapters) if CurrentBranch.chapters else 0
-			self._SystemObjects.logger.info(f"[BRANCH SELECTION] Ветка ID {CurrentBranch.id}: {chapter_count} глав")
 			
 			if chapter_count > max_chapters:
 				max_chapters = chapter_count
 				longest_branch = CurrentBranch
 		
-		self._SystemObjects.logger.info(f"[BRANCH SELECTION] ВЫБРАНА ветка ID {longest_branch.id} с {max_chapters} главами")
+		# Выводим информацию о выборе ветки только если есть несколько веток  
+		if len(branches) > 1:
+			self._SystemObjects.logger.info(f"📋 Selected branch {longest_branch.id} with {max_chapters} chapters")
 		return longest_branch
 
 	#==========================================================================================#
