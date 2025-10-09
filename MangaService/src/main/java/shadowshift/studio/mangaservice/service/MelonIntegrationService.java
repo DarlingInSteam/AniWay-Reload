@@ -85,7 +85,7 @@ public class MelonIntegrationService {
     private ImportQueueService importQueueService;
     
     // ExecutorService для параллельной обработки
-    private final ExecutorService executorService = Executors.newFixedThreadPool(10);
+    private ExecutorService executorService = Executors.newFixedThreadPool(10);
     
     @jakarta.annotation.PostConstruct
     public void init() {
