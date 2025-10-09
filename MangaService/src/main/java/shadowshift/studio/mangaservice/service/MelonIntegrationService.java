@@ -1912,59 +1912,89 @@ public class MelonIntegrationService {
         try {
             // ЭТАП 1: Параллельно скачиваем все изображения из MelonService
             List<CompletableFuture<PageData>> downloadFutures = new ArrayList<>();
-            
-            for (Map<String, Object> slide : slides) {
-                Integer pageIndex = Integer.parseInt(slide.get("index").toString());
+            List<Integer> expectedIndices = slides.stream()
+                .map(slide -> Integer.parseInt(slide.get("index").toString()))
+                .sorted()
+                .collect(Collectors.toList());
+            Map<Integer, PageData> pagesByIndex = new HashMap<>();
+
+            for (Integer pageIndex : expectedIndices) {
                 String imageUrl = String.format("%s/images/%s/%s/%d",
                     melonServiceUrl, mangaFilename, originalChapterName, pageIndex);
-                
+
                 CompletableFuture<PageData> downloadFuture = CompletableFuture.supplyAsync(() -> {
                     try {
                         logger.debug("Скачиваем страницу {} из: {}", pageIndex, imageUrl);
                         ResponseEntity<byte[]> imageResponse = restTemplate.getForEntity(imageUrl, byte[].class);
-                        
+
                         if (!imageResponse.getStatusCode().is2xxSuccessful() || imageResponse.getBody() == null) {
                             logger.warn("Не удалось скачать страницу {}: {}", pageIndex, imageResponse.getStatusCode());
                             return null;
                         }
-                        
+
                         byte[] imageBytes = imageResponse.getBody();
                         logger.debug("Скачана страница {}, размер: {} байт", pageIndex, imageBytes.length);
-                        
+
                         return new PageData(pageIndex, imageBytes);
                     } catch (Exception e) {
                         logger.error("Ошибка скачивания страницы {}: {}", pageIndex, e.getMessage());
                         return null;
                     }
                 }, executorService);
-                
+
                 downloadFutures.add(downloadFuture);
             }
-            
+
             // Ждем завершения всех скачиваний с тайм-аутом
             logger.debug("⏳ Ожидание завершения скачивания {} изображений...", downloadFutures.size());
-            List<PageData> downloadedPages = new ArrayList<>();
-            
+
             for (int i = 0; i < downloadFutures.size(); i++) {
+                int pageIndex = expectedIndices.get(i);
                 try {
                     PageData pageData = downloadFutures.get(i).get(5, TimeUnit.MINUTES); // 5 минут на страницу для больших изображений
                     if (pageData != null) {
-                        downloadedPages.add(pageData);
+                        pagesByIndex.put(pageIndex, pageData);
                     }
                 } catch (Exception e) {
-                    logger.error("Ошибка скачивания страницы {}: {}", i + 1, e.getMessage());
+                    logger.error("Ошибка скачивания страницы {}: {}", pageIndex, e.getMessage());
                 }
             }
-            
-            logger.info("✅ Скачано {} из {} страниц", downloadedPages.size(), slides.size());
-            
-            if (downloadedPages.isEmpty()) {
-                logger.error("Не удалось скачать ни одной страницы для главы {}", chapterId);
-                return;
+
+            logger.info("✅ Скачано {} из {} страниц", pagesByIndex.size(), expectedIndices.size());
+
+            // Дополнительный последовательный фолбэк для недостающих страниц
+            List<Integer> missingIndices = expectedIndices.stream()
+                .filter(idx -> !pagesByIndex.containsKey(idx))
+                .collect(Collectors.toList());
+
+            if (!missingIndices.isEmpty()) {
+                logger.warn("Обнаружено {} отсутствующих страниц ({}). Запускаем последовательный фолбэк.",
+                    missingIndices.size(), missingIndices);
+
+                for (Integer missingIndex : missingIndices) {
+                    PageData fallbackPage = downloadPageSequentially(mangaFilename, originalChapterName, missingIndex);
+                    if (fallbackPage != null) {
+                        pagesByIndex.put(missingIndex, fallbackPage);
+                        logger.info("✅ Последовательный фолбэк восстановил страницу {}", missingIndex);
+                    }
+                }
             }
-            
+
+            List<Integer> stillMissing = expectedIndices.stream()
+                .filter(idx -> !pagesByIndex.containsKey(idx))
+                .collect(Collectors.toList());
+
+            if (!stillMissing.isEmpty()) {
+                logger.error("❌ Не удалось получить страницы {} для главы {} даже после фолбэка", stillMissing, chapterId);
+                throw new IllegalStateException("Недоступны страницы: " + stillMissing);
+            }
+
+            List<PageData> orderedPages = expectedIndices.stream()
+                .map(pagesByIndex::get)
+                .collect(Collectors.toList());
+
             // ЭТАП 2: Батчевая отправка в ImageStorage с сохранением порядка
-            uploadPagesBatch(taskId, chapterId, downloadedPages);
+            uploadPagesBatch(taskId, chapterId, orderedPages);
             
         } catch (Exception e) {
             logger.error("Ошибка батчевого импорта страниц для главы {}: {}", chapterId, e.getMessage());
@@ -2091,16 +2121,18 @@ public class MelonIntegrationService {
         if (pages == null || pages.isEmpty()) {
             return;
         }
-        
+
         try {
-            // Сортируем страницы по номеру для гарантии порядка
-            pages.sort(Comparator.comparing(PageData::getPageIndex));
-            
-            // Подготавливаем multipart данные для батчевой отправки
+            pages.sort(Comparator.comparingInt(PageData::getPageIndex));
+            int startPage = pages.stream()
+                .mapToInt(PageData::getPageIndex)
+                .min()
+                .orElse(1);
+
             MultiValueMap<String, Object> multipartData = new LinkedMultiValueMap<>();
-            
+
             for (PageData pageData : pages) {
-                String filename = "page_" + pageData.getPageIndex() + ".jpg";
+                String filename = String.format("page_%05d.jpg", pageData.getPageIndex());
                 ByteArrayResource imageResource = new ByteArrayResource(pageData.getImageBytes()) {
                     @Override
                     public String getFilename() {
@@ -2109,27 +2141,25 @@ public class MelonIntegrationService {
                 };
                 multipartData.add("files", imageResource);
             }
-            
-            // Отправляем батчевый запрос в ImageStorage
+
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
             HttpEntity<MultiValueMap<String, Object>> entity = new HttpEntity<>(multipartData, headers);
-            
-            String batchUploadUrl = "http://image-storage-service:8083/api/images/chapter/" + chapterId + "/multiple-ordered?startPage=0";
-            
-            logger.info("Отправляем {} страниц батчево в ImageStorage", pages.size());
+
+            String batchUploadUrl = String.format(
+                "http://image-storage-service:8083/api/images/chapter/%d/multiple-ordered?startPage=%d",
+                chapterId, startPage);
+
+            logger.info("Отправляем {} страниц батчево в ImageStorage (startPage={})", pages.size(), startPage);
             ResponseEntity<String> response = restTemplate.postForEntity(batchUploadUrl, entity, String.class);
-            
+
             if (response.getStatusCode().is2xxSuccessful()) {
-                // Обновляем счетчики импорта
-                for (int i = 0; i < pages.size(); i++) {
-                    importTaskService.incrementImportedPages(taskId);
-                }
+                pages.forEach(page -> importTaskService.incrementImportedPages(taskId));
                 logger.info("Батчевая загрузка {} страниц завершена успешно для главы {}", pages.size(), chapterId);
             } else {
                 logger.error("Ошибка батчевой загрузки для главы {}: HTTP {}", chapterId, response.getStatusCode());
             }
-            
+
         } catch (Exception e) {
             logger.error("Ошибка при батчевой отправке страниц для главы {}: {}", chapterId, e.getMessage());
             e.printStackTrace();
@@ -2140,20 +2170,58 @@ public class MelonIntegrationService {
      * Вспомогательный класс для хранения данных страницы
      */
     private static class PageData {
-        private final Integer pageIndex;
+        private final int pageIndex;
         private final byte[] imageBytes;
         
-        public PageData(Integer pageIndex, byte[] imageBytes) {
+        public PageData(int pageIndex, byte[] imageBytes) {
             this.pageIndex = pageIndex;
             this.imageBytes = imageBytes;
         }
         
-        public Integer getPageIndex() {
+        public int getPageIndex() {
             return pageIndex;
         }
         
         public byte[] getImageBytes() {
             return imageBytes;
         }
+    }
+
+    private PageData downloadPageSequentially(String mangaFilename, String originalChapterName, int pageIndex) {
+        String imageUrl = String.format("%s/images/%s/%s/%d",
+            melonServiceUrl, mangaFilename, originalChapterName, pageIndex);
+        int attempts = 3;
+        long baseDelayMs = 1500L;
+
+        for (int attempt = 1; attempt <= attempts; attempt++) {
+            try {
+                logger.debug("Фолбэк: попытка {} скачать страницу {} из {}", attempt, pageIndex, imageUrl);
+                ResponseEntity<byte[]> response = restTemplate.getForEntity(imageUrl, byte[].class);
+                if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                    byte[] data = response.getBody();
+                    logger.debug("Фолбэк успешен: страница {} получена ({} байт)", pageIndex, data.length);
+                    return new PageData(pageIndex, data);
+                }
+
+                logger.warn("Фолбэк неудачен для страницы {}: {}", pageIndex, response.getStatusCode());
+            } catch (Exception e) {
+                logger.warn("Ошибка фолбэка при скачивании страницы {}: {}", pageIndex, e.getMessage());
+            }
+
+            if (attempt < attempts) {
+                try {
+                    long sleep = baseDelayMs * attempt;
+                    logger.debug("Фолбэк: ожидание {} мс перед следующей попыткой", sleep);
+                    Thread.sleep(sleep);
+                } catch (InterruptedException interruptedException) {
+                    Thread.currentThread().interrupt();
+                    logger.error("Фолбэк прерван при ожидании скачивания страницы {}", pageIndex);
+                    break;
+                }
+            }
+        }
+
+        logger.error("Фолбэк: не удалось скачать страницу {} после {} попыток", pageIndex, attempts);
+        return null;
     }
 }

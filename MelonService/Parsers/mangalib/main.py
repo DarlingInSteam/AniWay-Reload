@@ -894,24 +894,93 @@ class Parser(MangaParser):
         elapsed = max(time.perf_counter() - batch_started_at, 0.0001)
 
         # Преобразуем результаты в список имён файлов (сохраняя порядок)
-        filenames = []
+        from urllib.parse import urlparse, unquote
+
+        total_images = len(urls)
+        filenames: list[str | None] = [None] * total_images
+        failed_indices: list[int] = []
         fallback_attempts = 0
         successful_downloads = 0
 
+        def _expected_filename(target_url: str) -> str:
+            parsed = urlparse(target_url)
+            raw_name = parsed.path.split('/')[-1]
+            return unquote(raw_name)
+
         for result in results:
-            if result['success']:
-                filenames.append(result['filename'])
+            index = result.get('index', 0) - 1
+            url = result.get('url')
+
+            if index < 0 or index >= total_images:
+                if url:
+                    self._SystemObjects.logger.warning(
+                        f"Received download result with invalid index: idx={index}, url={url}"
+                    )
+                continue
+
+            if result.get('success'):
+                filenames[index] = result.get('filename')
+                successful_downloads += 1
+                continue
+
+            # Не удалось скачать — пробуем альтернативные сервера
+            fallback_attempts += 1
+            fallback_filename: str | None = None
+            fallback_status = self._try_alternative_servers(url)
+
+            if fallback_status:
+                if hasattr(fallback_status, "value") and fallback_status.value:
+                    fallback_filename = fallback_status.value
+                elif isinstance(fallback_status, str):
+                    fallback_filename = fallback_status
+                elif hasattr(fallback_status, "filename") and fallback_status.filename:
+                    fallback_filename = fallback_status.filename
+
+            if not fallback_filename and url:
+                # Проверяем, появился ли файл в temp после фолбэка
+                if self._ImagesDownloader.is_exists(url):
+                    fallback_filename = _expected_filename(url)
+
+            if fallback_filename:
+                filenames[index] = fallback_filename
                 successful_downloads += 1
             else:
-                fallback_attempts += 1
-                # Для неудачных загрузок пробуем альтернативные серверы
-                fallback_result = self._try_alternative_servers(result['url'])
-                filenames.append(fallback_result)
-                if fallback_result:
-                    successful_downloads += 1
+                failed_indices.append(index)
 
-        failed_after_fallback = len(urls) - successful_downloads
-        avg_speed = successful_downloads / elapsed
+        # Дополнительный медленный фолбэк: последовательные попытки для оставшихся
+        if failed_indices:
+            slow_delay = max(getattr(self._Settings.common, 'image_delay', 0.2) * 3, 0.6)
+            max_additional_attempts = 3
+
+            self._SystemObjects.logger.warning(
+                f"Sequential fallback engaged for {len(failed_indices)} images (delay {slow_delay:.2f}s)"
+            )
+
+            for idx in failed_indices:
+                url = urls[idx]
+                recovered = False
+
+                for attempt in range(1, max_additional_attempts + 1):
+                    sleep(slow_delay * attempt)
+                    sequential_filename = self._download_image_wrapper(url)
+
+                    if sequential_filename:
+                        filenames[idx] = sequential_filename
+                        successful_downloads += 1
+                        recovered = True
+                        self._SystemObjects.logger.info(
+                            f"✅ Sequential fallback recovered image {idx + 1}/{total_images} (attempt {attempt})"
+                        )
+                        break
+
+                if not recovered:
+                    filenames[idx] = None
+                    self._SystemObjects.logger.error(
+                        f"❌ Unable to recover image {idx + 1}/{total_images} after sequential fallback: {url}"
+                    )
+
+        failed_after_fallback = total_images - successful_downloads
+        avg_speed = successful_downloads / elapsed if elapsed > 0 else 0
 
         # Убираем подробный debug лог завершения - важные метрики в MangaBuilder
 
