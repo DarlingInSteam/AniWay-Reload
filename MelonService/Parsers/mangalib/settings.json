@@ -8,8 +8,8 @@
 		"use_id_as_filename": false,
 		"sizing_images": false,
 		"retries": 3,
-		"delay": 0.2,
-		"parse_delay": 0.1,
+		"delay": 0.25,
+		"parse_delay": 0.15,
 		"image_delay": 0.1
 	},
 	"filters": {
