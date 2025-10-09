@@ -23,6 +23,9 @@ public class ImportQueueService {
     // Карта активных импортов для отслеживания статуса
     private final Map<String, ImportQueueItem> activeImports = new ConcurrentHashMap<>();
     
+    // Карта завершенных импортов (хранятся 10 минут для получения статуса)
+    private final Map<String, ImportQueueItem> completedImports = new ConcurrentHashMap<>();
+    
     // ExecutorService для обработки очереди
     private final ExecutorService queueProcessor = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "ImportQueueProcessor");
@@ -173,8 +176,20 @@ public class ImportQueueService {
                     logger.error("Ошибка импорта для taskId={}: {}", item.getImportTaskId(), e.getMessage());
                 }
                 
-                // Удаляем из активных после завершения (успешного или с ошибкой)
+                // Перемещаем из активных в завершенные
                 activeImports.remove(item.getImportTaskId());
+                
+                // Сохраняем завершенные задачи для получения статуса
+                if (item.getStatus() == ImportQueueItem.Status.COMPLETED || 
+                    item.getStatus() == ImportQueueItem.Status.FAILED) {
+                    completedImports.put(item.getImportTaskId(), item);
+                    
+                    // Планируем удаление через 10 минут
+                    CompletableFuture.delayedExecutor(10, TimeUnit.MINUTES).execute(() -> {
+                        completedImports.remove(item.getImportTaskId());
+                        logger.debug("Удален завершенный импорт из кэша: {}", item.getImportTaskId());
+                    });
+                }
                 
             } catch (InterruptedException e) {
                 logger.info("Обработчик очереди импорта остановлен");
@@ -188,7 +203,14 @@ public class ImportQueueService {
      * Получить статус импорта
      */
     public ImportQueueItem getImportStatus(String importTaskId) {
-        return activeImports.get(importTaskId);
+        // Сначала проверяем активные импорты
+        ImportQueueItem activeItem = activeImports.get(importTaskId);
+        if (activeItem != null) {
+            return activeItem;
+        }
+        
+        // Если не найден в активных, проверяем завершенные
+        return completedImports.get(importTaskId);
     }
     
     /**
