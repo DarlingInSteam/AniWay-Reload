@@ -1113,13 +1113,27 @@ public class MelonIntegrationService {
                         chaptersToImport = (List<Map<String, Object>>) branchContent;
                     }
                 } else {
-                    // Берем первую ветку
-                    for (Object branchContent : content.values()) {
+                    // ИСПРАВЛЕНИЕ: Берем САМУЮ ДЛИННУЮ ветку (с максимальным количеством глав)
+                    List<Map<String, Object>> longestBranch = new ArrayList<>();
+                    String longestBranchId = null;
+                    
+                    for (Map.Entry<String, Object> entry : content.entrySet()) {
+                        String currentBranchId = entry.getKey();
+                        Object branchContent = entry.getValue();
+                        
                         if (branchContent instanceof List) {
-                            chaptersToImport = (List<Map<String, Object>>) branchContent;
-                            break;
+                            List<Map<String, Object>> branchChapters = (List<Map<String, Object>>) branchContent;
+                            logger.info("Ветка {}: {} глав", currentBranchId, branchChapters.size());
+                            
+                            if (branchChapters.size() > longestBranch.size()) {
+                                longestBranch = branchChapters;
+                                longestBranchId = currentBranchId;
+                            }
                         }
                     }
+                    
+                    chaptersToImport = longestBranch;
+                    logger.info("ВЫБРАНА самая длинная ветка {}: {} глав", longestBranchId, chaptersToImport.size());
                 }
 
                 totalChapters = chaptersToImport.size();
