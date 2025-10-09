@@ -154,7 +154,9 @@ class MangaBuilder(BaseBuilder):
 		print(f"[INFO] ✅ Chapter download completed: {SlidesCount} images")
 		
 		# ИСПРАВЛЕНИЕ: Вызываем систему сборки ТОЛЬКО ОДИН РАЗ после скачивания всех изображений
-		self.__BuildSystemsMethods[self._BuildSystem](title, TargetChapter, WorkDirectory)		else:
+		self.__BuildSystemsMethods[self._BuildSystem](title, TargetChapter, WorkDirectory)
+		
+		else:
 			# FALLBACK: Старый последовательный метод (если batch_download_images недоступен)
 			print(f"[WARNING] ⚠️  Parallel download not available, using sequential method...")
 			
