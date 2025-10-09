@@ -289,7 +289,7 @@ class Parser(MangaParser):
         # КРИТИЧЕСКИ ВАЖНО: Инициализация параллельного загрузчика в __init__, а не в parse()
         # Потому что build может вызываться без parse (когда JSON уже существует)
         proxy_count = self._get_proxy_count()
-        image_delay = getattr(self._Settings.common, 'image_delay', 0.2)
+        image_delay = getattr(self._Settings.common, 'image_delay', 0.1)
 
         max_workers_override = getattr(self._Settings.common, 'image_max_workers', None)
         if max_workers_override is None:
@@ -765,7 +765,7 @@ class Parser(MangaParser):
         """
 
         # Используем отдельный delay для изображений (меньше чем для API)
-        image_delay = getattr(self._Settings.common, 'image_delay', 0.2)
+        image_delay = getattr(self._Settings.common, 'image_delay', 0.1)
 
         Result = self._ImagesDownloader.temp_image(url)
         
