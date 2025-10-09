@@ -3,6 +3,7 @@ import {
   AdminUsersPageResponse,
   AdminUsersParams,
   ChapterDTO,
+  ChapterCreateRequest,
   ChapterImageDTO,
   MangaResponseDTO,
   PageResponse,
@@ -207,6 +208,26 @@ class ApiClient {
   }
 
   // Chapter API
+  async createChapter(payload: ChapterCreateRequest): Promise<ChapterDTO> {
+    return this.request<ChapterDTO>(`/chapters`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateChapter(id: number, payload: ChapterCreateRequest): Promise<ChapterDTO> {
+    return this.request<ChapterDTO>(`/chapters/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteChapter(id: number): Promise<void> {
+    await this.request<void>(`/chapters/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   async getChapterById(id: number): Promise<ChapterDTO> {
     return this.request<ChapterDTO>(`/chapters/${id}`);
   }

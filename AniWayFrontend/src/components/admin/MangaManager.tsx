@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,9 +9,12 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
-import { BookOpen, Edit, Trash2, Search, RefreshCw, Plus, Eye, Calendar, User, Tag } from 'lucide-react'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { GlassPanel } from '@/components/ui/GlassPanel'
+import { BookOpen, Edit, Trash2, Search, RefreshCw, Plus, Eye, Calendar, User, Tag, Layers, Clock, Loader2, Save } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { toast } from 'sonner'
+import type { ChapterDTO, ChapterCreateRequest } from '@/types'
 
 interface MangaItem {
   id: number
@@ -25,6 +28,11 @@ interface MangaItem {
   chapterCount: number
   createdAt: string
   updatedAt: string
+  tags?: string
+  type?: string
+  views?: number
+  totalChapters?: number
+  engName?: string
 }
 
 interface EditMangaForm {
@@ -34,6 +42,22 @@ interface EditMangaForm {
   status: string
   description: string
   releaseDate: string
+}
+
+interface ChapterForm {
+  chapterNumber: string
+  volumeNumber: string
+  originalChapterNumber: string
+  title: string
+  publishedDate: string
+}
+
+const DEFAULT_CHAPTER_FORM: ChapterForm = {
+  chapterNumber: '',
+  volumeNumber: '',
+  originalChapterNumber: '',
+  title: '',
+  publishedDate: ''
 }
 
 const MANGA_STATUSES = [
@@ -56,6 +80,11 @@ export function MangaManager() {
     releaseDate: ''
   })
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isChapterDialogOpen, setIsChapterDialogOpen] = useState(false)
+  const [managedManga, setManagedManga] = useState<MangaItem | null>(null)
+  const [chapterMode, setChapterMode] = useState<'create' | 'edit'>('create')
+  const [chapterForm, setChapterForm] = useState<ChapterForm>({ ...DEFAULT_CHAPTER_FORM })
+  const [activeChapter, setActiveChapter] = useState<ChapterDTO | null>(null)
 
   const queryClient = useQueryClient()
 
@@ -75,6 +104,23 @@ export function MangaManager() {
       }
       return allManga
     },
+    staleTime: 30000
+  })
+
+  const {
+    data: chapterList = [],
+    isFetching: isFetchingChapters,
+    isLoading: isLoadingChapters,
+    refetch: refetchChapters
+  } = useQuery({
+    queryKey: ['manga-chapters', managedManga?.id],
+    queryFn: async () => {
+      if (!managedManga?.id) {
+        return [] as ChapterDTO[]
+      }
+      return apiClient.getChaptersByManga(managedManga.id)
+    },
+    enabled: isChapterDialogOpen && Boolean(managedManga?.id),
     staleTime: 30000
   })
 
@@ -107,6 +153,221 @@ export function MangaManager() {
       toast.error(error.message)
     }
   })
+
+  const createChapterMutation = useMutation({
+    mutationFn: async (payload: ChapterCreateRequest) => {
+      return apiClient.createChapter(payload)
+    },
+    onSuccess: () => {
+      toast.success('Глава успешно добавлена')
+      if (managedManga?.id) {
+        queryClient.invalidateQueries({ queryKey: ['manga-chapters', managedManga.id] })
+      }
+      queryClient.invalidateQueries({ queryKey: ['manga-list'] })
+      setChapterMode('create')
+      setActiveChapter(null)
+      setChapterForm({ ...DEFAULT_CHAPTER_FORM })
+      void refetchChapters()
+    },
+    onError: (error: Error) => {
+      toast.error(error.message)
+    }
+  })
+
+  const updateChapterMutation = useMutation({
+    mutationFn: async ({ id, payload }: { id: number; payload: ChapterCreateRequest }) => {
+      return apiClient.updateChapter(id, payload)
+    },
+    onSuccess: (chapter) => {
+      toast.success(`Глава ${chapter.chapterNumber} обновлена`)
+      if (managedManga?.id) {
+        queryClient.invalidateQueries({ queryKey: ['manga-chapters', managedManga.id] })
+      }
+      queryClient.invalidateQueries({ queryKey: ['manga-list'] })
+      setChapterMode('create')
+      setActiveChapter(null)
+      setChapterForm({ ...DEFAULT_CHAPTER_FORM })
+      void refetchChapters()
+    },
+    onError: (error: Error) => {
+      toast.error(error.message)
+    }
+  })
+
+  const deleteChapterMutation = useMutation({
+    mutationFn: async ({ id }: { id: number }) => {
+      await apiClient.deleteChapter(id)
+      return id
+    },
+    onSuccess: () => {
+      toast.success('Глава удалена')
+      if (managedManga?.id) {
+        queryClient.invalidateQueries({ queryKey: ['manga-chapters', managedManga.id] })
+      }
+      queryClient.invalidateQueries({ queryKey: ['manga-list'] })
+      void refetchChapters()
+    },
+    onError: (error: Error) => {
+      toast.error(error.message)
+    }
+  })
+
+  const isSavingChapter = createChapterMutation.isPending || updateChapterMutation.isPending
+  const isDeletingChapter = deleteChapterMutation.isPending
+
+  const dateTimeFormatter = useMemo(() => new Intl.DateTimeFormat('ru-RU', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  }), [])
+
+  const formatDateTime = useCallback((value?: string | null) => {
+    if (!value) return '—'
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) {
+      return value
+    }
+    return dateTimeFormatter.format(date)
+  }, [dateTimeFormatter])
+
+  const formatChapterNumber = useCallback((value?: number | null) => {
+    if (typeof value !== 'number' || Number.isNaN(value)) return '—'
+    return Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2).replace(/\.00$/, '')
+  }, [])
+
+  const toInputDateTime = useCallback((value?: string | null) => {
+    if (!value) return ''
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) {
+      return ''
+    }
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  }, [])
+
+  const fromInputDateTime = useCallback((value: string) => {
+    if (!value || value.trim() === '') {
+      return null
+    }
+    if (value.length === 16) {
+      return `${value}:00`
+    }
+    return value
+  }, [])
+
+  const normalizeNumberInput = useCallback((value: string) => {
+    if (!value) return undefined
+    const normalized = value.replace(',', '.').trim()
+    if (normalized === '') return undefined
+    const number = Number(normalized)
+    return Number.isFinite(number) ? number : undefined
+  }, [])
+
+  const suggestNextChapterNumber = useCallback(() => {
+    if (!chapterList.length) {
+      return '1'
+    }
+    const maxNumber = Math.max(...chapterList.map((chapter) => chapter.chapterNumber ?? 0))
+    if (!Number.isFinite(maxNumber)) {
+      return '1'
+    }
+    const increment = Number.isInteger(maxNumber) ? 1 : 0.1
+    const nextValue = maxNumber + increment
+    const formatted = Number.isInteger(nextValue) ? nextValue.toFixed(0) : nextValue.toFixed(2)
+    return formatted.replace(/\.00$/, '')
+  }, [chapterList])
+
+  const toInputNumberString = useCallback((value?: number | null) => {
+    if (value === null || value === undefined || Number.isNaN(value)) {
+      return ''
+    }
+    return Number.isInteger(value) ? value.toFixed(0) : value.toString()
+  }, [])
+
+  const resetChapterForm = useCallback((mode: 'create' | 'edit') => {
+    if (mode === 'create') {
+      setChapterForm({
+        ...DEFAULT_CHAPTER_FORM,
+        chapterNumber: suggestNextChapterNumber()
+      })
+    } else {
+      setChapterForm({ ...DEFAULT_CHAPTER_FORM })
+    }
+  }, [suggestNextChapterNumber])
+
+  useEffect(() => {
+    if (isChapterDialogOpen && chapterMode === 'create') {
+      setChapterForm((prev) => ({ ...prev, chapterNumber: suggestNextChapterNumber() }))
+    }
+  }, [chapterList, chapterMode, isChapterDialogOpen, suggestNextChapterNumber])
+
+  const openChapterDialog = useCallback((manga: MangaItem) => {
+    setManagedManga(manga)
+    setIsChapterDialogOpen(true)
+    setChapterMode('create')
+    setActiveChapter(null)
+    resetChapterForm('create')
+  }, [resetChapterForm])
+
+  const closeChapterDialog = useCallback(() => {
+    setIsChapterDialogOpen(false)
+    setManagedManga(null)
+    setActiveChapter(null)
+    setChapterMode('create')
+    setChapterForm({ ...DEFAULT_CHAPTER_FORM })
+  }, [])
+
+  const startCreateChapter = useCallback(() => {
+    setChapterMode('create')
+    setActiveChapter(null)
+    resetChapterForm('create')
+  }, [resetChapterForm])
+
+  const startEditChapter = useCallback((chapter: ChapterDTO) => {
+    setChapterMode('edit')
+    setActiveChapter(chapter)
+    setChapterForm({
+      chapterNumber: toInputNumberString(chapter.chapterNumber),
+      volumeNumber: toInputNumberString(chapter.volumeNumber),
+      originalChapterNumber: toInputNumberString(chapter.originalChapterNumber),
+      title: chapter.title || '',
+      publishedDate: toInputDateTime(chapter.publishedDate || chapter.createdAt)
+    })
+  }, [toInputDateTime, toInputNumberString])
+
+  const handleChapterSubmit = useCallback(() => {
+    if (!managedManga?.id) {
+      toast.error('Не выбрана манга для управления главами')
+      return
+    }
+
+    const chapterNumber = normalizeNumberInput(chapterForm.chapterNumber)
+    if (chapterNumber === undefined) {
+      toast.error('Укажите корректный номер главы')
+      return
+    }
+
+    const payload: ChapterCreateRequest = {
+      mangaId: managedManga.id,
+      chapterNumber,
+      volumeNumber: normalizeNumberInput(chapterForm.volumeNumber) ?? null,
+      originalChapterNumber: normalizeNumberInput(chapterForm.originalChapterNumber) ?? null,
+      title: chapterForm.title?.trim() || null,
+      publishedDate: fromInputDateTime(chapterForm.publishedDate || '')
+    }
+
+    if (chapterMode === 'create') {
+      createChapterMutation.mutate(payload)
+    } else if (chapterMode === 'edit' && activeChapter) {
+      updateChapterMutation.mutate({ id: activeChapter.id, payload })
+    }
+  }, [activeChapter, chapterForm, chapterMode, createChapterMutation, fromInputDateTime, managedManga, normalizeNumberInput, updateChapterMutation])
+
+  const handleDeleteChapter = useCallback((chapter: ChapterDTO) => {
+    deleteChapterMutation.mutate({ id: chapter.id })
+  }, [deleteChapterMutation])
 
   const openEditDialog = (manga: MangaItem) => {
     setEditingManga(manga)
@@ -153,7 +414,7 @@ export function MangaManager() {
   return (
     <div className="space-y-6">
       {/* Фильтры и поиск */}
-      <Card>
+      <Card className="glass-panel border border-white/5 shadow-lg">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BookOpen className="h-5 w-5" />
@@ -207,7 +468,7 @@ export function MangaManager() {
       </Card>
 
       {/* Список манги */}
-      <Card>
+      <Card className="glass-panel border border-white/5 shadow-xl">
         <CardHeader>
           <CardTitle>
             Манга в системе ({mangaList.length})
@@ -215,8 +476,8 @@ export function MangaManager() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <RefreshCw className="h-6 w-6 animate-spin text-primary" />
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="h-6 w-6 animate-spin text-blue-400" />
             </div>
           ) : mangaList.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
@@ -226,95 +487,156 @@ export function MangaManager() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {mangaList.map((manga) => (
-                <div key={manga.id} className="border border-border rounded-lg overflow-hidden">
-                  <div className="aspect-[3/4] relative">
-                    <img
-                      src={manga.coverImageUrl}
-                      alt={manga.title}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement
-                        target.src = '/placeholder-manga.jpg'
-                      }}
-                    />
-                    <div className="absolute top-2 right-2">
-                      {getStatusBadge(manga.status)}
-                    </div>
-                  </div>
+              {mangaList.map((manga) => {
+                const releaseYear = manga.releaseDate ? new Date(manga.releaseDate).getFullYear() : '—'
+                const primaryGenre = manga.genre ? manga.genre.split(',')[0]?.trim() : 'Без жанра'
+                const tagList = manga.tags
+                  ? manga.tags.split(',').map((tag) => tag.trim()).filter(Boolean).slice(0, 3)
+                  : []
 
-                  <div className="p-4 space-y-3">
-                    <div>
-                      <h3 className="font-medium text-white line-clamp-2" title={manga.title}>
-                        {manga.title}
-                      </h3>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                        <User className="h-3 w-3" />
-                        <span>{manga.author}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Tag className="h-3 w-3" />
-                        <span className="line-clamp-1">{manga.genre ? manga.genre.split(',')[0] : 'Без жанра'}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Calendar className="h-3 w-3" />
-                        <span>{new Date(manga.releaseDate).getFullYear()}</span>
+                return (
+                  <GlassPanel
+                    key={manga.id}
+                    className="flex flex-col overflow-hidden border border-white/10 backdrop-blur-lg"
+                  >
+                    <div className="relative aspect-[3/4] overflow-hidden rounded-lg border border-white/5">
+                      <img
+                        src={manga.coverImageUrl}
+                        alt={manga.title}
+                        className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                        onError={(event) => {
+                          const target = event.target as HTMLImageElement
+                          target.src = '/placeholder-manga.jpg'
+                        }}
+                      />
+                      <div className="absolute top-3 right-3 flex flex-col gap-2 items-end">
+                        {getStatusBadge(manga.status)}
+                        {manga.type && (
+                          <Badge className="bg-white/15 text-white border-white/20 uppercase tracking-wide text-[11px]">
+                            {manga.type}
+                          </Badge>
+                        )}
                       </div>
                     </div>
 
-                    <div className="text-sm text-muted-foreground">
-                      <span>Глав: {manga.chapterCount}</span>
+                    <div className="p-4 space-y-4">
+                      <div className="space-y-2">
+                        <h3 className="font-semibold text-white text-lg leading-tight line-clamp-2" title={manga.title}>
+                          {manga.title}
+                        </h3>
+                        {manga.engName && (
+                          <p className="text-xs uppercase tracking-[0.2em] text-white/60">{manga.engName}</p>
+                        )}
+                        <div className="space-y-2 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4 opacity-70" />
+                            <span className="line-clamp-1">{manga.author || 'Не указан'}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Tag className="h-4 w-4 opacity-70" />
+                            <span className="line-clamp-1">{primaryGenre}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 opacity-70" />
+                            <span>{releaseYear}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 text-xs text-white/80">
+                        <div className="rounded-lg bg-white/5 border border-white/10 px-3 py-2">
+                          <div className="flex items-center gap-2 text-white/60 uppercase tracking-wide text-[11px]">
+                            <Layers className="h-3 w-3" />
+                            Главы
+                          </div>
+                          <div className="text-lg font-semibold text-white">{manga.chapterCount ?? '—'}</div>
+                        </div>
+                        <div className="rounded-lg bg-white/5 border border-white/10 px-3 py-2">
+                          <div className="flex items-center gap-2 text-white/60 uppercase tracking-wide text-[11px]">
+                            <Eye className="h-3 w-3" />
+                            Просмотры
+                          </div>
+                          <div className="text-lg font-semibold text-white">{manga.views ?? 0}</div>
+                        </div>
+                        <div className="rounded-lg bg-white/5 border border-white/10 px-3 py-2 col-span-2">
+                          <div className="flex items-center gap-2 text-white/60 uppercase tracking-wide text-[11px]">
+                            <Clock className="h-3 w-3" />
+                            Обновлено
+                          </div>
+                          <div className="text-sm text-white">{formatDateTime(manga.updatedAt)}</div>
+                        </div>
+                      </div>
+
+                      {tagList.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {tagList.map((tag) => (
+                            <Badge key={tag} variant="secondary" className="bg-white/10 border-white/20 text-xs text-white/80">
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(`/manga/${manga.id}`, '_blank')}
+                          className="flex-1 border-white/20 text-white/80 hover:text-white hover:bg-white/10"
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Просмотр
+                        </Button>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openEditDialog(manga)}
+                          className="flex-1 border-white/20 text-white/80 hover:text-white hover:bg-white/10"
+                        >
+                          <Edit className="h-4 w-4 mr-1" />
+                          Изменить
+                        </Button>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openChapterDialog(manga)}
+                          className="flex-1 border-blue-400/50 text-blue-100 hover:bg-blue-500/20 hover:border-blue-400"
+                        >
+                          <Layers className="h-4 w-4 mr-1" />
+                          Главы
+                        </Button>
+
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="outline" size="sm" className="border-red-500/40 text-red-400 hover:bg-red-500/15">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Удалить мангу?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Это действие нельзя отменить. Будут удалены все главы и изображения манги "{manga.title}".
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Отмена</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDeleteManga(manga.id)}
+                                className="bg-red-500 hover:bg-red-600"
+                              >
+                                Удалить
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
                     </div>
-
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => window.open(`/manga/${manga.id}`, '_blank')}
-                        className="flex-1"
-                      >
-                        <Eye className="h-4 w-4 mr-1" />
-                        Просмотр
-                      </Button>
-
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openEditDialog(manga)}
-                        className="flex-1"
-                      >
-                        <Edit className="h-4 w-4 mr-1" />
-                        Изменить
-                      </Button>
-
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="outline" size="sm" className="text-red-500 hover:bg-red-500/10">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Удалить мангу?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Это действие нельзя отменить. Будут удалены все главы и изображения манги "{manga.title}".
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Отмена</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDeleteManga(manga.id)}
-                              className="bg-red-500 hover:bg-red-600"
-                            >
-                              Удалить
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                  </GlassPanel>
+                )
+              })}
             </div>
           )}
         </CardContent>
@@ -406,6 +728,261 @@ export function MangaManager() {
               {updateMangaMutation.isPending ? 'Сохранение...' : 'Сохранить'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isChapterDialogOpen} onOpenChange={(open) => { if (!open) closeChapterDialog() }}>
+        <DialogContent className="max-w-5xl w-full max-h-[85vh] overflow-y-auto glass-panel border border-white/10">
+          <DialogHeader>
+            <DialogTitle>
+              Управление главами
+              {managedManga ? <span className="block text-base text-white/70">{managedManga.title}</span> : null}
+            </DialogTitle>
+            <DialogDescription>
+              Добавляйте главы, обновляйте метаданные и поддерживайте каталог в актуальном состоянии.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="text-sm text-muted-foreground">
+                {managedManga ? (
+                  <span>
+                    Текущих глав: <span className="text-white font-medium">{chapterList.length}</span>
+                    {typeof managedManga.totalChapters === 'number' && managedManga.totalChapters > 0 ? (
+                      <span className="ml-2 text-xs text-white/60">Всего в базе: {managedManga.totalChapters}</span>
+                    ) : null}
+                  </span>
+                ) : (
+                  <span>Выберите мангу, чтобы управлять её главами.</span>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => refetchChapters()}
+                  disabled={isFetchingChapters}
+                  className="border-white/20 text-white/80 hover:text-white hover:bg-white/10"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${isFetchingChapters ? 'animate-spin' : ''}`} />
+                  Обновить
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={startCreateChapter}
+                  className="border-blue-500/50 text-blue-100 hover:bg-blue-500/20 hover:border-blue-400"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Новая глава
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+              <GlassPanel className="border border-white/10 space-y-4 max-h-[55vh] overflow-hidden">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-white uppercase tracking-wide">Список глав</h3>
+                  {isLoadingChapters ? <Loader2 className="h-4 w-4 animate-spin text-white/60" /> : null}
+                </div>
+
+                <div className="overflow-y-auto pr-1" style={{ maxHeight: '45vh' }}>
+                  {isLoadingChapters ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-5 w-5 animate-spin text-blue-400" />
+                    </div>
+                  ) : chapterList.length === 0 ? (
+                    <div className="text-sm text-muted-foreground border border-dashed border-white/10 rounded-lg p-6 text-center">
+                      Главы пока не добавлены. Используйте форму справа, чтобы создать первую главу.
+                    </div>
+                  ) : (
+                    <Table className="text-sm">
+                      <TableHeader>
+                        <TableRow className="border-white/10 text-white/60 uppercase tracking-wide text-[11px]">
+                          <TableHead>Глава</TableHead>
+                          <TableHead>Название</TableHead>
+                          <TableHead className="text-center">Страниц</TableHead>
+                          <TableHead className="text-right">Обновлено</TableHead>
+                          <TableHead className="text-right">Действия</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {chapterList.map((chapter) => (
+                          <TableRow key={chapter.id} className="border-white/10 hover:bg-white/5 transition-colors">
+                            <TableCell className="font-semibold text-white">
+                              {formatChapterNumber(chapter.chapterNumber)}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-col gap-1">
+                                <span className="text-white line-clamp-1">
+                                  {chapter.title || 'Без названия'}
+                                </span>
+                                <span className="text-xs text-white/40">ID: {chapter.id}</span>
+                                {chapter.volumeNumber != null && (
+                                  <span className="text-xs text-white/50">Том {chapter.volumeNumber}</span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-center text-white/80">
+                              {chapter.pageCount ?? '—'}
+                            </TableCell>
+                            <TableCell className="text-right text-white/70">
+                              {formatDateTime(chapter.updatedAt)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => startEditChapter(chapter)}
+                                  className="text-blue-200 hover:text-blue-100 hover:bg-blue-500/10"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-red-300 hover:text-red-100 hover:bg-red-500/10"
+                                      disabled={isDeletingChapter}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>
+                                        Удалить главу {formatChapterNumber(chapter.chapterNumber)}?
+                                      </AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Удаление также очистит все страницы главы.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Отмена</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => handleDeleteChapter(chapter)}
+                                        className="bg-red-500 hover:bg-red-600"
+                                        disabled={isDeletingChapter}
+                                      >
+                                        Удалить
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </div>
+              </GlassPanel>
+
+              <GlassPanel className="border border-white/10 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-white uppercase tracking-wide">
+                      {chapterMode === 'create' ? 'Новая глава' : 'Редактирование главы'}
+                    </h3>
+                    {chapterMode === 'edit' && activeChapter && (
+                      <p className="text-xs text-white/60">
+                        ID {activeChapter.id} • Глава {formatChapterNumber(activeChapter.chapterNumber)}
+                      </p>
+                    )}
+                  </div>
+                  {chapterMode === 'edit' && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={startCreateChapter}
+                      className="text-white/70 hover:text-white hover:bg-white/10"
+                    >
+                      Отмена
+                    </Button>
+                  )}
+                </div>
+
+                <form
+                  className="space-y-3"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    handleChapterSubmit()
+                  }}
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="chapter-number">Номер главы</Label>
+                      <Input
+                        id="chapter-number"
+                        value={chapterForm.chapterNumber}
+                        onChange={(event) => setChapterForm((prev) => ({ ...prev, chapterNumber: event.target.value }))}
+                        placeholder="Например, 96.5"
+                        required
+                        className="bg-black/40 border-white/10 text-white placeholder:text-white/40"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="volume-number">Номер тома</Label>
+                      <Input
+                        id="volume-number"
+                        value={chapterForm.volumeNumber}
+                        onChange={(event) => setChapterForm((prev) => ({ ...prev, volumeNumber: event.target.value }))}
+                        placeholder="Опционально"
+                        className="bg-black/40 border-white/10 text-white placeholder:text-white/40"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="original-number">Оригинальный номер</Label>
+                      <Input
+                        id="original-number"
+                        value={chapterForm.originalChapterNumber}
+                        onChange={(event) => setChapterForm((prev) => ({ ...prev, originalChapterNumber: event.target.value }))}
+                        placeholder="Например, 100.1"
+                        className="bg-black/40 border-white/10 text-white placeholder:text-white/40"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="published-date">Дата публикации</Label>
+                      <Input
+                        id="published-date"
+                        type="datetime-local"
+                        value={chapterForm.publishedDate}
+                        onChange={(event) => setChapterForm((prev) => ({ ...prev, publishedDate: event.target.value }))}
+                        className="bg-black/40 border-white/10 text-white placeholder:text-white/40"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="chapter-title">Название главы</Label>
+                    <Input
+                      id="chapter-title"
+                      value={chapterForm.title}
+                      onChange={(event) => setChapterForm((prev) => ({ ...prev, title: event.target.value }))}
+                      placeholder="Введите название главы"
+                      className="bg-black/40 border-white/10 text-white placeholder:text-white/40"
+                    />
+                  </div>
+
+                  <Button
+                    type="submit"
+                    disabled={isSavingChapter}
+                    className="w-full bg-blue-500 hover:bg-blue-600 text-white"
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    {chapterMode === 'create' ? 'Создать главу' : 'Сохранить изменения'}
+                  </Button>
+                </form>
+              </GlassPanel>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

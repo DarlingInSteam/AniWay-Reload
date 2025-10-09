@@ -37,6 +37,15 @@ export interface ChapterDTO {
   updatedAt: string
 }
 
+export interface ChapterCreateRequest {
+  mangaId: number
+  chapterNumber: number
+  volumeNumber?: number | null
+  originalChapterNumber?: number | null
+  title?: string | null
+  publishedDate?: string | null
+}
+
 // Типы для изображений глав
 export interface ChapterImageDTO {
   id: number
