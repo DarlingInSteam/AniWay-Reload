@@ -840,23 +840,8 @@ class Parser(MangaParser):
         :return: Список имён файлов (или None для неудачных загрузок) в том же порядке
         """
         
-        print(f"[INFO] [DEBUG] ✅ batch_download_images() CALLED with {len(urls)} URLs")
-        print(f"[INFO] [DEBUG] _parallel_downloader initialized: {hasattr(self, '_parallel_downloader')}")
-        
         if not urls:
-            print(f"[INFO] [DEBUG] ⚠️ No URLs provided, returning empty list")
             return []
-        
-        worker_count = getattr(self._parallel_downloader, "max_workers", "unknown")
-        base_delay = getattr(self._parallel_downloader, "base_delay", "?")
-        max_retries = getattr(self._parallel_downloader, "max_retries", "?")
-
-        print(
-            f"[INFO] [DEBUG] 🚀 Starting parallel download with {len(urls)} images "
-            f"(workers={worker_count}, delay={base_delay}s, retries={max_retries})",
-            flush=True
-        )
-        print("[INFO] [DEBUG] ⏳ Waiting for worker pool to report progress...", flush=True)
 
         import time
 
@@ -884,10 +869,7 @@ class Parser(MangaParser):
                 return
 
             percent = (downloaded / total) * 100
-            print(
-                f"[INFO] [DEBUG] 📥 Batch progress: {downloaded}/{total} images ({percent:.1f}%)",
-                flush=True
-            )
+            # Убираем подробный debug лог прогресса - важные метрики в MangaBuilder
             progress_state["last_log_at"] = now
             progress_state["last_downloaded"] = downloaded
 
@@ -916,14 +898,7 @@ class Parser(MangaParser):
         failed_after_fallback = len(urls) - successful_downloads
         avg_speed = successful_downloads / elapsed
 
-        print(
-            "[INFO] [DEBUG] ✅ Batch finished: "
-            f"success={successful_downloads}/{len(urls)}, "
-            f"fallbacks_used={fallback_attempts}, "
-            f"failed_after_fallback={failed_after_fallback}, "
-            f"duration={elapsed:.1f}s ({avg_speed:.2f} img/s)",
-            flush=True
-        )
+        # Убираем подробный debug лог завершения - важные метрики в MangaBuilder
 
         return filenames
 
