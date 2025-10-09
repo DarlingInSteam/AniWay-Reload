@@ -296,7 +296,10 @@ public class AutoParsingService {
                     }
 
                     task.message = String.format("Парсинг манги %d/%d: %s", i + 1, slugs.size(), slug);
-                    logger.info("Запуск парсинга для slug: {}", slug);
+                    logger.info("=== АВТОПАРСИНГ MANGA {}/{} ===", i + 1, slugs.size());
+                    logger.info("Slug: {}", slug);
+                    logger.info("Текущая статистика - Обработано: {}, Пропущено: {}, Импортировано: {}, Ошибок: {}", 
+                        task.processedSlugs, task.skippedSlugs.size(), task.importedSlugs.size(), task.failedSlugs.size());
 
                     Map<String, Object> parseResult = melonService.startFullParsing(slug);
 
@@ -328,6 +331,7 @@ public class AutoParsingService {
 
                         if (completed) {
                             task.importedSlugs.add(slug);
+                            logger.info("✅ ИМПОРТ УСПЕШЕН для slug={}, время: {} мс", slug, durationMs);
                             mangaMetric.put("status", "completed");
                             logger.info("Манга '{}' успешно обработана через полный парсинг (импорт и очистка выполнены автоматически)", slug);
                         } else {
@@ -337,7 +341,7 @@ public class AutoParsingService {
                             if (finalStatus != null && finalStatus.get("message") != null) {
                                 mangaMetric.put("error_message", finalStatus.get("message"));
                             }
-                            logger.error("Полный парсинг не завершен для slug: {}", slug);
+                            logger.error("❌ ИМПОРТ ПРОВАЛЕН для slug={}, статус: {}, время: {} мс", slug, statusValue, durationMs);
                         }
 
                         if (finalStatus != null) {

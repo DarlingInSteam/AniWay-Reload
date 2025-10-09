@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Download, RefreshCw, Loader2, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
+import { ImportQueueMonitor } from './ImportQueueMonitor'
 
 interface AutoParseMangaMetric {
   index: number
@@ -65,7 +66,7 @@ interface AutoUpdateTask {
 
 const AUTO_PARSE_STORAGE_KEY = 'autoParseTaskState'
 const AUTO_UPDATE_STORAGE_KEY = 'autoUpdateTaskState'
-const AUTO_TASK_POLL_INTERVAL = 2000
+const AUTO_TASK_POLL_INTERVAL = 1000 // Уменьшено с 2000ms до 1000ms для лучшего UX
 const FINAL_AUTO_STATUSES = new Set(['completed', 'failed', 'cancelled'])
 const LOG_DISPLAY_TIMEZONE = 'Asia/Novosibirsk'
 const LOG_TIMEZONE_LABEL = 'НСК'
@@ -1123,6 +1124,12 @@ export function MangaManagement() {
           )}
         </CardContent>
       </Card>
+
+      {/* Мониторинг очереди импорта */}
+      <ImportQueueMonitor 
+        isAutoParsing={isAutoParsing}
+        className="mb-6"
+      />
 
       {/* Автообновление */}
       <Card>

@@ -67,10 +67,27 @@ class BaseBuilder:
 		"""
 
 		if not branches: return None
-		if not branch_id: return branches[0]
-
+		
+		# Если указан конкретный branch_id, ищем его
+		if branch_id:
+			for CurrentBranch in branches:
+				if CurrentBranch.id == branch_id: return CurrentBranch
+		
+		# Если branch_id не указан, выбираем самую длинную ветку (с максимальным количеством глав)
+		longest_branch = branches[0]
+		max_chapters = len(branches[0].chapters) if branches[0].chapters else 0
+		
 		for CurrentBranch in branches:
-			if CurrentBranch.id == branch_id: return CurrentBranch
+			chapter_count = len(CurrentBranch.chapters) if CurrentBranch.chapters else 0
+			
+			if chapter_count > max_chapters:
+				max_chapters = chapter_count
+				longest_branch = CurrentBranch
+		
+		# Выводим информацию о выборе ветки только если есть несколько веток  
+		if len(branches) > 1:
+			self._SystemObjects.logger.info(f"📋 Selected branch {longest_branch.id} with {max_chapters} chapters")
+		return longest_branch
 
 	#==========================================================================================#
 	# >>>>> ПЕРЕОПРЕДЕЛЯЕМЫЕ МЕТОДЫ <<<<< #

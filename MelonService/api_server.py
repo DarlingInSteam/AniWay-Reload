@@ -25,9 +25,39 @@ logger = logging.getLogger(__name__)
 # Регулярное выражение для удаления ANSI escape кодов
 ANSI_ESCAPE_PATTERN = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 
+# Глобальный кеш метаданных глав для улучшенного логирования
+chapters_metadata_cache: Dict[str, Dict[str, Any]] = {}
+
 def strip_ansi_codes(text: str) -> str:
     """Удаляет ANSI escape коды из текста"""
     return ANSI_ESCAPE_PATTERN.sub('', text)
+
+def get_chapter_display_name(chapter_id: str) -> str:
+    """
+    Получает удобочитаемое название главы из кеша метаданных.
+    Возвращает формат: "Vol.X Ch.Y: Chapter Name" или просто chapter_id если не найдено.
+    """
+    chapter_info = chapters_metadata_cache.get(chapter_id)
+    if not chapter_info:
+        return chapter_id
+    
+    volume = chapter_info.get('volume')
+    number = chapter_info.get('number')
+    name = chapter_info.get('name', '').strip()
+    
+    # Формируем красивое название
+    parts = []
+    if volume:
+        parts.append(f"Vol.{volume}")
+    if number is not None:
+        parts.append(f"Ch.{number}")
+    
+    chapter_part = " ".join(parts) if parts else f"Ch.{chapter_id}"
+    
+    if name:
+        return f"{chapter_part}: {name}"
+    else:
+        return chapter_part
 
 # =========================================================================================
 # ПРОКСИ КОНФИГУРАЦИЯ С РОТАЦИЕЙ (импортируем ProxyRotator)
@@ -239,7 +269,7 @@ def send_progress_to_manga_service(task_id, status, progress, message=None, erro
             payload["metrics"] = metrics
         url = f"http://manga-service:8081/api/parser/progress/{task_id}"
         resp = requests.post(url, json=payload, timeout=5)
-        logger.info(f"Progress sent to MangaService: {payload}, response: {resp.status_code}")
+        # Убрано избыточное логирование прогресса (только ошибки важны)
     except Exception as e:
         logger.error(f"Failed to send progress to MangaService: {e}")
 
@@ -301,7 +331,7 @@ async def run_melon_command(command: List[str], task_id: str, timeout: int = 600
 
         full_command = ["python", "main.py"] + command[2:]
 
-        logger.info(f"Running command: {' '.join(full_command)}")
+        logger.info(f"[{task_id}] COMMAND: {' '.join(full_command)}")
         update_task_status(task_id, "RUNNING", 5, f"Запуск команды: {' '.join(full_command)}")
 
         process = await asyncio.create_subprocess_exec(
@@ -371,11 +401,13 @@ async def run_melon_command(command: List[str], task_id: str, timeout: int = 600
             }
             chapter_metrics.append(metric_entry)
 
+            # Используем улучшенный формат отображения главы
+            chapter_display = get_chapter_display_name(chapter_id)
             if duration:
                 speed = metric_entry["images_per_second"] or 0.0
-                log_task_message(task_id, "INFO", f"[Metrics] Chapter {chapter_id}: {images} images in {duration:.2f}s ({speed:.2f} img/s)")
+                log_task_message(task_id, "DEBUG", f"[Metrics] Chapter {chapter_display}: {images} images in {duration:.2f}s ({speed:.2f} img/s)")
             else:
-                log_task_message(task_id, "INFO", f"[Metrics] Chapter {chapter_id}: {images} images (duration unavailable)")
+                log_task_message(task_id, "DEBUG", f"[Metrics] Chapter {chapter_display}: {images} images")
 
             chapter_state.pop(chapter_id, None)
             if chapter_id in chapter_order:
@@ -440,16 +472,16 @@ async def run_melon_command(command: List[str], task_id: str, timeout: int = 600
                 clean_line = strip_ansi_codes(line_str)
                 stderr_lines.append(clean_line)
                 log_task_message(task_id, "ERROR", clean_line)
-                logger.warning(f"[{task_id}] STDERR: {clean_line}")
+                # Убрано дублирование: logger.warning() - ошибка уже в task logs
                 last_update_time = datetime.now()
 
         async def heartbeat():
             nonlocal last_update_time
             while process.returncode is None:
-                await asyncio.sleep(30)
+                await asyncio.sleep(5)  # Обновление статуса каждые 5с
                 if process.returncode is None:
                     elapsed = (datetime.now() - last_update_time).total_seconds()
-                    log_task_message(task_id, "INFO", f"[Heartbeat] Процесс активен, прошло {int(elapsed)}с с последнего обновления")
+                    # Убрано логирование heartbeat для уменьшения шума, только обновление статуса
                     update_task_status(task_id, "RUNNING", min(90, 10 + len(stdout_lines)), f"Парсинг в процессе... ({len(stdout_lines)} строк логов)")
 
         try:
@@ -492,7 +524,7 @@ async def run_melon_command(command: List[str], task_id: str, timeout: int = 600
                     f"{aggregate_metrics['images_per_second']:.2f} img/s)"
                 )
                 log_task_message(task_id, "INFO", summary_msg)
-                logger.info(summary_msg)
+                # Убрано дублирование: logger.info(summary_msg)
 
             command_metrics = {
                 "started_at": process_started_at.isoformat(),
@@ -949,6 +981,9 @@ async def build_manga(request: BuildRequest, background_tasks: BackgroundTasks):
     
     tasks_storage[task_id] = task
     
+    # Логируем начало билда
+    logger.info(f"[{task_id}] BUILD START: {request.slug} (type: {request.type})")
+    
     # Запускаем задачу через BackgroundTasks
     background_tasks.add_task(execute_build_task, task_id, request.slug, request.parser, None, request.type)
     
@@ -1053,6 +1088,9 @@ async def get_task_status(task_id: str):
 async def execute_parse_task(task_id: str, slug: str, parser: str):
     """Выполняет задачу парсинга одной манги"""
     try:
+        # СИНИЙ ЛОГ: Начало парсинга
+        logger.info(f"\033[94m🔍 Starting parsing: {slug}\033[0m")
+        
         ensure_utf8_patch()
         ensure_cross_device_patch()
         
@@ -1101,9 +1139,6 @@ async def execute_parse_task(task_id: str, slug: str, parser: str):
                     },
                     metrics=metrics_payload
                 )
-
-                # Автоматически запускаем build после успешного парсинга (с нормализованным slug)
-                asyncio.create_task(execute_build_task(task_id, normalized_slug, parser, None, "simple"))
             else:
                 logger.error(f"❌ JSON файл НЕ найден: {json_path}")
                 # Логируем доступные файлы для диагностики
@@ -1131,6 +1166,9 @@ async def execute_parse_task(task_id: str, slug: str, parser: str):
 async def execute_build_task(task_id: str, slug: str, parser: str, target_language: str = None, build_type: str = "simple"):
     """Выполняет задачу билда одной манги"""
     try:
+        # СИНИЙ ЛОГ: Переход от парсинга к билдингу
+        logger.info(f"\033[94m🔨 Parsing completed → Starting build: {slug}\033[0m")
+        
         update_task_status(task_id, "IMPORTING_MANGA", 10, "Начинаем построение архива...")
         
         # Применяем патч перед каждым выполнением build команды
@@ -1160,6 +1198,7 @@ async def execute_build_task(task_id: str, slug: str, parser: str, target_langua
         metrics_payload = result.get("metrics") if isinstance(result, dict) else None
         
         if result["success"]:
+            logger.info(f"[{task_id}] BUILD SUCCESS: {slug} completed ({build_type})")
             update_task_status(
                 task_id,
                 "COMPLETED",
@@ -1174,7 +1213,7 @@ async def execute_build_task(task_id: str, slug: str, parser: str, target_langua
             )
         else:
             error_msg = f"Ошибка построения: {result.get('stderr', 'Unknown error')}"
-            logger.error(f"Build command failed for {slug}: stdout={result.get('stdout', '')}, stderr={result.get('stderr', '')}, return_code={result.get('return_code', 'unknown')}")
+            logger.error(f"[{task_id}] BUILD FAILED: {slug} - {error_msg}")
             
             update_task_status(
                 task_id,
@@ -1473,15 +1512,21 @@ async def get_chapters_metadata_only_endpoint(slug: str, parser: str = "mangalib
             for chapter_data in data:
                 # Обрабатываем все ветки главы
                 for branch_data in chapter_data.get("branches", []):
-                    chapters.append({
+                    chapter_info = {
                         "volume": chapter_data.get("volume"),
                         "number": chapter_data.get("number"),
                         "name": chapter_data.get("name", ""),
                         "id": branch_data.get("id"),
                         "branch_id": branch_data.get("branch_id")
-                    })
+                    }
+                    chapters.append(chapter_info)
+                    
+                    # Заполняем кеш метаданных для улучшенного логирования
+                    chapter_id = str(branch_data.get("id"))
+                    chapters_metadata_cache[chapter_id] = chapter_info
             
             logger.info(f"Successfully retrieved {len(chapters)} chapters metadata for slug: {slug}")
+            logger.debug(f"Cached metadata for {len(chapters)} chapters")
             
             return {
                 "success": True,

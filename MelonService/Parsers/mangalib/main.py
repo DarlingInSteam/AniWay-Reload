@@ -33,16 +33,22 @@ class Parser(MangaParser):
                 continue
             break
         
-        # НОВОЕ: Выводим прогресс парсинга в stdout для захвата логов
-        chapter_name = f"{chapter.volume}.{chapter.number}" if chapter.volume else str(chapter.number)
-        if chapter.name:
-            chapter_name += f" - {chapter.name}"
-        print(f"[{current_chapter_index}/{total_chapters}] Chapter {chapter_name} parsing...")
-        
         # Логируем начало парсинга главы через Portals
         self._Portals.chapter_parsing_start(self._Title, chapter, current_chapter_index, total_chapters)
 
+        import time
+        start_time = time.time()
         Slides = self.__GetSlides(branch.id, chapter)
+        parse_time = time.time() - start_time
+        
+        # СИНИЙ ЛОГ: Прогресс парсинга с метриками
+        chapter_name = f"Vol.{chapter.volume} " if chapter.volume else ""
+        chapter_name += f"Ch.{chapter.number}"
+        if chapter.name:
+            chapter_name += f": {chapter.name}"
+        
+        slides_count = len(Slides)
+        self._SystemObjects.logger.info(f"\033[94m🔍 [{current_chapter_index}/{total_chapters}] {chapter_name} - {slides_count} pages ({parse_time:.2f}s)\033[0m")
 
         for Slide in Slides:
             chapter.add_slide(Slide["link"], Slide["width"], Slide["height"])
@@ -289,7 +295,7 @@ class Parser(MangaParser):
         # КРИТИЧЕСКИ ВАЖНО: Инициализация параллельного загрузчика в __init__, а не в parse()
         # Потому что build может вызываться без parse (когда JSON уже существует)
         proxy_count = self._get_proxy_count()
-        image_delay = getattr(self._Settings.common, 'image_delay', 0.2)
+        image_delay = getattr(self._Settings.common, 'image_delay', 0.1)
 
         max_workers_override = getattr(self._Settings.common, 'image_max_workers', None)
         if max_workers_override is None:
@@ -317,6 +323,9 @@ class Parser(MangaParser):
         )
         
         print(f"[CRITICAL_DEBUG] AdaptiveParallelDownloader CREATED successfully!", flush=True)
+        
+        # Кешируем сервер изображений для ускорения парсинга
+        self._cached_image_server = None
 
     def __IsSlideLink(self, link: str, servers: list[str]) -> bool:
         """
@@ -549,14 +558,19 @@ class Parser(MangaParser):
             self._Portals.chapter_skipped(self._Title, chapter, comment = "Not moderated.")
             return Slides
         
-        Server = self.__GetImagesServers(self._Settings.custom["server"])[0]
+        # Используем кешированный сервер вместо повторных запросов
+        if self._cached_image_server is None:
+            self._cached_image_server = self.__GetImagesServers(self._Settings.custom["server"])[0]
+        Server = self._cached_image_server
         Branch = "" if branch_id == str(self._Title.id) + "0" else f"&branch_id={branch_id}"
         URL = f"https://{self.__API}/api/manga/{self.__TitleSlug}/chapter?number={chapter.number}&volume={chapter.volume}{Branch}"
         Response = self._Requestor.get(URL)
         
         if Response.status_code == 200:
             Data = Response.json["data"].setdefault("pages", tuple())
-            sleep(self._Settings.common.delay)
+            # Используем специальную задержку для парсинга (отдельная настройка)
+            parse_delay = getattr(self._Settings.common, 'parse_delay', 0.1)
+            sleep(parse_delay)
 
             for SlideIndex in range(len(Data)):
                 Buffer = {
@@ -567,8 +581,9 @@ class Parser(MangaParser):
                 }
                 Slides.append(Buffer)
 
-                # Логируем загрузку каждого изображения
-                self._Portals.chapter_download_start(self._Title, chapter, SlideIndex + 1, len(Data))
+            # Логируем только один раз на всю главу (вместо каждого изображения)
+            if Data:
+                self._Portals.chapter_download_start(self._Title, chapter, len(Data), len(Data))
 
         else: self._Portals.request_error(Response, "Unable to request chapter content.", exception = False)
 
@@ -765,7 +780,7 @@ class Parser(MangaParser):
         """
 
         # Используем отдельный delay для изображений (меньше чем для API)
-        image_delay = getattr(self._Settings.common, 'image_delay', 0.2)
+        image_delay = getattr(self._Settings.common, 'image_delay', 0.1)
 
         Result = self._ImagesDownloader.temp_image(url)
         
@@ -840,23 +855,8 @@ class Parser(MangaParser):
         :return: Список имён файлов (или None для неудачных загрузок) в том же порядке
         """
         
-        print(f"[INFO] [DEBUG] ✅ batch_download_images() CALLED with {len(urls)} URLs")
-        print(f"[INFO] [DEBUG] _parallel_downloader initialized: {hasattr(self, '_parallel_downloader')}")
-        
         if not urls:
-            print(f"[INFO] [DEBUG] ⚠️ No URLs provided, returning empty list")
             return []
-        
-        worker_count = getattr(self._parallel_downloader, "max_workers", "unknown")
-        base_delay = getattr(self._parallel_downloader, "base_delay", "?")
-        max_retries = getattr(self._parallel_downloader, "max_retries", "?")
-
-        print(
-            f"[INFO] [DEBUG] 🚀 Starting parallel download with {len(urls)} images "
-            f"(workers={worker_count}, delay={base_delay}s, retries={max_retries})",
-            flush=True
-        )
-        print("[INFO] [DEBUG] ⏳ Waiting for worker pool to report progress...", flush=True)
 
         import time
 
@@ -884,10 +884,7 @@ class Parser(MangaParser):
                 return
 
             percent = (downloaded / total) * 100
-            print(
-                f"[INFO] [DEBUG] 📥 Batch progress: {downloaded}/{total} images ({percent:.1f}%)",
-                flush=True
-            )
+            # Убираем подробный debug лог прогресса - важные метрики в MangaBuilder
             progress_state["last_log_at"] = now
             progress_state["last_downloaded"] = downloaded
 
@@ -897,33 +894,95 @@ class Parser(MangaParser):
         elapsed = max(time.perf_counter() - batch_started_at, 0.0001)
 
         # Преобразуем результаты в список имён файлов (сохраняя порядок)
-        filenames = []
+        from urllib.parse import urlparse, unquote
+
+        total_images = len(urls)
+        filenames: list[str | None] = [None] * total_images
+        failed_indices: list[int] = []
         fallback_attempts = 0
         successful_downloads = 0
 
+        def _expected_filename(target_url: str) -> str:
+            parsed = urlparse(target_url)
+            raw_name = parsed.path.split('/')[-1]
+            return unquote(raw_name)
+
         for result in results:
-            if result['success']:
-                filenames.append(result['filename'])
+            index = result.get('index', 0) - 1
+            url = result.get('url')
+
+            if index < 0 or index >= total_images:
+                if url:
+                    self._SystemObjects.logger.warning(
+                        f"Received download result with invalid index: idx={index}, url={url}"
+                    )
+                continue
+
+            if result.get('success'):
+                filenames[index] = result.get('filename')
+                successful_downloads += 1
+                continue
+
+            # Не удалось скачать — пробуем альтернативные сервера
+            fallback_attempts += 1
+            fallback_filename: str | None = None
+            fallback_status = self._try_alternative_servers(url)
+
+            if fallback_status:
+                if hasattr(fallback_status, "value") and fallback_status.value:
+                    fallback_filename = fallback_status.value
+                elif isinstance(fallback_status, str):
+                    fallback_filename = fallback_status
+                elif hasattr(fallback_status, "filename") and fallback_status.filename:
+                    fallback_filename = fallback_status.filename
+
+            if not fallback_filename and url:
+                # Проверяем, появился ли файл в temp после фолбэка
+                if self._ImagesDownloader.is_exists(url):
+                    fallback_filename = _expected_filename(url)
+
+            if fallback_filename:
+                filenames[index] = fallback_filename
                 successful_downloads += 1
             else:
-                fallback_attempts += 1
-                # Для неудачных загрузок пробуем альтернативные серверы
-                fallback_result = self._try_alternative_servers(result['url'])
-                filenames.append(fallback_result)
-                if fallback_result:
-                    successful_downloads += 1
+                failed_indices.append(index)
 
-        failed_after_fallback = len(urls) - successful_downloads
-        avg_speed = successful_downloads / elapsed
+        # Дополнительный медленный фолбэк: последовательные попытки для оставшихся
+        if failed_indices:
+            slow_delay = max(getattr(self._Settings.common, 'image_delay', 0.2) * 3, 0.6)
+            max_additional_attempts = 3
 
-        print(
-            "[INFO] [DEBUG] ✅ Batch finished: "
-            f"success={successful_downloads}/{len(urls)}, "
-            f"fallbacks_used={fallback_attempts}, "
-            f"failed_after_fallback={failed_after_fallback}, "
-            f"duration={elapsed:.1f}s ({avg_speed:.2f} img/s)",
-            flush=True
-        )
+            self._SystemObjects.logger.warning(
+                f"Sequential fallback engaged for {len(failed_indices)} images (delay {slow_delay:.2f}s)"
+            )
+
+            for idx in failed_indices:
+                url = urls[idx]
+                recovered = False
+
+                for attempt in range(1, max_additional_attempts + 1):
+                    sleep(slow_delay * attempt)
+                    sequential_filename = self._download_image_wrapper(url)
+
+                    if sequential_filename:
+                        filenames[idx] = sequential_filename
+                        successful_downloads += 1
+                        recovered = True
+                        self._SystemObjects.logger.info(
+                            f"✅ Sequential fallback recovered image {idx + 1}/{total_images} (attempt {attempt})"
+                        )
+                        break
+
+                if not recovered:
+                    filenames[idx] = None
+                    self._SystemObjects.logger.error(
+                        f"❌ Unable to recover image {idx + 1}/{total_images} after sequential fallback: {url}"
+                    )
+
+        failed_after_fallback = total_images - successful_downloads
+        avg_speed = successful_downloads / elapsed if elapsed > 0 else 0
+
+        # Убираем подробный debug лог завершения - важные метрики в MangaBuilder
 
         return filenames
 

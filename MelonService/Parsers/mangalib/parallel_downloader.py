@@ -30,7 +30,7 @@ class AdaptiveParallelDownloader:
         download_func: Callable[[str], Optional[str]],
         max_workers_per_proxy: int = 2,
         max_retries: int = 3,
-        base_delay: float = 0.2,
+        base_delay: float = 0.1,
         retry_delay: float = 1.0,
         max_total_workers: Optional[int] = None
     ):
@@ -83,10 +83,10 @@ class AdaptiveParallelDownloader:
         self._current_delay = base_delay
         self._last_429_time = 0
         
+        # Единоразовый лог инициализации воркеров (всегда показываем)
         override_note = f", override={max_total_workers}" if max_total_workers else ""
         logger.info(
-            f"🚀 ParallelDownloader initialized: {self.max_workers} workers for {proxy_count} proxies "
-            f"(ratio: {max_workers_per_proxy}:1, delay={base_delay}s{override_note})"
+            f"⚙️ Workers: {self.max_workers} active, {proxy_count} proxies, {base_delay}s delay{override_note}"
         )
     
     def _adaptive_delay(self):
@@ -150,13 +150,7 @@ class AdaptiveParallelDownloader:
                         current = self._downloaded
                         total = self._total
                     
-                    # Показываем прогресс: каждые 10 изображений ИЛИ каждые 25% для маленьких батчей
-                    progress_step = max(1, min(10, total // 4))  # Минимум каждое изображение, максимум каждые 10
-                    if current % progress_step == 0 or current == total:
-                        logger.info(
-                            f"📥 Downloaded {current}/{total} images "
-                            f"({current/total*100:.1f}%)"
-                        )
+                    # Убираем подробные debug логи - важные метрики теперь в MangaBuilder
                     
                     return {
                         'success': True,
@@ -213,10 +207,7 @@ class AdaptiveParallelDownloader:
             self._downloaded = 0
             self._failed = 0
         
-        logger.info(
-            f"🚀 Starting parallel download: {len(urls)} images, "
-            f"{self.max_workers} workers, delay: {self.base_delay}s"
-        )
+        # Убираем debug лог - важная информация теперь в MangaBuilder
         
         results = []
         start_time = time()
@@ -264,10 +255,7 @@ class AdaptiveParallelDownloader:
         
         avg_speed = total / elapsed if elapsed > 0 else 0
         
-        logger.info(
-            f"✅ Batch download completed: {downloaded}/{total} successful, "
-            f"{failed} failed, {elapsed:.1f}s elapsed ({avg_speed:.2f} img/sec)"
-        )
+        # Убираем подробный лог - важные метрики теперь в MangaBuilder
         
         # Сортируем результаты по исходному порядку
         results.sort(key=lambda x: x['index'])

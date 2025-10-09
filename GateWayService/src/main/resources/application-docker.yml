@@ -3,7 +3,7 @@ server:
 
 auth:
   introspect-url: "http://auth-service:8085/api/auth/validate"
-  public-paths: "/api/auth/**,/auth/**,/api/health/**,/api/public/**,/parser,/parser/**,/api/parser/**,/api/parser/progress/**,/manga,/manga/**,/api/genres/**,/api/tags/**,/api/notifications/stream,/api/levels/**"
+  public-paths: "/api/auth/**,/auth/**,/api/health/**,/api/public/**,/parser,/parser/**,/api/parser/**,/api/parser/progress/**,/manga,/manga/**,/api/genres/**,/api/tags/**,/api/notifications/stream,/api/levels/**,/api/import-queue/**"
   cache-ttl-seconds: 300
 
 spring:
@@ -147,6 +147,15 @@ spring:
             - StripPrefix=0
           order: 9
 
+        # MangaService - Import Queue API
+        - id: import-queue-api
+          uri: http://manga-service:8081
+          predicates:
+            - Path=/api/import-queue/**
+          filters:
+            - StripPrefix=0
+          order: 10
+
         # MangaService - Web UI (Thymeleaf страницы)
         - id: manga-web
           uri: http://manga-service:8081
@@ -253,7 +262,7 @@ spring:
       # Настройки тайм-аутов
       httpclient:
         connect-timeout: 10000
-        response-timeout: 60000  # Увеличиваем до 60 секунд для долгих операций парсинга
+        response-timeout: 7200000  # Увеличиваем до 2 часов для долгих операций парсинга и импорта
 
 # Actuator для мониторинга
 management:
