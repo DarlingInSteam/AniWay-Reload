@@ -52,6 +52,13 @@ public class ProgressController {
             String error = (String) payload.get("error");
             @SuppressWarnings("unchecked")
             List<String> logs = (List<String>) payload.get("logs");  // Логи из MelonService
+            Map<String, Object> metrics = null;
+            Object metricsObj = payload.get("metrics");
+            if (metricsObj instanceof Map<?, ?> rawMetrics) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> castedMetrics = (Map<String, Object>) rawMetrics;
+                metrics = castedMetrics;
+            }
 
             // Если есть логи, добавляем их в задачу автопарсинга
             if (logs != null && !logs.isEmpty()) {
@@ -81,7 +88,7 @@ public class ProgressController {
 
             if (progress == null) progress = 0;
 
-            importTaskService.updateTask(taskId, ImportTaskService.TaskStatus.valueOf(statusUpper), progress, message != null ? message : "");
+            importTaskService.updateTask(taskId, ImportTaskService.TaskStatus.valueOf(statusUpper), progress, message != null ? message : "", metrics);
 
             if ("COMPLETED".equals(statusUpper)) {
                 importTaskService.markTaskCompleted(taskId);

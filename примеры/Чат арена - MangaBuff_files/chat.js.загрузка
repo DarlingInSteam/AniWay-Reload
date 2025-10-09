@@ -1,0 +1,342 @@
+$(function() {
+    let socketChat = io("wss://wss9.mangabuff.ru:2083/?token=" + window.user_token, { transports : ['websocket'] });
+    let replyTo = null;
+    let highlighted = false;
+    let canSend = true;
+    let room = 'all';
+
+    socketChat.on("connect", () => {
+        console.log('connect');
+
+        setInterval(() => {
+            socketChat.emit('gotExp');
+        }, 5 * 60 * 1000);
+    });
+
+    $('.chat-arena__controls-toggle').on('click', function() {
+        let controls = $('.chat-arena__controls');
+        if (controls.hasClass('chat-arena__controls--opened')) {
+            controls.find('.button').fadeOut(300, function() {
+                controls.removeClass('chat-arena__controls--opened').addClass('chat-arena__controls--closed');
+            });
+        } else {
+            controls.removeClass('chat-arena__controls--closed').addClass('chat-arena__controls--opened');
+            controls.find('.button').fadeIn(300);
+        }
+    });
+
+    $('.chat-arena__change-room').on('click', function() {
+        let room_name = $(this).attr('data-room');
+        socketChat.emit('changeRoom', room_name);
+        room = room_name;
+        $('.chat-arena__change-room').removeClass('button--primary');
+        $(this).addClass('button--primary');
+    });
+
+    $('.chat-arena__send-msg-btn').on('click', function() {
+        sendMessage();
+    });
+
+    $('.chat-arena__highlight-btn').on('click', function() {
+        highlighted = true;
+        $('.chat-arena__highlight').show();
+    });
+    $('.chat-arena__highlight-cansel-btn').on('click', function() {
+        highlighted = false;
+        $('.chat-arena__highlight').hide();
+    });
+
+    $('body').on('click', '.chat-arena__text-msg', function() {
+        let username = $(this).closest('.chat-arena__message').attr('data-user-name');
+        let userId = $(this).closest('.chat-arena__message').attr('data-user-id');
+        let messageText = $(this).text().slice(0, 30);
+
+        replyTo = { username, userId, messageText };
+
+        $('.chat-arena__reply-name').text(username);
+        $('.chat-arena__reply').css('display', 'flex');
+        $('.chat-arena__textarea').attr('placeholder', `Ответ @${username}`);
+    });
+    $('body').on('click', '.chat-arena__reply-cansel-btn', function() {
+        replyTo = null;
+
+        $('.chat-arena__reply').hide();
+        $('.chat-arena__textarea').attr('placeholder', 'Отправить сообщение');
+    });
+
+    $('body').on('click', '.chat-arena__reply-to', function() {
+        let nickname = $(this).find('span').text().trim();
+        let partialMessage = $(this).text().replace('В ответ ' + nickname + ':', '').trim();
+        nickname = nickname.replace('@', '');
+
+
+        let targetMessage = $('.chat-arena__message').filter(function() {
+            let userName = $(this).data('user-name');
+            let messageText = $(this).find('.chat-arena__text-msg').text().trim();
+            return userName === nickname && messageText.startsWith(partialMessage);
+        }).first();
+
+        if (targetMessage.length) {
+            $('.chat-arena__messages').animate({
+                scrollTop: targetMessage.offset().top - $('.chat-arena__messages').offset().top + $('.chat-arena__messages').scrollTop() - 150
+            }, 500);
+
+            targetMessage.addClass('chat-arena__message--active');
+
+            setTimeout(function() {
+                targetMessage.removeClass('chat-arena__message--active');
+            }, 2000);
+        }
+    });
+
+    $('.chat-arena__get-coins-btn').on('click', function() {
+        if (!window.isAuth) return;
+
+        if (!$(this).hasClass('chat-arena__get-coins-btn--ready')) {
+            toastr.error('Получить алмазик можно каждые 15 минут');
+            return;
+        }
+        $(this).prop('disabled', true);
+        socketChat.emit('addCoins');
+    });
+    $('.chat-arena__textarea').on('keydown', function(e) {
+        if (e.key === 'Enter') {
+            sendMessage();
+        }
+    });
+
+    $('body').on('click', '.chat-arena__delete-msg-btn', function() {
+        let messageId = $(this).closest('.chat-arena__message').attr('data-id');
+        socketChat.emit('deleteMessage', messageId);
+    });
+
+    $('body').on('click', '.chat-arena__block-msg-btn', function() {
+        let userId = $(this).closest('.chat-arena__message').attr('data-user-id');
+        socketChat.emit('blockUser', userId);
+    });
+
+    function addMessage(message) {
+        const $messagesDiv = $('.chat-arena__messages');
+        const lastDigit = message.user.id % 10;
+        const $messageElement = $('<div></div>').addClass('chat-arena__message')
+            .attr('data-id', message.id)
+            .attr('data-highlighted', message.highlighted)
+            .attr('data-user-id', message.user.id)
+            .attr('data-user-name', message.user.name)
+            .attr('data-is-pro', message.user.is_pro);
+
+        const $userContainer = $('<div>').addClass('chat-arena__user');
+
+        // Создаем элемент для аватарки
+        const $userAvatar = $('<img>').addClass('chat-arena__user-avatar').attr('src', '/img/avatars/x35/' + message.user.avatar);
+
+        // Создаем элемент для имени пользователя
+        const $userNameLink = $('<a></a>')
+            .addClass('chat-arena__user-name')
+            .addClass('chat-arena__user--color-' + lastDigit)
+            .attr('href', `/users/${message.user.id}`);
+        $userNameLink.append('<strong class="modal-chat__place modal-chat__place--level-'+calculateLevelChat(message.user.chat_exp)+'">'+calculateLevelChat(message.user.chat_exp)+'</strong>');
+        if (message.user.is_pro) {
+            $userNameLink.append('<span>P</span>');
+        }
+        $userNameLink.append(document.createTextNode(message.user.name));
+        $userNameLink.append(':');
+
+        if (message.user.chat_color) {
+            $userNameLink.css('color', message.user.chat_color);
+        }
+
+        $userContainer.append($userAvatar, $userNameLink);
+
+        // Создаем элемент для текста сообщения
+        const $messageText = $('<span></span>').addClass('chat-arena__text-msg').text(message.message);
+
+        // Проверяем, есть ли информация об ответе в сообщении
+        if (message.replyTo) {
+            const $replyToText = $('<div></div>').addClass('chat-arena__reply-to')
+                .text(`В ответ `);
+
+            const $usernameSpan = $('<span></span>').text(`@${message.replyTo.username}`);
+            $replyToText.append($usernameSpan);
+
+            $replyToText.append(`: ${message.replyTo.messageText}`);
+            // Добавляем информацию об ответе перед основным текстом сообщения
+            $messageElement.append($replyToText);
+            if (message.replyTo.userId == window.user_id) {
+                $messageElement.addClass('chat-arena__message--with-reply');
+            }
+        }
+
+        // Добавляем имя пользователя и текст сообщения в элемент сообщения
+        $messageElement.append($userContainer, $messageText);
+
+        // Добавляем текст сообщения
+        $messageElement.append($messageText);
+
+        // Для администратора добавляем кнопки удаления и блокировки
+        /*if (window.isAdmin === 1) {
+            const $deleteButton = $('<button></button>').addClass('chat-arena__delete-msg-btn').html('<i class="icon icon-delete"></i>');
+            const $blockButton = $('<button></button>').addClass('chat-arena__block-msg-btn').html('<i class="icon icon-close"></i>');
+            $messageElement.append($deleteButton, $blockButton);
+        }*/
+
+        // Добавляем готовое сообщение в контейнер сообщений
+        $messagesDiv.append($messageElement);
+
+        // Проверяем, находится ли скролл внизу
+        let scrollHeight = $messagesDiv.prop('scrollHeight');
+        let scrollTop = $messagesDiv.scrollTop();
+        let outerHeight = $messagesDiv.outerHeight();
+        let scrollThreshold = 200;
+
+        if (scrollHeight - scrollTop - outerHeight <= scrollThreshold) {
+            $messagesDiv.scrollTop(scrollHeight);
+        }
+    }
+
+    socketChat.on('messageHistory', messages => {
+        $('.chat-arena__messages').empty();
+        messages.forEach(addMessage);
+    });
+    socketChat.on('newMessage', addMessage);
+
+    socketChat.on('infoMessage', data => {
+        toastr.info(data);
+    });
+
+    socketChat.on('messageDeleted', messageId => {
+        $(".chat-arena__messages [data-id='" + messageId + "']").remove();
+    });
+
+    socketChat.on('userBlocked', userId => {
+        if (window.user_id == userId) {
+            $('.chat-arena__footer').html("Вы были заблокированы");
+        }
+    });
+
+    socketChat.on('coinsAdded', () => {
+        $('.chat-arena__get-coins-btn').prop('disabled', false).removeClass('chat-arena__get-coins-btn--ready');
+        toastr.info('Вы получили один алмазик');
+    });
+
+    socketChat.on('timeLeftForNextCoin', (timeLeft) => {
+        const totalTime = 15 * 60 * 1000;
+
+        function updateProgressBar() {
+            const progress = Math.min(100, ((totalTime - timeLeft) / totalTime) * 100);
+            $('.chat-arena__coin-progress').css('height', `${progress}%`);
+
+            if (progress === 100) {
+                $('.chat-arena__get-coins-btn').addClass('chat-arena__get-coins-btn--ready');
+            }
+
+            if (timeLeft > 0) {
+                timeLeft -= 1000;
+                setTimeout(updateProgressBar, 1000);
+            }
+        }
+
+        updateProgressBar();
+        socketChat.emit('gotExp');
+    });
+
+    $('body').on('click', '.chat-arena__ban-btn', function() {
+        let userId = parseInt($(this).attr('data-user-id'));
+        let seconds = parseInt($(this).attr('data-time'));
+        socketChat.emit('banModer', userId, seconds);
+    });
+
+    $('body').on('click', '.chat-arena__del-btn', function() {
+        let messageId = $(this).attr('data-id');
+        socketChat.emit('deleteMessage', messageId);
+    });
+
+
+
+    function calculateLevelChat(experience) {
+        let level = 1;
+        let expForNextLevel = 1200;
+
+        while (experience >= expForNextLevel) {
+            level++;
+            experience -= expForNextLevel;
+            expForNextLevel = Math.ceil(expForNextLevel * 1.15);
+        }
+
+        return level;
+    }
+
+    tippy.delegate( '.chat-arena', {
+        content: '',
+        appendTo: () => document.body,
+        target: '.chat-arena__user-avatar',
+        allowHTML: true,
+        theme: 'dropdown',
+        placement: 'bottom',
+        arrow: false,
+        trigger: 'click',
+        hideOnClick: true,
+        interactive: true,
+        onShow(instance) {
+            if ($('.chat-arena').attr('data-moder') != "1") return false;
+
+            let item = instance.reference.closest('.chat-arena__message');
+            let name = $(item).find('.chat-arena__user-name').text();
+            let user_id = $(item).attr('data-user-id');
+            let msg_id = $(item).attr('data-id');
+            let menu = '<div class="menu"><div><strong>'+name+'</strong></div><button class="menu__item chat-arena__del-btn" data-id="'+msg_id+'" data-user-id="'+user_id+'"><i class="icon icon-report"></i> Удалить сообщение</button>' +
+                '<button class="menu__item chat-arena__ban-btn" data-id="'+msg_id+'" data-user-id="'+user_id+'" data-time="600"><i class="icon icon-report"></i> Бан на 10 минут</button>' +
+                '<button class="menu__item chat-arena__ban-btn" data-id="'+msg_id+'" data-user-id="'+user_id+'" data-time="3600"><i class="icon icon-report"></i> Бан на час</button>' +
+                '<button class="menu__item chat-arena__ban-btn" data-id="'+msg_id+'" data-user-id="'+user_id+'" data-time="86400"><i class="icon icon-report"></i> Бан на сутки</button>' +
+                '<button class="menu__item chat-arena__ban-btn" data-id="'+msg_id+'" data-user-id="'+user_id+'" data-time="604800"><i class="icon icon-report"></i> Бан на неделю</button>' +
+                '<button class="menu__item chat-arena__ban-btn" data-id="'+msg_id+'" data-user-id="'+user_id+'" data-time="1209600"><i class="icon icon-report"></i> Бан на 2 недели</button>';
+            menu += "</div>";
+            instance.setContent(menu);
+        },
+        onShown(instance) {
+            document.querySelector('[data-tippy-root] [data-theme="dropdown"]').addEventListener('click', event => {
+                instance.hide();
+            })
+        }
+    } );
+
+    function sendMessage() {
+        if (!canSend) return;
+        if (!window.isAuth) {
+            toastr.error('Нужна авторизация');
+            return;
+        }
+
+        const $messageInput = $('.chat-arena__textarea');
+        const message = $messageInput.val();
+        if (message.trim() === '') return;
+
+        let wordsArray = ["путин", "москаль", "гитлер", "пизда", "хуета", "заебал", "нахуй", "хуйня", "хохлы", "хохол", "русня", "нацист", "нацик", "блять", "ахуел", "ахуеть", "пидарас", "пидор", "ЛГБТ", "ебать", "трахать", "секс", "проебал", "порно", "детское", "https", ".ru", ".com", "+7 927 211 2761", "+79272112761", "зеленский", "google", "yandex", "docs", "d o c s", "d ocs", "do c s", "doc s", "d oc s", "do cs", "d o c s", "d ocs", "do c s", "docs ", " d o c s", "d o c s ", "d o cs", "doc s ", "d oc s", "d o c s", "do c s", "d oc s", "do c s ", "d o c s", "doc s ", "d o c s", "d o c s", " d ocs", "d oc s ", " d ocs ", "do c s ", " d ocs", "do c s", "doc s", ".org", "/", "podmbff", "подслушка", "подслушано", "гандон", "чмо", "хуй", "ебанат", "еблан", "ебанашка", "даун", "долбаеб", "далбаеб", "блядина", "блядь", "ебаться", "ебал", "ебала", "ебало", "ебальник", "дохуя", "дебил", "дибил", "пиздун", "сосите", "сосать", "сосал"];
+
+        let containsWord = wordsArray.some(word => message.trim().toLowerCase().includes(word.toLowerCase()));
+
+        if (containsWord) {
+            toastr.error('Отправка сообщений с запрещенными словами запрещена. Нарушение правил может привести к бану.');
+            return;
+        }
+
+        const sendData = {
+            message,
+            room,
+            highlighted,
+            ...(replyTo && { replyTo })
+        };
+
+        canSend = false;
+
+        socketChat.emit('sendMessage', sendData);
+        $messageInput.val('');
+        $('.chat-arena__reply-cansel-btn').click();
+        $('.chat-arena__highlight-cansel-btn').click();
+
+        setTimeout(() => {
+            canSend = true;
+        }, 500);
+    }
+
+});

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -8,6 +8,25 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Download, RefreshCw, Loader2, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
+
+interface AutoParseMangaMetric {
+  index: number
+  slug: string
+  normalized_slug?: string
+  status: string
+  started_at?: string
+  completed_at?: string
+  duration_ms: number
+  duration_formatted?: string
+  title?: string
+  reason?: string
+  error_message?: string
+  final_message?: string
+  import_task_id?: string
+  full_parsing_task_id?: string
+  parse_task_id?: string
+  metrics?: Record<string, unknown>
+}
 
 interface AutoParseTask {
   task_id: string
@@ -20,7 +39,12 @@ interface AutoParseTask {
   imported_slugs: string[]
   failed_slugs: string[]
   start_time: string
-  end_time?: string
+  end_time?: string | null
+  duration_ms?: number
+  duration_formatted?: string
+  page?: number
+  limit?: number | null
+  manga_metrics: AutoParseMangaMetric[]
   logs?: string[]  // Логи в реальном времени
 }
 
@@ -37,6 +61,263 @@ interface AutoUpdateTask {
   start_time: string
   end_time?: string
   logs?: string[]  // Логи в реальном времени
+}
+
+const AUTO_PARSE_STORAGE_KEY = 'autoParseTaskState'
+const AUTO_UPDATE_STORAGE_KEY = 'autoUpdateTaskState'
+const AUTO_TASK_POLL_INTERVAL = 2000
+const FINAL_AUTO_STATUSES = new Set(['completed', 'failed', 'cancelled'])
+const LOG_DISPLAY_TIMEZONE = 'Asia/Novosibirsk'
+const LOG_TIMEZONE_LABEL = 'НСК'
+
+const LOG_TIME_FORMATTER = new Intl.DateTimeFormat('ru-RU', {
+  timeZone: LOG_DISPLAY_TIMEZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false
+})
+
+const tryConvertTimestampToNovosibirsk = (timestamp: string): string | null => {
+  const isoWithZone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(timestamp) ? timestamp : `${timestamp}Z`
+  const date = new Date(isoWithZone)
+
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  const formatted = LOG_TIME_FORMATTER
+    .format(date)
+    .replace(',', '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  return formatted
+}
+
+const formatLogLineForDisplay = (log: string): string => {
+  const match = log.match(/^\[(\d{4}-\d{2}-\d{2}T[0-9:.+-]+)\]/)
+
+  if (!match) {
+    return log
+  }
+
+  const converted = tryConvertTimestampToNovosibirsk(match[1])
+  if (!converted) {
+    return log
+  }
+
+  return log.replace(match[0], `[${converted} ${LOG_TIMEZONE_LABEL}]`)
+}
+
+const ensureIsoString = (value: unknown): string | null => {
+  if (!value) {
+    return null
+  }
+
+  if (typeof value === 'string') {
+    return value
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString()
+  }
+
+  if (typeof value === 'number') {
+    return new Date(value).toISOString()
+  }
+
+  return null
+}
+
+const formatTimestampLabel = (value?: string | Date | null): string => {
+  const iso = ensureIsoString(value)
+  if (!iso) {
+    return '—'
+  }
+
+  const converted = tryConvertTimestampToNovosibirsk(iso)
+  if (converted) {
+    return `${converted} ${LOG_TIMEZONE_LABEL}`
+  }
+
+  const fallbackDate = new Date(iso)
+  if (!Number.isNaN(fallbackDate.getTime())) {
+    return `${LOG_TIME_FORMATTER.format(fallbackDate)} ${LOG_TIMEZONE_LABEL}`
+  }
+
+  return iso
+}
+
+const toNumber = (value: unknown): number | undefined => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    if (!Number.isNaN(parsed)) {
+      return parsed
+    }
+  }
+
+  return undefined
+}
+
+const formatDurationFromMs = (value?: number | null, fallback?: string): string => {
+  if (typeof fallback === 'string' && fallback.length > 0) {
+    return fallback
+  }
+
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return '—'
+  }
+
+  const totalSeconds = Math.max(0, Math.floor(value / 1000))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+
+  return [hours, minutes, seconds]
+    .map((v) => v.toString().padStart(2, '0'))
+    .join(':')
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  completed: 'Готово',
+  failed: 'Ошибка',
+  running: 'Выполняется',
+  pending: 'В очереди',
+  cancelled: 'Отменено',
+  skipped: 'Пропущено'
+}
+
+const STATUS_BADGE_CLASSES: Record<string, string> = {
+  completed: 'bg-emerald-500/20 text-emerald-200 border-emerald-500/40',
+  failed: 'bg-red-500/20 text-red-200 border-red-500/40',
+  running: 'bg-blue-500/20 text-blue-200 border-blue-500/40',
+  pending: 'bg-slate-500/20 text-slate-200 border-slate-500/40',
+  cancelled: 'bg-yellow-500/20 text-yellow-200 border-yellow-500/40',
+  skipped: 'bg-zinc-500/20 text-zinc-200 border-zinc-500/40'
+}
+
+const getStatusLabel = (status?: string): string => {
+  if (!status) {
+    return '—'
+  }
+  const normalized = status.toLowerCase()
+  return STATUS_LABELS[normalized] ?? status
+}
+
+const getStatusBadgeClass = (status?: string): string => {
+  if (!status) {
+    return STATUS_BADGE_CLASSES.pending
+  }
+  const normalized = status.toLowerCase()
+  return STATUS_BADGE_CLASSES[normalized] ?? STATUS_BADGE_CLASSES.pending
+}
+
+const isTaskActive = (status?: string | null): boolean => {
+  if (!status) {
+    return false
+  }
+
+  const normalized = status.toLowerCase()
+  return normalized === 'pending' || normalized === 'running'
+}
+
+const normalizeAutoParseMetric = (payload: unknown, fallbackIndex: number): AutoParseMangaMetric => {
+  const raw = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {}
+
+  const startedAt = ensureIsoString(raw.started_at) ?? undefined
+  const completedAt = ensureIsoString(raw.completed_at) ?? undefined
+  const explicitDuration = toNumber(raw.duration_ms)
+  const inferredDuration = startedAt && completedAt
+    ? Math.max(0, new Date(completedAt).getTime() - new Date(startedAt).getTime())
+    : undefined
+  const durationMs = explicitDuration ?? inferredDuration ?? 0
+
+  const metricsPayload = raw.metrics && typeof raw.metrics === 'object'
+    ? raw.metrics as Record<string, unknown>
+    : undefined
+
+  return {
+    index: toNumber(raw.index) ?? fallbackIndex + 1,
+    slug: typeof raw.slug === 'string' ? raw.slug : '',
+    normalized_slug: typeof raw.normalized_slug === 'string' ? raw.normalized_slug : undefined,
+    status: typeof raw.status === 'string' ? raw.status : 'unknown',
+    started_at: startedAt,
+    completed_at: completedAt,
+    duration_ms: durationMs,
+    duration_formatted: formatDurationFromMs(durationMs, typeof raw.duration_formatted === 'string' ? raw.duration_formatted : undefined),
+    title: typeof raw.title === 'string' ? raw.title : undefined,
+    reason: typeof raw.reason === 'string' ? raw.reason : undefined,
+    error_message: typeof raw.error_message === 'string' ? raw.error_message : undefined,
+    final_message: typeof raw.final_message === 'string' ? raw.final_message : undefined,
+    import_task_id: typeof raw.import_task_id === 'string' ? raw.import_task_id : undefined,
+    full_parsing_task_id: typeof raw.full_parsing_task_id === 'string' ? raw.full_parsing_task_id : undefined,
+    parse_task_id: typeof raw.parse_task_id === 'string' ? raw.parse_task_id : undefined,
+    metrics: metricsPayload
+  }
+}
+
+const normalizeAutoParseTask = (payload: Partial<AutoParseTask> | null | undefined): AutoParseTask => {
+  const normalizedStart = ensureIsoString(payload?.start_time) ?? new Date().toISOString()
+  const normalizedEnd = ensureIsoString(payload?.end_time)
+
+  const explicitDurationMs = toNumber(payload?.duration_ms)
+  const inferredDurationMs = normalizedEnd
+    ? Math.max(0, new Date(normalizedEnd).getTime() - new Date(normalizedStart).getTime())
+    : undefined
+  const durationMs = explicitDurationMs ?? inferredDurationMs ?? 0
+
+  const metricsList = Array.isArray(payload?.manga_metrics)
+    ? payload!.manga_metrics.map((entry, index) => normalizeAutoParseMetric(entry, index))
+    : []
+
+  const durationFormatted = formatDurationFromMs(durationMs, typeof payload?.duration_formatted === 'string' ? payload.duration_formatted : undefined)
+
+  return {
+    task_id: String(payload?.task_id ?? ''),
+    status: String(payload?.status ?? 'pending'),
+    progress: typeof payload?.progress === 'number' ? payload.progress : 0,
+    message: typeof payload?.message === 'string' ? payload.message : '',
+    total_slugs: typeof payload?.total_slugs === 'number' ? payload.total_slugs : 0,
+    processed_slugs: typeof payload?.processed_slugs === 'number' ? payload.processed_slugs : 0,
+    skipped_slugs: Array.isArray(payload?.skipped_slugs) ? payload!.skipped_slugs : [],
+    imported_slugs: Array.isArray(payload?.imported_slugs) ? payload!.imported_slugs : [],
+    failed_slugs: Array.isArray(payload?.failed_slugs) ? payload!.failed_slugs : [],
+    start_time: normalizedStart,
+    end_time: normalizedEnd,
+    duration_ms: durationMs,
+    duration_formatted: durationFormatted,
+    page: toNumber(payload?.page) ?? undefined,
+    limit: toNumber(payload?.limit) ?? null,
+    manga_metrics: metricsList,
+    logs: Array.isArray(payload?.logs) ? payload!.logs : []
+  }
+}
+
+const normalizeAutoUpdateTask = (payload: Partial<AutoUpdateTask> | null | undefined): AutoUpdateTask => {
+  const base: AutoUpdateTask = {
+    task_id: String(payload?.task_id ?? ''),
+    status: String(payload?.status ?? 'pending'),
+    progress: typeof payload?.progress === 'number' ? payload.progress : 0,
+    message: typeof payload?.message === 'string' ? payload.message : '',
+    total_mangas: typeof payload?.total_mangas === 'number' ? payload.total_mangas : 0,
+    processed_mangas: typeof payload?.processed_mangas === 'number' ? payload.processed_mangas : 0,
+    updated_mangas: Array.isArray(payload?.updated_mangas) ? payload!.updated_mangas : [],
+    failed_mangas: Array.isArray(payload?.failed_mangas) ? payload!.failed_mangas : [],
+    new_chapters_count: typeof payload?.new_chapters_count === 'number' ? payload.new_chapters_count : 0,
+    start_time: typeof payload?.start_time === 'string' ? payload.start_time : new Date().toISOString(),
+    end_time: typeof payload?.end_time === 'string' ? payload.end_time : undefined,
+    logs: Array.isArray(payload?.logs) ? payload!.logs : []
+  }
+
+  return base
 }
 
 // Компонент для отображения логов в реальном времени
@@ -99,14 +380,18 @@ function LogViewer({ logs }: { logs?: string[] }) {
           scrollBehavior: autoScroll ? 'smooth' : 'auto',
         }}
       >
-        {logs.map((log, index) => (
-          <div
-            key={index}
-            className={`${getLogColor(log)} leading-relaxed hover:bg-gray-900 px-2 py-1 rounded transition-colors`}
-          >
-            {log}
-          </div>
-        ))}
+        {logs.map((log, index) => {
+          const formattedLog = formatLogLineForDisplay(log)
+          return (
+            <div
+              key={index}
+              className={`${getLogColor(log)} leading-relaxed hover:bg-gray-900 px-2 py-1 rounded transition-colors`}
+              title={log}
+            >
+              {formattedLog}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -119,6 +404,311 @@ export function MangaManagement() {
   const [autoUpdateTask, setAutoUpdateTask] = useState<AutoUpdateTask | null>(null)
   const [isAutoParsing, setIsAutoParsing] = useState(false)
   const [isAutoUpdating, setIsAutoUpdating] = useState(false)
+  const [automationHydrated, setAutomationHydrated] = useState(false)
+
+  const autoParseIntervalRef = useRef<number | null>(null)
+  const autoUpdateIntervalRef = useRef<number | null>(null)
+  const autoParseTaskRef = useRef<AutoParseTask | null>(null)
+  const autoUpdateTaskRef = useRef<AutoUpdateTask | null>(null)
+  const autoParsePrevStatusRef = useRef<string | null>(null)
+  const autoUpdatePrevStatusRef = useRef<string | null>(null)
+
+  const autoParseSummary = useMemo(() => {
+    const metrics = autoParseTask?.manga_metrics ?? []
+
+    if (!metrics.length) {
+      return {
+        total: 0,
+        completed: 0,
+        failed: 0,
+        skipped: 0,
+        cancelled: 0,
+        totalChapters: 0,
+        importedChapters: 0,
+        totalPages: 0,
+        importedPages: 0
+      }
+    }
+
+    let completed = 0
+    let failed = 0
+    let skipped = 0
+    let cancelled = 0
+    let totalChapters = 0
+    let importedChapters = 0
+    let totalPages = 0
+    let importedPages = 0
+
+    metrics.forEach((metric) => {
+      const status = metric.status?.toLowerCase() ?? 'unknown'
+      if (status === 'completed') {
+        completed += 1
+      } else if (status === 'failed') {
+        failed += 1
+      } else if (status === 'skipped') {
+        skipped += 1
+      } else if (status === 'cancelled') {
+        cancelled += 1
+      }
+
+      const detail = metric.metrics ?? {}
+      const totalCh = toNumber(detail['total_chapters'])
+      const importedCh = toNumber(detail['imported_chapters'])
+      const totalPg = toNumber(detail['total_pages'])
+      const importedPg = toNumber(detail['imported_pages'])
+
+      if (typeof totalCh === 'number') {
+        totalChapters += totalCh
+      }
+      if (typeof importedCh === 'number') {
+        importedChapters += importedCh
+      }
+      if (typeof totalPg === 'number') {
+        totalPages += totalPg
+      }
+      if (typeof importedPg === 'number') {
+        importedPages += importedPg
+      }
+    })
+
+    return {
+      total: metrics.length,
+      completed,
+      failed,
+      skipped,
+      cancelled,
+      totalChapters,
+      importedChapters,
+      totalPages,
+      importedPages
+    }
+  }, [autoParseTask?.manga_metrics])
+
+  const persistAutoParseTask = useCallback((task: AutoParseTask | null) => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    if (!task || !task.task_id) {
+      window.localStorage.removeItem(AUTO_PARSE_STORAGE_KEY)
+      return
+    }
+
+    try {
+      window.localStorage.setItem(AUTO_PARSE_STORAGE_KEY, JSON.stringify(task))
+    } catch (error) {
+      console.error('Не удалось сохранить состояние автопарсинга:', error)
+    }
+  }, [])
+
+  const persistAutoUpdateTask = useCallback((task: AutoUpdateTask | null) => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    if (!task || !task.task_id) {
+      window.localStorage.removeItem(AUTO_UPDATE_STORAGE_KEY)
+      return
+    }
+
+    try {
+      window.localStorage.setItem(AUTO_UPDATE_STORAGE_KEY, JSON.stringify(task))
+    } catch (error) {
+      console.error('Не удалось сохранить состояние автообновления:', error)
+    }
+  }, [])
+
+  useEffect(() => {
+    autoParseTaskRef.current = autoParseTask
+  }, [autoParseTask])
+
+  useEffect(() => {
+    autoUpdateTaskRef.current = autoUpdateTask
+  }, [autoUpdateTask])
+
+  useEffect(() => {
+    if (!automationHydrated) {
+      return
+    }
+
+    if (autoParseTask && autoParseTask.task_id) {
+      persistAutoParseTask(autoParseTask)
+    } else {
+      persistAutoParseTask(null)
+    }
+  }, [automationHydrated, autoParseTask, persistAutoParseTask])
+
+  useEffect(() => {
+    if (!automationHydrated) {
+      return
+    }
+
+    if (autoUpdateTask && autoUpdateTask.task_id) {
+      persistAutoUpdateTask(autoUpdateTask)
+    } else {
+      persistAutoUpdateTask(null)
+    }
+  }, [automationHydrated, autoUpdateTask, persistAutoUpdateTask])
+
+  const startAutoParsePolling = useCallback((taskId: string) => {
+    if (!taskId) {
+      return
+    }
+
+    const fetchStatus = async () => {
+      try {
+        const response = await fetch(`/api/parser/auto-parse/status/${taskId}`)
+        const data = await response.json()
+
+        if (response.ok) {
+          const normalized = normalizeAutoParseTask({ ...(autoParseTaskRef.current ?? undefined), ...data, task_id: taskId })
+          setAutoParseTask(normalized)
+          const running = isTaskActive(normalized.status)
+          setIsAutoParsing(running)
+
+          if (!running && autoParseIntervalRef.current) {
+            window.clearInterval(autoParseIntervalRef.current)
+            autoParseIntervalRef.current = null
+          }
+        } else {
+          console.error('Ошибка получения статуса автопарсинга:', data?.error ?? response.statusText)
+        }
+      } catch (error) {
+        console.error('Ошибка получения статуса автопарсинга:', error)
+      }
+    }
+
+    if (autoParseIntervalRef.current) {
+      window.clearInterval(autoParseIntervalRef.current)
+    }
+
+    fetchStatus()
+    autoParseIntervalRef.current = window.setInterval(fetchStatus, AUTO_TASK_POLL_INTERVAL)
+  }, [])
+
+  const startAutoUpdatePolling = useCallback((taskId: string) => {
+    if (!taskId) {
+      return
+    }
+
+    const fetchStatus = async () => {
+      try {
+        const response = await fetch(`/api/parser/auto-update/status/${taskId}`)
+        const data = await response.json()
+
+        if (response.ok) {
+          const normalized = normalizeAutoUpdateTask({ ...(autoUpdateTaskRef.current ?? undefined), ...data, task_id: taskId })
+          setAutoUpdateTask(normalized)
+          const running = isTaskActive(normalized.status)
+          setIsAutoUpdating(running)
+
+          if (!running && autoUpdateIntervalRef.current) {
+            window.clearInterval(autoUpdateIntervalRef.current)
+            autoUpdateIntervalRef.current = null
+          }
+        } else {
+          console.error('Ошибка получения статуса автообновления:', data?.error ?? response.statusText)
+        }
+      } catch (error) {
+        console.error('Ошибка получения статуса автообновления:', error)
+      }
+    }
+
+    if (autoUpdateIntervalRef.current) {
+      window.clearInterval(autoUpdateIntervalRef.current)
+    }
+
+    fetchStatus()
+    autoUpdateIntervalRef.current = window.setInterval(fetchStatus, AUTO_TASK_POLL_INTERVAL)
+  }, [])
+
+  useEffect(() => () => {
+    if (autoParseIntervalRef.current) {
+      window.clearInterval(autoParseIntervalRef.current)
+      autoParseIntervalRef.current = null
+    }
+    if (autoUpdateIntervalRef.current) {
+      window.clearInterval(autoUpdateIntervalRef.current)
+      autoUpdateIntervalRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    const currentStatus = autoParseTask?.status ?? null
+    const previousStatus = autoParsePrevStatusRef.current
+
+    if (currentStatus && currentStatus !== previousStatus && FINAL_AUTO_STATUSES.has(currentStatus.toLowerCase())) {
+      if (currentStatus.toLowerCase() === 'completed') {
+        const imported = autoParseTask?.imported_slugs?.length ?? 0
+        const skipped = autoParseTask?.skipped_slugs?.length ?? 0
+        toast.success(`Автопарсинг завершен! Импортировано: ${imported}, пропущено: ${skipped}`)
+      } else if (currentStatus.toLowerCase() === 'cancelled') {
+        toast.warning('Автопарсинг отменен')
+      } else if (currentStatus.toLowerCase() === 'failed') {
+        toast.error('Автопарсинг завершился с ошибкой')
+      }
+    }
+
+    autoParsePrevStatusRef.current = currentStatus
+  }, [autoParseTask])
+
+  useEffect(() => {
+    const currentStatus = autoUpdateTask?.status ?? null
+    const previousStatus = autoUpdatePrevStatusRef.current
+
+    if (currentStatus && currentStatus !== previousStatus && FINAL_AUTO_STATUSES.has(currentStatus.toLowerCase())) {
+      if (currentStatus.toLowerCase() === 'completed') {
+        const updated = autoUpdateTask?.updated_mangas?.length ?? 0
+        const newChapters = autoUpdateTask?.new_chapters_count ?? 0
+        toast.success(`Автообновление завершено! Обновлено манг: ${updated}, добавлено глав: ${newChapters}`)
+      } else if (currentStatus.toLowerCase() === 'failed') {
+        toast.error('Автообновление завершилось с ошибкой')
+      }
+    }
+
+    autoUpdatePrevStatusRef.current = currentStatus
+  }, [autoUpdateTask])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      setAutomationHydrated(true)
+      return
+    }
+
+    try {
+      const storedAutoParse = window.localStorage.getItem(AUTO_PARSE_STORAGE_KEY)
+      if (storedAutoParse) {
+        const parsed = normalizeAutoParseTask(JSON.parse(storedAutoParse))
+        if (parsed.task_id) {
+          setAutoParseTask(parsed)
+          autoParseTaskRef.current = parsed
+          if (isTaskActive(parsed.status)) {
+            setIsAutoParsing(true)
+            startAutoParsePolling(parsed.task_id)
+          }
+        }
+      }
+
+      const storedAutoUpdate = window.localStorage.getItem(AUTO_UPDATE_STORAGE_KEY)
+      if (storedAutoUpdate) {
+        const parsed = normalizeAutoUpdateTask(JSON.parse(storedAutoUpdate))
+        if (parsed.task_id) {
+          setAutoUpdateTask(parsed)
+          autoUpdateTaskRef.current = parsed
+          if (isTaskActive(parsed.status)) {
+            setIsAutoUpdating(true)
+            startAutoUpdatePolling(parsed.task_id)
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Не удалось восстановить состояние автоматизации из localStorage:', error)
+      window.localStorage.removeItem(AUTO_PARSE_STORAGE_KEY)
+      window.localStorage.removeItem(AUTO_UPDATE_STORAGE_KEY)
+    } finally {
+      setAutomationHydrated(true)
+    }
+  }, [startAutoParsePolling, startAutoUpdatePolling])
 
   // Автопарсинг манги из каталога
   const startAutoParsing = async () => {
@@ -148,9 +738,17 @@ export function MangaManagement() {
       const data = await response.json()
 
       if (response.ok) {
-        setAutoParseTask(data)
+        const taskId = String(data.task_id ?? data.taskId ?? '')
+        const normalized = normalizeAutoParseTask({
+          ...data,
+          task_id: taskId,
+          start_time: data.start_time ?? new Date().toISOString()
+        })
+        setAutoParseTask(normalized)
+        autoParseTaskRef.current = normalized
+        setIsAutoParsing(true)
         toast.success('Автопарсинг запущен')
-        pollAutoParseStatus(data.task_id)
+        startAutoParsePolling(taskId)
       } else {
         toast.error(data.error || 'Ошибка запуска автопарсинга')
         setIsAutoParsing(false)
@@ -161,35 +759,29 @@ export function MangaManagement() {
     }
   }
 
-  // Опрос статуса автопарсинга
-  const pollAutoParseStatus = async (taskId: string) => {
-    const interval = setInterval(async () => {
-      try {
-        const response = await fetch(`/api/parser/auto-parse/status/${taskId}`)
-        const data = await response.json()
+  // Отмена автопарсинга
+  const cancelAutoParsing = async () => {
+    if (!autoParseTask?.task_id) {
+      toast.error('Нет активной задачи для отмены')
+      return
+    }
 
-        if (response.ok) {
-          setAutoParseTask(data)
+    try {
+      const response = await fetch(`/api/parser/auto-parse/cancel/${autoParseTask.task_id}`, {
+        method: 'POST'
+      })
 
-          if (data.status === 'completed' || data.status === 'failed') {
-            clearInterval(interval)
-            setIsAutoParsing(false)
-            
-            if (data.status === 'completed') {
-              const importedCount = data.imported_slugs?.length || 0
-              const skippedCount = data.skipped_slugs?.length || 0
-              toast.success(`Автопарсинг завершен! Импортировано: ${importedCount}, пропущено: ${skippedCount}`)
-            } else {
-              toast.error('Автопарсинг завершился с ошибкой')
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Ошибка получения статуса:', error)
+      const data = await response.json()
+
+      if (response.ok && data.cancelled) {
+        toast.success('Автопарсинг отменяется...')
+        // Статус обновится через polling
+      } else {
+        toast.error(data.message || 'Не удалось отменить задачу')
       }
-    }, 2000)
-
-    return () => clearInterval(interval)
+    } catch (error) {
+      toast.error('Ошибка соединения с сервером')
+    }
   }
 
   // Автообновление манги
@@ -204,9 +796,17 @@ export function MangaManagement() {
       const data = await response.json()
 
       if (response.ok) {
-        setAutoUpdateTask(data)
+        const taskId = String(data.task_id ?? data.taskId ?? '')
+        const normalized = normalizeAutoUpdateTask({
+          ...data,
+          task_id: taskId,
+          start_time: data.start_time ?? new Date().toISOString()
+        })
+        setAutoUpdateTask(normalized)
+        autoUpdateTaskRef.current = normalized
+        setIsAutoUpdating(true)
         toast.success('Автообновление запущено')
-        pollAutoUpdateStatus(data.task_id)
+        startAutoUpdatePolling(taskId)
       } else {
         toast.error(data.error || 'Ошибка запуска автообновления')
         setIsAutoUpdating(false)
@@ -215,37 +815,6 @@ export function MangaManagement() {
       toast.error('Ошибка соединения с сервером')
       setIsAutoUpdating(false)
     }
-  }
-
-  // Опрос статуса автообновления
-  const pollAutoUpdateStatus = async (taskId: string) => {
-    const interval = setInterval(async () => {
-      try {
-        const response = await fetch(`/api/parser/auto-update/status/${taskId}`)
-        const data = await response.json()
-
-        if (response.ok) {
-          setAutoUpdateTask(data)
-
-          if (data.status === 'completed' || data.status === 'failed') {
-            clearInterval(interval)
-            setIsAutoUpdating(false)
-
-            if (data.status === 'completed') {
-              const updatedCount = data.updated_mangas?.length || 0
-              const newChaptersCount = data.new_chapters_count || 0
-              toast.success(`Автообновление завершено! Обновлено манг: ${updatedCount}, добавлено глав: ${newChaptersCount}`)
-            } else {
-              toast.error('Автообновление завершилось с ошибкой')
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Ошибка получения статуса:', error)
-      }
-    }, 2000)
-
-    return () => clearInterval(interval)
   }
 
   const getStatusIcon = (status: string) => {
@@ -322,26 +891,39 @@ export function MangaManagement() {
             </p>
           </div>
 
-          <Button
-            onClick={startAutoParsing}
-            disabled={isAutoParsing}
-            className="w-full"
-          >
-            {isAutoParsing ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Парсинг выполняется...
-              </>
-            ) : (
-              <>
-                <Download className="h-4 w-4 mr-2" />
-                {parseLimit 
-                  ? `Запустить автопарсинг (страница ${catalogPage}, лимит: ${parseLimit})` 
-                  : `Запустить автопарсинг (страница ${catalogPage})`
-                }
-              </>
+          <div className="flex gap-2">
+            <Button
+              onClick={startAutoParsing}
+              disabled={isAutoParsing}
+              className="flex-1"
+            >
+              {isAutoParsing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Парсинг выполняется...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" />
+                  {parseLimit 
+                    ? `Запустить автопарсинг (страница ${catalogPage}, лимит: ${parseLimit})` 
+                    : `Запустить автопарсинг (страница ${catalogPage})`
+                  }
+                </>
+              )}
+            </Button>
+            
+            {isAutoParsing && autoParseTask?.status === 'running' && (
+              <Button
+                onClick={cancelAutoParsing}
+                variant="destructive"
+                className="px-8"
+              >
+                <XCircle className="h-4 w-4 mr-2" />
+                Отменить
+              </Button>
             )}
-          </Button>
+          </div>
 
           {/* Статус автопарсинга */}
           {autoParseTask && (
@@ -389,6 +971,142 @@ export function MangaManagement() {
                   <span className="ml-2 text-red-500">{autoParseTask.failed_slugs?.length || 0}</span>
                 </div>
               </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs text-muted-foreground">
+                <div>
+                  Начало: <span className="text-white">{formatTimestampLabel(autoParseTask.start_time)}</span>
+                </div>
+                <div>
+                  Завершение: <span className="text-white">{formatTimestampLabel(autoParseTask.end_time ?? null)}</span>
+                </div>
+                <div>
+                  Длительность: <span className="text-white">{formatDurationFromMs(autoParseTask.duration_ms, autoParseTask.duration_formatted)}</span>
+                </div>
+                <div>
+                  Страница каталога: <span className="text-white">{autoParseTask.page ?? '—'}</span>
+                </div>
+                <div>
+                  Лимит: <span className="text-white">{autoParseTask.limit ?? 'все'}</span>
+                </div>
+                <div>
+                  Тайтлов обработано: <span className="text-white">{autoParseSummary.total}</span>
+                </div>
+              </div>
+
+              {autoParseSummary.total > 0 && (
+                <div className="space-y-2 text-xs">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline" className={`text-[0.7rem] ${getStatusBadgeClass('completed')}`}>
+                      Готово: {autoParseSummary.completed}
+                    </Badge>
+                    <Badge variant="outline" className={`text-[0.7rem] ${getStatusBadgeClass('failed')}`}>
+                      Ошибок: {autoParseSummary.failed}
+                    </Badge>
+                    <Badge variant="outline" className={`text-[0.7rem] ${getStatusBadgeClass('skipped')}`}>
+                      Пропущено: {autoParseSummary.skipped}
+                    </Badge>
+                    <Badge variant="outline" className={`text-[0.7rem] ${getStatusBadgeClass('cancelled')}`}>
+                      Отменено: {autoParseSummary.cancelled}
+                    </Badge>
+                  </div>
+                  <div className="flex flex-wrap gap-4 text-muted-foreground">
+                    <span>
+                      Глав: <span className="text-white">{autoParseSummary.importedChapters}</span>
+                      {autoParseSummary.totalChapters > 0 ? ` / ${autoParseSummary.totalChapters}` : ''}
+                    </span>
+                    <span>
+                      Страниц: <span className="text-white">{autoParseSummary.importedPages}</span>
+                      {autoParseSummary.totalPages > 0 ? ` / ${autoParseSummary.totalPages}` : ''}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {autoParseTask.manga_metrics.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium text-white">Результаты по тайтлам</Label>
+                    <Badge variant="outline" className="text-xs">
+                      {autoParseTask.manga_metrics.length}
+                    </Badge>
+                  </div>
+                  <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                    {autoParseTask.manga_metrics.map((metric) => {
+                      const detail = metric.metrics ?? {}
+                      const totalCh = toNumber(detail['total_chapters'])
+                      const importedCh = toNumber(detail['imported_chapters'])
+                      const totalPg = toNumber(detail['total_pages'])
+                      const importedPg = toNumber(detail['imported_pages'])
+                      const importDuration = formatDurationFromMs(
+                        toNumber(detail['duration_ms']),
+                        typeof detail['duration_formatted'] === 'string' ? detail['duration_formatted'] as string : undefined
+                      )
+                      const reasonLabel = metric.reason === 'already_imported'
+                        ? 'Уже импортировано'
+                        : metric.reason
+                      const key = metric.full_parsing_task_id
+                        ?? metric.import_task_id
+                        ?? (metric.slug ? `${metric.slug}-${metric.index}` : String(metric.index))
+
+                      return (
+                        <div
+                          key={key}
+                          className="border border-border/60 bg-background/80 rounded-lg p-3 shadow-sm space-y-2"
+                        >
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="space-y-1">
+                              <div className="text-sm font-semibold text-white">
+                                {metric.title || metric.normalized_slug || metric.slug || `Тайтл #${metric.index}`}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                Slug: {metric.normalized_slug || metric.slug || '—'}
+                              </div>
+                            </div>
+                            <Badge variant="outline" className={`text-xs ${getStatusBadgeClass(metric.status)}`}>
+                              {getStatusLabel(metric.status)}
+                            </Badge>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-1 text-xs text-muted-foreground">
+                            <div>
+                              Начало: <span className="text-white">{formatTimestampLabel(metric.started_at ?? null)}</span>
+                            </div>
+                            <div>
+                              Завершение: <span className="text-white">{formatTimestampLabel(metric.completed_at ?? null)}</span>
+                            </div>
+                            <div>
+                              Суммарно: <span className="text-white">{formatDurationFromMs(metric.duration_ms, metric.duration_formatted)}</span>
+                            </div>
+                            {(typeof importedCh === 'number' || typeof totalCh === 'number') && (
+                              <div>
+                                Глав: <span className="text-white">{importedCh ?? 0}</span>
+                                {typeof totalCh === 'number' ? ` / ${totalCh}` : ''}
+                              </div>
+                            )}
+                            {(typeof importedPg === 'number' || typeof totalPg === 'number') && (
+                              <div>
+                                Страниц: <span className="text-white">{importedPg ?? 0}</span>
+                                {typeof totalPg === 'number' ? ` / ${totalPg}` : ''}
+                              </div>
+                            )}
+                            {(importDuration && importDuration !== '—') && (
+                              <div>
+                                Импорт: <span className="text-white">{importDuration}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {(metric.error_message || reasonLabel || metric.final_message) && (
+                            <div className="text-xs text-red-300">
+                              {metric.error_message || reasonLabel || metric.final_message}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
               {(autoParseTask.failed_slugs?.length || 0) > 0 && (
                 <Alert variant="destructive">

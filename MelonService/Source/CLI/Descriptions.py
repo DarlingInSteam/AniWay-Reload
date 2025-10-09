@@ -80,6 +80,7 @@ ComPos.add_key("use", ParametersTypes.Text, "Parser name.")
 Com.base.add_key("period", ParametersTypes.Number, "Period in hours for parsing updates.")
 Com.base.add_key("from", description = "Skip titles before this slug.")
 Com.base.add_flag("f", "Enable force mode.")
+Com.base.add_flag("skip-images", "Skip downloading images during parse (use when build will handle downloads).")
 CommandsList.append(Com)
 
 Com = Command("repair", "Repair chapter content in locally saved title.")

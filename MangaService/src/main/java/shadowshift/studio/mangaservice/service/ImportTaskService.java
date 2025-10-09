@@ -3,9 +3,10 @@ package shadowshift.studio.mangaservice.service;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 import shadowshift.studio.mangaservice.websocket.ProgressWebSocketHandler;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CompletableFuture;
+import java.util.Collections;
 import java.util.Map;
 import java.util.HashMap;
 
@@ -72,6 +73,7 @@ public class ImportTaskService {
         private int totalPages;
         private int importedPages;
         private String errorMessage;
+    private Map<String, Object> metrics;
 
         /**
          * Конструктор для создания задачи импорта.
@@ -85,6 +87,7 @@ public class ImportTaskService {
             this.message = "Импорт поставлен в очередь";
             this.createdAt = LocalDateTime.now();
             this.updatedAt = LocalDateTime.now();
+            this.metrics = new HashMap<>();
         }
 
         /**
@@ -258,6 +261,26 @@ public class ImportTaskService {
         public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
 
         /**
+         * Возвращает метрики выполнения задачи.
+         *
+         * @return карта метрик
+         */
+        public Map<String, Object> getMetrics() {
+            return metrics != null ? Collections.unmodifiableMap(metrics) : Collections.emptyMap();
+        }
+
+        /**
+         * Устанавливает метрики выполнения задачи.
+         *
+         * @param metrics карта метрик
+         */
+        public void setMetrics(Map<String, Object> metrics) {
+            if (metrics != null) {
+                this.metrics = new HashMap<>(metrics);
+            }
+        }
+
+        /**
          * Обновляет прогресс задачи на основе импортированных глав.
          */
         public void updateProgress() {
@@ -287,6 +310,7 @@ public class ImportTaskService {
             result.put("totalPages", totalPages);
             result.put("importedPages", importedPages);
             result.put("errorMessage", errorMessage != null ? errorMessage : "");
+            result.put("metrics", getMetrics());
             return result;
         }
     }
@@ -324,11 +348,27 @@ public class ImportTaskService {
      * @param message новое сообщение
      */
     public void updateTask(String taskId, TaskStatus status, int progress, String message) {
+        updateTask(taskId, status, progress, message, null);
+    }
+
+    /**
+     * Обновляет статус, прогресс, сообщение и метрики задачи.
+     *
+     * @param taskId идентификатор задачи
+     * @param status новый статус
+     * @param progress новый прогресс
+     * @param message новое сообщение
+     * @param metrics метрики задачи (опционально)
+     */
+    public void updateTask(String taskId, TaskStatus status, int progress, String message, Map<String, Object> metrics) {
         ImportTask task = tasks.get(taskId);
         if (task != null) {
             task.setStatus(status);
             task.setProgress(progress);
             task.setMessage(message);
+            if (metrics != null) {
+                task.setMetrics(metrics);
+            }
 
             // Отправляем обновление через WebSocket
             sendWebSocketUpdate(taskId, task);
@@ -362,6 +402,9 @@ public class ImportTaskService {
             task.setProgress(100);
             task.setMessage("Импорт завершен успешно");
 
+            LocalDateTime completedAt = task.getUpdatedAt();
+            task.setMetrics(buildMetricsSnapshot(task, completedAt, "completed", null));
+
             // Отправляем обновление через WebSocket
             sendWebSocketUpdate(taskId, task);
         }
@@ -379,6 +422,9 @@ public class ImportTaskService {
             task.setStatus(TaskStatus.FAILED);
             task.setMessage("Ошибка импорта: " + errorMessage);
             task.setErrorMessage(errorMessage);
+
+            LocalDateTime failedAt = task.getUpdatedAt();
+            task.setMetrics(buildMetricsSnapshot(task, failedAt, "failed", errorMessage));
 
             // Отправляем обновление через WebSocket
             sendWebSocketUpdate(taskId, task);
@@ -432,6 +478,7 @@ public class ImportTaskService {
             progressData.put("progress", task.getProgress());
             progressData.put("message", task.getMessage());
             progressData.put("updated_at", task.getUpdatedAt().toString());
+            progressData.put("metrics", task.getMetrics());
             // Отправляем прогресс
             webSocketHandler.sendProgressUpdate(taskId, progressData);
             // Можно добавить лог-сообщение при завершении или ошибке
@@ -441,5 +488,43 @@ public class ImportTaskService {
                 webSocketHandler.sendLogMessage(taskId, "ERROR", task.getErrorMessage());
             }
         }
+    }
+
+    private Map<String, Object> buildMetricsSnapshot(ImportTask task, LocalDateTime finishedAt, String status, String errorMessage) {
+        Map<String, Object> metrics = new HashMap<>();
+        LocalDateTime startedAt = task.getCreatedAt();
+        Duration duration = Duration.between(startedAt, finishedAt != null ? finishedAt : LocalDateTime.now());
+
+        metrics.put("status", status);
+        metrics.put("started_at", startedAt.toString());
+        metrics.put("finished_at", (finishedAt != null ? finishedAt : LocalDateTime.now()).toString());
+        metrics.put("duration_ms", duration.toMillis());
+        metrics.put("duration_seconds", duration.getSeconds());
+        metrics.put("duration_formatted", formatDuration(duration));
+        metrics.put("total_chapters", task.getTotalChapters());
+        metrics.put("imported_chapters", task.getImportedChapters());
+        metrics.put("total_pages", task.getTotalPages());
+        metrics.put("imported_pages", task.getImportedPages());
+
+        if (task.getMangaId() != null) {
+            metrics.put("manga_id", task.getMangaId());
+        }
+        if (task.getTitle() != null) {
+            metrics.put("title", task.getTitle());
+        }
+        if (errorMessage != null && !errorMessage.isBlank()) {
+            metrics.put("error_message", errorMessage);
+        }
+
+        return metrics;
+    }
+
+    private String formatDuration(Duration duration) {
+        long seconds = duration.getSeconds();
+        long absSeconds = Math.abs(seconds);
+        long hours = absSeconds / 3600;
+        long minutes = (absSeconds % 3600) / 60;
+        long secs = absSeconds % 60;
+        return String.format("%02d:%02d:%02d", hours, minutes, secs);
     }
 }

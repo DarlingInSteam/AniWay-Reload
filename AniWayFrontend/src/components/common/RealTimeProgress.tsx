@@ -5,54 +5,120 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Loader2, CheckCircle, XCircle, Clock, Terminal, Minimize2, Maximize2 } from 'lucide-react'
 import { useProgressWebSocket } from '@/hooks/useProgressWebSocket'
-
-interface ProgressData {
-  task_id: string
-  status: string
-  progress: number
-  message: string
-  updated_at: string
-  result?: any
-}
-
-interface LogMessage {
-  level: string
-  message: string
-  timestamp: number
-}
+import type { ProgressData, LogMessage } from '@/types'
 
 interface RealTimeProgressProps {
   taskId: string
   title: string
   onComplete?: (result: any) => void
   onError?: (error: string) => void
+  onProgressUpdate?: (data: ProgressData) => void
   className?: string
+  initialProgress?: ProgressData | null
+  initialLogs?: LogMessage[]
+  onLogMessage?: (log: LogMessage) => void
 }
 
-export function RealTimeProgress({ taskId, title, onComplete, onError, className }: RealTimeProgressProps) {
+const ensureTimestamp = (value: number | string | undefined): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value)
+    if (!Number.isNaN(parsed)) {
+      return parsed
+    }
+  }
+
+  return Date.now()
+}
+
+const normalizeLogMessage = (log: LogMessage | any): LogMessage => {
+  if (!log || typeof log !== 'object') {
+    return {
+      level: 'INFO',
+      message: String(log ?? ''),
+      timestamp: Date.now()
+    }
+  }
+
+  const level = typeof log.level === 'string' ? log.level.toUpperCase() : 'INFO'
+  const message = typeof log.message === 'string' ? log.message : JSON.stringify(log.message ?? log)
+  const timestamp = ensureTimestamp((log as any).timestamp ?? (log as any).created_at)
+
+  return { level, message, timestamp }
+}
+
+const mergeLogs = (existing: LogMessage[], incoming: LogMessage[]): LogMessage[] => {
+  if (incoming.length === 0) {
+    return existing
+  }
+
+  const logMap = new Map<string, LogMessage>()
+
+  const register = (log: LogMessage) => {
+    const key = `${log.level}-${log.message}-${log.timestamp}`
+    logMap.set(key, log)
+  }
+
+  existing.forEach(register)
+  incoming.forEach(register)
+
+  return Array.from(logMap.values())
+    .sort((a, b) => a.timestamp - b.timestamp)
+    .slice(-200)
+}
+
+export function RealTimeProgress({
+  taskId,
+  title,
+  onComplete,
+  onError,
+  onProgressUpdate,
+  className,
+  initialProgress,
+  initialLogs,
+  onLogMessage
+}: RealTimeProgressProps) {
   const [progressData, setProgressData] = useState<ProgressData | null>(null)
   const [logs, setLogs] = useState<LogMessage[]>([])
   const [isMinimized, setIsMinimized] = useState(false)
   const [showLogs, setShowLogs] = useState(false)
+  const storageKey = `parser-progress:${taskId}`
 
   const { isConnected, subscribeToTask, unsubscribeFromTask } = useProgressWebSocket({
     onProgress: (data) => {
       console.log('onProgress called:', data)
       if (data.task_id === taskId) {
-        setProgressData(data)
+        const merged: ProgressData = {
+          task_id: data.task_id,
+          status: data.status,
+          progress: data.progress,
+          message: data.message,
+          updated_at: data.updated_at,
+          result: data.result ?? progressData?.result,
+          metrics: data.metrics ?? progressData?.metrics
+        }
+
+        setProgressData(merged)
+        onProgressUpdate?.(merged)
+
         // Вызываем колбэки при завершении
-        if (data.status === 'completed' && onComplete) {
-          console.log('onComplete called:', data.result)
-          onComplete(data.result)
-        } else if (data.status === 'failed' && onError) {
-          console.log('onError called:', data.message)
-          onError(data.message)
+        if (merged.status === 'completed' && onComplete) {
+          console.log('onComplete called:', merged.result)
+          onComplete(merged.result)
+        } else if (merged.status === 'failed' && onError) {
+          console.log('onError called:', merged.message)
+          onError(merged.message)
         }
       }
     },
     onLog: (log) => {
       console.log('onLog called:', log)
-      setLogs(prev => [...prev, log].slice(-100)) // Ограничиваем количество логов
+      const normalized = normalizeLogMessage(log)
+      setLogs(prev => mergeLogs(prev, [normalized]).slice(-100))
+      onLogMessage?.(normalized)
     },
     onConnect: () => {
       if (taskId) {
@@ -60,6 +126,96 @@ export function RealTimeProgress({ taskId, title, onComplete, onError, className
       }
     }
   })
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !taskId) {
+      return
+    }
+
+    try {
+      const stored = window.localStorage.getItem(storageKey)
+      if (!stored) {
+        return
+      }
+
+      const parsed = JSON.parse(stored) as {
+        progressData?: ProgressData | null
+        logs?: LogMessage[]
+      }
+
+      if (parsed.progressData) {
+        setProgressData(parsed.progressData)
+      }
+
+      if (parsed.logs && Array.isArray(parsed.logs)) {
+        setLogs(parsed.logs.slice(-100).map(normalizeLogMessage))
+      }
+    } catch (error) {
+      console.error('Не удалось восстановить прогресс задачи из localStorage:', error)
+    }
+  }, [storageKey, taskId])
+
+  useEffect(() => {
+    if (!initialProgress) {
+      return
+    }
+
+    setProgressData(prev => {
+      if (!prev) {
+        return initialProgress
+      }
+
+      if (
+        initialProgress.updated_at !== prev.updated_at ||
+        initialProgress.status !== prev.status ||
+        initialProgress.progress !== prev.progress ||
+        initialProgress.message !== prev.message
+      ) {
+        return { ...prev, ...initialProgress }
+      }
+
+      return prev
+    })
+  }, [initialProgress])
+
+  useEffect(() => {
+    if (!initialLogs || initialLogs.length === 0) {
+      return
+    }
+
+    setLogs(prev => mergeLogs(prev, initialLogs.map(normalizeLogMessage)))
+  }, [initialLogs])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !taskId) {
+      return
+    }
+
+    if (!progressData && logs.length === 0) {
+      window.localStorage.removeItem(storageKey)
+      return
+    }
+
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify({
+        progressData,
+        logs
+      }))
+    } catch (error) {
+      console.error('Не удалось сохранить прогресс задачи в localStorage:', error)
+    }
+  }, [storageKey, taskId, progressData, logs])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !taskId) {
+      return
+    }
+
+    const status = progressData?.status?.toLowerCase?.()
+    if (status === 'completed' || status === 'failed') {
+      window.localStorage.removeItem(storageKey)
+    }
+  }, [storageKey, taskId, progressData?.status])
 
   useEffect(() => {
     if (isConnected && taskId) {
@@ -71,7 +227,7 @@ export function RealTimeProgress({ taskId, title, onComplete, onError, className
         unsubscribeFromTask(taskId)
       }
     }
-  }, [isConnected, taskId])
+  }, [isConnected, taskId, subscribeToTask, unsubscribeFromTask])
 
   const getStatusIcon = () => {
     if (!progressData) return <Clock className="h-4 w-4 text-yellow-500" />

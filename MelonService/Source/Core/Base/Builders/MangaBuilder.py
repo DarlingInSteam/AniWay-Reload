@@ -103,26 +103,80 @@ class MangaBuilder(BaseBuilder):
 		SlidesCount = len(TargetChapter.slides)
 		WorkDirectory = f"{self._Temper.builder_temp}/{title.used_filename}"
 
-		for Slide in TargetChapter.slides:
-			Link: str = Slide["link"]
-			Filename: str = Link.split("/")[-1]
-			Index: int = Slide["index"]
+		# НОВОЕ: Параллельная загрузка всех изображений главы
+		Parser: "MangaParser" = title.parser
+		
+		# DEBUG: Проверка парсера
+		print(f"[DEBUG] Parser type: {type(Parser).__name__}")
+		print(f"[DEBUG] Parser has batch_download_images: {hasattr(Parser, 'batch_download_images')}")
+		if hasattr(Parser, '__class__'):
+			print(f"[DEBUG] Parser methods: {[m for m in dir(Parser) if not m.startswith('_') and 'download' in m.lower()]}")
+		
+		# КРИТИЧЕСКИ ВАЖНО: Если парсер загружен из JSON, нужно инициализировать _parallel_downloader
+		if hasattr(Parser, 'batch_download_images'):
+			# Проверяем, инициализирован ли _parallel_downloader
+			if not hasattr(Parser, '_parallel_downloader') or Parser._parallel_downloader is None:
+				print(f"[WARNING] _parallel_downloader not initialized, calling _PostInitMethod()...")
+				if hasattr(Parser, '_PostInitMethod'):
+					Parser._PostInitMethod()
+				else:
+					print(f"[ERROR] Parser doesn't have _PostInitMethod()!")
+		
+		# Проверяем, есть ли у парсера метод batch_download_images
+		if hasattr(Parser, 'batch_download_images'):
+			print(f"[INFO] 🚀 Starting parallel download of {SlidesCount} images...")
 			
-			if not os.path.exists(WorkDirectory): os.mkdir(WorkDirectory)
-			Parser: "MangaParser" = title.parser
-			print(f"[{Index} / {SlidesCount}] Downloading \"{Filename}\"... ", flush = True, end = "")
-			DownloadingStatus = Parser.image(Link)
-			DownloadingStatus.print_messages()
+			# Собираем все URL для параллельной загрузки
+			urls = [Slide["link"] for Slide in TargetChapter.slides]
+			
+			# Параллельная загрузка
+			filenames = Parser.batch_download_images(urls)
+			
+			# Обработка результатов и перемещение файлов
+			if not os.path.exists(WorkDirectory): 
+				os.makedirs(WorkDirectory, exist_ok=True)
+			
+			for idx, (Slide, downloaded_filename) in enumerate(zip(TargetChapter.slides, filenames), start=1):
+				Filename: str = Slide["link"].split("/")[-1]
+				Index: int = Slide["index"]
+				
+				if downloaded_filename:
+					self._SystemObjects.logger.info(f"Slide \"{Filename}\" downloaded ({idx}/{SlidesCount}).", stdout=False)
+					
+					# Перемещаем файл из temp в рабочую директорию
+					MovingStatus = self._Parser.images_downloader.move_from_temp(
+						WorkDirectory, Filename, f"{Index}", is_full_filename=False
+					)
+					MovingStatus.print_messages()
+					self.__BuildSystemsMethods[self._BuildSystem](title, TargetChapter, WorkDirectory)
+				else:
+					self._SystemObjects.logger.error(f"Unable download slide \"{Filename}\" ({idx}/{SlidesCount}).")
+			
+			print(f"[INFO] ✅ Chapter download completed: {SlidesCount} images")
+			
+		else:
+			# FALLBACK: Старый последовательный метод (если batch_download_images недоступен)
+			print(f"[WARNING] ⚠️  Parallel download not available, using sequential method...")
+			
+			for Slide in TargetChapter.slides:
+				Link: str = Slide["link"]
+				Filename: str = Link.split("/")[-1]
+				Index: int = Slide["index"]
+				
+				if not os.path.exists(WorkDirectory): os.mkdir(WorkDirectory)
+				print(f"[{Index} / {SlidesCount}] Downloading \"{Filename}\"... ", flush = True, end = "")
+				DownloadingStatus = Parser.image(Link)
+				DownloadingStatus.print_messages()
 
-			if not DownloadingStatus.has_errors:
-				print("Done.")
-				self._SystemObjects.logger.info(f"Slide \"{Filename}\" downloaded.", stdout = False)
+				if not DownloadingStatus.has_errors:
+					print("Done.")
+					self._SystemObjects.logger.info(f"Slide \"{Filename}\" downloaded.", stdout = False)
 
-			else: self._Logger.error(f"Unable download slide \"{Filename}\". Response code: {DownloadingStatus.code}.")
+				else: self._Logger.error(f"Unable download slide \"{Filename}\". Response code: {DownloadingStatus.code}.")
 
-			MovingStatus = self._Parser.images_downloader.move_from_temp(WorkDirectory, Filename, f"{Index}", is_full_filename = False)
-			MovingStatus.print_messages()
-			self.__BuildSystemsMethods[self._BuildSystem](title, TargetChapter, WorkDirectory)
+				MovingStatus = self._Parser.images_downloader.move_from_temp(WorkDirectory, Filename, f"{Index}", is_full_filename = False)
+				MovingStatus.print_messages()
+				self.__BuildSystemsMethods[self._BuildSystem](title, TargetChapter, WorkDirectory)
 
 		shutil.rmtree(WorkDirectory)
 
@@ -133,6 +187,16 @@ class MangaBuilder(BaseBuilder):
 		"""
 
 		TargetBranch: "Branch" = self._SelectBranch(title.branches, branch_id)
+		
+		# Проверка на случай отсутствия веток/глав (например, для 18+ контента без авторизации)
+		if TargetBranch is None:
+			self._SystemObjects.logger.warning("No branches found in title. Title may have no chapters (e.g. 18+ content without authentication).")
+			return
+		
+		if not TargetBranch.chapters:
+			self._SystemObjects.logger.warning(f"Branch {TargetBranch.id} has no chapters. Skipping build.")
+			return
+		
 		self._SystemObjects.logger.info(f"Building branch {TargetBranch.id}...")
 		for CurrentChapter in TargetBranch.chapters: self.build_chapter(title, CurrentChapter.id)
 

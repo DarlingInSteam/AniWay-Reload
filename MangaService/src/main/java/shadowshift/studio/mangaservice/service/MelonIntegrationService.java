@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Async;
@@ -18,7 +19,9 @@ import shadowshift.studio.mangaservice.entity.Tag;
 import shadowshift.studio.mangaservice.repository.MangaRepository;
 import shadowshift.studio.mangaservice.websocket.ProgressWebSocketHandler;
 
+import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -33,6 +36,8 @@ import java.util.stream.Collectors;
 public class MelonIntegrationService {
 
     private static final Logger logger = LoggerFactory.getLogger(MelonIntegrationService.class);
+    private static final Duration TASK_STATUS_POLL_INTERVAL = Duration.ofSeconds(2);
+    private static final int MAX_MISSING_TASK_STATUS_ATTEMPTS = 15;
 
     @Autowired
     private RestTemplate restTemplate;
@@ -84,6 +89,33 @@ public class MelonIntegrationService {
             logger.info("Зарегистрирована связь fullParsingTaskId={} → autoParsingTaskId={}", 
                 fullParsingTaskId, autoParsingTaskId);
         }
+    }
+
+    /**
+     * Нормализует slug для MangaLib, убирая префикс ID-- если он есть.
+     * MangaLib изменил формат: теперь slug'и имеют формат "ID--slug" (например "7580--i-alone-level-up")
+     * Для совместимости с существующими записями в БД нормализуем до "i-alone-level-up"
+     * 
+     * @param slug исходный slug (может быть "7580--i-alone-level-up" или "i-alone-level-up")
+     * @return нормализованный slug без ID (всегда "i-alone-level-up")
+     */
+    private String normalizeSlugForMangaLib(String slug) {
+        if (slug == null || slug.isEmpty()) {
+            return slug;
+        }
+        
+        // Проверяем формат "ID--slug"
+        if (slug.contains("--")) {
+            String[] parts = slug.split("--", 2);
+            // Если первая часть - число (ID), возвращаем вторую часть (slug)
+            if (parts.length == 2 && parts[0].matches("\\d+")) {
+                logger.debug("Нормализация MangaLib slug: '{}' -> '{}'", slug, parts[1]);
+                return parts[1];
+            }
+        }
+        
+        // Если формат не "ID--slug", возвращаем как есть
+        return slug;
     }
 
     /**
@@ -150,6 +182,12 @@ public class MelonIntegrationService {
 
     // Публичный метод для запуска логики полного парсинга (вызывается из FullParsingTaskRunner)
     public void runFullParsingTaskLogic(String fullTaskId, String parseTaskId, String slug) {
+        // ВАЖНО: Нормализуем slug в самом начале (убираем ID)
+        // MelonService сохраняет файлы БЕЗ ID: "sweet-home-kim-carnby-.json"
+        // Но slug из каталога приходит с ID: "3754--sweet-home-kim-carnby-"
+        String normalizedSlug = normalizeSlugForMangaLib(slug);
+        logger.info("🔧 Нормализация slug: original='{}', normalized='{}'", slug, normalizedSlug);
+        
         try {
             updateFullParsingTask(fullTaskId, "running", 5, "Ожидание завершения парсинга JSON...", null);
             Map<String, Object> finalStatus = waitForTaskCompletion(parseTaskId);
@@ -158,8 +196,9 @@ public class MelonIntegrationService {
                     "Парсинг завершился неуспешно: " + finalStatus.get("message"), finalStatus);
                 return;
             }
+            
             updateFullParsingTask(fullTaskId, "running", 50, "Парсинг JSON завершен, запускаем скачивание изображений...", null);
-            Map<String, Object> buildResult = buildManga(slug, null);
+            Map<String, Object> buildResult = buildManga(normalizedSlug, null);
             if (buildResult == null || !buildResult.containsKey("task_id")) {
                 updateFullParsingTask(fullTaskId, "failed", 100,
                     "Не удалось запустить скачивание изображений", buildResult);
@@ -183,24 +222,31 @@ public class MelonIntegrationService {
                 logger.info("Билд завершен для slug={}, запускаем импорт", slug);
                 
                 try {
+                    // Используем ранее нормализованный slug (объявлен в начале метода)
+                    logger.info("📥 Запрос manga-info для normalized slug='{}'", normalizedSlug);
+                    
                     // Получаем mangaInfo ДО удаления манги из MelonService
-                    Map<String, Object> mangaInfo = getMangaInfo(slug);
+                    Map<String, Object> mangaInfo = getMangaInfo(normalizedSlug);
                     
                     // Создаем задачу импорта
                     String importTaskId = importTaskService.createTask(fullTaskId).getTaskId();
                     logger.info("Создана задача импорта: importTaskId={} для fullTaskId={}", importTaskId, fullTaskId);
                     
-                    // Импортируем мангу в БД (синхронно, чтобы дождаться завершения)
-                    importMangaWithProgressAsync(importTaskId, slug, null).get();
+                    // КРИТИЧНО: Импортируем мангу используя normalizedSlug (без ID), не оригинальный slug!
+                    // MelonService сохраняет файлы БЕЗ ID (например: "made-of-stardust.json")
+                    // Поэтому getMangaInfo() должен искать нормализованный файл
+                    importMangaWithProgressAsync(importTaskId, normalizedSlug, null).get();
                     logger.info("Импорт завершен для slug={}, очищаем данные из MelonService", slug);
                     
                     // После успешного импорта - удаляем из MelonService
+                    // ВАЖНО: используем нормализованный slug (без ID)
                     updateFullParsingTask(fullTaskId, "running", 95, "Импорт завершен, очистка данных из MelonService...", null);
-                    Map<String, Object> deleteResult = deleteManga(slug);
+                    Map<String, Object> deleteResult = deleteManga(normalizedSlug);
                     if (deleteResult != null && Boolean.TRUE.equals(deleteResult.get("success"))) {
-                        logger.info("Данные успешно удалены из MelonService для slug={}", slug);
+                        logger.info("Данные успешно удалены из MelonService для slug={} (normalized={})", slug, normalizedSlug);
                     } else {
-                        logger.warn("Не удалось удалить данные из MelonService для slug={}: {}", slug, deleteResult);
+                        logger.warn("Не удалось удалить данные из MelonService для slug={} (normalized={}): {}", 
+                            slug, normalizedSlug, deleteResult);
                     }
                     
                     // Формируем результат (mangaInfo уже получен ранее)
@@ -243,20 +289,69 @@ public class MelonIntegrationService {
      * Обновляет статус задачи полного парсинга и отправляет через WebSocket
      */
     private void updateFullParsingTask(String taskId, String status, int progress, String message, Map<String, Object> result) {
-        Map<String, Object> task = new HashMap<>();
+        Map<String, Object> existingTask = fullParsingTasks.get(taskId);
+        Map<String, Object> task = existingTask != null ? new HashMap<>(existingTask) : new HashMap<>();
+        LocalDateTime now = LocalDateTime.now();
+
         task.put("task_id", taskId);
         task.put("status", status);
         task.put("progress", progress);
         task.put("message", message);
-        task.put("updated_at", java.time.LocalDateTime.now().toString());
+        task.put("updated_at", now.toString());
+
+        if (!task.containsKey("started_at")) {
+            task.put("started_at", now.toString());
+        }
+
+        LocalDateTime startedAt = parseDateTime(task.get("started_at"));
+        Duration elapsed = Duration.between(startedAt, now);
+        task.put("duration_ms", elapsed.toMillis());
+        task.put("duration_seconds", elapsed.getSeconds());
+        task.put("duration_formatted", formatDuration(elapsed));
+
+        if ("completed".equalsIgnoreCase(status) || "failed".equalsIgnoreCase(status) || "cancelled".equalsIgnoreCase(status)) {
+            task.put("finished_at", now.toString());
+        }
+
         if (result != null) {
             task.put("result", result);
+            Object metrics = result.get("metrics");
+            if (metrics != null) {
+                task.put("metrics", metrics);
+            }
+            if (result.containsKey("import_task_id")) {
+                task.put("import_task_id", result.get("import_task_id"));
+            }
         }
+
         fullParsingTasks.put(taskId, task);
 
         // Отправляем обновление прогресса через WebSocket
         webSocketHandler.sendProgressUpdate(taskId, task);
         webSocketHandler.sendLogMessage(taskId, "INFO", message);
+    }
+
+    private LocalDateTime parseDateTime(Object value) {
+        if (value instanceof LocalDateTime ldt) {
+            return ldt;
+        }
+        if (value instanceof String str) {
+            try {
+                return LocalDateTime.parse(str);
+            } catch (Exception ignored) {
+                // fall through
+            }
+        }
+        return LocalDateTime.now();
+    }
+
+    private String formatDuration(Duration duration) {
+        long seconds = duration.getSeconds();
+        long absSeconds = Math.abs(seconds);
+        long hours = absSeconds / 3600;
+        long minutes = (absSeconds % 3600) / 60;
+        long secs = absSeconds % 60;
+        return String.format("%02d:%02d:%02d", hours, minutes, secs);
     }
 
     /**
@@ -270,26 +365,80 @@ public class MelonIntegrationService {
      * Ожидает завершения задачи парсинга
      */
     private Map<String, Object> waitForTaskCompletion(String taskId) throws InterruptedException {
-        Map<String, Object> status;
+        Map<String, Object> status = null;
         int attempts = 0; // БЕЗ таймаута - некоторые манги парсятся 100+ минут
+        int missingStatusAttempts = 0;
 
-        do {
-            Thread.sleep(2000); // жде�� 2 секунды
-            status = getTaskStatus(taskId);
+        while (true) {
+            sleep(getTaskStatusPollInterval());
             attempts++;
 
-            // Логируем каждые 30 проверок (1 минута)
-            if (attempts % 30 == 0) {
-                int minutes = attempts * 2 / 60;
-                logger.info("Ожидание задачи {}: {}min, статус: {}", 
-                    taskId, minutes, status != null ? status.get("status") : "null");
+            status = getTaskStatus(taskId);
+            String statusValue = status != null ? String.valueOf(status.get("status")) : null;
+
+            if (isTerminalTaskStatus(statusValue)) {
+                return status;
             }
 
-        } while (status != null &&
-                !"completed".equalsIgnoreCase(String.valueOf(status.get("status"))) &&
-                !"failed".equalsIgnoreCase(String.valueOf(status.get("status"))));
+            if (isMissingTaskStatus(status, statusValue)) {
+                missingStatusAttempts++;
 
-        return status != null ? status : Map.of("status", "failed", "message", "Не удалось получить статус задачи");
+                if (missingStatusAttempts >= getMaxMissingTaskStatusAttempts()) {
+                    logger.warn("Статус задачи {} недоступен после {} попыток. Предполагаем потерю задачи.",
+                        taskId, missingStatusAttempts);
+                    String message = status != null && status.get("message") != null
+                        ? String.valueOf(status.get("message"))
+                        : "MelonService не предоставляет статус задачи (возможно, сервис был перезапущен)";
+                    return Map.of(
+                        "status", "failed",
+                        "message", message
+                    );
+                }
+            } else {
+                missingStatusAttempts = 0;
+            }
+
+            if (attempts % 30 == 0) {
+                long minutes = attempts * getTaskStatusPollInterval().toMillis() / 60000;
+                logger.info("Ожидание задачи {}: {}min, статус: {}",
+                    taskId, minutes, statusValue != null ? statusValue : "null");
+            }
+        }
+    }
+
+    protected Duration getTaskStatusPollInterval() {
+        return TASK_STATUS_POLL_INTERVAL;
+    }
+
+    protected int getMaxMissingTaskStatusAttempts() {
+        return MAX_MISSING_TASK_STATUS_ATTEMPTS;
+    }
+
+    protected void sleep(Duration interval) throws InterruptedException {
+        long millis = Math.max(1L, interval.toMillis());
+        Thread.sleep(millis);
+    }
+
+    private boolean isTerminalTaskStatus(String statusValue) {
+        if (statusValue == null) {
+            return false;
+        }
+        return "completed".equalsIgnoreCase(statusValue)
+            || "failed".equalsIgnoreCase(statusValue)
+            || "cancelled".equalsIgnoreCase(statusValue);
+    }
+
+    private boolean isMissingTaskStatus(Map<String, Object> status, String statusValue) {
+        if (status == null) {
+            return true;
+        }
+        if (statusValue == null || statusValue.isBlank()) {
+            return true;
+        }
+
+        return "not_found".equalsIgnoreCase(statusValue)
+            || "error".equalsIgnoreCase(statusValue)
+            || "unknown".equalsIgnoreCase(statusValue);
     }
 
     /**
@@ -297,8 +446,57 @@ public class MelonIntegrationService {
      */
     public Map<String, Object> getTaskStatus(String taskId) {
         String url = melonServiceUrl + "/status/" + taskId;
-        ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
-        return response.getBody();
+        
+        try {
+            ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+            Map<String, Object> body = response.getBody();
+            
+            if (body != null) {
+                return body;
+            } else {
+                logger.warn("Пустой ответ при запросе статуса задачи: {}", taskId);
+                return Map.of(
+                    "status", "unknown",
+                    "message", "Пустой ответ от MelonService"
+                );
+            }
+            
+        } catch (org.springframework.web.client.HttpClientErrorException.NotFound e) {
+            logger.warn("Задача не найдена в MelonService: {} (возможно, еще не создана или уже удалена)", taskId);
+            return Map.of(
+                "status", "not_found",
+                "message", "Задача не найдена в MelonService"
+            );
+            
+        } catch (Exception e) {
+            logger.error("Ошибка получения статуса задачи {}: {}", taskId, e.getMessage());
+            return Map.of(
+                "status", "error",
+                "message", "Ошибка получения статуса: " + e.getMessage()
+            );
+        }
+    }
+
+    public List<Map<String, Object>> listTasks() {
+        String url = melonServiceUrl + "/tasks";
+
+        try {
+            ResponseEntity<List<Map<String, Object>>> response = restTemplate.exchange(
+                url,
+                HttpMethod.GET,
+                null,
+                new ParameterizedTypeReference<List<Map<String, Object>>>() {}
+            );
+
+            List<Map<String, Object>> body = response.getBody();
+            if (body != null) {
+                return body;
+            }
+        } catch (Exception e) {
+            logger.error("Ошибка получения списка задач из MelonService: {}", e.getMessage());
+        }
+
+        return Collections.emptyList();
     }
 
     /**
@@ -341,12 +539,58 @@ public class MelonIntegrationService {
     }
 
     /**
-     * Получает информацию о спаршенной манге
+     * Получает информацию о спаршенной манге с retry логикой.
+     * Пытается получить JSON данные несколько раз с задержкой,
+     * т.к. при массовом парсинге MelonService может не успевать создавать файлы.
      */
     public Map<String, Object> getMangaInfo(String filename) {
         String url = melonServiceUrl + "/manga-info/" + filename;
-        ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
-        return response.getBody();
+        
+        int maxRetries = 5;
+        int retryDelayMs = 3000; // 3 секунды между попытками
+        
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                logger.info("Получение manga-info для '{}' (попытка {}/{})", filename, attempt, maxRetries);
+                ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+                Map<String, Object> body = response.getBody();
+                
+                if (body != null) {
+                    logger.info("Успешно получен manga-info для '{}'", filename);
+                    return body;
+                } else {
+                    logger.warn("Пустой ответ при получении manga-info для '{}', попытка {}/{}", 
+                        filename, attempt, maxRetries);
+                }
+                
+            } catch (org.springframework.web.client.HttpClientErrorException.NotFound e) {
+                logger.warn("JSON файл не найден для '{}' (попытка {}/{}): {}. " +
+                    "Возможно, MelonService еще не завершил создание файла. Повторная попытка через {}ms...",
+                    filename, attempt, maxRetries, e.getMessage(), retryDelayMs);
+                    
+            } catch (Exception e) {
+                logger.error("Ошибка получения manga-info для '{}' (попытка {}/{}): {}", 
+                    filename, attempt, maxRetries, e.getMessage());
+            }
+            
+            // Если не последняя попытка - ждем перед retry
+            if (attempt < maxRetries) {
+                try {
+                    Thread.sleep(retryDelayMs);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    logger.error("Прервано ожидание retry для '{}'", filename);
+                    break;
+                }
+            }
+        }
+        
+        // Если все попытки исчерпаны - возвращаем пустой результат
+        logger.error("Не удалось получить manga-info для '{}' после {} попыток", filename, maxRetries);
+        return Map.of(
+            "error", "Не удалось получить manga-info после " + maxRetries + " попыток",
+            "filename", filename
+        );
     }
 
     /**
@@ -487,43 +731,11 @@ public class MelonIntegrationService {
             }
 
             // Обрабатываем тип манги
-            String typeStr = (String) mangaInfo.get("type");
-            System.out.println("DEBUG: type from parser = " + typeStr);
-            if (typeStr != null && !typeStr.trim().isEmpty()) {
-                try {
-                    switch (typeStr.toLowerCase().trim()) {
-                        case "manhwa":
-                            manga.setType(Manga.MangaType.MANHWA);
-                            break;
-                        case "manhua":
-                            manga.setType(Manga.MangaType.MANHUA);
-                            break;
-                        case "western_comic":
-                        case "western comic":
-                            manga.setType(Manga.MangaType.WESTERN_COMIC);
-                            break;
-                        case "russian_comic":
-                        case "russian comic":
-                            manga.setType(Manga.MangaType.RUSSIAN_COMIC);
-                            break;
-                        case "oel":
-                            manga.setType(Manga.MangaType.OEL);
-                            break;
-                        case "manga":
-                            manga.setType(Manga.MangaType.MANGA);
-                            break;
-                        default:
-                            manga.setType(Manga.MangaType.OTHER);
-                    }
-                    System.out.println("DEBUG: Set type to: " + manga.getType());
-                } catch (Exception e) {
-                    manga.setType(Manga.MangaType.OTHER);
-                }
-            } else {
-                // Если тип не получен из парсера, устанавливаем MANGA по умолчанию
-                manga.setType(Manga.MangaType.MANGA);
-                System.out.println("DEBUG: No type from parser, set default MANGA");
-            }
+            Object typeRaw = mangaInfo.get("type");
+            System.out.println("DEBUG: type from parser = " + typeRaw);
+            Manga.MangaType resolvedType = resolveMangaType(typeRaw);
+            manga.setType(resolvedType);
+            System.out.println("DEBUG: Set type to: " + manga.getType());
 
             // Обрабатываем возрастное ограничение
             Object ageLimit = mangaInfo.get("age_limit");
@@ -542,38 +754,11 @@ public class MelonIntegrationService {
             }
 
             // Обрабатываем статус
-            String statusStr = (String) mangaInfo.get("status");
-            System.out.println("DEBUG: status from parser = " + statusStr);
-            if (statusStr != null && !statusStr.trim().isEmpty()) {
-                try {
-                    switch (statusStr.toLowerCase().trim()) {
-                        case "ongoing":
-                        case "продолжается":
-                            manga.setStatus(Manga.MangaStatus.ONGOING);
-                            break;
-                        case "completed":
-                        case "завершен":
-                            manga.setStatus(Manga.MangaStatus.COMPLETED);
-                            break;
-                        case "hiatus":
-                        case "заморожен":
-                            manga.setStatus(Manga.MangaStatus.HIATUS);
-                            break;
-                        case "cancelled":
-                        case "отменен":
-                            manga.setStatus(Manga.MangaStatus.CANCELLED);
-                            break;
-                        default:
-                            manga.setStatus(Manga.MangaStatus.ONGOING);
-                    }
-                    System.out.println("DEBUG: Set status to: " + manga.getStatus());
-                } catch (Exception e) {
-                    manga.setStatus(Manga.MangaStatus.ONGOING);
-                }
-            } else {
-                manga.setStatus(Manga.MangaStatus.ONGOING);
-                System.out.println("DEBUG: No status from parser, set default ONGOING");
-            }
+            Object statusRaw = mangaInfo.get("status");
+            System.out.println("DEBUG: status from parser = " + statusRaw);
+            Manga.MangaStatus resolvedStatus = resolveMangaStatus(statusRaw);
+            manga.setStatus(resolvedStatus);
+            System.out.println("DEBUG: Set status to: " + manga.getStatus());
 
             // Обрабатываем жанры
             List<String> genres = (List<String>) mangaInfo.get("genres");
@@ -937,8 +1122,12 @@ public class MelonIntegrationService {
     private Manga createMangaFromData(Map<String, Object> mangaInfo, String filename) {
         Manga manga = new Manga();
 
+        // MangaLib изменил формат slug: теперь может быть "7580--i-alone-level-up"
+        // Нормализуем до "i-alone-level-up" для совместимости с существующими записями
+        String normalizedSlug = normalizeSlugForMangaLib(filename);
+        
         // КРИТИЧНО: Устанавливаем melonSlug для проверки дубликатов и автообновления
-        manga.setMelonSlug(filename);
+        manga.setMelonSlug(normalizedSlug);
 
         // Обрабатываем title - используем localized_name (русское название)
         String title = (String) mangaInfo.get("localized_name");
@@ -972,7 +1161,11 @@ public class MelonIntegrationService {
             manga.setDescription(description);
         }
 
-        manga.setStatus(Manga.MangaStatus.ONGOING);
+        Object statusRaw = mangaInfo.get("status");
+        System.out.println("DEBUG: status from parser (async flow) = " + statusRaw);
+        Manga.MangaStatus asyncResolvedStatus = resolveMangaStatus(statusRaw);
+        manga.setStatus(asyncResolvedStatus);
+        System.out.println("DEBUG: Async flow set status to: " + manga.getStatus());
 
         // Обрабатываем жанры
         List<String> genres = (List<String>) mangaInfo.get("genres");
@@ -1016,21 +1209,11 @@ public class MelonIntegrationService {
         System.out.println("Full mangaInfo: " + mangaInfo);
 
         // Обрабатываем тип манги (manga/manhwa/manhua)
-        String type = (String) mangaInfo.get("type");
-        System.out.println("DEBUG: Raw type from parsing: " + type);
-        if (type != null && !type.trim().isEmpty()) {
-            try {
-                Manga.MangaType mangaType = Manga.MangaType.valueOf(type.trim().toUpperCase());
-                manga.setType(mangaType);
-                System.out.println("DEBUG: Set manga type to: " + mangaType);
-            } catch (IllegalArgumentException e) {
-                System.err.println("DEBUG: Unknown manga type: " + type + ", setting to MANGA");
-                manga.setType(Manga.MangaType.MANGA);
-            }
-        } else {
-            System.out.println("DEBUG: No type found, setting to MANGA by default");
-            manga.setType(Manga.MangaType.MANGA);
-        }
+        Object typeRaw = mangaInfo.get("type");
+        System.out.println("DEBUG: Raw type from parsing: " + typeRaw);
+        Manga.MangaType resolvedType = resolveMangaType(typeRaw);
+        manga.setType(resolvedType);
+        System.out.println("DEBUG: Set manga type to: " + resolvedType);
 
         // Обрабатываем английское название
         String engName = (String) mangaInfo.get("eng_name");
@@ -1191,6 +1374,167 @@ public class MelonIntegrationService {
         }
 
         return manga;
+    }
+
+    private Manga.MangaType resolveMangaType(Object typeRaw) {
+        if (typeRaw == null) {
+            return Manga.MangaType.MANGA;
+        }
+
+        List<String> candidates = new ArrayList<>();
+
+        if (typeRaw instanceof String str) {
+            candidates.add(str);
+        } else if (typeRaw instanceof Map<?, ?> map) {
+            String[] keys = {"slug", "code", "value", "label", "name", "title", "type"};
+            for (String key : keys) {
+                Object candidate = map.get(key);
+                if (candidate != null) {
+                    candidates.add(candidate.toString());
+                }
+            }
+
+            if (candidates.isEmpty()) {
+                candidates.add(typeRaw.toString());
+            }
+        } else {
+            candidates.add(typeRaw.toString());
+        }
+
+        for (String candidate : candidates) {
+            Manga.MangaType resolved = resolveTypeCandidate(candidate);
+            if (resolved != null) {
+                return resolved;
+            }
+        }
+
+        return Manga.MangaType.MANGA;
+    }
+
+    private Manga.MangaType resolveTypeCandidate(String rawValue) {
+        if (rawValue == null) {
+            return null;
+        }
+
+        String trimmed = rawValue.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+
+        String normalized = trimmed.toLowerCase(Locale.ROOT);
+        String collapsed = normalized
+            .replace('-', ' ')
+            .replace('_', ' ')
+            .replace('–', ' ')
+            .replace('—', ' ');
+        collapsed = collapsed.replaceAll("\\s+", " ").trim();
+
+        if (matchesTypeKeyword(normalized, collapsed, "manhwa", "манхва")) {
+            return Manga.MangaType.MANHWA;
+        }
+        if (matchesTypeKeyword(normalized, collapsed, "manhua", "маньхуа")) {
+            return Manga.MangaType.MANHUA;
+        }
+        if (matchesTypeKeyword(normalized, collapsed,
+            "western_comic", "western comic", "комикс западный", "западный комикс",
+            "comic", "комикс")) {
+            return Manga.MangaType.WESTERN_COMIC;
+        }
+        if (matchesTypeKeyword(normalized, collapsed, "russian_comic", "russian comic", "руманга", "русский комикс", "комикс русский")) {
+            return Manga.MangaType.RUSSIAN_COMIC;
+        }
+    if (matchesTypeKeyword(normalized, collapsed, "oel", "oel манга", "oel manga", "oel-манга")) {
+            return Manga.MangaType.OEL;
+        }
+        if (matchesTypeKeyword(normalized, collapsed, "indonesian_comic", "indonesian comic", "индонезийский комикс", "комикс индонезийский")) {
+            return Manga.MangaType.INDONESIAN_COMIC;
+        }
+        if (matchesTypeKeyword(normalized, collapsed, "other", "другое")) {
+            return Manga.MangaType.OTHER;
+        }
+        if (matchesTypeKeyword(normalized, collapsed, "manga", "манга")) {
+            return Manga.MangaType.MANGA;
+        }
+
+        return null;
+    }
+
+    private boolean matchesTypeKeyword(String normalized, String collapsed, String... options) {
+        if (options == null) {
+            return false;
+        }
+
+        for (String option : options) {
+            if (option == null) {
+                continue;
+            }
+            String candidate = option.toLowerCase(Locale.ROOT);
+            if (normalized.equals(candidate) || collapsed.equals(candidate)
+                || normalized.contains(candidate) || collapsed.contains(candidate)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private Manga.MangaStatus resolveMangaStatus(Object statusRaw) {
+        if (statusRaw == null) {
+            return Manga.MangaStatus.ONGOING;
+        }
+
+        String statusStr;
+        if (statusRaw instanceof String) {
+            statusStr = ((String) statusRaw).trim();
+        } else {
+            statusStr = statusRaw.toString().trim();
+        }
+
+        if (statusStr.isEmpty()) {
+            return Manga.MangaStatus.ONGOING;
+        }
+
+        String normalized = statusStr.toLowerCase(Locale.ROOT);
+
+        switch (normalized) {
+            case "ongoing":
+            case "продолжается":
+            case "продолжается выпуск":
+                return Manga.MangaStatus.ONGOING;
+            case "completed":
+            case "завершен":
+            case "завершён":
+            case "завершена":
+            case "завершено":
+                return Manga.MangaStatus.COMPLETED;
+            case "announced":
+            case "анонс":
+            case "анонсирован":
+            case "анонсировано":
+                return Manga.MangaStatus.ANNOUNCED;
+            case "hiatus":
+            case "заморожен":
+            case "заморожена":
+            case "заморожено":
+            case "приостановлен":
+            case "приостановлена":
+            case "приостановлено":
+                return Manga.MangaStatus.HIATUS;
+            case "cancelled":
+            case "canceled":
+            case "dropped":
+            case "отменен":
+            case "отменён":
+            case "отменена":
+            case "отменено":
+            case "выпуск прекращён":
+            case "выпуск прекращен":
+            case "выпуск прекращена":
+            case "выпуск прекращено":
+                return Manga.MangaStatus.CANCELLED;
+            default:
+                return Manga.MangaStatus.ONGOING;
+        }
     }
 
     private void setFallbackCoverFromJson(Manga manga, Map<String, Object> mangaInfo) {
@@ -1633,5 +1977,46 @@ public class MelonIntegrationService {
             .trim();
 
         return markdown;
+    }
+
+    /**
+     * Отменяет задачу в MelonService
+     */
+    public Map<String, Object> cancelMelonTask(String taskId) {
+        String url = melonServiceUrl + "/tasks/" + taskId + "/cancel";
+        
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+            
+            ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
+            Map<String, Object> body = response.getBody();
+            
+            if (body != null) {
+                logger.info("Задача {} отменена в MelonService: {}", taskId, body);
+                return body;
+            } else {
+                logger.warn("Пустой ответ при отмене задачи: {}", taskId);
+                return Map.of(
+                    "cancelled", false,
+                    "message", "Пустой ответ от MelonService"
+                );
+            }
+            
+        } catch (org.springframework.web.client.HttpClientErrorException.NotFound e) {
+            logger.warn("Задача не найдена в MelonService: {}", taskId);
+            return Map.of(
+                "cancelled", false,
+                "message", "Задача не найдена в MelonService"
+            );
+            
+        } catch (Exception e) {
+            logger.error("Ошибка отмены задачи {}: {}", taskId, e.getMessage());
+            return Map.of(
+                "cancelled", false,
+                "message", "Ошибка отмены: " + e.getMessage()
+            );
+        }
     }
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ProgressData, LogMessage, WebSocketMessage } from '@/types'
 
 interface UseProgressWebSocketOptions {
@@ -53,6 +53,15 @@ export function useProgressWebSocket(options: UseProgressWebSocketOptions = {}) 
         console.log('WebSocket connection established');
         setIsConnected(true);
         if (options.onConnect) options.onConnect();
+
+        // При переподключении повторно подписываемся на все задачи
+        subscribedTasks.forEach((taskId) => {
+          try {
+            wsRef.current?.send(JSON.stringify({ action: 'subscribe', taskId }))
+          } catch (error) {
+            console.error('Ошибка повторной подписки на задачу', taskId, error)
+          }
+        })
       };
 
       wsRef.current.onclose = (event) => {
@@ -135,21 +144,33 @@ export function useProgressWebSocket(options: UseProgressWebSocketOptions = {}) 
     setSubscribedTasks(new Set())
   }
 
-  const subscribeToTask = (taskId: string) => {
+  const subscribeToTask = useCallback((taskId: string) => {
+    setSubscribedTasks(prev => {
+      const next = new Set(prev)
+      next.add(taskId)
+      return next
+    })
+
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       const msg = JSON.stringify({ action: 'subscribe', taskId });
       wsRef.current.send(msg);
       console.log('WebSocket subscribe sent:', msg);
     }
-  }
+  }, [])
 
-  const unsubscribeFromTask = (taskId: string) => {
+  const unsubscribeFromTask = useCallback((taskId: string) => {
+    setSubscribedTasks(prev => {
+      const next = new Set(prev)
+      next.delete(taskId)
+      return next
+    })
+
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       const msg = JSON.stringify({ action: 'unsubscribe', taskId });
       wsRef.current.send(msg);
       console.log('WebSocket unsubscribe sent:', msg);
     }
-  }
+  }, [])
 
   useEffect(() => {
     isUnmountedRef.current = false;

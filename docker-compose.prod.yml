@@ -51,15 +51,21 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://auth-postgres:5432/authdb
       - SPRING_DATASOURCE_USERNAME=authuser
       - SPRING_DATASOURCE_PASSWORD=authpass123
-      # --- Email verification / SMTP (set real secrets via .env or CI vars) ---
-      - MAIL_HOST=${MAIL_HOST:-smtp.gmail.com}
-      - MAIL_PORT=${MAIL_PORT:-587}
-      - MAIL_USERNAME=${MAIL_USERNAME:-artempronko241@gmail.com}
-      - MAIL_PASSWORD=${MAIL_PASSWORD:-CHANGE_ME_APP_PASSWORD}
-      - MAIL_AUTH=${MAIL_AUTH:-true}
-      - MAIL_STARTTLS=${MAIL_STARTTLS:-true}
-      - EMAIL_VERIFICATION_ENABLED=${EMAIL_VERIFICATION_ENABLED:-true}
-      - EMAIL_VERIFICATION_FROM=${EMAIL_VERIFICATION_FROM:-artempronko241@gmail.com}
+      # --- Resend SMTP Configuration ---
+      - MAIL_HOST=smtp.resend.com
+      - MAIL_PORT=587
+      - MAIL_USERNAME=resend
+      - MAIL_PASSWORD=re_WKeXb53h_3S5tUGdRH6YEWDHS7FVoaLDx
+      - MAIL_AUTH=true
+      - MAIL_STARTTLS=true
+      - MAIL_STARTTLS_REQUIRED=true
+      - MAIL_SSL_TRUST=smtp.resend.com
+      - MAIL_CONNECTION_TIMEOUT=5000
+      - MAIL_TIMEOUT=5000
+      - MAIL_WRITE_TIMEOUT=5000
+      - MAIL_DEBUG=false
+      - EMAIL_VERIFICATION_ENABLED=true
+      - EMAIL_VERIFICATION_FROM=noreply@aniway.space
     restart: unless-stopped
     depends_on:
       - auth-postgres
@@ -209,6 +215,13 @@ services:
       dockerfile: Dockerfile
     environment:
       - PYTHONUNBUFFERED=1
+      # PROXY ROTATION: Теперь используется 3 прокси через settings.json
+      # Ротация управляется через ProxyRotator в api_server.py и main.py
+      # Прокси настроены в MelonService/Parsers/mangalib/settings.json (round-robin)
+      # HTTP_PROXY/HTTPS_PROXY не нужны - ротация внутри приложения
+      # - HTTP_PROXY=http://PS20z2:fFNHVg@168.80.1.136:8000
+      # - HTTPS_PROXY=http://PS20z2:fFNHVg@168.80.1.136:8000
+      - NO_PROXY=localhost,127.0.0.1,manga-service,chapter-service,auth-service
     ports:
       - "8084:8084"
     volumes:

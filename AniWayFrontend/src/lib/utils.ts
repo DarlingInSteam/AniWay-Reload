@@ -43,6 +43,8 @@ export function getStatusColor(status: string): string {
       return 'text-green-600 bg-green-100'
     case 'COMPLETED':
       return 'text-blue-600 bg-blue-100'
+    case 'ANNOUNCED':
+      return 'text-purple-600 bg-purple-100'
     case 'HIATUS':
       return 'text-yellow-600 bg-yellow-100'
     case 'CANCELLED':
@@ -55,14 +57,35 @@ export function getStatusColor(status: string): string {
 export function getStatusText(status: string): string {
   switch (status) {
     case 'ONGOING':
-      return 'Выходит'
+      return 'Онгоинг'
     case 'COMPLETED':
-      return 'Завершена'
+      return 'Завершён'
+    case 'ANNOUNCED':
+      return 'Анонс'
     case 'HIATUS':
-      return 'Пауза'
+      return 'Приостановлен'
     case 'CANCELLED':
-      return 'Отменена'
+      return 'Выпуск прекращён'
     default:
       return status
+  }
+}
+
+export function getTypeText(type: string): string {
+  switch (type) {
+    case 'MANGA':
+      return 'Манга'
+    case 'MANHWA':
+      return 'Манхва'
+    case 'MANHUA':
+      return 'Маньхуа'
+    case 'WESTERN_COMIC':
+      return 'Комикс'
+    case 'RUSSIAN_COMIC':
+      return 'Руманга'
+    case 'OEL':
+      return 'OEL-манга'
+    default:
+      return type
   }
 }

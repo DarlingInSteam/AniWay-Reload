@@ -116,6 +116,21 @@ public class ParserController {
     }
 
     /**
+     * Возвращает список задач парсинга на MelonService.
+     */
+    @GetMapping("/tasks")
+    @ResponseBody
+    public ResponseEntity<List<Map<String, Object>>> listTasks() {
+        try {
+            List<Map<String, Object>> tasks = melonService.listTasks();
+            return ResponseEntity.ok(tasks);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                .body(List.of(Map.of("error", "Ошибка получения списка задач: " + e.getMessage())));
+        }
+    }
+
+    /**
      * Строит архив манги из распарсенных данных.
      *
      * @param filename имя файла с данными манги
@@ -275,6 +290,24 @@ public class ParserController {
         } catch (Exception e) {
             return ResponseEntity.badRequest()
                 .body(Map.of("error", "Ошибка получения статуса: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Отменяет задачу автопарсинга.
+     *
+     * @param taskId идентификатор задачи
+     * @return ResponseEntity с результатом отмены
+     */
+    @PostMapping("/auto-parse/cancel/{taskId}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> cancelAutoParse(@PathVariable String taskId) {
+        try {
+            Map<String, Object> result = autoParsingService.cancelAutoParseTask(taskId);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                .body(Map.of("error", "Ошибка отмены задачи: " + e.getMessage()));
         }
     }
 
