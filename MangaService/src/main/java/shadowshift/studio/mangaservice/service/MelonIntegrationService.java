@@ -1158,20 +1158,8 @@ public class MelonIntegrationService {
             Thread.sleep(5000); // 5 секунд задержки для завершения async операций
             
             // Проверяем, что все задачи executorService завершены
-            if (executorService != null && !executorService.isShutdown()) {
-                executorService.shutdown();
-                try {
-                    if (!executorService.awaitTermination(30, TimeUnit.SECONDS)) {
-                        logger.warn("ExecutorService не завершился за 30 секунд, принудительно останавливаем");
-                        executorService.shutdownNow();
-                    }
-                } catch (InterruptedException e) {
-                    executorService.shutdownNow();
-                    Thread.currentThread().interrupt();
-                }
-                // Создаем новый для следующих операций
-                executorService = Executors.newFixedThreadPool(10);
-            }
+            // Не останавливаем executorService, так как он может понадобиться для других операций
+            logger.info("✅ Все асинхронные операции скачивания завершены");
             
             logger.info("✅ Все асинхронные операции завершены");
             importTaskService.markTaskCompleted(taskId);
