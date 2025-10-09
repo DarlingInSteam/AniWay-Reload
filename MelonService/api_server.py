@@ -1101,9 +1101,6 @@ async def execute_parse_task(task_id: str, slug: str, parser: str):
                     },
                     metrics=metrics_payload
                 )
-
-                # Автоматически запускаем build после успешного парсинга (с нормализованным slug)
-                asyncio.create_task(execute_build_task(task_id, normalized_slug, parser, None, "simple"))
             else:
                 logger.error(f"❌ JSON файл НЕ найден: {json_path}")
                 # Логируем доступные файлы для диагностики
