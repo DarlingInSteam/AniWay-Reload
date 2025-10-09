@@ -653,13 +653,68 @@ class Parser(MangaParser):
         last_status: int | None = None
         last_response = None
 
+        retryable_statuses = {408, 409, 423, 425, 429, 500, 502, 503, 504}
+        max_retry_attempts = getattr(self._Settings.common, "chapter_retry_attempts", 3)
+        initial_retry_delay = getattr(self._Settings.common, "chapter_retry_delay", 2.0)
+        retry_backoff_factor = getattr(self._Settings.common, "chapter_retry_backoff", 2.0)
+
+        def extract_error_message(response) -> str | None:
+            if response is None:
+                return None
+            try:
+                payload = response.json
+            except Exception:
+                payload = None
+
+            if isinstance(payload, dict):
+                for key in ("message", "error", "detail", "reason"):
+                    value = payload.get(key)
+                    if isinstance(value, str) and value.strip():
+                        return value.strip()
+
+                errors_obj = payload.get("errors")
+                if isinstance(errors_obj, dict):
+                    first_error = next((str(v) for v in errors_obj.values() if v), None)
+                    if first_error:
+                        return first_error
+
+            if hasattr(response, "text"):
+                text_value = response.text
+                if isinstance(text_value, str):
+                    snippet = text_value.strip()
+                    if snippet:
+                        return snippet[:200]
+            return None
+
         for url in url_variants:
-            Response = self._Requestor.get(url, headers=headers if headers else None)
-            last_response = Response
-            last_status = Response.status_code
+            attempt = 0
+            while True:
+                Response = self._Requestor.get(url, headers=headers if headers else None)
+                last_response = Response
+                last_status = Response.status_code
+
+                if Response.status_code == 200:
+                    break
+
+                error_message = extract_error_message(Response)
+                last_error = f"HTTP {Response.status_code}"
+                if error_message:
+                    last_error = f"HTTP {Response.status_code}: {error_message}"
+
+                if Response.status_code in retryable_statuses and attempt < max_retry_attempts:
+                    wait_seconds = initial_retry_delay * (retry_backoff_factor ** attempt)
+                    wait_seconds = max(wait_seconds, 1.5)
+                    wait_seconds = min(wait_seconds, 30.0)
+                    self._SystemObjects.logger.warning(
+                        f"Chapter {chapter.id} request to {url} returned {Response.status_code}. "
+                        f"Retrying in {wait_seconds:.1f}s (attempt {attempt + 1}/{max_retry_attempts}).")
+                    sleep(wait_seconds)
+                    attempt += 1
+                    continue
+
+                break
 
             if Response.status_code != 200:
-                last_error = f"HTTP {Response.status_code}"
                 continue
 
             Payload = Response.json
