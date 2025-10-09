@@ -155,12 +155,17 @@ class LogEntry(BaseModel):
     level: str
     message: str
     task_id: Optional[str] = None
+    sequence: int = 0
 
 # Глобальное хранилище задач (в production лучше использовать Redis)
 tasks_storage: Dict[str, ParseStatus] = {}
 
 # Хранилище логов для задач
 task_logs: Dict[str, List[LogEntry]] = {}
+
+# Счетчики и маркеры отправки логов, чтобы избегать повторной передачи
+task_log_sequence_counter: Dict[str, int] = {}
+task_last_sent_sequence: Dict[str, int] = {}
 
 # Хранилище состояний билда для синхронизации
 build_states: Dict[str, Dict[str, Any]] = {}  # task_id -> {"slug": str, "is_ready": bool, "files_ready": bool}
@@ -196,12 +201,17 @@ def log_task_message(task_id: str, level: str, message: str):
     
     # Очищаем ANSI escape коды из сообщения
     clean_message = strip_ansi_codes(message)
+
+    # Увеличиваем глобальный счетчик логов для задачи
+    next_sequence = task_log_sequence_counter.get(task_id, 0) + 1
+    task_log_sequence_counter[task_id] = next_sequence
     
     log_entry = LogEntry(
         timestamp=datetime.now().isoformat(),
         level=level,
         message=clean_message,
-        task_id=task_id
+        task_id=task_id,
+        sequence=next_sequence
     )
     
     task_logs[task_id].append(log_entry)
@@ -209,6 +219,15 @@ def log_task_message(task_id: str, level: str, message: str):
     # Ограничиваем количество логов (последние 1000)
     if len(task_logs[task_id]) > 1000:
         task_logs[task_id] = task_logs[task_id][-1000:]
+
+        # Если хвост почистили, корректируем маркеры последовательности
+        if task_id in task_last_sent_sequence:
+            max_sequence_in_cache = task_logs[task_id][-1].sequence if task_logs[task_id] else 0
+            if task_last_sent_sequence[task_id] > max_sequence_in_cache:
+                task_last_sent_sequence[task_id] = max_sequence_in_cache
+
+        if task_id in task_log_sequence_counter:
+            task_log_sequence_counter[task_id] = task_logs[task_id][-1].sequence if task_logs[task_id] else 0
 
 def ensure_cross_device_patch():
     """Исправляет ошибку 'Invalid cross-device link' в MangaBuilder"""
@@ -314,13 +333,25 @@ def update_task_status(
         if collected_metrics is not None:
             task.metrics = collected_metrics
         
-        # Собираем последние логи для отправки (последние 10 строк)
+        # Собираем только новые логи, которые ещё не отправлялись
         logs_to_send = None
-        if task_id in task_logs and len(task_logs[task_id]) > 0:
-            recent_logs = task_logs[task_id][-10:]  # Последние 10 логов
-            logs_to_send = [f"[{log.timestamp}] [{log.level}] {log.message}" for log in recent_logs]
+        if task_id in task_logs and task_logs[task_id]:
+            last_sent_sequence = task_last_sent_sequence.get(task_id, 0)
+            new_entries = [log for log in task_logs[task_id] if log.sequence > last_sent_sequence]
+
+            if new_entries:
+                # Ограничиваем размер отправляемого батча, чтобы не перегружать API
+                if len(new_entries) > 50:
+                    new_entries = new_entries[-50:]
+
+                logs_to_send = [f"[{log.timestamp}] [{log.level}] {log.message}" for log in new_entries]
+                task_last_sent_sequence[task_id] = new_entries[-1].sequence
         
         send_progress_to_manga_service(task_id, status, progress, message, error, logs_to_send, collected_metrics)
+
+        if status in {"COMPLETED", "FAILED", "CANCELLED"}:
+            task_last_sent_sequence.pop(task_id, None)
+            task_log_sequence_counter.pop(task_id, None)
 
 async def run_melon_command(command: List[str], task_id: str, timeout: int = 600) -> Dict[str, Any]:
     """Запускает команду MelonService асинхронно с поддержкой timeout, логирования и метрик"""
@@ -925,6 +956,8 @@ async def clear_completed_tasks():
             del tasks_storage[task_id]
             if task_id in task_logs:
                 del task_logs[task_id]
+            task_log_sequence_counter.pop(task_id, None)
+            task_last_sent_sequence.pop(task_id, None)
             if task_id in build_states:
                 del build_states[task_id]
     

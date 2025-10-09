@@ -164,9 +164,10 @@ class MangaBuilder(BaseBuilder):
 				Index: int = Slide["index"]
 				
 				if downloaded_filename:
+					source_filename = os.path.basename(downloaded_filename)
 					# Перемещаем файл из temp в рабочую директорию
 					MovingStatus = self._Parser.images_downloader.move_from_temp(
-						WorkDirectory, Filename, f"{Index}", is_full_filename=False
+						WorkDirectory, source_filename, f"{Index}", is_full_filename=False
 					)
 					MovingStatus.print_messages()
 				else:

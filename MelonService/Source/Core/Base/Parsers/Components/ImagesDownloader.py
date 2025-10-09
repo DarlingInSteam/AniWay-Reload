@@ -5,6 +5,7 @@ from dublib.WebRequestor import WebRequestor
 from typing import Optional, TYPE_CHECKING
 from pathlib import Path
 from os import PathLike
+from urllib.parse import urlparse, unquote, quote
 import shutil
 import os
 
@@ -75,15 +76,13 @@ class ImagesDownloader:
 		:rtype: bool
 		"""
 
-		ParsedURL = Path(url)
-		Filetype = ""
-		if not is_full_filename: Filetype = ParsedURL.suffix
-		if not filename: filename = ParsedURL.stem
+		if not directory:
+			directory = self.__SystemObjects.temper.parser_temp
+		else:
+			directory = NormalizePath(directory)
 
-		if not directory: directory = self.__SystemObjects.temper.parser_temp
-		else: directory = NormalizePath(directory)
-
-		return os.path.exists(f"{directory}/{filename}{Filetype}")
+		resolved_name, resolved_suffix = self.__resolve_filename(url, filename, is_full_filename)
+		return os.path.exists(f"{directory}/{resolved_name}{resolved_suffix}")
 
 	def image(self, url: str, directory: Optional[PathLike] = None, filename: Optional[str] = None, is_full_filename: bool = False) -> ExecutionStatus:
 		"""
@@ -108,15 +107,12 @@ class ImagesDownloader:
 
 		#---> Определение параметров файла.
 		#==========================================================================================#
-		ParsedURL = Path(url)
-		Filetype = ""
-		if not is_full_filename: Filetype = ParsedURL.suffix
-		if not filename: filename = ParsedURL.stem
-		ImagePath = f"{directory}/{filename}{Filetype}"
+		resolved_name, resolved_suffix = self.__resolve_filename(url, filename, is_full_filename)
+		ImagePath = f"{directory}/{resolved_name}{resolved_suffix}"
 
 		if os.path.exists(ImagePath):
 			Status["exists"] = True
-			Status.value = filename + Filetype
+			Status.value = resolved_name + resolved_suffix
 
 		#---> Определение параметров файла.
 		#==========================================================================================#
@@ -128,8 +124,9 @@ class ImagesDownloader:
 			if Response.status_code == 200:
 				
 				if len(Response.content) > 1000:
-					with open(ImagePath, "wb") as FileWriter: FileWriter.write(Response.content)
-					Status.value = filename + Filetype
+					with open(ImagePath, "wb") as FileWriter:
+						FileWriter.write(Response.content)
+					Status.value = resolved_name + resolved_suffix
 
 					# Увеличиваем счетчик скачанных изображений
 					ImagesDownloader.__download_counter += 1
@@ -176,7 +173,9 @@ class ImagesDownloader:
 		elif not filename: filename = original_filename
 
 		directory = NormalizePath(directory)
-		OriginalPath = f"Temp/{self.__SystemObjects.parser_name}/{original_filename}"
+		parser_temp = NormalizePath(f"Temp/{self.__SystemObjects.parser_name}")
+		original_filename = os.path.basename(original_filename)
+		OriginalPath = f"{parser_temp}/{original_filename}"
 		TargetPath = f"{directory}/{filename}{Filetype}"
 
 		if os.path.exists(TargetPath): 
@@ -184,8 +183,24 @@ class ImagesDownloader:
 			Status["exists"] = True
 
 		else:
-			shutil.move(OriginalPath, TargetPath)
-			Status.value = True
+			ExistingPath = OriginalPath
+			if not os.path.exists(ExistingPath):
+				ExistingPath = self.__find_temp_variant(parser_temp, original_filename)
+
+			if ExistingPath and os.path.exists(ExistingPath):
+				try:
+					shutil.move(ExistingPath, TargetPath)
+					Status.value = True
+				except FileNotFoundError:
+					message = f"Temp image missing during move: '{original_filename}'"
+					Status.push_error(message)
+					Status.value = False
+					self.__SystemObjects.logger.error(message)
+			else:
+				message = f"Temp image not found: '{original_filename}'"
+				Status.push_error(message)
+				Status.value = False
+				self.__SystemObjects.logger.error(message)
 
 		return Status
 	
@@ -204,3 +219,54 @@ class ImagesDownloader:
 		"""
 
 		return self.image(url, filename = filename, is_full_filename = is_full_filename)
+
+	def __resolve_filename(self, url: str, filename: Optional[str], is_full_filename: bool) -> tuple[str, str]:
+		"""Возвращает нормализованные имя и расширение для сохранения файла."""
+
+		parsed = urlparse(url)
+		decoded_path = unquote(parsed.path or "")
+		path_obj = Path(decoded_path)
+		suffix_from_url = path_obj.suffix
+
+		if is_full_filename:
+			if filename:
+				resolved_name = Path(filename).name
+			else:
+				resolved_name = path_obj.name
+			return resolved_name, ""
+
+		# Имя файла без расширения
+		if filename:
+			resolved_name = Path(filename).stem
+		else:
+			resolved_name = path_obj.stem
+
+		# Если расширение отсутствует в URL, пытаемся взять из исходного имени
+		resolved_suffix = suffix_from_url or Path(filename or "").suffix
+		return resolved_name, resolved_suffix or ""
+
+	def __find_temp_variant(self, temp_directory: str, original_filename: str) -> Optional[str]:
+		"""Пытается найти файл во временной директории с учётом URL-кодирования."""
+
+		candidates = {original_filename}
+		decoded = unquote(original_filename)
+		if decoded:
+			candidates.add(decoded)
+			reencoded = quote(decoded)
+			if reencoded:
+				candidates.add(reencoded)
+
+		for candidate in candidates:
+			candidate_path = f"{temp_directory}/{candidate}"
+			if os.path.exists(candidate_path):
+				return candidate_path
+
+		try:
+			lower_original = original_filename.lower()
+			for entry in os.listdir(temp_directory):
+				if entry.lower() == lower_original:
+					return f"{temp_directory}/{entry}"
+		except FileNotFoundError:
+			return None
+
+		return None

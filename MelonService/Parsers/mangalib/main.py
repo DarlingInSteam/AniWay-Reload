@@ -170,19 +170,41 @@ class Parser(MangaParser):
         """
         import os
         from pathlib import Path
+        import hashlib
         import requests
+        from urllib.parse import urlparse, unquote
         
         directory = self._SystemObjects.temper.parser_temp
+        os.makedirs(directory, exist_ok=True)
         
-        # Определяем имя файла из URL
-        parsed_url = Path(url)
-        filetype = parsed_url.suffix
-        filename = parsed_url.stem
-        image_path = f"{directory}/{filename}{filetype}"
+        # Определяем имя файла из URL с учётом декодирования
+        parsed_url = urlparse(url)
+        decoded_path = unquote(parsed_url.path or "")
+        trimmed_path = decoded_path.rstrip("/")
+        path_obj = Path(trimmed_path) if trimmed_path else Path("")
+
+        resolved_suffix = path_obj.suffix if trimmed_path else ""
+        resolved_name = path_obj.stem if trimmed_path else ""
+
+        if not resolved_name or resolved_name in {".", ".."}:
+            candidate_name = path_obj.name if trimmed_path else ""
+            if candidate_name not in {"", ".", ".."}:
+                resolved_name = Path(candidate_name).stem
+            else:
+                resolved_name = ""
+
+        if not resolved_suffix and trimmed_path:
+            resolved_suffix = Path(path_obj.name).suffix
+
+        if not resolved_name:
+            resolved_name = hashlib.sha1(url.encode("utf-8")).hexdigest()
+
+        image_filename = f"{resolved_name}{resolved_suffix}"
+        image_path = os.path.join(directory, image_filename)
         
         # Если файл уже существует и не FORCE_MODE, возвращаем имя
         if os.path.exists(image_path) and not self._SystemObjects.FORCE_MODE:
-            return filename + filetype
+            return image_filename
         
         try:
             # Получаем основной WebRequestor
@@ -246,7 +268,7 @@ class Parser(MangaParser):
                 if len(content) > 1000:
                     with open(image_path, "wb") as f:
                         f.write(content)
-                    return filename + filetype
+                    return image_filename
             
         except Exception as e:
             # Тихо пропускаем ошибки, retry механизм обработает
