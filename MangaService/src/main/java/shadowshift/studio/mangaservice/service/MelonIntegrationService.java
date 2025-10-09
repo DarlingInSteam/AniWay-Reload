@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
 public class MelonIntegrationService {
 
     private static final Logger logger = LoggerFactory.getLogger(MelonIntegrationService.class);
-    private static final Duration TASK_STATUS_POLL_INTERVAL = Duration.ofSeconds(2);
+    private static final Duration TASK_STATUS_POLL_INTERVAL = Duration.ofMillis(500); // Уменьшено с 2s до 500ms
     private static final int MAX_MISSING_TASK_STATUS_ATTEMPTS = 15;
 
     @Autowired

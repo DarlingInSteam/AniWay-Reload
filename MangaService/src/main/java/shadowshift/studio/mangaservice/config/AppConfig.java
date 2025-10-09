@@ -15,8 +15,8 @@ public class AppConfig {
 
         // Настраиваем таймауты для работы с внешними сервисами
         ClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        ((SimpleClientHttpRequestFactory) requestFactory).setConnectTimeout(30000); // 30 секунд
-        ((SimpleClientHttpRequestFactory) requestFactory).setReadTimeout(60000);    // 60 секунд
+        ((SimpleClientHttpRequestFactory) requestFactory).setConnectTimeout(5000);  // 5 секунд (уменьшено с 30s)
+        ((SimpleClientHttpRequestFactory) requestFactory).setReadTimeout(30000);    // 30 секунд (уменьшено с 60s)
 
         restTemplate.setRequestFactory(requestFactory);
         return restTemplate;
