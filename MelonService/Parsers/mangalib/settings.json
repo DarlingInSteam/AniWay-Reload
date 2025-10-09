@@ -9,7 +9,7 @@
 		"sizing_images": false,
 		"retries": 3,
 		"delay": 0.5,
-		"image_delay": 0.2
+		"image_delay": 0.1
 	},
 	"filters": {
 		"text_regexs": [],
