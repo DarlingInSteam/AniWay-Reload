@@ -95,6 +95,10 @@ class MangaBuilder(BaseBuilder):
 			build_system – система сборки главы.
 		"""
 
+		# ДЕБАГ: Отслеживание вызовов build_chapter
+		import traceback
+		call_stack = ''.join(traceback.format_stack()[-3:-1]).strip()
+		self._SystemObjects.logger.info(f"[DEBUG] build_chapter({chapter_id}) called from: {call_stack}")
 		self._SystemObjects.logger.info(f"Building chapter {chapter_id}...")
 
 		if not self._BuildSystem: self._BuildSystem = MangaBuildSystems.Simple
@@ -202,6 +206,14 @@ class MangaBuilder(BaseBuilder):
 			return
 		
 		self._SystemObjects.logger.info(f"Building branch {TargetBranch.id}...")
+		chapter_ids = [ch.id for ch in TargetBranch.chapters]
+		self._SystemObjects.logger.info(f"[DEBUG] Branch {TargetBranch.id} has {len(chapter_ids)} chapters: {chapter_ids[:10]}{'...' if len(chapter_ids) > 10 else ''}")
+		
+		# Проверка на дубликаты в списке глав
+		if len(chapter_ids) != len(set(chapter_ids)):
+			duplicates = [ch_id for ch_id in set(chapter_ids) if chapter_ids.count(ch_id) > 1]
+			self._SystemObjects.logger.warning(f"[DEBUG] Found duplicate chapter IDs in branch: {duplicates}")
+		
 		for CurrentChapter in TargetBranch.chapters: self.build_chapter(title, CurrentChapter.id)
 
 	def select_build_system(self, build_system: str | None):
