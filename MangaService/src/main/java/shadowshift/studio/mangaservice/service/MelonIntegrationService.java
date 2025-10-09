@@ -26,6 +26,9 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 /**
@@ -1149,6 +1152,28 @@ public class MelonIntegrationService {
             importChaptersWithProgress(taskId, manga.getId(), chaptersToImport, filename);
             
             logger.info("✓ Все главы импортированы успешно");
+            
+            // ВАЖНО: Дополнительная задержка для завершения всех асинхронных операций
+            logger.info("⏳ Ожидание завершения всех асинхронных операций загрузки изображений...");
+            Thread.sleep(5000); // 5 секунд задержки для завершения async операций
+            
+            // Проверяем, что все задачи executorService завершены
+            if (executorService != null && !executorService.isShutdown()) {
+                executorService.shutdown();
+                try {
+                    if (!executorService.awaitTermination(30, TimeUnit.SECONDS)) {
+                        logger.warn("ExecutorService не завершился за 30 секунд, принудительно останавливаем");
+                        executorService.shutdownNow();
+                    }
+                } catch (InterruptedException e) {
+                    executorService.shutdownNow();
+                    Thread.currentThread().interrupt();
+                }
+                // Создаем новый для следующих операций
+                executorService = Executors.newFixedThreadPool(10);
+            }
+            
+            logger.info("✅ Все асинхронные операции завершены");
             importTaskService.markTaskCompleted(taskId);
             logger.info("=== ИМПОРТ ЗАВЕРШЕН УСПЕШНО ===");
 
@@ -1914,13 +1939,22 @@ public class MelonIntegrationService {
                 downloadFutures.add(downloadFuture);
             }
             
-            // Ждем завершения всех скачиваний
-            List<PageData> downloadedPages = downloadFutures.stream()
-                .map(CompletableFuture::join)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
+            // Ждем завершения всех скачиваний с тайм-аутом
+            logger.debug("⏳ Ожидание завершения скачивания {} изображений...", downloadFutures.size());
+            List<PageData> downloadedPages = new ArrayList<>();
             
-            logger.info("Скачано {} из {} страниц", downloadedPages.size(), slides.size());
+            for (int i = 0; i < downloadFutures.size(); i++) {
+                try {
+                    PageData pageData = downloadFutures.get(i).get(60, TimeUnit.SECONDS); // 60 сек на страницу
+                    if (pageData != null) {
+                        downloadedPages.add(pageData);
+                    }
+                } catch (Exception e) {
+                    logger.error("Ошибка скачивания страницы {}: {}", i + 1, e.getMessage());
+                }
+            }
+            
+            logger.info("✅ Скачано {} из {} страниц", downloadedPages.size(), slides.size());
             
             if (downloadedPages.isEmpty()) {
                 logger.error("Не удалось скачать ни одной страницы для главы {}", chapterId);

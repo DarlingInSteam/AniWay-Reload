@@ -98,12 +98,26 @@ class MangaBuilder(BaseBuilder):
 		# ДЕБАГ: Отслеживание вызовов build_chapter
 		import traceback
 		call_stack = ''.join(traceback.format_stack()[-3:-1]).strip()
-		self._SystemObjects.logger.info(f"[DEBUG] build_chapter({chapter_id}) called from: {call_stack}")
-		self._SystemObjects.logger.info(f"Building chapter {chapter_id}...")
-
+		self._SystemObjects.logger.debug(f"build_chapter({chapter_id}) called from: {call_stack}")
+		
 		if not self._BuildSystem: self._BuildSystem = MangaBuildSystems.Simple
 
 		TargetChapter: "Chapter" = self._FindChapter(title.branches, chapter_id)
+		
+		# Создаем красивое отображение главы
+		chapter_display_parts = []
+		if hasattr(TargetChapter, 'volume') and TargetChapter.volume:
+			chapter_display_parts.append(f"Vol.{TargetChapter.volume}")
+		if hasattr(TargetChapter, 'number') and TargetChapter.number is not None:
+			chapter_display_parts.append(f"Ch.{TargetChapter.number}")
+		elif hasattr(TargetChapter, 'chapter') and TargetChapter.chapter is not None:
+			chapter_display_parts.append(f"Ch.{TargetChapter.chapter}")
+		
+		chapter_display = " ".join(chapter_display_parts) if chapter_display_parts else f"Chapter {chapter_id}"
+		if hasattr(TargetChapter, 'name') and TargetChapter.name:
+			chapter_display += f": {TargetChapter.name}"
+			
+		self._SystemObjects.logger.info(f"Building {chapter_display}...")
 		SlidesCount = len(TargetChapter.slides)
 		WorkDirectory = f"{self._Temper.builder_temp}/{title.used_filename}"
 
@@ -147,7 +161,7 @@ class MangaBuilder(BaseBuilder):
 				Index: int = Slide["index"]
 				
 				if downloaded_filename:
-					self._SystemObjects.logger.info(f"Slave \"{Filename}\" downloaded ({idx}/{SlidesCount}).", stdout=False)
+					self._SystemObjects.logger.debug(f"Slave \"{Filename}\" downloaded ({idx}/{SlidesCount}).", stdout=False)
 					
 					# Перемещаем файл из temp в рабочую директорию
 					MovingStatus = self._Parser.images_downloader.move_from_temp(
@@ -169,13 +183,13 @@ class MangaBuilder(BaseBuilder):
 				Index: int = Slide["index"]
 				
 				if not os.path.exists(WorkDirectory): os.mkdir(WorkDirectory)
-				self._SystemObjects.logger.info(f"[{Index}/{SlidesCount}] Downloading \"{Filename}\"...")
+				self._SystemObjects.logger.debug(f"[{Index}/{SlidesCount}] Downloading \"{Filename}\"...")
 				DownloadingStatus = Parser.image(Link)
 				DownloadingStatus.print_messages()
 
 				if not DownloadingStatus.has_errors:
-					self._SystemObjects.logger.info(f"[{Index}/{SlidesCount}] \"{Filename}\" - Done.")
-					self._SystemObjects.logger.info(f"Slide \"{Filename}\" downloaded.", stdout = False)
+					self._SystemObjects.logger.debug(f"[{Index}/{SlidesCount}] \"{Filename}\" - Done.")
+					self._SystemObjects.logger.debug(f"Slide \"{Filename}\" downloaded.", stdout = False)
 
 				else: self._SystemObjects.logger.error(f"Unable download slide \"{Filename}\". Response code: {DownloadingStatus.code}.")
 
@@ -206,7 +220,7 @@ class MangaBuilder(BaseBuilder):
 		
 		self._SystemObjects.logger.info(f"Building branch {TargetBranch.id}...")
 		chapter_ids = [ch.id for ch in TargetBranch.chapters]
-		self._SystemObjects.logger.info(f"[DEBUG] Branch {TargetBranch.id} has {len(chapter_ids)} chapters: {chapter_ids[:10]}{'...' if len(chapter_ids) > 10 else ''}")
+		self._SystemObjects.logger.debug(f"Branch {TargetBranch.id} has {len(chapter_ids)} chapters: {chapter_ids[:10]}{'...' if len(chapter_ids) > 10 else ''}")
 		
 		# Проверка на дубликаты в списке глав
 		if len(chapter_ids) != len(set(chapter_ids)):

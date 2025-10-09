@@ -84,7 +84,7 @@ class AdaptiveParallelDownloader:
         self._last_429_time = 0
         
         override_note = f", override={max_total_workers}" if max_total_workers else ""
-        logger.info(
+        logger.debug(
             f"🚀 ParallelDownloader initialized: {self.max_workers} workers for {proxy_count} proxies "
             f"(ratio: {max_workers_per_proxy}:1, delay={base_delay}s{override_note})"
         )
@@ -153,7 +153,7 @@ class AdaptiveParallelDownloader:
                     # Показываем прогресс: каждые 10 изображений ИЛИ каждые 25% для маленьких батчей
                     progress_step = max(1, min(10, total // 4))  # Минимум каждое изображение, максимум каждые 10
                     if current % progress_step == 0 or current == total:
-                        logger.info(
+                        logger.debug(
                             f"📥 Downloaded {current}/{total} images "
                             f"({current/total*100:.1f}%)"
                         )
@@ -213,7 +213,7 @@ class AdaptiveParallelDownloader:
             self._downloaded = 0
             self._failed = 0
         
-        logger.info(
+        logger.debug(
             f"🚀 Starting parallel download: {len(urls)} images, "
             f"{self.max_workers} workers, delay: {self.base_delay}s"
         )

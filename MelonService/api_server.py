@@ -25,9 +25,39 @@ logger = logging.getLogger(__name__)
 # Регулярное выражение для удаления ANSI escape кодов
 ANSI_ESCAPE_PATTERN = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 
+# Глобальный кеш метаданных глав для улучшенного логирования
+chapters_metadata_cache: Dict[str, Dict[str, Any]] = {}
+
 def strip_ansi_codes(text: str) -> str:
     """Удаляет ANSI escape коды из текста"""
     return ANSI_ESCAPE_PATTERN.sub('', text)
+
+def get_chapter_display_name(chapter_id: str) -> str:
+    """
+    Получает удобочитаемое название главы из кеша метаданных.
+    Возвращает формат: "Vol.X Ch.Y: Chapter Name" или просто chapter_id если не найдено.
+    """
+    chapter_info = chapters_metadata_cache.get(chapter_id)
+    if not chapter_info:
+        return chapter_id
+    
+    volume = chapter_info.get('volume')
+    number = chapter_info.get('number')
+    name = chapter_info.get('name', '').strip()
+    
+    # Формируем красивое название
+    parts = []
+    if volume:
+        parts.append(f"Vol.{volume}")
+    if number is not None:
+        parts.append(f"Ch.{number}")
+    
+    chapter_part = " ".join(parts) if parts else f"Ch.{chapter_id}"
+    
+    if name:
+        return f"{chapter_part}: {name}"
+    else:
+        return chapter_part
 
 # =========================================================================================
 # ПРОКСИ КОНФИГУРАЦИЯ С РОТАЦИЕЙ (импортируем ProxyRotator)
@@ -371,11 +401,13 @@ async def run_melon_command(command: List[str], task_id: str, timeout: int = 600
             }
             chapter_metrics.append(metric_entry)
 
+            # Используем улучшенный формат отображения главы
+            chapter_display = get_chapter_display_name(chapter_id)
             if duration:
                 speed = metric_entry["images_per_second"] or 0.0
-                log_task_message(task_id, "DEBUG", f"[Metrics] Chapter {chapter_id}: {images} images in {duration:.2f}s ({speed:.2f} img/s)")
+                log_task_message(task_id, "DEBUG", f"[Metrics] Chapter {chapter_display}: {images} images in {duration:.2f}s ({speed:.2f} img/s)")
             else:
-                log_task_message(task_id, "DEBUG", f"[Metrics] Chapter {chapter_id}: {images} images")
+                log_task_message(task_id, "DEBUG", f"[Metrics] Chapter {chapter_display}: {images} images")
 
             chapter_state.pop(chapter_id, None)
             if chapter_id in chapter_order:
@@ -1474,15 +1506,21 @@ async def get_chapters_metadata_only_endpoint(slug: str, parser: str = "mangalib
             for chapter_data in data:
                 # Обрабатываем все ветки главы
                 for branch_data in chapter_data.get("branches", []):
-                    chapters.append({
+                    chapter_info = {
                         "volume": chapter_data.get("volume"),
                         "number": chapter_data.get("number"),
                         "name": chapter_data.get("name", ""),
                         "id": branch_data.get("id"),
                         "branch_id": branch_data.get("branch_id")
-                    })
+                    }
+                    chapters.append(chapter_info)
+                    
+                    # Заполняем кеш метаданных для улучшенного логирования
+                    chapter_id = str(branch_data.get("id"))
+                    chapters_metadata_cache[chapter_id] = chapter_info
             
             logger.info(f"Successfully retrieved {len(chapters)} chapters metadata for slug: {slug}")
+            logger.debug(f"Cached metadata for {len(chapters)} chapters")
             
             return {
                 "success": True,
