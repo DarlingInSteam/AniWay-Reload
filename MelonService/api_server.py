@@ -446,7 +446,7 @@ async def run_melon_command(command: List[str], task_id: str, timeout: int = 600
         async def heartbeat():
             nonlocal last_update_time
             while process.returncode is None:
-                await asyncio.sleep(30)
+                await asyncio.sleep(5)  # Уменьшено с 30s до 5s для частых обновлений логов
                 if process.returncode is None:
                     elapsed = (datetime.now() - last_update_time).total_seconds()
                     log_task_message(task_id, "INFO", f"[Heartbeat] Процесс активен, прошло {int(elapsed)}с с последнего обновления")
