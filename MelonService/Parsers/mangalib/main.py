@@ -587,7 +587,13 @@ class Parser(MangaParser):
 
         parse_delay = getattr(self._Settings.common, 'parse_delay', 0.1)
 
-        token = self._Settings.custom.get("token")
+        token = None
+        custom_settings = getattr(self._Settings, "custom", None)
+        if custom_settings is not None:
+            try:
+                token = custom_settings["token"]
+            except KeyError:
+                token = None
         headers: dict[str, str] = {
             "Referer": f"https://{self._Manifest.site}/"
         }
