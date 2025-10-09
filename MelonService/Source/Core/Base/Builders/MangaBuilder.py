@@ -132,30 +132,30 @@ class MangaBuilder(BaseBuilder):
 			# Параллельная загрузка
 			filenames = Parser.batch_download_images(urls)
 			
-		# Обработка результатов и перемещение файлов
-		if not os.path.exists(WorkDirectory): 
-			os.makedirs(WorkDirectory, exist_ok=True)
-		
-		for idx, (Slide, downloaded_filename) in enumerate(zip(TargetChapter.slides, filenames), start=1):
-			Filename: str = Slide["link"].split("/")[-1]
-			Index: int = Slide["index"]
+			# Обработка результатов и перемещение файлов
+			if not os.path.exists(WorkDirectory): 
+				os.makedirs(WorkDirectory, exist_ok=True)
 			
-			if downloaded_filename:
-				self._SystemObjects.logger.info(f"Slide \"{Filename}\" downloaded ({idx}/{SlidesCount}).", stdout=False)
+			for idx, (Slide, downloaded_filename) in enumerate(zip(TargetChapter.slides, filenames), start=1):
+				Filename: str = Slide["link"].split("/")[-1]
+				Index: int = Slide["index"]
 				
-				# Перемещаем файл из temp в рабочую директорию
-				MovingStatus = self._Parser.images_downloader.move_from_temp(
-					WorkDirectory, Filename, f"{Index}", is_full_filename=False
-				)
-				MovingStatus.print_messages()
-			else:
-				self._SystemObjects.logger.error(f"Unable download slide \"{Filename}\" ({idx}/{SlidesCount}).")
-		
-		print(f"[INFO] ✅ Chapter download completed: {SlidesCount} images")
-		
-		# ИСПРАВЛЕНИЕ: Вызываем систему сборки ТОЛЬКО ОДИН РАЗ после скачивания всех изображений
-		self.__BuildSystemsMethods[self._BuildSystem](title, TargetChapter, WorkDirectory)
-		
+				if downloaded_filename:
+					self._SystemObjects.logger.info(f"Slide \"{Filename}\" downloaded ({idx}/{SlidesCount}).", stdout=False)
+					
+					# Перемещаем файл из temp в рабочую директорию
+					MovingStatus = self._Parser.images_downloader.move_from_temp(
+						WorkDirectory, Filename, f"{Index}", is_full_filename=False
+					)
+					MovingStatus.print_messages()
+				else:
+					self._SystemObjects.logger.error(f"Unable download slide \"{Filename}\" ({idx}/{SlidesCount}).")
+			
+			print(f"[INFO] ✅ Chapter download completed: {SlidesCount} images")
+			
+			# ИСПРАВЛЕНИЕ: Вызываем систему сборки ТОЛЬКО ОДИН РАЗ после скачивания всех изображений
+			self.__BuildSystemsMethods[self._BuildSystem](title, TargetChapter, WorkDirectory)
+			
 		else:
 			# FALLBACK: Старый последовательный метод (если batch_download_images недоступен)
 			print(f"[WARNING] ⚠️  Parallel download not available, using sequential method...")
