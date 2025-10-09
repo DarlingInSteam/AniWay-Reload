@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 import shutil
 import enum
 import os
+from urllib.parse import urlparse, unquote
 
 if TYPE_CHECKING:
 	from Source.Core.Base.Parsers.MangaParser import MangaParser
@@ -157,7 +158,9 @@ class MangaBuilder(BaseBuilder):
 				os.makedirs(WorkDirectory, exist_ok=True)
 			
 			for idx, (Slide, downloaded_filename) in enumerate(zip(TargetChapter.slides, filenames), start=1):
-				Filename: str = Slide["link"].split("/")[-1]
+				parsed_url = urlparse(Slide["link"])
+				raw_filename = parsed_url.path.split("/")[-1]
+				Filename: str = unquote(raw_filename) or Slide["link"].split("/")[-1]
 				Index: int = Slide["index"]
 				
 				if downloaded_filename:
@@ -176,7 +179,9 @@ class MangaBuilder(BaseBuilder):
 			
 			for Slide in TargetChapter.slides:
 				Link: str = Slide["link"]
-				Filename: str = Link.split("/")[-1]
+				parsed_url = urlparse(Link)
+				raw_filename = parsed_url.path.split("/")[-1]
+				Filename: str = unquote(raw_filename) or Link.split("/")[-1]
 				Index: int = Slide["index"]
 				
 				if not os.path.exists(WorkDirectory): os.mkdir(WorkDirectory)
