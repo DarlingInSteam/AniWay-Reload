@@ -110,25 +110,27 @@ class MangaBuilder(BaseBuilder):
 		# НОВОЕ: Параллельная загрузка всех изображений главы
 		Parser: "MangaParser" = title.parser
 		
-		# DEBUG: Проверка парсера
-		print(f"[DEBUG] Parser type: {type(Parser).__name__}")
-		print(f"[DEBUG] Parser has batch_download_images: {hasattr(Parser, 'batch_download_images')}")
-		if hasattr(Parser, '__class__'):
-			print(f"[DEBUG] Parser methods: {[m for m in dir(Parser) if not m.startswith('_') and 'download' in m.lower()]}")
+		# DEBUG: Проверка парсера (ИСПРАВЛЕНО: убрали print() чтобы избежать дублирования логов)
+		# Эти дебаг-логи нужны только для отладки, в продакшене их можно отключить
+		if False:  # Отключаем дебаг-логи для устранения дублирования
+			self._SystemObjects.logger.info(f"[DEBUG] Parser type: {type(Parser).__name__}")
+			self._SystemObjects.logger.info(f"[DEBUG] Parser has batch_download_images: {hasattr(Parser, 'batch_download_images')}")
+			if hasattr(Parser, '__class__'):
+				self._SystemObjects.logger.info(f"[DEBUG] Parser methods: {[m for m in dir(Parser) if not m.startswith('_') and 'download' in m.lower()]}")
 		
 		# КРИТИЧЕСКИ ВАЖНО: Если парсер загружен из JSON, нужно инициализировать _parallel_downloader
 		if hasattr(Parser, 'batch_download_images'):
 			# Проверяем, инициализирован ли _parallel_downloader
 			if not hasattr(Parser, '_parallel_downloader') or Parser._parallel_downloader is None:
-				print(f"[WARNING] _parallel_downloader not initialized, calling _PostInitMethod()...")
+				self._SystemObjects.logger.warning("_parallel_downloader not initialized, calling _PostInitMethod()...")
 				if hasattr(Parser, '_PostInitMethod'):
 					Parser._PostInitMethod()
 				else:
-					print(f"[ERROR] Parser doesn't have _PostInitMethod()!")
+					self._SystemObjects.logger.error("Parser doesn't have _PostInitMethod()!")
 		
 		# Проверяем, есть ли у парсера метод batch_download_images
 		if hasattr(Parser, 'batch_download_images'):
-			print(f"[INFO] 🚀 Starting parallel download of {SlidesCount} images...")
+			self._SystemObjects.logger.info(f"🚀 Starting parallel download of {SlidesCount} images...")
 			
 			# Собираем все URL для параллельной загрузки
 			urls = [Slide["link"] for Slide in TargetChapter.slides]
@@ -145,7 +147,7 @@ class MangaBuilder(BaseBuilder):
 				Index: int = Slide["index"]
 				
 				if downloaded_filename:
-					self._SystemObjects.logger.info(f"Slide \"{Filename}\" downloaded ({idx}/{SlidesCount}).", stdout=False)
+					self._SystemObjects.logger.info(f"Slave \"{Filename}\" downloaded ({idx}/{SlidesCount}).", stdout=False)
 					
 					# Перемещаем файл из temp в рабочую директорию
 					MovingStatus = self._Parser.images_downloader.move_from_temp(
@@ -155,14 +157,11 @@ class MangaBuilder(BaseBuilder):
 				else:
 					self._SystemObjects.logger.error(f"Unable download slide \"{Filename}\" ({idx}/{SlidesCount}).")
 			
-			print(f"[INFO] ✅ Chapter download completed: {SlidesCount} images")
-			
-			# ИСПРАВЛЕНИЕ: Вызываем систему сборки ТОЛЬКО ОДИН РАЗ после скачивания всех изображений
-			self.__BuildSystemsMethods[self._BuildSystem](title, TargetChapter, WorkDirectory)
-			
+			self._SystemObjects.logger.info(f"✅ Chapter download completed: {SlidesCount} images")
+		
 		else:
 			# FALLBACK: Старый последовательный метод (если batch_download_images недоступен)
-			print(f"[WARNING] ⚠️  Parallel download not available, using sequential method...")
+			self._SystemObjects.logger.warning("⚠️  Parallel download not available, using sequential method...")
 			
 			for Slide in TargetChapter.slides:
 				Link: str = Slide["link"]
@@ -170,21 +169,21 @@ class MangaBuilder(BaseBuilder):
 				Index: int = Slide["index"]
 				
 				if not os.path.exists(WorkDirectory): os.mkdir(WorkDirectory)
-				print(f"[{Index} / {SlidesCount}] Downloading \"{Filename}\"... ", flush = True, end = "")
+				self._SystemObjects.logger.info(f"[{Index}/{SlidesCount}] Downloading \"{Filename}\"...")
 				DownloadingStatus = Parser.image(Link)
 				DownloadingStatus.print_messages()
 
 				if not DownloadingStatus.has_errors:
-					print("Done.")
+					self._SystemObjects.logger.info(f"[{Index}/{SlidesCount}] \"{Filename}\" - Done.")
 					self._SystemObjects.logger.info(f"Slide \"{Filename}\" downloaded.", stdout = False)
 
-				else: self._Logger.error(f"Unable download slide \"{Filename}\". Response code: {DownloadingStatus.code}.")
+				else: self._SystemObjects.logger.error(f"Unable download slide \"{Filename}\". Response code: {DownloadingStatus.code}.")
 
 				MovingStatus = self._Parser.images_downloader.move_from_temp(WorkDirectory, Filename, f"{Index}", is_full_filename = False)
 				MovingStatus.print_messages()
-			
-			# ИСПРАВЛЕНИЕ: Вызываем систему сборки ТОЛЬКО ОДИН РАЗ после скачивания всех изображений
-			self.__BuildSystemsMethods[self._BuildSystem](title, TargetChapter, WorkDirectory)
+		
+		# ИСПРАВЛЕНИЕ: Вызываем систему сборки ТОЛЬКО ОДИН РАЗ после скачивания всех изображений
+		self.__BuildSystemsMethods[self._BuildSystem](title, TargetChapter, WorkDirectory)
 
 		shutil.rmtree(WorkDirectory)
 
