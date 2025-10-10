@@ -2154,9 +2154,9 @@ public class MelonIntegrationService {
                                                 Set<String> usedChapterNumbers) {
         int safeVolume = Math.max(volume, 0);
         int counter = volumeCounters.compute(safeVolume, (key, value) -> value == null ? 1 : value + 1);
-        double base = safeVolume * 1000d;
+        double base = safeVolume * 10000d;
         double candidate = base + numericValue;
-        double nextBoundary = (safeVolume + 1) * 1000d;
+        double nextBoundary = (safeVolume + 1) * 10000d;
 
         if (candidate >= nextBoundary || candidate < base) {
             candidate = base + counter;
@@ -2170,7 +2170,7 @@ public class MelonIntegrationService {
                                                 Set<String> usedChapterNumbers) {
         int safeVolume = Math.max(volume, 0);
         int counter = volumeCounters.compute(safeVolume, (key, value) -> value == null ? 1 : value + 1);
-        double base = safeVolume * 1000d;
+        double base = safeVolume * 10000d;
         double candidate = base + SPECIAL_BASE_OFFSET - (counter * SPECIAL_STEP);
         double minBoundary = base + SPECIAL_STEP;
 

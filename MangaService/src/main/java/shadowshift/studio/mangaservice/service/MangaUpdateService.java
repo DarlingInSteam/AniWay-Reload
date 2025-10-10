@@ -264,7 +264,7 @@ public class MangaUpdateService {
                     
                     int volume = volumeObj != null ? Integer.parseInt(volumeObj.toString()) : 1;
                     double number = Double.parseDouble(numberObj.toString());
-                    double chapterNum = volume * 1000 + number;
+                    double chapterNum = volume * 10000 + number;
                     
                     // Проверяем, является ли глава новой
                     if (!existingChapterNumbers.contains(chapterNum)) {
@@ -331,7 +331,7 @@ public class MangaUpdateService {
                         
                         int volume = volumeObj != null ? Integer.parseInt(volumeObj.toString()) : 1;
                         double number = Double.parseDouble(numberObj.toString());
-                        double chapterNum = volume * 1000 + number;
+                        double chapterNum = volume * 10000 + number;
                         
                         // Проверяем, является ли эта глава новой (улучшенное сравнение)
                         if (!existingChapterNumbers.contains(chapterNum)) {
@@ -444,7 +444,7 @@ public class MangaUpdateService {
                 try {
                     volume = volumeObj != null ? Integer.parseInt(volumeObj.toString()) : 1;
                     originalNumber = Double.parseDouble(numberObj.toString());
-                    chapterNumber = volume * 1000 + originalNumber;
+                    chapterNumber = volume * 10000 + originalNumber;
                 } catch (NumberFormatException e) {
                     logger.warn("Не удалось распарсить номер главы: {}", numberObj);
                     continue;
