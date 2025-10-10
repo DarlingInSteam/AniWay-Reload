@@ -35,7 +35,7 @@ const DEFAULT_BOOKMARK_BADGE = {
   className: 'bg-slate-600/90 text-white border border-slate-400/30'
 }
 
-const overlayBadgeBase = 'inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold leading-none shadow-sm backdrop-blur-md'
+const overlayBadgeBase = 'inline-flex items-center gap-1.5 rounded-full px-2.5 text-[11px] font-semibold leading-none shadow-sm backdrop-blur-md min-h-[28px]'
 
 interface MangaCardProps {
   manga: MangaResponseDTO
@@ -133,7 +133,8 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
           )}
 
           <div className="absolute top-2.5 md:top-3 left-2.5 md:left-3 flex items-center">
-            <div className={cn(overlayBadgeBase, 'gap-1 bg-black/70 text-white/95 border border-white/10')}>
+            <div className={cn(overlayBadgeBase, 'bg-black/70 text-white/95 border border-white/10')}
+            >
               <Star className="h-3.5 w-3.5 text-accent fill-current" />
               <span className="font-semibold">
                 {rating?.averageRating ? rating.averageRating.toFixed(1) : '—'}

@@ -68,15 +68,11 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
     return 'Не указан'
   }, [manga.isLicensed])
 
-  const infoRows = useMemo(() => ([
-    [
-      { label: 'Статус', value: getStatusText(manga.status) },
-      { label: 'Перевод', value: translationLabel }
-    ],
-    [
-      { label: 'Выпуск', value: releaseYear ? `${releaseYear} г.` : 'Не указан' },
-      { label: 'Глав', value: totalChapters > 0 ? totalChapters.toString() : '—' }
-    ]
+  const infoItems = useMemo(() => ([
+    { label: 'Статус', value: getStatusText(manga.status) },
+    { label: 'Перевод', value: translationLabel },
+    { label: 'Выпуск', value: releaseYear ? `${releaseYear} г.` : 'Не указан' },
+    { label: 'Глав', value: totalChapters > 0 ? totalChapters.toString() : '—' }
   ]), [manga.status, translationLabel, releaseYear, totalChapters])
 
 
@@ -365,7 +361,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
               })(),
               transition: 'opacity 140ms ease, transform 140ms ease'
             }}
-            className="hidden lg:block w-[420px] p-5 rounded-xl shadow-xl shadow-black/60 bg-black/80 backdrop-blur-md border border-white/15"
+            className="hidden lg:block w-[360px] p-5 rounded-xl shadow-xl shadow-black/60 bg-black/80 backdrop-blur-md border border-white/15"
             onMouseEnter={handleTooltipMouseEnter}
             onMouseLeave={handleTooltipMouseLeave}
           >
@@ -384,7 +380,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
           )}
 
           {/* Заголовочная секция */}
-          <div className="mb-4 space-y-1.5">
+          <div className="mb-3.5 space-y-1">
             <h3 className="font-semibold text-lg text-white leading-tight">
               {manga.title}
             </h3>
@@ -394,27 +390,25 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
                 {secondaryTitles.length > 2 && ' • …'}
               </div>
             )}
-            <div className="text-xs text-white/45">
-              {getTypeText(manga.type) ?? 'Неизвестный тип'}
+            <div className="text-xs text-white/45 flex items-center gap-3">
+              <span>{getTypeText(manga.type) ?? 'Неизвестный тип'}</span>
               {ratingValue !== undefined ? (
-                <span className="ml-3 text-white/55">Рейтинг {ratingValue.toFixed(1)}</span>
+                <span className="text-white/55">Рейтинг {ratingValue.toFixed(1)}</span>
               ) : null}
             </div>
           </div>
 
           {/* Мета-информация */}
           <div className="mb-4 space-y-3">
-            <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-              {infoRows.map((row, rowIndex) => (
-                row.map((item, cellIndex) => (
-                  <div
-                    key={`${rowIndex}-${cellIndex}-${item.label}`}
-                    className="flex items-center justify-between gap-3 text-white/75"
-                  >
-                    <span className="text-xs text-white/45">{item.label}</span>
-                    <span className="text-sm font-medium text-white/90">{item.value}</span>
-                  </div>
-                ))
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              {infoItems.map((item) => (
+                <div
+                  key={item.label}
+                  className="flex flex-col gap-0.5 text-white/80"
+                >
+                  <span className="text-xs text-white/45">{item.label}</span>
+                  <span className="font-medium text-white">{item.value}</span>
+                </div>
               ))}
             </div>
             {manga.ageLimit !== null && manga.ageLimit !== undefined && (
