@@ -11,10 +11,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { GlassPanel } from '@/components/ui/GlassPanel'
-import { BookOpen, Edit, Trash2, Search, RefreshCw, Plus, Eye, Layers, Loader2, Save, Info } from 'lucide-react'
+import { BookOpen, Edit, Trash2, Search, RefreshCw, Plus, Eye, Layers, Loader2, Save } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { toast } from 'sonner'
-import type { ChapterDTO, ChapterCreateRequest } from '@/types'
+import type { ChapterDTO, ChapterCreateRequest, MangaResponseDTO } from '@/types'
+import { MangaTooltip } from '@/components/manga'
 
 interface MangaItem {
   id: number
@@ -66,6 +67,69 @@ const MANGA_STATUSES = [
   { value: 'HIATUS', label: 'На паузе' },
   { value: 'CANCELLED', label: 'Отменена' }
 ]
+
+const TOOLTIP_TYPE_VALUES: readonly MangaResponseDTO['type'][] = ['MANGA', 'MANHWA', 'MANHUA', 'WESTERN_COMIC', 'RUSSIAN_COMIC', 'OEL', 'OTHER']
+const TOOLTIP_STATUS_VALUES: readonly MangaResponseDTO['status'][] = ['ONGOING', 'COMPLETED', 'ANNOUNCED', 'HIATUS', 'CANCELLED']
+const TOOLTIP_DATE_FALLBACK = '1970-01-01T00:00:00.000Z'
+
+const normalizeTooltipIsoDate = (value?: string | null, fallback: string = TOOLTIP_DATE_FALLBACK) => {
+  if (!value) return fallback
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return fallback
+  }
+  return parsed.toISOString()
+}
+
+const normalizeTooltipType = (value?: string | null): MangaResponseDTO['type'] => {
+  if (!value) return 'OTHER'
+  const normalized = value.replace(/[-\s]/g, '_').toUpperCase() as MangaResponseDTO['type']
+  return TOOLTIP_TYPE_VALUES.includes(normalized) ? normalized : 'OTHER'
+}
+
+const normalizeTooltipStatus = (value?: string | null): MangaResponseDTO['status'] => {
+  if (!value) return 'ONGOING'
+  const normalized = value.toUpperCase() as MangaResponseDTO['status']
+  return TOOLTIP_STATUS_VALUES.includes(normalized) ? normalized : 'ONGOING'
+}
+
+const toTooltipManga = (manga: MangaItem): MangaResponseDTO => {
+  const chapterCount = typeof manga.chapterCount === 'number' && !Number.isNaN(manga.chapterCount)
+    ? manga.chapterCount
+    : typeof manga.totalChapters === 'number' && !Number.isNaN(manga.totalChapters)
+      ? manga.totalChapters
+      : 0
+  const totalChapters = typeof manga.totalChapters === 'number' && !Number.isNaN(manga.totalChapters)
+    ? manga.totalChapters
+    : chapterCount
+  const views = typeof manga.views === 'number' && !Number.isNaN(manga.views) ? manga.views : 0
+  const releaseIso = normalizeTooltipIsoDate(manga.releaseDate ?? manga.createdAt)
+  const createdIso = normalizeTooltipIsoDate(manga.createdAt, releaseIso)
+  const updatedIso = normalizeTooltipIsoDate(manga.updatedAt, createdIso)
+
+  return {
+    id: manga.id,
+    title: manga.title,
+    author: manga.author || 'Не указан',
+    artist: undefined,
+    genre: manga.genre || '',
+    tags: manga.tags,
+    engName: manga.engName,
+    alternativeNames: undefined,
+    type: normalizeTooltipType(manga.type),
+    ageLimit: undefined,
+    isLicensed: undefined,
+    status: normalizeTooltipStatus(manga.status),
+    description: manga.description || '',
+    releaseDate: releaseIso,
+    coverImageUrl: manga.coverImageUrl,
+    chapterCount,
+    totalChapters,
+    views,
+    createdAt: createdIso,
+    updatedAt: updatedIso
+  }
+}
 
 export function MangaManager() {
   const [searchQuery, setSearchQuery] = useState('')
@@ -223,11 +287,6 @@ export function MangaManager() {
     minute: '2-digit'
   }), [])
 
-  const compactNumberFormatter = useMemo(() => new Intl.NumberFormat('ru-RU', {
-    notation: 'compact',
-    maximumFractionDigits: 1
-  }), [])
-
   const formatDateTime = useCallback((value?: string | null) => {
     if (!value) return '—'
     const date = new Date(value)
@@ -261,13 +320,6 @@ export function MangaManager() {
     }
     return value
   }, [])
-
-  const formatCompactNumber = useCallback((value?: number | null) => {
-    if (value === null || value === undefined || Number.isNaN(value)) {
-      return '—'
-    }
-    return compactNumberFormatter.format(value)
-  }, [compactNumberFormatter])
 
   const normalizeNumberInput = useCallback((value: string) => {
     if (!value) return undefined
@@ -407,25 +459,6 @@ export function MangaManager() {
     deleteMangaMutation.mutate(id)
   }
 
-  const getStatusBadge = (status: string) => {
-    const statusInfo = MANGA_STATUSES.find(s => s.value === status)
-    const colors = {
-      ONGOING: 'bg-green-500',
-      COMPLETED: 'bg-blue-500',
-      HIATUS: 'bg-yellow-500',
-      CANCELLED: 'bg-red-500'
-    }
-
-    return (
-      <Badge
-        className={colors[status as keyof typeof colors] || 'bg-gray-500'}
-        title={statusInfo?.label || status}
-      >
-        {statusInfo?.label || status}
-      </Badge>
-    )
-  }
-
   return (
     <div className="space-y-6">
       {/* Фильтры и поиск */}
@@ -501,13 +534,9 @@ export function MangaManager() {
               <p className="text-sm">Попробуйте изменить параметры поиска</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {mangaList.map((manga) => {
                 const releaseYear = manga.releaseDate ? new Date(manga.releaseDate).getFullYear() : '—'
-                const tagList = manga.tags
-                  ? manga.tags.split(',').map((tag) => tag.trim()).filter(Boolean).slice(0, 4)
-                  : []
-                const displayedTags = tagList.slice(0, 4)
                 const resolvedChapterCount = typeof manga.chapterCount === 'number'
                   ? manga.chapterCount
                   : typeof manga.totalChapters === 'number'
@@ -517,171 +546,146 @@ export function MangaManager() {
                   && typeof manga.chapterCount === 'number'
                   && manga.totalChapters !== manga.chapterCount
                 const statusInfo = MANGA_STATUSES.find((statusOption) => statusOption.value === manga.status)
-                const infoTooltip = [
-                  `Автор: ${manga.author || 'Не указан'}`,
-                  `Статус: ${statusInfo?.label || manga.status}`,
-                  `Жанры: ${manga.genre || '—'}`,
-                  `Год релиза: ${releaseYear}`,
-                  `Просмотры: ${typeof manga.views === 'number' ? manga.views.toLocaleString('ru-RU') : '—'}`,
-                  `Обновлено: ${formatDateTime(manga.updatedAt)}`
-                ].join('\n')
+                const basicMeta = [
+                  manga.author || 'Автор неизвестен',
+                  releaseYear !== '—' ? String(releaseYear) : null
+                ].filter(Boolean).join(' · ')
+                const tooltipPayload = toTooltipManga(manga)
 
                 return (
-                  <GlassPanel
-                    key={manga.id}
-                    className="group relative flex flex-col overflow-hidden border border-white/8 bg-white/[0.05] backdrop-blur-xl shadow-[0_20px_45px_-28px_rgba(15,23,42,0.65)]"
-                  >
-                    <div className="relative h-48 overflow-hidden">
-                      <img
-                        src={manga.coverImageUrl}
-                        alt={manga.title}
-                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                        onError={(event) => {
-                          const target = event.target as HTMLImageElement
-                          target.src = '/placeholder-manga.jpg'
-                        }}
-                      />
+                  <div key={manga.id} className="flex flex-col gap-2">
+                    <MangaTooltip manga={tooltipPayload}>
+                      <div className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] shadow-lg transition-all duration-300 hover:border-primary/40 hover:shadow-primary/20 focus-within:border-primary/40 focus-within:shadow-primary/20">
+                        <div className="relative aspect-[3/4]">
+                          <img
+                            src={manga.coverImageUrl}
+                            alt={manga.title}
+                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                            onError={(event) => {
+                              const target = event.target as HTMLImageElement
+                              target.src = '/placeholder-manga.jpg'
+                            }}
+                          />
+                          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
 
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent px-3 pb-2 pt-6">
-                        <h3 className="text-sm font-semibold text-white leading-tight line-clamp-1" title={manga.title}>
-                          {manga.title}
-                        </h3>
-                        {manga.engName ? (
-                          <p className="text-[10px] uppercase tracking-[0.18em] text-white/60 line-clamp-1" title={manga.engName}>
-                            {manga.engName}
-                          </p>
-                        ) : null}
-                      </div>
-
-                      <div className="absolute top-2 left-2 flex flex-wrap gap-1">
-                        {getStatusBadge(manga.status)}
-                        {manga.type ? (
-                          <Badge className="bg-white/20 text-white border-white/20 uppercase tracking-wide text-[10px]" title={manga.type}>
-                            {manga.type}
-                          </Badge>
-                        ) : null}
-                      </div>
-
-                      <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
-                        <Badge
-                          className="bg-blue-500/85 text-white border-transparent text-[11px] font-semibold shadow-lg"
-                          title={`Фактических глав: ${typeof resolvedChapterCount === 'number' ? resolvedChapterCount : 'нет данных'}`}
-                        >
-                          {typeof resolvedChapterCount === 'number' ? `${resolvedChapterCount} глав` : 'Нет глав'}
-                        </Badge>
-                        {hasChapterDelta ? (
-                          <Badge
-                            className="bg-white/15 text-white border-transparent text-[10px] shadow"
-                            title={`В каталоге указано ${manga.totalChapters}`}
-                          >
-                            Каталог: {manga.totalChapters}
-                          </Badge>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-2 p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="text-xs text-white/70 leading-tight line-clamp-2" title={manga.author || 'Автор не указан'}>
-                          {manga.author || 'Автор неизвестен'}
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-white/70 hover:text-white hover:bg-white/10"
-                          title={infoTooltip}
-                        >
-                          <Info className="h-4 w-4" />
-                        </Button>
-                      </div>
-
-                      {displayedTags.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {displayedTags.map((tag) => (
+                          <div className="absolute top-2 left-2 flex flex-col gap-1">
                             <Badge
-                              key={tag}
-                              variant="secondary"
-                              className="bg-white/10 border-white/20 text-[10px] font-medium uppercase tracking-wide text-white/70"
-                              title={tag}
+                              className="bg-black/70 text-white text-[10px] font-semibold uppercase tracking-wide backdrop-blur-sm border-transparent"
+                              title={statusInfo?.label || manga.status}
                             >
-                              {tag}
+                              {statusInfo?.label || manga.status}
                             </Badge>
-                          ))}
-                        </div>
-                      )}
+                          </div>
 
-                      <div className="flex items-center justify-between text-[11px] uppercase tracking-wide text-white/50">
-                        <span title={`Просмотры: ${typeof manga.views === 'number' ? manga.views.toLocaleString('ru-RU') : '—'}`}>
-                          {formatCompactNumber(manga.views)} просмотров
-                        </span>
-                        <span title={`Год релиза: ${releaseYear}`}>
-                          {releaseYear}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => window.open(`/manga/${manga.id}`, '_blank')}
-                          className="text-white/70 hover:text-white hover:bg-white/10"
-                          title="Открыть страницу манги"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openEditDialog(manga)}
-                          className="text-white/70 hover:text-white hover:bg-white/10"
-                          title="Редактировать мангу"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openChapterDialog(manga)}
-                          className="text-blue-100/80 hover:text-white hover:bg-blue-500/20"
-                          title="Управление главами"
-                        >
-                          <Layers className="h-4 w-4" />
-                        </Button>
-
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-red-300 hover:text-red-100 hover:bg-red-500/15"
-                              title="Удалить мангу"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Удалить мангу?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Это действие нельзя отменить. Будут удалены все главы и изображения манги "{manga.title}".
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Отмена</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDeleteManga(manga.id)}
-                                className="bg-red-500 hover:bg-red-600"
+                          {manga.type ? (
+                            <div className="absolute top-2 right-2">
+                              <Badge
+                                className="bg-white/20 text-white border-white/10 text-[10px] font-semibold uppercase tracking-wide backdrop-blur"
+                                title={manga.type}
                               >
-                                Удалить
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                                {manga.type}
+                              </Badge>
+                            </div>
+                          ) : null}
+
+                          <div className="absolute bottom-2 left-2 flex flex-col items-start gap-1">
+                            <Badge
+                              className="bg-blue-500/85 text-white border-blue-400/30 text-[11px] font-semibold shadow-lg backdrop-blur"
+                              title={typeof resolvedChapterCount === 'number' ? `Глав по факту: ${resolvedChapterCount}` : 'Нет данных по главам'}
+                            >
+                              {typeof resolvedChapterCount === 'number' ? `${resolvedChapterCount} глав` : 'Нет глав'}
+                            </Badge>
+                            {hasChapterDelta ? (
+                              <Badge
+                                className="bg-white/20 text-white border-transparent text-[10px] backdrop-blur"
+                                title={`В каталоге указано ${manga.totalChapters}`}
+                              >
+                                Каталог: {manga.totalChapters}
+                              </Badge>
+                            ) : null}
+                          </div>
+
+                          <div className="absolute inset-0 flex items-end justify-end p-2">
+                            <div className="flex gap-1 pointer-events-none opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => window.open(`/manga/${manga.id}`, '_blank')}
+                                className="pointer-events-auto h-8 w-8 rounded-lg bg-black/45 text-white/75 hover:bg-primary/40 hover:text-white"
+                                title="Открыть страницу манги"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => openEditDialog(manga)}
+                                className="pointer-events-auto h-8 w-8 rounded-lg bg-black/45 text-white/75 hover:bg-primary/40 hover:text-white"
+                                title="Редактировать мангу"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => openChapterDialog(manga)}
+                                className="pointer-events-auto h-8 w-8 rounded-lg bg-black/45 text-white/80 hover:bg-primary/40 hover:text-white"
+                                title="Управление главами"
+                              >
+                                <Layers className="h-4 w-4" />
+                              </Button>
+
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="pointer-events-auto h-8 w-8 rounded-lg bg-black/45 text-red-200 hover:bg-red-500/25 hover:text-white"
+                                    title="Удалить мангу"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Удалить мангу?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Это действие нельзя отменить. Будут удалены все главы и изображения манги "{manga.title}".
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Отмена</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => handleDeleteManga(manga.id)}
+                                      className="bg-red-500 hover:bg-red-600"
+                                    >
+                                      Удалить
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
+                          </div>
+                        </div>
                       </div>
+                    </MangaTooltip>
+
+                    <div className="flex flex-col gap-1 px-1">
+                      <h3 className="text-sm font-semibold text-white line-clamp-2" title={manga.title}>
+                        {manga.title}
+                      </h3>
+                      {manga.engName ? (
+                        <p className="text-[11px] uppercase tracking-widest text-white/50 line-clamp-1" title={manga.engName}>
+                          {manga.engName}
+                        </p>
+                      ) : null}
+                      <p className="text-[12px] text-white/60 line-clamp-1" title={basicMeta}>
+                        {basicMeta || 'Информация не указана'}
+                      </p>
                     </div>
-                  </GlassPanel>
+                  </div>
                 )
               })}
             </div>
