@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { GlassPanel } from '@/components/ui/GlassPanel'
-import { BookOpen, Edit, Trash2, Search, RefreshCw, Plus, Eye, Calendar, User, Tag, Layers, Clock, Loader2, Save } from 'lucide-react'
+import { BookOpen, Edit, Trash2, Search, RefreshCw, Plus, Eye, Layers, Loader2, Save, Info } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { toast } from 'sonner'
 import type { ChapterDTO, ChapterCreateRequest } from '@/types'
@@ -223,6 +223,11 @@ export function MangaManager() {
     minute: '2-digit'
   }), [])
 
+  const compactNumberFormatter = useMemo(() => new Intl.NumberFormat('ru-RU', {
+    notation: 'compact',
+    maximumFractionDigits: 1
+  }), [])
+
   const formatDateTime = useCallback((value?: string | null) => {
     if (!value) return '—'
     const date = new Date(value)
@@ -256,6 +261,13 @@ export function MangaManager() {
     }
     return value
   }, [])
+
+  const formatCompactNumber = useCallback((value?: number | null) => {
+    if (value === null || value === undefined || Number.isNaN(value)) {
+      return '—'
+    }
+    return compactNumberFormatter.format(value)
+  }, [compactNumberFormatter])
 
   const normalizeNumberInput = useCallback((value: string) => {
     if (!value) return undefined
@@ -405,7 +417,10 @@ export function MangaManager() {
     }
 
     return (
-      <Badge className={colors[status as keyof typeof colors] || 'bg-gray-500'}>
+      <Badge
+        className={colors[status as keyof typeof colors] || 'bg-gray-500'}
+        title={statusInfo?.label || status}
+      >
         {statusInfo?.label || status}
       </Badge>
     )
@@ -489,128 +504,160 @@ export function MangaManager() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {mangaList.map((manga) => {
                 const releaseYear = manga.releaseDate ? new Date(manga.releaseDate).getFullYear() : '—'
-                const primaryGenre = manga.genre ? manga.genre.split(',')[0]?.trim() : 'Без жанра'
                 const tagList = manga.tags
-                  ? manga.tags.split(',').map((tag) => tag.trim()).filter(Boolean).slice(0, 3)
+                  ? manga.tags.split(',').map((tag) => tag.trim()).filter(Boolean).slice(0, 4)
                   : []
+                const displayedTags = tagList.slice(0, 4)
+                const resolvedChapterCount = typeof manga.chapterCount === 'number'
+                  ? manga.chapterCount
+                  : typeof manga.totalChapters === 'number'
+                    ? manga.totalChapters
+                    : undefined
+                const hasChapterDelta = typeof manga.totalChapters === 'number'
+                  && typeof manga.chapterCount === 'number'
+                  && manga.totalChapters !== manga.chapterCount
+                const statusInfo = MANGA_STATUSES.find((statusOption) => statusOption.value === manga.status)
+                const infoTooltip = [
+                  `Автор: ${manga.author || 'Не указан'}`,
+                  `Статус: ${statusInfo?.label || manga.status}`,
+                  `Жанры: ${manga.genre || '—'}`,
+                  `Год релиза: ${releaseYear}`,
+                  `Просмотры: ${typeof manga.views === 'number' ? manga.views.toLocaleString('ru-RU') : '—'}`,
+                  `Обновлено: ${formatDateTime(manga.updatedAt)}`
+                ].join('\n')
 
                 return (
                   <GlassPanel
                     key={manga.id}
-                    className="flex flex-col overflow-hidden border border-white/10 backdrop-blur-lg"
+                    className="group relative flex flex-col overflow-hidden border border-white/8 bg-white/[0.05] backdrop-blur-xl shadow-[0_20px_45px_-28px_rgba(15,23,42,0.65)]"
                   >
-                    <div className="relative aspect-[3/4] overflow-hidden rounded-lg border border-white/5">
+                    <div className="relative h-48 overflow-hidden">
                       <img
                         src={manga.coverImageUrl}
                         alt={manga.title}
-                        className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                         onError={(event) => {
                           const target = event.target as HTMLImageElement
                           target.src = '/placeholder-manga.jpg'
                         }}
                       />
-                      <div className="absolute top-3 right-3 flex flex-col gap-2 items-end">
+
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent px-3 pb-2 pt-6">
+                        <h3 className="text-sm font-semibold text-white leading-tight line-clamp-1" title={manga.title}>
+                          {manga.title}
+                        </h3>
+                        {manga.engName ? (
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-white/60 line-clamp-1" title={manga.engName}>
+                            {manga.engName}
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <div className="absolute top-2 left-2 flex flex-wrap gap-1">
                         {getStatusBadge(manga.status)}
-                        {manga.type && (
-                          <Badge className="bg-white/15 text-white border-white/20 uppercase tracking-wide text-[11px]">
+                        {manga.type ? (
+                          <Badge className="bg-white/20 text-white border-white/20 uppercase tracking-wide text-[10px]" title={manga.type}>
                             {manga.type}
                           </Badge>
-                        )}
+                        ) : null}
+                      </div>
+
+                      <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
+                        <Badge
+                          className="bg-blue-500/85 text-white border-transparent text-[11px] font-semibold shadow-lg"
+                          title={`Фактических глав: ${typeof resolvedChapterCount === 'number' ? resolvedChapterCount : 'нет данных'}`}
+                        >
+                          {typeof resolvedChapterCount === 'number' ? `${resolvedChapterCount} глав` : 'Нет глав'}
+                        </Badge>
+                        {hasChapterDelta ? (
+                          <Badge
+                            className="bg-white/15 text-white border-transparent text-[10px] shadow"
+                            title={`В каталоге указано ${manga.totalChapters}`}
+                          >
+                            Каталог: {manga.totalChapters}
+                          </Badge>
+                        ) : null}
                       </div>
                     </div>
 
-                    <div className="p-4 space-y-4">
-                      <div className="space-y-2">
-                        <h3 className="font-semibold text-white text-lg leading-tight line-clamp-2" title={manga.title}>
-                          {manga.title}
-                        </h3>
-                        {manga.engName && (
-                          <p className="text-xs uppercase tracking-[0.2em] text-white/60">{manga.engName}</p>
-                        )}
-                        <div className="space-y-2 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4 opacity-70" />
-                            <span className="line-clamp-1">{manga.author || 'Не указан'}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Tag className="h-4 w-4 opacity-70" />
-                            <span className="line-clamp-1">{primaryGenre}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Calendar className="h-4 w-4 opacity-70" />
-                            <span>{releaseYear}</span>
-                          </div>
+                    <div className="flex flex-col gap-2 p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="text-xs text-white/70 leading-tight line-clamp-2" title={manga.author || 'Автор не указан'}>
+                          {manga.author || 'Автор неизвестен'}
                         </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-white/70 hover:text-white hover:bg-white/10"
+                          title={infoTooltip}
+                        >
+                          <Info className="h-4 w-4" />
+                        </Button>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3 text-xs text-white/80">
-                        <div className="rounded-lg bg-white/5 border border-white/10 px-3 py-2">
-                          <div className="flex items-center gap-2 text-white/60 uppercase tracking-wide text-[11px]">
-                            <Layers className="h-3 w-3" />
-                            Главы
-                          </div>
-                          <div className="text-lg font-semibold text-white">{manga.chapterCount ?? '—'}</div>
-                        </div>
-                        <div className="rounded-lg bg-white/5 border border-white/10 px-3 py-2">
-                          <div className="flex items-center gap-2 text-white/60 uppercase tracking-wide text-[11px]">
-                            <Eye className="h-3 w-3" />
-                            Просмотры
-                          </div>
-                          <div className="text-lg font-semibold text-white">{manga.views ?? 0}</div>
-                        </div>
-                        <div className="rounded-lg bg-white/5 border border-white/10 px-3 py-2 col-span-2">
-                          <div className="flex items-center gap-2 text-white/60 uppercase tracking-wide text-[11px]">
-                            <Clock className="h-3 w-3" />
-                            Обновлено
-                          </div>
-                          <div className="text-sm text-white">{formatDateTime(manga.updatedAt)}</div>
-                        </div>
-                      </div>
-
-                      {tagList.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {tagList.map((tag) => (
-                            <Badge key={tag} variant="secondary" className="bg-white/10 border-white/20 text-xs text-white/80">
+                      {displayedTags.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {displayedTags.map((tag) => (
+                            <Badge
+                              key={tag}
+                              variant="secondary"
+                              className="bg-white/10 border-white/20 text-[10px] font-medium uppercase tracking-wide text-white/70"
+                              title={tag}
+                            >
                               {tag}
                             </Badge>
                           ))}
                         </div>
                       )}
 
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex items-center justify-between text-[11px] uppercase tracking-wide text-white/50">
+                        <span title={`Просмотры: ${typeof manga.views === 'number' ? manga.views.toLocaleString('ru-RU') : '—'}`}>
+                          {formatCompactNumber(manga.views)} просмотров
+                        </span>
+                        <span title={`Год релиза: ${releaseYear}`}>
+                          {releaseYear}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-1">
                         <Button
-                          variant="outline"
-                          size="sm"
+                          variant="ghost"
+                          size="icon"
                           onClick={() => window.open(`/manga/${manga.id}`, '_blank')}
-                          className="flex-1 border-white/20 text-white/80 hover:text-white hover:bg-white/10"
+                          className="text-white/70 hover:text-white hover:bg-white/10"
+                          title="Открыть страницу манги"
                         >
-                          <Eye className="h-4 w-4 mr-1" />
-                          Просмотр
+                          <Eye className="h-4 w-4" />
                         </Button>
 
                         <Button
-                          variant="outline"
-                          size="sm"
+                          variant="ghost"
+                          size="icon"
                           onClick={() => openEditDialog(manga)}
-                          className="flex-1 border-white/20 text-white/80 hover:text-white hover:bg-white/10"
+                          className="text-white/70 hover:text-white hover:bg-white/10"
+                          title="Редактировать мангу"
                         >
-                          <Edit className="h-4 w-4 mr-1" />
-                          Изменить
+                          <Edit className="h-4 w-4" />
                         </Button>
 
                         <Button
-                          variant="outline"
-                          size="sm"
+                          variant="ghost"
+                          size="icon"
                           onClick={() => openChapterDialog(manga)}
-                          className="flex-1 border-blue-400/50 text-blue-100 hover:bg-blue-500/20 hover:border-blue-400"
+                          className="text-blue-100/80 hover:text-white hover:bg-blue-500/20"
+                          title="Управление главами"
                         >
-                          <Layers className="h-4 w-4 mr-1" />
-                          Главы
+                          <Layers className="h-4 w-4" />
                         </Button>
 
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="outline" size="sm" className="border-red-500/40 text-red-400 hover:bg-red-500/15">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-red-300 hover:text-red-100 hover:bg-red-500/15"
+                              title="Удалить мангу"
+                            >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </AlertDialogTrigger>
