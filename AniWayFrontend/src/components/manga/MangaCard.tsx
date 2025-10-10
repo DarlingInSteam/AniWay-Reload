@@ -135,9 +135,8 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
             <div className="absolute inset-0 bg-white/5 animate-pulse" aria-hidden />
           )}
 
-          <div className="absolute top-2 left-2 md:top-2.5 md:left-2.5 flex items-center">
-            <div className={cn(overlayBadgeBase, 'bg-black/70 text-white/90 border border-white/10')}
-            >
+          <div className="absolute top-2 left-2 md:top-2.5 md:left-2.5">
+            <div className={cn(overlayBadgeBase, 'bg-black/70 text-white/90 border border-white/10')}>
               <Star className="h-3 w-3 text-accent fill-current" />
               <span className="font-semibold">
                 {rating?.averageRating ? rating.averageRating.toFixed(1) : '—'}

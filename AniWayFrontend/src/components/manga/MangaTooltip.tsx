@@ -3,11 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { Bookmark, ChevronDown, X } from 'lucide-react'
 import { MangaResponseDTO, BookmarkStatus } from '@/types'
-import { getStatusText, getTypeText, cn } from '@/lib/utils'
+import { getStatusText, cn } from '@/lib/utils'
 import { useBookmarks } from '@/hooks/useBookmarks'
 import { useAuth } from '@/contexts/AuthContext'
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
-import { useRating } from '@/hooks/useRating'
 
 interface MangaTooltipProps {
   manga: MangaResponseDTO
@@ -25,6 +24,8 @@ interface TooltipPosition {
   arrowY?: number
 }
 
+type ChipItem = { label: string; type: 'genre' | 'tag' | 'age'; value?: number }
+
 export function MangaTooltip({ manga, children }: MangaTooltipProps) {
   if (!manga) {
     return <>{children}</>
@@ -33,7 +34,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
   const [isVisible, setIsVisible] = useState(false)
   const [isRendered, setIsRendered] = useState(false) // Монтируем раньше для расчёта позиции
   const [showDropdown, setShowDropdown] = useState(false)
-  const [showAllGenres, setShowAllGenres] = useState(false)
+  const [chipsExpanded, setChipsExpanded] = useState(false)
   const [position, setPosition] = useState<TooltipPosition>({ top: 0, left: 0, transform: '', side: 'right', arrowX: 0, arrowY: 0 })
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
   const showTimeoutId = useRef<NodeJS.Timeout | null>(null)
@@ -42,12 +43,11 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
   const triggerRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const chipsContainerRef = useRef<HTMLDivElement>(null)
 
   const { isAuthenticated } = useAuth()
   const navigate = useNavigate()
   const { getMangaBookmark, changeStatus, addBookmark, removeBookmark } = useBookmarks()
-  const { rating } = useRating(manga.id)
-  const ratingValue = typeof rating?.averageRating === 'number' ? rating.averageRating : undefined
 
   const bookmarkInfo = isAuthenticated ? getMangaBookmark(manga.id) : null
   const isInBookmarks = bookmarkInfo !== null
@@ -139,8 +139,6 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
     const fitsLeft = triggerRect.left - gap - tooltipRect.width >= margin
     if (!fitsRight && fitsLeft) side = 'left'
 
-    // Arrow size для дальнейшего учёта
-    const arrowOffset = 10 // расстояние от края tooltip до карточки с учётом стрелки
     if (side === 'right') {
       left = triggerRect.right + gap
       top = triggerRect.top
@@ -198,7 +196,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
       setIsVisible(false)
       setShowDropdown(false)
       setIsDescriptionExpanded(false)
-      setShowAllGenres(false)
+      setChipsExpanded(false)
     }, 160)
   }
 
@@ -213,14 +211,15 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
       setIsVisible(false)
       setShowDropdown(false)
       setIsDescriptionExpanded(false)
-      setShowAllGenres(false)
+      setChipsExpanded(false)
     }, 160)
   }
 
-  const handleChipClick = (chip: { label: string; type: 'genre' | 'tag' }) => {
+  const handleChipClick = (chip: ChipItem) => {
+    if (chip.type === 'age') return
     setIsVisible(false)
     setShowDropdown(false)
-    setShowAllGenres(false)
+    setChipsExpanded(false)
     const queryKey = chip.type === 'genre' ? 'genres' : 'tags'
     navigate(`/catalog?${queryKey}=${encodeURIComponent(chip.label)}`)
   }
@@ -260,7 +259,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
         setIsVisible(false)
         setShowDropdown(false)
         setIsDescriptionExpanded(false)
-        setShowAllGenres(false)
+        setChipsExpanded(false)
       }
     }
 
@@ -282,7 +281,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
       setIsVisible(false)
       setShowDropdown(false)
       setIsDescriptionExpanded(false)
-      setShowAllGenres(false)
+      setChipsExpanded(false)
     }
     window.addEventListener('resize', handleResize)
     window.addEventListener('scroll', handleHide, { passive: true, capture: true })
@@ -318,9 +317,13 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
     manga.tags ? manga.tags.split(',').map(t => t.trim()).filter(Boolean) : []
   ), [manga.tags])
 
-  const chips = useMemo(() => {
+  const chips = useMemo<ChipItem[]>(() => {
     const seen = new Set<string>()
-    const list: { label: string; type: 'genre' | 'tag' }[] = []
+    const list: ChipItem[] = []
+
+    if (manga.ageLimit !== null && manga.ageLimit !== undefined) {
+      list.push({ label: formatAgeRating(manga.ageLimit), type: 'age', value: manga.ageLimit })
+    }
 
     const addChip = (label: string, type: 'genre' | 'tag') => {
       const normalized = label.toLowerCase()
@@ -332,24 +335,14 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
     genres.forEach(label => addChip(label, 'genre'))
     tags.forEach(label => addChip(label, 'tag'))
     return list
-  }, [genres, tags])
+  }, [genres, tags, manga.ageLimit])
 
-  const visibleChips = showAllGenres ? chips : chips.slice(0, 8)
-  const hiddenChipsCount = Math.max(0, chips.length - visibleChips.length)
-
-  // Альтернативные названия и второе имя
-  const alternativeNames = useMemo(() => (
-    manga.alternativeNames?.split(',').map(n => n.trim()).filter(Boolean) || []
-  ), [manga.alternativeNames])
-
-  const secondaryTitles = useMemo(() => {
-    const names: string[] = []
-    if (manga.engName) names.push(manga.engName)
-    alternativeNames.forEach(name => {
-      if (!names.includes(name)) names.push(name)
-    })
-    return names
-  }, [manga.engName, alternativeNames])
+  const MAX_COLLAPSED_CHIPS = 10
+  const extraChipsCount = Math.max(0, chips.length - MAX_COLLAPSED_CHIPS)
+  const hasMoreChips = extraChipsCount > 0
+  const visibleChips = chipsExpanded || !hasMoreChips ? chips : chips.slice(0, MAX_COLLAPSED_CHIPS)
+  const hiddenChipsCount = hasMoreChips && !chipsExpanded ? extraChipsCount : 0
+  // Альтернативные названия больше не отображаем
 
   try {
     return (
@@ -376,7 +369,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
               })(),
               transition: 'opacity 140ms ease, transform 140ms ease'
             }}
-            className="hidden lg:block w-[320px] p-5 rounded-xl shadow-xl shadow-black/60 bg-black/80 backdrop-blur-md border border-white/15"
+            className="hidden lg:block w-[380px] p-6 rounded-2xl shadow-2xl shadow-black/70 bg-gradient-to-br from-slate-950/95 via-slate-900/95 to-slate-950/98 backdrop-blur-xl border border-white/12"
             onMouseEnter={handleTooltipMouseEnter}
             onMouseLeave={handleTooltipMouseLeave}
           >
@@ -395,27 +388,20 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
           )}
 
           {/* Заголовочная секция */}
-          <div className="mb-3 space-y-1">
+          <div className="mb-5 space-y-1.5">
             <h3 className="font-semibold text-lg text-white leading-tight">
               {manga.title}
             </h3>
-            {secondaryTitles.length > 0 && (
-              <div className="text-sm text-white/60">
-                {secondaryTitles.slice(0, 2).join(' • ')}
-                {secondaryTitles.length > 2 && ' • …'}
+            {manga.engName && (
+              <div className="text-sm text-white/65">
+                {manga.engName}
               </div>
             )}
-            <div className="flex items-center gap-2 text-[11px] text-white/55">
-              <span>{getTypeText(manga.type) ?? 'Неизвестный тип'}</span>
-              {ratingValue !== undefined && (
-                <span className="text-white/70">{ratingValue.toFixed(1)}</span>
-              )}
-            </div>
           </div>
 
           {/* Мета-информация */}
-          <div className="mb-4 space-y-3">
-            <div className="grid grid-cols-4 gap-3 text-xs">
+          <div className="mb-5">
+            <div className="grid grid-cols-2 gap-3 text-xs">
               {infoRows.map(row => (
                 <button
                   key={row.label}
@@ -427,53 +413,59 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
                   }}
                   disabled={!row.query}
                   className={cn(
-                    'flex flex-col items-start gap-1 text-left transition-colors rounded-md px-2 py-1.5 border border-transparent',
+                    'flex flex-col items-start gap-1.5 text-left transition-colors rounded-xl px-4 py-3 border border-white/8 bg-white/[0.05]',
                     row.query
-                      ? 'hover:border-white/15 hover:bg-white/5 focus:outline-none focus-visible:border-primary/40'
-                      : 'cursor-default opacity-95'
+                      ? 'hover:border-primary/50 hover:bg-primary/15 focus:outline-none focus-visible:border-primary/60 focus-visible:bg-primary/20'
+                      : 'cursor-default opacity-90'
                   )}
                 >
-                  <span className="text-[10px] uppercase tracking-[0.08em] text-white/40">{row.label}</span>
-                  <span className="text-sm font-semibold text-white/90">{row.value}</span>
+                  <span className="text-[11px] uppercase tracking-[0.12em] text-white/45">{row.label}</span>
+                  <span className="text-sm font-semibold text-white/95">{row.value}</span>
                 </button>
               ))}
             </div>
-            {manga.ageLimit !== null && manga.ageLimit !== undefined && (
-              <div className="flex flex-wrap gap-2 pt-1">
-                <span className={cn(
-                  'px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm',
-                  getAgeRatingColor(manga.ageLimit)
-                )}>
-                  {formatAgeRating(manga.ageLimit)}
-                </span>
-              </div>
-            )}
           </div>
 
           {/* Жанры и теги */}
           {chips.length > 0 && (
-            <div className="mb-4">
-              <div className="flex flex-wrap gap-1.5">
+            <div className="mb-5">
+              <div
+                ref={chipsContainerRef}
+                className="flex flex-wrap gap-1.5 overflow-hidden"
+                style={{ maxHeight: chipsExpanded ? 'none' : '52px' }}
+              >
                 {visibleChips.map(chip => (
-                  <button
-                    key={`${chip.type}-${chip.label}`}
-                    type="button"
-                    onClick={() => handleChipClick(chip)}
-                    className="px-2 py-1 rounded-md text-[11px] bg-white/10 text-white/75 hover:bg-primary/20 hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                  >
-                    {chip.label}
-                  </button>
+                  chip.type === 'age' ? (
+                    <span
+                      key={`age-${chip.label}`}
+                      className={cn(
+                        'px-2.5 py-1 rounded-md text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm',
+                        getAgeRatingColor(chip.value)
+                      )}
+                    >
+                      {chip.label}
+                    </span>
+                  ) : (
+                    <button
+                      key={`${chip.type}-${chip.label}`}
+                      type="button"
+                      onClick={() => handleChipClick(chip)}
+                      className="px-2.5 py-1 rounded-md text-[11px] bg-white/12 text-white/80 hover:bg-primary/25 hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+                    >
+                      {chip.label}
+                    </button>
+                  )
                 ))}
-                {hiddenChipsCount > 0 && !showAllGenres && (
-                  <button
-                    type="button"
-                    onClick={() => setShowAllGenres(true)}
-                    className="px-2 py-1 rounded-md text-[11px] bg-white/5 text-white/60 hover:bg-white/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                  >
-                    +{hiddenChipsCount} ещё
-                  </button>
-                )}
               </div>
+              {hasMoreChips && (
+                <button
+                  type="button"
+                  onClick={() => setChipsExpanded(prev => !prev)}
+                  className="mt-2 text-xs font-medium text-primary hover:text-primary/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 rounded"
+                >
+                  {chipsExpanded ? 'Скрыть' : `Показать ещё (${extraChipsCount})`}
+                </button>
+              )}
             </div>
           )}
 
