@@ -369,7 +369,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
               })(),
               transition: 'opacity 140ms ease, transform 140ms ease'
             }}
-            className="hidden lg:block w-[400px] p-5 rounded-xl shadow-xl shadow-black/60 bg-black/85 backdrop-blur-md border border-white/10"
+            className="hidden lg:block w-[420px] p-5 rounded-xl shadow-xl shadow-black/60 bg-black/85 backdrop-blur-md border border-white/10"
             onMouseEnter={handleTooltipMouseEnter}
             onMouseLeave={handleTooltipMouseLeave}
           >
@@ -401,7 +401,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
 
           {/* Мета-информация */}
           <div className="mb-4">
-            <div className="grid grid-cols-4 gap-2 text-xs">
+            <div className="grid grid-cols-4 gap-2.5 text-xs">
               {infoRows.map(row => (
                 <button
                   key={row.label}
@@ -413,14 +413,14 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
                   }}
                   disabled={!row.query}
                   className={cn(
-                    'flex flex-col items-start gap-0.5 text-left transition-colors rounded-md px-2.5 py-2 bg-white/[0.03] border border-white/[0.06] overflow-hidden',
+                    'flex flex-col items-start gap-1 text-left transition-colors rounded-md px-2.5 py-2.5 bg-white/[0.04] border border-white/[0.08] overflow-hidden',
                     row.query
-                      ? 'hover:bg-white/[0.08] hover:border-white/[0.12] focus:outline-none focus-visible:border-primary/40'
+                      ? 'hover:bg-white/[0.10] hover:border-white/[0.15] focus:outline-none focus-visible:border-primary/40'
                       : 'cursor-default'
                   )}
                 >
-                  <span className="text-[10px] uppercase tracking-wide text-white/40 whitespace-nowrap">{row.label}</span>
-                  <span className="text-[11px] font-semibold text-white/85 line-clamp-1 w-full">{row.value}</span>
+                  <span className="text-[10px] uppercase tracking-wide text-white/45 whitespace-nowrap font-medium">{row.label}</span>
+                  <span className="text-xs font-bold text-white/95 line-clamp-1 w-full" style={{ WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' }}>{row.value}</span>
                 </button>
               ))}
             </div>
