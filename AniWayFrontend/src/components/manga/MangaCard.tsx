@@ -35,6 +35,8 @@ const DEFAULT_BOOKMARK_BADGE = {
   className: 'bg-slate-600/90 text-white border border-slate-400/30'
 }
 
+const overlayBadgeBase = 'inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold leading-none shadow-sm backdrop-blur-md'
+
 interface MangaCardProps {
   manga: MangaResponseDTO
   size?: 'default' | 'compact' | 'large'
@@ -106,9 +108,9 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
             width={480}
             height={640}
             className={cn(
-              'manga-cover h-full w-full object-cover transition-[opacity,transform,filter] duration-500 ease-out',
+              'manga-cover h-full w-full object-cover transition-[opacity,transform,filter] duration-500 ease-out transform-gpu will-change-transform',
               imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 blur-md scale-[1.03]',
-              'group-hover:hover:scale-105'
+              'group-hover:scale-[1.04] motion-reduce:transform-none'
             )}
             loading="lazy"
             decoding="async"
@@ -130,18 +132,20 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
             <div className="absolute inset-0 bg-white/5 animate-pulse" aria-hidden />
           )}
 
-          <div className="absolute top-2 md:top-3 left-2 md:left-3 flex items-center">
-            <div className="flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-xs font-semibold text-white backdrop-blur-sm shadow-sm">
-              <Star className="h-3 w-3 text-accent fill-current" />
-              <span>{rating?.averageRating ? rating.averageRating.toFixed(1) : '—'}</span>
+          <div className="absolute top-2.5 md:top-3 left-2.5 md:left-3 flex items-center">
+            <div className={cn(overlayBadgeBase, 'gap-1 bg-black/70 text-white/95 border border-white/10')}>
+              <Star className="h-3.5 w-3.5 text-accent fill-current" />
+              <span className="font-semibold">
+                {rating?.averageRating ? rating.averageRating.toFixed(1) : '—'}
+              </span>
             </div>
           </div>
 
           {bookmarkBadge && (
-            <div className="absolute top-2 md:top-3 right-2 md:right-3">
+            <div className="absolute top-2.5 md:top-3 right-2.5 md:right-3">
               <span
                 className={cn(
-                  'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold shadow-sm backdrop-blur-md transition-colors duration-200',
+                  overlayBadgeBase,
                   bookmarkBadge.className
                 )}
               >
@@ -165,9 +169,9 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
               {manga.title}
             </h3>
           </Link>
-          <div className="text-[10px] md:text-[11px] text-white/65">
+          <div className="text-[11px] md:text-xs text-white/70">
             {typeLabel || 'Неизвестный тип'}
-            {releaseYear ? <span className="ml-2 text-white/40">{releaseYear}</span> : null}
+            {releaseYear ? <span className="ml-2 text-white/45">{releaseYear}</span> : null}
           </div>
         </div>
       )}
