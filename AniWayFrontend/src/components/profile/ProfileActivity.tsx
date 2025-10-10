@@ -101,9 +101,10 @@ export const ProfileActivity: React.FC<ProfileActivityProps> = ({ activities }) 
             const intPart = Math.floor(raw)
             if (Number.isNaN(intPart) || intPart <= 0) return null
             const digits = String(intPart)
-            if (digits.length > 3) {
-              const volStr = digits.slice(0, -3)
-              const chapStrRaw = digits.slice(-3)
+            // Обновлено: множитель изменен с 1000 на 10000
+            if (digits.length > 4) {
+              const volStr = digits.slice(0, -4)
+              const chapStrRaw = digits.slice(-4)
               const chapterNumber = chapStrRaw.replace(/^0+/, '') || '0'
               const volumeNumber = parseInt(volStr, 10)
               return `Том ${volumeNumber} Глава ${chapterNumber}`
