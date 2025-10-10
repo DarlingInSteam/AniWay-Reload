@@ -366,7 +366,7 @@ export function MangaPage() {
 
                 {/* Title */}
                 <div className="text-center lg:text-left">
-                  <h1 className="text-xl md:text-2xl font-bold text-white mb-2">{manga.title}</h1>
+                  <h1 className="text-xl md:text-2xl font-bold text-foreground mb-2">{manga.title}</h1>
                   {/* Mobile - Type and Year after title */}
                   <div className="lg:hidden flex items-center justify-center gap-3 text-sm text-muted-foreground">
                     <span>{getTypeText(manga.type)}</span>
@@ -466,7 +466,7 @@ export function MangaPage() {
                   <div className="space-y-6">
                     {/* Description */}
                     <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
-                      <h3 className="text-lg font-bold text-white mb-3">Описание</h3>
+                      <h3 className="text-lg font-bold text-foreground mb-3">Описание</h3>
                       <div className="text-muted-foreground text-sm md:text-base">
                         <div
                           className={cn(
@@ -504,7 +504,7 @@ export function MangaPage() {
 
                     {/* Genres - полная ширина (clickable -> catalog with filter) */}
                     <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
-                      <h3 className="text-lg font-bold text-white mb-3">Жанры</h3>
+                      <h3 className="text-lg font-bold text-foreground mb-3">Жанры</h3>
                       <div className="flex flex-wrap gap-2">
                         {genres.map((genre, index) => (
                           <button
@@ -523,7 +523,7 @@ export function MangaPage() {
                     {/* Tags - только если есть теги (clickable -> catalog with filter) */}
                     {tags.length > 0 && (
                       <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
-                        <h3 className="text-lg font-bold text-white mb-3">Теги</h3>
+                        <h3 className="text-lg font-bold text-foreground mb-3">Теги</h3>
                         <div className="flex flex-wrap gap-2">
                           {tags.map((tag, index) => (
                             <button
@@ -542,11 +542,11 @@ export function MangaPage() {
 
                     {/* Info Section - полная ширина */}
                     <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
-                      <h3 className="text-lg font-bold text-white mb-4">Информация</h3>
+                      <h3 className="text-lg font-bold text-foreground mb-4">Информация</h3>
                       <div className="space-y-4">
                         <div className="flex flex-col md:flex-row md:items-center gap-2">
                           <div className="text-muted-foreground text-sm min-w-[150px]">Тип</div>
-                          <div className="text-white font-medium">
+                          <div className="text-foreground font-medium">
                             {getTypeText(manga.type)}
                           </div>
                         </div>

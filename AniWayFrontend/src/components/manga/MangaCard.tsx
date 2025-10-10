@@ -169,13 +169,13 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
             to={`/manga/${manga.id}`}
             className="block"
           >
-            <h3 className="text-xs md:text-sm font-semibold text-white line-clamp-2 hover:text-primary transition-colors duration-200 leading-tight tracking-tight antialiased" style={{ WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' }}>
+            <h3 className="text-xs md:text-sm font-semibold text-foreground line-clamp-2 hover:text-primary transition-colors duration-200 leading-tight tracking-tight antialiased" style={{ WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' }}>
               {manga.title}
             </h3>
           </Link>
-          <div className="text-[11px] md:text-xs text-white/70 antialiased" style={{ WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' }}>
+          <div className="text-[11px] md:text-xs text-foreground/70 antialiased" style={{ WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' }}>
             {typeLabel || 'Неизвестный тип'}
-            {releaseYear ? <span className="ml-2 text-white/45">{releaseYear}</span> : null}
+            {releaseYear ? <span className="ml-2 text-foreground/45">{releaseYear}</span> : null}
           </div>
         </div>
       )}

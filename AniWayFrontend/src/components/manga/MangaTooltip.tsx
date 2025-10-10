@@ -397,11 +397,11 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
 
           {/* Заголовочная секция */}
           <div className="mb-4 space-y-1">
-            <h3 className="font-semibold text-base text-white leading-tight">
+            <h3 className="font-semibold text-base text-foreground leading-tight">
               {manga.title}
             </h3>
             {manga.engName && (
-              <div className="text-xs text-white/55">
+              <div className="text-xs text-foreground/55">
                 {manga.engName}
               </div>
             )}

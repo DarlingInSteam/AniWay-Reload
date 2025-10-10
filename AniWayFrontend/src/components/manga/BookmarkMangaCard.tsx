@@ -133,7 +133,7 @@ export function BookmarkMangaCard({ bookmark }: BookmarkMangaCardProps) {
           to={`/manga/${mangaData.id}`}
           className="block"
         >
-          <h3 className="text-xs md:text-sm font-semibold text-white line-clamp-2 hover:text-primary transition-colors duration-200 leading-tight antialiased" style={{ WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' }}>
+          <h3 className="text-xs md:text-sm font-semibold text-foreground line-clamp-2 hover:text-primary transition-colors duration-200 leading-tight antialiased" style={{ WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' }}>
             {mangaData.title}
           </h3>
         </Link>
