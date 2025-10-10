@@ -478,7 +478,7 @@ export function MangaPage() {
                             <MarkdownRenderer value={descriptionText || 'Описание отсутствует.'} />
                           </div>
                           {!showFullDescription && isDescriptionLong && (
-                            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-[rgba(15,23,42,0.85)] via-[rgba(15,23,42,0.2)] to-transparent" />
+                            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-background via-background/60 to-transparent" />
                           )}
                         </div>
                         {isDescriptionLong && (
