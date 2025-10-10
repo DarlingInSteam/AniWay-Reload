@@ -70,7 +70,7 @@ export const LibraryPage: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-white mb-4">Требуется авторизация</h2>
+          <h2 className="text-2xl font-bold text-foreground mb-4">Требуется авторизация</h2>
           <a href="/login" className="text-primary hover:text-primary/80">Войти в систему</a>
         </div>
       </div>
@@ -91,15 +91,15 @@ export const LibraryPage: React.FC = () => {
         <div className="glass-panel p-4 lg:p-5">
           <div className="flex flex-col gap-4 mb-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <h1 className="text-xl md:text-2xl font-bold text-white">Закладки</h1>
+              <h1 className="text-xl md:text-2xl font-bold text-foreground">Закладки</h1>
               <div className="flex items-center gap-3 w-full sm:w-auto flex-1">
                 <div className="relative flex-1">
                   <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-muted-foreground">
                     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                   </div>
-                  <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="Поиск по названию, автору или жанру" className="w-full h-10 pl-10 pr-10 rounded-xl bg-white/5 border border-white/10 focus:border-primary/40 focus:ring-2 focus:ring-primary/30 outline-none text-sm text-white placeholder:text-muted-foreground/60 transition" />
+                  <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="Поиск по названию, автору или жанру" className="w-full h-10 pl-10 pr-10 rounded-xl bg-white/5 border border-white/10 focus:border-primary/40 focus:ring-2 focus:ring-primary/30 outline-none text-sm text-foreground placeholder:text-muted-foreground/60 transition" />
                   {searchQuery && (
-                    <button onClick={()=>setSearchQuery('')} aria-label="Очистить поиск" className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-muted-foreground hover:text-white hover:bg-white/10">
+                    <button onClick={()=>setSearchQuery('')} aria-label="Очистить поиск" className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-white/10">
                       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
                     </button>
                   )}
@@ -115,22 +115,22 @@ export const LibraryPage: React.FC = () => {
                       <div className="flex items-start gap-4">
                         <div className="flex-1 space-y-1 max-h-[260px] sm:max-h-[300px] overflow-y-auto pr-1 scrollbar-custom">
                           {Object.entries(sortOptions).map(([value,label])=>{const selected=value===sortBy;return (
-                            <button key={value} onClick={()=>{setSortBy(value as SortOption);setShowSortDropdown(false)}} className={cn('w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors', selected?'bg-primary/20 text-primary':'text-muted-foreground hover:bg-white/10 hover:text-white')}>
+                            <button key={value} onClick={()=>{setSortBy(value as SortOption);setShowSortDropdown(false)}} className={cn('w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors', selected?'bg-primary/20 text-primary':'text-muted-foreground hover:bg-white/10 hover:text-foreground')}>
                               {selected && <span className="inline-block w-2 h-2 rounded-full bg-primary" />}
                               <span className="truncate">{label}</span>
                             </button>)})}
                         </div>
                         <div className="flex flex-col gap-2 flex-shrink-0 w-28">
-                          <button onClick={()=>{setSortOrder('desc');setShowSortDropdown(false)}} className={cn('flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors', sortOrder==='desc'?'bg-primary/20 text-primary':'text-muted-foreground hover:bg-white/10 hover:text-white')}><ArrowDown className="h-4 w-4"/> Убыв.</button>
-                          <button onClick={()=>{setSortOrder('asc');setShowSortDropdown(false)}} className={cn('flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors', sortOrder==='asc'?'bg-primary/20 text-primary':'text-muted-foreground hover:bg-white/10 hover:text-white')}><ArrowUp className="h-4 w-4"/> Возраст.</button>
-                          <button onClick={()=>{setSortBy('bookmark_updated');setSortOrder('desc');setShowSortDropdown(false)}} className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg border border-white/10 text-muted-foreground hover:text-white hover:bg-white/10">Сброс</button>
-                          <button onClick={()=>setShowSortDropdown(false)} className="text-[11px] text-muted-foreground hover:text-white px-2 py-1 rounded">Закрыть</button>
+                          <button onClick={()=>{setSortOrder('desc');setShowSortDropdown(false)}} className={cn('flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors', sortOrder==='desc'?'bg-primary/20 text-primary':'text-muted-foreground hover:bg-white/10 hover:text-foreground')}><ArrowDown className="h-4 w-4"/> Убыв.</button>
+                          <button onClick={()=>{setSortOrder('asc');setShowSortDropdown(false)}} className={cn('flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors', sortOrder==='asc'?'bg-primary/20 text-primary':'text-muted-foreground hover:bg-white/10 hover:text-foreground')}><ArrowUp className="h-4 w-4"/> Возраст.</button>
+                          <button onClick={()=>{setSortBy('bookmark_updated');setSortOrder('desc');setShowSortDropdown(false)}} className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg border border-white/10 text-muted-foreground hover:text-foreground hover:bg-white/10">Сброс</button>
+                          <button onClick={()=>setShowSortDropdown(false)} className="text-[11px] text-muted-foreground hover:text-foreground px-2 py-1 rounded">Закрыть</button>
                         </div>
                       </div>
                     </div>
                   )}
                 </div>
-                <button type="button" onClick={()=>setSelectedStatus(selectedStatus==='FAVORITES' ? 'ALL' : 'FAVORITES')} className={cn('h-10 px-4 flex items-center gap-2 rounded-xl text-sm font-medium transition border', selectedStatus==='FAVORITES' ? 'bg-red-500 text-white border-red-400' : 'bg-white/5 text-white/70 hover:text-white hover:bg-white/10 border-white/10')}>
+                <button type="button" onClick={()=>setSelectedStatus(selectedStatus==='FAVORITES' ? 'ALL' : 'FAVORITES')} className={cn('h-10 px-4 flex items-center gap-2 rounded-xl text-sm font-medium transition border', selectedStatus==='FAVORITES' ? 'bg-red-500 text-white border-red-400' : 'bg-white/5 text-white/70 hover:text-foreground hover:bg-white/10 border-white/10')}>
                   <Heart className={cn('h-4 w-4', selectedStatus==='FAVORITES' && 'animate-pulse')} />
                   <span className="hidden sm:inline">Избранное</span>
                   <span className="text-xs sm:text-sm">({getStatusCount('FAVORITES')})</span>
@@ -138,9 +138,9 @@ export const LibraryPage: React.FC = () => {
               </div>
             </div>
             <div ref={chipsContainerRef} className="flex overflow-x-auto no-scrollbar gap-2 pb-1 -ml-1 pr-1">
-              <button onClick={()=>setSelectedStatus('ALL')} className={cn('px-4 h-9 rounded-full text-sm font-medium whitespace-nowrap transition border flex items-center gap-2', selectedStatus==='ALL' ? 'bg-primary/20 text-primary border-primary/30 shadow' : 'bg-white/5 text-white/70 hover:text-white hover:bg-white/10 border-white/10')}>Все <span className="opacity-80">{allBookmarks.length}</span></button>
+              <button onClick={()=>setSelectedStatus('ALL')} className={cn('px-4 h-9 rounded-full text-sm font-medium whitespace-nowrap transition border flex items-center gap-2', selectedStatus==='ALL' ? 'bg-primary/20 text-primary border-primary/30 shadow' : 'bg-white/5 text-white/70 hover:text-foreground hover:bg-white/10 border-white/10')}>Все <span className="opacity-80">{allBookmarks.length}</span></button>
               {Object.entries(statusLabels).map(([status,label])=> (
-                <button key={status} onClick={()=>setSelectedStatus(status as BookmarkStatus)} className={cn('px-4 h-9 rounded-full text-sm font-medium whitespace-nowrap transition border flex items-center gap-2', selectedStatus===status ? `${statusColors[status as BookmarkStatus]} text-white border-white/20 shadow` : 'bg-white/5 text-white/70 hover:text-white hover:bg-white/10 border-white/10')}>
+                <button key={status} onClick={()=>setSelectedStatus(status as BookmarkStatus)} className={cn('px-4 h-9 rounded-full text-sm font-medium whitespace-nowrap transition border flex items-center gap-2', selectedStatus===status ? `${statusColors[status as BookmarkStatus]} text-white border-white/20 shadow` : 'bg-white/5 text-white/70 hover:text-foreground hover:bg-white/10 border-white/10')}>
                   {label} <span className="opacity-80">{getStatusCount(status as BookmarkStatus)}</span>
                 </button>
               ))}
@@ -149,7 +149,7 @@ export const LibraryPage: React.FC = () => {
           {filteredBookmarks.length===0 ? (
             <div className="text-center py-16">
               <div className="text-6xl mb-4">📚</div>
-              <h3 className="text-xl font-medium text-white mb-2">{searchQuery ? 'Ничего не найдено':'Пока нет закладок'}</h3>
+              <h3 className="text-xl font-medium text-foreground mb-2">{searchQuery ? 'Ничего не найдено':'Пока нет закладок'}</h3>
               <p className="text-muted-foreground mb-6 max-w-md mx-auto">{searchQuery ? 'Попробуйте изменить поисковый запрос':'Добавьте манги в закладки, чтобы отслеживать свой прогресс чтения'}</p>
               {!searchQuery && <a href="/catalog" className="inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/80 transition-colors">Перейти к каталогу</a>}
             </div>

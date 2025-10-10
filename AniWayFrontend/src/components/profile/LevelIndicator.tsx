@@ -101,7 +101,7 @@ export function LevelIndicator({ levelData, className = "" }: LevelIndicatorProp
               {levelData.levelIcon}
             </div>
             <div>
-              <h3 className="text-lg font-bold text-white">
+              <h3 className="text-lg font-bold text-foreground">
                 Уровень {levelData.currentLevel}
               </h3>
               <p className={`text-sm font-medium bg-gradient-to-r ${levelData.levelColor} bg-clip-text text-transparent`}>
@@ -179,7 +179,7 @@ export function LevelIndicator({ levelData, className = "" }: LevelIndicatorProp
             <div className="flex items-center justify-center gap-1 text-blue-400 mb-1">
               <BookOpen className="w-4 h-4" />
             </div>
-            <div className="text-sm font-medium text-white">{Math.floor(levelData.currentXP / 10)}</div>
+            <div className="text-sm font-medium text-foreground">{Math.floor(levelData.currentXP / 10)}</div>
             <div className="text-xs text-gray-400">Манга</div>
           </div>
           
@@ -187,7 +187,7 @@ export function LevelIndicator({ levelData, className = "" }: LevelIndicatorProp
             <div className="flex items-center justify-center gap-1 text-green-400 mb-1">
               <Target className="w-4 h-4" />
             </div>
-            <div className="text-sm font-medium text-white">{levelData.currentXP}</div>
+            <div className="text-sm font-medium text-foreground">{levelData.currentXP}</div>
             <div className="text-xs text-gray-400">Активность</div>
           </div>
           
@@ -195,7 +195,7 @@ export function LevelIndicator({ levelData, className = "" }: LevelIndicatorProp
             <div className="flex items-center justify-center gap-1 text-yellow-400 mb-1">
               <Trophy className="w-4 h-4" />
             </div>
-            <div className="text-sm font-medium text-white">{levelData.achievements.length}</div>
+            <div className="text-sm font-medium text-foreground">{levelData.achievements.length}</div>
             <div className="text-xs text-gray-400">Награды</div>
           </div>
         </div>
@@ -204,7 +204,7 @@ export function LevelIndicator({ levelData, className = "" }: LevelIndicatorProp
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="max-w-lg bg-neutral-900/95 border border-white/10">
         <DialogHeader>
-          <DialogTitle className="text-white">История опыта</DialogTitle>
+          <DialogTitle className="text-foreground">История опыта</DialogTitle>
         </DialogHeader>
         <div className="text-xs text-gray-400 mb-3">Последние действия, дающие вам XP</div>
         <XpHistoryList userId={user?.id} />

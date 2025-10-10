@@ -187,7 +187,7 @@ export const ProfileActivity: React.FC<ProfileActivityProps> = ({ activities }) 
         <button
           type="button"
           onClick={() => setExpanded(e => !e)}
-          className="mt-4 w-full text-center text-xs font-medium tracking-wide text-slate-300 hover:text-white px-3 py-2 rounded-md bg-white/5 border border-white/10 transition"
+          className="mt-4 w-full text-center text-xs font-medium tracking-wide text-slate-300 hover:text-foreground px-3 py-2 rounded-md bg-white/5 border border-white/10 transition"
         >
           {expanded ? 'Свернуть' : `Показать ещё (${safeActivities.length - INITIAL})`}
         </button>

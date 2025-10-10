@@ -66,7 +66,7 @@ export const ProfileFriendRequests: React.FC<ProfileFriendRequestsProps> = ({
                   className="flex flex-col gap-3 rounded-xl border border-white/10 bg-white/5 p-3 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>
-                    <p className="text-sm font-semibold text-white">{renderName(users, request.requesterId)}</p>
+                    <p className="text-sm font-semibold text-foreground">{renderName(users, request.requesterId)}</p>
                     {request.message && (
                       <p className="mt-1 text-xs text-slate-300">“{request.message}”</p>
                     )}
@@ -111,7 +111,7 @@ export const ProfileFriendRequests: React.FC<ProfileFriendRequestsProps> = ({
                   className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/5 p-3 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>
-                    <p className="text-sm font-semibold text-white">{renderName(users, request.receiverId)}</p>
+                    <p className="text-sm font-semibold text-foreground">{renderName(users, request.receiverId)}</p>
                     {request.message && (
                       <p className="mt-1 text-xs text-slate-300">“{request.message}”</p>
                     )}

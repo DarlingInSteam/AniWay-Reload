@@ -135,7 +135,7 @@ export function ForumPage(){
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Быстрый доступ</div>
               {hasFilters && (
-                <button onClick={resetFilters} className="text-[11px] font-medium text-white/60 underline decoration-dotted decoration-white/40 transition hover:text-white">
+                <button onClick={resetFilters} className="text-[11px] font-medium text-white/60 underline decoration-dotted decoration-white/40 transition hover:text-foreground">
                   Сбросить фильтры
                 </button>
               )}
@@ -144,7 +144,7 @@ export function ForumPage(){
               <button
                 type="button"
                 onClick={() => setSelectedCategory(undefined)}
-                className={`rounded-xl px-3 py-1.5 text-xs transition-colors ${selectedCategory === undefined ? 'bg-white/15 text-white shadow-inner shadow-black/20' : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'}`}
+                className={`rounded-xl px-3 py-1.5 text-xs transition-colors ${selectedCategory === undefined ? 'bg-white/15 text-white shadow-inner shadow-black/20' : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-foreground'}`}
               >
                 Все темы
               </button>
@@ -153,7 +153,7 @@ export function ForumPage(){
                   key={category.id}
                   type="button"
                   onClick={() => setSelectedCategory(category.id)}
-                  className={`rounded-xl px-3 py-1.5 text-xs transition-colors ${selectedCategory === category.id ? 'bg-white/15 text-white shadow-inner shadow-black/20' : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'}`}
+                  className={`rounded-xl px-3 py-1.5 text-xs transition-colors ${selectedCategory === category.id ? 'bg-white/15 text-white shadow-inner shadow-black/20' : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-foreground'}`}
                 >
                   {category.name}
                   <span className="ml-2 text-[10px] text-white/55">{category.threadsCount ?? 0}</span>
@@ -177,7 +177,7 @@ export function ForumPage(){
                     <Link
                       key={`highlight-${thread.id}`}
                       to={`/forum/thread/${thread.id}`}
-                      className="flex w-full items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-left text-xs text-white/70 transition hover:bg-white/10 hover:text-white"
+                      className="flex w-full items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-left text-xs text-white/70 transition hover:bg-white/10 hover:text-foreground"
                     >
                       <span className="flex-1 truncate">{thread.title || `Тема #${thread.id}`}</span>
                       <span className="text-[11px] text-white/55">{formatRelativeTimestamp(thread.lastActivityAt ?? thread.updatedAt ?? thread.createdAt)}</span>

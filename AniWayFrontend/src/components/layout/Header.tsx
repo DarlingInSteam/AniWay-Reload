@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { UserMenu } from '../auth/UserMenu'
+import { UserMenu } from '@/components/auth/UserMenu'
 import { useAuth } from '../../contexts/AuthContext'
 
 export function Header() {
@@ -153,8 +153,8 @@ export function Header() {
                   to={item.to}
                   className={cn(
                     'relative flex items-center gap-2 text-sm font-medium transition-colors duration-200 whitespace-nowrap',
-                    'text-muted-foreground hover:text-white',
-                    isActive && 'text-white'
+                    'text-muted-foreground hover:text-foreground',
+                    isActive && 'text-foreground'
                   )}
                 >
                   {item.label}
@@ -177,7 +177,7 @@ export function Header() {
               <input
                 type="search"
                 placeholder="Поиск манги и пользователей..."
-                className="w-full h-10 md:h-12 pl-10 md:pl-12 pr-10 md:pr-12 rounded-full bg-card border border-border/30 text-white placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-200 text-sm md:text-base"
+                className="w-full h-10 md:h-12 pl-10 md:pl-12 pr-10 md:pr-12 rounded-full bg-card border border-border/30 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-200 text-sm md:text-base"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => {
@@ -195,7 +195,7 @@ export function Header() {
                   onClick={clearSearch}
                   className="absolute right-3 md:right-4 top-1/2 transform -translate-y-1/2 p-1 rounded-full hover:bg-secondary transition-colors"
                 >
-                  <X className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground hover:text-white" />
+                  <X className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground hover:text-foreground" />
                 </button>
               )}
 
@@ -226,7 +226,7 @@ export function Header() {
                             }}
                           />
                           <div className="flex-1 text-left min-w-0">
-                            <h4 className="font-medium text-white truncate text-sm md:text-base">
+                            <h4 className="font-medium text-foreground truncate text-sm md:text-base">
                               {manga.title}
                             </h4>
                             <p className="text-xs md:text-sm text-muted-foreground truncate">
@@ -280,7 +280,7 @@ export function Header() {
                             )
                           })()}
                           <div className="flex-1 text-left min-w-0">
-                            <h4 className="font-medium text-white truncate text-sm md:text-base">
+                            <h4 className="font-medium text-foreground truncate text-sm md:text-base">
                               {user.username}
                             </h4>
                             <p className="text-xs md:text-sm text-muted-foreground truncate">
@@ -328,7 +328,7 @@ export function Header() {
               <div className="hidden md:flex items-center gap-1 lg:gap-2">
                 <Link
                   to="/bookmarks"
-                  className="p-2 lg:p-3 rounded-xl hover:bg-secondary/50 text-muted-foreground hover:text-white transition-colors duration-200"
+                  className="p-2 lg:p-3 rounded-xl hover:bg-secondary/50 text-muted-foreground hover:text-foreground transition-colors duration-200"
                   title="Закладки"
                 >
                   <Bookmark className="h-5 w-5" />
@@ -340,7 +340,7 @@ export function Header() {
                 {isAdmin && (
                   <Link
                     to="/admin"
-                    className="p-2 lg:p-3 rounded-xl hover:bg-secondary/50 text-muted-foreground hover:text-white transition-colors duration-200"
+                    className="p-2 lg:p-3 rounded-xl hover:bg-secondary/50 text-muted-foreground hover:text-foreground transition-colors duration-200"
                     title="Управление"
                   >
                     <Settings className="h-5 w-5" />
@@ -355,7 +355,7 @@ export function Header() {
             <div className="flex items-center gap-2">
               <Link
                 to="/login"
-                className="px-3 py-2 md:px-4 md:py-2 text-sm font-medium text-muted-foreground hover:text-white transition-colors duration-200"
+                className="px-3 py-2 md:px-4 md:py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-200"
               >
                 Войти
               </Link>
@@ -372,7 +372,7 @@ export function Header() {
           <div className="lg:hidden ml-2" ref={menuRef}>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-xl hover:bg-secondary/50 text-muted-foreground hover:text-white transition-colors duration-200"
+              className="p-2 rounded-xl hover:bg-secondary/50 text-muted-foreground hover:text-foreground transition-colors duration-200"
             >
               {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
@@ -382,21 +382,21 @@ export function Header() {
               <div className="absolute top-full right-0 mt-2 w-56 bg-card border border-border/30 rounded-xl shadow-2xl py-2 z-50">
                 <Link
                   to="/catalog"
-                  className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
+                  className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Каталог
                 </Link>
                 <Link
                   to="/tops"
-                  className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
+                  className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Топы
                 </Link>
                 <Link
                   to="/forum"
-                  className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
+                  className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <MessageSquare className="h-4 w-4 mr-3" />
@@ -404,7 +404,7 @@ export function Header() {
                 </Link>
                 <Link
                   to="/chat"
-                  className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
+                  className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Чат
@@ -416,7 +416,7 @@ export function Header() {
                 </Link>
                 <Link
                   to="/messages"
-                  className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
+                  className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Личные сообщения
@@ -432,7 +432,7 @@ export function Header() {
                     <hr className="my-2 border-border/30" />
                     <Link
                       to="/bookmarks"
-                      className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
+                      className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       <Bookmark className="h-4 w-4 mr-3" />
@@ -440,7 +440,7 @@ export function Header() {
                     </Link>
                     <Link
                       to="/notifications"
-                      className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
+                      className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       <Bell className="h-4 w-4 mr-3" />
@@ -450,7 +450,7 @@ export function Header() {
                     {isAdmin && (
                       <Link
                         to="/admin"
-                        className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-white hover:bg-secondary/50 transition-colors"
+                        className="flex items-center px-4 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
                         onClick={() => setMobileMenuOpen(false)}
                       >
                         <Settings className="h-4 w-4 mr-3" />
