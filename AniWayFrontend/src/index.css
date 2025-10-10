@@ -5,21 +5,21 @@
 @layer base {
   :root {
     --background: 0 0% 8%; /* #141414 - темно-серый, но заметный фон */
-    --foreground: 0 0% 100%; /* #FFFFFF - белый */
+    --foreground: 0 0% 92%; /* #EBEBEB - мягкий светло-серый для основного текста */
     --card: 0 0% 15%; /* #262626 - светлее для карточек */
-    --card-foreground: 0 0% 100%;
+    --card-foreground: 0 0% 92%; /* Соответствует основному тексту */
     --popover: 0 0% 15%;
-    --popover-foreground: 0 0% 100%;
+    --popover-foreground: 0 0% 92%; /* Соответствует основному тексту */
     --primary: 214 100% 59%; /* #3B82F6 - голубой для кнопок */
     --primary-foreground: 0 0% 100%;
     --secondary: 0 0% 25%; /* #404040 - светлее для вторичных элементов */
-    --secondary-foreground: 0 0% 100%;
+    --secondary-foreground: 0 0% 92%; /* Соответствует основному тексту */
     --muted: 0 0% 25%;
     --muted-foreground: 0 0% 70%; /* #B3B3B3 - светло-серый */
     --accent: 45 100% 50%; /* #FFD700 - золотой для рейтингов */
     --accent-foreground: 0 0% 0%;
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive-foreground: 0 0% 92%; /* Соответствует основному тексту */
     --border: 0 0% 30%; /* #4D4D4D - светлее границы */
     --input: 0 0% 15%;
     --ring: 214 100% 59%;
