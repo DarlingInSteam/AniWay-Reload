@@ -47,6 +47,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
   const navigate = useNavigate()
   const { getMangaBookmark, changeStatus, addBookmark, removeBookmark } = useBookmarks()
   const { rating } = useRating(manga.id)
+  const ratingValue = typeof rating?.averageRating === 'number' ? rating.averageRating : undefined
 
   const bookmarkInfo = isAuthenticated ? getMangaBookmark(manga.id) : null
   const isInBookmarks = bookmarkInfo !== null
@@ -61,25 +62,22 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
 
   const totalChapters = manga.totalChapters || manga.chapterCount || 0
 
-  const infoItems = useMemo(() => {
-    const items: { label: string; value: string }[] = []
-    if (rating?.averageRating) {
-      items.push({ label: 'Рейтинг', value: rating.averageRating.toFixed(1) })
-    }
-    items.push({ label: 'Статус', value: getStatusText(manga.status) })
-    items.push({ label: 'Тип', value: getTypeText(manga.type) ?? '—' })
-    if (releaseYear) {
-      items.push({ label: 'Год', value: `${releaseYear}` })
-    }
-    items.push({ label: 'Глав', value: totalChapters > 0 ? totalChapters.toString() : '—' })
-    if (manga.chapterCount && manga.totalChapters && manga.chapterCount !== manga.totalChapters) {
-      items.push({ label: 'Вышло', value: manga.chapterCount.toString() })
-    }
-    if (manga.views) {
-      items.push({ label: 'Просмотры', value: manga.views.toLocaleString('ru-RU') })
-    }
-    return items
-  }, [rating?.averageRating, manga.status, manga.type, releaseYear, totalChapters, manga.chapterCount, manga.totalChapters, manga.views])
+  const translationLabel = useMemo(() => {
+    if (manga.isLicensed === true) return 'Официальный'
+    if (manga.isLicensed === false) return 'Любительский'
+    return 'Не указан'
+  }, [manga.isLicensed])
+
+  const infoRows = useMemo(() => ([
+    [
+      { label: 'Статус', value: getStatusText(manga.status) },
+      { label: 'Перевод', value: translationLabel }
+    ],
+    [
+      { label: 'Выпуск', value: releaseYear ? `${releaseYear} г.` : 'Не указан' },
+      { label: 'Глав', value: totalChapters > 0 ? totalChapters.toString() : '—' }
+    ]
+  ]), [manga.status, translationLabel, releaseYear, totalChapters])
 
 
   // Статусы закладок
@@ -367,7 +365,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
               })(),
               transition: 'opacity 140ms ease, transform 140ms ease'
             }}
-            className="hidden lg:block w-80 p-4 rounded-xl shadow-xl shadow-black/60 bg-black/80 backdrop-blur-md border border-white/15"
+            className="hidden lg:block w-[420px] p-5 rounded-xl shadow-xl shadow-black/60 bg-black/80 backdrop-blur-md border border-white/15"
             onMouseEnter={handleTooltipMouseEnter}
             onMouseLeave={handleTooltipMouseLeave}
           >
@@ -386,7 +384,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
           )}
 
           {/* Заголовочная секция */}
-          <div className="mb-4 space-y-1">
+          <div className="mb-4 space-y-1.5">
             <h3 className="font-semibold text-lg text-white leading-tight">
               {manga.title}
             </h3>
@@ -396,16 +394,27 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
                 {secondaryTitles.length > 2 && ' • …'}
               </div>
             )}
+            <div className="text-xs text-white/45">
+              {getTypeText(manga.type) ?? 'Неизвестный тип'}
+              {ratingValue !== undefined ? (
+                <span className="ml-3 text-white/55">Рейтинг {ratingValue.toFixed(1)}</span>
+              ) : null}
+            </div>
           </div>
 
           {/* Мета-информация */}
           <div className="mb-4 space-y-3">
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-              {infoItems.map(item => (
-                <div key={`${item.label}-${item.value}`} className="flex items-center justify-between text-xs text-white/70">
-                  <span className="text-white/45">{item.label}</span>
-                  <span className="font-medium text-white/90 ml-3 text-right">{item.value}</span>
-                </div>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+              {infoRows.map((row, rowIndex) => (
+                row.map((item, cellIndex) => (
+                  <div
+                    key={`${rowIndex}-${cellIndex}-${item.label}`}
+                    className="flex items-center justify-between gap-3 text-white/75"
+                  >
+                    <span className="text-xs text-white/45">{item.label}</span>
+                    <span className="text-sm font-medium text-white/90">{item.value}</span>
+                  </div>
+                ))
               ))}
             </div>
             {manga.ageLimit !== null && manga.ageLimit !== undefined && (
@@ -454,11 +463,12 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
                 'relative overflow-hidden text-sm text-gray-300 leading-relaxed markdown-body transition-[max-height] duration-300 ease-out',
                 isDescriptionExpanded ? 'max-h-[420px]' : 'max-h-32'
               )}
+              style={!isDescriptionExpanded && hasLongDescription ? {
+                WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 65%, rgba(0,0,0,0) 100%)',
+                maskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 65%, rgba(0,0,0,0) 100%)'
+              } : undefined}
             >
               <MarkdownRenderer value={plainDescription || 'Описание недоступно'} />
-              {!isDescriptionExpanded && hasLongDescription && (
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[rgba(15,23,42,0.85)] via-[rgba(15,23,42,0.15)] to-transparent" />
-              )}
             </div>
             {hasLongDescription && (
               <button
@@ -466,7 +476,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
                 onClick={() => setIsDescriptionExpanded(prev => !prev)}
                 className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded"
               >
-                {isDescriptionExpanded ? 'Свернуть' : 'Подробнее'}
+                {isDescriptionExpanded ? 'Свернуть' : 'Подробнее…'}
               </button>
             )}
           </div>
@@ -486,7 +496,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
                   <span>
                     {isInBookmarks && bookmarkInfo
                       ? bookmarkStatuses.find(s => s.value === bookmarkInfo.status)?.label || 'В закладках'
-                      : 'Добавить в закладки'
+                      : 'Добавить в планы'
                     }
                   </span>
                 </div>

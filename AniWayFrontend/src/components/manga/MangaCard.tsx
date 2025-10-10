@@ -1,9 +1,39 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { Star } from 'lucide-react'
-import { MangaResponseDTO } from '@/types'
+import { MangaResponseDTO, BookmarkStatus } from '@/types'
 import { getTypeText, cn } from '@/lib/utils'
 import { useRating } from '@/hooks/useRating'
+import { useAuth } from '@/contexts/AuthContext'
+import { useBookmarks } from '@/hooks/useBookmarks'
+
+const BOOKMARK_BADGE_STYLES: Record<BookmarkStatus, { label: string; className: string }> = {
+  READING: {
+    label: 'Читаю',
+    className: 'bg-emerald-500/90 text-white border border-emerald-300/40'
+  },
+  PLAN_TO_READ: {
+    label: 'Буду читать',
+    className: 'bg-violet-500/90 text-white border border-violet-300/40'
+  },
+  COMPLETED: {
+    label: 'Прочитано',
+    className: 'bg-sky-500/90 text-white border border-sky-300/40'
+  },
+  ON_HOLD: {
+    label: 'Отложено',
+    className: 'bg-amber-400/95 text-gray-900 border border-amber-200/60'
+  },
+  DROPPED: {
+    label: 'Брошено',
+    className: 'bg-rose-500/90 text-white border border-rose-300/40'
+  }
+}
+
+const DEFAULT_BOOKMARK_BADGE = {
+  label: 'В закладках',
+  className: 'bg-slate-600/90 text-white border border-slate-400/30'
+}
 
 interface MangaCardProps {
   manga: MangaResponseDTO
@@ -15,6 +45,8 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
   // Временное логирование для диагностики
   // Debug logs removed
   const { rating } = useRating(manga.id)
+  const { isAuthenticated } = useAuth()
+  const { getMangaBookmark } = useBookmarks()
   
   // Удалено массовое инвалидирование кэша на монтировании, чтобы не вызывать шторм запросов.
   // Если потребуется обновление конкретной манги после мутаций, делать invalidate в месте мутации.
@@ -53,6 +85,11 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
     const date = new Date(manga.releaseDate)
     return Number.isNaN(date.getTime()) ? undefined : date.getFullYear()
   })()
+
+  const bookmarkInfo = isAuthenticated ? getMangaBookmark(manga.id) : null
+  const bookmarkBadge = bookmarkInfo
+    ? BOOKMARK_BADGE_STYLES[bookmarkInfo.status as BookmarkStatus] ?? DEFAULT_BOOKMARK_BADGE
+    : null
 
   return (
     <div className="group flex flex-col space-y-2 md:space-y-3 w-full transition-transform duration-300 will-change-transform hover:md:-translate-y-1 hover:lg:-translate-y-1 motion-reduce:transform-none">
@@ -100,6 +137,19 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
             </div>
           </div>
 
+          {bookmarkBadge && (
+            <div className="absolute top-2 md:top-3 right-2 md:right-3">
+              <span
+                className={cn(
+                  'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold shadow-sm backdrop-blur-md transition-colors duration-200',
+                  bookmarkBadge.className
+                )}
+              >
+                {bookmarkBadge.label}
+              </span>
+            </div>
+          )}
+
           <div className="absolute inset-0 bg-black/35 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
         </div>
       </Link>
@@ -115,9 +165,9 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
               {manga.title}
             </h3>
           </Link>
-          <div className="text-[10px] md:text-[11px] uppercase tracking-[0.24em] text-white/50">
+          <div className="text-[10px] md:text-[11px] text-white/65">
             {typeLabel || 'Неизвестный тип'}
-            {releaseYear ? <span className="ml-2 text-white/30 tracking-[0.18em]">{releaseYear}</span> : null}
+            {releaseYear ? <span className="ml-2 text-white/40">{releaseYear}</span> : null}
           </div>
         </div>
       )}
