@@ -135,7 +135,7 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
             <div className="absolute inset-0 bg-white/5 animate-pulse" aria-hidden />
           )}
 
-          <div className="absolute top-2 md:top-2.5 left-2 md:left-2.5 flex items-center">
+          <div className="absolute top-2 left-2 md:top-2.5 md:left-2.5 flex items-center">
             <div className={cn(overlayBadgeBase, 'bg-black/70 text-white/90 border border-white/10')}
             >
               <Star className="h-3 w-3 text-accent fill-current" />
@@ -146,7 +146,7 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
           </div>
 
           {bookmarkBadge && (
-            <div className="absolute top-2 md:top-2.5 right-2 md:right-2.5">
+            <div className="absolute top-2 right-2 md:top-2.5 md:right-2.5">
               <span
                 className={cn(
                   overlayBadgeBase,

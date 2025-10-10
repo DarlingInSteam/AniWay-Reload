@@ -376,7 +376,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
               })(),
               transition: 'opacity 140ms ease, transform 140ms ease'
             }}
-            className="hidden lg:block w-[340px] p-5 rounded-xl shadow-xl shadow-black/60 bg-black/80 backdrop-blur-md border border-white/15"
+            className="hidden lg:block w-[320px] p-5 rounded-xl shadow-xl shadow-black/60 bg-black/80 backdrop-blur-md border border-white/15"
             onMouseEnter={handleTooltipMouseEnter}
             onMouseLeave={handleTooltipMouseLeave}
           >
@@ -405,17 +405,17 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
                 {secondaryTitles.length > 2 && ' • …'}
               </div>
             )}
-            <div className="flex items-center gap-2 text-xs text-white/50">
-              <span className="text-white/60">{getTypeText(manga.type) ?? 'Неизвестный тип'}</span>
+            <div className="flex items-center gap-2 text-[11px] text-white/55">
+              <span>{getTypeText(manga.type) ?? 'Неизвестный тип'}</span>
               {ratingValue !== undefined && (
-                <span className="text-white/55">{ratingValue.toFixed(1)}</span>
+                <span className="text-white/70">{ratingValue.toFixed(1)}</span>
               )}
             </div>
           </div>
 
           {/* Мета-информация */}
-          <div className="mb-4 space-y-2.5">
-            <div className="flex flex-col divide-y divide-white/5 rounded-lg overflow-hidden border border-white/10">
+          <div className="mb-4 space-y-3">
+            <div className="grid grid-cols-4 gap-3 text-xs">
               {infoRows.map(row => (
                 <button
                   key={row.label}
@@ -427,14 +427,14 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
                   }}
                   disabled={!row.query}
                   className={cn(
-                    'flex items-center justify-between gap-4 px-3 py-2 text-left transition-colors',
+                    'flex flex-col items-start gap-1 text-left transition-colors rounded-md px-2 py-1.5 border border-transparent',
                     row.query
-                      ? 'hover:bg-white/5 focus:outline-none focus-visible:bg-white/10'
-                      : 'cursor-default opacity-90'
+                      ? 'hover:border-white/15 hover:bg-white/5 focus:outline-none focus-visible:border-primary/40'
+                      : 'cursor-default opacity-95'
                   )}
                 >
-                  <span className="text-xs text-white/45">{row.label}</span>
-                  <span className="text-sm font-medium text-white/90">{row.value}</span>
+                  <span className="text-[10px] uppercase tracking-[0.08em] text-white/40">{row.label}</span>
+                  <span className="text-sm font-semibold text-white/90">{row.value}</span>
                 </button>
               ))}
             </div>
