@@ -155,50 +155,43 @@ export function MangaPage() {
 
   // Оптимизированная загрузка статусов лайков глав
   useEffect(() => {
+    let cancelled = false
+
     const loadChapterLikeStatuses = async () => {
       if (!chapters || !user || chapters.length === 0) {
-        console.log('Skipping like status load:', { chapters: !!chapters, user: !!user, length: chapters?.length })
+        setLikedChapters(new Set())
         return
       }
 
-      console.log('Loading like statuses for', chapters.length, 'chapters')
       try {
-        // Ограничиваем количество одновременных запросов и добавляем кеширование
-        const batchSize = 10
-        const likeStatuses = []
-        
-        for (let i = 0; i < chapters.length; i += batchSize) {
-          const batch = chapters.slice(i, i + batchSize)
-          const batchPromises = batch.map(async (chapter) => {
-            try {
-              // Добавляем задержку между запросами для снижения нагрузки
-              if (i > 0) await new Promise(resolve => setTimeout(resolve, 100))
-              const response = await apiClient.isChapterLiked(chapter.id)
-              return { chapterId: chapter.id, liked: response.liked }
-            } catch (error) {
-              console.error(`Failed to load like status for chapter ${chapter.id}:`, error)
-              return { chapterId: chapter.id, liked: false }
-            }
-          })
-          
-          const batchResults = await Promise.all(batchPromises)
-          likeStatuses.push(...batchResults)
+        const chapterIds = chapters.map((chapter) => chapter.id)
+        const likedIdsAggregate: number[] = []
+        const chunkSize = 100
+
+        for (let i = 0; i < chapterIds.length; i += chunkSize) {
+          const chunk = chapterIds.slice(i, i + chunkSize)
+          const likedIds = await apiClient.getChapterLikeStatuses(chunk)
+          likedIdsAggregate.push(...likedIds)
         }
 
-        const likedChapterIds = likeStatuses
-          .filter(status => status.liked)
-          .map(status => status.chapterId)
-
-        console.log('Loaded like statuses:', likedChapterIds.length, 'liked chapters')
-        setLikedChapters(new Set(likedChapterIds))
+        if (!cancelled) {
+          setLikedChapters(new Set(likedIdsAggregate))
+        }
       } catch (error) {
-        console.error('Failed to load chapter like statuses:', error)
+        if (!cancelled) {
+          console.error('Failed to load chapter like statuses:', error)
+          setLikedChapters(new Set())
+        }
       }
     }
 
-    // Добавляем debounce чтобы избежать множественных вызовов
-    const timeoutId = setTimeout(loadChapterLikeStatuses, 500)
-    return () => clearTimeout(timeoutId)
+    // небольшая задержка, чтобы избежать двойных вызовов при монтировании
+    const timeoutId = setTimeout(loadChapterLikeStatuses, 200)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timeoutId)
+    }
   }, [chapters, user])
 
   // Handle chapter like/unlike

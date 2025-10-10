@@ -15,6 +15,7 @@ import shadowshift.studio.chapterservice.repository.ChapterRepository;
 import shadowshift.studio.chapterservice.repository.ChapterLikeRepository;
 import shadowshift.studio.chapterservice.repository.ChapterReadRepository;
 import shadowshift.studio.chapterservice.entity.ChapterRead;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -518,6 +519,20 @@ public class ChapterService {
      */
     public boolean isLikedByUser(Long userId, Long chapterId) {
         return chapterLikeRepository.existsByUserIdAndChapterId(userId, chapterId);
+    }
+
+    /**
+     * Получить список идентификаторов глав, которые пользователь лайкнул из переданного набора.
+     *
+     * @param userId идентификатор пользователя
+     * @param chapterIds набор глав для проверки
+     * @return список идентификаторов глав, которые пользователь лайкнул
+     */
+    public List<Long> getLikedChapterIds(Long userId, List<Long> chapterIds) {
+        if (chapterIds == null || chapterIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return chapterLikeRepository.findLikedChapterIds(userId, chapterIds);
     }
 
     /**

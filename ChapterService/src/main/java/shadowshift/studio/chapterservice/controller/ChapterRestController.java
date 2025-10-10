@@ -264,6 +264,22 @@ public class ChapterRestController {
     }
 
     /**
+     * Получить статусы лайков пользователя для набора глав.
+     *
+     * @param request тело запроса с идентификаторами глав
+     * @param userId идентификатор пользователя (из заголовка)
+     * @return список идентификаторов глав, которые пользователь лайкнул
+     */
+    @PostMapping("/likes/batch")
+    public ResponseEntity<Map<String, List<Long>>> getLikedStatuses(
+            @RequestBody Map<String, List<Long>> request,
+            @RequestHeader("X-User-Id") Long userId) {
+        List<Long> chapterIds = request.getOrDefault("chapterIds", List.of());
+        List<Long> likedIds = chapterService.getLikedChapterIds(userId, chapterIds);
+        return ResponseEntity.ok(Map.of("likedChapterIds", likedIds));
+    }
+
+    /**
      * Record that the user has read the chapter and award XP (idempotency is handled downstream by LevelService event id uniqueness heuristic if needed).
      */
     @PostMapping("/{id}/read")

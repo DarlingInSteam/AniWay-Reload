@@ -69,7 +69,8 @@ class ApiClient {
       (/^\/posts\b/.test(endpoint) && ['POST','PUT','DELETE','GET'].includes(method)) ||
       (/^\/posts\/.*\/vote$/.test(endpoint)) ||
       (/^\/comments\b/.test(endpoint) && ['POST','PUT','DELETE','GET'].includes(method)) ||
-      (/^\/messages\b/.test(endpoint))
+      (/^\/messages\b/.test(endpoint)) ||
+      (/^\/chapters\b/.test(endpoint))
     );
     const normalizedUserRole = userRole ? userRole.toUpperCase().replace(/^ROLE_/, '') : undefined;
     const headerUserRole = normalizedUserRole || (token ? 'USER' : undefined);
@@ -251,6 +252,17 @@ class ApiClient {
 
   async isChapterLiked(chapterId: number): Promise<{ liked: boolean }> {
     return this.request<{ liked: boolean }>(`/chapters/${chapterId}/like`);
+  }
+
+  async getChapterLikeStatuses(chapterIds: number[]): Promise<number[]> {
+    if (!chapterIds || chapterIds.length === 0) {
+      return [];
+    }
+    const response = await this.request<{ likedChapterIds: number[] }>(`/chapters/likes/batch`, {
+      method: 'POST',
+      body: JSON.stringify({ chapterIds }),
+    });
+    return response.likedChapterIds || [];
   }
 
   async toggleChapterLike(chapterId: number): Promise<{ message: string; liked: boolean; likeCount: number }> {
