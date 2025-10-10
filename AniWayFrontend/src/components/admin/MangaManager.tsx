@@ -534,7 +534,15 @@ export function MangaManager() {
               <p className="text-sm">Попробуйте изменить параметры поиска</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="relative grid
+              grid-cols-2
+              [grid-auto-rows:auto]
+              gap-2.5 xs:gap-3 sm:gap-4 lg:gap-5 xl:gap-6
+              sm:[grid-template-columns:repeat(auto-fill,minmax(165px,1fr))]
+              md:[grid-template-columns:repeat(auto-fill,minmax(170px,1fr))]
+              lg:[grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]
+              xl:[grid-template-columns:repeat(auto-fill,minmax(190px,1fr))]
+              items-start justify-items-start">
               {mangaList.map((manga) => {
                 const releaseYear = manga.releaseDate ? new Date(manga.releaseDate).getFullYear() : '—'
                 const resolvedChapterCount = typeof manga.chapterCount === 'number'
@@ -553,9 +561,9 @@ export function MangaManager() {
                 const tooltipPayload = toTooltipManga(manga)
 
                 return (
-                  <div key={manga.id} className="flex flex-col gap-2">
+                  <div key={manga.id} className="flex w-full max-w-[190px] flex-col gap-1.5">
                     <MangaTooltip manga={tooltipPayload}>
-                      <div className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] shadow-lg transition-all duration-300 hover:border-primary/40 hover:shadow-primary/20 focus-within:border-primary/40 focus-within:shadow-primary/20">
+                      <div className="group relative overflow-hidden rounded-lg border border-white/10 bg-white/[0.03] shadow-lg transition-all duration-300 hover:border-primary/40 hover:shadow-primary/20 focus-within:border-primary/40 focus-within:shadow-primary/20">
                         <div className="relative aspect-[3/4]">
                           <img
                             src={manga.coverImageUrl}
@@ -570,7 +578,7 @@ export function MangaManager() {
 
                           <div className="absolute top-2 left-2 flex flex-col gap-1">
                             <Badge
-                              className="bg-black/70 text-white text-[10px] font-semibold uppercase tracking-wide backdrop-blur-sm border-transparent"
+                              className="bg-black/70 text-white text-[9px] font-semibold uppercase tracking-wide backdrop-blur-sm border-transparent px-1.5 py-0.5"
                               title={statusInfo?.label || manga.status}
                             >
                               {statusInfo?.label || manga.status}
@@ -580,7 +588,7 @@ export function MangaManager() {
                           {manga.type ? (
                             <div className="absolute top-2 right-2">
                               <Badge
-                                className="bg-white/20 text-white border-white/10 text-[10px] font-semibold uppercase tracking-wide backdrop-blur"
+                                className="bg-white/20 text-white border-white/10 text-[9px] font-semibold uppercase tracking-wider backdrop-blur px-1.5 py-0.5"
                                 title={manga.type}
                               >
                                 {manga.type}
@@ -590,14 +598,14 @@ export function MangaManager() {
 
                           <div className="absolute bottom-2 left-2 flex flex-col items-start gap-1">
                             <Badge
-                              className="bg-blue-500/85 text-white border-blue-400/30 text-[11px] font-semibold shadow-lg backdrop-blur"
+                              className="bg-blue-500/85 text-white border-blue-400/30 text-[10px] font-semibold shadow-lg backdrop-blur px-2 py-0.5"
                               title={typeof resolvedChapterCount === 'number' ? `Глав по факту: ${resolvedChapterCount}` : 'Нет данных по главам'}
                             >
                               {typeof resolvedChapterCount === 'number' ? `${resolvedChapterCount} глав` : 'Нет глав'}
                             </Badge>
                             {hasChapterDelta ? (
                               <Badge
-                                className="bg-white/20 text-white border-transparent text-[10px] backdrop-blur"
+                                className="bg-white/20 text-white border-transparent text-[9px] backdrop-blur px-1.5 py-0.5"
                                 title={`В каталоге указано ${manga.totalChapters}`}
                               >
                                 Каталог: {manga.totalChapters}
@@ -673,15 +681,15 @@ export function MangaManager() {
                     </MangaTooltip>
 
                     <div className="flex flex-col gap-1 px-1">
-                      <h3 className="text-sm font-semibold text-white line-clamp-2" title={manga.title}>
+                      <h3 className="text-xs font-semibold text-white line-clamp-2 md:text-sm" title={manga.title}>
                         {manga.title}
                       </h3>
                       {manga.engName ? (
-                        <p className="text-[11px] uppercase tracking-widest text-white/50 line-clamp-1" title={manga.engName}>
+                        <p className="text-[10px] uppercase tracking-[0.24em] text-white/45 line-clamp-1" title={manga.engName}>
                           {manga.engName}
                         </p>
                       ) : null}
-                      <p className="text-[12px] text-white/60 line-clamp-1" title={basicMeta}>
+                      <p className="text-[11px] text-white/55 line-clamp-1" title={basicMeta}>
                         {basicMeta || 'Информация не указана'}
                       </p>
                     </div>
