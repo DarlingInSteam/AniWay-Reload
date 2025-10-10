@@ -369,7 +369,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
               })(),
               transition: 'opacity 140ms ease, transform 140ms ease'
             }}
-            className="hidden lg:block w-[380px] p-6 rounded-2xl shadow-2xl shadow-black/70 bg-gradient-to-br from-slate-950/95 via-slate-900/95 to-slate-950/98 backdrop-blur-xl border border-white/12"
+            className="hidden lg:block w-[360px] p-5 rounded-xl shadow-xl shadow-black/60 bg-black/85 backdrop-blur-md border border-white/10"
             onMouseEnter={handleTooltipMouseEnter}
             onMouseLeave={handleTooltipMouseLeave}
           >
@@ -388,20 +388,20 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
           )}
 
           {/* Заголовочная секция */}
-          <div className="mb-5 space-y-1.5">
-            <h3 className="font-semibold text-lg text-white leading-tight">
+          <div className="mb-4 space-y-1">
+            <h3 className="font-semibold text-base text-white leading-tight">
               {manga.title}
             </h3>
             {manga.engName && (
-              <div className="text-sm text-white/65">
+              <div className="text-xs text-white/55">
                 {manga.engName}
               </div>
             )}
           </div>
 
           {/* Мета-информация */}
-          <div className="mb-5">
-            <div className="grid grid-cols-2 gap-3 text-xs">
+          <div className="mb-4">
+            <div className="grid grid-cols-4 gap-2 text-xs">
               {infoRows.map(row => (
                 <button
                   key={row.label}
@@ -413,14 +413,14 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
                   }}
                   disabled={!row.query}
                   className={cn(
-                    'flex flex-col items-start gap-1.5 text-left transition-colors rounded-xl px-4 py-3 border border-white/8 bg-white/[0.05]',
+                    'flex flex-col items-start gap-1 text-left transition-colors rounded-md px-2 py-2 bg-white/[0.03] border border-white/[0.06]',
                     row.query
-                      ? 'hover:border-primary/50 hover:bg-primary/15 focus:outline-none focus-visible:border-primary/60 focus-visible:bg-primary/20'
-                      : 'cursor-default opacity-90'
+                      ? 'hover:bg-white/[0.08] hover:border-white/[0.12] focus:outline-none focus-visible:border-primary/40'
+                      : 'cursor-default'
                   )}
                 >
-                  <span className="text-[11px] uppercase tracking-[0.12em] text-white/45">{row.label}</span>
-                  <span className="text-sm font-semibold text-white/95">{row.value}</span>
+                  <span className="text-[10px] uppercase tracking-wide text-white/40">{row.label}</span>
+                  <span className="text-xs font-semibold text-white/85">{row.value}</span>
                 </button>
               ))}
             </div>
@@ -428,7 +428,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
 
           {/* Жанры и теги */}
           {chips.length > 0 && (
-            <div className="mb-5">
+            <div className="mb-4">
               <div
                 ref={chipsContainerRef}
                 className="flex flex-wrap gap-1.5 overflow-hidden"
@@ -439,7 +439,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
                     <span
                       key={`age-${chip.label}`}
                       className={cn(
-                        'px-2.5 py-1 rounded-md text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm',
+                        'px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wide text-white',
                         getAgeRatingColor(chip.value)
                       )}
                     >
@@ -450,7 +450,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
                       key={`${chip.type}-${chip.label}`}
                       type="button"
                       onClick={() => handleChipClick(chip)}
-                      className="px-2.5 py-1 rounded-md text-[11px] bg-white/12 text-white/80 hover:bg-primary/25 hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+                      className="px-2 py-0.5 rounded text-[11px] bg-white/[0.08] text-white/70 hover:bg-white/[0.15] hover:text-white/90 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                     >
                       {chip.label}
                     </button>
@@ -461,7 +461,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
                 <button
                   type="button"
                   onClick={() => setChipsExpanded(prev => !prev)}
-                  className="mt-2 text-xs font-medium text-primary hover:text-primary/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 rounded"
+                  className="mt-2 text-xs font-medium text-primary hover:text-primary/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded"
                 >
                   {chipsExpanded ? 'Скрыть' : `Показать ещё (${extraChipsCount})`}
                 </button>
