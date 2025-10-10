@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { Bookmark, ChevronDown, X } from 'lucide-react'
 import { MangaResponseDTO, BookmarkStatus } from '@/types'
-import { getStatusColor, getStatusText, cn } from '@/lib/utils'
+import { getStatusText, getTypeText, cn } from '@/lib/utils'
 import { useBookmarks } from '@/hooks/useBookmarks'
 import { useAuth } from '@/contexts/AuthContext'
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
+import { useRating } from '@/hooks/useRating'
 
 interface MangaTooltipProps {
   manga: MangaResponseDTO
@@ -45,11 +46,40 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
   const { isAuthenticated } = useAuth()
   const navigate = useNavigate()
   const { getMangaBookmark, changeStatus, addBookmark, removeBookmark } = useBookmarks()
+  const { rating } = useRating(manga.id)
 
   const bookmarkInfo = isAuthenticated ? getMangaBookmark(manga.id) : null
   const isInBookmarks = bookmarkInfo !== null
   const plainDescription = useMemo(() => (manga.description || '').trim(), [manga.description])
   const hasLongDescription = plainDescription.length > 360
+
+  const releaseYear = useMemo(() => {
+    if (!manga.releaseDate) return undefined
+    const date = new Date(manga.releaseDate)
+    return Number.isNaN(date.getTime()) ? undefined : date.getFullYear()
+  }, [manga.releaseDate])
+
+  const totalChapters = manga.totalChapters || manga.chapterCount || 0
+
+  const infoItems = useMemo(() => {
+    const items: { label: string; value: string }[] = []
+    if (rating?.averageRating) {
+      items.push({ label: 'Рейтинг', value: rating.averageRating.toFixed(1) })
+    }
+    items.push({ label: 'Статус', value: getStatusText(manga.status) })
+    items.push({ label: 'Тип', value: getTypeText(manga.type) ?? '—' })
+    if (releaseYear) {
+      items.push({ label: 'Год', value: `${releaseYear}` })
+    }
+    items.push({ label: 'Глав', value: totalChapters > 0 ? totalChapters.toString() : '—' })
+    if (manga.chapterCount && manga.totalChapters && manga.chapterCount !== manga.totalChapters) {
+      items.push({ label: 'Вышло', value: manga.chapterCount.toString() })
+    }
+    if (manga.views) {
+      items.push({ label: 'Просмотры', value: manga.views.toLocaleString('ru-RU') })
+    }
+    return items
+  }, [rating?.averageRating, manga.status, manga.type, releaseYear, totalChapters, manga.chapterCount, manga.totalChapters, manga.views])
 
 
   // Статусы закладок
@@ -63,7 +93,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
 
   // Функция для получения цвета возрастного ограничения
   const getAgeRatingColor = (ageLimit?: number) => {
-    if (!ageLimit) return 'bg-gray-600 text-white'
+    if (ageLimit === undefined || ageLimit === null) return 'bg-gray-600 text-white'
     if (ageLimit <= 6) return 'bg-green-600 text-white'
     if (ageLimit <= 12) return 'bg-yellow-600 text-white'
     if (ageLimit <= 16) return 'bg-orange-600 text-white'
@@ -73,9 +103,9 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
   // Функция для форматирования возрастного ограничения
   const formatAgeRating = (ageLimit: number | null | undefined): string => {
     if (ageLimit === null || ageLimit === undefined) {
-      return "Возрастное ограничение не указано";
+      return '—'
     }
-    return `${ageLimit}+`;
+    return `${ageLimit}+`
   };
 
   // Вычисление позиции tooltip
@@ -159,6 +189,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
       setIsVisible(false)
       setShowDropdown(false)
       setIsDescriptionExpanded(false)
+      setShowAllGenres(false)
     }, 160)
   }
 
@@ -173,7 +204,16 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
       setIsVisible(false)
       setShowDropdown(false)
       setIsDescriptionExpanded(false)
+      setShowAllGenres(false)
     }, 160)
+  }
+
+  const handleChipClick = (chip: { label: string; type: 'genre' | 'tag' }) => {
+    setIsVisible(false)
+    setShowDropdown(false)
+    setShowAllGenres(false)
+    const queryKey = chip.type === 'genre' ? 'genres' : 'tags'
+    navigate(`/catalog?${queryKey}=${encodeURIComponent(chip.label)}`)
   }
 
   // Обработчик изменения статуса закладки
@@ -211,6 +251,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
         setIsVisible(false)
         setShowDropdown(false)
         setIsDescriptionExpanded(false)
+        setShowAllGenres(false)
       }
     }
 
@@ -232,6 +273,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
       setIsVisible(false)
       setShowDropdown(false)
       setIsDescriptionExpanded(false)
+      setShowAllGenres(false)
     }
     window.addEventListener('resize', handleResize)
     window.addEventListener('scroll', handleHide, { passive: true, capture: true })
@@ -258,13 +300,47 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
     return () => imgs.forEach(img => img.removeEventListener('load', onLoad))
   }, [isVisible])
 
-  // Парсинг жанров
-  const genres = manga.genre ? manga.genre.split(',').map(g => g.trim()).filter(Boolean) : []
-  const visibleGenres = showAllGenres ? genres : genres.slice(0, 6)
-  const hiddenGenresCount = Math.max(0, genres.length - 6)
+  // Парсинг жанров и тегов
+  const genres = useMemo(() => (
+    manga.genre ? manga.genre.split(',').map(g => g.trim()).filter(Boolean) : []
+  ), [manga.genre])
 
-  // Парсинг альтернативных названий
-  const alternativeNames = manga.alternativeNames?.split(',').map(n => n.trim()).filter(Boolean) || []
+  const tags = useMemo(() => (
+    manga.tags ? manga.tags.split(',').map(t => t.trim()).filter(Boolean) : []
+  ), [manga.tags])
+
+  const chips = useMemo(() => {
+    const seen = new Set<string>()
+    const list: { label: string; type: 'genre' | 'tag' }[] = []
+
+    const addChip = (label: string, type: 'genre' | 'tag') => {
+      const normalized = label.toLowerCase()
+      if (seen.has(normalized)) return
+      seen.add(normalized)
+      list.push({ label, type })
+    }
+
+    genres.forEach(label => addChip(label, 'genre'))
+    tags.forEach(label => addChip(label, 'tag'))
+    return list
+  }, [genres, tags])
+
+  const visibleChips = showAllGenres ? chips : chips.slice(0, 8)
+  const hiddenChipsCount = Math.max(0, chips.length - visibleChips.length)
+
+  // Альтернативные названия и второе имя
+  const alternativeNames = useMemo(() => (
+    manga.alternativeNames?.split(',').map(n => n.trim()).filter(Boolean) || []
+  ), [manga.alternativeNames])
+
+  const secondaryTitles = useMemo(() => {
+    const names: string[] = []
+    if (manga.engName) names.push(manga.engName)
+    alternativeNames.forEach(name => {
+      if (!names.includes(name)) names.push(name)
+    })
+    return names
+  }, [manga.engName, alternativeNames])
 
   try {
     return (
@@ -310,71 +386,66 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
           )}
 
           {/* Заголовочная секция */}
-          <div className="mb-3">
-            <h3 className="font-semibold text-lg text-white leading-tight mb-1">
+          <div className="mb-4 space-y-1">
+            <h3 className="font-semibold text-lg text-white leading-tight">
               {manga.title}
             </h3>
-            {alternativeNames.length > 0 && (
-              <div className="text-sm text-gray-400 font-normal">
-                {alternativeNames.slice(0, 2).join(', ')}
-                {alternativeNames.length > 2 && ' ...'}
+            {secondaryTitles.length > 0 && (
+              <div className="text-sm text-white/60">
+                {secondaryTitles.slice(0, 2).join(' • ')}
+                {secondaryTitles.length > 2 && ' • …'}
               </div>
             )}
           </div>
 
           {/* Мета-информация */}
-          <div className="flex items-center gap-2 mb-3 text-xs flex-wrap">
-            <span className={cn(
-              'px-2 py-1 rounded text-xs font-medium',
-              getStatusColor(manga.status)
-            )}>
-              {getStatusText(manga.status)}
-            </span>
-            <span className="bg-blue-600 text-white px-2 py-1 rounded text-xs font-medium">
-              Переводится
-            </span>
-            <span className="text-gray-300">
-              {new Date(manga.releaseDate).getFullYear()}
-            </span>
-            <span className="text-gray-300">
-              {manga.totalChapters} гл.
-            </span>
-          </div>
-
-          {/* Возрастное ограничение */}
-          <div className="mb-3">
-            <span className={cn(
-              'px-2 py-1 rounded-full text-xs font-semibold',
-              getAgeRatingColor(manga.ageLimit)
-            )}>
-              {formatAgeRating(manga.ageLimit)}
-            </span>
-          </div>
-
-          {/* Жанры */}
-          <div className="mb-3">
-            <div className="flex flex-wrap gap-1">
-              {visibleGenres.map((genre, index) => (
-                <Link
-                  key={index}
-                  to={`/catalog?genres=${encodeURIComponent(genre)}`}
-                  onClick={() => setIsVisible(false)}
-                  className="px-2 py-1 rounded-md text-xs bg-gray-700/80 text-gray-200 hover:bg-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/60"
-                  aria-label={`Перейти в каталог по жанру ${genre}`}
-                >
-                  {genre}
-                </Link>
+          <div className="mb-4 space-y-3">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+              {infoItems.map(item => (
+                <div key={`${item.label}-${item.value}`} className="flex items-center justify-between text-xs text-white/70">
+                  <span className="text-white/45">{item.label}</span>
+                  <span className="font-medium text-white/90 ml-3 text-right">{item.value}</span>
+                </div>
               ))}
-              {hiddenGenresCount > 0 && !showAllGenres && (
-                <span
-                  onClick={() => setShowAllGenres(true)}
-                  className="bg-gray-700/80 text-gray-200 px-2 py-1 rounded-md text-xs cursor-pointer hover:bg-gray-600 transition-colors"
-                >
-                  +{hiddenGenresCount} еще
-                </span>
-              )}
             </div>
+            {manga.ageLimit !== null && manga.ageLimit !== undefined && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                <span className={cn(
+                  'px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm',
+                  getAgeRatingColor(manga.ageLimit)
+                )}>
+                  {formatAgeRating(manga.ageLimit)}
+                </span>
+              </div>
+            )}
           </div>
+
+          {/* Жанры и теги */}
+          {chips.length > 0 && (
+            <div className="mb-4">
+              <div className="flex flex-wrap gap-2">
+                {visibleChips.map(chip => (
+                  <button
+                    key={`${chip.type}-${chip.label}`}
+                    type="button"
+                    onClick={() => handleChipClick(chip)}
+                    className="px-2.5 py-1 rounded-md text-xs bg-white/10 text-white/80 hover:bg-primary/20 hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+                {hiddenChipsCount > 0 && !showAllGenres && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllGenres(true)}
+                    className="px-2.5 py-1 rounded-md text-xs bg-white/5 text-white/60 hover:bg-white/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                  >
+                    +{hiddenChipsCount} ещё
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Описание */}
           <div className="mb-4">
@@ -395,7 +466,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
                 onClick={() => setIsDescriptionExpanded(prev => !prev)}
                 className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded"
               >
-                {isDescriptionExpanded ? 'Свернуть описание' : 'Показать полностью'}
+                {isDescriptionExpanded ? 'Свернуть' : 'Подробнее'}
               </button>
             )}
           </div>

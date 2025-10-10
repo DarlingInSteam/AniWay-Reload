@@ -1,14 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { Star, Eye, Bookmark, Flame, ShieldCheck } from 'lucide-react'
+import { Star } from 'lucide-react'
 import { MangaResponseDTO } from '@/types'
-import { getStatusColor, getStatusText, getTypeText, cn } from '@/lib/utils'
-import { computeMangaBadges } from '@/utils/mangaBadges'
-import { useBookmarks } from '@/hooks/useBookmarks'
-import { useAuth } from '@/contexts/AuthContext'
-import { useReadingProgress } from '@/hooks/useProgress'
+import { getTypeText, cn } from '@/lib/utils'
 import { useRating } from '@/hooks/useRating'
-import { useQueryClient } from '@tanstack/react-query'
 
 interface MangaCardProps {
   manga: MangaResponseDTO
@@ -19,12 +14,7 @@ interface MangaCardProps {
 export function MangaCard({ manga, size = 'default', showMetadata = true }: MangaCardProps) {
   // Временное логирование для диагностики
   // Debug logs removed
-
-  const { isAuthenticated } = useAuth()
-  const { getMangaBookmark } = useBookmarks()
-  const { getMangaProgress } = useReadingProgress()
   const { rating } = useRating(manga.id)
-  const queryClient = useQueryClient()
   
   // Удалено массовое инвалидирование кэша на монтировании, чтобы не вызывать шторм запросов.
   // Если потребуется обновление конкретной манги после мутаций, делать invalidate в месте мутации.
@@ -45,45 +35,6 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
     large: 'aspect-[3/4]'
   }
 
-  // Генерируем фейковые просмотры для демонстрации (в реальном проекте это будет из API)
-  const views = manga.views || 0
-
-  // Получаем статус закладки
-  const bookmarkInfo = isAuthenticated ? getMangaBookmark(manga.id) : null
-  const isInBookmarks = bookmarkInfo !== null
-  
-  // Получаем прогресс чтения
-  // Вычисляем количество прочитанных глав более точно
-  const getReadChaptersCount = () => {
-    if (!isAuthenticated || manga.totalChapters === 0) return 0
-    const mangaProgressData = getMangaProgress(manga.id)
-    if (!mangaProgressData || !Array.isArray(mangaProgressData)) return 0
-    return mangaProgressData.filter((p: any) => p.isCompleted).length
-  }
-  
-  const readChapters = getReadChaptersCount()
-
-  const getBookmarkStatusText = (status: string) => {
-    switch (status) {
-      case 'READING': return 'Читаю'
-      case 'COMPLETED': return 'Прочитано'
-      case 'ON_HOLD': return 'Отложено'
-      case 'DROPPED': return 'Брошено'
-      case 'PLAN_TO_READ': return 'Запланировано'
-      default: return 'В закладках'
-    }
-  }
-
-  const getBookmarkStatusColor = (status: string) => {
-    switch (status) {
-      case 'READING': return 'bg-green-500'
-      case 'COMPLETED': return 'bg-blue-500'
-      case 'ON_HOLD': return 'bg-yellow-500'
-      case 'DROPPED': return 'bg-red-500'
-      case 'PLAN_TO_READ': return 'bg-purple-500'
-      default: return 'bg-gray-500'
-    }
-  }
 
   const [imageLoaded, setImageLoaded] = useState(false)
   const imgRef = useRef<HTMLImageElement | null>(null)
@@ -96,22 +47,12 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
     }
   }, [manga.coverImageUrl])
 
-  // Derived flags via util
-  const { isTrending, isLicensed } = computeMangaBadges(manga, rating?.averageRating)
-
-  // Condense genres (до 2 + +N)
-  const rawGenres = manga.genre ? manga.genre.split(',').map(g=>g.trim()).filter(Boolean) : []
-  const primaryGenres = rawGenres.slice(0,2)
-  const hiddenGenresCount = rawGenres.length - primaryGenres.length
   const typeLabel = getTypeText(manga.type)
-  const statusLabel = getStatusText(manga.status)
-  const badgeClass = 'inline-flex items-center gap-1 rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] leading-none text-white/75 whitespace-nowrap'
   const releaseYear = (() => {
     if (!manga.releaseDate) return undefined
     const date = new Date(manga.releaseDate)
     return Number.isNaN(date.getTime()) ? undefined : date.getFullYear()
   })()
-  
 
   return (
     <div className="group flex flex-col space-y-2 md:space-y-3 w-full transition-transform duration-300 will-change-transform hover:md:-translate-y-1 hover:lg:-translate-y-1 motion-reduce:transform-none">
@@ -152,76 +93,20 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
             <div className="absolute inset-0 bg-white/5 animate-pulse" aria-hidden />
           )}
 
-          {/* Gradient Overlay for bottom text */}
-          <div className="manga-gradient-overlay pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-
-          {/* Status Badge */}
-          <div className="absolute top-2 md:top-3 left-2 md:left-3 flex flex-col gap-1">
-            <span className={cn(
-              'px-1.5 md:px-2 py-0.5 md:py-1 text-[10px] font-semibold rounded-full backdrop-blur-sm tracking-tight shadow',
-              getStatusColor(manga.status)
-            )}>
-              {getStatusText(manga.status)}
-            </span>
-            {isLicensed && (
-              <span className="px-1.5 md:px-2 py-0.5 md:py-1 text-[10px] font-semibold rounded-full bg-emerald-500/80 text-white backdrop-blur-sm flex items-center gap-1 shadow">
-                <ShieldCheck className="h-3 w-3" />
-                LIC
-              </span>
-            )}
-            {isTrending && (
-              <span className="px-1.5 md:px-2 py-0.5 md:py-1 text-[10px] font-semibold rounded-full bg-orange-500/80 text-white backdrop-blur-sm flex items-center gap-0.5 shadow">
-                <Flame className="h-3 w-3" />TOP
-              </span>
-            )}
-          </div>
-
-          {/* Bookmark Status Badge */}
-          {isInBookmarks && bookmarkInfo && (
-            <div className="absolute top-2 md:top-3 left-2 md:left-3 mt-8">
-              <span className={cn(
-                'px-1.5 md:px-2 py-0.5 md:py-1 text-xs font-medium rounded-full backdrop-blur-sm text-white flex items-center gap-1',
-                getBookmarkStatusColor(bookmarkInfo.status)
-              )}>
-                <Bookmark className="h-2.5 w-2.5 md:h-3 md:w-3 fill-current" />
-                {getBookmarkStatusText(bookmarkInfo.status)}
-              </span>
-            </div>
-          )}
-
-          {/* Rating + Views (top-right) */}
-          <div className="absolute top-2 md:top-3 right-2 md:right-3 flex flex-col items-end gap-1">
-            <div className="flex items-center space-x-1 bg-black/70 backdrop-blur-sm px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
-              <Star className="h-2.5 w-2.5 md:h-3 md:w-3 text-accent fill-current" />
-              <span className="text-xs font-medium text-white">
-                {rating?.averageRating ? rating.averageRating.toFixed(1) : '—'}
-              </span>
-            </div>
-            <div className="flex items-center space-x-1 bg-black/60 backdrop-blur-sm px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
-              <Eye className="h-2.5 w-2.5 md:h-3 md:w-3 text-white" />
-              <span className="text-[10px] md:text-xs font-medium text-white/90">
-                {views >= 1000 ? (views/1000).toFixed(1).replace(/\.0$/,'') + 'k' : views}
-              </span>
+          <div className="absolute top-2 md:top-3 left-2 md:left-3 flex items-center">
+            <div className="flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-xs font-semibold text-white backdrop-blur-sm shadow-sm">
+              <Star className="h-3 w-3 text-accent fill-current" />
+              <span>{rating?.averageRating ? rating.averageRating.toFixed(1) : '—'}</span>
             </div>
           </div>
 
-          {/* Chapter Count with Reading Progress */}
-          <div className="absolute bottom-2 md:bottom-3 right-2 md:right-3 bg-black/70 backdrop-blur-sm text-white px-1.5 md:px-2 py-0.5 md:py-1 rounded text-xs font-medium">
-            {isAuthenticated && readChapters > 0 ? (
-              <span className="text-green-400">{readChapters}/{manga.totalChapters} гл.</span>
-            ) : (
-              <span>{manga.totalChapters} гл.</span>
-            )}
-          </div>
-
-          {/* Subtle hover dim (без описаний и кнопок) */}
-          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          <div className="absolute inset-0 bg-black/35 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
         </div>
       </Link>
 
       {/* Metadata */}
       {showMetadata && (
-        <div className="flex flex-col gap-2 px-1 pb-1 select-none">
+        <div className="flex flex-col gap-1.5 px-1 pb-1 select-none">
           <Link
             to={`/manga/${manga.id}`}
             className="block"
@@ -230,38 +115,9 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
               {manga.title}
             </h3>
           </Link>
-
-          <div className="flex items-center gap-2 text-[11px] text-white/70">
-            <div className="flex min-w-0 flex-wrap items-center gap-1">
-              {primaryGenres.map((g, idx) => (
-                <span
-                  key={g}
-                  className={cn(
-                    'rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] leading-none text-white/75 whitespace-nowrap',
-                    idx > 0 && 'hidden [@media(min-width:480px)]:inline-flex'
-                  )}
-                  title={g}
-                >
-                  {g}
-                </span>
-              ))}
-              {hiddenGenresCount > 0 && (
-                <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] leading-none text-white/55 whitespace-nowrap">+{hiddenGenresCount}</span>
-              )}
-              {primaryGenres.length === 0 && (
-                <span className="italic text-white/40">Нет жанров</span>
-              )}
-            </div>
-            <span className="ml-auto flex-shrink-0 text-white/60">{releaseYear ?? '—'}</span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 text-[10px] text-white/70">
-            <span className={badgeClass}>
-              {typeLabel}
-            </span>
-            <span className={cn(badgeClass, 'text-white/65')}>
-              {statusLabel}
-            </span>
+          <div className="text-[10px] md:text-[11px] uppercase tracking-[0.24em] text-white/50">
+            {typeLabel || 'Неизвестный тип'}
+            {releaseYear ? <span className="ml-2 text-white/30 tracking-[0.18em]">{releaseYear}</span> : null}
           </div>
         </div>
       )}
