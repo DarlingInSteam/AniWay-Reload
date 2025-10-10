@@ -386,7 +386,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
             >
               <MarkdownRenderer value={plainDescription || 'Описание недоступно'} />
               {!isDescriptionExpanded && hasLongDescription && (
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black via-black/80 to-transparent" />
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[rgba(15,23,42,0.85)] via-[rgba(15,23,42,0.15)] to-transparent" />
               )}
             </div>
             {hasLongDescription && (
