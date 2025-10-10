@@ -84,6 +84,13 @@ export function MangaPage() {
     refetchOnMount: false,
   })
 
+  const descriptionText = useMemo(() => (manga?.description || '').trim(), [manga?.description])
+  const isDescriptionLong = descriptionText.length > 360
+
+  useEffect(() => {
+    setShowFullDescription(false)
+  }, [manga?.id])
+
   // Slug handling: enhance URL to /manga/:id-:slug (client side only)
   useEffect(() => {
     if (!manga || !rawId) return
@@ -461,28 +468,35 @@ export function MangaPage() {
                     <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
                       <h3 className="text-lg font-bold text-white mb-3">Описание</h3>
                       <div className="text-muted-foreground text-sm md:text-base">
-                        <div className={cn(
-                          'prose prose-invert max-w-none transition-all duration-300 markdown-body',
-                          showFullDescription ? '' : 'line-clamp-3'
-                        )}>
-                          <MarkdownRenderer value={manga.description || 'Описание отсутствует.'} />
+                        <div
+                          className={cn(
+                            'relative overflow-hidden transition-[max-height] duration-300 ease-out',
+                            showFullDescription ? 'max-h-[1200px]' : 'max-h-40'
+                          )}
+                        >
+                          <div className="prose prose-invert max-w-none markdown-body">
+                            <MarkdownRenderer value={descriptionText || 'Описание отсутствует.'} />
+                          </div>
+                          {!showFullDescription && isDescriptionLong && (
+                            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[rgba(15,23,42,0.95)] via-[rgba(15,23,42,0.65)] to-transparent" />
+                          )}
                         </div>
-                        {!showFullDescription && (
+                        {isDescriptionLong && (
                           <button
-                            onClick={() => setShowFullDescription(true)}
-                            className="flex items-center gap-1 text-primary mt-2 hover:text-primary/80 transition-colors"
+                            onClick={() => setShowFullDescription(prev => !prev)}
+                            className="flex items-center gap-1 text-primary mt-3 hover:text-primary/80 transition-colors"
                           >
-                            <ChevronDown className="h-4 w-4" />
-                            Показать полностью
-                          </button>
-                        )}
-                        {showFullDescription && (
-                          <button
-                            onClick={() => setShowFullDescription(false)}
-                            className="flex items-center gap-1 text-primary mt-2 hover:text-primary/80 transition-colors"
-                          >
-                            <ChevronUp className="h-4 w-4" />
-                            Свернуть
+                            {showFullDescription ? (
+                              <>
+                                <ChevronUp className="h-4 w-4" />
+                                Свернуть
+                              </>
+                            ) : (
+                              <>
+                                <ChevronDown className="h-4 w-4" />
+                                Показать полностью
+                              </>
+                            )}
                           </button>
                         )}
                       </div>

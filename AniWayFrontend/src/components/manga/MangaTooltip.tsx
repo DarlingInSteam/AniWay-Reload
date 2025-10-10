@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { Bookmark, ChevronDown, X } from 'lucide-react'
@@ -34,6 +34,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
   const [showDropdown, setShowDropdown] = useState(false)
   const [showAllGenres, setShowAllGenres] = useState(false)
   const [position, setPosition] = useState<TooltipPosition>({ top: 0, left: 0, transform: '', side: 'right', arrowX: 0, arrowY: 0 })
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
   const showTimeoutId = useRef<NodeJS.Timeout | null>(null)
   const hideTimeoutId = useRef<NodeJS.Timeout | null>(null)
 
@@ -47,6 +48,9 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
 
   const bookmarkInfo = isAuthenticated ? getMangaBookmark(manga.id) : null
   const isInBookmarks = bookmarkInfo !== null
+  const plainDescription = useMemo(() => (manga.description || '').trim(), [manga.description])
+  const hasLongDescription = plainDescription.length > 360
+
 
   // Статусы закладок
   const bookmarkStatuses: { value: BookmarkStatus; label: string; color: string }[] = [
@@ -154,6 +158,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
     hideTimeoutId.current = setTimeout(() => {
       setIsVisible(false)
       setShowDropdown(false)
+      setIsDescriptionExpanded(false)
     }, 160)
   }
 
@@ -167,6 +172,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
     hideTimeoutId.current = setTimeout(() => {
       setIsVisible(false)
       setShowDropdown(false)
+      setIsDescriptionExpanded(false)
     }, 160)
   }
 
@@ -204,6 +210,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
       if (e.key === 'Escape') {
         setIsVisible(false)
         setShowDropdown(false)
+        setIsDescriptionExpanded(false)
       }
     }
 
@@ -224,6 +231,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
     const handleHide = () => {
       setIsVisible(false)
       setShowDropdown(false)
+      setIsDescriptionExpanded(false)
     }
     window.addEventListener('resize', handleResize)
     window.addEventListener('scroll', handleHide, { passive: true, capture: true })
@@ -370,9 +378,26 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
 
           {/* Описание */}
           <div className="mb-4">
-            <div className="prose prose-invert max-w-none text-sm text-gray-300 leading-relaxed line-clamp-4 markdown-body">
-              <MarkdownRenderer value={manga.description || 'Описание недоступно'} />
+            <div
+              className={cn(
+                'relative overflow-hidden text-sm text-gray-300 leading-relaxed markdown-body transition-[max-height] duration-300 ease-out',
+                isDescriptionExpanded ? 'max-h-[420px]' : 'max-h-32'
+              )}
+            >
+              <MarkdownRenderer value={plainDescription || 'Описание недоступно'} />
+              {!isDescriptionExpanded && hasLongDescription && (
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black via-black/80 to-transparent" />
+              )}
             </div>
+            {hasLongDescription && (
+              <button
+                type="button"
+                onClick={() => setIsDescriptionExpanded(prev => !prev)}
+                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded"
+              >
+                {isDescriptionExpanded ? 'Свернуть описание' : 'Показать полностью'}
+              </button>
+            )}
           </div>
 
           {/* Секция действий */}

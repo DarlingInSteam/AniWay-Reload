@@ -537,7 +537,7 @@ export function MangaManager() {
             <div className="relative grid
               grid-cols-2
               [grid-auto-rows:auto]
-              gap-2.5 xs:gap-3 sm:gap-4 lg:gap-5 xl:gap-6
+              gap-2 xs:gap-2.5 sm:gap-3 lg:gap-4 xl:gap-4.5
               sm:[grid-template-columns:repeat(auto-fill,minmax(165px,1fr))]
               md:[grid-template-columns:repeat(auto-fill,minmax(170px,1fr))]
               lg:[grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]
@@ -576,25 +576,22 @@ export function MangaManager() {
                           />
                           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
 
-                          <div className="absolute top-2 left-2 flex flex-col gap-1">
+                          <div className="absolute top-2 left-2 flex flex-wrap gap-1">
                             <Badge
                               className="bg-black/70 text-white text-[9px] font-semibold uppercase tracking-wide backdrop-blur-sm border-transparent px-1.5 py-0.5"
                               title={statusInfo?.label || manga.status}
                             >
                               {statusInfo?.label || manga.status}
                             </Badge>
-                          </div>
-
-                          {manga.type ? (
-                            <div className="absolute top-2 right-2">
+                            {manga.type ? (
                               <Badge
-                                className="bg-white/20 text-white border-white/10 text-[9px] font-semibold uppercase tracking-wider backdrop-blur px-1.5 py-0.5"
+                                className="bg-white/15 text-white border-white/10 text-[9px] font-semibold uppercase tracking-wider backdrop-blur px-1.5 py-0.5"
                                 title={manga.type}
                               >
                                 {manga.type}
                               </Badge>
-                            </div>
-                          ) : null}
+                            ) : null}
+                          </div>
 
                           <div className="absolute bottom-2 left-2 flex flex-col items-start gap-1">
                             <Badge
