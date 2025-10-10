@@ -108,12 +108,13 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
             width={480}
             height={640}
             className={cn(
-              'manga-cover h-full w-full object-cover transition-[opacity,transform,filter] duration-500 ease-out transform-gpu will-change-transform',
-              imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 blur-md scale-[1.03]',
+              'manga-cover h-full w-full object-cover transition-[opacity,transform] duration-500 ease-out transform-gpu will-change-transform image-rendering-crisp',
+              imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-[1.02]',
               'group-hover:scale-[1.04] motion-reduce:transform-none'
             )}
             loading="lazy"
             decoding="async"
+            style={{ imageRendering: 'crisp-edges' }}
             sizes="(max-width: 480px) 45vw, (max-width: 768px) 25vw, (max-width: 1280px) 18vw, 180px"
             srcSet={[
               `${manga.coverImageUrl}?w=180 180w`,
@@ -135,7 +136,7 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
             <div className="absolute inset-0 bg-white/5 animate-pulse" aria-hidden />
           )}
 
-          <div className="absolute top-2 left-2 md:top-2.5 md:left-2.5">
+          <div className="absolute top-2 left-2 md:top-2.5 md:left-2.5 flex items-center">
             <div className={cn(overlayBadgeBase, 'bg-black/70 text-white/90 border border-white/10')}>
               <Star className="h-3 w-3 text-accent fill-current" />
               <span className="font-semibold">
@@ -145,7 +146,7 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
           </div>
 
           {bookmarkBadge && (
-            <div className="absolute top-2 right-2 md:top-2.5 md:right-2.5">
+            <div className="absolute top-2 right-2 md:top-2.5 md:right-2.5 flex items-center">
               <span
                 className={cn(
                   overlayBadgeBase,
