@@ -905,7 +905,7 @@ export function CatalogPage() {
           aria-label="Фильтры каталога"
         >
           <div className="flex justify-between items-center p-6 border-b border-white/10">
-            <span className="font-bold text-lg text-white">Фильтры</span>
+            <span className="font-bold text-lg text-white antialiased">Фильтры</span>
             <button
               onClick={() => setShowFilters(false)}
               className="p-2 rounded-xl hover:bg-white/10 text-muted-foreground hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40"
@@ -944,13 +944,13 @@ export function CatalogPage() {
                 {/* Заголовок + поиск + сортировка */}
                 <div className="flex flex-col gap-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <h1 className="text-xl md:text-2xl font-bold text-white">{pageTitle}</h1>
+                    <h1 className="text-xl md:text-2xl font-bold text-white antialiased">{pageTitle}</h1>
                     <div className="flex items-center gap-3 w-full sm:w-auto flex-1">
                       <div className="relative flex-1">
                         <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-muted-foreground">
                           <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                         </div>
-                        <input value={searchInput} onChange={e=>setSearchInput(e.target.value)} placeholder="Поиск по названию" className="w-full h-10 pl-10 pr-10 rounded-xl bg-white/5 border border-white/10 focus:border-primary/40 focus:ring-2 focus:ring-primary/30 outline-none text-sm text-white placeholder:text-muted-foreground/60 transition" />
+                        <input value={searchInput} onChange={e=>setSearchInput(e.target.value)} placeholder="Поиск по названию" className="w-full h-10 pl-10 pr-10 rounded-xl bg-white/5 border border-white/10 focus:border-primary/40 focus:ring-2 focus:ring-primary/30 outline-none text-sm text-white placeholder:text-muted-foreground/60 transition antialiased" />
                         {searchInput && (
                           <button onClick={()=>{setSearchInput('');setSearchQuery('');setCurrentPage(0)}} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-muted-foreground hover:text-white hover:bg-white/10" aria-label="Очистить поиск">
                             <X className="h-4 w-4" />
@@ -958,7 +958,7 @@ export function CatalogPage() {
                         )}
                       </div>
                       <div ref={desktopSortRef} className="relative">
-                        <button onClick={()=>setShowSortDropdown(v=>!v)} className="h-10 px-3 flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-sm font-medium">
+                        <button onClick={()=>setShowSortDropdown(v=>!v)} className="h-10 px-3 flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-sm font-medium antialiased">
                           <ArrowUpDown className="h-4 w-4" />
                           <span className="hidden sm:inline-block max-w-[140px] truncate">{sortOrder}</span>
                           {sortDirection==='desc'?<ArrowDown className="h-3 w-3"/>:<ArrowUp className="h-3 w-3"/>}
@@ -967,13 +967,13 @@ export function CatalogPage() {
                           <div className="absolute z-50 mt-2 w-72 sm:w-80 right-0 origin-top-right rounded-xl border border-white/15 bg-background/95 backdrop-blur-xl shadow-2xl p-4 animate-fade-in">
                             <div className="flex items-start gap-4">
                               <div className="flex-1 space-y-1 max-h-[260px] sm:max-h-[300px] overflow-y-auto pr-1 scrollbar-custom">
-                                {Object.values(SORT_LABEL_BY_FIELD).map(option=>{const selected=option===sortOrder;return(<button key={option} onClick={()=>{handleSortChange(option);setShowSortDropdown(false)}} className={cn('w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors',selected?'bg-primary/20 text-primary':'text-muted-foreground hover:bg-white/10 hover:text-white')}>{selected&&<Check className="h-4 w-4"/>}<span className="truncate">{option}</span></button>)})}
+                                {Object.values(SORT_LABEL_BY_FIELD).map(option=>{const selected=option===sortOrder;return(<button key={option} onClick={()=>{handleSortChange(option);setShowSortDropdown(false)}} className={cn('w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors antialiased',selected?'bg-primary/20 text-primary':'text-muted-foreground hover:bg-white/10 hover:text-white')}>{selected&&<Check className="h-4 w-4"/>}<span className="truncate">{option}</span></button>)})}
                               </div>
                               <div className="flex flex-col gap-2 flex-shrink-0 w-28">
-                                <button onClick={()=>{handleSortDirectionChange('desc');setShowSortDropdown(false)}} className={cn('flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors',sortDirection==='desc'?'bg-primary/20 text-primary':'text-muted-foreground hover:bg-white/10 hover:text-white')}><ArrowDown className="h-4 w-4"/> Убыв.</button>
-                                <button onClick={()=>{handleSortDirectionChange('asc');setShowSortDropdown(false)}} className={cn('flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors',sortDirection==='asc'?'bg-primary/20 text-primary':'text-muted-foreground hover:bg-white/10 hover:text-white')}><ArrowUp className="h-4 w-4"/> Возраст.</button>
-                                <button onClick={()=>{resetSort();setShowSortDropdown(false)}} className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg border border-white/10 text-muted-foreground hover:text-white hover:bg-white/10"><RotateCcw className="h-3.5 w-3.5"/> Сброс</button>
-                                <button onClick={()=>setShowSortDropdown(false)} className="text-[11px] text-muted-foreground hover:text-white px-2 py-1 rounded">Закрыть</button>
+                                <button onClick={()=>{handleSortDirectionChange('desc');setShowSortDropdown(false)}} className={cn('flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors antialiased',sortDirection==='desc'?'bg-primary/20 text-primary':'text-muted-foreground hover:bg-white/10 hover:text-white')}><ArrowDown className="h-4 w-4"/> Убыв.</button>
+                                <button onClick={()=>{handleSortDirectionChange('asc');setShowSortDropdown(false)}} className={cn('flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors antialiased',sortDirection==='asc'?'bg-primary/20 text-primary':'text-muted-foreground hover:bg-white/10 hover:text-white')}><ArrowUp className="h-4 w-4"/> Возраст.</button>
+                                <button onClick={()=>{resetSort();setShowSortDropdown(false)}} className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg border border-white/10 text-muted-foreground hover:text-white hover:bg-white/10 antialiased"><RotateCcw className="h-3.5 w-3.5"/> Сброс</button>
+                                <button onClick={()=>setShowSortDropdown(false)} className="text-[11px] text-muted-foreground hover:text-white px-2 py-1 rounded antialiased">Закрыть</button>
                               </div>
                             </div>
                           </div>
@@ -993,7 +993,7 @@ export function CatalogPage() {
                         key={chip.key}
                         onClick={chip.onRemove}
                         className={cn(
-                          'group inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+                          'group inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 antialiased',
                           CHIP_TONE_CLASSES[chip.tone ?? 'default']
                         )}
                       >
@@ -1005,7 +1005,7 @@ export function CatalogPage() {
                     ))}
                     <button
                       onClick={clearAllFilters}
-                      className="inline-flex items-center gap-2 rounded-full border border-white/15 px-3 py-1.5 text-[11px] text-muted-foreground transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                      className="inline-flex items-center gap-2 rounded-full border border-white/15 px-3 py-1.5 text-[11px] text-muted-foreground transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 antialiased"
                     >
                       <RotateCcw className="h-3 w-3" />
                       Сбросить все
@@ -1018,11 +1018,11 @@ export function CatalogPage() {
                 {/* Сетка карточек */}
                 <ErrorBoundary fallback={
                   <div className="text-center py-16">
-                    <h3 className="text-xl font-medium text-white mb-2">Ошибка при загрузке каталога</h3>
-                    <p className="text-muted-foreground mb-4">Проверьте консоль браузера для деталей</p>
+                    <h3 className="text-xl font-medium text-white mb-2 antialiased">Ошибка при загрузке каталога</h3>
+                    <p className="text-muted-foreground mb-4 antialiased">Проверьте консоль браузера для деталей</p>
                     <button 
                       onClick={() => window.location.reload()} 
-                      className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                      className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors antialiased"
                     >
                       Перезагрузить страницу
                     </button>
