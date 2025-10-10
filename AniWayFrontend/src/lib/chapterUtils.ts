@@ -54,7 +54,9 @@ export function formatChapterNumber(chapter: ChapterDTO): string {
   // Fallback - извлекаем оригинальный номер из расчетного
   if (chapter.chapterNumber >= 10000) {
     const originalNumber = chapter.chapterNumber % 10000
-    return originalNumber.toString()
+    const volume = Math.floor(chapter.chapterNumber / 10000)
+    // Показываем в формате "Том.Глава" для компактности
+    return `${volume}.${originalNumber}`
   }
   
   return chapter.chapterNumber.toString()
