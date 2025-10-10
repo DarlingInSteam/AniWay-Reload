@@ -42,7 +42,6 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
 
   const triggerRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
-  const dropdownRef = useRef<HTMLDivElement>(null)
   const chipsContainerRef = useRef<HTMLDivElement>(null)
 
   const { isAuthenticated } = useAuth()
@@ -274,6 +273,15 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
     if (!isRendered) return
     calculatePosition()
   }, [isRendered])
+  
+  // Пересчет позиции при изменении состояния dropdown
+  useEffect(() => {
+    if (!isVisible) return
+    // Небольшая задержка для завершения анимации
+    const timeoutId = setTimeout(() => calculatePosition(), 50)
+    return () => clearTimeout(timeoutId)
+  }, [showDropdown, isVisible])
+  
   useEffect(() => {
     if (!isVisible) return
     const handleResize = () => calculatePosition()
@@ -413,14 +421,14 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
                   }}
                   disabled={!row.query}
                   className={cn(
-                    'flex flex-col items-start gap-1 text-left transition-colors rounded-md px-2.5 py-2.5 bg-white/[0.04] border border-white/[0.08] overflow-hidden',
+                    'flex flex-col items-start gap-1 text-left transition-colors rounded-md px-2.5 py-2.5 bg-white/[0.04] border border-white/[0.08] min-h-[3rem]',
                     row.query
                       ? 'hover:bg-white/[0.10] hover:border-white/[0.15] focus:outline-none focus-visible:border-primary/40'
                       : 'cursor-default'
                   )}
                 >
                   <span className="text-[10px] uppercase tracking-wide text-white/45 whitespace-nowrap font-medium">{row.label}</span>
-                  <span className="text-xs font-bold text-white/95 line-clamp-1 w-full" style={{ WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' }}>{row.value}</span>
+                  <span className="text-xs font-bold text-white/95 line-clamp-2 w-full leading-tight" style={{ WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' }}>{row.value}</span>
                 </button>
               ))}
             </div>
@@ -496,35 +504,15 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
 
           {/* Секция действий */}
           {isAuthenticated && (
-            <div className="relative">
-              <button
-                onClick={() => setShowDropdown(!showDropdown)}
-                className="w-full flex items-center justify-between bg-gray-800/80 hover:bg-gray-700/80 transition-colors px-3 py-2 rounded-lg text-sm font-medium text-white"
+            <div className="relative overflow-visible">
+              {/* Dropdown - рендерится ПЕРЕД кнопкой, чтобы расширять тултип вверх */}
+              <div
+                className={cn(
+                  "transition-all duration-200 ease-out overflow-hidden",
+                  showDropdown ? "max-h-[400px] mb-2 opacity-100" : "max-h-0 mb-0 opacity-0"
+                )}
               >
-                <div className="flex items-center gap-2">
-                  <Bookmark className={cn(
-                    "h-4 w-4",
-                    isInBookmarks ? "fill-current" : ""
-                  )} />
-                  <span>
-                    {isInBookmarks && bookmarkInfo
-                      ? bookmarkStatuses.find(s => s.value === bookmarkInfo.status)?.label || 'В закладках'
-                      : 'Добавить в планы'
-                    }
-                  </span>
-                </div>
-                <ChevronDown className={cn(
-                  "h-4 w-4 transition-transform",
-                  showDropdown && "rotate-180"
-                )} />
-              </button>
-
-              {/* Dropdown */}
-              {showDropdown && (
-                <div
-                  ref={dropdownRef}
-                  className="absolute top-full left-0 right-0 mt-1 bg-gray-800/95 border border-gray-700/50 rounded-lg shadow-lg z-50 py-1"
-                >
+                <div className="bg-gray-800/95 border border-gray-700/50 rounded-lg shadow-lg py-1">
                   {bookmarkStatuses.map((status) => (
                     <button
                       key={status.value}
@@ -554,7 +542,30 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
                     </>
                   )}
                 </div>
-              )}
+              </div>
+
+              {/* Кнопка управления закладками */}
+              <button
+                onClick={() => setShowDropdown(!showDropdown)}
+                className="w-full flex items-center justify-between bg-gray-800/80 hover:bg-gray-700/80 transition-colors px-3 py-2 rounded-lg text-sm font-medium text-white"
+              >
+                <div className="flex items-center gap-2">
+                  <Bookmark className={cn(
+                    "h-4 w-4",
+                    isInBookmarks ? "fill-current" : ""
+                  )} />
+                  <span>
+                    {isInBookmarks && bookmarkInfo
+                      ? bookmarkStatuses.find(s => s.value === bookmarkInfo.status)?.label || 'В закладках'
+                      : 'Добавить в планы'
+                    }
+                  </span>
+                </div>
+                <ChevronDown className={cn(
+                  "h-4 w-4 transition-transform",
+                  showDropdown && "rotate-180"
+                )} />
+              </button>
             </div>
           )}
           </div>, document.body)
