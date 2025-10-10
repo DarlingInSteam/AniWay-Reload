@@ -377,7 +377,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
               })(),
               transition: 'opacity 140ms ease, transform 140ms ease'
             }}
-            className="hidden lg:block w-[420px] p-5 rounded-xl shadow-xl shadow-black/60 bg-black/85 backdrop-blur-md border border-white/10"
+            className="hidden lg:block w-[440px] p-5 rounded-xl shadow-xl shadow-black/60 bg-black/85 backdrop-blur-md border border-white/10"
             onMouseEnter={handleTooltipMouseEnter}
             onMouseLeave={handleTooltipMouseLeave}
           >
