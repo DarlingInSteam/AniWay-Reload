@@ -35,7 +35,7 @@ const DEFAULT_BOOKMARK_BADGE = {
   className: 'bg-slate-600/90 text-white border border-slate-400/30'
 }
 
-const overlayBadgeBase = 'inline-flex items-center gap-1.5 rounded-full px-2.5 text-[11px] font-semibold leading-none shadow-sm backdrop-blur-md min-h-[28px]'
+const overlayBadgeBase = 'inline-flex items-center gap-1 rounded-full px-2 text-[10px] font-medium leading-none shadow-sm backdrop-blur-md min-h-[22px]'
 
 interface MangaCardProps {
   manga: MangaResponseDTO
@@ -119,7 +119,10 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
               `${manga.coverImageUrl}?w=180 180w`,
               `${manga.coverImageUrl}?w=240 240w`,
               `${manga.coverImageUrl}?w=320 320w`,
-              `${manga.coverImageUrl}?w=480 480w`
+              `${manga.coverImageUrl}?w=480 480w`,
+              `${manga.coverImageUrl}?w=640 640w`,
+              `${manga.coverImageUrl}?w=720 720w`,
+              `${manga.coverImageUrl}?w=960 960w`
             ].join(', ')}
             onLoad={() => setImageLoaded(true)}
             onError={(e) => {
@@ -132,10 +135,10 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
             <div className="absolute inset-0 bg-white/5 animate-pulse" aria-hidden />
           )}
 
-          <div className="absolute top-2.5 md:top-3 left-2.5 md:left-3 flex items-center">
-            <div className={cn(overlayBadgeBase, 'bg-black/70 text-white/95 border border-white/10')}
+          <div className="absolute top-2 md:top-2.5 left-2 md:left-2.5 flex items-center">
+            <div className={cn(overlayBadgeBase, 'bg-black/70 text-white/90 border border-white/10')}
             >
-              <Star className="h-3.5 w-3.5 text-accent fill-current" />
+              <Star className="h-3 w-3 text-accent fill-current" />
               <span className="font-semibold">
                 {rating?.averageRating ? rating.averageRating.toFixed(1) : '—'}
               </span>
@@ -143,7 +146,7 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
           </div>
 
           {bookmarkBadge && (
-            <div className="absolute top-2.5 md:top-3 right-2.5 md:right-3">
+            <div className="absolute top-2 md:top-2.5 right-2 md:right-2.5">
               <span
                 className={cn(
                   overlayBadgeBase,
