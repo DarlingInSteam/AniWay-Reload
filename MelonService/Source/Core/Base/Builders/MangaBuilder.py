@@ -46,10 +46,10 @@ class MangaBuilder(BaseBuilder):
 	def __simple(self, title: "Manga", chapter: "Chapter", directory: str) -> str:
 		"""Система сборки: каталог с изображениями."""
 
-		ChapterName = self._GenerateChapterNameByTemplate(chapter)
-		Volume = ""
-		if self._SortingByVolumes and chapter.volume: Volume = self._GenerateVolumeNameByTemplate(chapter)
-		OutputPath = f"{self._ParserSettings.common.archives_directory}/{title.used_filename}/{Volume}/{ChapterName}"
+		VolumeDirectory, ChapterName = self.__resolve_output_components(chapter)
+		OutputPath = f"{self._ParserSettings.common.archives_directory}/{title.used_filename}"
+		if VolumeDirectory: OutputPath = f"{OutputPath}/{VolumeDirectory}"
+		OutputPath = f"{OutputPath}/{ChapterName}"
 		OutputPath = NormalizePath(OutputPath)
 
 		if not os.path.exists(OutputPath): os.makedirs(OutputPath)
@@ -61,10 +61,10 @@ class MangaBuilder(BaseBuilder):
 	def __zip(self, title: "Manga", chapter: "Chapter", directory: str) -> str:
 		"""Система сборки: *.ZIP-архив."""
 
-		ChapterName = self._GenerateChapterNameByTemplate(chapter)
-		Volume = ""
-		if self._SortingByVolumes and chapter.volume: Volume = self._GenerateVolumeNameByTemplate(chapter)
-		OutputPath = f"{self._ParserSettings.common.archives_directory}/{title.used_filename}/{Volume}/{ChapterName}"
+		VolumeDirectory, ChapterName = self.__resolve_output_components(chapter)
+		OutputPath = f"{self._ParserSettings.common.archives_directory}/{title.used_filename}"
+		if VolumeDirectory: OutputPath = f"{OutputPath}/{VolumeDirectory}"
+		OutputPath = f"{OutputPath}/{ChapterName}"
 		OutputPath = NormalizePath(OutputPath)
 
 		shutil.make_archive(OutputPath, "zip", directory)
@@ -83,6 +83,33 @@ class MangaBuilder(BaseBuilder):
 			MangaBuildSystems.CBZ: self.__cbz,
 			MangaBuildSystems.ZIP: self.__zip,
 		}
+
+	def __resolve_output_components(self, chapter: "Chapter") -> tuple[str, str]:
+		"""Возвращает директорию тома и уникальное имя главы для структуры вывода."""
+
+		ChapterName = (self._GenerateChapterNameByTemplate(chapter) or "").strip()
+		if not ChapterName:
+			ChapterName = str(getattr(chapter, "id", "chapter"))
+
+		volume_raw = getattr(chapter, "volume", None)
+		volume_str = str(volume_raw).strip() if volume_raw not in (None, "") else ""
+		VolumeDirectory = ""
+
+		if volume_str and self._SortingByVolumes:
+			VolumeDirectory = (self._GenerateVolumeNameByTemplate(chapter) or "").strip()
+		elif volume_str:
+			suffix = f"(Vol.{volume_str})"
+			if suffix not in ChapterName:
+				ChapterName = f"{ChapterName} {suffix}".strip()
+
+		# Схлопываем повторяющиеся пробелы и убираем точки в конце
+		ChapterName = " ".join(ChapterName.split()).rstrip(".")
+		VolumeDirectory = " ".join(VolumeDirectory.split()).rstrip(".") if VolumeDirectory else ""
+
+		if not ChapterName:
+			ChapterName = str(getattr(chapter, "id", "chapter")).strip()
+
+		return VolumeDirectory, ChapterName
 
 	#==========================================================================================#
 	# >>>>> ПУБЛИЧНЫЕ МЕТОДЫ <<<<< #
