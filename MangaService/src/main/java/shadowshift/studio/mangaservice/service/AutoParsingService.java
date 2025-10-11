@@ -447,7 +447,7 @@ public class AutoParsingService {
      * Ждет завершения полного парсинга (parse + build)
      * БЕЗ таймаута - некоторые манги с большим количеством глав могут парситься 100+ минут
      */
-    private Map<String, Object> waitForFullParsingCompletion(String taskId) throws InterruptedException {
+    Map<String, Object> waitForFullParsingCompletion(String taskId) throws InterruptedException {
         int attempts = 0;
         int missingStatusAttempts = 0;
         AutoParseTask autoParseTask = null;

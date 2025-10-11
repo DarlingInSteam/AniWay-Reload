@@ -46,6 +46,17 @@ public class MelonIntegrationService {
     private static final Duration TASK_STATUS_POLL_INTERVAL = Duration.ofMillis(500); // Уменьшено с 2s до 500ms
     private static final int MAX_MISSING_TASK_STATUS_ATTEMPTS = 15;
     private static final Pattern NUMERIC_TOKEN_PATTERN = Pattern.compile("[-+]?\\d+(?:[\\.,]\\d+)?");
+    private static final Pattern VOLUME_KEYWORD_PATTERN = Pattern.compile("(?i)(том|volume|vol\\.?|book|часть|part|season|сезон)\\s*([-+]?\\d+(?:[\\.,]\\d+)?)");
+    private static final Pattern ROMAN_VOLUME_PATTERN = Pattern.compile("(?i)\\b[MDCLXVI]+\\b");
+    private static final Map<Character, Integer> ROMAN_VALUES = Map.of(
+        'I', 1,
+        'V', 5,
+        'X', 10,
+        'L', 50,
+        'C', 100,
+        'D', 500,
+        'M', 1000
+    );
     private static final double SPECIAL_BASE_OFFSET = 999.999d;
     private static final double SPECIAL_STEP = 0.001d;
     private static final double DUPLICATE_STEP = 0.0001d;
@@ -1515,19 +1526,19 @@ public class MelonIntegrationService {
         if (matchesTypeKeyword(normalized, collapsed, "manhua", "маньхуа")) {
             return Manga.MangaType.MANHUA;
         }
-        if (matchesTypeKeyword(normalized, collapsed,
-            "western_comic", "western comic", "комикс западный", "западный комикс",
-            "comic", "комикс")) {
-            return Manga.MangaType.WESTERN_COMIC;
+        if (matchesTypeKeyword(normalized, collapsed, "indonesian_comic", "indonesian comic", "индонезийский комикс", "комикс индонезийский")) {
+            return Manga.MangaType.INDONESIAN_COMIC;
         }
         if (matchesTypeKeyword(normalized, collapsed, "russian_comic", "russian comic", "руманга", "русский комикс", "комикс русский")) {
             return Manga.MangaType.RUSSIAN_COMIC;
         }
-    if (matchesTypeKeyword(normalized, collapsed, "oel", "oel манга", "oel manga", "oel-манга")) {
+        if (matchesTypeKeyword(normalized, collapsed, "oel", "oel манга", "oel manga", "oel-манга")) {
             return Manga.MangaType.OEL;
         }
-        if (matchesTypeKeyword(normalized, collapsed, "indonesian_comic", "indonesian comic", "индонезийский комикс", "комикс индонезийский")) {
-            return Manga.MangaType.INDONESIAN_COMIC;
+        if (matchesTypeKeyword(normalized, collapsed,
+            "western_comic", "western comic", "комикс западный", "западный комикс",
+            "comic", "комикс")) {
+            return Manga.MangaType.WESTERN_COMIC;
         }
         if (matchesTypeKeyword(normalized, collapsed, "other", "другое")) {
             return Manga.MangaType.OTHER;
@@ -2092,18 +2103,30 @@ public class MelonIntegrationService {
             return null;
         }
 
-        String sanitized = raw.replaceAll("[^0-9-]", "");
-        if (sanitized.isEmpty()) {
-            return null;
+        Double keywordCandidate = extractVolumeWithKeywords(raw);
+        Integer normalized = normalizeVolumeCandidate(keywordCandidate);
+        if (normalized != null) {
+            return normalized;
         }
 
-        try {
-            int value = Integer.parseInt(sanitized);
-            return value > 0 ? value : null;
-        } catch (NumberFormatException ex) {
-            logger.debug("Unable to parse volume '{}': {}", raw, ex.getMessage());
-            return null;
+        Matcher matcher = NUMERIC_TOKEN_PATTERN.matcher(raw);
+        if (matcher.find()) {
+            Double numericCandidate = parseNumericToken(matcher.group());
+            normalized = normalizeVolumeCandidate(numericCandidate);
+            if (normalized != null) {
+                return normalized;
+            }
         }
+
+        if (!raw.matches(".*\\d.*")) {
+            Integer romanCandidate = parseRomanVolume(raw);
+            if (romanCandidate != null) {
+                return romanCandidate;
+            }
+        }
+
+        logger.debug("Unable to parse volume '{}': no numeric tokens detected", raw);
+        return null;
     }
 
     private Double parseChapterNumericValue(Object numberObj) {
@@ -2134,6 +2157,112 @@ public class MelonIntegrationService {
         }
 
         return null;
+    }
+
+    private Double extractVolumeWithKeywords(String raw) {
+        Matcher matcher = VOLUME_KEYWORD_PATTERN.matcher(raw);
+        Double bestValue = null;
+        int bestWeight = Integer.MIN_VALUE;
+
+        while (matcher.find()) {
+            String keyword = matcher.group(1);
+            String numberToken = matcher.group(2);
+            Double candidate = parseNumericToken(numberToken);
+            if (candidate == null) {
+                continue;
+            }
+
+            int weight = keywordWeight(keyword);
+            if (weight > bestWeight) {
+                bestWeight = weight;
+                bestValue = candidate;
+            }
+        }
+
+        return bestValue;
+    }
+
+    private Double parseNumericToken(String token) {
+        if (token == null) {
+            return null;
+        }
+
+        try {
+            return Double.parseDouble(token.replace(',', '.'));
+        } catch (NumberFormatException ex) {
+            logger.debug("Unable to parse numeric token '{}': {}", token, ex.getMessage());
+            return null;
+        }
+    }
+
+    private Integer normalizeVolumeCandidate(Double candidate) {
+        if (candidate == null || Double.isNaN(candidate) || Double.isInfinite(candidate)) {
+            return null;
+        }
+
+        int value = (int) Math.floor(candidate);
+        return value > 0 ? value : null;
+    }
+
+    private int keywordWeight(String keyword) {
+        if (keyword == null) {
+            return 0;
+        }
+
+        String normalized = keyword.toLowerCase(Locale.ROOT);
+        if (normalized.startsWith("том") || normalized.startsWith("volume") || normalized.startsWith("vol")) {
+            return 3;
+        }
+        if (normalized.startsWith("book") || normalized.startsWith("част")) {
+            return 2;
+        }
+        if (normalized.startsWith("part")) {
+            return 2;
+        }
+        if (normalized.startsWith("season") || normalized.startsWith("сезон")) {
+            return 1;
+        }
+
+        return 0;
+    }
+
+    private Integer parseRomanVolume(String raw) {
+        Matcher matcher = ROMAN_VOLUME_PATTERN.matcher(raw);
+        while (matcher.find()) {
+            String token = matcher.group();
+            Integer value = romanToInteger(token);
+            if (value != null && value > 0) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private Integer romanToInteger(String roman) {
+        if (roman == null || roman.isEmpty()) {
+            return null;
+        }
+
+        int total = 0;
+        int previous = 0;
+        String upper = roman.toUpperCase(Locale.ROOT);
+
+        for (int i = upper.length() - 1; i >= 0; i--) {
+            char symbol = upper.charAt(i);
+            Integer value = ROMAN_VALUES.get(symbol);
+            if (value == null) {
+                return null;
+            }
+
+            if (value < previous) {
+                total -= value;
+            } else {
+                total += value;
+                previous = value;
+            }
+        }
+
+        return total > 0 ? total : null;
     }
 
     private String buildSpecialChapterKey(Object numberObj) {
