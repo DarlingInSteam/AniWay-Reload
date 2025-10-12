@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Star } from 'lucide-react'
 import { MangaResponseDTO, BookmarkStatus } from '@/types'
@@ -43,7 +43,11 @@ interface MangaCardProps {
   showMetadata?: boolean
 }
 
-export function MangaCard({ manga, size = 'default', showMetadata = true }: MangaCardProps) {
+/**
+ * Оптимизированная карточка манги с мемоизацией.
+ * Избегает лишних re-renders при скролле каталога.
+ */
+const MangaCardComponent = ({ manga, size = 'default', showMetadata = true }: MangaCardProps) => {
   // Временное логирование для диагностики
   // Debug logs removed
   const { rating } = useRating(manga.id)
@@ -82,16 +86,17 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
   }, [manga.coverImageUrl])
 
   const typeLabel = getTypeText(manga.type)
-  const releaseYear = (() => {
+  const releaseYear = useMemo(() => {
     if (!manga.releaseDate) return undefined
     const date = new Date(manga.releaseDate)
     return Number.isNaN(date.getTime()) ? undefined : date.getFullYear()
-  })()
+  }, [manga.releaseDate])
 
   const bookmarkInfo = isAuthenticated ? getMangaBookmark(manga.id) : null
-  const bookmarkBadge = bookmarkInfo
-    ? BOOKMARK_BADGE_STYLES[bookmarkInfo.status as BookmarkStatus] ?? DEFAULT_BOOKMARK_BADGE
-    : null
+  const bookmarkBadge = useMemo(() => {
+    if (!bookmarkInfo) return null
+    return BOOKMARK_BADGE_STYLES[bookmarkInfo.status as BookmarkStatus] ?? DEFAULT_BOOKMARK_BADGE
+  }, [bookmarkInfo])
 
   return (
     <div className="group flex flex-col space-y-2 md:space-y-3 w-full transition-transform duration-300 will-change-transform hover:md:-translate-y-1 hover:lg:-translate-y-1 motion-reduce:transform-none">
@@ -110,7 +115,8 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
             className={cn(
               'manga-cover h-full w-full object-cover transition-[opacity,transform] duration-500 ease-out transform-gpu will-change-transform image-rendering-crisp',
               imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-[1.02]',
-              'group-hover:scale-[1.04] motion-reduce:transform-none'
+              // Уменьшаем scale для оптимизации и отключаем hover на touch-устройствах
+              'group-hover:scale-[1.02] [@media(hover:none)]:group-hover:scale-100 motion-reduce:transform-none'
             )}
             loading="lazy"
             decoding="async"
@@ -182,3 +188,21 @@ export function MangaCard({ manga, size = 'default', showMetadata = true }: Mang
     </div>
   )
 }
+
+/**
+ * Экспортируем мемоизированную версию для предотвращения лишних re-renders.
+ * Компонент будет пере-рендериться только при изменении manga.id, coverImageUrl или title.
+ */
+export const MangaCard = React.memo(MangaCardComponent, (prevProps, nextProps) => {
+  // Сравниваем только важные поля для оптимизации
+  return (
+    prevProps.manga.id === nextProps.manga.id &&
+    prevProps.manga.coverImageUrl === nextProps.manga.coverImageUrl &&
+    prevProps.manga.title === nextProps.manga.title &&
+    prevProps.size === nextProps.size &&
+    prevProps.showMetadata === nextProps.showMetadata
+  )
+})
+
+MangaCard.displayName = 'MangaCard'
+
