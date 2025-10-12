@@ -1910,6 +1910,7 @@ public class MelonIntegrationService {
                         chapterData,
                         chapterId
                     );
+                    logger.debug("📁 Chapter folder name resolved: '{}' for chapter ID {}", chapterFolderName, chapterId);
                     importChapterPagesFromMelonService(taskId, chapterId, slides, filename, chapterFolderName);
 
                     // Обновляем прогресс
@@ -2636,13 +2637,17 @@ public class MelonIntegrationService {
             .append(mangaSegment);
 
         if (chapterFolderName != null && !chapterFolderName.isBlank()) {
+            logger.debug("🔧 Encoding chapter folder: input='{}', before encoding", chapterFolderName);
             String chapterSegment = encodePathSegmentSafely(chapterFolderName);
+            logger.debug("🔧 Encoded chapter segment: '{}'", chapterSegment);
             urlBuilder.append("/").append(chapterSegment);
         }
 
         urlBuilder.append("/").append(pageIndex);
 
-        return urlBuilder.toString();
+        String finalUrl = urlBuilder.toString();
+        logger.debug("🌐 Built image URL: {}", finalUrl);
+        return finalUrl;
     }
 
     private String encodePathSegmentSafely(String segment) {
@@ -2650,13 +2655,17 @@ public class MelonIntegrationService {
             return "";
         }
 
+        logger.debug("🔐 encodePathSegmentSafely: input='{}'", segment);
         String prepared = segment;
         if (segment.contains("%")) {
+            logger.debug("🔐 Detected percent signs, starting iterative decoding...");
             int iterations = 0;
             while (prepared.contains("%") && iterations < 5) {
                 try {
                     String decoded = UriUtils.decode(prepared, StandardCharsets.UTF_8);
+                    logger.debug("🔐 Iteration {}: '{}' -> '{}'", iterations, prepared, decoded);
                     if (decoded.equals(prepared)) {
+                        logger.debug("🔐 No change detected, stopping decoding");
                         break; // further декодирование ничего не изменит
                     }
                     prepared = decoded;
@@ -2668,6 +2677,8 @@ public class MelonIntegrationService {
             }
         }
 
-        return UriUtils.encodePathSegment(prepared, StandardCharsets.UTF_8);
+        String encoded = UriUtils.encodePathSegment(prepared, StandardCharsets.UTF_8);
+        logger.debug("🔐 Final encoding: '{}' -> '{}'", prepared, encoded);
+        return encoded;
     }
 }
