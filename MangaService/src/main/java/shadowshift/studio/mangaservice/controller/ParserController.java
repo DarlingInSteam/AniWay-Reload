@@ -242,6 +242,25 @@ public class ParserController {
     }
 
     /**
+     * Очищает данные MelonService (Output/mangalib/archives|images|titles).
+     */
+    @PostMapping("/cleanup/melon")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> cleanupMelonStorage() {
+        try {
+            Map<String, Object> result = melonService.cleanupMelonOutput();
+            boolean success = Boolean.TRUE.equals(result.get("success"));
+            if (success) {
+                return ResponseEntity.ok(result);
+            }
+            return ResponseEntity.status(500).body(result);
+        } catch (Exception e) {
+            return ResponseEntity.status(500)
+                .body(Map.of("success", false, "message", "Ошибка очистки: " + e.getMessage()));
+        }
+    }
+
+    /**
      * Запускает автоматический парсинг манг из каталога MangaLib.
      * Получает список манг по номеру страницы, фильтрует уже существующие и парсит новые.
      *

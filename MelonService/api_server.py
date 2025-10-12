@@ -178,6 +178,41 @@ running_processes_lock = asyncio.Lock()
 def get_melon_base_path() -> Path:
     return Path("/app")
 
+
+def cleanup_directory_contents(path: Path) -> Dict[str, Any]:
+    """Удаляет все файлы и папки внутри указанной директории."""
+    summary: Dict[str, Any] = {
+        "path": str(path.resolve()),
+        "removed_items": 0,
+        "removed_bytes": 0,
+        "errors": []
+    }
+
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except Exception as exc:  # pragma: no cover - критическая ошибка, логируем
+        logger.error("Не удалось создать директорию %s: %s", path, exc)
+        summary["errors"].append(str(exc))
+        return summary
+
+    for entry in path.iterdir():
+        try:
+            if entry.is_dir():
+                size = sum((child.stat().st_size for child in entry.rglob('*') if child.is_file()), 0)
+                shutil.rmtree(entry)
+                summary["removed_items"] += 1
+                summary["removed_bytes"] += size
+            else:
+                size = entry.stat().st_size
+                entry.unlink()
+                summary["removed_items"] += 1
+                summary["removed_bytes"] += size
+        except Exception as exc:  # pragma: no cover - логируем ошибки удаления
+            logger.warning("Ошибка удаления %s: %s", entry, exc)
+            summary["errors"].append(f"{entry.name}: {exc}")
+
+    return summary
+
 def ensure_utf8_patch():
     """Применяет критический патч для UTF-8 кодировки"""
     dublib_path = get_melon_base_path() / "dublib" / "Methods" / "Filesystem.py"
@@ -1367,6 +1402,33 @@ async def delete_manga(filename: str):
         error_msg = f"Ошибка при удалении манги '{filename}': {str(e)}"
         logger.error(error_msg)
         return {"success": False, "message": error_msg}
+
+
+@app.post("/maintenance/mangalib/cleanup")
+async def cleanup_mangalib_storage():
+    """Очищает директории Output/mangalib (archives, images, titles)."""
+    base_dir = get_melon_base_path() / "Output" / "mangalib"
+    targets = ["archives", "images", "titles"]
+    details: List[Dict[str, Any]] = []
+
+    for name in targets:
+        target_path = base_dir / name
+        summary = cleanup_directory_contents(target_path)
+        summary["name"] = name
+        details.append(summary)
+
+    has_errors = any(summary["errors"] for summary in details)
+    if has_errors:
+        logger.warning("Очистка Output/mangalib завершилась с ошибками: %s", details)
+    else:
+        logger.info("Очистка Output/mangalib завершена успешно")
+
+    return {
+        "success": not has_errors,
+        "base_path": str(base_dir.resolve()),
+        "details": details
+    }
+
 
 @app.get("/manga-info/{filename}")
 async def get_manga_info(filename: str):

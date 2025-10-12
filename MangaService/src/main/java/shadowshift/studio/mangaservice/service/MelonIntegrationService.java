@@ -1656,6 +1656,24 @@ public class MelonIntegrationService {
     }
 
     /**
+     * Очищает директории Output/mangalib на MelonService (archives, images, titles).
+     */
+    public Map<String, Object> cleanupMelonOutput() {
+        try {
+            String url = melonServiceUrl + "/maintenance/mangalib/cleanup";
+            ResponseEntity<Map> response = restTemplate.postForEntity(url, null, Map.class);
+            Map<String, Object> body = response.getBody();
+            if (body != null) {
+                return body;
+            }
+            return Map.of("success", false, "message", "Пустой ответ от MelonService при очистке");
+        } catch (Exception e) {
+            logger.error("Ошибка очистки Output/mangalib на MelonService: {}", e.getMessage(), e);
+            return Map.of("success", false, "message", "Ошибка очистки: " + e.getMessage());
+        }
+    }
+
+    /**
      * Проверяет доступность MelonService
      */
     public boolean isServiceAvailable() {
@@ -2608,7 +2626,8 @@ public class MelonIntegrationService {
      * Строит безопасный URL до изображения в MelonService, экранируя спецсимволы в сегментах пути.
      */
     private String buildMelonImageUrl(String mangaFilename, String chapterFolderName, int pageIndex) {
-        String safeChapterFolder = chapterFolderName != null ? chapterFolderName : "";
+        // Slugify chapter folder name to match MelonService storage
+        String safeChapterFolder = chapterFolderName != null ? melonSlugify(chapterFolderName) : "";
 
         return UriComponentsBuilder
             .fromHttpUrl(melonServiceUrl)
@@ -2618,5 +2637,19 @@ public class MelonIntegrationService {
             .pathSegment(String.valueOf(pageIndex))
             .build()
             .toUriString();
+    }
+
+    /**
+     * Slugifies a string to match MelonService's storage logic.
+     * Lowercase, replace spaces with '-', remove unsafe/special characters, strip punctuation.
+     */
+    private String melonSlugify(String input) {
+        if (input == null) return "";
+        String slug = input.toLowerCase(Locale.ROOT)
+            .replaceAll("[\s]+", "-") // spaces to dash
+            .replaceAll("[?\\!\\.,:;\\[\\](){}\"'`#%&/\\\\]+", "") // remove punctuation/specials
+            .replaceAll("-+", "-") // collapse multiple dashes
+            .replaceAll("^-|-$", ""); // trim leading/trailing dash
+        return slug;
     }
 }

@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Download, RefreshCw, Loader2, CheckCircle, XCircle, AlertCircle, Search, ListFilter, Layers } from 'lucide-react'
+import { Download, RefreshCw, Loader2, CheckCircle, XCircle, AlertCircle, Search, ListFilter, Layers, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { ImportQueueMonitor } from './ImportQueueMonitor'
 
@@ -664,6 +664,7 @@ export function MangaManagement() {
   const [autoUpdateTask, setAutoUpdateTask] = useState<AutoUpdateTask | null>(null)
   const [isAutoParsing, setIsAutoParsing] = useState(false)
   const [isAutoUpdating, setIsAutoUpdating] = useState(false)
+  const [isCleaningMelon, setIsCleaningMelon] = useState(false)
   const [automationHydrated, setAutomationHydrated] = useState(false)
   const [selectedLogSource, setSelectedLogSource] = useState<AutomationLogSource>('combined')
 
@@ -1073,6 +1074,38 @@ export function MangaManagement() {
     }
   }
 
+  const cleanupMelonStorage = async () => {
+    setIsCleaningMelon(true)
+
+    try {
+      const response = await fetch('/api/parser/cleanup/melon', { method: 'POST' })
+      let data: any = null
+
+      try {
+        data = await response.json()
+      } catch (error) {
+        // Игнорируем ошибки парсинга тела – может быть пустой ответ
+      }
+
+      if (response.ok && (data?.success ?? true)) {
+        const removedTotal = Array.isArray(data?.details)
+          ? data.details.reduce((acc: number, entry: any) => acc + (Number(entry?.removed_items) || 0), 0)
+          : undefined
+        toast.success(
+          removedTotal && removedTotal > 0
+            ? `Хранилище Melon очищено. Удалено элементов: ${removedTotal}`
+            : 'Хранилище Melon очищено'
+        )
+      } else {
+        toast.error(data?.message || 'Не удалось очистить хранилище Melon')
+      }
+    } catch (error) {
+      toast.error('Ошибка соединения с сервером при очистке Melon')
+    } finally {
+      setIsCleaningMelon(false)
+    }
+  }
+
   // Автообновление манги
   const startAutoUpdate = async () => {
     setIsAutoUpdating(true)
@@ -1139,6 +1172,38 @@ export function MangaManagement() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="rounded-lg border border-border/60 bg-background/40 p-3 space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Trash2 className="h-4 w-4" />
+                <span>Очистить Output/mangalib (archives, images, titles) на MelonService</span>
+              </div>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={cleanupMelonStorage}
+                disabled={isCleaningMelon}
+                className="whitespace-nowrap"
+              >
+                {isCleaningMelon ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Очистка...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Очистить Melon
+                  </>
+                )}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Удаляет артефакты прошлых запусков (архивы, изображения и JSON файлы), сохраняя структуру директорий.
+            </p>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="catalogPage">
               Номер страницы каталога MangaLib
