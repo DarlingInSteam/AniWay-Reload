@@ -763,19 +763,22 @@ export function MangaPage() {
 
                       {infoBadges.length > 0 && (
                         <div className="flex flex-wrap gap-2 mb-5">
-                          {infoBadges.map((badge) => (
-                            <Badge
-                              key={badge.label}
-                              variant="outline"
-                              className={cn(
-                                'flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-wide backdrop-blur-sm',
-                                badge.className
-                              )}
-                            >
-                              <badge.icon className="h-3.5 w-3.5" />
-                              {badge.label}
-                            </Badge>
-                          ))}
+                          {infoBadges.map((badge) => {
+                            const Icon = badge.icon
+                            return (
+                              <Badge
+                                key={badge.label}
+                                variant="outline"
+                                className={cn(
+                                  'flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-wide backdrop-blur-sm',
+                                  badge.className
+                                )}
+                              >
+                                <Icon className="h-3.5 w-3.5" />
+                                {badge.label}
+                              </Badge>
+                            )
+                          })}
                         </div>
                       )}
 
@@ -857,19 +860,22 @@ export function MangaPage() {
                           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5 backdrop-blur-sm">
                             <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/80 mb-3">Активность</div>
                             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                              {engagementStats.map((stat) => (
-                                <div key={stat.label} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/20 p-3">
-                                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10">
-                                    <stat.icon className="h-5 w-5 text-white/80" />
-                                  </div>
-                                  <div>
-                                    <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">
-                                      {stat.label}
+                              {engagementStats.map((stat) => {
+                                const Icon = stat.icon
+                                return (
+                                  <div key={stat.label} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/20 p-3">
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10">
+                                      <Icon className="h-5 w-5 text-white/80" />
                                     </div>
-                                    <div className="text-sm font-semibold text-white">{stat.value}</div>
+                                    <div>
+                                      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">
+                                        {stat.label}
+                                      </div>
+                                      <div className="text-sm font-semibold text-white">{stat.value}</div>
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
+                                )
+                              })}
                             </div>
                           </div>
                         </div>
