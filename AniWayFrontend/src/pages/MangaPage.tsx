@@ -298,55 +298,34 @@ export function MangaPage() {
     }
   }
 
-  if (mangaLoading) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <LoadingSpinner size="lg" />
-      </div>
-    )
-  }
-
-  if (!manga) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-white mb-4">Манга не найдена</h1>
-          <Link to="/catalog" className="text-primary hover:text-primary/80 transition-colors">
-            Вернуться к каталогу
-          </Link>
-        </div>
-      </div>
-    )
-  }
-
   const views = manga?.views ?? 0
-  const releaseYear = manga.releaseDate ? new Date(manga.releaseDate).getFullYear() : undefined
-  const availableChapters = manga.chapterCount ?? chapters?.length ?? 0
-  const totalChapters = manga.totalChapters ?? availableChapters
+  const releaseYear = manga?.releaseDate ? new Date(manga.releaseDate).getFullYear() : undefined
+  const availableChapters = manga?.chapterCount ?? chapters?.length ?? 0
+  const totalChapters = manga?.totalChapters ?? availableChapters
 
   const genres = useMemo(() => {
-    if (!manga.genre) return [] as string[]
+    if (!manga?.genre) return [] as string[]
     return manga.genre
       .split(',')
       .map((g) => g.trim())
       .filter(Boolean)
-  }, [manga.genre])
+  }, [manga?.genre])
 
   const alternativeTitles = useMemo(() => {
-    if (!manga.alternativeNames) return [] as string[]
+    if (!manga?.alternativeNames) return [] as string[]
     return manga.alternativeNames
       .split(';')
       .map((name) => name.trim())
       .filter(Boolean)
-  }, [manga.alternativeNames])
+  }, [manga?.alternativeNames])
 
   const tags = useMemo(() => {
-    if (!manga.tags) return [] as string[]
+    if (!manga?.tags) return [] as string[]
     return manga.tags
       .split(',')
       .map((tag) => tag.trim())
       .filter(Boolean)
-  }, [manga.tags])
+  }, [manga?.tags])
 
   const ratingDistribution = useMemo(() => {
     const raw = ratingData?.ratingDistribution ?? []
@@ -379,6 +358,8 @@ export function MangaPage() {
   )
 
   const infoBadges = useMemo(() => {
+    if (!manga) return [] as Array<{ label: string; icon: LucideIcon; className: string }>
+
     const badges: Array<{ label: string; icon: LucideIcon; className: string }> = []
 
     badges.push({
@@ -425,9 +406,11 @@ export function MangaPage() {
     }
 
     return badges
-  }, [manga.type, manga.status, releaseYear, manga.ageLimit])
+  }, [manga, releaseYear])
 
   const infoDetails = useMemo(() => {
+    if (!manga) return [] as Array<{ label: string; value: string }>
+
     const details: Array<{ label: string; value: string }> = []
 
     if (manga.author) {
@@ -451,9 +434,11 @@ export function MangaPage() {
     }
 
     return details
-  }, [manga.author, manga.artist, manga.releaseDate, manga.isLicensed, manga.engName])
+  }, [manga?.author, manga?.artist, manga?.releaseDate, manga?.isLicensed, manga?.engName, manga])
 
   const engagementStats = useMemo(() => {
+    if (!manga) return [] as Array<{ label: string; value: string; icon: LucideIcon; hint?: string }>
+
     const stats: Array<{ label: string; value: string; icon: LucideIcon; hint?: string }> = []
 
     stats.push({
@@ -502,12 +487,32 @@ export function MangaPage() {
   }, [
     availableChapters,
     compactNumberFormatter,
-    manga.createdAt,
-    manga.updatedAt,
+    manga,
     reviewsCount,
     totalChapters,
     views,
   ])
+
+  if (mangaLoading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
+  }
+
+  if (!manga) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-white mb-4">Манга не найдена</h1>
+          <Link to="/catalog" className="text-primary hover:text-primary/80 transition-colors">
+            Вернуться к каталогу
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   // Функция сортировки глав
   const getSortedChapters = (chapters: any[]) => {
