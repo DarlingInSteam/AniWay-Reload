@@ -1885,10 +1885,14 @@ public class MelonIntegrationService {
                     List<Map<String, Object>> slides = (List<Map<String, Object>>) chapterData.get("slides");
                     task.setStatus(ImportTaskService.TaskStatus.IMPORTING_PAGES);
                     // Используем оригинальное название главы для URL-а в MelonService
-                    String originalChapterName = !numberAsString.isEmpty()
-                        ? numberAsString
-                        : String.valueOf(chapterData.getOrDefault("slug", chapterId));
-                    importChapterPagesFromMelonService(taskId, chapterId, slides, filename, originalChapterName);
+                    String chapterFolderName = resolveChapterFolderName(
+                        numberAsString,
+                        titleObj,
+                        volumeNumber,
+                        chapterData,
+                        chapterId
+                    );
+                    importChapterPagesFromMelonService(taskId, chapterId, slides, filename, chapterFolderName);
 
                     // Обновляем прогресс
                     importTaskService.incrementImportedChapters(taskId);
@@ -2091,6 +2095,38 @@ public class MelonIntegrationService {
         return descriptors.stream()
             .map(ChapterOrderDescriptor::chapter)
             .collect(Collectors.toList());
+    }
+
+    private String resolveChapterFolderName(String numberAsString, Object titleObj, Integer volumeNumber,
+                                            Map<String, Object> chapterData, Long chapterId) {
+        String folderName = numberAsString != null ? numberAsString.trim() : "";
+        String titlePart = titleObj != null ? titleObj.toString().trim() : "";
+
+        if (!titlePart.isEmpty()) {
+            folderName = folderName.isEmpty()
+                ? titlePart
+                : folderName + ". " + titlePart;
+        }
+
+        folderName = folderName.replaceAll("\\s+", " ").trim();
+        folderName = folderName.replaceAll("\\.+$", "");
+
+        if (folderName.isEmpty()) {
+            Object slugObj = chapterData != null ? chapterData.get("slug") : null;
+            if (slugObj != null && !slugObj.toString().trim().isEmpty()) {
+                folderName = slugObj.toString().trim();
+            }
+        }
+
+        if (folderName.isEmpty()) {
+            folderName = String.valueOf(chapterId);
+        }
+
+        if (volumeNumber != null && volumeNumber > 0 && !folderName.contains("(Vol.")) {
+            folderName = folderName + " (Vol." + volumeNumber + ")";
+        }
+
+        return folderName;
     }
 
     private Integer parseVolumeNumber(Object volumeObj) {
