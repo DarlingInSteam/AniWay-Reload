@@ -2626,30 +2626,18 @@ public class MelonIntegrationService {
      * Строит безопасный URL до изображения в MelonService, экранируя спецсимволы в сегментах пути.
      */
     private String buildMelonImageUrl(String mangaFilename, String chapterFolderName, int pageIndex) {
-        // Slugify chapter folder name to match MelonService storage
-        String safeChapterFolder = chapterFolderName != null ? melonSlugify(chapterFolderName) : "";
-
-        return UriComponentsBuilder
-            .fromHttpUrl(melonServiceUrl)
+        UriComponentsBuilder builder = UriComponentsBuilder
+            .fromUriString(melonServiceUrl)
             .pathSegment("images")
-            .pathSegment(mangaFilename)
-            .pathSegment(safeChapterFolder)
+            .pathSegment(mangaFilename);
+
+        if (chapterFolderName != null && !chapterFolderName.isBlank()) {
+            builder.pathSegment(chapterFolderName);
+        }
+
+        return builder
             .pathSegment(String.valueOf(pageIndex))
             .build()
             .toUriString();
-    }
-
-    /**
-     * Slugifies a string to match MelonService's storage logic.
-     * Lowercase, replace spaces with '-', remove unsafe/special characters, strip punctuation.
-     */
-    private String melonSlugify(String input) {
-        if (input == null) return "";
-        String slug = input.toLowerCase(Locale.ROOT)
-            .replaceAll("[\s]+", "-") // spaces to dash
-            .replaceAll("[?\\!\\.,:;\\[\\](){}\"'`#%&/\\\\]+", "") // remove punctuation/specials
-            .replaceAll("-+", "-") // collapse multiple dashes
-            .replaceAll("^-|-$", ""); // trim leading/trailing dash
-        return slug;
     }
 }
