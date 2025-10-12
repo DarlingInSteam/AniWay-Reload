@@ -39,6 +39,7 @@ export function MangaPage() {
   const activeTab = activeTabParam
   const [chapterSort, setChapterSort] = useState<'asc' | 'desc' | 'none'>('asc')
   const [showFullDescription, setShowFullDescription] = useState(false)
+  const [showAllAlternativeTitles, setShowAllAlternativeTitles] = useState(false)
   const [showFullStats, setShowFullStats] = useState(false)
   const [commentText, setCommentText] = useState('')
   const [commentFilter, setCommentFilter] = useState<'new' | 'popular'>('new')
@@ -318,6 +319,17 @@ export function MangaPage() {
       .map((name) => name.trim())
       .filter(Boolean)
   }, [manga?.alternativeNames])
+
+  const displayedAlternativeTitles = useMemo(() => {
+    if (showAllAlternativeTitles) return alternativeTitles
+    return alternativeTitles.slice(0, 2)
+  }, [alternativeTitles, showAllAlternativeTitles])
+
+  const hasHiddenAlternativeTitles = alternativeTitles.length > 2
+
+  useEffect(() => {
+    setShowAllAlternativeTitles(false)
+  }, [alternativeTitles.length])
 
   const tags = useMemo(() => {
     if (!manga?.tags) return [] as string[]
@@ -795,6 +807,32 @@ export function MangaPage() {
                         </div>
                       ) : (
                         <div className="text-sm text-muted-foreground">Дополнительная информация пока недоступна.</div>
+                      )}
+
+                      {alternativeTitles.length > 0 && (
+                        <div className="mt-6">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">
+                            Альтернативные названия
+                          </div>
+                          <div className="mt-2 space-y-1">
+                            {displayedAlternativeTitles.map((title, index) => (
+                              <div key={`${title}-${index}`} className="text-sm text-muted-foreground">
+                                {title}
+                              </div>
+                            ))}
+                          </div>
+                          {hasHiddenAlternativeTitles && (
+                            <button
+                              type="button"
+                              onClick={() => setShowAllAlternativeTitles((prev) => !prev)}
+                              className="mt-3 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+                            >
+                              {showAllAlternativeTitles
+                                ? 'Скрыть'
+                                : `Показать все (${alternativeTitles.length})`}
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
 
