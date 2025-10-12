@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 import shadowshift.studio.mangaservice.entity.Manga;
 import shadowshift.studio.mangaservice.entity.Genre;
 import shadowshift.studio.mangaservice.entity.Tag;
@@ -1959,8 +1960,7 @@ public class MelonIntegrationService {
             Map<Integer, PageData> pagesByIndex = new HashMap<>();
 
             for (Integer pageIndex : expectedIndices) {
-                String imageUrl = String.format("%s/images/%s/%s/%d",
-                    melonServiceUrl, mangaFilename, originalChapterName, pageIndex);
+                String imageUrl = buildMelonImageUrl(mangaFilename, originalChapterName, pageIndex);
 
                 CompletableFuture<PageData> downloadFuture = CompletableFuture.supplyAsync(() -> {
                     try {
@@ -2568,8 +2568,7 @@ public class MelonIntegrationService {
     }
 
     private PageData downloadPageSequentially(String mangaFilename, String originalChapterName, int pageIndex) {
-        String imageUrl = String.format("%s/images/%s/%s/%d",
-            melonServiceUrl, mangaFilename, originalChapterName, pageIndex);
+        String imageUrl = buildMelonImageUrl(mangaFilename, originalChapterName, pageIndex);
         int attempts = 3;
         long baseDelayMs = 1500L;
 
@@ -2603,5 +2602,21 @@ public class MelonIntegrationService {
 
         logger.error("Фолбэк: не удалось скачать страницу {} после {} попыток", pageIndex, attempts);
         return null;
+    }
+
+    /**
+     * Строит безопасный URL до изображения в MelonService, экранируя спецсимволы в сегментах пути.
+     */
+    private String buildMelonImageUrl(String mangaFilename, String chapterFolderName, int pageIndex) {
+        String safeChapterFolder = chapterFolderName != null ? chapterFolderName : "";
+
+        return UriComponentsBuilder
+            .fromHttpUrl(melonServiceUrl)
+            .pathSegment("images")
+            .pathSegment(mangaFilename)
+            .pathSegment(safeChapterFolder)
+            .pathSegment(String.valueOf(pageIndex))
+            .build()
+            .toUriString();
     }
 }
