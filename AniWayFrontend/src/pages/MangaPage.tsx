@@ -40,6 +40,7 @@ export function MangaPage() {
   const [chapterSort, setChapterSort] = useState<'asc' | 'desc' | 'none'>('asc')
   const [showFullDescription, setShowFullDescription] = useState(false)
   const [showAllAlternativeTitles, setShowAllAlternativeTitles] = useState(false)
+  const [showAllChips, setShowAllChips] = useState(false)
   const [showFullStats, setShowFullStats] = useState(false)
   const [commentText, setCommentText] = useState('')
   const [commentFilter, setCommentFilter] = useState<'new' | 'popular'>('new')
@@ -338,6 +339,22 @@ export function MangaPage() {
       .map((tag) => tag.trim())
       .filter(Boolean)
   }, [manga?.tags])
+
+  const combinedChips = useMemo(
+    () => [
+      ...genres.map((genre) => ({ type: 'genre' as const, label: genre })),
+      ...tags.map((tag) => ({ type: 'tag' as const, label: tag })),
+    ],
+    [genres, tags]
+  )
+
+  const collapsedChipLimit = 12
+  const visibleChips = showAllChips ? combinedChips : combinedChips.slice(0, collapsedChipLimit)
+  const hasHiddenChips = combinedChips.length > collapsedChipLimit
+
+  useEffect(() => {
+    setShowAllChips(false)
+  }, [combinedChips.length])
 
   const ratingDistribution = useMemo(() => {
     const raw = ratingData?.ratingDistribution ?? []
@@ -700,15 +717,22 @@ export function MangaPage() {
                       <div className="text-muted-foreground text-sm md:text-base">
                         <div
                           className={cn(
-                            'relative overflow-hidden transition-[max-height] duration-300 ease-out [--line-clamp:unset] prose-ul:list-disc prose-ul:pl-5',
-                            showFullDescription ? 'max-h-[1200px]' : 'max-h-40'
+                            'relative overflow-hidden transition-[max-height] duration-300 ease-out prose-ul:list-disc prose-ul:pl-5',
+                            showFullDescription ? 'max-h-[1200px]' : 'max-h-[6.25rem]'
                           )}
                         >
                           <div
-                            className={cn(
-                              'prose prose-invert max-w-none markdown-body',
-                              !showFullDescription && isDescriptionLong && 'line-clamp-4'
-                            )}
+                            className="prose prose-invert max-w-none markdown-body"
+                            style={
+                              !showFullDescription && isDescriptionLong
+                                ? {
+                                    display: '-webkit-box',
+                                    WebkitBoxOrient: 'vertical',
+                                    WebkitLineClamp: 4,
+                                    overflow: 'hidden',
+                                  }
+                                : undefined
+                            }
                           >
                             <MarkdownRenderer value={descriptionText || 'Описание отсутствует.'} />
                           </div>
@@ -735,32 +759,53 @@ export function MangaPage() {
                       </div>
                     </div>
 
-                    {(genres.length > 0 || tags.length > 0) && (
+                    {combinedChips.length > 0 && (
                       <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
-                        <div className="flex flex-wrap gap-2">
-                          {genres.map((genre, index) => (
-                            <button
-                              key={`genre-${index}`}
-                              type="button"
-                              onClick={() => navigate(`/catalog?genres=${encodeURIComponent(genre)}`)}
-                              className="group px-3 py-1 bg-white/10 backdrop-blur-sm text-white text-sm rounded-full border border-white/20 hover:bg-primary/30 hover:border-primary/50 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                              aria-label={`Перейти в каталог по жанру ${genre}`}
-                            >
-                              <span className="pointer-events-none select-none">{genre}</span>
-                            </button>
-                          ))}
-                          {tags.map((tag, index) => (
-                            <button
-                              key={`tag-${index}`}
-                              type="button"
-                              onClick={() => navigate(`/catalog?tags=${encodeURIComponent(tag)}`)}
-                              className="group px-3 py-1 bg-primary/10 backdrop-blur-sm text-primary text-sm rounded-full border border-primary/30 hover:bg-primary/30 hover:text-white hover:border-primary/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                              aria-label={`Перейти в каталог по тегу ${tag}`}
-                            >
-                              <span className="pointer-events-none select-none">{tag}</span>
-                            </button>
-                          ))}
+                        <div
+                          className={cn(
+                            'flex flex-wrap gap-2 transition-[max-height] duration-300 ease-out',
+                            showAllChips ? 'max-h-[480px]' : 'max-h-[5.75rem] overflow-hidden'
+                          )}
+                        >
+                          {visibleChips.map((chip, index) => {
+                            const isGenre = chip.type === 'genre'
+                            return (
+                              <button
+                                key={`${chip.type}-${chip.label}-${index}`}
+                                type="button"
+                                onClick={() =>
+                                  isGenre
+                                    ? navigate(`/catalog?genres=${encodeURIComponent(chip.label)}`)
+                                    : navigate(`/catalog?tags=${encodeURIComponent(chip.label)}`)
+                                }
+                                className={cn(
+                                  'group px-3 py-1 text-sm rounded-full border transition-colors backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black',
+                                  isGenre
+                                    ? 'bg-white/10 border-white/20 text-white hover:bg-primary/30 hover:border-primary/50'
+                                    : 'bg-primary/10 border-primary/30 text-primary hover:bg-primary/30 hover:text-white hover:border-primary/50'
+                                )}
+                                aria-label={
+                                  isGenre
+                                    ? `Перейти в каталог по жанру ${chip.label}`
+                                    : `Перейти в каталог по тегу ${chip.label}`
+                                }
+                              >
+                                <span className="pointer-events-none select-none">{chip.label}</span>
+                              </button>
+                            )
+                          })}
                         </div>
+                        {hasHiddenChips && (
+                          <button
+                            type="button"
+                            onClick={() => setShowAllChips((prev) => !prev)}
+                            className="mt-3 inline-flex items-center gap-1 rounded-full border border-dashed border-primary/40 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary/80 hover:border-primary hover:text-primary transition-colors"
+                          >
+                            {showAllChips
+                              ? 'Свернуть'
+                              : `Показать больше (${combinedChips.length - visibleChips.length})`}
+                          </button>
+                        )}
                       </div>
                     )}
 
@@ -835,18 +880,6 @@ export function MangaPage() {
                         </div>
                       )}
                     </div>
-
-                    {/* Alternative Titles - только если есть альтернативные названия */}
-                    {alternativeTitles.length > 0 && (
-                      <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
-                        <h3 className="text-lg font-bold text-white mb-3">Альтернативные названия</h3>
-                        <div className="space-y-1">
-                          {alternativeTitles.map((title, index) => (
-                            <div key={index} className="text-muted-foreground text-sm">{title}</div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
 
                     {/* Statistics */}
                     <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
