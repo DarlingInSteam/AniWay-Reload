@@ -1755,16 +1755,36 @@ async def get_chapter_images(filename: str, chapter: str):
             if not manga_dir.exists():
                 return False
             
-            # Ищем папку главы
+            # Ищем папку главы с fuzzy matching (поддержка обрезанных символов вроде ?)
             chapter_dir = None
+            requested_chapter = chapter.strip()
+            
             for potential_dir in manga_dir.iterdir():
                 if potential_dir.is_dir():
-                    # Проверяем точное совпадение или начало с номера главы
-                    if (potential_dir.name == chapter or 
-                        potential_dir.name.startswith(f"{chapter}.") or 
-                        potential_dir.name.startswith(f"{chapter} ")):
+                    dir_name = potential_dir.name.strip()
+                    
+                    # 1. Точное совпадение
+                    if dir_name == requested_chapter:
                         chapter_dir = potential_dir
                         break
+                    
+                    # 2. Начинается с "номер главы." или "номер главы "
+                    if (dir_name.startswith(f"{requested_chapter}.") or 
+                        dir_name.startswith(f"{requested_chapter} ")):
+                        chapter_dir = potential_dir
+                        break
+                    
+                    # 3. Fuzzy match: запрошенное название — префикс реального (игнорируя спецсимволы в конце)
+                    # Например: "26. Чем займёмся на выходных" vs "26. Чем займёмся на выходных? (Vol.1)"
+                    if dir_name.startswith(requested_chapter):
+                        # Проверяем, что следующий символ — это спецсимвол или пробел
+                        next_char_idx = len(requested_chapter)
+                        if next_char_idx < len(dir_name):
+                            next_char = dir_name[next_char_idx]
+                            if next_char in ['?', '!', '.', ' ', '(', ')', ',', ':']:
+                                chapter_dir = potential_dir
+                                logger.info(f"🔍 Fuzzy match: '{requested_chapter}' -> '{dir_name}'")
+                                break
             
             if not chapter_dir:
                 return False
