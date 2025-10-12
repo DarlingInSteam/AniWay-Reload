@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  BookOpen, Play, Eye, Heart, Star, ChevronDown, ChevronUp, Send,
+  BookOpen, Eye, Heart, Star, ChevronDown, ChevronUp, Send,
   Bookmark, Edit, AlertTriangle, Share, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Check
 } from 'lucide-react'
 import { apiClient } from '@/lib/api'
@@ -17,7 +17,7 @@ import { CommentSection } from '../components/comments/CommentSection'
 import MangaReviews from '../components/MangaReviews'
 import { useAuth } from '@/contexts/AuthContext'
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
-
+import type { MangaResponseDTO } from '@/types'
 import { useSyncedSearchParam } from '@/hooks/useSyncedSearchParam'
 
 export function MangaPage() {
@@ -150,6 +150,59 @@ export function MangaPage() {
     enabled: !!mangaId,
     staleTime: 10 * 60 * 1000, // Кеш глав на 10 минут
   })
+
+  const { data: recentlyUpdatedManga, isLoading: similarLoading } = useQuery({
+    queryKey: ['manga-recently-updated', mangaId],
+    queryFn: () => apiClient.getAllMangaPaged(0, 20, 'updatedAt', 'desc'),
+    enabled: !!mangaId,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const { data: popularManga, isLoading: popularLoading } = useQuery({
+    queryKey: ['manga-popular'],
+    queryFn: () => apiClient.getAllMangaPaged(0, 20, 'views', 'desc'),
+    staleTime: 10 * 60 * 1000,
+  })
+
+  const similarAggregation = useMemo(() => {
+    const page = recentlyUpdatedManga?.content
+    if (!page || page.length === 0) {
+      return { items: [] as MangaResponseDTO[], fallbackUsed: false, baseInsufficient: false }
+    }
+
+    const primary = page.filter((item) => item.id !== mangaId)
+    const seen = new Set<number>()
+    const result: MangaResponseDTO[] = []
+
+    for (const entry of primary) {
+      if (seen.has(entry.id)) continue
+      seen.add(entry.id)
+      result.push(entry)
+      if (result.length >= 4) break
+    }
+
+    const baseInsufficient = result.length < 4
+    let fallbackUsed = false
+
+    if (baseInsufficient && popularManga?.content?.length) {
+      for (const entry of popularManga.content) {
+        if (entry.id === mangaId || seen.has(entry.id)) continue
+        seen.add(entry.id)
+        result.push(entry)
+        fallbackUsed = true
+        if (result.length >= 4) break
+      }
+    }
+
+    return {
+      items: result.slice(0, 4),
+      fallbackUsed,
+      baseInsufficient,
+    }
+  }, [recentlyUpdatedManga?.content, popularManga?.content, mangaId])
+
+  const { items: similarManga, fallbackUsed: similarUsesFallback, baseInsufficient: similarBaseInsufficient } = similarAggregation
+  const awaitingFallback = similarBaseInsufficient && !similarUsesFallback && popularLoading
 
   const { isChapterCompleted } = useReadingProgress()
 
@@ -814,19 +867,67 @@ export function MangaPage() {
               <div className="lg:sticky lg:top-24">
                 <h3 className="text-lg md:text-xl font-bold text-white mb-4">Похожие</h3>
                 <div className="space-y-3">
-                  {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="flex space-x-3 p-3 bg-white/5 backdrop-blur-sm rounded-3xl hover:bg-white/10 transition-colors border border-white/10">
-                      <div className="w-16 h-20 bg-white/10 rounded-lg flex-shrink-0"></div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-white font-medium text-sm line-clamp-2 mb-1">
-                          Название похожей манги {i}
-                        </h4>
-                        <p className="text-muted-foreground text-xs">
-                          Жанр • 2024
-                        </p>
+                  {(similarLoading || awaitingFallback) ? (
+                    Array.from({ length: 4 }).map((_, idx) => (
+                      <div key={idx} className="flex space-x-3 p-3 bg-white/5 backdrop-blur-sm rounded-3xl border border-white/10 animate-pulse">
+                        <div className="w-16 h-20 bg-white/10 rounded-lg flex-shrink-0" />
+                        <div className="flex-1 min-w-0 space-y-2">
+                          <div className="h-3 bg-white/10 rounded-full w-3/4" />
+                          <div className="h-3 bg-white/10 rounded-full w-1/2" />
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  ) : similarManga.length ? (
+                    <>
+                      {similarManga.map((item) => {
+                        const itemYear = item.releaseDate ? new Date(item.releaseDate).getFullYear() : null
+                        const cover = item.coverImageUrl || ''
+                        const genres = item.genre ? item.genre.split(',').map((g) => g.trim()).filter(Boolean) : []
+                        return (
+                          <Link
+                            key={item.id}
+                            to={`/manga/${item.id}`}
+                            className="flex space-x-3 p-3 bg-white/5 backdrop-blur-sm rounded-3xl hover:bg-white/10 transition-colors border border-white/10"
+                          >
+                            <div className="w-16 h-20 rounded-lg flex-shrink-0 overflow-hidden border border-white/10 bg-white/10">
+                              {cover ? (
+                                <img
+                                  src={cover}
+                                  alt={item.title}
+                                  className="w-full h-full object-cover"
+                                  loading="lazy"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs text-center px-2">
+                                  Нет обложки
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-white font-medium text-sm line-clamp-2 mb-1">
+                                {item.title}
+                              </h4>
+                              <div className="text-muted-foreground text-xs flex items-center gap-1 truncate">
+                                {genres.length > 0 && <span className="truncate">{genres.slice(0, 2).join(', ')}</span>}
+                                {itemYear && genres.length > 0 && <span>•</span>}
+                                {itemYear && <span>{itemYear}</span>}
+                              </div>
+                              {item.updatedAt && (
+                                <p className="text-muted-foreground/70 text-xs mt-1">
+                                  Обновлено: {formatDate(item.updatedAt)}
+                                </p>
+                              )}
+                            </div>
+                          </Link>
+                        )
+                      })}
+                      {similarUsesFallback && (
+                        <p className="text-xs text-white/60 px-1">Добавлены популярные тайтлы, чтобы дополнить подборку.</p>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-sm text-muted-foreground/80">Пока нет похожих тайтлов</div>
+                  )}
                 </div>
               </div>
             </div>

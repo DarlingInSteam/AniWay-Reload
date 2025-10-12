@@ -5,6 +5,7 @@ import {
   ChapterDTO,
   ChapterCreateRequest,
   ChapterImageDTO,
+  MangaRatingStats,
   MangaResponseDTO,
   PageResponse,
   SearchParams,
@@ -816,9 +817,9 @@ class ApiClient {
   }
 
   // Получить данные рейтинга манги
-  async getMangaRatingData(mangaId: number): Promise<any> {
+  async getMangaRatingData(mangaId: number): Promise<MangaRatingStats> {
     try {
-      return this.request<any>(`/auth/reviews/manga/${mangaId}/rating`);
+      return this.request<MangaRatingStats>(`/auth/reviews/manga/${mangaId}/rating`);
     } catch (error) {
       console.error('Failed to get manga rating data:', error);
       throw error;
