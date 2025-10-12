@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.util.UriUtils;
 import shadowshift.studio.mangaservice.entity.Manga;
 import shadowshift.studio.mangaservice.entity.Genre;
@@ -23,6 +24,7 @@ import shadowshift.studio.mangaservice.websocket.ProgressWebSocketHandler;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -1978,7 +1980,7 @@ public class MelonIntegrationService {
             Map<Integer, PageData> pagesByIndex = new HashMap<>();
 
             for (Integer pageIndex : expectedIndices) {
-                String imageUrl = buildMelonImageUrl(mangaFilename, originalChapterName, pageIndex);
+                URI imageUrl = buildMelonImageUrl(mangaFilename, originalChapterName, pageIndex);
 
                 CompletableFuture<PageData> downloadFuture = CompletableFuture.supplyAsync(() -> {
                     try {
@@ -2586,7 +2588,7 @@ public class MelonIntegrationService {
     }
 
     private PageData downloadPageSequentially(String mangaFilename, String originalChapterName, int pageIndex) {
-        String imageUrl = buildMelonImageUrl(mangaFilename, originalChapterName, pageIndex);
+        URI imageUrl = buildMelonImageUrl(mangaFilename, originalChapterName, pageIndex);
         int attempts = 3;
         long baseDelayMs = 1500L;
 
@@ -2625,60 +2627,38 @@ public class MelonIntegrationService {
     /**
      * Строит безопасный URL до изображения в MelonService, экранируя спецсимволы в сегментах пути.
      */
-    private String buildMelonImageUrl(String mangaFilename, String chapterFolderName, int pageIndex) {
-        String baseUrl = melonServiceUrl.endsWith("/")
-            ? melonServiceUrl.substring(0, melonServiceUrl.length() - 1)
-            : melonServiceUrl;
+    /**
+     * Builds a URI for a Melon Service image endpoint.
+     * Returns URI object to prevent double-encoding by RestTemplate.
+     */
+    private URI buildMelonImageUrl(String mangaFilename, String chapterFolderName, int pageIndex) {
+        try {
+            String baseUrl = melonServiceUrl.endsWith("/")
+                ? melonServiceUrl.substring(0, melonServiceUrl.length() - 1)
+                : melonServiceUrl;
 
-        String mangaSegment = encodePathSegmentSafely(mangaFilename);
-
-        StringBuilder urlBuilder = new StringBuilder(baseUrl)
-            .append("/images/")
-            .append(mangaSegment);
-
-        if (chapterFolderName != null && !chapterFolderName.isBlank()) {
-            logger.debug("🔧 Encoding chapter folder: input='{}', before encoding", chapterFolderName);
-            String chapterSegment = encodePathSegmentSafely(chapterFolderName);
-            logger.debug("🔧 Encoded chapter segment: '{}'", chapterSegment);
-            urlBuilder.append("/").append(chapterSegment);
-        }
-
-        urlBuilder.append("/").append(pageIndex);
-
-        String finalUrl = urlBuilder.toString();
-        logger.debug("🌐 Built image URL: {}", finalUrl);
-        return finalUrl;
-    }
-
-    private String encodePathSegmentSafely(String segment) {
-        if (segment == null) {
-            return "";
-        }
-
-        logger.debug("🔐 encodePathSegmentSafely: input='{}'", segment);
-        String prepared = segment;
-        if (segment.contains("%")) {
-            logger.debug("🔐 Detected percent signs, starting iterative decoding...");
-            int iterations = 0;
-            while (prepared.contains("%") && iterations < 5) {
-                try {
-                    String decoded = UriUtils.decode(prepared, StandardCharsets.UTF_8);
-                    logger.debug("🔐 Iteration {}: '{}' -> '{}'", iterations, prepared, decoded);
-                    if (decoded.equals(prepared)) {
-                        logger.debug("🔐 No change detected, stopping decoding");
-                        break; // further декодирование ничего не изменит
-                    }
-                    prepared = decoded;
-                    iterations++;
-                } catch (IllegalArgumentException ex) {
-                    logger.warn("Не удалось декодировать segment '{}': {}", segment, ex.getMessage());
-                    break;
-                }
+            // Build path without encoding (UriComponentsBuilder will handle it)
+            String path = "/images/" + mangaFilename;
+            
+            if (chapterFolderName != null && !chapterFolderName.isBlank()) {
+                path += "/" + chapterFolderName;
             }
-        }
+            
+            path += "/" + pageIndex;
 
-        String encoded = UriUtils.encodePathSegment(prepared, StandardCharsets.UTF_8);
-        logger.debug("🔐 Final encoding: '{}' -> '{}'", prepared, encoded);
-        return encoded;
+            // Use UriComponentsBuilder to properly encode the path
+            URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl)
+                .path(path)
+                .encode(StandardCharsets.UTF_8)
+                .build(true) // true = already encoded (prevents double encoding)
+                .toUri();
+
+            logger.debug("🌐 Built image URI: {}", uri);
+            return uri;
+        } catch (Exception e) {
+            logger.error("Failed to build URI for manga={}, chapter={}, page={}", 
+                mangaFilename, chapterFolderName, pageIndex, e);
+            throw new RuntimeException("Failed to build Melon image URL", e);
+        }
     }
 }
