@@ -2629,17 +2629,36 @@ public class MelonIntegrationService {
             ? melonServiceUrl.substring(0, melonServiceUrl.length() - 1)
             : melonServiceUrl;
 
+        String mangaSegment = encodePathSegmentSafely(mangaFilename);
+
         StringBuilder urlBuilder = new StringBuilder(baseUrl)
             .append("/images/")
-            .append(UriUtils.encodePathSegment(mangaFilename, StandardCharsets.UTF_8));
+            .append(mangaSegment);
 
         if (chapterFolderName != null && !chapterFolderName.isBlank()) {
-            urlBuilder.append("/")
-                .append(UriUtils.encodePathSegment(chapterFolderName, StandardCharsets.UTF_8));
+            String chapterSegment = encodePathSegmentSafely(chapterFolderName);
+            urlBuilder.append("/").append(chapterSegment);
         }
 
         urlBuilder.append("/").append(pageIndex);
 
         return urlBuilder.toString();
+    }
+
+    private String encodePathSegmentSafely(String segment) {
+        if (segment == null) {
+            return "";
+        }
+
+        String prepared = segment;
+        if (segment.contains("%")) {
+            try {
+                prepared = UriUtils.decode(segment, StandardCharsets.UTF_8);
+            } catch (IllegalArgumentException ex) {
+                logger.warn("Не удалось декодировать segment '{}': {}", segment, ex.getMessage());
+            }
+        }
+
+        return UriUtils.encodePathSegment(prepared, StandardCharsets.UTF_8);
     }
 }
