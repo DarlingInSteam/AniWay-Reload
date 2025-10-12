@@ -2638,6 +2638,7 @@ public class MelonIntegrationService {
         return builder
             .pathSegment(String.valueOf(pageIndex))
             .build()
+            .encode()
             .toUriString();
     }
 }
