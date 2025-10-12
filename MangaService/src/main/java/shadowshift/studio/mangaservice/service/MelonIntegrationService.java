@@ -2652,10 +2652,19 @@ public class MelonIntegrationService {
 
         String prepared = segment;
         if (segment.contains("%")) {
-            try {
-                prepared = UriUtils.decode(segment, StandardCharsets.UTF_8);
-            } catch (IllegalArgumentException ex) {
-                logger.warn("Не удалось декодировать segment '{}': {}", segment, ex.getMessage());
+            int iterations = 0;
+            while (prepared.contains("%") && iterations < 5) {
+                try {
+                    String decoded = UriUtils.decode(prepared, StandardCharsets.UTF_8);
+                    if (decoded.equals(prepared)) {
+                        break; // further декодирование ничего не изменит
+                    }
+                    prepared = decoded;
+                    iterations++;
+                } catch (IllegalArgumentException ex) {
+                    logger.warn("Не удалось декодировать segment '{}': {}", segment, ex.getMessage());
+                    break;
+                }
             }
         }
 
