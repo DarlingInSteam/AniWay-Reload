@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
+import org.springframework.web.util.UriUtils;
 import shadowshift.studio.mangaservice.entity.Manga;
 import shadowshift.studio.mangaservice.entity.Genre;
 import shadowshift.studio.mangaservice.entity.Tag;
@@ -23,13 +23,12 @@ import shadowshift.studio.mangaservice.websocket.ProgressWebSocketHandler;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -2626,19 +2625,21 @@ public class MelonIntegrationService {
      * Строит безопасный URL до изображения в MelonService, экранируя спецсимволы в сегментах пути.
      */
     private String buildMelonImageUrl(String mangaFilename, String chapterFolderName, int pageIndex) {
-        UriComponentsBuilder builder = UriComponentsBuilder
-            .fromUriString(melonServiceUrl)
-            .pathSegment("images")
-            .pathSegment(mangaFilename);
+        String baseUrl = melonServiceUrl.endsWith("/")
+            ? melonServiceUrl.substring(0, melonServiceUrl.length() - 1)
+            : melonServiceUrl;
+
+        StringBuilder urlBuilder = new StringBuilder(baseUrl)
+            .append("/images/")
+            .append(UriUtils.encodePathSegment(mangaFilename, StandardCharsets.UTF_8));
 
         if (chapterFolderName != null && !chapterFolderName.isBlank()) {
-            builder.pathSegment(chapterFolderName);
+            urlBuilder.append("/")
+                .append(UriUtils.encodePathSegment(chapterFolderName, StandardCharsets.UTF_8));
         }
 
-        return builder
-            .pathSegment(String.valueOf(pageIndex))
-            .build()
-            .encode()
-            .toUriString();
+        urlBuilder.append("/").append(pageIndex);
+
+        return urlBuilder.toString();
     }
 }
