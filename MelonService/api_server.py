@@ -1727,6 +1727,112 @@ async def get_image(filename: str, chapter: str, page: str):
         logger.error(f"Error serving image {filename}/{chapter}/{page}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.get("/chapter-images/{filename}/{chapter}")
+async def get_chapter_images(filename: str, chapter: str):
+    """
+    Возвращает все изображения главы одним запросом.
+    Оптимизировано для batch-загрузки: вместо N HTTP запросов делаем 1.
+    
+    Returns:
+        {
+            "images": [
+                {"page": 1, "data": "base64...", "format": "png"},
+                {"page": 2, "data": "base64...", "format": "jpg"},
+                ...
+            ],
+            "total": 10
+        }
+    """
+    import base64
+    
+    try:
+        output_path = get_melon_base_path() / "Output"
+        images = []
+        
+        # Функция для поиска и чтения изображений из директории
+        def find_and_read_images(manga_dir: Path) -> bool:
+            if not manga_dir.exists():
+                return False
+            
+            # Ищем папку главы
+            chapter_dir = None
+            for potential_dir in manga_dir.iterdir():
+                if potential_dir.is_dir():
+                    # Проверяем точное совпадение или начало с номера главы
+                    if (potential_dir.name == chapter or 
+                        potential_dir.name.startswith(f"{chapter}.") or 
+                        potential_dir.name.startswith(f"{chapter} ")):
+                        chapter_dir = potential_dir
+                        break
+            
+            if not chapter_dir:
+                return False
+            
+            # Собираем все изображения
+            image_files = []
+            for ext in ['.png', '.jpg', '.jpeg', '.webp']:
+                image_files.extend(chapter_dir.glob(f"*{ext}"))
+            
+            # Сортируем по номеру страницы
+            def get_page_number(file_path: Path) -> int:
+                try:
+                    return int(file_path.stem)
+                except ValueError:
+                    return 999999  # Файлы с нечисловыми именами в конец
+            
+            image_files.sort(key=get_page_number)
+            
+            # Читаем и кодируем все изображения
+            for image_path in image_files:
+                try:
+                    with open(image_path, 'rb') as f:
+                        image_bytes = f.read()
+                    
+                    images.append({
+                        "page": get_page_number(image_path),
+                        "data": base64.b64encode(image_bytes).decode('utf-8'),
+                        "format": image_path.suffix[1:]  # без точки
+                    })
+                except Exception as e:
+                    logger.error(f"Error reading image {image_path}: {e}")
+                    continue
+            
+            return len(images) > 0
+        
+        # Ищем сначала в archives, потом в images
+        for parser_dir in output_path.iterdir():
+            if parser_dir.is_dir():
+                # Проверяем archives
+                manga_dir = parser_dir / "archives" / filename
+                if find_and_read_images(manga_dir):
+                    break
+                
+                # Проверяем images
+                manga_dir = parser_dir / "images" / filename
+                if find_and_read_images(manga_dir):
+                    break
+        
+        if not images:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Chapter images not found: {filename}/{chapter}"
+            )
+        
+        logger.info(f"✅ Loaded {len(images)} images for {filename}/{chapter}")
+        
+        return {
+            "images": images,
+            "total": len(images)
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error loading chapter images {filename}/{chapter}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/cover/{filename}")
 async def get_cover(filename: str):
     """Получение обложки манги"""

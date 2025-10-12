@@ -15,6 +15,8 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.util.UriUtils;
+import shadowshift.studio.mangaservice.dto.MelonChapterImagesResponse;
+import shadowshift.studio.mangaservice.dto.MelonImageData;
 import shadowshift.studio.mangaservice.entity.Manga;
 import shadowshift.studio.mangaservice.entity.Genre;
 import shadowshift.studio.mangaservice.entity.Tag;
@@ -33,6 +35,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.Base64;
 import java.util.regex.Pattern;
 
 /**
@@ -1935,142 +1939,85 @@ public class MelonIntegrationService {
     }
 
     /**
-     * Импортирует страницы главы из MelonService через BATCH API для максимальной производительности
+     * Импортирует страницы главы из MelonService через оптимизированный BATCH endpoint.
+     * Вместо N HTTP запросов делает 1 запрос и получает все изображения сразу.
+     * 
+     * @param taskId ID задачи для отслеживания прогресса
+     * @param chapterId ID главы в системе
+     * @param slides Метаданные страниц из JSON (используется только для подсчёта)
+     * @param mangaFilename Имя файла манги (slug)
+     * @param originalChapterName Имя папки главы на диске MelonService
      */
     private void importChapterPagesFromMelonService(String taskId, Long chapterId, List<Map<String, Object>> slides,
                                                    String mangaFilename, String originalChapterName) {
         if (slides == null || slides.isEmpty()) {
+            logger.warn("No slides provided for chapter {}", chapterId);
             return;
         }
 
-        // Сортируем страницы по индексу для гарантии правильного порядка
-        slides.sort((slide1, slide2) -> {
-            Integer index1 = Integer.parseInt(slide1.get("index").toString());
-            Integer index2 = Integer.parseInt(slide2.get("index").toString());
-            return index1.compareTo(index2);
-        });
-
-        logger.info("=== БАТЧЕВЫЙ ИМПОРТ СТРАНИЦ ===");
-        logger.info("Глава ID: {}, количество страниц: {}", chapterId, slides.size());
+        logger.info("=== BATCH IMPORT: Chapter ID {} ({} pages expected) ===", chapterId, slides.size());
 
         try {
-            // ЭТАП 1: Параллельно скачиваем все изображения из MelonService
-            List<CompletableFuture<PageData>> downloadFutures = new ArrayList<>();
-            List<Integer> expectedIndices = slides.stream()
-                .map(slide -> Integer.parseInt(slide.get("index").toString()))
-                .sorted()
-                .collect(Collectors.toList());
-            if (expectedIndices.isEmpty()) {
-                logger.warn("Глава {} не содержит индексов страниц", chapterId);
+            // Вызываем новый batch endpoint MelonService
+            String batchUrl = melonServiceUrl + "/chapter-images/" + mangaFilename + "/" + originalChapterName;
+            logger.debug("🌐 Requesting batch images from: {}", batchUrl);
+
+            ResponseEntity<MelonChapterImagesResponse> response = restTemplate.exchange(
+                batchUrl,
+                HttpMethod.GET,
+                null,
+                new ParameterizedTypeReference<MelonChapterImagesResponse>() {}
+            );
+
+            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                throw new RuntimeException("Failed to fetch chapter images: " + response.getStatusCode());
+            }
+
+            MelonChapterImagesResponse batchResponse = response.getBody();
+            List<MelonImageData> images = batchResponse.getImages();
+
+            if (images == null || images.isEmpty()) {
+                logger.warn("No images returned for chapter {} from batch endpoint", chapterId);
                 return;
             }
-            if (new HashSet<>(expectedIndices).size() != expectedIndices.size()) {
-                logger.warn("Обнаружены дублирующиеся индексы страниц {} для главы {}", expectedIndices, chapterId);
-            }
-            boolean strictlyAscending = true;
-            for (int idx = 1; idx < expectedIndices.size(); idx++) {
-                if (expectedIndices.get(idx) <= expectedIndices.get(idx - 1)) {
-                    strictlyAscending = false;
-                    break;
-                }
-            }
-            if (!strictlyAscending) {
-                logger.warn("Индексы страниц для главы {} не строго возрастают: {}", chapterId, expectedIndices);
-            }
-            Map<Integer, PageData> pagesByIndex = new HashMap<>();
 
-            for (Integer pageIndex : expectedIndices) {
-                URI imageUrl = buildMelonImageUrl(mangaFilename, originalChapterName, pageIndex);
+            logger.info("✅ Received {} images in batch response", images.size());
 
-                CompletableFuture<PageData> downloadFuture = CompletableFuture.supplyAsync(() -> {
-                    try {
-                        logger.debug("Скачиваем страницу {} из: {}", pageIndex, imageUrl);
-                        ResponseEntity<byte[]> imageResponse = restTemplate.getForEntity(imageUrl, byte[].class);
-
-                        if (!imageResponse.getStatusCode().is2xxSuccessful() || imageResponse.getBody() == null) {
-                            logger.warn("Не удалось скачать страницу {}: {}", pageIndex, imageResponse.getStatusCode());
-                            return null;
-                        }
-
-                        byte[] imageBytes = imageResponse.getBody();
-                        logger.debug("Скачана страница {}, размер: {} байт", pageIndex, imageBytes.length);
-
-                        return new PageData(pageIndex, imageBytes);
-                    } catch (Exception e) {
-                        logger.error("Ошибка скачивания страницы {}: {}", pageIndex, e.getMessage());
-                        return null;
-                    }
-                }, executorService);
-
-                downloadFutures.add(downloadFuture);
-            }
-
-            // Ждем завершения всех скачиваний с тайм-аутом
-            logger.debug("⏳ Ожидание завершения скачивания {} изображений...", downloadFutures.size());
-
-            for (int i = 0; i < downloadFutures.size(); i++) {
-                int pageIndex = expectedIndices.get(i);
+            // Конвертируем base64 обратно в byte[] и создаём PageData
+            List<PageData> pageDataList = new ArrayList<>();
+            for (MelonImageData imageData : images) {
                 try {
-                    PageData pageData = downloadFutures.get(i).get(5, TimeUnit.MINUTES); // 5 минут на страницу для больших изображений
-                    if (pageData != null) {
-                        pagesByIndex.put(pageIndex, pageData);
-                    }
+                    byte[] imageBytes = Base64.getDecoder().decode(imageData.getData());
+                    pageDataList.add(new PageData(imageData.getPage(), imageBytes));
+                    logger.debug("Decoded page {}: {} bytes", imageData.getPage(), imageBytes.length);
                 } catch (Exception e) {
-                    logger.error("Ошибка скачивания страницы {}: {}", pageIndex, e.getMessage());
+                    logger.error("Failed to decode page {}: {}", imageData.getPage(), e.getMessage());
                 }
             }
 
-            logger.info("✅ Скачано {} из {} страниц", pagesByIndex.size(), expectedIndices.size());
+            // Сортируем по номеру страницы
+            pageDataList.sort(Comparator.comparingInt(PageData::getPageIndex));
 
-            // Дополнительный последовательный фолбэк для недостающих страниц
-            List<Integer> missingIndices = expectedIndices.stream()
-                .filter(idx -> !pagesByIndex.containsKey(idx))
-                .collect(Collectors.toList());
+            logger.info("✅ Decoded and sorted {} pages, uploading to ImageStorage...", pageDataList.size());
 
-            if (!missingIndices.isEmpty()) {
-                logger.warn("Обнаружено {} отсутствующих страниц ({}). Запускаем последовательный фолбэк.",
-                    missingIndices.size(), missingIndices);
+            // Батчевая загрузка в ImageStorage
+            uploadPagesBatch(taskId, chapterId, pageDataList);
 
-                for (Integer missingIndex : missingIndices) {
-                    PageData fallbackPage = downloadPageSequentially(mangaFilename, originalChapterName, missingIndex);
-                    if (fallbackPage != null) {
-                        pagesByIndex.put(missingIndex, fallbackPage);
-                        logger.info("✅ Последовательный фолбэк восстановил страницу {}", missingIndex);
-                    }
-                }
-            }
+            logger.info("🎉 Chapter {} batch import completed successfully", chapterId);
 
-            List<Integer> stillMissing = expectedIndices.stream()
-                .filter(idx -> !pagesByIndex.containsKey(idx))
-                .collect(Collectors.toList());
-
-            if (!stillMissing.isEmpty()) {
-                logger.error("❌ Не удалось получить страницы {} для главы {} даже после фолбэка", stillMissing, chapterId);
-                throw new IllegalStateException("Недоступны страницы: " + stillMissing);
-            }
-
-            List<PageData> orderedPages = expectedIndices.stream()
-                .map(pagesByIndex::get)
-                .collect(Collectors.toList());
-
-            // ЭТАП 2: Батчевая отправка в ImageStorage с сохранением порядка
-            uploadPagesBatch(taskId, chapterId, orderedPages);
-            
         } catch (Exception e) {
-            logger.error("Ошибка батчевого импорта страниц для главы {}: {}", chapterId, e.getMessage());
-            e.printStackTrace();
+            logger.error("❌ Batch import failed for chapter {}: {}", chapterId, e.getMessage(), e);
+            throw new RuntimeException("Failed to import chapter pages", e);
         }
         
-        // После успешной загрузки всех страниц, обновляем pageCount в ChapterService
+        // Обновляем pageCount в ChapterService
         try {
-            // Получаем актуальное количество страниц из ImageStorageService
             String getPageCountUrl = "http://image-storage-service:8083/api/images/chapter/" + chapterId + "/count";
             ResponseEntity<Integer> pageCountResponse = restTemplate.getForEntity(getPageCountUrl, Integer.class);
             
             if (pageCountResponse.getStatusCode().is2xxSuccessful() && pageCountResponse.getBody() != null) {
                 Integer actualPageCount = pageCountResponse.getBody();
                 
-                // Обновляем pageCount в ChapterService
                 Map<String, Object> updateRequest = new HashMap<>();
                 updateRequest.put("pageCount", actualPageCount);
                 
@@ -2081,10 +2028,10 @@ public class MelonIntegrationService {
                 String updateChapterUrl = "http://chapter-service:8082/api/chapters/" + chapterId + "/pagecount";
                 restTemplate.put(updateChapterUrl, updateEntity);
                 
-                System.out.println("Updated chapter " + chapterId + " pageCount to: " + actualPageCount);
+                logger.info("Updated chapter {} pageCount to: {}", chapterId, actualPageCount);
             }
         } catch (Exception e) {
-            System.err.println("Failed to update pageCount for chapter " + chapterId + ": " + e.getMessage());
+            logger.error("Failed to update pageCount for chapter {}: {}", chapterId, e.getMessage());
         }
     }
 
@@ -2587,72 +2534,5 @@ public class MelonIntegrationService {
         }
     }
 
-    private PageData downloadPageSequentially(String mangaFilename, String originalChapterName, int pageIndex) {
-        URI imageUrl = buildMelonImageUrl(mangaFilename, originalChapterName, pageIndex);
-        int attempts = 3;
-        long baseDelayMs = 1500L;
-
-        for (int attempt = 1; attempt <= attempts; attempt++) {
-            try {
-                logger.debug("Фолбэк: попытка {} скачать страницу {} из {}", attempt, pageIndex, imageUrl);
-                ResponseEntity<byte[]> response = restTemplate.getForEntity(imageUrl, byte[].class);
-                if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                    byte[] data = response.getBody();
-                    logger.debug("Фолбэк успешен: страница {} получена ({} байт)", pageIndex, data.length);
-                    return new PageData(pageIndex, data);
-                }
-
-                logger.warn("Фолбэк неудачен для страницы {}: {}", pageIndex, response.getStatusCode());
-            } catch (Exception e) {
-                logger.warn("Ошибка фолбэка при скачивании страницы {}: {}", pageIndex, e.getMessage());
-            }
-
-            if (attempt < attempts) {
-                try {
-                    long sleep = baseDelayMs * attempt;
-                    logger.debug("Фолбэк: ожидание {} мс перед следующей попыткой", sleep);
-                    Thread.sleep(sleep);
-                } catch (InterruptedException interruptedException) {
-                    Thread.currentThread().interrupt();
-                    logger.error("Фолбэк прерван при ожидании скачивания страницы {}", pageIndex);
-                    break;
-                }
-            }
-        }
-
-        logger.error("Фолбэк: не удалось скачать страницу {} после {} попыток", pageIndex, attempts);
-        return null;
-    }
-
-    /**
-     * Строит безопасный URL до изображения в MelonService, экранируя спецсимволы в сегментах пути.
-     */
-    /**
-     * Builds a URI for a Melon Service image endpoint.
-     * Returns URI object to prevent double-encoding by RestTemplate.
-     */
-    private URI buildMelonImageUrl(String mangaFilename, String chapterFolderName, int pageIndex) {
-        try {
-            String baseUrl = melonServiceUrl.endsWith("/")
-                ? melonServiceUrl.substring(0, melonServiceUrl.length() - 1)
-                : melonServiceUrl;
-
-            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl)
-                .pathSegment("images");
-
-            builder = builder.pathSegment(mangaFilename);
-            if (chapterFolderName != null && !chapterFolderName.isBlank()) {
-                builder = builder.pathSegment(chapterFolderName);
-            }
-            builder = builder.pathSegment(String.valueOf(pageIndex));
-
-            URI uri = builder.build().toUri();
-            logger.debug("🌐 Built image URI: {}", uri);
-            return uri;
-        } catch (Exception e) {
-            logger.error("Failed to build URI for manga={}, chapter={}, page={}", 
-                mangaFilename, chapterFolderName, pageIndex, e);
-            throw new RuntimeException("Failed to build Melon image URL", e);
-        }
-    }
 }
+
