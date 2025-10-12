@@ -688,11 +688,16 @@ export function MangaPage() {
                       <div className="text-muted-foreground text-sm md:text-base">
                         <div
                           className={cn(
-                            'relative overflow-hidden transition-[max-height] duration-300 ease-out',
+                            'relative overflow-hidden transition-[max-height] duration-300 ease-out [--line-clamp:unset] prose-ul:list-disc prose-ul:pl-5',
                             showFullDescription ? 'max-h-[1200px]' : 'max-h-40'
                           )}
                         >
-                          <div className="prose prose-invert max-w-none markdown-body">
+                          <div
+                            className={cn(
+                              'prose prose-invert max-w-none markdown-body',
+                              !showFullDescription && isDescriptionLong && 'line-clamp-4'
+                            )}
+                          >
                             <MarkdownRenderer value={descriptionText || 'Описание отсутствует.'} />
                           </div>
                           {/* No fade overlay when collapsed; the clamp alone keeps layout tidy */}
@@ -718,14 +723,12 @@ export function MangaPage() {
                       </div>
                     </div>
 
-                    {/* Genres - полная ширина (clickable -> catalog with filter) */}
-                    <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
-                      <h3 className="text-lg font-bold text-foreground mb-3">Жанры</h3>
-                      {genres.length > 0 ? (
+                    {(genres.length > 0 || tags.length > 0) && (
+                      <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
                         <div className="flex flex-wrap gap-2">
                           {genres.map((genre, index) => (
                             <button
-                              key={index}
+                              key={`genre-${index}`}
                               type="button"
                               onClick={() => navigate(`/catalog?genres=${encodeURIComponent(genre)}`)}
                               className="group px-3 py-1 bg-white/10 backdrop-blur-sm text-white text-sm rounded-full border border-white/20 hover:bg-primary/30 hover:border-primary/50 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
@@ -734,20 +737,9 @@ export function MangaPage() {
                               <span className="pointer-events-none select-none">{genre}</span>
                             </button>
                           ))}
-                        </div>
-                      ) : (
-                        <div className="text-sm text-muted-foreground">Жанры пока не добавлены.</div>
-                      )}
-                    </div>
-
-                    {/* Tags - только если есть теги (clickable -> catalog with filter) */}
-                    {tags.length > 0 && (
-                      <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
-                        <h3 className="text-lg font-bold text-foreground mb-3">Теги</h3>
-                        <div className="flex flex-wrap gap-2">
                           {tags.map((tag, index) => (
                             <button
-                              key={index}
+                              key={`tag-${index}`}
                               type="button"
                               onClick={() => navigate(`/catalog?tags=${encodeURIComponent(tag)}`)}
                               className="group px-3 py-1 bg-primary/10 backdrop-blur-sm text-primary text-sm rounded-full border border-primary/30 hover:bg-primary/30 hover:text-white hover:border-primary/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
