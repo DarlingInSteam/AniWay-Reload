@@ -2637,22 +2637,16 @@ public class MelonIntegrationService {
                 ? melonServiceUrl.substring(0, melonServiceUrl.length() - 1)
                 : melonServiceUrl;
 
-            // Build path without encoding (UriComponentsBuilder will handle it)
-            String path = "/images/" + mangaFilename;
-            
+            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl)
+                .pathSegment("images");
+
+            builder = builder.pathSegment(mangaFilename);
             if (chapterFolderName != null && !chapterFolderName.isBlank()) {
-                path += "/" + chapterFolderName;
+                builder = builder.pathSegment(chapterFolderName);
             }
-            
-            path += "/" + pageIndex;
+            builder = builder.pathSegment(String.valueOf(pageIndex));
 
-            // Use UriComponentsBuilder to properly encode the path
-            URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl)
-                .path(path)
-                .encode(StandardCharsets.UTF_8)
-                .build(true) // true = already encoded (prevents double encoding)
-                .toUri();
-
+            URI uri = builder.build().toUri();
             logger.debug("🌐 Built image URI: {}", uri);
             return uri;
         } catch (Exception e) {
