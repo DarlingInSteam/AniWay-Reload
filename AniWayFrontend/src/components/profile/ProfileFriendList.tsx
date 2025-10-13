@@ -51,7 +51,7 @@ export const ProfileFriendList: React.FC<ProfileFriendListProps> = ({
                   )}
                 </Avatar>
                 <div className="flex min-w-0 flex-col">
-                  <span className="truncate text-sm font-semibold text-white group-hover:text-primary">
+                  <span className="truncate text-sm font-semibold text-foreground group-hover:text-primary">
                     {displayName}
                   </span>
                   <span className="truncate text-xs text-slate-400">

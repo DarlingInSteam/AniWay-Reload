@@ -170,19 +170,41 @@ class Parser(MangaParser):
         """
         import os
         from pathlib import Path
+        import hashlib
         import requests
+        from urllib.parse import urlparse, unquote
         
         directory = self._SystemObjects.temper.parser_temp
+        os.makedirs(directory, exist_ok=True)
         
-        # Определяем имя файла из URL
-        parsed_url = Path(url)
-        filetype = parsed_url.suffix
-        filename = parsed_url.stem
-        image_path = f"{directory}/{filename}{filetype}"
+        # Определяем имя файла из URL с учётом декодирования
+        parsed_url = urlparse(url)
+        decoded_path = unquote(parsed_url.path or "")
+        trimmed_path = decoded_path.rstrip("/")
+        path_obj = Path(trimmed_path) if trimmed_path else Path("")
+
+        resolved_suffix = path_obj.suffix if trimmed_path else ""
+        resolved_name = path_obj.stem if trimmed_path else ""
+
+        if not resolved_name or resolved_name in {".", ".."}:
+            candidate_name = path_obj.name if trimmed_path else ""
+            if candidate_name not in {"", ".", ".."}:
+                resolved_name = Path(candidate_name).stem
+            else:
+                resolved_name = ""
+
+        if not resolved_suffix and trimmed_path:
+            resolved_suffix = Path(path_obj.name).suffix
+
+        if not resolved_name:
+            resolved_name = hashlib.sha1(url.encode("utf-8")).hexdigest()
+
+        image_filename = f"{resolved_name}{resolved_suffix}"
+        image_path = os.path.join(directory, image_filename)
         
         # Если файл уже существует и не FORCE_MODE, возвращаем имя
         if os.path.exists(image_path) and not self._SystemObjects.FORCE_MODE:
-            return filename + filetype
+            return image_filename
         
         try:
             # Получаем основной WebRequestor
@@ -246,7 +268,7 @@ class Parser(MangaParser):
                 if len(content) > 1000:
                     with open(image_path, "wb") as f:
                         f.write(content)
-                    return filename + filetype
+                    return image_filename
             
         except Exception as e:
             # Тихо пропускаем ошибки, retry механизм обработает
@@ -562,30 +584,189 @@ class Parser(MangaParser):
         if self._cached_image_server is None:
             self._cached_image_server = self.__GetImagesServers(self._Settings.custom["server"])[0]
         Server = self._cached_image_server
-        Branch = "" if branch_id == str(self._Title.id) + "0" else f"&branch_id={branch_id}"
-        URL = f"https://{self.__API}/api/manga/{self.__TitleSlug}/chapter?number={chapter.number}&volume={chapter.volume}{Branch}"
-        Response = self._Requestor.get(URL)
-        
-        if Response.status_code == 200:
-            Data = Response.json["data"].setdefault("pages", tuple())
-            # Используем специальную задержку для парсинга (отдельная настройка)
-            parse_delay = getattr(self._Settings.common, 'parse_delay', 0.1)
+
+        parse_delay = getattr(self._Settings.common, 'parse_delay', 0.1)
+
+        token = None
+        custom_settings = getattr(self._Settings, "custom", None)
+        if custom_settings is not None:
+            try:
+                token = custom_settings["token"]
+            except KeyError:
+                token = None
+        headers: dict[str, str] = {
+            "Referer": f"https://{self._Manifest.site}/"
+        }
+
+        site_id = self.__GetSiteID()
+        if site_id is not None:
+            headers["Site-Id"] = str(site_id)
+
+        if token:
+            headers["Authorization"] = token
+
+        default_branch_id = int(str(self._Title.id) + "0")
+        branch_query_value = branch_id if branch_id and branch_id != default_branch_id else None
+
+        base_endpoint = f"https://{self.__API}/api/manga/{self.__TitleSlug}/chapter"
+        url_variants: list[str] = []
+
+        query_params: list[str] = []
+        if chapter.number:
+            query_params.append(f"number={chapter.number}")
+        if chapter.volume:
+            query_params.append(f"volume={chapter.volume}")
+        if branch_query_value:
+            query_params.append(f"branch_id={branch_query_value}")
+
+        if query_params:
+            url_variants.append(f"{base_endpoint}?{'&'.join(query_params)}")
+
+        if chapter.id:
+            branch_suffix = f"?branch_id={branch_query_value}" if branch_query_value else ""
+            url_variants.append(f"{base_endpoint}/{chapter.id}{branch_suffix}")
+
+            id_query_params = [f"chapter_id={chapter.id}"]
+            if branch_query_value:
+                id_query_params.append(f"branch_id={branch_query_value}")
+            url_variants.append(f"{base_endpoint}?{'&'.join(id_query_params)}")
+
+            generic_id_query = [f"id={chapter.id}"]
+            if branch_query_value:
+                generic_id_query.append(f"branch_id={branch_query_value}")
+            url_variants.append(f"{base_endpoint}?{'&'.join(generic_id_query)}")
+
+        # Добавляем вариант без фильтров на случай, если номер/том отсутствуют
+        if not url_variants:
+            fallback_params = []
+            if branch_query_value:
+                fallback_params.append(f"branch_id={branch_query_value}")
+            if chapter.id:
+                fallback_params.append(f"id={chapter.id}")
+            if fallback_params:
+                url_variants.append(f"{base_endpoint}?{'&'.join(fallback_params)}")
+
+        # Удаляем дубликаты, сохраняя порядок
+        url_variants = list(dict.fromkeys(url_variants))
+
+        last_error: str | None = None
+        last_status: int | None = None
+        last_response = None
+
+        retryable_statuses = {408, 409, 423, 425, 429, 500, 502, 503, 504}
+        max_retry_attempts = getattr(self._Settings.common, "chapter_retry_attempts", 3)
+        initial_retry_delay = getattr(self._Settings.common, "chapter_retry_delay", 2.0)
+        retry_backoff_factor = getattr(self._Settings.common, "chapter_retry_backoff", 2.0)
+
+        def extract_error_message(response) -> str | None:
+            if response is None:
+                return None
+            try:
+                payload = response.json
+            except Exception:
+                payload = None
+
+            if isinstance(payload, dict):
+                for key in ("message", "error", "detail", "reason"):
+                    value = payload.get(key)
+                    if isinstance(value, str) and value.strip():
+                        return value.strip()
+
+                errors_obj = payload.get("errors")
+                if isinstance(errors_obj, dict):
+                    first_error = next((str(v) for v in errors_obj.values() if v), None)
+                    if first_error:
+                        return first_error
+
+            if hasattr(response, "text"):
+                text_value = response.text
+                if isinstance(text_value, str):
+                    snippet = text_value.strip()
+                    if snippet:
+                        return snippet[:200]
+            return None
+
+        for url in url_variants:
+            attempt = 0
+            while True:
+                Response = self._Requestor.get(url, headers=headers if headers else None)
+                last_response = Response
+                last_status = Response.status_code
+
+                if Response.status_code == 200:
+                    break
+
+                error_message = extract_error_message(Response)
+                last_error = f"HTTP {Response.status_code}"
+                if error_message:
+                    last_error = f"HTTP {Response.status_code}: {error_message}"
+
+                if Response.status_code in retryable_statuses and attempt < max_retry_attempts:
+                    wait_seconds = initial_retry_delay * (retry_backoff_factor ** attempt)
+                    wait_seconds = max(wait_seconds, 1.5)
+                    wait_seconds = min(wait_seconds, 30.0)
+                    self._SystemObjects.logger.warning(
+                        f"Chapter {chapter.id} request to {url} returned {Response.status_code}. "
+                        f"Retrying in {wait_seconds:.1f}s (attempt {attempt + 1}/{max_retry_attempts}).")
+                    sleep(wait_seconds)
+                    attempt += 1
+                    continue
+
+                break
+
+            if Response.status_code != 200:
+                continue
+
+            Payload = Response.json
+            Data = Payload.get("data") if isinstance(Payload, dict) else None
+
+            if not isinstance(Data, dict):
+                last_error = "No data in response"
+                continue
+
+            Pages = Data.get("pages")
+            if not Pages:
+                last_error = "Empty pages list"
+                continue
+
             sleep(parse_delay)
 
-            for SlideIndex in range(len(Data)):
+            for SlideIndex, Page in enumerate(Pages, start=1):
+                RelativeURL = Page.get("url")
+                if not RelativeURL:
+                    continue
+
                 Buffer = {
-                    "index": SlideIndex + 1,
-                    "link": Server + Data[SlideIndex]["url"].replace(" ", "%20"),
-                    "width": Data[SlideIndex]["width"],
-                    "height": Data[SlideIndex]["height"]
+                    "index": SlideIndex,
+                    "link": Server + RelativeURL.replace(" ", "%20"),
+                    "width": Page.get("width"),
+                    "height": Page.get("height")
                 }
                 Slides.append(Buffer)
 
-            # Логируем только один раз на всю главу (вместо каждого изображения)
-            if Data:
-                self._Portals.chapter_download_start(self._Title, chapter, len(Data), len(Data))
+            if Slides:
+                self._Portals.chapter_download_start(self._Title, chapter, len(Pages), len(Pages))
+                break
 
-        else: self._Portals.request_error(Response, "Unable to request chapter content.", exception = False)
+        if Slides:
+            return Slides
+
+        reason_parts: list[str] = []
+        if chapter.is_paid:
+            reason_parts.append("платная глава — доступ ограничен")
+        if last_error:
+            reason_parts.append(last_error)
+        elif last_status:
+            reason_parts.append(f"HTTP {last_status}")
+        else:
+            reason_parts.append("источник не вернул страницы")
+
+        reason_comment = "; ".join(reason_parts)
+        chapter.add_extra_data("empty_reason", reason_comment)
+        self._SystemObjects.logger.warning(f"Chapter {chapter.id} returned no slides ({reason_comment}).")
+        if last_response and last_response.status_code != 200:
+            self._Portals.request_error(last_response, "Unable to request chapter content.", exception=False)
+        self._Portals.chapter_skipped(self._Title, chapter, comment=reason_comment)
 
         return Slides
 

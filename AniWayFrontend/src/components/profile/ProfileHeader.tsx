@@ -150,7 +150,7 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
               alt={profile.username}
               className="object-cover rounded-none w-full h-full"
             />
-            <AvatarFallback className="text-2xl bg-white/20 text-white rounded-none w-full h-full flex items-center justify-center">
+            <AvatarFallback className="text-2xl bg-white/20 text-foreground rounded-none w-full h-full flex items-center justify-center">
               {profile.username.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
@@ -172,7 +172,7 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
                   value={newUsername}
                   onChange={(e) => setNewUsername(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleUsernameSubmit()}
-                  className="text-xl font-bold bg-white/10 border-white/20 text-white"
+                  className="text-xl font-bold bg-white/10 border-white/20 text-foreground"
                   autoFocus
                 />
                 <Button onClick={handleUsernameSubmit} size="sm" className="bg-blue-500/20 hover:bg-blue-500/30">
@@ -192,7 +192,7 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
               </div>
             ) : (
               <div className="flex items-center gap-2 justify-center md:justify-start">
-                <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-2">
+                <h1 className="text-2xl md:text-3xl font-bold text-foreground flex items-center gap-2">
                   {profile.username}
                   {isOwnProfile && (
                     <span className="text-[10px] px-2 py-0.5 rounded bg-blue-600/30 text-blue-200 border border-blue-400/30 tracking-wider">
@@ -239,15 +239,15 @@ export function ProfileHeader({ profile, isOwnProfile, onProfileUpdate }: Profil
           {/* Статистика */}
           <div className="flex flex-wrap justify-center md:justify-start gap-6 text-sm text-gray-200">
             <div className="text-center px-3 py-2 bg-white/5 rounded-lg backdrop-blur-sm">
-              <div className="font-semibold text-white">{profile.mangaRead}</div>
+              <div className="font-semibold text-foreground">{profile.mangaRead}</div>
               <div>Прочитано манги</div>
             </div>
             <div className="text-center px-3 py-2 bg-white/5 rounded-lg backdrop-blur-sm">
-              <div className="font-semibold text-white">{profile.chaptersRead}</div>
+              <div className="font-semibold text-foreground">{profile.chaptersRead}</div>
               <div>Глав прочитано</div>
             </div>
             <div className="text-center px-3 py-2 bg-white/5 rounded-lg backdrop-blur-sm">
-              <div className="font-semibold text-white">{Math.floor(profile.totalReadingTime / 60)}ч</div>
+              <div className="font-semibold text-foreground">{Math.floor(profile.totalReadingTime / 60)}ч</div>
               <div>Время чтения</div>
             </div>
           </div>

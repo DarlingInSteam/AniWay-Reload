@@ -128,6 +128,20 @@ public class BookmarkController {
             return ResponseEntity.badRequest().build();
         }
     }
+
+    /**
+     * Возвращает количество пользователей, у которых данная манга находится в закладках.
+     */
+    @GetMapping("/manga/{mangaId}/subscribers/count")
+    public ResponseEntity<Map<String, Long>> getMangaBookmarkSubscriberCount(@PathVariable Long mangaId) {
+        try {
+            long count = bookmarkService.getSubscriberCountByManga(mangaId);
+            return ResponseEntity.ok(Map.of("count", count));
+        } catch (Exception e) {
+            log.error("Get bookmark subscriber count failed: {}", e.getMessage());
+            return ResponseEntity.internalServerError().build();
+        }
+    }
     
     /**
      * Получает все закладки текущего пользователя.

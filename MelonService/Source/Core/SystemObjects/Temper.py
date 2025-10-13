@@ -56,7 +56,12 @@ class Journal:
 		"""Загружает журнал."""
 
 		Path = f"{self.__SharedData.path}/journal.json"
-		if os.path.exists(Path): self.__Data = ReadJSON(Path)
+		if os.path.exists(Path):
+			try:
+				self.__Data = ReadJSON(Path)
+			except Exception:
+				self.__Data = dict()
+				self.save()
 
 	def save(self):
 		"""Сохраняет журнал."""
@@ -127,7 +132,14 @@ class SharedData:
 		"""Загружает разделяемые данные."""
 
 		Path = f"{self.path}/shared.json"
-		if os.path.exists(Path): self.__Data = ReadJSON(Path)
+		if os.path.exists(Path):
+			try:
+				self.__Data = ReadJSON(Path)
+			except Exception:
+				self.__Data = {
+					"last_parsed_slug": None
+				}
+				self.save()
 		self.__Journal.load()
 
 	def set_last_parsed_slug(self, slug: str):

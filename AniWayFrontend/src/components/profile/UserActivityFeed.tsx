@@ -139,14 +139,15 @@ export function UserActivityFeed({
   };
 
   // Форматирование единичного числового кода главы в Том + Глава
+  // Обновлено: используем множитель 10000 вместо 1000 (поддержка томов до 99, глав до 9999)
   const formatChapterCode = (raw?: number): string | null => {
     if (!raw) return null;
     const n = Math.floor(raw);
     if (Number.isNaN(n) || n <= 0) return null;
     const digits = String(n);
-    if (digits.length > 3) {
-      const volStr = digits.slice(0, -3);
-      const chapStrRaw = digits.slice(-3);
+    if (digits.length > 4) {
+      const volStr = digits.slice(0, -4);
+      const chapStrRaw = digits.slice(-4);
       const chapterNumber = chapStrRaw.replace(/^0+/, '') || '0';
       const volumeNumber = parseInt(volStr, 10);
       return `Том ${volumeNumber} Глава ${chapterNumber}`;

@@ -9,6 +9,8 @@ import { toast } from 'sonner'
 import type { ImportQueueItem, ImportQueueStats, ImportQueueMonitorProps } from '@/types/importQueue'
 
 const QUEUE_POLL_INTERVAL = 2000 // 2 секунды
+const QUEUE_TIMEZONE = 'Asia/Novosibirsk'
+const QUEUE_TZ_LABEL = 'НСК'
 
 const getStatusIcon = (status: ImportQueueItem['status']) => {
   switch (status) {
@@ -72,13 +74,21 @@ const formatDuration = (startTime?: string, endTime?: string) => {
 
 const formatTime = (timestamp?: string) => {
   if (!timestamp) return '—'
-  
-  const date = new Date(timestamp)
-  return date.toLocaleTimeString('ru-RU', {
+
+  const isoWithZone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(timestamp) ? timestamp : `${timestamp}Z`
+  const date = new Date(isoWithZone)
+  if (Number.isNaN(date.getTime())) {
+    return timestamp
+  }
+
+  const formatted = date.toLocaleTimeString('ru-RU', {
+    timeZone: QUEUE_TIMEZONE,
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit'
   })
+
+  return `${formatted} ${QUEUE_TZ_LABEL}`
 }
 
 export function ImportQueueMonitor({ isAutoParsing, className }: ImportQueueMonitorProps) {

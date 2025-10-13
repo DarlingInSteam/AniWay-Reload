@@ -126,42 +126,17 @@ export function BookmarkMangaCard({ bookmark }: BookmarkMangaCardProps) {
         </div>
       </Link>
 
-      {/* Metadata - как в каталоге */}
-      <div className="flex flex-col px-1 h-[4.5rem] md:h-[5rem]">
+      {/* Metadata - только название */}
+      <div className="flex flex-col px-1">
         {/* Title - строго фиксированная высота для 2 строк */}
         <Link
           to={`/manga/${mangaData.id}`}
-          className="block mb-1 md:mb-1.5"
+          className="block"
         >
-          <h3 className="text-xs md:text-sm font-semibold text-white line-clamp-2 hover:text-primary transition-colors duration-200 leading-tight h-[2rem] md:h-[2.25rem] overflow-hidden">
+          <h3 className="text-xs md:text-sm font-semibold text-foreground line-clamp-2 hover:text-primary transition-colors duration-200 leading-tight antialiased" style={{ WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' }}>
             {mangaData.title}
           </h3>
         </Link>
-
-        {/* Genre and Year - строго фиксированная высота */}
-        <div className="flex items-center justify-between text-xs text-muted-foreground h-4 mb-1">
-          <span className="line-clamp-1 flex-1 mr-2">
-            {mangaData.genre ? mangaData.genre.split(',')[0] : 'Без жанра'}
-          </span>
-          <span className="flex-shrink-0">
-            {new Date(mangaData.releaseDate).getFullYear()}
-          </span>
-        </div>
-
-        {/* Progress Info - строго фиксированная высота */}
-        <div className="flex items-center justify-between h-4">
-          <div className="flex items-center space-x-1">
-            <Bookmark className="h-2.5 w-2.5 md:h-3 md:w-3 text-primary fill-current" />
-            <span className="text-xs font-medium text-primary">
-              {getBookmarkStatusText(bookmark.status)}
-            </span>
-          </div>
-          {readChapters > 0 && (
-            <div className="text-xs text-muted-foreground">
-              Прочитано: {readChapters}/{mangaData.totalChapters}
-            </div>
-          )}
-        </div>
       </div>
     </div>
   )

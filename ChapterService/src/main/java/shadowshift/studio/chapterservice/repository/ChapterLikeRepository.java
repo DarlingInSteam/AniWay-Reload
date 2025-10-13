@@ -2,8 +2,10 @@ package shadowshift.studio.chapterservice.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import shadowshift.studio.chapterservice.entity.ChapterLike;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -41,4 +43,14 @@ public interface ChapterLikeRepository extends JpaRepository<ChapterLike, Long> 
      */
     @Query("SELECT COUNT(cl) FROM ChapterLike cl WHERE cl.chapterId = :chapterId")
     Integer countByChapterId(Long chapterId);
+
+    /**
+     * Получить идентификаторы глав, которые пользователь лайкнул из переданного списка.
+     *
+     * @param userId идентификатор пользователя
+     * @param chapterIds идентификаторы глав для проверки
+     * @return список идентификаторов глав, которые пользователь лайкнул
+     */
+    @Query("SELECT cl.chapterId FROM ChapterLike cl WHERE cl.userId = :userId AND cl.chapterId IN :chapterIds")
+    List<Long> findLikedChapterIds(@Param("userId") Long userId, @Param("chapterIds") List<Long> chapterIds);
 }

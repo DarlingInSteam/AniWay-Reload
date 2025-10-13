@@ -1,9 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { Bookmark, ChevronDown, X } from 'lucide-react'
 import { MangaResponseDTO, BookmarkStatus } from '@/types'
-import { getStatusColor, getStatusText, cn } from '@/lib/utils'
+import { getStatusText, cn } from '@/lib/utils'
 import { useBookmarks } from '@/hooks/useBookmarks'
 import { useAuth } from '@/contexts/AuthContext'
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
@@ -24,6 +24,8 @@ interface TooltipPosition {
   arrowY?: number
 }
 
+type ChipItem = { label: string; type: 'genre' | 'tag' | 'age'; value?: number }
+
 export function MangaTooltip({ manga, children }: MangaTooltipProps) {
   if (!manga) {
     return <>{children}</>
@@ -32,14 +34,15 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
   const [isVisible, setIsVisible] = useState(false)
   const [isRendered, setIsRendered] = useState(false) // Монтируем раньше для расчёта позиции
   const [showDropdown, setShowDropdown] = useState(false)
-  const [showAllGenres, setShowAllGenres] = useState(false)
+  const [chipsExpanded, setChipsExpanded] = useState(false)
   const [position, setPosition] = useState<TooltipPosition>({ top: 0, left: 0, transform: '', side: 'right', arrowX: 0, arrowY: 0 })
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
   const showTimeoutId = useRef<NodeJS.Timeout | null>(null)
   const hideTimeoutId = useRef<NodeJS.Timeout | null>(null)
 
   const triggerRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
-  const dropdownRef = useRef<HTMLDivElement>(null)
+  const chipsContainerRef = useRef<HTMLDivElement>(null)
 
   const { isAuthenticated } = useAuth()
   const navigate = useNavigate()
@@ -47,6 +50,45 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
 
   const bookmarkInfo = isAuthenticated ? getMangaBookmark(manga.id) : null
   const isInBookmarks = bookmarkInfo !== null
+  const plainDescription = useMemo(() => (manga.description || '').trim(), [manga.description])
+  const hasLongDescription = plainDescription.length > 360
+
+  const releaseYear = useMemo(() => {
+    if (!manga.releaseDate) return undefined
+    const date = new Date(manga.releaseDate)
+    return Number.isNaN(date.getTime()) ? undefined : date.getFullYear()
+  }, [manga.releaseDate])
+
+  const totalChapters = manga.totalChapters || manga.chapterCount || 0
+
+  const translationLabel = useMemo(() => {
+    if (manga.isLicensed === true) return 'Официальный'
+    if (manga.isLicensed === false) return 'Любительский'
+    return 'Не указан'
+  }, [manga.isLicensed])
+
+  const infoRows = useMemo(() => ([
+    {
+      label: 'Статус',
+      value: getStatusText(manga.status),
+      query: manga.status ? `status=${encodeURIComponent(manga.status)}` : undefined
+    },
+    {
+      label: 'Перевод',
+      value: translationLabel,
+      query: manga.isLicensed !== undefined ? `licensed=${manga.isLicensed}` : undefined
+    },
+    {
+      label: 'Выпуск',
+      value: releaseYear ? `${releaseYear} г.` : 'Не указан',
+      query: releaseYear ? `year=${releaseYear}` : undefined
+    },
+    {
+      label: 'Глав',
+      value: totalChapters > 0 ? totalChapters.toString() : '—'
+    }
+  ]), [manga.status, translationLabel, manga.isLicensed, releaseYear, totalChapters])
+
 
   // Статусы закладок
   const bookmarkStatuses: { value: BookmarkStatus; label: string; color: string }[] = [
@@ -59,7 +101,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
 
   // Функция для получения цвета возрастного ограничения
   const getAgeRatingColor = (ageLimit?: number) => {
-    if (!ageLimit) return 'bg-gray-600 text-white'
+    if (ageLimit === undefined || ageLimit === null) return 'bg-gray-600 text-white'
     if (ageLimit <= 6) return 'bg-green-600 text-white'
     if (ageLimit <= 12) return 'bg-yellow-600 text-white'
     if (ageLimit <= 16) return 'bg-orange-600 text-white'
@@ -69,9 +111,9 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
   // Функция для форматирования возрастного ограничения
   const formatAgeRating = (ageLimit: number | null | undefined): string => {
     if (ageLimit === null || ageLimit === undefined) {
-      return "Возрастное ограничение не указано";
+      return '—'
     }
-    return `${ageLimit}+`;
+    return `${ageLimit}+`
   };
 
   // Вычисление позиции tooltip
@@ -96,8 +138,6 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
     const fitsLeft = triggerRect.left - gap - tooltipRect.width >= margin
     if (!fitsRight && fitsLeft) side = 'left'
 
-    // Arrow size для дальнейшего учёта
-    const arrowOffset = 10 // расстояние от края tooltip до карточки с учётом стрелки
     if (side === 'right') {
       left = triggerRect.right + gap
       top = triggerRect.top
@@ -154,6 +194,8 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
     hideTimeoutId.current = setTimeout(() => {
       setIsVisible(false)
       setShowDropdown(false)
+      setIsDescriptionExpanded(false)
+      setChipsExpanded(false)
     }, 160)
   }
 
@@ -167,7 +209,18 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
     hideTimeoutId.current = setTimeout(() => {
       setIsVisible(false)
       setShowDropdown(false)
+      setIsDescriptionExpanded(false)
+      setChipsExpanded(false)
     }, 160)
+  }
+
+  const handleChipClick = (chip: ChipItem) => {
+    if (chip.type === 'age') return
+    setIsVisible(false)
+    setShowDropdown(false)
+    setChipsExpanded(false)
+    const queryKey = chip.type === 'genre' ? 'genres' : 'tags'
+    navigate(`/catalog?${queryKey}=${encodeURIComponent(chip.label)}`)
   }
 
   // Обработчик изменения статуса закладки
@@ -204,6 +257,8 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
       if (e.key === 'Escape') {
         setIsVisible(false)
         setShowDropdown(false)
+        setIsDescriptionExpanded(false)
+        setChipsExpanded(false)
       }
     }
 
@@ -218,12 +273,23 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
     if (!isRendered) return
     calculatePosition()
   }, [isRendered])
+  
+  // Пересчет позиции при изменении состояния dropdown
+  useEffect(() => {
+    if (!isVisible) return
+    // Небольшая задержка для завершения анимации
+    const timeoutId = setTimeout(() => calculatePosition(), 50)
+    return () => clearTimeout(timeoutId)
+  }, [showDropdown, isVisible])
+  
   useEffect(() => {
     if (!isVisible) return
     const handleResize = () => calculatePosition()
     const handleHide = () => {
       setIsVisible(false)
       setShowDropdown(false)
+      setIsDescriptionExpanded(false)
+      setChipsExpanded(false)
     }
     window.addEventListener('resize', handleResize)
     window.addEventListener('scroll', handleHide, { passive: true, capture: true })
@@ -250,13 +316,41 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
     return () => imgs.forEach(img => img.removeEventListener('load', onLoad))
   }, [isVisible])
 
-  // Парсинг жанров
-  const genres = manga.genre ? manga.genre.split(',').map(g => g.trim()).filter(Boolean) : []
-  const visibleGenres = showAllGenres ? genres : genres.slice(0, 6)
-  const hiddenGenresCount = Math.max(0, genres.length - 6)
+  // Парсинг жанров и тегов
+  const genres = useMemo(() => (
+    manga.genre ? manga.genre.split(',').map(g => g.trim()).filter(Boolean) : []
+  ), [manga.genre])
 
-  // Парсинг альтернативных названий
-  const alternativeNames = manga.alternativeNames?.split(',').map(n => n.trim()).filter(Boolean) || []
+  const tags = useMemo(() => (
+    manga.tags ? manga.tags.split(',').map(t => t.trim()).filter(Boolean) : []
+  ), [manga.tags])
+
+  const chips = useMemo<ChipItem[]>(() => {
+    const seen = new Set<string>()
+    const list: ChipItem[] = []
+
+    if (manga.ageLimit !== null && manga.ageLimit !== undefined) {
+      list.push({ label: formatAgeRating(manga.ageLimit), type: 'age', value: manga.ageLimit })
+    }
+
+    const addChip = (label: string, type: 'genre' | 'tag') => {
+      const normalized = label.toLowerCase()
+      if (seen.has(normalized)) return
+      seen.add(normalized)
+      list.push({ label, type })
+    }
+
+    genres.forEach(label => addChip(label, 'genre'))
+    tags.forEach(label => addChip(label, 'tag'))
+    return list
+  }, [genres, tags, manga.ageLimit])
+
+  const MAX_COLLAPSED_CHIPS = 10
+  const extraChipsCount = Math.max(0, chips.length - MAX_COLLAPSED_CHIPS)
+  const hasMoreChips = extraChipsCount > 0
+  const visibleChips = chipsExpanded || !hasMoreChips ? chips : chips.slice(0, MAX_COLLAPSED_CHIPS)
+  const hiddenChipsCount = hasMoreChips && !chipsExpanded ? extraChipsCount : 0
+  // Альтернативные названия больше не отображаем
 
   try {
     return (
@@ -283,7 +377,7 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
               })(),
               transition: 'opacity 140ms ease, transform 140ms ease'
             }}
-            className="hidden lg:block w-80 p-4 rounded-xl shadow-xl shadow-black/60 bg-black/80 backdrop-blur-md border border-white/15"
+            className="hidden lg:block w-[440px] p-5 rounded-xl shadow-xl shadow-black/60 bg-black/85 backdrop-blur-md border border-white/10"
             onMouseEnter={handleTooltipMouseEnter}
             onMouseLeave={handleTooltipMouseLeave}
           >
@@ -302,110 +396,123 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
           )}
 
           {/* Заголовочная секция */}
-          <div className="mb-3">
-            <h3 className="font-semibold text-lg text-white leading-tight mb-1">
+          <div className="mb-4 space-y-1">
+            <h3 className="font-semibold text-base text-foreground leading-tight">
               {manga.title}
             </h3>
-            {alternativeNames.length > 0 && (
-              <div className="text-sm text-gray-400 font-normal">
-                {alternativeNames.slice(0, 2).join(', ')}
-                {alternativeNames.length > 2 && ' ...'}
+            {manga.engName && (
+              <div className="text-xs text-foreground/55">
+                {manga.engName}
               </div>
             )}
           </div>
 
           {/* Мета-информация */}
-          <div className="flex items-center gap-2 mb-3 text-xs flex-wrap">
-            <span className={cn(
-              'px-2 py-1 rounded text-xs font-medium',
-              getStatusColor(manga.status)
-            )}>
-              {getStatusText(manga.status)}
-            </span>
-            <span className="bg-blue-600 text-white px-2 py-1 rounded text-xs font-medium">
-              Переводится
-            </span>
-            <span className="text-gray-300">
-              {new Date(manga.releaseDate).getFullYear()}
-            </span>
-            <span className="text-gray-300">
-              {manga.totalChapters} гл.
-            </span>
-          </div>
-
-          {/* Возрастное ограничение */}
-          <div className="mb-3">
-            <span className={cn(
-              'px-2 py-1 rounded-full text-xs font-semibold',
-              getAgeRatingColor(manga.ageLimit)
-            )}>
-              {formatAgeRating(manga.ageLimit)}
-            </span>
-          </div>
-
-          {/* Жанры */}
-          <div className="mb-3">
-            <div className="flex flex-wrap gap-1">
-              {visibleGenres.map((genre, index) => (
-                <Link
-                  key={index}
-                  to={`/catalog?genres=${encodeURIComponent(genre)}`}
-                  onClick={() => setIsVisible(false)}
-                  className="px-2 py-1 rounded-md text-xs bg-gray-700/80 text-gray-200 hover:bg-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/60"
-                  aria-label={`Перейти в каталог по жанру ${genre}`}
+          <div className="mb-4">
+            <div className="grid grid-cols-4 gap-2.5 text-xs">
+              {infoRows.map(row => (
+                <button
+                  key={row.label}
+                  type="button"
+                  onClick={() => {
+                    if (!row.query) return
+                    setIsVisible(false)
+                    navigate(`/catalog?${row.query}`)
+                  }}
+                  disabled={!row.query}
+                  className={cn(
+                    'flex flex-col items-start gap-1 text-left transition-colors rounded-md px-2.5 py-2.5 bg-white/[0.04] border border-white/[0.08] min-h-[3rem]',
+                    row.query
+                      ? 'hover:bg-white/[0.10] hover:border-white/[0.15] focus:outline-none focus-visible:border-primary/40'
+                      : 'cursor-default'
+                  )}
                 >
-                  {genre}
-                </Link>
+                  <span className="text-[10px] uppercase tracking-wide text-white/45 whitespace-nowrap font-medium">{row.label}</span>
+                  <span className="text-xs font-bold text-white/95 line-clamp-2 w-full leading-tight" style={{ WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' }}>{row.value}</span>
+                </button>
               ))}
-              {hiddenGenresCount > 0 && !showAllGenres && (
-                <span
-                  onClick={() => setShowAllGenres(true)}
-                  className="bg-gray-700/80 text-gray-200 px-2 py-1 rounded-md text-xs cursor-pointer hover:bg-gray-600 transition-colors"
-                >
-                  +{hiddenGenresCount} еще
-                </span>
-              )}
             </div>
           </div>
+
+          {/* Жанры и теги */}
+          {chips.length > 0 && (
+            <div className="mb-4">
+              <div
+                ref={chipsContainerRef}
+                className="flex flex-wrap gap-1.5 overflow-hidden"
+                style={{ maxHeight: chipsExpanded ? 'none' : '52px' }}
+              >
+                {visibleChips.map(chip => (
+                  chip.type === 'age' ? (
+                    <span
+                      key={`age-${chip.label}`}
+                      className={cn(
+                        'px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wide text-white',
+                        getAgeRatingColor(chip.value)
+                      )}
+                    >
+                      {chip.label}
+                    </span>
+                  ) : (
+                    <button
+                      key={`${chip.type}-${chip.label}`}
+                      type="button"
+                      onClick={() => handleChipClick(chip)}
+                      className="px-2 py-0.5 rounded text-[11px] bg-white/[0.08] text-white/70 hover:bg-white/[0.15] hover:text-white/90 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                    >
+                      {chip.label}
+                    </button>
+                  )
+                ))}
+              </div>
+              {hasMoreChips && (
+                <button
+                  type="button"
+                  onClick={() => setChipsExpanded(prev => !prev)}
+                  className="mt-2 text-xs font-medium text-primary hover:text-primary/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded"
+                >
+                  {chipsExpanded ? 'Скрыть' : `Показать ещё (${extraChipsCount})`}
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Описание */}
           <div className="mb-4">
-            <div className="prose prose-invert max-w-none text-sm text-gray-300 leading-relaxed line-clamp-4 markdown-body">
-              <MarkdownRenderer value={manga.description || 'Описание недоступно'} />
+            <div
+              className={cn(
+                'relative overflow-hidden text-sm text-gray-300 leading-relaxed markdown-body transition-[max-height] duration-300 ease-out',
+                isDescriptionExpanded ? 'max-h-[420px]' : 'max-h-24'
+              )}
+              style={!isDescriptionExpanded && hasLongDescription ? {
+                WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 65%, rgba(0,0,0,0) 100%)',
+                maskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 65%, rgba(0,0,0,0) 100%)'
+              } : undefined}
+            >
+              <MarkdownRenderer value={plainDescription || 'Описание недоступно'} />
             </div>
+            {hasLongDescription && (
+              <button
+                type="button"
+                onClick={() => setIsDescriptionExpanded(prev => !prev)}
+                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded"
+              >
+                {isDescriptionExpanded ? 'Свернуть' : 'Подробнее…'}
+              </button>
+            )}
           </div>
 
           {/* Секция действий */}
           {isAuthenticated && (
-            <div className="relative">
-              <button
-                onClick={() => setShowDropdown(!showDropdown)}
-                className="w-full flex items-center justify-between bg-gray-800/80 hover:bg-gray-700/80 transition-colors px-3 py-2 rounded-lg text-sm font-medium text-white"
+            <div className="relative overflow-visible">
+              {/* Dropdown - рендерится ПЕРЕД кнопкой, чтобы расширять тултип вверх */}
+              <div
+                className={cn(
+                  "transition-all duration-200 ease-out overflow-hidden",
+                  showDropdown ? "max-h-[400px] mb-2 opacity-100" : "max-h-0 mb-0 opacity-0"
+                )}
               >
-                <div className="flex items-center gap-2">
-                  <Bookmark className={cn(
-                    "h-4 w-4",
-                    isInBookmarks ? "fill-current" : ""
-                  )} />
-                  <span>
-                    {isInBookmarks && bookmarkInfo
-                      ? bookmarkStatuses.find(s => s.value === bookmarkInfo.status)?.label || 'В закладках'
-                      : 'Добавить в закладки'
-                    }
-                  </span>
-                </div>
-                <ChevronDown className={cn(
-                  "h-4 w-4 transition-transform",
-                  showDropdown && "rotate-180"
-                )} />
-              </button>
-
-              {/* Dropdown */}
-              {showDropdown && (
-                <div
-                  ref={dropdownRef}
-                  className="absolute top-full left-0 right-0 mt-1 bg-gray-800/95 border border-gray-700/50 rounded-lg shadow-lg z-50 py-1"
-                >
+                <div className="bg-gray-800/95 border border-gray-700/50 rounded-lg shadow-lg py-1">
                   {bookmarkStatuses.map((status) => (
                     <button
                       key={status.value}
@@ -435,7 +542,30 @@ export function MangaTooltip({ manga, children }: MangaTooltipProps) {
                     </>
                   )}
                 </div>
-              )}
+              </div>
+
+              {/* Кнопка управления закладками */}
+              <button
+                onClick={() => setShowDropdown(!showDropdown)}
+                className="w-full flex items-center justify-between bg-gray-800/80 hover:bg-gray-700/80 transition-colors px-3 py-2 rounded-lg text-sm font-medium text-white"
+              >
+                <div className="flex items-center gap-2">
+                  <Bookmark className={cn(
+                    "h-4 w-4",
+                    isInBookmarks ? "fill-current" : ""
+                  )} />
+                  <span>
+                    {isInBookmarks && bookmarkInfo
+                      ? bookmarkStatuses.find(s => s.value === bookmarkInfo.status)?.label || 'В закладках'
+                      : 'Добавить в планы'
+                    }
+                  </span>
+                </div>
+                <ChevronDown className={cn(
+                  "h-4 w-4 transition-transform",
+                  showDropdown && "rotate-180"
+                )} />
+              </button>
             </div>
           )}
           </div>, document.body)

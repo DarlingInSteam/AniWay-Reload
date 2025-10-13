@@ -22,6 +22,13 @@ export interface MangaResponseDTO {
   updatedAt: string
 }
 
+export interface MangaRatingStats {
+  mangaId: number
+  averageRating: number | null
+  totalReviews: number
+  ratingDistribution: number[]
+}
+
 // Типы для глав
 export interface ChapterDTO {
   id: number
@@ -35,6 +42,15 @@ export interface ChapterDTO {
   publishedDate: string
   createdAt: string
   updatedAt: string
+}
+
+export interface ChapterCreateRequest {
+  mangaId: number
+  chapterNumber: number
+  volumeNumber?: number | null
+  originalChapterNumber?: number | null
+  title?: string | null
+  publishedDate?: string | null
 }
 
 // Типы для изображений глав

@@ -133,6 +133,16 @@ export const useBookmarks = () => {
   const toggleFavorite = async (mangaId: number) => {
     try {
       const updatedBookmark = await bookmarkService.toggleFavorite(mangaId)
+      
+      // Обновляем оба состояния
+      setAllBookmarks(prev => {
+        const existing = prev.find(b => b.mangaId === mangaId)
+        if (existing) {
+          return prev.map(b => b.mangaId === mangaId ? updatedBookmark : b)
+        } else {
+          return [...prev, updatedBookmark]
+        }
+      })
       setBookmarks(prev => {
         const existing = prev.find(b => b.mangaId === mangaId)
         if (existing) {
@@ -141,6 +151,7 @@ export const useBookmarks = () => {
           return [...prev, updatedBookmark]
         }
       })
+      
       return updatedBookmark
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : 'Failed to toggle favorite')
@@ -173,15 +184,15 @@ export const useBookmarks = () => {
   }
 
   const getMangaBookmark = (mangaId: number): Bookmark | undefined => {
-    return bookmarks.find(b => b.mangaId === mangaId)
+    return allBookmarks.find(b => b.mangaId === mangaId)
   }
 
   const getBookmarksByStatus = (status: BookmarkStatus): Bookmark[] => {
-  return allBookmarks.filter(b => b.status === status)
+    return allBookmarks.filter(b => b.status === status)
   }
 
   const getFavorites = (): Bookmark[] => {
-  return allBookmarks.filter(b => b.isFavorite)
+    return allBookmarks.filter(b => b.isFavorite)
   }
 
   return {

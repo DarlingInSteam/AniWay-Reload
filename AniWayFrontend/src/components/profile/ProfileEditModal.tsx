@@ -60,7 +60,7 @@ export const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, ope
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl bg-manga-black/95 border border-white/10 shadow-2xl">
         <DialogHeader>
-          <DialogTitle className="text-white text-lg">Редактирование профиля</DialogTitle>
+          <DialogTitle className="text-foreground text-lg">Редактирование профиля</DialogTitle>
         </DialogHeader>
         <Tabs value={tab} onValueChange={setTab} className="space-y-4">
           <TabsList className="grid grid-cols-2 bg-white/5">
@@ -70,11 +70,11 @@ export const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, ope
           <TabsContent value="main" className="space-y-4">
             <div>
               <label className="text-xs uppercase tracking-wide text-slate-400">Имя профиля</label>
-              <input value={displayName} onChange={e=>setDisplayName(e.target.value)} className="mt-1 w-full rounded-md bg-white/5 border border-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/40" maxLength={40} />
+              <input value={displayName} onChange={e=>setDisplayName(e.target.value)} className="mt-1 w-full rounded-md bg-white/5 border border-white/10 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40" maxLength={40} />
             </div>
             <div className="opacity-60 pointer-events-none">
               <label className="text-xs uppercase tracking-wide text-slate-400">Страна (скоро)</label>
-              <select disabled value={country} onChange={e=>setCountry(e.target.value)} className="mt-1 w-full rounded-md bg-white/5 border border-white/10 px-3 py-2 text-sm text-white">
+              <select disabled value={country} onChange={e=>setCountry(e.target.value)} className="mt-1 w-full rounded-md bg-white/5 border border-white/10 px-3 py-2 text-sm text-foreground">
                 <option value="">— Не указано —</option>
                 {countries.map(c=> <option key={c} value={c}>{c}</option>)}
               </select>

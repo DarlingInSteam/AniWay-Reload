@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Download, RefreshCw, Loader2, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
+import { Download, RefreshCw, Loader2, CheckCircle, XCircle, AlertCircle, Search, ListFilter, Layers, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { ImportQueueMonitor } from './ImportQueueMonitor'
 
@@ -82,10 +82,42 @@ const LOG_TIME_FORMATTER = new Intl.DateTimeFormat('ru-RU', {
   hour12: false
 })
 
-const tryConvertTimestampToNovosibirsk = (timestamp: string): string | null => {
-  const isoWithZone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(timestamp) ? timestamp : `${timestamp}Z`
-  const date = new Date(isoWithZone)
+const normalizeTimestampForDate = (timestamp: string): string | null => {
+  if (typeof timestamp !== 'string') {
+    return null
+  }
 
+  let candidate = timestamp.trim()
+  if (!candidate) {
+    return null
+  }
+
+  // Заменяем запятые в миллисекундах на точки, чтобы браузер корректно распознал дробную часть
+  candidate = candidate.replace(/,/g, '.')
+
+  // Преобразуем пробел между датой и временем в "T", если ISO-разделитель отсутствует
+  if (/^\d{4}-\d{2}-\d{2}\s/.test(candidate)) {
+    candidate = `${candidate.slice(0, 10)}T${candidate.slice(11)}`
+  }
+
+  // Нормализуем таймзону вида +0700 → +07:00
+  candidate = candidate.replace(/([+-]\d{2})(\d{2})$/, (_match, hours: string, minutes: string) => `${hours}:${minutes}`)
+
+  const hasZone = /[zZ]|[+-]\d{2}:\d{2}$/.test(candidate)
+  if (!hasZone) {
+    candidate = `${candidate}Z`
+  }
+
+  return candidate
+}
+
+const tryConvertTimestampToNovosibirsk = (timestamp: string): string | null => {
+  const normalized = normalizeTimestampForDate(timestamp)
+  if (!normalized) {
+    return null
+  }
+
+  const date = new Date(normalized)
   if (Number.isNaN(date.getTime())) {
     return null
   }
@@ -100,7 +132,7 @@ const tryConvertTimestampToNovosibirsk = (timestamp: string): string | null => {
 }
 
 const formatLogLineForDisplay = (log: string): string => {
-  const match = log.match(/^\[(\d{4}-\d{2}-\d{2}T[0-9:.+-]+)\]/)
+  const match = log.match(/^\[(\d{4}-\d{2}-\d{2}[T\s][0-9:.,+-]+)\]/)
 
   if (!match) {
     return log
@@ -145,7 +177,8 @@ const formatTimestampLabel = (value?: string | Date | null): string => {
     return `${converted} ${LOG_TIMEZONE_LABEL}`
   }
 
-  const fallbackDate = new Date(iso)
+  const normalizedForFallback = normalizeTimestampForDate(iso) ?? iso
+  const fallbackDate = new Date(normalizedForFallback)
   if (!Number.isNaN(fallbackDate.getTime())) {
     return `${LOG_TIME_FORMATTER.format(fallbackDate)} ${LOG_TIMEZONE_LABEL}`
   }
@@ -185,6 +218,104 @@ const formatDurationFromMs = (value?: number | null, fallback?: string): string 
   return [hours, minutes, seconds]
     .map((v) => v.toString().padStart(2, '0'))
     .join(':')
+}
+
+type DisplayLogLevel = 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'FATAL' | 'UNKNOWN'
+
+const BASE_LOG_LEVELS: DisplayLogLevel[] = ['TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL']
+
+const LOG_LEVEL_LABELS: Record<DisplayLogLevel, string> = {
+  TRACE: 'Trace',
+  DEBUG: 'Debug',
+  INFO: 'Info',
+  WARN: 'Warn',
+  ERROR: 'Error',
+  FATAL: 'Fatal',
+  UNKNOWN: 'Другое'
+}
+
+const LOG_LEVEL_COLORS: Record<DisplayLogLevel, string> = {
+  TRACE: 'text-purple-300',
+  DEBUG: 'text-blue-300',
+  INFO: 'text-green-300',
+  WARN: 'text-yellow-300',
+  ERROR: 'text-red-400',
+  FATAL: 'text-red-500',
+  UNKNOWN: 'text-gray-300'
+}
+
+const LOG_LEVEL_DOT_COLORS: Record<DisplayLogLevel, string> = {
+  TRACE: 'bg-purple-400',
+  DEBUG: 'bg-blue-400',
+  INFO: 'bg-green-400',
+  WARN: 'bg-yellow-400',
+  ERROR: 'bg-red-500',
+  FATAL: 'bg-red-600',
+  UNKNOWN: 'bg-gray-500'
+}
+
+type AutomationLogSource = 'combined' | 'auto-parse' | 'auto-update'
+
+const AUTOMATION_SOURCE_LABELS: Record<AutomationLogSource, string> = {
+  combined: 'Все логи',
+  'auto-parse': 'Автопарсинг',
+  'auto-update': 'Автообновление'
+}
+
+const AUTOMATION_SOURCE_PREFIX: Record<Exclude<AutomationLogSource, 'combined'>, string> = {
+  'auto-parse': 'AUTO_PARSE',
+  'auto-update': 'AUTO_UPDATE'
+}
+
+const LOG_FILTER_DEFAULT_STATE: Record<DisplayLogLevel, boolean> = {
+  TRACE: true,
+  DEBUG: true,
+  INFO: true,
+  WARN: true,
+  ERROR: true,
+  FATAL: true,
+  UNKNOWN: true
+}
+
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const extractLogLevel = (log: string): DisplayLogLevel => {
+  const match = log.match(/\[(TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\]/i)
+  if (match) {
+    const level = match[1].toUpperCase() as DisplayLogLevel
+    if ((BASE_LOG_LEVELS as DisplayLogLevel[]).includes(level)) {
+      return level
+    }
+  }
+  if (log.includes('[WARN') || log.includes('[WARNING')) {
+    return 'WARN'
+  }
+  if (log.includes('[ERROR')) {
+    return 'ERROR'
+  }
+  if (log.includes('[DEBUG')) {
+    return 'DEBUG'
+  }
+  if (log.includes('[INFO')) {
+    return 'INFO'
+  }
+  return 'UNKNOWN'
+}
+
+const parseLogTimestamp = (log: string): number => {
+  const match = log.match(/\[(\d{4}-\d{2}-\d{2}T[0-9:.+-]+)\]/)
+  if (!match) {
+    return Number.MAX_SAFE_INTEGER
+  }
+
+  const raw = match[1]
+  const isoWithZone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(raw) ? raw : `${raw}Z`
+  const date = new Date(isoWithZone)
+  const time = date.getTime()
+  if (Number.isNaN(time)) {
+    return Number.MAX_SAFE_INTEGER
+  }
+  return time
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -325,20 +456,106 @@ const normalizeAutoUpdateTask = (payload: Partial<AutoUpdateTask> | null | undef
 function LogViewer({ logs }: { logs?: string[] }) {
   const logContainerRef = useRef<HTMLDivElement>(null)
   const [autoScroll, setAutoScroll] = useState(true)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [levelFilters, setLevelFilters] = useState<Record<DisplayLogLevel, boolean>>(() => ({ ...LOG_FILTER_DEFAULT_STATE }))
+
+  const trimmedQuery = searchTerm.trim()
+  const normalizedQuery = trimmedQuery.toLowerCase()
+
+  const availableLevels = useMemo(() => {
+    if (!logs || logs.length === 0) {
+      return [] as DisplayLogLevel[]
+    }
+
+    const set = new Set<DisplayLogLevel>()
+    logs.forEach((log) => {
+      set.add(extractLogLevel(log))
+    })
+
+    const order: DisplayLogLevel[] = [...BASE_LOG_LEVELS, 'UNKNOWN']
+    return order.filter((level) => set.has(level))
+  }, [logs])
+
+  const filteredLogs = useMemo(() => {
+    if (!logs || logs.length === 0) {
+      return []
+    }
+
+    return logs.filter((log) => {
+      const level = extractLogLevel(log)
+      if (!(levelFilters[level] ?? true)) {
+        return false
+      }
+
+      if (!normalizedQuery) {
+        return true
+      }
+
+      return log.toLowerCase().includes(normalizedQuery)
+    })
+  }, [logs, levelFilters, normalizedQuery])
+
+  const processedLogs = useMemo(
+    () => filteredLogs.map((log) => ({
+      raw: log,
+      formatted: formatLogLineForDisplay(log),
+      level: extractLogLevel(log)
+    })),
+    [filteredLogs]
+  )
 
   useEffect(() => {
     if (autoScroll && logContainerRef.current) {
       logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight
     }
-  }, [logs, autoScroll])
+  }, [processedLogs, autoScroll])
 
   const handleScroll = () => {
     if (logContainerRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = logContainerRef.current
-      // Если пользователь прокрутил вверх, отключаем автоскролл
       const isAtBottom = scrollHeight - scrollTop - clientHeight < 10
       setAutoScroll(isAtBottom)
     }
+  }
+
+  const toggleLevel = (level: DisplayLogLevel) => {
+    setLevelFilters((prev) => ({
+      ...prev,
+      [level]: !(prev[level] ?? true)
+    }))
+  }
+
+  const resetFilters = () => {
+    setSearchTerm('')
+    setLevelFilters({ ...LOG_FILTER_DEFAULT_STATE })
+  }
+
+  const totalCount = logs?.length ?? 0
+  const filteredCount = processedLogs.length
+  const filtersActive = Boolean(trimmedQuery) || availableLevels.some((level) => !(levelFilters[level] ?? true))
+
+  const highlightMatch = (text: string) => {
+    if (!trimmedQuery) {
+      return text
+    }
+
+    const regex = new RegExp(`(${escapeRegExp(trimmedQuery)})`, 'ig')
+    const parts = text.split(regex)
+
+    return parts.map((part, index) => {
+      if (part.toLowerCase() === normalizedQuery && trimmedQuery.length > 0) {
+        return (
+          <mark
+            key={`match-${index}`}
+            className="bg-yellow-500/40 text-yellow-100 px-1 rounded"
+          >
+            {part}
+          </mark>
+        )
+      }
+
+      return <span key={`part-${index}`}>{part}</span>
+    })
   }
 
   if (!logs || logs.length === 0) {
@@ -352,47 +569,89 @@ function LogViewer({ logs }: { logs?: string[] }) {
     )
   }
 
-  const getLogColor = (log: string) => {
-    if (log.includes('[ERROR]')) return 'text-red-400'
-    if (log.includes('[WARN]') || log.includes('[WARNING]')) return 'text-yellow-400'
-    if (log.includes('[INFO]')) return 'text-green-400'
-    if (log.includes('[DEBUG]')) return 'text-blue-400'
-    return 'text-gray-300'
-  }
-
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <Label className="text-sm font-medium text-white">Логи выполнения</Label>
-        <div className="flex items-center gap-2">
-          <Badge variant={autoScroll ? "default" : "secondary"} className="text-xs">
-            {autoScroll ? '🔄 Автоскролл' : '⏸️ Пауза'}
-          </Badge>
-          <span className="text-xs text-muted-foreground">
-            {logs.length} строк
-          </span>
+    <div className="space-y-3">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-3">
+          <Label className="text-sm font-medium text-white flex items-center gap-2">
+            <ListFilter className="h-4 w-4 text-muted-foreground" />
+            Логи выполнения
+          </Label>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Badge variant={autoScroll ? 'default' : 'secondary'} className="text-[11px]">
+              {autoScroll ? '🔄 Автоскролл' : '⏸️ Пауза'}
+            </Badge>
+            <span>
+              {filteredCount}
+              {filtersActive && totalCount !== filteredCount ? ` / ${totalCount}` : ''} строк
+            </span>
+          </div>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
+          <div className="relative flex-1 sm:flex-none sm:w-64">
+            <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Поиск по тексту лога"
+              className="pl-9 pr-3 bg-gray-950 text-white border-gray-800 focus-visible:border-blue-400"
+            />
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={resetFilters}
+            disabled={!filtersActive}
+            className="whitespace-nowrap"
+          >
+            Сбросить
+          </Button>
         </div>
       </div>
+
+      {availableLevels.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {availableLevels.map((level) => (
+            <button
+              key={level}
+              type="button"
+              onClick={() => toggleLevel(level)}
+              className={`px-3 py-1 rounded-md border text-xs font-medium transition-colors flex items-center gap-2 ${
+                levelFilters[level] ?? true
+                  ? 'border-blue-500/60 bg-blue-500/15 text-blue-100 shadow-sm'
+                  : 'border-gray-700 bg-gray-900 text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${LOG_LEVEL_DOT_COLORS[level] ?? 'bg-gray-500'}`} />
+              {LOG_LEVEL_LABELS[level]}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div
         ref={logContainerRef}
         onScroll={handleScroll}
         className="bg-gray-950 rounded-lg p-4 font-mono text-sm max-h-96 overflow-y-auto border border-gray-800 shadow-inner"
         style={{
-          scrollBehavior: autoScroll ? 'smooth' : 'auto',
+          scrollBehavior: autoScroll ? 'smooth' : 'auto'
         }}
       >
-        {logs.map((log, index) => {
-          const formattedLog = formatLogLineForDisplay(log)
-          return (
+        {processedLogs.length === 0 ? (
+          <div className="text-sm text-muted-foreground">
+            Нет логов, удовлетворяющих текущим фильтрам.
+          </div>
+        ) : (
+          processedLogs.map((log, index) => (
             <div
-              key={index}
-              className={`${getLogColor(log)} leading-relaxed hover:bg-gray-900 px-2 py-1 rounded transition-colors`}
-              title={log}
+              key={`${log.raw}-${index}`}
+              className={`${LOG_LEVEL_COLORS[log.level] ?? 'text-gray-300'} leading-relaxed hover:bg-gray-900/70 px-2 py-1 rounded transition-colors break-words`}
+              title={log.raw}
             >
-              {formattedLog}
+              {highlightMatch(log.formatted)}
             </div>
-          )
-        })}
+          ))
+        )}
       </div>
     </div>
   )
@@ -405,7 +664,9 @@ export function MangaManagement() {
   const [autoUpdateTask, setAutoUpdateTask] = useState<AutoUpdateTask | null>(null)
   const [isAutoParsing, setIsAutoParsing] = useState(false)
   const [isAutoUpdating, setIsAutoUpdating] = useState(false)
+  const [isCleaningMelon, setIsCleaningMelon] = useState(false)
   const [automationHydrated, setAutomationHydrated] = useState(false)
+  const [selectedLogSource, setSelectedLogSource] = useState<AutomationLogSource>('combined')
 
   const autoParseIntervalRef = useRef<number | null>(null)
   const autoUpdateIntervalRef = useRef<number | null>(null)
@@ -484,6 +745,34 @@ export function MangaManagement() {
       importedPages
     }
   }, [autoParseTask?.manga_metrics])
+
+  const combinedAutomationLogs = useMemo(() => {
+    const parseLogs = autoParseTask?.logs ?? []
+    const updateLogs = autoUpdateTask?.logs ?? []
+
+    if (selectedLogSource === 'auto-parse') {
+      return parseLogs
+    }
+
+    if (selectedLogSource === 'auto-update') {
+      return updateLogs
+    }
+
+    const augmented: string[] = []
+
+    parseLogs.forEach((log) => {
+      const prefix = AUTOMATION_SOURCE_PREFIX['auto-parse']
+      augmented.push(`[${prefix}] ${log}`)
+    })
+
+    updateLogs.forEach((log) => {
+      const prefix = AUTOMATION_SOURCE_PREFIX['auto-update']
+      augmented.push(`[${prefix}] ${log}`)
+    })
+
+    augmented.sort((a, b) => parseLogTimestamp(a) - parseLogTimestamp(b))
+    return augmented
+  }, [autoParseTask?.logs, autoUpdateTask?.logs, selectedLogSource])
 
   const persistAutoParseTask = useCallback((task: AutoParseTask | null) => {
     if (typeof window === 'undefined') {
@@ -785,6 +1074,38 @@ export function MangaManagement() {
     }
   }
 
+  const cleanupMelonStorage = async () => {
+    setIsCleaningMelon(true)
+
+    try {
+      const response = await fetch('/api/parser/cleanup/melon', { method: 'POST' })
+      let data: any = null
+
+      try {
+        data = await response.json()
+      } catch (error) {
+        // Игнорируем ошибки парсинга тела – может быть пустой ответ
+      }
+
+      if (response.ok && (data?.success ?? true)) {
+        const removedTotal = Array.isArray(data?.details)
+          ? data.details.reduce((acc: number, entry: any) => acc + (Number(entry?.removed_items) || 0), 0)
+          : undefined
+        toast.success(
+          removedTotal && removedTotal > 0
+            ? `Хранилище Melon очищено. Удалено элементов: ${removedTotal}`
+            : 'Хранилище Melon очищено'
+        )
+      } else {
+        toast.error(data?.message || 'Не удалось очистить хранилище Melon')
+      }
+    } catch (error) {
+      toast.error('Ошибка соединения с сервером при очистке Melon')
+    } finally {
+      setIsCleaningMelon(false)
+    }
+  }
+
   // Автообновление манги
   const startAutoUpdate = async () => {
     setIsAutoUpdating(true)
@@ -851,6 +1172,38 @@ export function MangaManagement() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="rounded-lg border border-border/60 bg-background/40 p-3 space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Trash2 className="h-4 w-4" />
+                <span>Очистить Output/mangalib (archives, images, titles) на MelonService</span>
+              </div>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={cleanupMelonStorage}
+                disabled={isCleaningMelon}
+                className="whitespace-nowrap"
+              >
+                {isCleaningMelon ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Очистка...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Очистить Melon
+                  </>
+                )}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Удаляет артефакты прошлых запусков (архивы, изображения и JSON файлы), сохраняя структуру директорий.
+            </p>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="catalogPage">
               Номер страницы каталога MangaLib
@@ -1118,8 +1471,30 @@ export function MangaManagement() {
                 </Alert>
               )}
 
-              {/* Логи в реальном времени */}
-              <LogViewer logs={autoParseTask.logs} />
+              <div className="space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Layers className="h-4 w-4" />
+                    <span>Источник логов</span>
+                  </div>
+                  <div className="flex gap-2">
+                    {(['combined', 'auto-parse', 'auto-update'] as AutomationLogSource[]).map((source) => (
+                      <Button
+                        key={source}
+                        type="button"
+                        variant={selectedLogSource === source ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setSelectedLogSource(source)}
+                        className="whitespace-nowrap"
+                      >
+                        {AUTOMATION_SOURCE_LABELS[source]}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                <LogViewer logs={combinedAutomationLogs} />
+              </div>
             </div>
           )}
         </CardContent>
@@ -1234,7 +1609,9 @@ export function MangaManagement() {
               )}
 
               {/* Логи в реальном времени */}
-              <LogViewer logs={autoUpdateTask.logs} />
+              {selectedLogSource === 'auto-update' && (
+                <LogViewer logs={autoUpdateTask.logs} />
+              )}
             </div>
           )}
         </CardContent>

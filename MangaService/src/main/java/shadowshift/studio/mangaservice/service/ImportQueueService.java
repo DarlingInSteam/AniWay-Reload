@@ -17,6 +17,7 @@ import java.util.concurrent.*;
 @Service
 public class ImportQueueService {
     private static final Logger logger = LoggerFactory.getLogger(ImportQueueService.class);
+    private static final int MAX_ACTIVE_IMPORTS = 2;
     
     // Очередь импорта с приоритетами
     private final PriorityBlockingQueue<ImportQueueItem> importQueue = new PriorityBlockingQueue<>();
@@ -26,6 +27,9 @@ public class ImportQueueService {
     
     // Карта завершенных импортов (хранятся 10 минут для получения статуса)
     private final Map<String, ImportQueueItem> completedImports = new ConcurrentHashMap<>();
+
+    // Ограничитель количества одновременно поставленных задач
+    private final Semaphore capacitySemaphore = new Semaphore(MAX_ACTIVE_IMPORTS, true);
     
     // ExecutorService для обработки очереди
     private final ExecutorService queueProcessor = Executors.newSingleThreadExecutor(r -> {
@@ -113,15 +117,51 @@ public class ImportQueueService {
      * Добавить импорт в очередь
      */
     public String queueImport(String importTaskId, String slug, String filename, ImportQueueItem.Priority priority) {
-        ImportQueueItem item = new ImportQueueItem(importTaskId, slug, filename, priority);
-        
-        importQueue.offer(item);
-        activeImports.put(importTaskId, item);
-        
-        logger.info("Импорт добавлен в очередь: taskId={}, slug={}, priority={}, позиция в очереди={}", 
-            importTaskId, slug, priority, importQueue.size());
-        
-        return importTaskId;
+        boolean permitReserved = false;
+        long waitStartedAt = System.nanoTime();
+        try {
+            try {
+                waitForAvailableSlot(importTaskId, slug, priority);
+                permitReserved = true;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.error("Поток прерван при ожидании свободного слота импорта: taskId={}, slug={}", importTaskId, slug);
+                throw new IllegalStateException("Прервано ожидание свободного слота импорта", e);
+            }
+
+            ImportQueueItem item = new ImportQueueItem(importTaskId, slug, filename, priority);
+            
+            importQueue.offer(item);
+            activeImports.put(importTaskId, item);
+
+            if (permitReserved) {
+                // Успешно заняли слот и добавили задачу, теперь управление слотом переходит обработчику
+                permitReserved = false;
+            }
+
+            long waitedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - waitStartedAt);
+            if (waitedMillis > 0) {
+                logger.info("Импорт добавлен в очередь после ожидания {} мс: taskId={}, slug={}, priority={}, позиция в очереди={}",
+                    waitedMillis, importTaskId, slug, priority, importQueue.size());
+            } else {
+                logger.info("Импорт добавлен в очередь: taskId={}, slug={}, priority={}, позиция в очереди={}",
+                    importTaskId, slug, priority, importQueue.size());
+            }
+            
+            return importTaskId;
+        } finally {
+            if (permitReserved) {
+                capacitySemaphore.release();
+                logger.warn("Слот импорта освобожден из-за ошибки добавления задачи: taskId={}, slug={}", importTaskId, slug);
+            }
+        }
+    }
+
+    private void waitForAvailableSlot(String importTaskId, String slug, ImportQueueItem.Priority priority) throws InterruptedException {
+        while (!capacitySemaphore.tryAcquire(30, TimeUnit.SECONDS)) {
+            logger.warn("Очередь импорта заполнена ({}/{}). Ожидание освобождения слота для taskId={}, slug={}, priority={}",
+                activeImports.size(), MAX_ACTIVE_IMPORTS, importTaskId, slug, priority);
+        }
     }
     
     /**
@@ -137,7 +177,9 @@ public class ImportQueueService {
                 
                 if (item.getStatus() == ImportQueueItem.Status.CANCELLED) {
                     logger.info("Пропускаем отмененный импорт: {}", item.getImportTaskId());
-                    activeImports.remove(item.getImportTaskId());
+                    if (activeImports.remove(item.getImportTaskId()) != null) {
+                        releaseCapacitySlot(item.getImportTaskId(), "cancelled before processing");
+                    }
                     continue;
                 }
                 
@@ -179,7 +221,9 @@ public class ImportQueueService {
                 }
                 
                 // Перемещаем из активных в завершенные
-                activeImports.remove(item.getImportTaskId());
+                if (activeImports.remove(item.getImportTaskId()) != null) {
+                    releaseCapacitySlot(item.getImportTaskId(), "completed");
+                }
                 
                 // Сохраняем завершенные задачи для получения статуса
                 if (item.getStatus() == ImportQueueItem.Status.COMPLETED || 
@@ -222,7 +266,9 @@ public class ImportQueueService {
         ImportQueueItem item = activeImports.get(importTaskId);
         if (item != null && item.getStatus() == ImportQueueItem.Status.QUEUED) {
             item.setStatus(ImportQueueItem.Status.CANCELLED);
-            activeImports.remove(importTaskId);
+            if (activeImports.remove(importTaskId) != null) {
+                releaseCapacitySlot(importTaskId, "cancelled by user");
+            }
             logger.info("Импорт отменен: {}", importTaskId);
             return true;
         }
@@ -236,6 +282,8 @@ public class ImportQueueService {
         Map<String, Object> stats = new HashMap<>();
         stats.put("queueSize", importQueue.size());
         stats.put("activeImports", activeImports.size());
+        stats.put("maxActiveImports", MAX_ACTIVE_IMPORTS);
+        stats.put("availableSlots", capacitySemaphore.availablePermits());
         
         // Статистика по статусам
         Map<ImportQueueItem.Status, Integer> statusCounts = new HashMap<>();
@@ -245,6 +293,12 @@ public class ImportQueueService {
         stats.put("statusCounts", statusCounts);
         
         return stats;
+    }
+
+    private void releaseCapacitySlot(String importTaskId, String reason) {
+        capacitySemaphore.release();
+        logger.info("Освобожден слот очереди импорта ({}): taskId={}, активных/максимум={}/{}", 
+            reason, importTaskId, activeImports.size(), MAX_ACTIVE_IMPORTS);
     }
     
     /**

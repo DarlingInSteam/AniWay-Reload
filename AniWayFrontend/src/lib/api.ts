@@ -3,7 +3,9 @@ import {
   AdminUsersPageResponse,
   AdminUsersParams,
   ChapterDTO,
+  ChapterCreateRequest,
   ChapterImageDTO,
+  MangaRatingStats,
   MangaResponseDTO,
   PageResponse,
   SearchParams,
@@ -68,7 +70,8 @@ class ApiClient {
       (/^\/posts\b/.test(endpoint) && ['POST','PUT','DELETE','GET'].includes(method)) ||
       (/^\/posts\/.*\/vote$/.test(endpoint)) ||
       (/^\/comments\b/.test(endpoint) && ['POST','PUT','DELETE','GET'].includes(method)) ||
-      (/^\/messages\b/.test(endpoint))
+      (/^\/messages\b/.test(endpoint)) ||
+      (/^\/chapters\b/.test(endpoint))
     );
     const normalizedUserRole = userRole ? userRole.toUpperCase().replace(/^ROLE_/, '') : undefined;
     const headerUserRole = normalizedUserRole || (token ? 'USER' : undefined);
@@ -131,6 +134,19 @@ class ApiClient {
     const queryString = params.toString();
     const endpoint = queryString ? `/manga/${id}?${queryString}` : `/manga/${id}`;
     return this.request<MangaResponseDTO>(endpoint);
+  }
+
+  async getMangaBookmarkSubscriberCount(mangaId: number): Promise<number> {
+    try {
+      const response = await this.request<{ count?: number }>(`/bookmarks/manga/${mangaId}/subscribers/count`);
+      if (response && typeof response.count === 'number') {
+        return response.count;
+      }
+      return 0;
+    } catch (error) {
+      console.error(`Failed to load bookmark subscribers for manga ${mangaId}:`, error);
+      return 0;
+    }
   }
 
   async searchManga(params: SearchParams): Promise<MangaResponseDTO[]> {
@@ -207,6 +223,26 @@ class ApiClient {
   }
 
   // Chapter API
+  async createChapter(payload: ChapterCreateRequest): Promise<ChapterDTO> {
+    return this.request<ChapterDTO>(`/chapters`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateChapter(id: number, payload: ChapterCreateRequest): Promise<ChapterDTO> {
+    return this.request<ChapterDTO>(`/chapters/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteChapter(id: number): Promise<void> {
+    await this.request<void>(`/chapters/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   async getChapterById(id: number): Promise<ChapterDTO> {
     return this.request<ChapterDTO>(`/chapters/${id}`);
   }
@@ -230,6 +266,17 @@ class ApiClient {
 
   async isChapterLiked(chapterId: number): Promise<{ liked: boolean }> {
     return this.request<{ liked: boolean }>(`/chapters/${chapterId}/like`);
+  }
+
+  async getChapterLikeStatuses(chapterIds: number[]): Promise<number[]> {
+    if (!chapterIds || chapterIds.length === 0) {
+      return [];
+    }
+    const response = await this.request<{ likedChapterIds: number[] }>(`/chapters/likes/batch`, {
+      method: 'POST',
+      body: JSON.stringify({ chapterIds }),
+    });
+    return response.likedChapterIds || [];
   }
 
   async toggleChapterLike(chapterId: number): Promise<{ message: string; liked: boolean; likeCount: number }> {
@@ -783,9 +830,9 @@ class ApiClient {
   }
 
   // Получить данные рейтинга манги
-  async getMangaRatingData(mangaId: number): Promise<any> {
+  async getMangaRatingData(mangaId: number): Promise<MangaRatingStats> {
     try {
-      return this.request<any>(`/auth/reviews/manga/${mangaId}/rating`);
+      return this.request<MangaRatingStats>(`/auth/reviews/manga/${mangaId}/rating`);
     } catch (error) {
       console.error('Failed to get manga rating data:', error);
       throw error;

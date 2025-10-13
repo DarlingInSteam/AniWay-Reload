@@ -155,12 +155,17 @@ class LogEntry(BaseModel):
     level: str
     message: str
     task_id: Optional[str] = None
+    sequence: int = 0
 
 # Глобальное хранилище задач (в production лучше использовать Redis)
 tasks_storage: Dict[str, ParseStatus] = {}
 
 # Хранилище логов для задач
 task_logs: Dict[str, List[LogEntry]] = {}
+
+# Счетчики и маркеры отправки логов, чтобы избегать повторной передачи
+task_log_sequence_counter: Dict[str, int] = {}
+task_last_sent_sequence: Dict[str, int] = {}
 
 # Хранилище состояний билда для синхронизации
 build_states: Dict[str, Dict[str, Any]] = {}  # task_id -> {"slug": str, "is_ready": bool, "files_ready": bool}
@@ -172,6 +177,41 @@ running_processes_lock = asyncio.Lock()
 # Вспомогательные функции
 def get_melon_base_path() -> Path:
     return Path("/app")
+
+
+def cleanup_directory_contents(path: Path) -> Dict[str, Any]:
+    """Удаляет все файлы и папки внутри указанной директории."""
+    summary: Dict[str, Any] = {
+        "path": str(path.resolve()),
+        "removed_items": 0,
+        "removed_bytes": 0,
+        "errors": []
+    }
+
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except Exception as exc:  # pragma: no cover - критическая ошибка, логируем
+        logger.error("Не удалось создать директорию %s: %s", path, exc)
+        summary["errors"].append(str(exc))
+        return summary
+
+    for entry in path.iterdir():
+        try:
+            if entry.is_dir():
+                size = sum((child.stat().st_size for child in entry.rglob('*') if child.is_file()), 0)
+                shutil.rmtree(entry)
+                summary["removed_items"] += 1
+                summary["removed_bytes"] += size
+            else:
+                size = entry.stat().st_size
+                entry.unlink()
+                summary["removed_items"] += 1
+                summary["removed_bytes"] += size
+        except Exception as exc:  # pragma: no cover - логируем ошибки удаления
+            logger.warning("Ошибка удаления %s: %s", entry, exc)
+            summary["errors"].append(f"{entry.name}: {exc}")
+
+    return summary
 
 def ensure_utf8_patch():
     """Применяет критический патч для UTF-8 кодировки"""
@@ -196,12 +236,17 @@ def log_task_message(task_id: str, level: str, message: str):
     
     # Очищаем ANSI escape коды из сообщения
     clean_message = strip_ansi_codes(message)
+
+    # Увеличиваем глобальный счетчик логов для задачи
+    next_sequence = task_log_sequence_counter.get(task_id, 0) + 1
+    task_log_sequence_counter[task_id] = next_sequence
     
     log_entry = LogEntry(
         timestamp=datetime.now().isoformat(),
         level=level,
         message=clean_message,
-        task_id=task_id
+        task_id=task_id,
+        sequence=next_sequence
     )
     
     task_logs[task_id].append(log_entry)
@@ -209,6 +254,15 @@ def log_task_message(task_id: str, level: str, message: str):
     # Ограничиваем количество логов (последние 1000)
     if len(task_logs[task_id]) > 1000:
         task_logs[task_id] = task_logs[task_id][-1000:]
+
+        # Если хвост почистили, корректируем маркеры последовательности
+        if task_id in task_last_sent_sequence:
+            max_sequence_in_cache = task_logs[task_id][-1].sequence if task_logs[task_id] else 0
+            if task_last_sent_sequence[task_id] > max_sequence_in_cache:
+                task_last_sent_sequence[task_id] = max_sequence_in_cache
+
+        if task_id in task_log_sequence_counter:
+            task_log_sequence_counter[task_id] = task_logs[task_id][-1].sequence if task_logs[task_id] else 0
 
 def ensure_cross_device_patch():
     """Исправляет ошибку 'Invalid cross-device link' в MangaBuilder"""
@@ -314,13 +368,25 @@ def update_task_status(
         if collected_metrics is not None:
             task.metrics = collected_metrics
         
-        # Собираем последние логи для отправки (последние 10 строк)
+        # Собираем только новые логи, которые ещё не отправлялись
         logs_to_send = None
-        if task_id in task_logs and len(task_logs[task_id]) > 0:
-            recent_logs = task_logs[task_id][-10:]  # Последние 10 логов
-            logs_to_send = [f"[{log.timestamp}] [{log.level}] {log.message}" for log in recent_logs]
+        if task_id in task_logs and task_logs[task_id]:
+            last_sent_sequence = task_last_sent_sequence.get(task_id, 0)
+            new_entries = [log for log in task_logs[task_id] if log.sequence > last_sent_sequence]
+
+            if new_entries:
+                # Ограничиваем размер отправляемого батча, чтобы не перегружать API
+                if len(new_entries) > 50:
+                    new_entries = new_entries[-50:]
+
+                logs_to_send = [f"[{log.timestamp}] [{log.level}] {log.message}" for log in new_entries]
+                task_last_sent_sequence[task_id] = new_entries[-1].sequence
         
         send_progress_to_manga_service(task_id, status, progress, message, error, logs_to_send, collected_metrics)
+
+        if status in {"COMPLETED", "FAILED", "CANCELLED"}:
+            task_last_sent_sequence.pop(task_id, None)
+            task_log_sequence_counter.pop(task_id, None)
 
 async def run_melon_command(command: List[str], task_id: str, timeout: int = 600) -> Dict[str, Any]:
     """Запускает команду MelonService асинхронно с поддержкой timeout, логирования и метрик"""
@@ -925,6 +991,8 @@ async def clear_completed_tasks():
             del tasks_storage[task_id]
             if task_id in task_logs:
                 del task_logs[task_id]
+            task_log_sequence_counter.pop(task_id, None)
+            task_last_sent_sequence.pop(task_id, None)
             if task_id in build_states:
                 del build_states[task_id]
     
@@ -1335,6 +1403,33 @@ async def delete_manga(filename: str):
         logger.error(error_msg)
         return {"success": False, "message": error_msg}
 
+
+@app.post("/maintenance/mangalib/cleanup")
+async def cleanup_mangalib_storage():
+    """Очищает директории Output/mangalib (archives, images, titles)."""
+    base_dir = get_melon_base_path() / "Output" / "mangalib"
+    targets = ["archives", "images", "titles"]
+    details: List[Dict[str, Any]] = []
+
+    for name in targets:
+        target_path = base_dir / name
+        summary = cleanup_directory_contents(target_path)
+        summary["name"] = name
+        details.append(summary)
+
+    has_errors = any(summary["errors"] for summary in details)
+    if has_errors:
+        logger.warning("Очистка Output/mangalib завершилась с ошибками: %s", details)
+    else:
+        logger.info("Очистка Output/mangalib завершена успешно")
+
+    return {
+        "success": not has_errors,
+        "base_path": str(base_dir.resolve()),
+        "details": details
+    }
+
+
 @app.get("/manga-info/{filename}")
 async def get_manga_info(filename: str):
     """Получение информации о манге"""
@@ -1631,6 +1726,132 @@ async def get_image(filename: str, chapter: str, page: str):
     except Exception as e:
         logger.error(f"Error serving image {filename}/{chapter}/{page}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/chapter-images/{filename}/{chapter}")
+async def get_chapter_images(filename: str, chapter: str):
+    """
+    Возвращает все изображения главы одним запросом.
+    Оптимизировано для batch-загрузки: вместо N HTTP запросов делаем 1.
+    
+    Returns:
+        {
+            "images": [
+                {"page": 1, "data": "base64...", "format": "png"},
+                {"page": 2, "data": "base64...", "format": "jpg"},
+                ...
+            ],
+            "total": 10
+        }
+    """
+    import base64
+    
+    try:
+        output_path = get_melon_base_path() / "Output"
+        images = []
+        
+        # Функция для поиска и чтения изображений из директории
+        def find_and_read_images(manga_dir: Path) -> bool:
+            if not manga_dir.exists():
+                return False
+            
+            # Ищем папку главы с fuzzy matching (поддержка обрезанных символов вроде ?)
+            chapter_dir = None
+            requested_chapter = chapter.strip()
+            
+            for potential_dir in manga_dir.iterdir():
+                if potential_dir.is_dir():
+                    dir_name = potential_dir.name.strip()
+                    
+                    # 1. Точное совпадение
+                    if dir_name == requested_chapter:
+                        chapter_dir = potential_dir
+                        break
+                    
+                    # 2. Начинается с "номер главы." или "номер главы "
+                    if (dir_name.startswith(f"{requested_chapter}.") or 
+                        dir_name.startswith(f"{requested_chapter} ")):
+                        chapter_dir = potential_dir
+                        break
+                    
+                    # 3. Fuzzy match: запрошенное название — префикс реального (игнорируя спецсимволы в конце)
+                    # Например: "26. Чем займёмся на выходных" vs "26. Чем займёмся на выходных? (Vol.1)"
+                    if dir_name.startswith(requested_chapter):
+                        # Проверяем, что следующий символ — это спецсимвол или пробел
+                        next_char_idx = len(requested_chapter)
+                        if next_char_idx < len(dir_name):
+                            next_char = dir_name[next_char_idx]
+                            if next_char in ['?', '!', '.', ' ', '(', ')', ',', ':']:
+                                chapter_dir = potential_dir
+                                logger.info(f"🔍 Fuzzy match: '{requested_chapter}' -> '{dir_name}'")
+                                break
+            
+            if not chapter_dir:
+                return False
+            
+            # Собираем все изображения
+            image_files = []
+            for ext in ['.png', '.jpg', '.jpeg', '.webp']:
+                image_files.extend(chapter_dir.glob(f"*{ext}"))
+            
+            # Сортируем по номеру страницы
+            def get_page_number(file_path: Path) -> int:
+                try:
+                    return int(file_path.stem)
+                except ValueError:
+                    return 999999  # Файлы с нечисловыми именами в конец
+            
+            image_files.sort(key=get_page_number)
+            
+            # Читаем и кодируем все изображения
+            for image_path in image_files:
+                try:
+                    with open(image_path, 'rb') as f:
+                        image_bytes = f.read()
+                    
+                    images.append({
+                        "page": get_page_number(image_path),
+                        "data": base64.b64encode(image_bytes).decode('utf-8'),
+                        "format": image_path.suffix[1:]  # без точки
+                    })
+                except Exception as e:
+                    logger.error(f"Error reading image {image_path}: {e}")
+                    continue
+            
+            return len(images) > 0
+        
+        # Ищем сначала в archives, потом в images
+        for parser_dir in output_path.iterdir():
+            if parser_dir.is_dir():
+                # Проверяем archives
+                manga_dir = parser_dir / "archives" / filename
+                if find_and_read_images(manga_dir):
+                    break
+                
+                # Проверяем images
+                manga_dir = parser_dir / "images" / filename
+                if find_and_read_images(manga_dir):
+                    break
+        
+        if not images:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Chapter images not found: {filename}/{chapter}"
+            )
+        
+        logger.info(f"✅ Loaded {len(images)} images for {filename}/{chapter}")
+        
+        return {
+            "images": images,
+            "total": len(images)
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error loading chapter images {filename}/{chapter}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/cover/{filename}")
 async def get_cover(filename: str):

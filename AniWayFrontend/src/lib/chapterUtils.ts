@@ -1,12 +1,15 @@
 import { ChapterDTO } from '@/types'
 
 /**
- * Извлекает реальный номер главы из формата 1XXX
+ * Извлекает реальный номер главы из формата YXXXX (где Y - том, XXXX - глава)
+ * Обновлено: множитель изменен с 1000 на 10000 для поддержки:
+ * - Томов до 99
+ * - Глав до 9999
  */
 export function getDisplayChapterNumber(chapterNumber: number): number {
-  // Если номер больше или равен 1000, то это формат 1XXX - извлекаем последние 3 цифры
-  if (chapterNumber >= 1000) {
-    return chapterNumber % 1000
+  // Если номер больше или равен 10000, то это формат YXXXX - извлекаем последние 4 цифры
+  if (chapterNumber >= 10000) {
+    return chapterNumber % 10000
   }
   return chapterNumber
 }
@@ -31,9 +34,9 @@ export function formatChapterTitle(chapter: ChapterDTO): string {
   }
 
   // Fallback - используем chapterNumber, но пытаемся извлечь оригинальный номер
-  if (chapter.chapterNumber >= 1000) {
-    const originalNumber = chapter.chapterNumber % 1000
-    const volume = Math.floor(chapter.chapterNumber / 1000)
+  if (chapter.chapterNumber >= 10000) {
+    const originalNumber = chapter.chapterNumber % 10000
+    const volume = Math.floor(chapter.chapterNumber / 10000)
     return `Том ${volume}, Глава ${originalNumber}`
   }
 
@@ -49,9 +52,11 @@ export function formatChapterNumber(chapter: ChapterDTO): string {
   }
   
   // Fallback - извлекаем оригинальный номер из расчетного
-  if (chapter.chapterNumber >= 1000) {
-    const originalNumber = chapter.chapterNumber % 1000
-    return originalNumber.toString()
+  if (chapter.chapterNumber >= 10000) {
+    const originalNumber = chapter.chapterNumber % 10000
+    const volume = Math.floor(chapter.chapterNumber / 10000)
+    // Показываем в формате "Том.Глава" для компактности
+    return `${volume}.${originalNumber}`
   }
   
   return chapter.chapterNumber.toString()
@@ -78,7 +83,7 @@ export function buildChapterTitleVariants(chapter: ChapterDTO) {
   const chapterNum = chapter.originalChapterNumber || getDisplayChapterNumber(chapter.chapterNumber)
   let volume: number | undefined
   if (chapter.volumeNumber) volume = chapter.volumeNumber
-  else if (chapter.chapterNumber >= 1000) volume = Math.floor(chapter.chapterNumber / 1000)
+  else if (chapter.chapterNumber >= 10000) volume = Math.floor(chapter.chapterNumber / 10000)
 
   if (isCustom) {
     const trimmed = chapter.title!.trim()

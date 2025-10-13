@@ -59,7 +59,11 @@ export const ReadingButton: React.FC<ReadingButtonProps> = ({
 
   // Определяем правильную главу для продолжения
   let targetChapterId = lastRead.chapterId
-  let displayChapterNum = getDisplayChapterNumber(lastRead.chapterNumber || lastRead.chapterId)
+  // Используем chapterId для получения номера, а не chapterNumber из lastRead
+  const lastReadChapterData = allChapters.find(ch => ch.id === lastRead.chapterId)
+  const displayChapterNum = lastReadChapterData 
+    ? getDisplayChapterNumber(lastReadChapterData.chapterNumber)
+    : getDisplayChapterNumber(lastRead.chapterNumber || 0)
   let actionText = `Продолжить главу ${displayChapterNum}`
 
   // Если последняя глава завершена, найти следующую незавершенную

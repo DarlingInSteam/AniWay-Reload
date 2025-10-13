@@ -61,7 +61,7 @@ export function HomePage() {
                   <span className="text-primary font-medium text-sm">Рекомендуем</span>
                 </div>
 
-                <h1 className="text-2xl md:text-4xl lg:text-5xl font-bold text-white mb-4 leading-tight">
+                <h1 className="text-2xl md:text-4xl lg:text-5xl font-bold text-foreground mb-4 leading-tight">
                   {featuredManga.title}
                 </h1>
 
@@ -72,7 +72,7 @@ export function HomePage() {
                 <div className="flex flex-wrap items-center gap-4 mb-6">
                   <div className="flex items-center space-x-1">
                     <Star className="h-4 w-4 text-manga-rating fill-current" />
-                    <span className="text-white font-medium">{(4 + Math.random()).toFixed(1)}</span>
+                    <span className="text-foreground font-medium">{(4 + Math.random()).toFixed(1)}</span>
                   </div>
                   <div className="flex items-center space-x-1">
                     <Eye className="h-4 w-4 text-muted-foreground" />
@@ -116,7 +116,7 @@ export function HomePage() {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center space-x-3">
               <TrendingUp className="h-6 w-6 text-primary" />
-              <h2 className="text-xl md:text-2xl font-bold text-white">Популярное</h2>
+              <h2 className="text-xl md:text-2xl font-bold text-foreground">Популярное</h2>
             </div>
             <Link
               to="/catalog"
@@ -139,7 +139,7 @@ export function HomePage() {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center space-x-3">
               <Clock className="h-6 w-6 text-primary" />
-              <h2 className="text-xl md:text-2xl font-bold text-white">Недавние обновления</h2>
+              <h2 className="text-xl md:text-2xl font-bold text-foreground">Недавние обновления</h2>
             </div>
             <Link
               to="/catalog"
@@ -161,25 +161,25 @@ export function HomePage() {
         <section className="bg-card rounded-xl p-6 md:p-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             <div className="text-center">
-              <div className="text-2xl md:text-3xl font-bold text-white mb-2">
+              <div className="text-2xl md:text-3xl font-bold text-foreground mb-2">
                 {popularManga?.length || 0}
               </div>
               <div className="text-muted-foreground text-sm">Манги</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl md:text-3xl font-bold text-white mb-2">
+              <div className="text-2xl md:text-3xl font-bold text-foreground mb-2">
                 {Math.floor(Math.random() * 10000 + 5000).toLocaleString()}
               </div>
               <div className="text-muted-foreground text-sm">Глав</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl md:text-3xl font-bold text-white mb-2">
+              <div className="text-2xl md:text-3xl font-bold text-foreground mb-2">
                 {Math.floor(Math.random() * 50000 + 10000).toLocaleString()}
               </div>
               <div className="text-muted-foreground text-sm">Читателей</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl md:text-3xl font-bold text-white mb-2">
+              <div className="text-2xl md:text-3xl font-bold text-foreground mb-2">
                 {Math.floor(Math.random() * 1000000 + 100000).toLocaleString()}
               </div>
               <div className="text-muted-foreground text-sm">Просмотров</div>

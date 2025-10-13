@@ -13,6 +13,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
+import org.springframework.web.util.UriUtils;
+import shadowshift.studio.mangaservice.dto.MelonChapterImagesResponse;
+import shadowshift.studio.mangaservice.dto.MelonImageData;
 import shadowshift.studio.mangaservice.entity.Manga;
 import shadowshift.studio.mangaservice.entity.Genre;
 import shadowshift.studio.mangaservice.entity.Tag;
@@ -22,14 +26,18 @@ import shadowshift.studio.mangaservice.websocket.ProgressWebSocketHandler;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.Base64;
+import java.util.regex.Pattern;
 
 /**
  * Сервис для интеграции с MelonService.
@@ -43,6 +51,22 @@ public class MelonIntegrationService {
     private static final Logger logger = LoggerFactory.getLogger(MelonIntegrationService.class);
     private static final Duration TASK_STATUS_POLL_INTERVAL = Duration.ofMillis(500); // Уменьшено с 2s до 500ms
     private static final int MAX_MISSING_TASK_STATUS_ATTEMPTS = 15;
+    private static final Pattern NUMERIC_TOKEN_PATTERN = Pattern.compile("[-+]?\\d+(?:[\\.,]\\d+)?");
+    private static final Pattern VOLUME_KEYWORD_PATTERN = Pattern.compile("(?i)(том|volume|vol\\.?|book|часть|part|season|сезон)\\s*([-+]?\\d+(?:[\\.,]\\d+)?)");
+    private static final Pattern ROMAN_VOLUME_PATTERN = Pattern.compile("(?i)\\b[MDCLXVI]+\\b");
+    private static final Map<Character, Integer> ROMAN_VALUES = Map.of(
+        'I', 1,
+        'V', 5,
+        'X', 10,
+        'L', 50,
+        'C', 100,
+        'D', 500,
+        'M', 1000
+    );
+    private static final double SPECIAL_BASE_OFFSET = 999.999d;
+    private static final double SPECIAL_STEP = 0.001d;
+    private static final double DUPLICATE_STEP = 0.0001d;
+    private static final int MAX_DUPLICATE_ADJUSTMENTS = 10_000;
 
     @Autowired
     private RestTemplate restTemplate;
@@ -1508,19 +1532,19 @@ public class MelonIntegrationService {
         if (matchesTypeKeyword(normalized, collapsed, "manhua", "маньхуа")) {
             return Manga.MangaType.MANHUA;
         }
-        if (matchesTypeKeyword(normalized, collapsed,
-            "western_comic", "western comic", "комикс западный", "западный комикс",
-            "comic", "комикс")) {
-            return Manga.MangaType.WESTERN_COMIC;
+        if (matchesTypeKeyword(normalized, collapsed, "indonesian_comic", "indonesian comic", "индонезийский комикс", "комикс индонезийский")) {
+            return Manga.MangaType.INDONESIAN_COMIC;
         }
         if (matchesTypeKeyword(normalized, collapsed, "russian_comic", "russian comic", "руманга", "русский комикс", "комикс русский")) {
             return Manga.MangaType.RUSSIAN_COMIC;
         }
-    if (matchesTypeKeyword(normalized, collapsed, "oel", "oel манга", "oel manga", "oel-манга")) {
+        if (matchesTypeKeyword(normalized, collapsed, "oel", "oel манга", "oel manga", "oel-манга")) {
             return Manga.MangaType.OEL;
         }
-        if (matchesTypeKeyword(normalized, collapsed, "indonesian_comic", "indonesian comic", "индонезийский комикс", "комикс индонезийский")) {
-            return Manga.MangaType.INDONESIAN_COMIC;
+        if (matchesTypeKeyword(normalized, collapsed,
+            "western_comic", "western comic", "комикс западный", "западный комикс",
+            "comic", "комикс")) {
+            return Manga.MangaType.WESTERN_COMIC;
         }
         if (matchesTypeKeyword(normalized, collapsed, "other", "другое")) {
             return Manga.MangaType.OTHER;
@@ -1633,6 +1657,24 @@ public class MelonIntegrationService {
             return response.getBody();
         } catch (Exception e) {
             return Map.of("success", false, "message", "Ошибка удаления: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Очищает директории Output/mangalib на MelonService (archives, images, titles).
+     */
+    public Map<String, Object> cleanupMelonOutput() {
+        try {
+            String url = melonServiceUrl + "/maintenance/mangalib/cleanup";
+            ResponseEntity<Map> response = restTemplate.postForEntity(url, null, Map.class);
+            Map<String, Object> body = response.getBody();
+            if (body != null) {
+                return body;
+            }
+            return Map.of("success", false, "message", "Пустой ответ от MelonService при очистке");
+        } catch (Exception e) {
+            logger.error("Ошибка очистки Output/mangalib на MelonService: {}", e.getMessage(), e);
+            return Map.of("success", false, "message", "Ошибка очистки: " + e.getMessage());
         }
     }
 
@@ -1778,11 +1820,20 @@ public class MelonIntegrationService {
         logger.info("Filename (slug): {}", filename);
         logger.info("Количество глав для импорта: {}", chapters.size());
 
-        for (int i = 0; i < chapters.size(); i++) {
-            Map<String, Object> chapterData = chapters.get(i);
+        List<Map<String, Object>> orderedChapters = sortChaptersForImport(chapters);
+        if (orderedChapters.isEmpty()) {
+            logger.warn("Список глав для импорта пуст, пропускаем импорт");
+            return;
+        }
+        Map<Integer, Integer> volumeNumericCounters = new HashMap<>();
+        Map<Integer, Integer> volumeSpecialCounters = new HashMap<>();
+        Set<String> usedChapterNumbers = new HashSet<>();
+
+        for (int i = 0; i < orderedChapters.size(); i++) {
+            Map<String, Object> chapterData = orderedChapters.get(i);
 
             try {
-                logger.info("--- Импорт главы {}/{} ---", i + 1, chapters.size());
+                logger.info("--- Импорт главы {}/{} ---", i + 1, orderedChapters.size());
                 // Создаем запрос к ChapterService
                 Map<String, Object> chapterRequest = new HashMap<>();
                 chapterRequest.put("mangaId", mangaId);
@@ -1790,48 +1841,37 @@ public class MelonIntegrationService {
                 // Обработка номера главы
                 Object volumeObj = chapterData.get("volume");
                 Object numberObj = chapterData.get("number");
-                
+                String numberAsString = numberObj != null ? numberObj.toString().trim() : "";
+                Integer volumeNumber = parseVolumeNumber(volumeObj);
+                int volumeForOrdering = volumeNumber != null ? volumeNumber : 0;
+                Double parsedNumericNumber = parseChapterNumericValue(numberObj);
+                boolean hasNumericNumber = parsedNumericNumber != null;
+
                 logger.debug("Processing chapter - volume: {}, number: {}", volumeObj, numberObj);
 
-                // Формируем уникальный номер главы с учетом тома
                 double chapterNumber;
-                int volume = 1;
-                double originalNumber = 1;
-                boolean isSpecialChapter = false;
-                
-                try {
-                    // Сначала пытаемся получить том
-                    volume = volumeObj != null ? Integer.parseInt(volumeObj.toString()) : 1;
-                } catch (NumberFormatException e) {
-                    volume = 1;
-                    logger.debug("Failed to parse volume, using default: {}", e.getMessage());
-                }
-                
-                try {
-                    // Пытаемся распарсить номер главы как число
-                    originalNumber = Double.parseDouble(numberObj.toString());
-                    
-                    // Формула: том * 1000 + номер главы
-                    // Например: том 2, глава 12.5 = 2012.5
-                    chapterNumber = volume * 1000 + originalNumber;
-                } catch (NumberFormatException e) {
-                    // Если не можем распарсить как число, это специальная глава
-                    isSpecialChapter = true;
-                    
-                    // Для специальных глав используем хэш-код + базовый номер
-                    String numberStr = numberObj.toString().toLowerCase().trim();
-                    int hashCode = Math.abs(numberStr.hashCode()) % 1000; // Ограничиваем до 999
-                    
-                    // Формула для специальных глав: том * 1000 + 9000 + хэш
-                    // Это гарантирует, что специальные главы будут после обычных
-                    chapterNumber = volume * 1000 + 9000 + hashCode;
-                    originalNumber = chapterNumber; // Для специальных глав оригинальный номер = вычисленному
-                    
-                    logger.debug("Special chapter detected: '{}', calculated number: {}", numberStr, chapterNumber);
+                Double originalNumber = null;
+
+                if (hasNumericNumber) {
+                    originalNumber = parsedNumericNumber;
+                    chapterNumber = generateNumericChapterNumber(
+                        volumeForOrdering,
+                        parsedNumericNumber,
+                        volumeNumericCounters,
+                        usedChapterNumbers
+                    );
+                } else {
+                    chapterNumber = generateSpecialChapterNumber(
+                        volumeForOrdering,
+                        volumeSpecialCounters,
+                        usedChapterNumbers
+                    );
                 }
 
                 chapterRequest.put("chapterNumber", chapterNumber);
-                chapterRequest.put("volumeNumber", volume);
+                if (volumeNumber != null && volumeNumber > 0) {
+                    chapterRequest.put("volumeNumber", volumeNumber);
+                }
                 chapterRequest.put("originalChapterNumber", originalNumber);
 
                 // Обрабатываем title - может быть null
@@ -1839,15 +1879,16 @@ public class MelonIntegrationService {
                 String title;
                 if (titleObj != null && !titleObj.toString().trim().isEmpty()) {
                     title = titleObj.toString().trim();
-                } else {
-                    // Формируем красивое название
-                    if (isSpecialChapter) {
-                        title = numberObj.toString(); // Оставляем оригинальное название для специальных глав
-                    } else if (volumeObj != null && !volumeObj.toString().equals("1")) {
-                        title = "Том " + volumeObj + ", Глава " + numberObj;
+                } else if (!numberAsString.isEmpty()) {
+                    if (!hasNumericNumber) {
+                        title = numberAsString;
+                    } else if (volumeNumber != null && volumeNumber > 0) {
+                        title = "Том " + volumeNumber + ", Глава " + numberAsString;
                     } else {
-                        title = "Глава " + numberObj;
+                        title = "Глава " + numberAsString;
                     }
+                } else {
+                    title = "Глава " + (hasNumericNumber ? parsedNumericNumber : chapterNumber);
                 }
                 chapterRequest.put("title", title);
 
@@ -1868,14 +1909,21 @@ public class MelonIntegrationService {
                     List<Map<String, Object>> slides = (List<Map<String, Object>>) chapterData.get("slides");
                     task.setStatus(ImportTaskService.TaskStatus.IMPORTING_PAGES);
                     // Используем оригинальное название главы для URL-а в MelonService
-                    String originalChapterName = numberObj.toString();
-                    importChapterPagesFromMelonService(taskId, chapterId, slides, filename, originalChapterName);
+                    String chapterFolderName = resolveChapterFolderName(
+                        numberAsString,
+                        titleObj,
+                        volumeNumber,
+                        chapterData,
+                        chapterId
+                    );
+                    logger.debug("📁 Chapter folder name resolved: '{}' for chapter ID {}", chapterFolderName, chapterId);
+                    importChapterPagesFromMelonService(taskId, chapterId, slides, filename, chapterFolderName);
 
                     // Обновляем прогресс
                     importTaskService.incrementImportedChapters(taskId);
 
-                    // Устанавли��аем прогресс от 20% до 95%
-                    int progress = 20 + (75 * (i + 1)) / chapters.size();
+                    // Устанавливаем прогресс от 20% до 95%
+                    int progress = 20 + (75 * (i + 1)) / orderedChapters.size();
                     task.setProgress(progress);
 
                     System.out.println("Successfully imported chapter: " + title + " with ID: " + chapterId);
@@ -1891,126 +1939,85 @@ public class MelonIntegrationService {
     }
 
     /**
-     * Импортирует страницы главы из MelonService через BATCH API для максимальной производительности
+     * Импортирует страницы главы из MelonService через оптимизированный BATCH endpoint.
+     * Вместо N HTTP запросов делает 1 запрос и получает все изображения сразу.
+     * 
+     * @param taskId ID задачи для отслеживания прогресса
+     * @param chapterId ID главы в системе
+     * @param slides Метаданные страниц из JSON (используется только для подсчёта)
+     * @param mangaFilename Имя файла манги (slug)
+     * @param originalChapterName Имя папки главы на диске MelonService
      */
     private void importChapterPagesFromMelonService(String taskId, Long chapterId, List<Map<String, Object>> slides,
                                                    String mangaFilename, String originalChapterName) {
         if (slides == null || slides.isEmpty()) {
+            logger.warn("No slides provided for chapter {}", chapterId);
             return;
         }
 
-        // Сортируем страницы по индексу для гарантии правильного порядка
-        slides.sort((slide1, slide2) -> {
-            Integer index1 = Integer.parseInt(slide1.get("index").toString());
-            Integer index2 = Integer.parseInt(slide2.get("index").toString());
-            return index1.compareTo(index2);
-        });
-
-        logger.info("=== БАТЧЕВЫЙ ИМПОРТ СТРАНИЦ ===");
-        logger.info("Глава ID: {}, количество страниц: {}", chapterId, slides.size());
+        logger.info("=== BATCH IMPORT: Chapter ID {} ({} pages expected) ===", chapterId, slides.size());
 
         try {
-            // ЭТАП 1: Параллельно скачиваем все изображения из MelonService
-            List<CompletableFuture<PageData>> downloadFutures = new ArrayList<>();
-            List<Integer> expectedIndices = slides.stream()
-                .map(slide -> Integer.parseInt(slide.get("index").toString()))
-                .sorted()
-                .collect(Collectors.toList());
-            Map<Integer, PageData> pagesByIndex = new HashMap<>();
+            // Вызываем новый batch endpoint MelonService
+            String batchUrl = melonServiceUrl + "/chapter-images/" + mangaFilename + "/" + originalChapterName;
+            logger.debug("🌐 Requesting batch images from: {}", batchUrl);
 
-            for (Integer pageIndex : expectedIndices) {
-                String imageUrl = String.format("%s/images/%s/%s/%d",
-                    melonServiceUrl, mangaFilename, originalChapterName, pageIndex);
+            ResponseEntity<MelonChapterImagesResponse> response = restTemplate.exchange(
+                batchUrl,
+                HttpMethod.GET,
+                null,
+                new ParameterizedTypeReference<MelonChapterImagesResponse>() {}
+            );
 
-                CompletableFuture<PageData> downloadFuture = CompletableFuture.supplyAsync(() -> {
-                    try {
-                        logger.debug("Скачиваем страницу {} из: {}", pageIndex, imageUrl);
-                        ResponseEntity<byte[]> imageResponse = restTemplate.getForEntity(imageUrl, byte[].class);
-
-                        if (!imageResponse.getStatusCode().is2xxSuccessful() || imageResponse.getBody() == null) {
-                            logger.warn("Не удалось скачать страницу {}: {}", pageIndex, imageResponse.getStatusCode());
-                            return null;
-                        }
-
-                        byte[] imageBytes = imageResponse.getBody();
-                        logger.debug("Скачана страница {}, размер: {} байт", pageIndex, imageBytes.length);
-
-                        return new PageData(pageIndex, imageBytes);
-                    } catch (Exception e) {
-                        logger.error("Ошибка скачивания страницы {}: {}", pageIndex, e.getMessage());
-                        return null;
-                    }
-                }, executorService);
-
-                downloadFutures.add(downloadFuture);
+            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                throw new RuntimeException("Failed to fetch chapter images: " + response.getStatusCode());
             }
 
-            // Ждем завершения всех скачиваний с тайм-аутом
-            logger.debug("⏳ Ожидание завершения скачивания {} изображений...", downloadFutures.size());
+            MelonChapterImagesResponse batchResponse = response.getBody();
+            List<MelonImageData> images = batchResponse.getImages();
 
-            for (int i = 0; i < downloadFutures.size(); i++) {
-                int pageIndex = expectedIndices.get(i);
+            if (images == null || images.isEmpty()) {
+                logger.warn("No images returned for chapter {} from batch endpoint", chapterId);
+                return;
+            }
+
+            logger.info("✅ Received {} images in batch response", images.size());
+
+            // Конвертируем base64 обратно в byte[] и создаём PageData
+            List<PageData> pageDataList = new ArrayList<>();
+            for (MelonImageData imageData : images) {
                 try {
-                    PageData pageData = downloadFutures.get(i).get(5, TimeUnit.MINUTES); // 5 минут на страницу для больших изображений
-                    if (pageData != null) {
-                        pagesByIndex.put(pageIndex, pageData);
-                    }
+                    byte[] imageBytes = Base64.getDecoder().decode(imageData.getData());
+                    pageDataList.add(new PageData(imageData.getPage(), imageBytes));
+                    logger.debug("Decoded page {}: {} bytes", imageData.getPage(), imageBytes.length);
                 } catch (Exception e) {
-                    logger.error("Ошибка скачивания страницы {}: {}", pageIndex, e.getMessage());
+                    logger.error("Failed to decode page {}: {}", imageData.getPage(), e.getMessage());
                 }
             }
 
-            logger.info("✅ Скачано {} из {} страниц", pagesByIndex.size(), expectedIndices.size());
+            // Сортируем по номеру страницы
+            pageDataList.sort(Comparator.comparingInt(PageData::getPageIndex));
 
-            // Дополнительный последовательный фолбэк для недостающих страниц
-            List<Integer> missingIndices = expectedIndices.stream()
-                .filter(idx -> !pagesByIndex.containsKey(idx))
-                .collect(Collectors.toList());
+            logger.info("✅ Decoded and sorted {} pages, uploading to ImageStorage...", pageDataList.size());
 
-            if (!missingIndices.isEmpty()) {
-                logger.warn("Обнаружено {} отсутствующих страниц ({}). Запускаем последовательный фолбэк.",
-                    missingIndices.size(), missingIndices);
+            // Батчевая загрузка в ImageStorage
+            uploadPagesBatch(taskId, chapterId, pageDataList);
 
-                for (Integer missingIndex : missingIndices) {
-                    PageData fallbackPage = downloadPageSequentially(mangaFilename, originalChapterName, missingIndex);
-                    if (fallbackPage != null) {
-                        pagesByIndex.put(missingIndex, fallbackPage);
-                        logger.info("✅ Последовательный фолбэк восстановил страницу {}", missingIndex);
-                    }
-                }
-            }
+            logger.info("🎉 Chapter {} batch import completed successfully", chapterId);
 
-            List<Integer> stillMissing = expectedIndices.stream()
-                .filter(idx -> !pagesByIndex.containsKey(idx))
-                .collect(Collectors.toList());
-
-            if (!stillMissing.isEmpty()) {
-                logger.error("❌ Не удалось получить страницы {} для главы {} даже после фолбэка", stillMissing, chapterId);
-                throw new IllegalStateException("Недоступны страницы: " + stillMissing);
-            }
-
-            List<PageData> orderedPages = expectedIndices.stream()
-                .map(pagesByIndex::get)
-                .collect(Collectors.toList());
-
-            // ЭТАП 2: Батчевая отправка в ImageStorage с сохранением порядка
-            uploadPagesBatch(taskId, chapterId, orderedPages);
-            
         } catch (Exception e) {
-            logger.error("Ошибка батчевого импорта страниц для главы {}: {}", chapterId, e.getMessage());
-            e.printStackTrace();
+            logger.error("❌ Batch import failed for chapter {}: {}", chapterId, e.getMessage(), e);
+            throw new RuntimeException("Failed to import chapter pages", e);
         }
         
-        // После успешной загрузки всех страниц, обновляем pageCount в ChapterService
+        // Обновляем pageCount в ChapterService
         try {
-            // Получаем актуальное количество страниц из ImageStorageService
             String getPageCountUrl = "http://image-storage-service:8083/api/images/chapter/" + chapterId + "/count";
             ResponseEntity<Integer> pageCountResponse = restTemplate.getForEntity(getPageCountUrl, Integer.class);
             
             if (pageCountResponse.getStatusCode().is2xxSuccessful() && pageCountResponse.getBody() != null) {
                 Integer actualPageCount = pageCountResponse.getBody();
                 
-                // Обновляем pageCount в ChapterService
                 Map<String, Object> updateRequest = new HashMap<>();
                 updateRequest.put("pageCount", actualPageCount);
                 
@@ -2021,10 +2028,350 @@ public class MelonIntegrationService {
                 String updateChapterUrl = "http://chapter-service:8082/api/chapters/" + chapterId + "/pagecount";
                 restTemplate.put(updateChapterUrl, updateEntity);
                 
-                System.out.println("Updated chapter " + chapterId + " pageCount to: " + actualPageCount);
+                logger.info("Updated chapter {} pageCount to: {}", chapterId, actualPageCount);
             }
         } catch (Exception e) {
-            System.err.println("Failed to update pageCount for chapter " + chapterId + ": " + e.getMessage());
+            logger.error("Failed to update pageCount for chapter {}: {}", chapterId, e.getMessage());
+        }
+    }
+
+    private List<Map<String, Object>> sortChaptersForImport(List<Map<String, Object>> chapters) {
+        if (chapters == null || chapters.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<ChapterOrderDescriptor> descriptors = new ArrayList<>(chapters.size());
+        for (int index = 0; index < chapters.size(); index++) {
+            Map<String, Object> chapter = chapters.get(index);
+            Integer volumeNumber = parseVolumeNumber(chapter.get("volume"));
+            int volume = volumeNumber != null ? volumeNumber : 0;
+            Double numericValue = parseChapterNumericValue(chapter.get("number"));
+            String specialKey = buildSpecialChapterKey(chapter.get("number"));
+
+            descriptors.add(new ChapterOrderDescriptor(index, chapter, volume, numericValue, specialKey));
+        }
+
+        descriptors.sort(Comparator
+            .comparingInt(ChapterOrderDescriptor::volume)
+            .thenComparing(ChapterOrderDescriptor::hasNumericNumber, Comparator.reverseOrder())
+            .thenComparing(ChapterOrderDescriptor::numericValue, Comparator.nullsLast(Double::compareTo))
+            .thenComparing(ChapterOrderDescriptor::specialKey, Comparator.nullsLast(String::compareTo))
+            .thenComparingInt(ChapterOrderDescriptor::originalIndex)
+        );
+
+        return descriptors.stream()
+            .map(ChapterOrderDescriptor::chapter)
+            .collect(Collectors.toList());
+    }
+
+    private String resolveChapterFolderName(String numberAsString, Object titleObj, Integer volumeNumber,
+                                            Map<String, Object> chapterData, Long chapterId) {
+        String folderName = numberAsString != null ? numberAsString.trim() : "";
+        String titlePart = titleObj != null ? titleObj.toString().trim() : "";
+
+        if (!titlePart.isEmpty()) {
+            folderName = folderName.isEmpty()
+                ? titlePart
+                : folderName + ". " + titlePart;
+        }
+
+        folderName = folderName.replaceAll("\\s+", " ").trim();
+        folderName = folderName.replaceAll("\\.+$", "");
+
+        if (folderName.isEmpty()) {
+            Object slugObj = chapterData != null ? chapterData.get("slug") : null;
+            if (slugObj != null && !slugObj.toString().trim().isEmpty()) {
+                folderName = slugObj.toString().trim();
+            }
+        }
+
+        if (folderName.isEmpty()) {
+            folderName = String.valueOf(chapterId);
+        }
+
+        if (volumeNumber != null && volumeNumber > 0 && !folderName.contains("(Vol.")) {
+            folderName = folderName + " (Vol." + volumeNumber + ")";
+        }
+
+        return folderName;
+    }
+
+    private Integer parseVolumeNumber(Object volumeObj) {
+        if (volumeObj == null) {
+            return null;
+        }
+
+        String raw = volumeObj.toString().trim();
+        if (raw.isEmpty()) {
+            return null;
+        }
+
+        Double keywordCandidate = extractVolumeWithKeywords(raw);
+        Integer normalized = normalizeVolumeCandidate(keywordCandidate);
+        if (normalized != null) {
+            return normalized;
+        }
+
+        Matcher matcher = NUMERIC_TOKEN_PATTERN.matcher(raw);
+        if (matcher.find()) {
+            Double numericCandidate = parseNumericToken(matcher.group());
+            normalized = normalizeVolumeCandidate(numericCandidate);
+            if (normalized != null) {
+                return normalized;
+            }
+        }
+
+        if (!raw.matches(".*\\d.*")) {
+            Integer romanCandidate = parseRomanVolume(raw);
+            if (romanCandidate != null) {
+                return romanCandidate;
+            }
+        }
+
+        logger.debug("Unable to parse volume '{}': no numeric tokens detected", raw);
+        return null;
+    }
+
+    private Double parseChapterNumericValue(Object numberObj) {
+        if (numberObj == null) {
+            return null;
+        }
+
+        String raw = numberObj.toString().trim();
+        if (raw.isEmpty()) {
+            return null;
+        }
+
+        String normalized = raw.replace(',', '.');
+        try {
+            return Double.parseDouble(normalized);
+        } catch (NumberFormatException ignored) {
+            // fall through
+        }
+
+        Matcher matcher = NUMERIC_TOKEN_PATTERN.matcher(normalized);
+        if (matcher.find()) {
+            String token = matcher.group().replace(',', '.');
+            try {
+                return Double.parseDouble(token);
+            } catch (NumberFormatException ignored) {
+                // fall through
+            }
+        }
+
+        return null;
+    }
+
+    private Double extractVolumeWithKeywords(String raw) {
+        Matcher matcher = VOLUME_KEYWORD_PATTERN.matcher(raw);
+        Double bestValue = null;
+        int bestWeight = Integer.MIN_VALUE;
+
+        while (matcher.find()) {
+            String keyword = matcher.group(1);
+            String numberToken = matcher.group(2);
+            Double candidate = parseNumericToken(numberToken);
+            if (candidate == null) {
+                continue;
+            }
+
+            int weight = keywordWeight(keyword);
+            if (weight > bestWeight) {
+                bestWeight = weight;
+                bestValue = candidate;
+            }
+        }
+
+        return bestValue;
+    }
+
+    private Double parseNumericToken(String token) {
+        if (token == null) {
+            return null;
+        }
+
+        try {
+            return Double.parseDouble(token.replace(',', '.'));
+        } catch (NumberFormatException ex) {
+            logger.debug("Unable to parse numeric token '{}': {}", token, ex.getMessage());
+            return null;
+        }
+    }
+
+    private Integer normalizeVolumeCandidate(Double candidate) {
+        if (candidate == null || Double.isNaN(candidate) || Double.isInfinite(candidate)) {
+            return null;
+        }
+
+        int value = (int) Math.floor(candidate);
+        return value > 0 ? value : null;
+    }
+
+    private int keywordWeight(String keyword) {
+        if (keyword == null) {
+            return 0;
+        }
+
+        String normalized = keyword.toLowerCase(Locale.ROOT);
+        if (normalized.startsWith("том") || normalized.startsWith("volume") || normalized.startsWith("vol")) {
+            return 3;
+        }
+        if (normalized.startsWith("book") || normalized.startsWith("част")) {
+            return 2;
+        }
+        if (normalized.startsWith("part")) {
+            return 2;
+        }
+        if (normalized.startsWith("season") || normalized.startsWith("сезон")) {
+            return 1;
+        }
+
+        return 0;
+    }
+
+    private Integer parseRomanVolume(String raw) {
+        Matcher matcher = ROMAN_VOLUME_PATTERN.matcher(raw);
+        while (matcher.find()) {
+            String token = matcher.group();
+            Integer value = romanToInteger(token);
+            if (value != null && value > 0) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private Integer romanToInteger(String roman) {
+        if (roman == null || roman.isEmpty()) {
+            return null;
+        }
+
+        int total = 0;
+        int previous = 0;
+        String upper = roman.toUpperCase(Locale.ROOT);
+
+        for (int i = upper.length() - 1; i >= 0; i--) {
+            char symbol = upper.charAt(i);
+            Integer value = ROMAN_VALUES.get(symbol);
+            if (value == null) {
+                return null;
+            }
+
+            if (value < previous) {
+                total -= value;
+            } else {
+                total += value;
+                previous = value;
+            }
+        }
+
+        return total > 0 ? total : null;
+    }
+
+    private String buildSpecialChapterKey(Object numberObj) {
+        if (numberObj == null) {
+            return null;
+        }
+
+        String raw = numberObj.toString().trim().toLowerCase(Locale.ROOT);
+        if (raw.isEmpty()) {
+            return null;
+        }
+
+        return raw.replaceAll("[^a-z0-9]+", " ").trim();
+    }
+
+    private double generateNumericChapterNumber(int volume, double numericValue,
+                                                Map<Integer, Integer> volumeCounters,
+                                                Set<String> usedChapterNumbers) {
+        int safeVolume = Math.max(volume, 0);
+        int counter = volumeCounters.compute(safeVolume, (key, value) -> value == null ? 1 : value + 1);
+        double base = safeVolume * 10000d;
+        double candidate = base + numericValue;
+        double nextBoundary = (safeVolume + 1) * 10000d;
+
+        if (candidate >= nextBoundary || candidate < base) {
+            candidate = base + counter;
+        }
+
+        return ensureUniqueChapterNumber(candidate, usedChapterNumbers, true);
+    }
+
+    private double generateSpecialChapterNumber(int volume,
+                                                Map<Integer, Integer> volumeCounters,
+                                                Set<String> usedChapterNumbers) {
+        int safeVolume = Math.max(volume, 0);
+        int counter = volumeCounters.compute(safeVolume, (key, value) -> value == null ? 1 : value + 1);
+        double base = safeVolume * 10000d;
+        double candidate = base + SPECIAL_BASE_OFFSET - (counter * SPECIAL_STEP);
+        double minBoundary = base + SPECIAL_STEP;
+
+        if (candidate <= minBoundary) {
+            candidate = minBoundary + counter * SPECIAL_STEP;
+        }
+
+        return ensureUniqueChapterNumber(candidate, usedChapterNumbers, false);
+    }
+
+    private double ensureUniqueChapterNumber(double candidate, Set<String> usedKeys, boolean incrementUpward) {
+        double adjusted = candidate;
+        double step = incrementUpward ? DUPLICATE_STEP : -DUPLICATE_STEP;
+        int guard = 0;
+
+        while (!usedKeys.add(chapterNumberKey(adjusted))) {
+            adjusted += step;
+            guard++;
+            if (guard >= MAX_DUPLICATE_ADJUSTMENTS) {
+                logger.warn("Unable to ensure unique chapter number after {} adjustments, candidate={}", guard, adjusted);
+                break;
+            }
+        }
+
+        return adjusted;
+    }
+
+    private String chapterNumberKey(double value) {
+        return String.format(Locale.ROOT, "%.6f", value);
+    }
+
+    private static class ChapterOrderDescriptor {
+        private final int originalIndex;
+        private final Map<String, Object> chapter;
+        private final int volume;
+        private final Double numericValue;
+        private final String specialKey;
+
+        ChapterOrderDescriptor(int originalIndex, Map<String, Object> chapter, int volume,
+                               Double numericValue, String specialKey) {
+            this.originalIndex = originalIndex;
+            this.chapter = chapter;
+            this.volume = volume;
+            this.numericValue = numericValue;
+            this.specialKey = specialKey;
+        }
+
+        int originalIndex() {
+            return originalIndex;
+        }
+
+        Map<String, Object> chapter() {
+            return chapter;
+        }
+
+        int volume() {
+            return volume;
+        }
+
+        boolean hasNumericNumber() {
+            return numericValue != null;
+        }
+
+        Double numericValue() {
+            return numericValue;
+        }
+
+        String specialKey() {
+            return specialKey;
         }
     }
 
@@ -2187,41 +2534,5 @@ public class MelonIntegrationService {
         }
     }
 
-    private PageData downloadPageSequentially(String mangaFilename, String originalChapterName, int pageIndex) {
-        String imageUrl = String.format("%s/images/%s/%s/%d",
-            melonServiceUrl, mangaFilename, originalChapterName, pageIndex);
-        int attempts = 3;
-        long baseDelayMs = 1500L;
-
-        for (int attempt = 1; attempt <= attempts; attempt++) {
-            try {
-                logger.debug("Фолбэк: попытка {} скачать страницу {} из {}", attempt, pageIndex, imageUrl);
-                ResponseEntity<byte[]> response = restTemplate.getForEntity(imageUrl, byte[].class);
-                if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                    byte[] data = response.getBody();
-                    logger.debug("Фолбэк успешен: страница {} получена ({} байт)", pageIndex, data.length);
-                    return new PageData(pageIndex, data);
-                }
-
-                logger.warn("Фолбэк неудачен для страницы {}: {}", pageIndex, response.getStatusCode());
-            } catch (Exception e) {
-                logger.warn("Ошибка фолбэка при скачивании страницы {}: {}", pageIndex, e.getMessage());
-            }
-
-            if (attempt < attempts) {
-                try {
-                    long sleep = baseDelayMs * attempt;
-                    logger.debug("Фолбэк: ожидание {} мс перед следующей попыткой", sleep);
-                    Thread.sleep(sleep);
-                } catch (InterruptedException interruptedException) {
-                    Thread.currentThread().interrupt();
-                    logger.error("Фолбэк прерван при ожидании скачивания страницы {}", pageIndex);
-                    break;
-                }
-            }
-        }
-
-        logger.error("Фолбэк: не удалось скачать страницу {} после {} попыток", pageIndex, attempts);
-        return null;
-    }
 }
+

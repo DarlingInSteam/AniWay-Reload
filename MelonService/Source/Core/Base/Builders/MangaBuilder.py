@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 import shutil
 import enum
 import os
+from urllib.parse import urlparse, unquote
 
 if TYPE_CHECKING:
 	from Source.Core.Base.Parsers.MangaParser import MangaParser
@@ -45,10 +46,10 @@ class MangaBuilder(BaseBuilder):
 	def __simple(self, title: "Manga", chapter: "Chapter", directory: str) -> str:
 		"""Система сборки: каталог с изображениями."""
 
-		ChapterName = self._GenerateChapterNameByTemplate(chapter)
-		Volume = ""
-		if self._SortingByVolumes and chapter.volume: Volume = self._GenerateVolumeNameByTemplate(chapter)
-		OutputPath = f"{self._ParserSettings.common.archives_directory}/{title.used_filename}/{Volume}/{ChapterName}"
+		VolumeDirectory, ChapterName = self.__resolve_output_components(chapter)
+		OutputPath = f"{self._ParserSettings.common.archives_directory}/{title.used_filename}"
+		if VolumeDirectory: OutputPath = f"{OutputPath}/{VolumeDirectory}"
+		OutputPath = f"{OutputPath}/{ChapterName}"
 		OutputPath = NormalizePath(OutputPath)
 
 		if not os.path.exists(OutputPath): os.makedirs(OutputPath)
@@ -60,10 +61,10 @@ class MangaBuilder(BaseBuilder):
 	def __zip(self, title: "Manga", chapter: "Chapter", directory: str) -> str:
 		"""Система сборки: *.ZIP-архив."""
 
-		ChapterName = self._GenerateChapterNameByTemplate(chapter)
-		Volume = ""
-		if self._SortingByVolumes and chapter.volume: Volume = self._GenerateVolumeNameByTemplate(chapter)
-		OutputPath = f"{self._ParserSettings.common.archives_directory}/{title.used_filename}/{Volume}/{ChapterName}"
+		VolumeDirectory, ChapterName = self.__resolve_output_components(chapter)
+		OutputPath = f"{self._ParserSettings.common.archives_directory}/{title.used_filename}"
+		if VolumeDirectory: OutputPath = f"{OutputPath}/{VolumeDirectory}"
+		OutputPath = f"{OutputPath}/{ChapterName}"
 		OutputPath = NormalizePath(OutputPath)
 
 		shutil.make_archive(OutputPath, "zip", directory)
@@ -82,6 +83,33 @@ class MangaBuilder(BaseBuilder):
 			MangaBuildSystems.CBZ: self.__cbz,
 			MangaBuildSystems.ZIP: self.__zip,
 		}
+
+	def __resolve_output_components(self, chapter: "Chapter") -> tuple[str, str]:
+		"""Возвращает директорию тома и уникальное имя главы для структуры вывода."""
+
+		ChapterName = (self._GenerateChapterNameByTemplate(chapter) or "").strip()
+		if not ChapterName:
+			ChapterName = str(getattr(chapter, "id", "chapter"))
+
+		volume_raw = getattr(chapter, "volume", None)
+		volume_str = str(volume_raw).strip() if volume_raw not in (None, "") else ""
+		VolumeDirectory = ""
+
+		if volume_str and self._SortingByVolumes:
+			VolumeDirectory = (self._GenerateVolumeNameByTemplate(chapter) or "").strip()
+		elif volume_str:
+			suffix = f"(Vol.{volume_str})"
+			if suffix not in ChapterName:
+				ChapterName = f"{ChapterName} {suffix}".strip()
+
+		# Схлопываем повторяющиеся пробелы и убираем точки в конце
+		ChapterName = " ".join(ChapterName.split()).rstrip(".")
+		VolumeDirectory = " ".join(VolumeDirectory.split()).rstrip(".") if VolumeDirectory else ""
+
+		if not ChapterName:
+			ChapterName = str(getattr(chapter, "id", "chapter")).strip()
+
+		return VolumeDirectory, ChapterName
 
 	#==========================================================================================#
 	# >>>>> ПУБЛИЧНЫЕ МЕТОДЫ <<<<< #
@@ -115,6 +143,18 @@ class MangaBuilder(BaseBuilder):
 		WorkDirectory = f"{self._Temper.builder_temp}/{title.used_filename}"
 
 		Parser: "MangaParser" = title.parser
+
+		if SlidesCount == 0:
+			chapter_metadata = TargetChapter.to_dict()
+			skip_reason = chapter_metadata.get("empty_reason")
+			if not skip_reason and TargetChapter.is_paid:
+				skip_reason = "Платная глава — страницы недоступны"
+			if not skip_reason:
+				skip_reason = "Источник не вернул изображения для главы"
+
+			self._SystemObjects.logger.warning(f"Skipping build for {chapter_display}: {skip_reason}")
+			self._SystemObjects.logger.info(f"\033[94m📥 {chapter_display} - пропущена (0 страниц)\033[0m")
+			return
 		
 		# КРИТИЧЕСКИ ВАЖНО: Если парсер загружен из JSON, нужно инициализировать _parallel_downloader
 		if hasattr(Parser, 'batch_download_images'):
@@ -157,13 +197,16 @@ class MangaBuilder(BaseBuilder):
 				os.makedirs(WorkDirectory, exist_ok=True)
 			
 			for idx, (Slide, downloaded_filename) in enumerate(zip(TargetChapter.slides, filenames), start=1):
-				Filename: str = Slide["link"].split("/")[-1]
+				parsed_url = urlparse(Slide["link"])
+				raw_filename = parsed_url.path.split("/")[-1]
+				Filename: str = unquote(raw_filename) or Slide["link"].split("/")[-1]
 				Index: int = Slide["index"]
 				
 				if downloaded_filename:
+					source_filename = os.path.basename(downloaded_filename)
 					# Перемещаем файл из temp в рабочую директорию
 					MovingStatus = self._Parser.images_downloader.move_from_temp(
-						WorkDirectory, Filename, f"{Index}", is_full_filename=False
+						WorkDirectory, source_filename, f"{Index}", is_full_filename=False
 					)
 					MovingStatus.print_messages()
 				else:
@@ -176,7 +219,9 @@ class MangaBuilder(BaseBuilder):
 			
 			for Slide in TargetChapter.slides:
 				Link: str = Slide["link"]
-				Filename: str = Link.split("/")[-1]
+				parsed_url = urlparse(Link)
+				raw_filename = parsed_url.path.split("/")[-1]
+				Filename: str = unquote(raw_filename) or Link.split("/")[-1]
 				Index: int = Slide["index"]
 				
 				if not os.path.exists(WorkDirectory): os.mkdir(WorkDirectory)

@@ -291,6 +291,11 @@ public class BookmarkService {
         return bookmarkRepository.findByMangaId(mangaId).stream().map(Bookmark::getUserId).distinct().collect(Collectors.toList());
     }
 
+    public long getSubscriberCountByManga(Long mangaId) {
+        Long count = bookmarkRepository.countDistinctUsersByMangaId(mangaId);
+        return count != null ? count : 0L;
+    }
+
     private BookmarkDTO convertToDTOWithMangaInfo(Bookmark bookmark) {
         BookmarkDTO dto = convertToDTO(bookmark);
         // догружаем кэш если отсутствует (не агрессивно)

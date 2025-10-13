@@ -88,7 +88,7 @@ export const NotificationsPage: React.FC = () => {
     <div className="relative mx-auto max-w-5xl px-4 py-10 lg:px-6">
       <div className="glass-panel rounded-3xl p-6 shadow-2xl">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="glass-inline flex flex-wrap items-center gap-1 rounded-full p-1 text-xs text-white">
+          <div className="glass-inline flex flex-wrap items-center gap-1 rounded-full p-1 text-xs text-foreground">
             {(['all', 'unread'] as const).map(option => (
               <button
                 key={option}
@@ -98,7 +98,7 @@ export const NotificationsPage: React.FC = () => {
                   'rounded-full px-4 py-1.5 font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40',
                   viewFilter === option
                     ? 'bg-blue-500/25 text-white shadow-lg shadow-blue-500/30'
-                    : 'text-slate-200/80 hover:bg-white/10 hover:text-white'
+                    : 'text-slate-200/80 hover:bg-white/10 hover:text-foreground'
                 )}
               >
                 {option === 'all' ? 'Все' : 'Непрочитанные'}
@@ -157,7 +157,7 @@ export const NotificationsPage: React.FC = () => {
       {displayed.length === 0 && !loading && (
         <div className="glass-panel mt-10 rounded-3xl p-12 text-center shadow-xl">
           <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full border border-white/10 bg-white/10 text-4xl">📭</div>
-          <h2 className="text-xl font-semibold text-white">Ничего нового пока нет</h2>
+          <h2 className="text-xl font-semibold text-foreground">Ничего нового пока нет</h2>
           <p className="mt-3 text-sm text-slate-300">
             {viewFilter === 'unread'
               ? 'Все уведомления уже прочитаны. Как только появится что-то важное, вы увидите это здесь.'
@@ -207,7 +207,7 @@ const Row: React.FC<{ n: NotificationItem; onActivate: (target: string | null) =
         </div>
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex flex-wrap items-start gap-2">
-            <div className="min-w-0 flex-1 text-base font-semibold leading-tight text-white line-clamp-2">{title}</div>
+            <div className="min-w-0 flex-1 text-base font-semibold leading-tight text-foreground line-clamp-2">{title}</div>
             <div className="shrink-0 text-[11px] uppercase tracking-[0.18em] text-slate-400">
               {formatDate(n.createdAtEpoch)}
             </div>

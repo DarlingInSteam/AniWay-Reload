@@ -1,13 +1,16 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useLayoutEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
+import type { LucideIcon } from 'lucide-react'
 import {
-  BookOpen, Play, Eye, Heart, Star, ChevronDown, ChevronUp, Send,
-  Bookmark, Edit, AlertTriangle, Share, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Check
+  BookOpen, Bookmark, Eye, Heart, Star, ChevronDown, ChevronUp,
+  Edit, AlertTriangle, Share, ChevronRight, ArrowUpDown,
+  ArrowUp, ArrowDown, Check, ShieldCheck, CalendarDays, Clock, Sparkles
 } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { formatDate, getStatusColor, getStatusText, getTypeText, cn } from '@/lib/utils'
+import { formatDate, formatRelativeTime, getStatusText, getTypeText, cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
 import { formatChapterTitle, formatChapterNumber, formatVolumeNumber } from '@/lib/chapterUtils'
 import { BookmarkControls } from '../components/bookmarks/BookmarkControls'
 import { ReadingProgressBar, LastReadChapter } from '../components/progress/ReadingProgress'
@@ -17,7 +20,7 @@ import { CommentSection } from '../components/comments/CommentSection'
 import MangaReviews from '../components/MangaReviews'
 import { useAuth } from '@/contexts/AuthContext'
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
-
+import type { MangaResponseDTO } from '@/types'
 import { useSyncedSearchParam } from '@/hooks/useSyncedSearchParam'
 
 export function MangaPage() {
@@ -36,7 +39,8 @@ export function MangaPage() {
   const activeTab = activeTabParam
   const [chapterSort, setChapterSort] = useState<'asc' | 'desc' | 'none'>('asc')
   const [showFullDescription, setShowFullDescription] = useState(false)
-  const [showFullStats, setShowFullStats] = useState(false)
+  const [showAllAlternativeTitles, setShowAllAlternativeTitles] = useState(false)
+  const [showAllChips, setShowAllChips] = useState(false)
   const [commentText, setCommentText] = useState('')
   const [commentFilter, setCommentFilter] = useState<'new' | 'popular'>('new')
   const [isDesktop, setIsDesktop] = useState(false)
@@ -76,6 +80,8 @@ export function MangaPage() {
     return () => window.removeEventListener('resize', checkScreenSize)
   }, [])
 
+  const leftColumnWidth = useMemo(() => (isDesktop ? '283px' : 'min(100%, 258px)'), [isDesktop])
+
   const { data: manga, isLoading: mangaLoading } = useQuery({
     queryKey: ['manga', mangaId, user?.id],
     queryFn: () => apiClient.getMangaById(mangaId, user?.id),
@@ -83,6 +89,13 @@ export function MangaPage() {
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   })
+
+  const descriptionText = useMemo(() => (manga?.description || '').trim(), [manga?.description])
+  const isDescriptionLong = descriptionText.length > 360
+
+  useEffect(() => {
+    setShowFullDescription(false)
+  }, [manga?.id])
 
   // Slug handling: enhance URL to /manga/:id-:slug (client side only)
   useEffect(() => {
@@ -144,54 +157,107 @@ export function MangaPage() {
     staleTime: 10 * 60 * 1000, // Кеш глав на 10 минут
   })
 
+  const { data: recentlyUpdatedManga, isLoading: similarLoading } = useQuery({
+    queryKey: ['manga-recently-updated', mangaId],
+    queryFn: () => apiClient.getAllMangaPaged(0, 20, 'updatedAt', 'desc'),
+    enabled: !!mangaId,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const { data: popularManga, isLoading: popularLoading } = useQuery({
+    queryKey: ['manga-popular'],
+    queryFn: () => apiClient.getAllMangaPaged(0, 20, 'views', 'desc'),
+    staleTime: 10 * 60 * 1000,
+  })
+
+  const { data: bookmarkSubscribers, isLoading: bookmarkCountLoading } = useQuery({
+    queryKey: ['manga-bookmark-subscribers', mangaId],
+    queryFn: () => apiClient.getMangaBookmarkSubscriberCount(mangaId),
+    enabled: !!mangaId,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const similarAggregation = useMemo(() => {
+    const page = recentlyUpdatedManga?.content
+    if (!page || page.length === 0) {
+      return { items: [] as MangaResponseDTO[], fallbackUsed: false, baseInsufficient: false }
+    }
+
+    const primary = page.filter((item) => item.id !== mangaId)
+    const seen = new Set<number>()
+    const result: MangaResponseDTO[] = []
+
+    for (const entry of primary) {
+      if (seen.has(entry.id)) continue
+      seen.add(entry.id)
+      result.push(entry)
+      if (result.length >= 4) break
+    }
+
+    const baseInsufficient = result.length < 4
+    let fallbackUsed = false
+
+    if (baseInsufficient && popularManga?.content?.length) {
+      for (const entry of popularManga.content) {
+        if (entry.id === mangaId || seen.has(entry.id)) continue
+        seen.add(entry.id)
+        result.push(entry)
+        fallbackUsed = true
+        if (result.length >= 4) break
+      }
+    }
+
+    return {
+      items: result.slice(0, 4),
+      fallbackUsed,
+      baseInsufficient,
+    }
+  }, [recentlyUpdatedManga?.content, popularManga?.content, mangaId])
+
+  const { items: similarManga, fallbackUsed: similarUsesFallback, baseInsufficient: similarBaseInsufficient } = similarAggregation
+  const awaitingFallback = similarBaseInsufficient && !similarUsesFallback && popularLoading
+
   const { isChapterCompleted } = useReadingProgress()
 
   // Оптимизированная загрузка статусов лайков глав
   useEffect(() => {
+    let cancelled = false
+
     const loadChapterLikeStatuses = async () => {
       if (!chapters || !user || chapters.length === 0) {
-        console.log('Skipping like status load:', { chapters: !!chapters, user: !!user, length: chapters?.length })
+        setLikedChapters(new Set())
         return
       }
 
-      console.log('Loading like statuses for', chapters.length, 'chapters')
       try {
-        // Ограничиваем количество одновременных запросов и добавляем кеширование
-        const batchSize = 10
-        const likeStatuses = []
-        
-        for (let i = 0; i < chapters.length; i += batchSize) {
-          const batch = chapters.slice(i, i + batchSize)
-          const batchPromises = batch.map(async (chapter) => {
-            try {
-              // Добавляем задержку между запросами для снижения нагрузки
-              if (i > 0) await new Promise(resolve => setTimeout(resolve, 100))
-              const response = await apiClient.isChapterLiked(chapter.id)
-              return { chapterId: chapter.id, liked: response.liked }
-            } catch (error) {
-              console.error(`Failed to load like status for chapter ${chapter.id}:`, error)
-              return { chapterId: chapter.id, liked: false }
-            }
-          })
-          
-          const batchResults = await Promise.all(batchPromises)
-          likeStatuses.push(...batchResults)
+        const chapterIds = chapters.map((chapter) => chapter.id)
+        const likedIdsAggregate: number[] = []
+        const chunkSize = 100
+
+        for (let i = 0; i < chapterIds.length; i += chunkSize) {
+          const chunk = chapterIds.slice(i, i + chunkSize)
+          const likedIds = await apiClient.getChapterLikeStatuses(chunk)
+          likedIdsAggregate.push(...likedIds)
         }
 
-        const likedChapterIds = likeStatuses
-          .filter(status => status.liked)
-          .map(status => status.chapterId)
-
-        console.log('Loaded like statuses:', likedChapterIds.length, 'liked chapters')
-        setLikedChapters(new Set(likedChapterIds))
+        if (!cancelled) {
+          setLikedChapters(new Set(likedIdsAggregate))
+        }
       } catch (error) {
-        console.error('Failed to load chapter like statuses:', error)
+        if (!cancelled) {
+          console.error('Failed to load chapter like statuses:', error)
+          setLikedChapters(new Set())
+        }
       }
     }
 
-    // Добавляем debounce чтобы избежать множественных вызовов
-    const timeoutId = setTimeout(loadChapterLikeStatuses, 500)
-    return () => clearTimeout(timeoutId)
+    // небольшая задержка, чтобы избежать двойных вызовов при монтировании
+    const timeoutId = setTimeout(loadChapterLikeStatuses, 200)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timeoutId)
+    }
   }, [chapters, user])
 
   // Handle chapter like/unlike
@@ -228,6 +294,185 @@ export function MangaPage() {
     }
   }
 
+  const views = manga?.views ?? 0
+  const releaseYear = manga?.releaseDate ? new Date(manga.releaseDate).getFullYear() : undefined
+  const availableChapters = manga?.chapterCount ?? chapters?.length ?? 0
+  const totalChapters = manga?.totalChapters ?? availableChapters
+
+  const genres = useMemo(() => {
+    if (!manga?.genre) return [] as string[]
+    return manga.genre
+      .split(',')
+      .map((g) => g.trim())
+      .filter(Boolean)
+  }, [manga?.genre])
+
+  const alternativeTitles = useMemo(() => {
+    if (!manga?.alternativeNames) return [] as string[]
+    return manga.alternativeNames
+      .split(';')
+      .map((name) => name.trim())
+      .filter(Boolean)
+  }, [manga?.alternativeNames])
+
+  const displayedAlternativeTitles = useMemo(() => {
+    if (showAllAlternativeTitles) return alternativeTitles
+    return alternativeTitles.slice(0, 2)
+  }, [alternativeTitles, showAllAlternativeTitles])
+
+  const hasHiddenAlternativeTitles = alternativeTitles.length > 2
+
+  useEffect(() => {
+    setShowAllAlternativeTitles(false)
+  }, [alternativeTitles.length])
+
+  const tags = useMemo(() => {
+    if (!manga?.tags) return [] as string[]
+    return manga.tags
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean)
+  }, [manga?.tags])
+
+  const combinedChips = useMemo(
+    () => {
+      const chips = [
+        ...genres.map((genre) => ({ type: 'genre' as const, label: genre })),
+        ...tags.map((tag) => ({ type: 'tag' as const, label: tag })),
+      ]
+      // Сортируем по длине: сначала короткие, потом длинные
+      return chips.sort((a, b) => a.label.length - b.label.length)
+    },
+    [genres, tags]
+  )
+
+  // Показываем кнопку если чипов больше порога
+  const collapsedChipCount = 12
+  const hasMoreChips = combinedChips.length > collapsedChipCount
+
+  type ChipItem = { type: 'genre' | 'tag'; label: string }
+  type ToggleItem = { type: 'toggle' }
+  type RenderItem = ChipItem | ToggleItem
+
+  const displayedChips = useMemo<RenderItem[]>(() => {
+    if (!hasMoreChips) {
+      // Если чипов мало, показываем все без кнопки
+      return combinedChips
+    }
+
+    if (showAllChips) {
+      // Expanded: все чипы + кнопка "Свернуть" в конце потока
+      return [...combinedChips, { type: 'toggle' as const }]
+    }
+
+    // Collapsed: первые N чипов + кнопка "Больше" в конце потока
+    return [...combinedChips.slice(0, collapsedChipCount), { type: 'toggle' as const }]
+  }, [combinedChips, hasMoreChips, showAllChips, collapsedChipCount])
+
+  useEffect(() => {
+    setShowAllChips(false)
+  }, [combinedChips.length])
+
+  const compactNumberFormatter = useMemo(
+    () => new Intl.NumberFormat('ru-RU', { notation: 'compact', maximumFractionDigits: 1 }),
+    []
+  )
+
+  const totalChapterLikes = useMemo(() => {
+    if (!chapters) return 0
+    return chapters.reduce((sum, chapter) => sum + (chapter.likeCount ?? 0), 0)
+  }, [chapters])
+
+  const bookmarkCount = bookmarkSubscribers ?? 0
+  const isBookmarkCountReady = bookmarkSubscribers !== undefined || !bookmarkCountLoading
+
+  const viewsDisplay = compactNumberFormatter.format(manga?.views ?? 0)
+  const likesDisplay = chaptersLoading && !chapters
+    ? '...'
+    : compactNumberFormatter.format(totalChapterLikes)
+  const bookmarksDisplay = isBookmarkCountReady
+    ? compactNumberFormatter.format(bookmarkCount)
+    : '...'
+
+  const infoBadges = useMemo(() => {
+    if (!manga) return [] as Array<{ label: string; icon: LucideIcon; className: string }>
+
+    const badges: Array<{ label: string; icon: LucideIcon; className: string }> = []
+
+    badges.push({
+      label: getTypeText(manga.type),
+      icon: BookOpen,
+      className: 'border-primary/30 bg-primary/15 text-primary-foreground/90',
+    })
+
+    const statusBadgeClass = (() => {
+      switch (manga.status) {
+        case 'COMPLETED':
+          return 'border-sky-400/40 bg-sky-500/10 text-sky-200'
+        case 'ANNOUNCED':
+          return 'border-purple-400/40 bg-purple-500/10 text-purple-200'
+        case 'HIATUS':
+          return 'border-amber-400/40 bg-amber-500/10 text-amber-200'
+        case 'CANCELLED':
+          return 'border-rose-500/40 bg-rose-500/10 text-rose-200'
+        default:
+          return 'border-emerald-400/40 bg-emerald-500/10 text-emerald-200'
+      }
+    })()
+
+    badges.push({
+      label: getStatusText(manga.status),
+      icon: Sparkles,
+      className: statusBadgeClass,
+    })
+
+    if (typeof releaseYear === 'number') {
+      badges.push({
+        label: `${releaseYear}`,
+        icon: CalendarDays,
+        className: 'border-white/20 bg-white/5 text-white/80',
+      })
+    }
+
+    if (manga.ageLimit) {
+      badges.push({
+        label: `${manga.ageLimit}+`,
+        icon: ShieldCheck,
+        className: 'border-rose-400/40 bg-rose-500/10 text-rose-200',
+      })
+    }
+
+    return badges
+  }, [manga, releaseYear])
+
+  const infoDetails = useMemo(() => {
+    if (!manga) return [] as Array<{ label: string; value: string }>
+
+    const details: Array<{ label: string; value: string }> = []
+
+    if (manga.author) {
+      details.push({ label: 'Автор', value: manga.author })
+    }
+
+    if (manga.artist && manga.artist !== manga.author) {
+      details.push({ label: 'Художник', value: manga.artist })
+    }
+
+    if (manga.releaseDate) {
+      details.push({ label: 'Публикуется с', value: formatDate(manga.releaseDate) })
+    }
+
+    if (manga.isLicensed !== undefined) {
+      details.push({ label: 'Лицензия', value: manga.isLicensed ? 'Лицензировано' : 'Не лицензировано' })
+    }
+
+    if (manga.engName) {
+      details.push({ label: 'Английское название', value: manga.engName })
+    }
+
+    return details
+  }, [manga?.author, manga?.artist, manga?.releaseDate, manga?.isLicensed, manga?.engName, manga])
+
   if (mangaLoading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -248,46 +493,6 @@ export function MangaPage() {
       </div>
     )
   }
-
-  // Фейковые данные
-  const rating = (4 + Math.random()).toFixed(1)
-  const views = manga?.views || 0
-  const likes = Math.floor(Math.random() * 5000) + 500
-
-  // Получаем жанры из API или используем фейковые
-  const genres = manga.genre ? manga.genre.split(',').map(g => g.trim()) : ['Экшен', 'Приключения', 'Драма', 'Фэнтези', 'Романтика', 'Комедия']
-
-  // Получаем альтернативные названия из API
-  const alternativeTitles = manga.alternativeNames 
-    ? manga.alternativeNames.split(';').map(name => name.trim()).filter(name => name) 
-    : []
-
-  // Получаем теги из API
-  const tags = manga.tags ? manga.tags.split(',').map(t => t.trim()) : []
-
-  // Фейковая статистика рейтингов
-  const ratingStats = [
-    { rating: 10, count: 156 },
-    { rating: 9, count: 234 },
-    { rating: 8, count: 189 },
-    { rating: 7, count: 145 },
-    { rating: 6, count: 98 },
-    { rating: 5, count: 67 },
-    { rating: 4, count: 34 },
-    { rating: 3, count: 23 },
-    { rating: 2, count: 12 },
-    { rating: 1, count: 8 }
-  ]
-
-  // Фейковая статистика закладок
-  const bookmarkStats = [
-    { status: 'Читаю', count: 2341 },
-    { status: 'Буду читать', count: 1876 },
-    { status: 'Прочитано', count: 945 },
-    { status: 'Отложено', count: 234 },
-    { status: 'Брошено', count: 156 },
-    { status: 'Любимое', count: 567 }
-  ]
 
   // Функция сортировки глав
   const getSortedChapters = (chapters: any[]) => {
@@ -340,12 +545,15 @@ export function MangaPage() {
       {/* Content */}
       <div className="relative z-10">
         <div className="container mx-auto px-4 lg:px-8 py-4 md:py-8">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-8">
+          <div className="grid grid-cols-1 gap-y-4 gap-x-4 md:gap-y-5 md:gap-x-4 lg:grid-cols-[283px_minmax(0,1fr)_320px] lg:gap-y-5 lg:gap-x-3 xl:gap-y-6 xl:gap-x-4">
             {/* Left Column - Cover and Controls */}
             <div className="lg:col-span-1">
-              <div className="lg:sticky lg:top-24 space-y-4 md:space-y-6">
+              <div
+                className="lg:sticky lg:top-24 mx-auto lg:mx-0 space-y-4 md:space-y-6"
+                style={{ width: leftColumnWidth }}
+              >
                 {/* Cover Image */}
-                <div className="aspect-[3/4] rounded-3xl overflow-hidden bg-white/5 backdrop-blur-sm max-w-sm mx-auto lg:max-w-none border border-white/10">
+                <div className="aspect-[283/424] rounded-3xl overflow-hidden bg-white/5 backdrop-blur-sm w-full border border-white/10">
                   <img
                     src={manga.coverImageUrl}
                     alt={manga.title}
@@ -355,17 +563,6 @@ export function MangaPage() {
                       target.src = '/placeholder-manga.jpg'
                     }}
                   />
-                </div>
-
-                {/* Title */}
-                <div className="text-center lg:text-left">
-                  <h1 className="text-xl md:text-2xl font-bold text-white mb-2">{manga.title}</h1>
-                  {/* Mobile - Type and Year after title */}
-                  <div className="lg:hidden flex items-center justify-center gap-3 text-sm text-muted-foreground">
-                    <span>{getTypeText(manga.type)}</span>
-                    <span>•</span>
-                    <span>{new Date(manga.releaseDate).getFullYear()}</span>
-                  </div>
                 </div>
 
                 {/* Action Buttons - только на ПК */}
@@ -385,7 +582,7 @@ export function MangaPage() {
                   <ReadingProgressBar 
                     mangaId={mangaId} 
                     totalChapters={manga.totalChapters} 
-                    className="mb-4" 
+                    className="w-full mb-4" 
                   />
 
                   <button className="w-full bg-white/5 backdrop-blur-sm text-white py-3 rounded-3xl font-medium hover:bg-white/10 transition-colors flex items-center justify-center gap-2 border border-white/10">
@@ -407,7 +604,36 @@ export function MangaPage() {
             </div>
 
             {/* Main Content */}
-            <div className="lg:col-span-2 -mt-2">
+            <div className="lg:col-span-1 lg:col-start-2 xl:col-span-1 xl:col-start-2 lg:self-start">
+              <div className="mb-6 flex flex-col items-center lg:items-start gap-4 text-center lg:text-left">
+                <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 text-sm text-white/80">
+                  <span>{getTypeText(manga.type)}</span>
+                  {typeof releaseYear === 'number' && (
+                    <>
+                      <span className="text-white/40">•</span>
+                      <span>{releaseYear}</span>
+                    </>
+                  )}
+                </div>
+                <h1 className="text-2xl md:text-3xl font-bold text-white leading-tight">{manga.title}</h1>
+                <div className="flex flex-wrap items-center justify-center lg:justify-start gap-x-6 gap-y-3 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <Eye className="h-4 w-4 text-white/80" />
+                    <span className="text-white font-semibold">{viewsDisplay}</span>
+                    <span>просмотров</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Heart className="h-4 w-4 text-white/80" />
+                    <span className="text-white font-semibold">{likesDisplay}</span>
+                    <span>лайков</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Bookmark className="h-4 w-4 text-white/80" />
+                    <span className="text-white font-semibold">{bookmarksDisplay}</span>
+                    <span>закладок</span>
+                  </div>
+                </div>
+              </div>
               {/* Mobile Action Buttons */}
               <div className="lg:hidden mb-6">
                 {/* Кнопка чтения */}
@@ -422,7 +648,7 @@ export function MangaPage() {
                 <ReadingProgressBar 
                   mangaId={mangaId} 
                   totalChapters={manga.totalChapters} 
-                  className="mb-4" 
+                  className="w-full mb-4" 
                 />
 
                 {/* Кнопки действий */}
@@ -430,8 +656,8 @@ export function MangaPage() {
               </div>
 
               {/* Tabs */}
-              <div className="border-b border-white/20 mb-6">
-                <div className="flex overflow-x-auto scrollbar-hide">
+              <div className="mb-6">
+                <div className="w-full flex flex-nowrap md:flex-wrap gap-2 overflow-x-auto md:overflow-visible scrollbar-hide bg-white/5 border border-white/10 rounded-full p-1 backdrop-blur-sm">
                   {tabs.map(tab => {
                     if (tab.mobileOnly && isDesktop) return null
                     return (
@@ -439,10 +665,10 @@ export function MangaPage() {
                         key={tab.id}
                         onClick={() => setActiveTabParam(tab.id as any)}
                         className={cn(
-                          'px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex-shrink-0',
+                          'px-4 py-2 text-sm font-medium whitespace-nowrap rounded-full transition-colors flex-shrink-0 border border-transparent',
                           activeTab === tab.id
-                            ? 'border-primary text-primary'
-                            : 'border-transparent text-muted-foreground hover:text-white'
+                            ? 'bg-primary text-white shadow-[0_8px_24px_rgba(37,99,235,0.35)]'
+                            : 'text-white/70 hover:text-white hover:bg-white/10'
                         )}
                       >
                         {tab.label}
@@ -459,196 +685,177 @@ export function MangaPage() {
                   <div className="space-y-6">
                     {/* Description */}
                     <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
-                      <h3 className="text-lg font-bold text-white mb-3">Описание</h3>
+                      <h3 className="text-lg font-bold text-foreground mb-3">Описание</h3>
                       <div className="text-muted-foreground text-sm md:text-base">
-                        <div className={cn(
-                          'prose prose-invert max-w-none transition-all duration-300 markdown-body',
-                          showFullDescription ? '' : 'line-clamp-3'
-                        )}>
-                          <MarkdownRenderer value={manga.description || 'Описание отсутствует.'} />
+                        <div
+                          className={cn(
+                            'relative overflow-hidden transition-[max-height] duration-300 ease-out prose-ul:list-disc prose-ul:pl-5',
+                            showFullDescription ? 'max-h-[1200px]' : 'max-h-[6.25rem]'
+                          )}
+                        >
+                          <div
+                            className="prose prose-invert max-w-none markdown-body"
+                            style={
+                              !showFullDescription && isDescriptionLong
+                                ? {
+                                    display: '-webkit-box',
+                                    WebkitBoxOrient: 'vertical',
+                                    WebkitLineClamp: 4,
+                                    overflow: 'hidden',
+                                  }
+                                : undefined
+                            }
+                          >
+                            <MarkdownRenderer value={descriptionText || 'Описание отсутствует.'} />
+                          </div>
+                          {/* No fade overlay when collapsed; the clamp alone keeps layout tidy */}
                         </div>
-                        {!showFullDescription && (
+                        {isDescriptionLong && (
                           <button
-                            onClick={() => setShowFullDescription(true)}
-                            className="flex items-center gap-1 text-primary mt-2 hover:text-primary/80 transition-colors"
+                            onClick={() => setShowFullDescription(prev => !prev)}
+                            className="flex items-center gap-1 text-primary mt-3 hover:text-primary/80 transition-colors"
                           >
-                            <ChevronDown className="h-4 w-4" />
-                            Показать полностью
-                          </button>
-                        )}
-                        {showFullDescription && (
-                          <button
-                            onClick={() => setShowFullDescription(false)}
-                            className="flex items-center gap-1 text-primary mt-2 hover:text-primary/80 transition-colors"
-                          >
-                            <ChevronUp className="h-4 w-4" />
-                            Свернуть
+                            {showFullDescription ? (
+                              <>
+                                <ChevronUp className="h-4 w-4" />
+                                Свернуть
+                              </>
+                            ) : (
+                              <>
+                                <ChevronDown className="h-4 w-4" />
+                                Показать полностью
+                              </>
+                            )}
                           </button>
                         )}
                       </div>
                     </div>
 
-                    {/* Genres - полная ширина (clickable -> catalog with filter) */}
-                    <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
-                      <h3 className="text-lg font-bold text-white mb-3">Жанры</h3>
-                      <div className="flex flex-wrap gap-2">
-                        {genres.map((genre, index) => (
-                          <button
-                            key={index}
-                            type="button"
-                            onClick={() => navigate(`/catalog?genres=${encodeURIComponent(genre)}`)}
-                            className="group px-3 py-1 bg-white/10 backdrop-blur-sm text-white text-sm rounded-full border border-white/20 hover:bg-primary/30 hover:border-primary/50 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                            aria-label={`Перейти в каталог по жанру ${genre}`}
-                          >
-                            <span className="pointer-events-none select-none">{genre}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                    {combinedChips.length > 0 && (
+                      <div className="relative bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
+                        <div
+                          className={cn(
+                            'flex flex-wrap gap-2 transition-[max-height] duration-300 ease-out',
+                            showAllChips ? 'max-h-[480px]' : 'max-h-[4.75rem] overflow-hidden'
+                          )}
+                        >
+                          {displayedChips.map((item, index) => {
+                            if (item.type === 'toggle') {
+                              return (
+                                <button
+                                  key="toggle-button"
+                                  type="button"
+                                  onClick={() => setShowAllChips((prev) => !prev)}
+                                  className={cn(
+                                    'px-3 py-1 text-xs font-semibold lowercase tracking-wide rounded-full border border-dashed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black',
+                                    'border-primary/40 text-primary/80 hover:border-primary hover:text-primary'
+                                  )}
+                                  aria-label={showAllChips ? 'Свернуть список жанров и тегов' : 'Показать все жанры и теги'}
+                                >
+                                  {showAllChips ? 'свернуть' : 'больше'}
+                                </button>
+                              )
+                            }
 
-                    {/* Tags - только если есть теги (clickable -> catalog with filter) */}
-                    {tags.length > 0 && (
-                      <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
-                        <h3 className="text-lg font-bold text-white mb-3">Теги</h3>
-                        <div className="flex flex-wrap gap-2">
-                          {tags.map((tag, index) => (
-                            <button
-                              key={index}
-                              type="button"
-                              onClick={() => navigate(`/catalog?tags=${encodeURIComponent(tag)}`)}
-                              className="group px-3 py-1 bg-primary/10 backdrop-blur-sm text-primary text-sm rounded-full border border-primary/30 hover:bg-primary/30 hover:text-white hover:border-primary/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                              aria-label={`Перейти в каталог по тегу ${tag}`}
-                            >
-                              <span className="pointer-events-none select-none">{tag}</span>
-                            </button>
-                          ))}
+                            const isGenre = item.type === 'genre'
+                            return (
+                              <button
+                                key={`${item.type}-${item.label}-${index}`}
+                                type="button"
+                                onClick={() =>
+                                  isGenre
+                                    ? navigate(`/catalog?genres=${encodeURIComponent(item.label)}`)
+                                    : navigate(`/catalog?tags=${encodeURIComponent(item.label)}`)
+                                }
+                                className={cn(
+                                  'group px-3 py-1 text-sm rounded-full border transition-colors backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black',
+                                  isGenre
+                                    ? 'bg-white/10 border-white/20 text-white hover:bg-primary/30 hover:border-primary/50'
+                                    : 'bg-primary/10 border-primary/30 text-primary hover:bg-primary/30 hover:text-white hover:border-primary/50'
+                                )}
+                                aria-label={
+                                  isGenre
+                                    ? `Перейти в каталог по жанру ${item.label}`
+                                    : `Перейти в каталог по тегу ${item.label}`
+                                }
+                              >
+                                <span className="pointer-events-none select-none">{item.label}</span>
+                              </button>
+                            )
+                          })}
                         </div>
                       </div>
                     )}
 
                     {/* Info Section - полная ширина */}
                     <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
-                      <h3 className="text-lg font-bold text-white mb-4">Информация</h3>
-                      <div className="space-y-4">
-                        <div className="flex flex-col md:flex-row md:items-center gap-2">
-                          <div className="text-muted-foreground text-sm min-w-[150px]">Тип</div>
-                          <div className="text-white font-medium">
-                            {getTypeText(manga.type)}
-                          </div>
+                      <h3 className="text-lg font-bold text-foreground mb-4">Информация</h3>
+
+                      {infoBadges.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-5">
+                          {infoBadges.map((badge) => {
+                            const Icon = badge.icon
+                            return (
+                              <Badge
+                                key={badge.label}
+                                variant="outline"
+                                className={cn(
+                                  'flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-wide backdrop-blur-sm',
+                                  badge.className
+                                )}
+                              >
+                                <Icon className="h-3.5 w-3.5" />
+                                {badge.label}
+                              </Badge>
+                            )
+                          })}
                         </div>
+                      )}
 
-                        <div className="flex flex-col md:flex-row md:items-center gap-2">
-                          <div className="text-muted-foreground text-sm min-w-[150px]">Статус</div>
-                          <div className="text-white font-medium">
-                            {getStatusText(manga.status)}
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col md:flex-row md:items-center gap-2">
-                          <div className="text-muted-foreground text-sm min-w-[150px]">Год</div>
-                          <div className="text-white">{new Date(manga.releaseDate).getFullYear()}</div>
-                        </div>
-
-                        {manga.author && (
-                          <div className="flex flex-col md:flex-row md:items-center gap-2">
-                            <div className="text-muted-foreground text-sm min-w-[150px]">Автор</div>
-                            <div className="text-white">{manga.author}</div>
-                          </div>
-                        )}
-
-                        {manga.artist && (
-                          <div className="flex flex-col md:flex-row md:items-center gap-2">
-                            <div className="text-muted-foreground text-sm min-w-[150px]">Художник</div>
-                            <div className="text-white">{manga.artist}</div>
-                          </div>
-                        )}
-
-                        {manga.ageLimit && (
-                          <div className="flex flex-col md:flex-row md:items-center gap-2">
-                            <div className="text-muted-foreground text-sm min-w-[150px]">Возрастное ограничение</div>
-                            <div className="text-white">{manga.ageLimit}+</div>
-                          </div>
-                        )}
-
-                        {manga.isLicensed !== undefined && (
-                          <div className="flex flex-col md:flex-row md:items-center gap-2">
-                            <div className="text-muted-foreground text-sm min-w-[150px]">Лицензия</div>
-                            <div className="text-white">
-                              {manga.isLicensed ? 'Лицензировано' : 'Не лицензировано'}
+                      {infoDetails.length > 0 ? (
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          {infoDetails.map((detail) => (
+                            <div
+                              key={detail.label}
+                              className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm"
+                            >
+                              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">
+                                {detail.label}
+                              </div>
+                              <div className="mt-1.5 text-sm md:text-base font-medium text-white">
+                                {detail.value}
+                              </div>
                             </div>
-                          </div>
-                        )}
-
-                        {manga.engName && (
-                          <div className="flex flex-col md:flex-row md:items-center gap-2">
-                            <div className="text-muted-foreground text-sm min-w-[150px]">Английское название</div>
-                            <div className="text-white">{manga.engName}</div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Alternative Titles - только если есть альтернативные названия */}
-                    {alternativeTitles.length > 0 && (
-                      <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
-                        <h3 className="text-lg font-bold text-white mb-3">Альтернативные названия</h3>
-                        <div className="space-y-1">
-                          {alternativeTitles.map((title, index) => (
-                            <div key={index} className="text-muted-foreground text-sm">{title}</div>
                           ))}
                         </div>
-                      </div>
-                    )}
-
-                    {/* Statistics */}
-                    <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
-                      <h3 className="text-lg font-bold text-white mb-4">Статистика</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Rating Stats */}
-                        <div>
-                          <div className="text-muted-foreground text-sm mb-3">Оценки</div>
-                          <div className="space-y-2">
-                            {ratingStats.slice(0, showFullStats ? ratingStats.length : 3).map((stat) => (
-                              <div key={stat.rating} className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <Star className="h-4 w-4 text-accent fill-current" />
-                                  <span className="text-white">{stat.rating}</span>
-                                </div>
-                                <span className="text-muted-foreground">{stat.count}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Bookmark Stats */}
-                        <div>
-                          <div className="text-muted-foreground text-sm mb-3">В закладках</div>
-                          <div className="space-y-2">
-                            {bookmarkStats.slice(0, showFullStats ? bookmarkStats.length : 3).map((stat) => (
-                              <div key={stat.status} className="flex items-center justify-between">
-                                <span className="text-white">{stat.status}</span>
-                                <span className="text-muted-foreground">{stat.count}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      {!showFullStats && (
-                        <button
-                          onClick={() => setShowFullStats(true)}
-                          className="w-full mt-4 text-primary hover:text-primary/80 transition-colors text-sm"
-                        >
-                          Показать больше
-                        </button>
+                      ) : (
+                        <div className="text-sm text-muted-foreground">Дополнительная информация пока недоступна.</div>
                       )}
-                      {showFullStats && (
-                        <button
-                          onClick={() => setShowFullStats(false)}
-                          className="w-full mt-4 text-primary hover:text-primary/80 transition-colors text-sm"
-                        >
-                          Свернуть
-                        </button>
+
+                      {alternativeTitles.length > 0 && (
+                        <div className="mt-6">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">
+                            Альтернативные названия
+                          </div>
+                          <div className="mt-2 space-y-1">
+                            {displayedAlternativeTitles.map((title, index) => (
+                              <div key={`${title}-${index}`} className="text-sm text-muted-foreground">
+                                {title}
+                              </div>
+                            ))}
+                          </div>
+                          {hasHiddenAlternativeTitles && (
+                            <button
+                              type="button"
+                              onClick={() => setShowAllAlternativeTitles((prev) => !prev)}
+                              className="mt-3 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+                            >
+                              {showAllAlternativeTitles
+                                ? 'Скрыть'
+                                : `Показать все (${alternativeTitles.length})`}
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
 
@@ -803,23 +1010,71 @@ export function MangaPage() {
             </div>
 
             {/* Right Sidebar - Similar Manga (только на ПК) */}
-            <div className="hidden lg:block lg:col-span-1">
+            <div className="hidden lg:block lg:col-span-1 lg:col-start-3">
               <div className="lg:sticky lg:top-24">
                 <h3 className="text-lg md:text-xl font-bold text-white mb-4">Похожие</h3>
                 <div className="space-y-3">
-                  {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="flex space-x-3 p-3 bg-white/5 backdrop-blur-sm rounded-3xl hover:bg-white/10 transition-colors border border-white/10">
-                      <div className="w-16 h-20 bg-white/10 rounded-lg flex-shrink-0"></div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-white font-medium text-sm line-clamp-2 mb-1">
-                          Название похожей манги {i}
-                        </h4>
-                        <p className="text-muted-foreground text-xs">
-                          Жанр • 2024
-                        </p>
+                  {(similarLoading || awaitingFallback) ? (
+                    Array.from({ length: 4 }).map((_, idx) => (
+                      <div key={idx} className="flex space-x-3 p-3 bg-white/5 backdrop-blur-sm rounded-3xl border border-white/10 animate-pulse">
+                        <div className="w-16 h-20 bg-white/10 rounded-lg flex-shrink-0" />
+                        <div className="flex-1 min-w-0 space-y-2">
+                          <div className="h-3 bg-white/10 rounded-full w-3/4" />
+                          <div className="h-3 bg-white/10 rounded-full w-1/2" />
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  ) : similarManga.length ? (
+                    <>
+                      {similarManga.map((item) => {
+                        const itemYear = item.releaseDate ? new Date(item.releaseDate).getFullYear() : null
+                        const cover = item.coverImageUrl || ''
+                        const genres = item.genre ? item.genre.split(',').map((g) => g.trim()).filter(Boolean) : []
+                        return (
+                          <Link
+                            key={item.id}
+                            to={`/manga/${item.id}`}
+                            className="flex space-x-3 p-3 bg-white/5 backdrop-blur-sm rounded-3xl hover:bg-white/10 transition-colors border border-white/10"
+                          >
+                            <div className="w-16 h-20 rounded-lg flex-shrink-0 overflow-hidden border border-white/10 bg-white/10">
+                              {cover ? (
+                                <img
+                                  src={cover}
+                                  alt={item.title}
+                                  className="w-full h-full object-cover"
+                                  loading="lazy"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs text-center px-2">
+                                  Нет обложки
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-white font-medium text-sm line-clamp-2 mb-1">
+                                {item.title}
+                              </h4>
+                              <div className="text-muted-foreground text-xs flex items-center gap-1 truncate">
+                                {genres.length > 0 && <span className="truncate">{genres.slice(0, 2).join(', ')}</span>}
+                                {itemYear && genres.length > 0 && <span>•</span>}
+                                {itemYear && <span>{itemYear}</span>}
+                              </div>
+                              {item.updatedAt && (
+                                <p className="text-muted-foreground/70 text-xs mt-1">
+                                  Обновлено: {formatDate(item.updatedAt)}
+                                </p>
+                              )}
+                            </div>
+                          </Link>
+                        )
+                      })}
+                      {similarUsesFallback && (
+                        <p className="text-xs text-white/60 px-1">Добавлены популярные тайтлы, чтобы дополнить подборку.</p>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-sm text-muted-foreground/80">Пока нет похожих тайтлов</div>
+                  )}
                 </div>
               </div>
             </div>
