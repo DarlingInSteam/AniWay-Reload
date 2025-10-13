@@ -349,7 +349,7 @@ export function MangaPage() {
   )
 
   // Показываем кнопку если чипов больше порога
-  const collapsedChipCount = 10
+  const collapsedChipCount = 6
   const hasMoreChips = combinedChips.length > collapsedChipCount
 
   type ChipItem = { type: 'genre' | 'tag'; label: string }
