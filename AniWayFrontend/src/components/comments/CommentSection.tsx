@@ -15,7 +15,7 @@ interface CommentSectionProps {
   title?: string
   maxLevel?: number
   onCountChange?: (count: number) => void
-  displayMode?: 'full' | 'composer-only'
+  hideHeader?: boolean
 }
 
 export function CommentSection({
@@ -24,12 +24,11 @@ export function CommentSection({
   title = 'Комментарии',
   maxLevel = 3,
   onCountChange,
-  displayMode = 'full'
+  hideHeader = false
 }: CommentSectionProps) {
   const { isAuthenticated } = useAuth()
   const [sortPreset, setSortPreset] = useState<'new' | 'top'>('new')
   const [totalCommentsCount, setTotalCommentsCount] = useState<number>(0)
-  const isComposerOnly = displayMode === 'composer-only'
 
   const sortConfig = sortPreset === 'new'
     ? { sortBy: 'createdAt' as const, sortDir: 'desc' as const }
@@ -123,11 +122,9 @@ export function CommentSection({
   const composerContent = isAuthenticated ? (
     <CommentForm
       onSubmit={handleCreateComment}
-      onCancel={() => undefined}
       placeholder="Оставить комментарий"
       submitText={isCreating ? 'Отправка...' : 'Отправить'}
       maxLength={600}
-      showCancelButton
     />
   ) : (
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-center">
@@ -139,8 +136,8 @@ export function CommentSection({
   return (
     <div className="space-y-6 max-w-full">
       {/* Заголовок секции */}
-      <div className={cn('flex flex-col gap-4', isComposerOnly && 'gap-3')}>
-        {!isComposerOnly && (
+      <div className="flex flex-col gap-4">
+        {!hideHeader && (
           <div className="flex items-center gap-3 min-w-0">
             <MessageCircle className="h-5 w-5 text-primary" />
             <h2 className="text-lg font-semibold text-white truncate">{title}</h2>
@@ -151,7 +148,7 @@ export function CommentSection({
         {/* Форма создания комментария */}
         {composerContent}
 
-        {!isComposerOnly && (
+        {!hideHeader && (
           <div className="flex items-center gap-2">
             {(
               [
@@ -178,35 +175,33 @@ export function CommentSection({
       </div>
 
       {/* Список комментариев */}
-      {!isComposerOnly && (
-        isLoading ? (
-          <div className="flex justify-center py-8">
-            <LoadingSpinner />
-          </div>
-        ) : comments.length === 0 ? (
-          <div className="text-center py-8">
-            <MessageCircle className="h-12 w-12 text-gray-600 mx-auto mb-3" />
-            <p className="text-gray-400">
-              Пока нет комментариев. Будьте первым!
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-4 overflow-x-hidden">
-            {comments.map((comment) => (
-              <CommentItem
-                key={comment.id}
-                comment={comment}
-                targetId={targetId}
-                type={type}
-                onReply={handleReply}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                onReaction={handleReaction}
-                maxLevel={maxLevel}
-              />
-            ))}
-          </div>
-        )
+      {isLoading ? (
+        <div className="flex justify-center py-8">
+          <LoadingSpinner />
+        </div>
+      ) : comments.length === 0 ? (
+        <div className="text-center py-8">
+          <MessageCircle className="h-12 w-12 text-gray-600 mx-auto mb-3" />
+          <p className="text-gray-400">
+            Пока нет комментариев. Будьте первым!
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4 overflow-x-hidden">
+          {comments.map((comment) => (
+            <CommentItem
+              key={comment.id}
+              comment={comment}
+              targetId={targetId}
+              type={type}
+              onReply={handleReply}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onReaction={handleReaction}
+              maxLevel={maxLevel}
+            />
+          ))}
+        </div>
       )}
     </div>
   )

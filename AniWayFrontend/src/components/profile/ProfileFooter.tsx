@@ -28,6 +28,7 @@ export function ProfileFooter({
         type="PROFILE"
         title="Комментарии к профилю"
         maxLevel={3}
+        hideHeader
       />
     </div>
   );

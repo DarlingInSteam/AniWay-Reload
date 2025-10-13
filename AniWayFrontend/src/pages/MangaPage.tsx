@@ -864,7 +864,7 @@ export function MangaPage() {
                       <CommentSection
                         targetId={mangaId}
                         type="MANGA"
-                        displayMode="composer-only"
+                        hideHeader
                       />
                     </div>
                   </div>
