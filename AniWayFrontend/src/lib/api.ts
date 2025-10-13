@@ -138,12 +138,9 @@ class ApiClient {
 
   async getMangaBookmarkSubscriberCount(mangaId: number): Promise<number> {
     try {
-      const response = await this.request<any>(`/internal/bookmarks/manga/${mangaId}/subscribers`);
-      if (Array.isArray(response)) {
-        return response.length;
-      }
-      if (response && Array.isArray(response.userIds)) {
-        return response.userIds.length;
+      const response = await this.request<{ count?: number }>(`/bookmarks/manga/${mangaId}/subscribers/count`);
+      if (response && typeof response.count === 'number') {
+        return response.count;
       }
       return 0;
     } catch (error) {
