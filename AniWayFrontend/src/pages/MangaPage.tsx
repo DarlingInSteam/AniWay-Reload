@@ -350,9 +350,28 @@ export function MangaPage() {
 
   const collapsedChipLimit = 12
   const hasHiddenChips = combinedChips.length > collapsedChipLimit
-  const collapsedVisibleLimit = hasHiddenChips ? Math.max(collapsedChipLimit - 1, 1) : collapsedChipLimit
-  const visibleChips = showAllChips ? combinedChips : combinedChips.slice(0, collapsedVisibleLimit)
-  const hiddenChipCount = showAllChips ? 0 : Math.max(combinedChips.length - visibleChips.length, 0)
+  const collapsedVisibleLimit = Math.max(collapsedChipLimit - 1, 1)
+
+  type ChipRenderItem = { type: 'genre' | 'tag'; label: string } | { type: 'toggle'; label: '' }
+
+  const collapsedChips = useMemo<ChipRenderItem[]>(() => {
+    if (!hasHiddenChips) return combinedChips
+    return [
+      ...combinedChips.slice(0, collapsedVisibleLimit),
+      { type: 'toggle', label: '' },
+    ]
+  }, [combinedChips, hasHiddenChips, collapsedVisibleLimit])
+
+  const renderedChips = useMemo<ChipRenderItem[]>(() => {
+    if (!hasHiddenChips) return combinedChips
+    return showAllChips
+      ? [...combinedChips, { type: 'toggle', label: '' }]
+      : collapsedChips
+  }, [collapsedChips, combinedChips, hasHiddenChips, showAllChips])
+
+  const hiddenChipCount = !hasHiddenChips || showAllChips
+    ? 0
+    : Math.max(combinedChips.length - collapsedVisibleLimit, 0)
 
   useEffect(() => {
     setShowAllChips(false)
@@ -769,7 +788,25 @@ export function MangaPage() {
                             showAllChips ? 'max-h-[480px]' : 'max-h-[4.75rem] overflow-hidden'
                           )}
                         >
-                          {visibleChips.map((chip, index) => {
+                          {renderedChips.map((chip, index) => {
+                            if (chip.type === 'toggle') {
+                              if (!hasHiddenChips) return null
+                              return (
+                                <button
+                                  key={`toggle-${index}`}
+                                  type="button"
+                                  onClick={() => setShowAllChips((prev) => !prev)}
+                                  className={cn(
+                                    'px-3 py-1 text-xs font-semibold uppercase tracking-wide rounded-full border border-dashed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black',
+                                    'border-primary/40 text-primary/80 hover:border-primary hover:text-primary'
+                                  )}
+                                  aria-label={showAllChips ? 'Свернуть список жанров и тегов' : 'Показать все жанры и теги'}
+                                >
+                                  {showAllChips ? 'Свернуть' : `Показать больше (${hiddenChipCount})`}
+                                </button>
+                              )
+                            }
+
                             const isGenre = chip.type === 'genre'
                             return (
                               <button
@@ -796,19 +833,6 @@ export function MangaPage() {
                               </button>
                             )
                           })}
-                          {hasHiddenChips && (
-                            <button
-                              type="button"
-                              onClick={() => setShowAllChips((prev) => !prev)}
-                              className={cn(
-                                'px-3 py-1 text-xs font-semibold uppercase tracking-wide rounded-full border border-dashed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black',
-                                'border-primary/40 text-primary/80 hover:border-primary hover:text-primary'
-                              )}
-                              aria-label={showAllChips ? 'Свернуть список жанров и тегов' : 'Показать все жанры и теги'}
-                            >
-                              {showAllChips ? 'Свернуть' : `Показать больше (${hiddenChipCount})`}
-                            </button>
-                          )}
                         </div>
                       </div>
                     )}
