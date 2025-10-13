@@ -46,18 +46,16 @@
     text-rendering: optimizeLegibility;
   }
   
-  /* Улучшение качества изображений */
+  /* Используем нативное масштабирование изображений браузером */
   img {
-    image-rendering: -webkit-optimize-contrast; /* Chrome, Safari */
-    image-rendering: crisp-edges; /* Firefox */
-    -ms-interpolation-mode: nearest-neighbor; /* IE */
+    image-rendering: auto;
+    -ms-interpolation-mode: bicubic; /* более мягкий fallback для старых IE */
   }
   
-  /* Аппаратное ускорение для плавности */
+  /* Убираем принудительное создание дополнительных композитных слоёв */
   .glass-panel,
   .glass-inline {
-    transform: translateZ(0);
-    backface-visibility: hidden;
+    backface-visibility: visible;
   }
 }
 
@@ -276,19 +274,22 @@
 
 /* Glass panel utility */
 .glass-panel {
-  /* Subtle glass panel: slightly darker than original (was rgba 0.10) */
+  /* Subtle glass panel without forcing expensive backdrop blur по умолчанию */
   background: rgba(255,255,255,0.12);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
   border: 1px solid rgba(255,255,255,0.15);
   border-radius: 0.75rem; /* matches rounded-xl */
+}
+
+.glass-panel.glass-panel--blur,
+.glass-panel[data-glass="blur"],
+body.glass-enable-blur .glass-panel {
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 @layer components {
   .glass-inline {
     background: rgba(255,255,255,0.08);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
     border: 1px solid rgba(255,255,255,0.12);
     border-radius: 0.5rem;
   }
