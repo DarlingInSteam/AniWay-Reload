@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { Header } from './Header'
 import { MobileNavBar } from './MobileNavBar'
 import { AnchorScrollHighlighter } from '../AnchorScrollHighlighter'
+import { Footer } from './Footer'
 
 interface LayoutProps {
   children: ReactNode
@@ -19,6 +20,7 @@ export function Layout({ children }: LayoutProps) {
         <AnchorScrollHighlighter />
         {children}
       </main>
+      {!isReaderPage && <Footer />}
       {!isReaderPage && <MobileNavBar />}
     </div>
   )
