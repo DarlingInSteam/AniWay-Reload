@@ -264,6 +264,13 @@ const NotificationCard: React.FC<{
   const isUnread = item.status === 'UNREAD';
   const coverImage = parsed?.coverImageUrl || parsed?.coverUrl || parsed?.image || parsed?.poster || null;
   const categoryLabel = CATEGORY_DEFINITIONS.find(def => def.key === resolveCategory(item.type))?.label ?? 'Уведомление';
+  const isMangaUpdate = item.type === 'BOOKMARK_NEW_CHAPTER';
+  const mangaTitle = parsed?.mangaTitle || parsed?.title || null;
+  const chapterNumber = parsed?.chapterNumber || parsed?.chapter || parsed?.number || null;
+  const chapterName = parsed?.chapterName || parsed?.chapterTitle || null;
+  const seriesInfo = isMangaUpdate ? [chapterNumber ? `Глава ${chapterNumber}` : null, chapterName].filter(Boolean).join(' · ') : '';
+  const cardTitle = isMangaUpdate && mangaTitle ? mangaTitle : title;
+  const shouldShowDescription = desc && (!isMangaUpdate || desc !== mangaTitle);
 
   return (
     <article className={cn('group relative overflow-hidden rounded-[28px] border border-white/10 bg-white/5 p-5 text-white transition hover:border-white/20 hover:bg-white/10', isUnread && 'border-primary/40 bg-primary/10 shadow-lg shadow-primary/20')}>
@@ -288,8 +295,11 @@ const NotificationCard: React.FC<{
               onClick={() => onActivate(target)}
               className="min-w-0 flex-1 text-left focus-visible:outline-none"
             >
-              <h3 className="text-lg font-semibold leading-tight text-white md:text-xl">{title}</h3>
-              {desc && <p className="mt-2 text-sm text-white/70 line-clamp-3 md:text-base">{desc}</p>}
+              <h3 className="text-lg font-semibold leading-tight text-white md:text-xl">{cardTitle}</h3>
+              {isMangaUpdate && seriesInfo && (
+                <div className="mt-1 text-sm text-white/60">{seriesInfo}</div>
+              )}
+              {shouldShowDescription && <p className="mt-2 text-sm text-white/70 line-clamp-3 md:text-base">{desc}</p>}
             </button>
             <div className="flex flex-col items-start gap-2 text-xs uppercase tracking-[0.2em] text-white/40 md:items-end">
               <span>Опубликовано</span>
