@@ -136,6 +136,22 @@ class ApiClient {
     return this.request<MangaResponseDTO>(endpoint);
   }
 
+  async getMangaBookmarkSubscriberCount(mangaId: number): Promise<number> {
+    try {
+      const response = await this.request<any>(`/internal/bookmarks/manga/${mangaId}/subscribers`);
+      if (Array.isArray(response)) {
+        return response.length;
+      }
+      if (response && Array.isArray(response.userIds)) {
+        return response.userIds.length;
+      }
+      return 0;
+    } catch (error) {
+      console.error(`Failed to load bookmark subscribers for manga ${mangaId}:`, error);
+      return 0;
+    }
+  }
+
   async searchManga(params: SearchParams): Promise<MangaResponseDTO[]> {
     const searchParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => { if (value) searchParams.append(key, value as any); });
