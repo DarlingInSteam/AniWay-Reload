@@ -5,9 +5,11 @@ import { CheckCheck, ChevronDown, MoreVertical, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { getDisplayChapterNumber } from '@/lib/chapterUtils';
 
 import { useNotifications } from './NotificationContext';
 import { deleteAll } from './api';
+import type { NotificationPayload } from './notificationUtils';
 import {
   parsePayload,
   formatTitle,
@@ -262,74 +264,83 @@ const NotificationCard: React.FC<{
   const icon = getIcon(item.type);
   const target = getNavigationTarget(item.type, parsed);
   const isUnread = item.status === 'UNREAD';
-  const coverImage = parsed?.coverImageUrl || parsed?.coverUrl || parsed?.image || parsed?.poster || null;
+  const coverImage = resolveCoverImage(parsed);
   const categoryLabel = CATEGORY_DEFINITIONS.find(def => def.key === resolveCategory(item.type))?.label ?? 'Уведомление';
   const isMangaUpdate = item.type === 'BOOKMARK_NEW_CHAPTER';
-  const mangaTitle = parsed?.mangaTitle || parsed?.title || null;
-  const chapterNumber = parsed?.chapterNumber || parsed?.chapter || parsed?.number || null;
-  const chapterName = parsed?.chapterName || parsed?.chapterTitle || null;
-  const seriesInfo = isMangaUpdate ? [chapterNumber ? `Глава ${chapterNumber}` : null, chapterName].filter(Boolean).join(' · ') : '';
+  const mangaTitle = parsed?.mangaTitle || parsed?.title || parsed?.seriesTitle || null;
+  const rawChapterNumber = pickFirstNumber(parsed, ['chapterNumber', 'chapter', 'chapterCode']);
+  const displayChapterNumber = rawChapterNumber != null ? getDisplayChapterNumber(rawChapterNumber) : null;
+  const volumeNumber = pickFirstNumber(parsed, ['volumeNumber', 'volume', 'volumeCode'])
+    ?? (rawChapterNumber && rawChapterNumber >= 10000 ? Math.floor(rawChapterNumber / 10000) : null);
+  const chapterName = parsed?.chapterName || parsed?.chapterTitle || parsed?.titleSecondary || null;
+  const seriesInfo = isMangaUpdate
+    ? [
+        volumeNumber ? `Том ${volumeNumber}` : null,
+        displayChapterNumber != null ? `Глава ${displayChapterNumber}` : null,
+        chapterName,
+      ].filter(Boolean).join(' · ')
+    : '';
   const cardTitle = isMangaUpdate && mangaTitle ? mangaTitle : title;
   const shouldShowDescription = desc && (!isMangaUpdate || desc !== mangaTitle);
 
   return (
-    <article className={cn('group relative overflow-hidden rounded-[28px] border border-white/10 bg-white/5 p-5 text-white transition hover:border-white/20 hover:bg-white/10', isUnread && 'border-primary/40 bg-primary/10 shadow-lg shadow-primary/20')}>
-      <div className="flex flex-col gap-5 md:flex-row md:items-start">
+    <article className={cn('group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-white transition hover:border-white/20 hover:bg-white/[0.08]', isUnread && 'border-primary/40 bg-primary/10/80 shadow-lg shadow-primary/15')}>
+      <div className="flex flex-col gap-4 md:flex-row md:items-start">
         <button
           type="button"
           onClick={() => onActivate(target)}
-          className="relative flex h-20 w-full max-w-[88px] shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-white/5 text-3xl transition hover:border-primary/50 md:h-24"
+          className="relative flex h-16 w-full max-w-[68px] shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/5 text-2xl transition hover:border-primary/40 md:h-20"
         >
           {coverImage ? (
             <img src={coverImage} alt="cover" className="h-full w-full object-cover" loading="lazy" />
           ) : (
             <span className="text-2xl">{icon}</span>
           )}
-          {isUnread && <span className="absolute -right-1 -top-1 h-6 w-6 rounded-full bg-primary shadow-lg shadow-primary/40" />}
+          {isUnread && <span className="absolute -right-1 -top-1 h-4 w-4 rounded-full bg-primary shadow-lg shadow-primary/30" />}
         </button>
 
-        <div className="flex-1 space-y-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:gap-6">
+        <div className="flex-1 space-y-3">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:gap-4">
             <button
               type="button"
               onClick={() => onActivate(target)}
               className="min-w-0 flex-1 text-left focus-visible:outline-none"
             >
-              <h3 className="text-lg font-semibold leading-tight text-white md:text-xl">{cardTitle}</h3>
+              <h3 className="text-base font-semibold leading-tight text-white md:text-lg">{cardTitle}</h3>
               {isMangaUpdate && seriesInfo && (
-                <div className="mt-1 text-sm text-white/60">{seriesInfo}</div>
+                <div className="mt-1 text-xs uppercase tracking-[0.14em] text-primary/70">{seriesInfo}</div>
               )}
-              {shouldShowDescription && <p className="mt-2 text-sm text-white/70 line-clamp-3 md:text-base">{desc}</p>}
+              {shouldShowDescription && <p className="mt-2 text-sm text-white/65 line-clamp-2 md:line-clamp-3">{desc}</p>}
             </button>
-            <div className="flex flex-col items-start gap-2 text-xs uppercase tracking-[0.2em] text-white/40 md:items-end">
+            <div className="flex flex-col items-start gap-1 text-[10px] uppercase tracking-[0.2em] text-white/40 md:items-end">
               <span>Опубликовано</span>
               <span className="text-white/70">{formatDate(item.createdAtEpoch)}</span>
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-wrap items-center gap-1">
               <Badge
                 variant="outline"
                 className={cn(
-                  'rounded-full border-white/20 bg-white/10 text-xs uppercase tracking-[0.18em] text-white/70',
+                  'rounded-full border-white/15 bg-white/10 px-2 text-[10px] uppercase tracking-[0.18em] text-white/70',
                   isUnread && 'border-primary/60 bg-primary/15 text-primary'
                 )}
               >
                 {isUnread ? 'Новое' : 'Прочитано'}
               </Badge>
-              <Badge variant="outline" className="rounded-full border-white/10 bg-white/10 text-xs uppercase tracking-[0.18em] text-white/60">
+              <Badge variant="outline" className="rounded-full border-white/10 bg-white/10 px-2 text-[10px] uppercase tracking-[0.18em] text-white/60">
                 {categoryLabel}
               </Badge>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
               {isUnread && (
                 <Button
                   type="button"
                   size="sm"
                   onClick={onMarkRead}
-                  className="h-9 rounded-full border border-primary/40 bg-primary/20 text-primary hover:bg-primary/30"
+                  className="h-8 rounded-full border border-primary/40 bg-primary/15 px-3 text-xs font-medium text-primary hover:bg-primary/25"
                 >
                   <CheckCheck className="mr-2 h-4 w-4" />
                   Прочитано
@@ -340,7 +351,7 @@ const NotificationCard: React.FC<{
                 size="icon"
                 variant="ghost"
                 onClick={() => onActivate(target)}
-                className="h-9 w-9 rounded-full border border-white/10 bg-white/5 text-white/70 hover:border-white/20 hover:bg-white/10"
+                className="h-8 w-8 rounded-full border border-white/10 bg-white/5 text-white/70 hover:border-white/20 hover:bg-white/10"
                 title="Открыть уведомление"
                 aria-label="Открыть уведомление"
               >
@@ -352,6 +363,38 @@ const NotificationCard: React.FC<{
       </div>
     </article>
   );
+};
+
+const resolveCoverImage = (payload: NotificationPayload): string | null => {
+  if (!payload) return null;
+  const candidates = [
+    payload.coverImageUrl,
+    payload.coverImage,
+    payload.coverUrl,
+    payload.cover,
+    payload.thumbnailUrl,
+    payload.thumbnail,
+    payload.imageUrl,
+    payload.image,
+    payload.posterUrl,
+    payload.poster,
+    payload.bannerUrl,
+  ];
+  const found = candidates.find((url): url is string => typeof url === 'string' && url.trim().length > 0);
+  return found || null;
+};
+
+const pickFirstNumber = (payload: NotificationPayload, fields: string[]): number | null => {
+  if (!payload) return null;
+  for (const field of fields) {
+    const value = payload[field];
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      if (!Number.isNaN(parsed)) return parsed;
+    }
+  }
+  return null;
 };
 
 type CategoryKey = 'all' | 'updates' | 'social' | 'important';
