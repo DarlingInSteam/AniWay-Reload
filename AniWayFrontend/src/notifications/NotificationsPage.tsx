@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { getDisplayChapterNumber } from '@/lib/chapterUtils';
+import { apiClient } from '@/lib/api';
 
 import { useNotifications } from './NotificationContext';
 import { deleteAll } from './api';
@@ -264,15 +265,26 @@ const NotificationCard: React.FC<{
   const icon = getIcon(item.type);
   const target = getNavigationTarget(item.type, parsed);
   const isUnread = item.status === 'UNREAD';
-  const coverImage = resolveCoverImage(parsed);
+  const initialCover = resolveCoverImage(parsed);
+  const mangaIdHint =
+    pickFirstNumber(parsed, ['mangaId', 'manga_id', 'seriesId', 'series_id']) ??
+    pickFirstNumber((parsed as any)?.manga, ['id']) ??
+    pickFirstNumber((parsed as any)?.series, ['id']);
+  const chapterIdHint =
+    pickFirstNumber(parsed, ['chapterId', 'chapter_id', 'chapterPointId']) ??
+    pickFirstNumber((parsed as any)?.chapter, ['id']);
+  const coverImage = useNotificationCover(item.type, initialCover, mangaIdHint, chapterIdHint);
   const categoryLabel = CATEGORY_DEFINITIONS.find(def => def.key === resolveCategory(item.type))?.label ?? 'Уведомление';
   const isMangaUpdate = item.type === 'BOOKMARK_NEW_CHAPTER';
   const mangaTitle = parsed?.mangaTitle || parsed?.title || parsed?.seriesTitle || null;
   const rawChapterNumber = pickFirstNumber(parsed, ['chapterNumber', 'chapter', 'chapterCode']);
   const displayChapterNumber = rawChapterNumber != null ? getDisplayChapterNumber(rawChapterNumber) : null;
-  const volumeNumber = pickFirstNumber(parsed, ['volumeNumber', 'volume', 'volumeCode'])
-    ?? (rawChapterNumber && rawChapterNumber >= 10000 ? Math.floor(rawChapterNumber / 10000) : null);
-  const chapterName = parsed?.chapterName || parsed?.chapterTitle || parsed?.titleSecondary || null;
+  const volumeNumber =
+    pickFirstNumber(parsed, ['volumeNumber', 'volume', 'volumeCode']) ??
+    pickFirstNumber((parsed as any)?.chapter, ['volumeNumber']) ??
+    (rawChapterNumber && rawChapterNumber >= 10000 ? Math.floor(rawChapterNumber / 10000) : null);
+  const chapterName =
+    parsed?.chapterName || parsed?.chapterTitle || (parsed as any)?.chapter?.title || parsed?.titleSecondary || null;
   const seriesInfo = isMangaUpdate
     ? [
         volumeNumber ? `Том ${volumeNumber}` : null,
@@ -365,6 +377,56 @@ const NotificationCard: React.FC<{
   );
 };
 
+const useNotificationCover = (
+  type: string,
+  initialCover: string | null,
+  mangaIdHint: number | null,
+  chapterIdHint: number | null
+) => {
+  const [cover, setCover] = React.useState<string | null>(initialCover);
+
+  React.useEffect(() => {
+    setCover(initialCover);
+    if (type === 'BOOKMARK_NEW_CHAPTER' && initialCover && mangaIdHint) {
+      mangaCoverCache.set(mangaIdHint, initialCover);
+    }
+  }, [initialCover, mangaIdHint, type]);
+
+  React.useEffect(() => {
+    if (type !== 'BOOKMARK_NEW_CHAPTER') return;
+    if (initialCover) return;
+
+    let active = true;
+
+    const ensureCover = async () => {
+      let mangaId = mangaIdHint;
+      if (!mangaId && chapterIdHint) {
+        mangaId = await resolveMangaIdFromChapter(chapterIdHint);
+      }
+      if (!mangaId) return;
+
+      if (mangaCoverCache.has(mangaId)) {
+        const cached = mangaCoverCache.get(mangaId)!;
+        if (cached && active) setCover(cached);
+        return;
+      }
+
+      const fetched = await fetchMangaCover(mangaId);
+      if (fetched && active) {
+        setCover(fetched);
+      }
+    };
+
+    ensureCover().catch(err => console.error('Не удалось загрузить обложку уведомления', err));
+
+    return () => {
+      active = false;
+    };
+  }, [type, initialCover, mangaIdHint, chapterIdHint]);
+
+  return cover;
+};
+
 const resolveCoverImage = (payload: NotificationPayload): string | null => {
   if (!payload) return null;
   const candidates = [
@@ -395,6 +457,60 @@ const pickFirstNumber = (payload: NotificationPayload, fields: string[]): number
     }
   }
   return null;
+};
+
+const mangaCoverCache = new Map<number, string>();
+const mangaCoverPromises = new Map<number, Promise<string | null>>();
+const chapterMangaCache = new Map<number, number>();
+const chapterMangaPromises = new Map<number, Promise<number | null>>();
+
+const fetchMangaCover = async (mangaId: number): Promise<string | null> => {
+  if (mangaCoverCache.has(mangaId)) {
+    return mangaCoverCache.get(mangaId) ?? null;
+  }
+  if (mangaCoverPromises.has(mangaId)) {
+    return mangaCoverPromises.get(mangaId)!;
+  }
+  const promise = (async () => {
+    try {
+      const manga = await apiClient.getMangaById(mangaId);
+      const cover = manga?.coverImageUrl || null;
+      if (cover) mangaCoverCache.set(mangaId, cover);
+      return cover;
+    } catch (error) {
+      console.error(`Не удалось получить мангу ${mangaId} для уведомления`, error);
+      return null;
+    } finally {
+      mangaCoverPromises.delete(mangaId);
+    }
+  })();
+  mangaCoverPromises.set(mangaId, promise);
+  return promise;
+};
+
+const resolveMangaIdFromChapter = async (chapterId: number): Promise<number | null> => {
+  if (chapterMangaCache.has(chapterId)) {
+    return chapterMangaCache.get(chapterId)!;
+  }
+  if (chapterMangaPromises.has(chapterId)) {
+    return chapterMangaPromises.get(chapterId)!;
+  }
+  const promise = (async () => {
+    try {
+      const chapter = await apiClient.getChapterById(chapterId);
+      if (chapter?.mangaId) {
+        chapterMangaCache.set(chapterId, chapter.mangaId);
+        return chapter.mangaId;
+      }
+    } catch (error) {
+      console.error(`Не удалось получить главу ${chapterId} для уведомления`, error);
+    } finally {
+      chapterMangaPromises.delete(chapterId);
+    }
+    return null;
+  })();
+  chapterMangaPromises.set(chapterId, promise);
+  return promise;
 };
 
 type CategoryKey = 'all' | 'updates' | 'social' | 'important';
