@@ -348,9 +348,28 @@ export function MangaPage() {
     [genres, tags]
   )
 
-  // Простой подход: показываем кнопку если чипов больше минимального порога
-  const minChipsBeforeCollapse = 10
-  const hasMoreChips = combinedChips.length > minChipsBeforeCollapse
+  // Показываем кнопку если чипов больше порога
+  const collapsedChipCount = 10
+  const hasMoreChips = combinedChips.length > collapsedChipCount
+
+  type ChipItem = { type: 'genre' | 'tag'; label: string }
+  type ToggleItem = { type: 'toggle' }
+  type RenderItem = ChipItem | ToggleItem
+
+  const displayedChips = useMemo<RenderItem[]>(() => {
+    if (!hasMoreChips) {
+      // Если чипов мало, показываем все без кнопки
+      return combinedChips
+    }
+
+    if (showAllChips) {
+      // Expanded: все чипы + кнопка "Свернуть" в конце
+      return [...combinedChips, { type: 'toggle' as const }]
+    }
+
+    // Collapsed: первые N чипов + кнопка "Показать больше"
+    return [...combinedChips.slice(0, collapsedChipCount), { type: 'toggle' as const }]
+  }, [combinedChips, hasMoreChips, showAllChips, collapsedChipCount])
 
   useEffect(() => {
     setShowAllChips(false)
@@ -767,16 +786,34 @@ export function MangaPage() {
                             showAllChips ? 'max-h-[480px]' : 'max-h-[4.75rem] overflow-hidden'
                           )}
                         >
-                          {combinedChips.map((chip, index) => {
-                            const isGenre = chip.type === 'genre'
+                          {displayedChips.map((item, index) => {
+                            if (item.type === 'toggle') {
+                              const hiddenCount = combinedChips.length - collapsedChipCount
+                              return (
+                                <button
+                                  key="toggle-button"
+                                  type="button"
+                                  onClick={() => setShowAllChips((prev) => !prev)}
+                                  className={cn(
+                                    'px-3 py-1 text-xs font-semibold uppercase tracking-wide rounded-full border border-dashed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black',
+                                    'border-primary/40 text-primary/80 hover:border-primary hover:text-primary'
+                                  )}
+                                  aria-label={showAllChips ? 'Свернуть список жанров и тегов' : 'Показать все жанры и теги'}
+                                >
+                                  {showAllChips ? 'Свернуть' : `Показать больше (${hiddenCount})`}
+                                </button>
+                              )
+                            }
+
+                            const isGenre = item.type === 'genre'
                             return (
                               <button
-                                key={`${chip.type}-${chip.label}-${index}`}
+                                key={`${item.type}-${item.label}-${index}`}
                                 type="button"
                                 onClick={() =>
                                   isGenre
-                                    ? navigate(`/catalog?genres=${encodeURIComponent(chip.label)}`)
-                                    : navigate(`/catalog?tags=${encodeURIComponent(chip.label)}`)
+                                    ? navigate(`/catalog?genres=${encodeURIComponent(item.label)}`)
+                                    : navigate(`/catalog?tags=${encodeURIComponent(item.label)}`)
                                 }
                                 className={cn(
                                   'group px-3 py-1 text-sm rounded-full border transition-colors backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black',
@@ -786,28 +823,15 @@ export function MangaPage() {
                                 )}
                                 aria-label={
                                   isGenre
-                                    ? `Перейти в каталог по жанру ${chip.label}`
-                                    : `Перейти в каталог по тегу ${chip.label}`
+                                    ? `Перейти в каталог по жанру ${item.label}`
+                                    : `Перейти в каталог по тегу ${item.label}`
                                 }
                               >
-                                <span className="pointer-events-none select-none">{chip.label}</span>
+                                <span className="pointer-events-none select-none">{item.label}</span>
                               </button>
                             )
                           })}
                         </div>
-                        {hasMoreChips && (
-                          <button
-                            type="button"
-                            onClick={() => setShowAllChips((prev) => !prev)}
-                            className={cn(
-                              'mt-3 px-3 py-1 text-xs font-semibold uppercase tracking-wide rounded-full border border-dashed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black',
-                              'border-primary/40 text-primary/80 hover:border-primary hover:text-primary'
-                            )}
-                            aria-label={showAllChips ? 'Свернуть список жанров и тегов' : 'Показать все жанры и теги'}
-                          >
-                            {showAllChips ? 'Свернуть' : 'Показать больше'}
-                          </button>
-                        )}
                       </div>
                     )}
 
