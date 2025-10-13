@@ -20,7 +20,8 @@ import {
   Link as LinkIcon,
   Save,
   HelpCircle,
-  ChevronRight
+  ChevronRight,
+  Send
 } from 'lucide-react'
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
 
@@ -71,14 +72,16 @@ export function CommentForm({
   submitText = 'Отправить',
   maxLength
 }: CommentFormProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const previewRef = useRef<HTMLDivElement>(null)
   const [content, setContent] = useState(initialValue)
-  const [isFocused, setIsFocused] = useState(Boolean(initialValue))
+  const [hasFocus, setHasFocus] = useState(Boolean(initialValue))
   const [showPreview, setShowPreview] = useState(false)
   const [showDrafts, setShowDrafts] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const effectiveMaxLength = maxLength ?? 600
+  const isExpanded = hasFocus || content.length > 0
 
   useEffect(() => {
     if (!textareaRef.current) return
@@ -107,20 +110,40 @@ export function CommentForm({
     if (!content.trim()) return
     await onSubmit(content.trim())
     setContent('')
-    setIsFocused(false)
+    setHasFocus(false)
     setShowPreview(false)
   }, [content, onSubmit])
 
   const handleCancel = () => {
     onCancel?.()
-    if (!content.trim()) {
-      setIsFocused(false)
-      setShowPreview(false)
-    }
+    setHasFocus(false)
+    setShowPreview(false)
+    setShowDrafts(false)
+    setShowHelp(false)
   }
 
   const handleChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
     setContent(keepWithinLimit(event.target.value))
+  }
+
+  const handleFocus = () => {
+    setHasFocus(true)
+  }
+
+  const handleBlur = (event: React.FocusEvent<HTMLTextAreaElement>) => {
+    const next = event.relatedTarget as HTMLElement | null
+    if (next && containerRef.current?.contains(next)) {
+      return
+    }
+    setHasFocus(false)
+  }
+
+  const handleContainerBlur = (event: React.FocusEvent<HTMLDivElement>) => {
+    const next = event.relatedTarget as HTMLElement | null
+    if (next && containerRef.current?.contains(next)) {
+      return
+    }
+    setHasFocus(false)
   }
 
   const applyWrappedSelection = (
@@ -234,70 +257,88 @@ export function CommentForm({
 
   const isSubmitDisabled = !content.trim()
 
+  useEffect(() => {
+    if (!isExpanded) {
+      setShowPreview(false)
+      setShowDrafts(false)
+      setShowHelp(false)
+    }
+  }, [isExpanded])
+
   return (
     <div className="space-y-3">
       <div
+        ref={containerRef}
         className={cn(
-          'rounded-2xl border border-white/10 bg-white/[0.04] p-3 transition-colors',
-          isFocused || content.length
+          'relative rounded-2xl border border-white/10 bg-white/[0.04] p-3 transition-colors',
+          isExpanded ? 'pb-14' : 'pb-3',
+          hasFocus
             ? 'border-primary/50 shadow-[0_20px_60px_-35px_rgba(59,130,246,0.9)]'
             : 'hover:border-white/20'
         )}
+        onFocusCapture={() => setHasFocus(true)}
+        onBlurCapture={handleContainerBlur}
       >
         <Textarea
           ref={textareaRef}
           value={content}
           onChange={handleChange}
-          onFocus={() => setIsFocused(true)}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          className="min-h-[88px] resize-none border-0 bg-transparent px-0 text-sm text-white placeholder:text-white/30 focus-visible:ring-0"
+          className={cn(
+            'w-full resize-none border-0 bg-transparent px-0 text-sm text-white placeholder:text-white/30 focus-visible:ring-0 transition-[min-height] duration-200',
+            isExpanded ? 'min-h-[120px]' : 'min-h-[52px]'
+          )}
         />
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-1">
-            {quickActions.map(action => {
-              const Icon = action.icon
-              const shortcutHint = action.shortcut ? ` • ${action.shortcut}` : ''
-              return (
-                <button
-                  key={action.key}
-                  type="button"
-                  onClick={() => handleAction(action.key)}
-                  className={cn(
-                    'flex h-8 w-8 items-center justify-center rounded-full text-white/60 transition-colors',
-                    action.key === 'storage' && showDrafts && 'text-primary',
-                    action.key === 'help' && showHelp && 'text-primary',
-                    'hover:bg-white/10 hover:text-white'
-                  )}
-                  aria-label={action.label}
-                  title={`${action.label}${shortcutHint}`}
-                >
-                  <Icon className="h-4 w-4" />
-                </button>
-              )
-            })}
+        {isExpanded && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-1">
+              {quickActions.map(action => {
+                const Icon = action.icon
+                const shortcutHint = action.shortcut ? ` • ${action.shortcut}` : ''
+                return (
+                  <button
+                    key={action.key}
+                    type="button"
+                    onClick={() => handleAction(action.key)}
+                    className={cn(
+                      'flex h-8 w-8 items-center justify-center rounded-full text-white/60 transition-colors',
+                      action.key === 'storage' && showDrafts && 'text-primary',
+                      action.key === 'help' && showHelp && 'text-primary',
+                      'hover:bg-white/10 hover:text-white'
+                    )}
+                    aria-label={action.label}
+                    title={`${action.label}${shortcutHint}`}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </button>
+                )
+              })}
+            </div>
+
+            {calculatedCharLeft !== null && (
+              <span
+                className={cn(
+                  'text-xs font-medium',
+                  calculatedCharLeft < 30 ? 'text-amber-300' : 'text-white/40'
+                )}
+              >
+                {content.length}/{effectiveMaxLength}
+              </span>
+            )}
           </div>
+        )}
 
-          {calculatedCharLeft !== null && (
-            <span
-              className={cn(
-                'text-xs font-medium',
-                calculatedCharLeft < 30 ? 'text-amber-300' : 'text-white/40'
-              )}
-            >
-              {content.length}/{effectiveMaxLength}
-            </span>
-          )}
-        </div>
-
-        {showDrafts && (
+        {isExpanded && showDrafts && (
           <div className="mt-3 rounded-2xl border border-dashed border-white/15 p-3 text-sm text-white/60">
             Черновики появятся здесь позже
           </div>
         )}
 
-        {showHelp && (
+        {isExpanded && showHelp && (
           <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.06] p-3 text-xs text-white/60">
             <p className="mb-2 font-medium text-white/70">Markdown поддерживается:</p>
             <ul className="space-y-1">
@@ -308,7 +349,7 @@ export function CommentForm({
           </div>
         )}
 
-        {showPreview && (
+        {isExpanded && showPreview && (
           <div
             ref={previewRef}
             className="mt-3 max-h-60 overflow-y-auto rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-white/90"
@@ -316,51 +357,55 @@ export function CommentForm({
             <MarkdownRenderer value={content} />
           </div>
         )}
-      </div>
 
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="text-xs text-white/40">
-          Нажмите <span className="text-white/70">Ctrl + Enter</span>, чтобы отправить
-        </div>
+        {isExpanded && (
+          <div className="absolute inset-x-3 bottom-3 flex items-center justify-between gap-2 text-xs text-white/50">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowPreview(prev => !prev)}
+                className={cn(
+                  'rounded-full px-3 py-1 text-xs font-medium transition-colors',
+                  showPreview ? 'bg-white/15 text-white' : 'bg-white/5 text-white/60 hover:text-white'
+                )}
+              >
+                <ChevronRight
+                  className={cn(
+                    'mr-1 inline-block h-3 w-3 align-middle transition-transform',
+                    showPreview && 'rotate-90'
+                  )}
+                />
+                Превью
+              </button>
+              <span className="hidden sm:inline">Ctrl + Enter — отправить</span>
+            </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="rounded-full px-4 text-white/60 hover:text-white"
-            onClick={() => setShowPreview(prev => !prev)}
-          >
-            <ChevronRight
-              className={cn(
-                'mr-1 h-4 w-4 transition-transform',
-                showPreview && 'rotate-90'
+            <div className="flex items-center gap-2">
+              {onCancel && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="rounded-full px-3 text-white/60 hover:text-white"
+                  onClick={handleCancel}
+                >
+                  Отмена
+                </Button>
               )}
-            />
-            Превью
-          </Button>
 
-          {onCancel && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="rounded-full px-4 text-white/60 hover:text-white"
-              onClick={handleCancel}
-            >
-              Отмена
-            </Button>
-          )}
-
-          <Button
-            type="button"
-            onClick={handleSubmit}
-            disabled={isSubmitDisabled}
-            className="rounded-full bg-primary px-5 text-sm font-semibold text-white shadow-[0_14px_40px_-25px_rgba(59,130,246,1)] transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-white/20 disabled:text-white/60"
-          >
-            {submitText}
-          </Button>
-        </div>
+              <Button
+                type="button"
+                onClick={handleSubmit}
+                disabled={isSubmitDisabled}
+                size="icon"
+                className="h-10 w-10 rounded-full bg-primary text-white shadow-[0_12px_24px_-18px_rgba(59,130,246,0.9)] transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-white/20 disabled:text-white/60"
+              >
+                <span className="sr-only">{submitText}</span>
+                <Send className="h-5 w-5" />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
