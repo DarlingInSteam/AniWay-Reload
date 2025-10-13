@@ -225,20 +225,29 @@ public class ImageStorageService {
 
         String objectKey = generateObjectKey(chapterId, pageNumber, file.getOriginalFilename());
 
-        BufferedImage bufferedImage = ImageIO.read(file.getInputStream());
+        // Читаем байты ОДИН РАЗ для избежания двойного чтения stream (потеря качества)
+        byte[] imageBytes = file.getBytes();
+        
+        // Читаем метаданные ДО загрузки
         Integer width = null;
         Integer height = null;
-        if (bufferedImage != null) {
-            width = bufferedImage.getWidth();
-            height = bufferedImage.getHeight();
+        try (ByteArrayInputStream bais = new ByteArrayInputStream(imageBytes)) {
+            BufferedImage bufferedImage = ImageIO.read(bais);
+            if (bufferedImage != null) {
+                width = bufferedImage.getWidth();
+                height = bufferedImage.getHeight();
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to read image dimensions: " + e.getMessage());
         }
 
-        try (InputStream inputStream = file.getInputStream()) {
+        // Загружаем ОРИГИНАЛЬНЫЕ байты в MinIO (без пересжатия)
+        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(imageBytes)) {
             minioClient.putObject(
                     PutObjectArgs.builder()
                             .bucket(yandexProperties.getBucketName())
                             .object(objectKey)
-                            .stream(inputStream, file.getSize(), -1)
+                            .stream(inputStream, imageBytes.length, -1)
                             .contentType(file.getContentType())
                             .build()
             );
@@ -291,21 +300,31 @@ public class ImageStorageService {
 
             String objectKey = generateObjectKey(chapterId, pageNumber, file.getOriginalFilename());
 
+            // Читаем байты ОДИН РАЗ для избежания двойного чтения stream (потеря качества)
+            byte[] imageBytes = file.getBytes();
+            
+            // Загружаем ОРИГИНАЛЬНЫЕ байты в MinIO (без пересжатия)
             minioClient.putObject(
                     PutObjectArgs.builder()
                             .bucket(yandexProperties.getBucketName())
                             .object(objectKey)
-                            .stream(file.getInputStream(), file.getSize(), -1)
+                            .stream(new ByteArrayInputStream(imageBytes), imageBytes.length, -1)
                             .contentType(file.getContentType())
                             .build()
             );
 
-            BufferedImage bufferedImage = ImageIO.read(file.getInputStream());
+            // Читаем метаданные из тех же байтов (без повторного I/O)
             Integer width = null;
             Integer height = null;
-            if (bufferedImage != null) {
-                width = bufferedImage.getWidth();
-                height = bufferedImage.getHeight();
+            try (ByteArrayInputStream bais = new ByteArrayInputStream(imageBytes)) {
+                BufferedImage bufferedImage = ImageIO.read(bais);
+                if (bufferedImage != null) {
+                    width = bufferedImage.getWidth();
+                    height = bufferedImage.getHeight();
+                }
+            } catch (Exception e) {
+                // Если не удалось прочитать метаданные, это не критично — сохраняем null
+                System.err.println("Failed to read image dimensions: " + e.getMessage());
             }
 
             ChapterImage chapterImage = new ChapterImage();
@@ -374,21 +393,31 @@ public class ImageStorageService {
 
             String objectKey = generateObjectKey(chapterId, pageNumber, file.getOriginalFilename());
 
+            // Читаем байты ОДИН РАЗ для избежания двойного чтения stream (потеря качества)
+            byte[] imageBytes = file.getBytes();
+            
+            // Загружаем ОРИГИНАЛЬНЫЕ байты в MinIO (без пересжатия)
             minioClient.putObject(
                     PutObjectArgs.builder()
                             .bucket(yandexProperties.getBucketName())
                             .object(objectKey)
-                            .stream(file.getInputStream(), file.getSize(), -1)
+                            .stream(new ByteArrayInputStream(imageBytes), imageBytes.length, -1)
                             .contentType(file.getContentType())
                             .build()
             );
 
-            BufferedImage bufferedImage = ImageIO.read(file.getInputStream());
+            // Читаем метаданные из тех же байтов (без повторного I/O)
             Integer width = null;
             Integer height = null;
-            if (bufferedImage != null) {
-                width = bufferedImage.getWidth();
-                height = bufferedImage.getHeight();
+            try (ByteArrayInputStream bais = new ByteArrayInputStream(imageBytes)) {
+                BufferedImage bufferedImage = ImageIO.read(bais);
+                if (bufferedImage != null) {
+                    width = bufferedImage.getWidth();
+                    height = bufferedImage.getHeight();
+                }
+            } catch (Exception e) {
+                // Если не удалось прочитать метаданные, это не критично — сохраняем null
+                System.err.println("Failed to read image dimensions: " + e.getMessage());
             }
 
             ChapterImage chapterImage = new ChapterImage();
@@ -763,21 +792,30 @@ public class ImageStorageService {
 
         String objectKey = generateObjectKey(-1L, mangaId.intValue(), file.getOriginalFilename());
 
+        // Читаем байты ОДИН РАЗ для избежания двойного чтения stream (потеря качества)
+        byte[] imageBytes = file.getBytes();
+        
+        // Загружаем ОРИГИНАЛЬНЫЕ байты в MinIO (без пересжатия)
         minioClient.putObject(
                 PutObjectArgs.builder()
                         .bucket(yandexProperties.getBucketName())
                         .object(objectKey)
-                        .stream(file.getInputStream(), file.getSize(), -1)
+                        .stream(new ByteArrayInputStream(imageBytes), imageBytes.length, -1)
                         .contentType(file.getContentType())
                         .build()
         );
 
-        BufferedImage bufferedImage = ImageIO.read(file.getInputStream());
+        // Читаем метаданные из тех же байтов (без повторного I/O)
         Integer width = null;
         Integer height = null;
-        if (bufferedImage != null) {
-            width = bufferedImage.getWidth();
-            height = bufferedImage.getHeight();
+        try (ByteArrayInputStream bais = new ByteArrayInputStream(imageBytes)) {
+            BufferedImage bufferedImage = ImageIO.read(bais);
+            if (bufferedImage != null) {
+                width = bufferedImage.getWidth();
+                height = bufferedImage.getHeight();
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to read cover image dimensions: " + e.getMessage());
         }
 
         ChapterImage chapterImage = new ChapterImage();
@@ -844,21 +882,30 @@ public class ImageStorageService {
                 } catch (Exception ignored) {}
             }
 
+            // Читаем байты ОДИН РАЗ для избежания двойного чтения stream (потеря качества)
+            byte[] imageBytes = file.getBytes();
+            
+            // Загружаем ОРИГИНАЛЬНЫЕ байты в MinIO (без пересжатия)
             minioClient.putObject(
                     PutObjectArgs.builder()
                             .bucket(yandexProperties.getBucketName())
                             .object(objectKey)
-                            .stream(file.getInputStream(), file.getSize(), -1)
+                            .stream(new ByteArrayInputStream(imageBytes), imageBytes.length, -1)
                             .contentType(contentType)
                             .build()
             );
 
-            BufferedImage bufferedImage = ImageIO.read(file.getInputStream());
+            // Читаем метаданные из тех же байтов (без повторного I/O)
             Integer width = null;
             Integer height = null;
-            if (bufferedImage != null) {
-                width = bufferedImage.getWidth();
-                height = bufferedImage.getHeight();
+            try (ByteArrayInputStream bais = new ByteArrayInputStream(imageBytes)) {
+                BufferedImage bufferedImage = ImageIO.read(bais);
+                if (bufferedImage != null) {
+                    width = bufferedImage.getWidth();
+                    height = bufferedImage.getHeight();
+                }
+            } catch (Exception e) {
+                System.err.println("Failed to read avatar image dimensions: " + e.getMessage());
             }
 
             UserAvatar avatar = existingOpt.orElseGet(UserAvatar::new);

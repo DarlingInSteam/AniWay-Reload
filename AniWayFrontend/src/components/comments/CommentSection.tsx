@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
-import { MessageCircle, Filter, SortAsc, SortDesc } from 'lucide-react'
+import { MessageCircle } from 'lucide-react'
 import { useComments } from '@/hooks/useComments'
 import { useAuth } from '@/contexts/AuthContext'
 import { commentService } from '@/services/commentService'
 import { CommentItem } from './CommentItem'
 import { CommentForm } from './CommentForm'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { cn } from '@/lib/utils'
 
 interface CommentSectionProps {
   targetId: number
@@ -15,19 +15,24 @@ interface CommentSectionProps {
   title?: string
   maxLevel?: number
   onCountChange?: (count: number) => void
+  hideHeader?: boolean
 }
 
-export function CommentSection({ 
-  targetId, 
-  type, 
+export function CommentSection({
+  targetId,
+  type,
   title = 'Комментарии',
   maxLevel = 3,
-  onCountChange
+  onCountChange,
+  hideHeader = false
 }: CommentSectionProps) {
   const { isAuthenticated } = useAuth()
-  const [sortBy, setSortBy] = useState<'createdAt' | 'likesCount'>('createdAt')
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [sortPreset, setSortPreset] = useState<'new' | 'top'>('new')
   const [totalCommentsCount, setTotalCommentsCount] = useState<number>(0)
+
+  const sortConfig = sortPreset === 'new'
+    ? { sortBy: 'createdAt' as const, sortDir: 'desc' as const }
+    : { sortBy: 'likesCount' as const, sortDir: 'desc' as const }
 
   const {
     comments,
@@ -37,7 +42,7 @@ export function CommentSection({
     deleteComment,
     addReaction,
     isCreating
-  } = useComments(targetId, type)
+  } = useComments(targetId, type, sortConfig.sortBy, sortConfig.sortDir)
 
   // Загружаем общее количество комментариев
   useEffect(() => {
@@ -52,7 +57,7 @@ export function CommentSection({
     }
 
     loadCommentsCount()
-  }, [targetId, type])
+  }, [targetId, type, onCountChange])
 
   // Обновляем счётчик при изменении комментариев
   useEffect(() => {
@@ -69,7 +74,7 @@ export function CommentSection({
     if (comments.length > 0) {
       loadCommentsCount()
     }
-  }, [comments, targetId, type])
+  }, [comments, targetId, type, onCountChange])
 
   const handleCreateComment = (content: string) => {
     createComment({
@@ -104,78 +109,70 @@ export function CommentSection({
 
   // After comments (or replies) load, attempt to scroll to hash target if present
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (!comments.length) return;
+    if (typeof window === 'undefined') return
+    if (!comments.length) return
     if (window.location.hash.startsWith('#comment-')) {
       // Defer to allow nested replies mount
-      setTimeout(() => { window.__rehighlightAnchor?.(); }, 80);
+      setTimeout(() => {
+        window.__rehighlightAnchor?.()
+      }, 80)
     }
-  }, [comments]);
+  }, [comments])
 
-  const toggleSortDir = () => {
-    setSortDir(prev => prev === 'asc' ? 'desc' : 'asc')
-  }
+  const composerContent = isAuthenticated ? (
+    <CommentForm
+      onSubmit={handleCreateComment}
+      placeholder="Оставить комментарий"
+      submitText={isCreating ? 'Отправка...' : 'Отправить'}
+      maxLength={600}
+    />
+  ) : (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-center">
+      <p className="text-white/50 mb-2">Войдите, чтобы оставить комментарий</p>
+      <Button variant="outline" size="sm">Войти</Button>
+    </div>
+  )
 
   return (
     <div className="space-y-6 max-w-full">
       {/* Заголовок секции */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 max-w-full">
-        <div className="flex items-center space-x-3 min-w-0">
-          <MessageCircle className="h-6 w-6 text-primary" />
-          <h2 className="text-xl font-semibold text-white truncate">{title}</h2>
-          <span className="text-sm text-gray-400 flex-shrink-0">
-            ({totalCommentsCount})
-          </span>
-        </div>
-
-        {/* Сортировка */}
-        <div className="flex items-center flex-wrap gap-2 sm:gap-2 w-full sm:w-auto">
-          <div className="flex items-center gap-2">
-            <Select value={sortBy} onValueChange={(value: 'createdAt' | 'likesCount') => setSortBy(value)}>
-              <SelectTrigger className="w-[120px] h-8 px-2 text-xs sm:text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="max-w-[160px]">
-                <SelectItem value="createdAt">По дате</SelectItem>
-                <SelectItem value="likesCount">По рейтингу</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={toggleSortDir}
-              className="h-8 w-8 p-0 flex-shrink-0"
-              aria-label={sortDir === 'desc' ? 'Сортировка по убыванию' : 'Сортировка по возрастанию'}
-            >
-              {sortDir === 'desc' ? (
-                <SortDesc className="h-4 w-4" />
-              ) : (
-                <SortAsc className="h-4 w-4" />
-              )}
-            </Button>
+      <div className="flex flex-col gap-4">
+        {!hideHeader && (
+          <div className="flex items-center gap-3 min-w-0">
+            <MessageCircle className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold text-white truncate">{title}</h2>
+            <span className="text-sm text-white/40 flex-shrink-0">{totalCommentsCount}</span>
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* Форма создания комментария */}
-      {isAuthenticated ? (
-        <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 border border-white/10">
-          <CommentForm
-            onSubmit={handleCreateComment}
-            placeholder="Поделитесь своими мыслями..."
-            submitText={isCreating ? 'Отправка...' : 'Опубликовать'}
-          />
-        </div>
-      ) : (
-        <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 border border-white/10 text-center">
-          <p className="text-gray-400 mb-2">
-            Войдите в аккаунт, чтобы оставлять комментарии
-          </p>
-          <Button variant="outline" size="sm">
-            Войти
-          </Button>
-        </div>
-      )}
+        {/* Форма создания комментария */}
+        {composerContent}
+
+        {!hideHeader && (
+          <div className="flex items-center gap-2">
+            {(
+              [
+                { key: 'new' as const, label: 'Новые' },
+                { key: 'top' as const, label: 'Интересные' }
+              ]
+            ).map(option => (
+              <button
+                key={option.key}
+                type="button"
+                onClick={() => setSortPreset(option.key)}
+                className={cn(
+                  'rounded-full px-3 py-1 text-sm transition-colors',
+                  sortPreset === option.key
+                    ? 'bg-primary text-white shadow-[0_4px_20px_-10px_rgba(59,130,246,0.8)]'
+                    : 'bg-white/[0.08] text-white/60 hover:text-white'
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Список комментариев */}
       {isLoading ? (

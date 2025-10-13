@@ -1099,6 +1099,7 @@ export function ReaderPage() {
                   type="CHAPTER"
                   title=""
                   maxLevel={3}
+                  hideHeader
                 />
               </div>
             </div>

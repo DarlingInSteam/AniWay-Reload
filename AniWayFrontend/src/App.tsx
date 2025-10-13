@@ -26,6 +26,9 @@ import ResetPasswordRequestPage from './pages/ResetPasswordRequestPage'
 import ResetPasswordCodePage from './pages/ResetPasswordCodePage'
 import GlobalChatPage from './pages/GlobalChatPage'
 import MessagesPage from './pages/MessagesPage'
+import DmcaPolicyPage from './pages/DmcaPolicyPage'
+import TermsOfServicePage from './pages/TermsOfServicePage'
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
 
 function InnerApp() {
   const { user } = useAuth();
@@ -113,6 +116,11 @@ function InnerApp() {
               </div>
             </ProtectedRoute>
           } />
+
+          {/* Правовые документы */}
+          <Route path="/legal/dmca" element={<DmcaPolicyPage />} />
+          <Route path="/legal/terms" element={<TermsOfServicePage />} />
+          <Route path="/legal/privacy" element={<PrivacyPolicyPage />} />
         </Routes>
         <Toaster position="top-right" theme="dark" />
       </Layout>

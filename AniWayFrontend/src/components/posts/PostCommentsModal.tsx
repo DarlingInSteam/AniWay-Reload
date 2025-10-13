@@ -155,6 +155,7 @@ export const PostCommentsModal: React.FC<PostCommentsModalProps> = ({ open, onCl
               type={'POST' as any} 
               title="Комментарии" 
               onCountChange={handleCountChange}
+              hideHeader
             />
           </div>
         </div>

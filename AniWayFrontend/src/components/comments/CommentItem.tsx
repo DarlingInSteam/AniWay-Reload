@@ -92,7 +92,7 @@ export function CommentItem({
   if (comment.isDeleted) {
     return (
       <div className={cn(
-        "p-4 rounded-3xl bg-white/5 backdrop-blur-sm border border-white/10",
+        "rounded-2xl border border-white/10 bg-white/[0.04] p-4",
         level > 0 && "ml-6"
       )}>
         <p className="text-gray-400 italic">Комментарий удален</p>
@@ -129,7 +129,8 @@ export function CommentItem({
     <div
       id={`comment-${comment.id}`}
       className={cn(
-        "p-4 rounded-3xl bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/10 transition-colors group target-comment overflow-hidden",
+        "rounded-2xl border border-white/10 bg-white/[0.04] p-4 transition-colors group target-comment overflow-hidden",
+        "hover:border-primary/40 hover:bg-white/[0.07]",
         clampedIndent
       )}
       style={{
@@ -139,7 +140,7 @@ export function CommentItem({
     >
       {/* Заголовок комментария */}
       <div className="flex items-start justify-between mb-3 min-w-0">
-        <div className="flex items-center space-x-3 min-w-0">
+        <div className="flex items-center gap-3 min-w-0">
           <Link
             to={buildProfileUrl(comment.userId, (comment as any).userDisplayName || comment.username, comment.username)}
             className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 rounded-full"
@@ -155,14 +156,14 @@ export function CommentItem({
           <div className="min-w-0">
             <Link
               to={buildProfileUrl(comment.userId, (comment as any).userDisplayName || comment.username, comment.username)}
-              className="font-medium text-white group-hover:text-primary transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 rounded break-all"
+              className="font-semibold text-white group-hover:text-primary transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 rounded break-all"
             >
               {comment.username}
             </Link>
-            <div className="flex items-center space-x-2 text-sm text-gray-400 group-hover:text-primary/80 transition-colors">
+            <div className="flex items-center gap-2 text-xs text-white/45 group-hover:text-primary/80 transition-colors">
               <span>{formatDate(comment.createdAt)}</span>
               {comment.isEdited && (
-                <span className="text-xs bg-gray-700 px-2 py-0.5 rounded group-hover:bg-primary/20 group-hover:text-primary transition-colors">
+                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] uppercase tracking-wide text-white/60 group-hover:bg-primary/20 group-hover:text-primary transition-colors">
                   отредактировано
                 </span>
               )}
@@ -174,7 +175,7 @@ export function CommentItem({
         {canShowMenu && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-white/70 hover:text-white">
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -209,29 +210,31 @@ export function CommentItem({
           submitText="Сохранить"
         />
       ) : (
-        <div className="mb-3 text-white leading-relaxed markdown-body break-words">
+        <div className="mb-3 text-white/90 leading-relaxed markdown-body break-words">
           <MarkdownRenderer value={comment.content} />
         </div>
       )}
 
       {/* Действия с комментарием */}
-  <div className="flex items-center space-x-4 flex-wrap">
+      <div className="flex flex-wrap items-center gap-3">
         {/* Лайки и дизлайки */}
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">
           <Button
             variant="ghost"
             size="sm"
             onClick={handleLike}
             disabled={!isAuthenticated}
             className={cn(
-              "h-8 px-2 flex items-center gap-1",
-              comment.userReaction === 'LIKE' ? 'text-green-400 bg-green-500/10 hover:text-green-300' : 'text-gray-400 hover:text-green-400',
-              !isAuthenticated && 'cursor-not-allowed'
+              "h-8 px-2 flex items-center gap-1 rounded-full",
+              comment.userReaction === 'LIKE'
+                ? 'text-emerald-300 bg-emerald-500/10 hover:text-emerald-200'
+                : 'text-white/50 hover:text-emerald-300',
+              !isAuthenticated && 'cursor-not-allowed opacity-60'
             )}
             aria-pressed={comment.userReaction === 'LIKE'}
             aria-label="Поставить лайк"
           >
-            <Heart className={cn("h-4 w-4", comment.userReaction === 'LIKE' && 'fill-green-400')} />
+            <Heart className={cn("h-4 w-4", comment.userReaction === 'LIKE' && 'fill-emerald-300')} />
             <span>{comment.likesCount}</span>
           </Button>
           <Button
@@ -240,9 +243,11 @@ export function CommentItem({
             onClick={handleDislike}
             disabled={!isAuthenticated}
             className={cn(
-              "h-8 px-2 flex items-center gap-1",
-              comment.userReaction === 'DISLIKE' ? 'text-red-400 bg-red-500/10 hover:text-red-300' : 'text-gray-400 hover:text-red-400',
-              !isAuthenticated && 'cursor-not-allowed'
+              "h-8 px-2 flex items-center gap-1 rounded-full",
+              comment.userReaction === 'DISLIKE'
+                ? 'text-rose-300 bg-rose-500/10 hover:text-rose-200'
+                : 'text-white/50 hover:text-rose-300',
+              !isAuthenticated && 'cursor-not-allowed opacity-60'
             )}
             aria-pressed={comment.userReaction === 'DISLIKE'}
             aria-label="Поставить дизлайк"
@@ -258,7 +263,7 @@ export function CommentItem({
             variant="ghost"
             size="sm"
             onClick={() => setShowReplyForm(!showReplyForm)}
-            className="h-8 px-2 text-gray-400 hover:text-primary transition-colors"
+            className="h-8 px-3 text-white/60 hover:text-primary transition-colors"
           >
             <MessageCircle className="h-4 w-4 mr-1" />
             Ответить
@@ -271,7 +276,7 @@ export function CommentItem({
             variant="ghost"
             size="sm"
             onClick={() => setShowReplies(!showReplies)}
-            className="h-8 px-2 text-gray-400 hover:text-primary transition-colors"
+            className="h-8 px-3 text-white/60 hover:text-primary transition-colors"
           >
             {showReplies ? (
               <ChevronUp className="h-4 w-4 mr-1" />
