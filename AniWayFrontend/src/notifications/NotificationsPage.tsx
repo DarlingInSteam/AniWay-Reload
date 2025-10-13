@@ -130,67 +130,28 @@ export const NotificationsPage: React.FC = () => {
 
   return (
     <div className="relative mx-auto max-w-6xl px-4 py-10 lg:px-8">
-      <section className="rounded-[32px] border border-white/10 bg-manga-black/80 p-8 shadow-[0_40px_80px_-60px_rgba(0,0,0,0.9)]">
-        <header className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
-          <div className="space-y-3 text-white">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.24em] text-white/60">
-              Центр уведомлений
-              <span className="inline-flex h-6 items-center rounded-full bg-primary/20 px-2 text-[11px] font-semibold text-primary">
-                {unreadCount > 0 ? `${unreadCount} новых` : 'Без новых'}
-              </span>
-            </div>
-            <h1 className="text-3xl font-semibold leading-tight text-white">Уведомления и события</h1>
-          </div>
-          <div className="flex flex-col gap-3 text-white/70 md:items-end">
-            <div className="text-right text-sm uppercase tracking-[0.18em]">Всего уведомлений</div>
-            <div className="text-3xl font-semibold text-white">{merged.length}</div>
-          </div>
-        </header>
-
-        <div className="mt-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            {CATEGORY_DEFINITIONS.map(def => (
-              <button
-                key={def.key}
-                type="button"
-                onClick={() => setCategoryFilter(def.key)}
-                className={cn(
-                  'group relative flex min-w-[160px] flex-col gap-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left transition hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50',
-                  categoryFilter === def.key && 'border-primary/60 bg-primary/10 text-white shadow-lg shadow-primary/20'
-                )}
-              >
-                <span className="text-xs uppercase tracking-[0.18em] text-white/50">{def.label}</span>
-                <span className="text-xl font-semibold text-white">
-                  {countsByCategory[def.key]?.total ?? 0}
-                  {(countsByCategory[def.key]?.unread ?? 0) > 0 && (
-                    <span className="ml-2 rounded-full bg-primary/25 px-2 py-0.5 text-xs font-semibold text-primary">
-                      +{countsByCategory[def.key]?.unread}
-                    </span>
-                  )}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
+      <section className="rounded-[28px] border border-white/10 bg-manga-black/75 p-6">
+        <header className="flex flex-col gap-4 text-white md:flex-row md:items-center md:justify-between">
+          <h1 className="text-2xl font-semibold">Уведомления</h1>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
             <Button
               type="button"
               size="sm"
               onClick={() => setViewFilter(viewFilter === 'unread' ? 'all' : 'unread')}
               className={cn(
-                'h-10 rounded-full border border-white/15 bg-white/10 text-white hover:bg-white/20',
-                viewFilter === 'unread' && 'border-primary/50 bg-primary/10 text-primary'
+                'h-9 rounded-full border border-white/15 bg-white/10 px-4 text-white hover:bg-white/20',
+                viewFilter === 'unread' && 'border-primary/40 bg-primary/10 text-primary'
               )}
             >
-              {viewFilter === 'unread' ? 'Показать все' : 'Только новое'}
+              {viewFilter === 'unread' ? 'Все' : 'Новое'}
             </Button>
             <Button
               type="button"
               size="sm"
               onClick={() => setSortOrder(sortOrder === 'new' ? 'old' : 'new')}
-              className="h-10 rounded-full border border-white/15 bg-white/10 text-white hover:bg-white/20"
+              className="h-9 rounded-full border border-white/15 bg-white/10 px-4 text-white hover:bg-white/20"
             >
-              <span className="mr-2 text-sm font-semibold text-white/80">{sortOrder === 'new' ? 'Новое' : 'Старое'}</span>
+              <span className="mr-1 text-sm font-medium text-white/80">{sortOrder === 'new' ? 'Сначала новые' : 'Сначала старые'}</span>
               <ChevronDown className="h-4 w-4" />
             </Button>
             <Button
@@ -198,7 +159,7 @@ export const NotificationsPage: React.FC = () => {
               size="sm"
               disabled={unreadCount === 0}
               onClick={() => markAll()}
-              className="h-10 rounded-full border border-white/15 bg-white/10 text-white hover:bg-white/20 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-white/30"
+              className="h-9 rounded-full border border-white/15 bg-white/10 px-4 text-white hover:bg-white/20 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-white/30"
             >
               <CheckCheck className="mr-2 h-4 w-4" />
               Прочитать все
@@ -218,12 +179,34 @@ export const NotificationsPage: React.FC = () => {
                   console.error(e);
                 }
               }}
-              className="h-10 rounded-full"
+              className="h-9 rounded-full px-4"
             >
               <Trash2 className="mr-2 h-4 w-4" />
               Очистить
             </Button>
           </div>
+        </header>
+
+        <div className="mt-6 flex flex-wrap gap-2">
+          {CATEGORY_DEFINITIONS.map(def => (
+            <button
+              key={def.key}
+              type="button"
+              onClick={() => setCategoryFilter(def.key)}
+              className={cn(
+                'flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70 transition hover:border-white/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+                categoryFilter === def.key && 'border-primary/50 bg-primary/15 text-white'
+              )}
+            >
+              <span>{def.label}</span>
+              <span className="flex items-center gap-1 rounded-full bg-black/20 px-2 py-0.5 text-xs text-white/60">
+                {countsByCategory[def.key]?.total ?? 0}
+                {(countsByCategory[def.key]?.unread ?? 0) > 0 && (
+                  <span className="text-primary">+{countsByCategory[def.key]?.unread}</span>
+                )}
+              </span>
+            </button>
+          ))}
         </div>
       </section>
 
