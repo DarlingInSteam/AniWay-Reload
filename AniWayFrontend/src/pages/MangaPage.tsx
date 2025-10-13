@@ -548,7 +548,7 @@ export function MangaPage() {
             <div className="lg:col-span-1">
               <div className="lg:sticky lg:top-24 space-y-4 md:space-y-6">
                 {/* Cover Image */}
-                <div className="aspect-[3/4] rounded-3xl overflow-hidden bg-white/5 backdrop-blur-sm max-w-sm mx-auto lg:max-w-none border border-white/10">
+                <div className="aspect-[3/4] rounded-3xl overflow-hidden bg-white/5 backdrop-blur-sm max-w-sm mx-auto lg:mx-0 lg:w-[260px] border border-white/10">
                   <img
                     src={manga.coverImageUrl}
                     alt={manga.title}
@@ -599,7 +599,7 @@ export function MangaPage() {
             </div>
 
             {/* Main Content */}
-            <div className="lg:col-span-2 -mt-2">
+            <div className="lg:col-span-2 lg:self-start">
               <div className="mb-6 flex flex-col items-center lg:items-start gap-4 text-center lg:text-left">
                 <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 text-sm text-white/80">
                   <span>{getTypeText(manga.type)}</span>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { ChevronDown, Heart } from 'lucide-react'
 import { BookmarkStatus } from '../../types'
 import { useBookmarks } from '../../hooks/useBookmarks'
 import { useAuth } from '../../contexts/AuthContext'
@@ -37,7 +38,11 @@ export const BookmarkControls: React.FC<BookmarkControlsProps> = ({ mangaId, cla
 
     setLoading(true)
     try {
-      await changeStatus(mangaId, status)
+      if (bookmark) {
+        await changeStatus(mangaId, status)
+      } else {
+        await addBookmark(mangaId, status)
+      }
       setIsOpen(false)
     } catch (error) {
       console.error('Failed to change status:', error)
@@ -66,6 +71,7 @@ export const BookmarkControls: React.FC<BookmarkControlsProps> = ({ mangaId, cla
     setLoading(true)
     try {
       await toggleFavorite(mangaId)
+      setIsOpen(false)
     } catch (error) {
       console.error('Failed to toggle favorite:', error)
     } finally {
@@ -86,71 +92,63 @@ export const BookmarkControls: React.FC<BookmarkControlsProps> = ({ mangaId, cla
 
   return (
     <div className={`relative ${className}`}>
-      <div className="flex items-center space-x-3">
-        {/* Кнопка статуса */}
-        <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        disabled={loading}
+        className={`w-full inline-flex items-center justify-between gap-3 px-6 py-3 rounded-lg text-sm font-medium bg-primary text-white transition-colors hover:bg-primary/90 ${
+          loading ? 'opacity-50 cursor-not-allowed' : ''
+        }`}
+      >
+        <span>{bookmark ? statusLabels[bookmark.status] : 'Добавить в список'}</span>
+        <ChevronDown
+          className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-2 w-full min-w-[14rem] bg-card rounded-lg shadow-lg border border-border/30 py-2 z-50">
+          {Object.entries(statusLabels).map(([status, label]) => (
+            <button
+              key={status}
+              onClick={() => handleStatusChange(status as BookmarkStatus)}
+              className={`w-full text-left px-4 py-2 text-sm transition-colors flex items-center justify-between ${
+                bookmark?.status === status ? 'bg-primary/20 text-primary font-medium' : 'text-white hover:bg-secondary'
+              }`}
+            >
+              <span>{label}</span>
+              {bookmark?.status === status && <span className="text-xs uppercase">выбрано</span>}
+            </button>
+          ))}
+
+          <hr className="my-2 border-border/30" />
           <button
-            onClick={() => setIsOpen(!isOpen)}
-            disabled={loading}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              bookmark 
-                ? `text-white border-2 bg-primary/20 border-primary hover:bg-primary/30`
-                : 'bg-white/10 text-white hover:bg-white/20 border-2 border-white/30'
+            onClick={handleToggleFavorite}
+            className={`w-full px-4 py-2 text-sm flex items-center gap-2 transition-colors ${
+              bookmark?.isFavorite ? 'text-amber-300 bg-amber-500/10' : 'text-white hover:text-amber-200 hover:bg-amber-500/10'
             } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            {bookmark ? statusLabels[bookmark.status] : 'Добавить в список'}
+            <Heart className={`w-4 h-4 ${bookmark?.isFavorite ? 'fill-current' : ''}`} />
+            <span>{bookmark?.isFavorite ? 'Убрать из избранного' : 'Добавить в избранное'}</span>
           </button>
 
-          {isOpen && (
-            <div className="absolute top-full left-0 mt-2 w-48 bg-card rounded-lg shadow-lg border border-border/30 py-2 z-50">
-              {Object.entries(statusLabels).map(([status, label]) => (
-                <button
-                  key={status}
-                  onClick={() => handleStatusChange(status as BookmarkStatus)}
-                  className={`w-full text-left px-4 py-2 text-sm hover:bg-secondary transition-colors ${
-                    bookmark?.status === status ? 'bg-primary/20 text-primary font-medium' : 'text-white'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-              
-              {bookmark && (
-                <>
-                  <hr className="my-2 border-border/30" />
-                  <button
-                    onClick={handleRemoveBookmark}
-                    className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
-                  >
-                    Удалить из списка
-                  </button>
-                </>
-              )}
-            </div>
+          {bookmark && (
+            <>
+              <hr className="my-2 border-border/30" />
+              <button
+                onClick={handleRemoveBookmark}
+                className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+              >
+                Удалить из списка
+              </button>
+            </>
           )}
         </div>
-
-        {/* Кнопка избранного */}
-        <button
-          onClick={handleToggleFavorite}
-          disabled={loading}
-          className={`p-2 rounded-lg transition-colors ${
-            bookmark?.isFavorite 
-              ? 'text-red-400 hover:text-red-300 bg-red-500/20' 
-              : 'text-white/40 hover:text-red-400 hover:bg-red-500/20'
-          } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-          title={bookmark?.isFavorite ? 'Убрать из избранного' : 'Добавить в избранное'}
-        >
-          <svg className="w-6 h-6" fill={bookmark?.isFavorite ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-          </svg>
-        </button>
-      </div>
+      )}
 
       {/* Backdrop для закрытия меню */}
       {isOpen && (
-        <div 
-          className="fixed inset-0 z-40" 
+        <div
+          className="fixed inset-0 z-40"
           onClick={() => setIsOpen(false)}
         />
       )}
