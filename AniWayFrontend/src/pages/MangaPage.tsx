@@ -350,28 +350,24 @@ export function MangaPage() {
 
   const collapsedChipLimit = 12
   const hasHiddenChips = combinedChips.length > collapsedChipLimit
-  const collapsedVisibleLimit = Math.max(collapsedChipLimit - 1, 1)
 
   type ChipRenderItem = { type: 'genre' | 'tag'; label: string } | { type: 'toggle'; label: '' }
 
-  const collapsedChips = useMemo<ChipRenderItem[]>(() => {
-    if (!hasHiddenChips) return combinedChips
-    return [
-      ...combinedChips.slice(0, collapsedVisibleLimit),
-      { type: 'toggle', label: '' },
-    ]
-  }, [combinedChips, hasHiddenChips, collapsedVisibleLimit])
-
   const renderedChips = useMemo<ChipRenderItem[]>(() => {
     if (!hasHiddenChips) return combinedChips
-    return showAllChips
-      ? [...combinedChips, { type: 'toggle', label: '' }]
-      : collapsedChips
-  }, [collapsedChips, combinedChips, hasHiddenChips, showAllChips])
+    if (showAllChips) return [...combinedChips, { type: 'toggle', label: '' }]
 
-  const hiddenChipCount = !hasHiddenChips || showAllChips
-    ? 0
-    : Math.max(combinedChips.length - collapsedVisibleLimit, 0)
+    const limit = Math.max(Math.min(combinedChips.length, collapsedChipLimit), 4) - 1
+    const collapsed = combinedChips.slice(0, limit)
+    return [...collapsed, { type: 'toggle', label: '' }]
+  }, [combinedChips, collapsedChipLimit, hasHiddenChips, showAllChips])
+
+  const hiddenChipCount = useMemo(() => {
+    if (!hasHiddenChips) return 0
+    if (showAllChips) return 0
+    const visible = renderedChips.filter((chip) => chip.type !== 'toggle').length
+    return Math.max(combinedChips.length - visible, 0)
+  }, [combinedChips.length, hasHiddenChips, renderedChips, showAllChips])
 
   useEffect(() => {
     setShowAllChips(false)
