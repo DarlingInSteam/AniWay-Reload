@@ -280,6 +280,7 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
             type="REVIEW"
             title="Комментарии к отзыву"
             maxLevel={2}
+            hideHeader
           />
         </div>
       )}
