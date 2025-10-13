@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useLayoutEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
@@ -348,26 +348,158 @@ export function MangaPage() {
     [genres, tags]
   )
 
-  const collapsedChipLimit = 12
-  const hasHiddenChips = combinedChips.length > collapsedChipLimit
+  const collapsedChipLimit = 30
+  const chipContainerRef = useRef<HTMLDivElement | null>(null)
+  const chipMeasurementRef = useRef<HTMLDivElement | null>(null)
+  const [chipContainerWidth, setChipContainerWidth] = useState(0)
+  const [visibleChipsCount, setVisibleChipsCount] = useState(() => Math.min(combinedChips.length, collapsedChipLimit))
+
+  useEffect(() => {
+    const el = chipContainerRef.current
+    if (!el) return
+
+    const updateWidth = () => {
+      setChipContainerWidth(el.clientWidth)
+    }
+
+    updateWidth()
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(() => {
+        updateWidth()
+      })
+      observer.observe(el)
+      return () => {
+        observer.disconnect()
+      }
+    }
+
+    window.addEventListener('resize', updateWidth)
+    return () => {
+      window.removeEventListener('resize', updateWidth)
+    }
+  }, [])
+
+  useEffect(() => {
+    setVisibleChipsCount((prev) => {
+      const nextLimit = Math.min(combinedChips.length, collapsedChipLimit)
+      if (prev === nextLimit) return prev
+      if (prev > nextLimit) return nextLimit
+      return nextLimit
+    })
+  }, [combinedChips.length])
+
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') return
+    if (showAllChips) return
+    if (!chipMeasurementRef.current || !chipContainerRef.current) return
+    if (combinedChips.length === 0) return
+    if (chipContainerWidth === 0) return
+
+    const measurementEl = chipMeasurementRef.current
+    measurementEl.style.width = `${chipContainerWidth}px`
+
+    const chipClassName = 'group px-3 py-1 text-sm rounded-full border transition-colors backdrop-blur-sm'
+    const genreChipClasses = 'bg-white/10 border-white/20 text-white'
+    const tagChipClasses = 'bg-primary/10 border-primary/30 text-primary'
+    const toggleClassName = 'px-3 py-1 text-xs font-semibold uppercase tracking-wide rounded-full border border-dashed'
+
+    const maxCount = Math.min(collapsedChipLimit, combinedChips.length)
+    if (maxCount === 0) return
+
+    const buildChipNode = (chip: { type: 'genre' | 'tag'; label: string }) => {
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.className = `${chipClassName} ${chip.type === 'genre' ? genreChipClasses : tagChipClasses}`
+      button.textContent = chip.label
+      button.setAttribute('data-chip-item', 'true')
+      return button
+    }
+
+    const buildToggleNode = (remaining: number) => {
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.className = `${toggleClassName} border-primary/40 text-primary/80`
+      button.textContent = remaining > 0 ? `Показать больше (${remaining})` : 'Показать больше'
+      button.setAttribute('data-chip-item', 'true')
+      button.setAttribute('data-toggle', 'true')
+      return button
+    }
+
+    const fitsWithinTwoRows = (count: number) => {
+      measurementEl.replaceChildren()
+
+      const subset = combinedChips.slice(0, count)
+      subset.forEach((chip) => {
+        measurementEl.appendChild(buildChipNode(chip))
+      })
+
+      if (combinedChips.length > count) {
+        const remaining = combinedChips.length - count
+        measurementEl.appendChild(buildToggleNode(remaining))
+      }
+
+      const children = Array.from(measurementEl.children) as HTMLElement[]
+      const rowOffsets = new Set<number>()
+      children.forEach((child) => {
+        rowOffsets.add(Math.round(child.offsetTop))
+      })
+
+      return rowOffsets.size <= 2
+    }
+
+    let low = 1
+    let high = maxCount
+    let best = 0
+
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2)
+      if (fitsWithinTwoRows(mid)) {
+        best = mid
+        low = mid + 1
+      } else {
+        high = mid - 1
+      }
+    }
+
+    measurementEl.replaceChildren()
+
+    if (best === 0) {
+      best = Math.min(1, maxCount)
+    }
+
+    setVisibleChipsCount((prev) => {
+      const next = Math.min(best, maxCount)
+      return prev === next ? prev : next
+    })
+  }, [chipContainerWidth, collapsedChipLimit, combinedChips, showAllChips])
+
+  const hasHiddenChips = combinedChips.length > visibleChipsCount
 
   type ChipRenderItem = { type: 'genre' | 'tag'; label: string } | { type: 'toggle'; label: '' }
 
   const renderedChips = useMemo<ChipRenderItem[]>(() => {
-    if (!hasHiddenChips) return combinedChips
-    if (showAllChips) return [...combinedChips, { type: 'toggle', label: '' }]
+    if (combinedChips.length === 0) return []
 
-    const limit = Math.max(Math.min(combinedChips.length, collapsedChipLimit), 4) - 1
-    const collapsed = combinedChips.slice(0, limit)
-    return [...collapsed, { type: 'toggle', label: '' }]
-  }, [combinedChips, collapsedChipLimit, hasHiddenChips, showAllChips])
+    if (showAllChips) {
+      return hasHiddenChips ? [...combinedChips, { type: 'toggle', label: '' }] : combinedChips
+    }
+
+    const count = Math.min(visibleChipsCount, combinedChips.length)
+    const visible = combinedChips.slice(0, count)
+
+    if (combinedChips.length > count) {
+      return [...visible, { type: 'toggle', label: '' }]
+    }
+
+    return visible
+  }, [combinedChips, hasHiddenChips, showAllChips, visibleChipsCount])
 
   const hiddenChipCount = useMemo(() => {
     if (!hasHiddenChips) return 0
     if (showAllChips) return 0
-    const visible = renderedChips.filter((chip) => chip.type !== 'toggle').length
-    return Math.max(combinedChips.length - visible, 0)
-  }, [combinedChips.length, hasHiddenChips, renderedChips, showAllChips])
+    return Math.max(combinedChips.length - visibleChipsCount, 0)
+  }, [combinedChips.length, hasHiddenChips, showAllChips, visibleChipsCount])
 
   useEffect(() => {
     setShowAllChips(false)
@@ -777,8 +909,9 @@ export function MangaPage() {
                     </div>
 
                     {combinedChips.length > 0 && (
-                      <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
+                      <div className="relative bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
                         <div
+                          ref={chipContainerRef}
                           className={cn(
                             'flex flex-wrap gap-2 transition-[max-height] duration-300 ease-out',
                             showAllChips ? 'max-h-[480px]' : 'max-h-[4.75rem] overflow-hidden'
@@ -797,6 +930,8 @@ export function MangaPage() {
                                     'border-primary/40 text-primary/80 hover:border-primary hover:text-primary'
                                   )}
                                   aria-label={showAllChips ? 'Свернуть список жанров и тегов' : 'Показать все жанры и теги'}
+                                  data-chip-item="true"
+                                  data-toggle="true"
                                 >
                                   {showAllChips ? 'Свернуть' : `Показать больше (${hiddenChipCount})`}
                                 </button>
@@ -824,12 +959,19 @@ export function MangaPage() {
                                     ? `Перейти в каталог по жанру ${chip.label}`
                                     : `Перейти в каталог по тегу ${chip.label}`
                                 }
+                                data-chip-item="true"
                               >
                                 <span className="pointer-events-none select-none">{chip.label}</span>
                               </button>
                             )
                           })}
                         </div>
+                        <div
+                          ref={chipMeasurementRef}
+                          aria-hidden="true"
+                          className="flex flex-wrap gap-2 absolute pointer-events-none opacity-0 left-0 top-0"
+                          style={{ visibility: 'hidden', zIndex: -1, width: chipContainerWidth ? `${chipContainerWidth}px` : undefined }}
+                        />
                       </div>
                     )}
 
