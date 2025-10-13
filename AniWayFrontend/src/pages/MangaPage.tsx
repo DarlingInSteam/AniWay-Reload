@@ -657,7 +657,7 @@ export function MangaPage() {
 
               {/* Tabs */}
               <div className="mb-6">
-                <div className="flex flex-wrap gap-2 overflow-x-auto scrollbar-hide bg-white/5 border border-white/10 rounded-full p-1 backdrop-blur-sm">
+                <div className="w-full flex flex-nowrap md:flex-wrap gap-2 overflow-x-auto md:overflow-visible scrollbar-hide bg-white/5 border border-white/10 rounded-full p-1 backdrop-blur-sm">
                   {tabs.map(tab => {
                     if (tab.mobileOnly && isDesktop) return null
                     return (
