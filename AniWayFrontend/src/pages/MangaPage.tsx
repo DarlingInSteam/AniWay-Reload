@@ -349,26 +349,26 @@ export function MangaPage() {
   )
 
   // Показываем кнопку если чипов больше порога
-  const collapsedChipCount = 6
+  const collapsedChipCount = 14
   const hasMoreChips = combinedChips.length > collapsedChipCount
 
   type ChipItem = { type: 'genre' | 'tag'; label: string }
   type ToggleItem = { type: 'toggle' }
   type RenderItem = ChipItem | ToggleItem
 
-  const displayedChips = useMemo<RenderItem[]>(() => {
+  const displayedChips = useMemo<ChipItem[]>(() => {
     if (!hasMoreChips) {
       // Если чипов мало, показываем все без кнопки
       return combinedChips
     }
 
     if (showAllChips) {
-      // Expanded: все чипы + кнопка "Свернуть" в конце
-      return [...combinedChips, { type: 'toggle' as const }]
+      // Expanded: все чипы без кнопки (кнопка будет отдельно)
+      return combinedChips
     }
 
-    // Collapsed: первые N чипов + кнопка "Показать больше"
-    return [...combinedChips.slice(0, collapsedChipCount), { type: 'toggle' as const }]
+    // Collapsed: первые N чипов без кнопки (кнопка будет positioned absolute)
+    return combinedChips.slice(0, collapsedChipCount)
   }, [combinedChips, hasMoreChips, showAllChips, collapsedChipCount])
 
   useEffect(() => {
@@ -782,29 +782,11 @@ export function MangaPage() {
                       <div className="relative bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
                         <div
                           className={cn(
-                            'flex flex-wrap gap-2 transition-[max-height] duration-300 ease-out',
+                            'flex flex-wrap gap-2 transition-[max-height] duration-300 ease-out relative',
                             showAllChips ? 'max-h-[480px]' : 'max-h-[4.75rem] overflow-hidden'
                           )}
                         >
                           {displayedChips.map((item, index) => {
-                            if (item.type === 'toggle') {
-                              const hiddenCount = combinedChips.length - collapsedChipCount
-                              return (
-                                <button
-                                  key="toggle-button"
-                                  type="button"
-                                  onClick={() => setShowAllChips((prev) => !prev)}
-                                  className={cn(
-                                    'px-3 py-1 text-xs font-semibold uppercase tracking-wide rounded-full border border-dashed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black',
-                                    'border-primary/40 text-primary/80 hover:border-primary hover:text-primary'
-                                  )}
-                                  aria-label={showAllChips ? 'Свернуть список жанров и тегов' : 'Показать все жанры и теги'}
-                                >
-                                  {showAllChips ? 'Свернуть' : `Показать больше (${hiddenCount})`}
-                                </button>
-                              )
-                            }
-
                             const isGenre = item.type === 'genre'
                             return (
                               <button
@@ -831,7 +813,35 @@ export function MangaPage() {
                               </button>
                             )
                           })}
+                          {/* Кнопка positioned absolute в правом нижнем углу 2-строчного блока */}
+                          {hasMoreChips && !showAllChips && (
+                            <button
+                              type="button"
+                              onClick={() => setShowAllChips(true)}
+                              className={cn(
+                                'absolute bottom-0 right-0 px-3 py-1 text-xs font-semibold uppercase tracking-wide rounded-full border border-dashed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black z-10',
+                                'border-primary/40 text-primary/80 hover:border-primary hover:text-primary bg-background/95 backdrop-blur-sm'
+                              )}
+                              aria-label="Показать все жанры и теги"
+                            >
+                              Показать больше ({combinedChips.length - collapsedChipCount})
+                            </button>
+                          )}
                         </div>
+                        {/* Кнопка "Свернуть" под блоком когда expanded */}
+                        {hasMoreChips && showAllChips && (
+                          <button
+                            type="button"
+                            onClick={() => setShowAllChips(false)}
+                            className={cn(
+                              'mt-3 px-3 py-1 text-xs font-semibold uppercase tracking-wide rounded-full border border-dashed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black',
+                              'border-primary/40 text-primary/80 hover:border-primary hover:text-primary'
+                            )}
+                            aria-label="Свернуть список жанров и тегов"
+                          >
+                            Свернуть
+                          </button>
+                        )}
                       </div>
                     )}
 
