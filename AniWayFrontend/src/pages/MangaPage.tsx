@@ -543,7 +543,7 @@ export function MangaPage() {
       {/* Content */}
       <div className="relative z-10">
         <div className="container mx-auto px-4 lg:px-8 py-4 md:py-8">
-          <div className="grid grid-cols-1 lg:grid-cols-[283px_minmax(0,1fr)_320px] gap-4 lg:gap-6 xl:gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-[283px_minmax(0,1fr)_320px] gap-4 md:gap-5 lg:gap-5 xl:gap-6">
             {/* Left Column - Cover and Controls */}
             <div className="lg:col-span-1">
               <div className="lg:sticky lg:top-24 max-w-[258px] w-full lg:w-[283px] mx-auto lg:mx-0 space-y-4 md:space-y-6">
@@ -652,7 +652,7 @@ export function MangaPage() {
 
               {/* Tabs */}
               <div className="mb-6">
-                <div className="flex flex-wrap gap-2 overflow-x-auto scrollbar-hide">
+                <div className="flex flex-wrap gap-2 overflow-x-auto scrollbar-hide bg-white/5 border border-white/10 rounded-full p-1 backdrop-blur-sm">
                   {tabs.map(tab => {
                     if (tab.mobileOnly && isDesktop) return null
                     return (
@@ -660,10 +660,10 @@ export function MangaPage() {
                         key={tab.id}
                         onClick={() => setActiveTabParam(tab.id as any)}
                         className={cn(
-                          'px-4 py-2 text-sm font-medium whitespace-nowrap rounded-full transition-colors flex-shrink-0 backdrop-blur-sm border border-white/10',
+                          'px-4 py-2 text-sm font-medium whitespace-nowrap rounded-full transition-colors flex-shrink-0 border border-transparent',
                           activeTab === tab.id
-                            ? 'bg-primary text-white border-primary/80 shadow-[0_8px_24px_rgba(37,99,235,0.35)]'
-                            : 'bg-white/5 text-white/70 hover:text-white hover:bg-white/10'
+                            ? 'bg-primary text-white shadow-[0_8px_24px_rgba(37,99,235,0.35)]'
+                            : 'text-white/70 hover:text-white hover:bg-white/10'
                         )}
                       >
                         {tab.label}
