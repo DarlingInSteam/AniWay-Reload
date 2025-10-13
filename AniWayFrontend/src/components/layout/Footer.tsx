@@ -71,9 +71,10 @@ export function Footer() {
         <div className="mt-8 flex flex-col gap-3 text-xs text-white/40 md:flex-row md:items-center md:justify-between">
           <p>© {year} AniWay. Все права защищены.</p>
           <div className="flex flex-wrap gap-4">
-            <Link to="/tops" className="hover:text-white">Обновления проекта</Link>
-            <a href="mailto:support@aniway.space" className="hover:text-white">Связаться с нами</a>
-            <Link to="/forum" className="hover:text-white">Правила сообщества</Link>
+            <Link to="/legal/dmca" className="hover:text-white">DMCA</Link>
+            <Link to="/legal/terms" className="hover:text-white">Пользовательское соглашение</Link>
+            <Link to="/legal/privacy" className="hover:text-white">Политика конфиденциальности</Link>
+            <a href="mailto:legal@aniway.space" className="hover:text-white">Связаться с нами</a>
           </div>
         </div>
       </div>
