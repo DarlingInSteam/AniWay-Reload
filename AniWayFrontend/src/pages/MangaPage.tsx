@@ -861,13 +861,10 @@ export function MangaPage() {
 
                     {/* Comments Section */}
                     <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10">
-                      <h3 className="text-lg font-bold text-white mb-4">Комментарии</h3>
-            
-                      {/* Comments List */}
                       <CommentSection
                         targetId={mangaId}
                         type="MANGA"
-                        title="Обсуждение манги"
+                        displayMode="composer-only"
                       />
                     </div>
                   </div>

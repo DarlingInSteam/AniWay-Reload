@@ -20,8 +20,7 @@ import {
   Link as LinkIcon,
   Save,
   HelpCircle,
-  ChevronRight,
-  Send
+  ChevronRight
 } from 'lucide-react'
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
 
@@ -32,6 +31,7 @@ interface CommentFormProps {
   placeholder?: string
   submitText?: string
   maxLength?: number
+  showCancelButton?: boolean
 }
 
 type QuickActionKey =
@@ -70,7 +70,8 @@ export function CommentForm({
   initialValue = '',
   placeholder = 'Оставить комментарий',
   submitText = 'Отправить',
-  maxLength
+  maxLength,
+  showCancelButton = true
 }: CommentFormProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -116,6 +117,7 @@ export function CommentForm({
 
   const handleCancel = () => {
     onCancel?.()
+    setContent(initialValue)
     setHasFocus(false)
     setShowPreview(false)
     setShowDrafts(false)
@@ -381,7 +383,7 @@ export function CommentForm({
             </div>
 
             <div className="flex items-center gap-2">
-              {onCancel && (
+              {showCancelButton && (
                 <Button
                   type="button"
                   variant="ghost"
@@ -389,7 +391,7 @@ export function CommentForm({
                   className="rounded-full px-3 text-white/60 hover:text-white"
                   onClick={handleCancel}
                 >
-                  Отмена
+                  Отменить
                 </Button>
               )}
 
@@ -397,11 +399,10 @@ export function CommentForm({
                 type="button"
                 onClick={handleSubmit}
                 disabled={isSubmitDisabled}
-                size="icon"
-                className="h-10 w-10 rounded-full bg-primary text-white shadow-[0_12px_24px_-18px_rgba(59,130,246,0.9)] transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-white/20 disabled:text-white/60"
+                size="sm"
+                className="rounded-full bg-primary px-4 text-white shadow-[0_12px_24px_-18px_rgba(59,130,246,0.9)] transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-white/20 disabled:text-white/60"
               >
-                <span className="sr-only">{submitText}</span>
-                <Send className="h-5 w-5" />
+                {submitText}
               </Button>
             </div>
           </div>
