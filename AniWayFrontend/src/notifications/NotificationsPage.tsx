@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCheck, Trash2 } from 'lucide-react';
+import { CheckCheck, ChevronDown, MoreVertical, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,7 +8,14 @@ import { cn } from '@/lib/utils';
 
 import { useNotifications } from './NotificationContext';
 import { deleteAll } from './api';
-import { parsePayload, formatTitle, formatDescription, formatDate, getIcon, getNavigationTarget } from './notificationUtils';
+import {
+  parsePayload,
+  formatTitle,
+  formatDescription,
+  formatDate,
+  getIcon,
+  getNavigationTarget,
+} from './notificationUtils';
 import { authService } from '../services/authService';
 
 interface NotificationItem {
@@ -26,7 +33,9 @@ export const NotificationsPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
   const [end, setEnd] = useState(false);
-  const [viewFilter, setViewFilter] = useState<'all' | 'unread'>('all');
+  const [viewFilter, setViewFilter] = useState<'all' | 'unread'>('unread');
+  const [categoryFilter, setCategoryFilter] = useState<CategoryKey>('all');
+  const [sortOrder, setSortOrder] = useState<'new' | 'old'>('new');
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Merge real-time items (dedupe by id) at top
@@ -40,18 +49,47 @@ export const NotificationsPage: React.FC = () => {
   }, [flat, pages]);
 
   const unreadCount = React.useMemo(() => merged.filter(n => n.status === 'UNREAD').length, [merged]);
-  const displayed = React.useMemo(() => viewFilter === 'unread' ? merged.filter(n => n.status === 'UNREAD') : merged, [merged, viewFilter]);
+
+  const countsByCategory = React.useMemo(() => {
+    const result: Record<CategoryKey, { total: number; unread: number }> = {
+      all: { total: merged.length, unread: unreadCount },
+      updates: { total: 0, unread: 0 },
+      social: { total: 0, unread: 0 },
+      important: { total: 0, unread: 0 },
+    };
+    merged.forEach(item => {
+      const key = resolveCategory(item.type);
+      if (key !== 'all') {
+        result[key].total += 1;
+        if (item.status === 'UNREAD') {
+          result[key].unread += 1;
+        }
+      }
+    });
+    return result;
+  }, [merged, unreadCount]);
+
+  const displayed = React.useMemo(() => {
+    const filtered = merged.filter(item => {
+      if (viewFilter === 'unread' && item.status !== 'UNREAD') return false;
+      if (categoryFilter !== 'all') {
+        return resolveCategory(item.type) === categoryFilter;
+      }
+      return true;
+    });
+    return filtered.sort((a, b) => (sortOrder === 'new' ? b.createdAtEpoch - a.createdAtEpoch : a.createdAtEpoch - b.createdAtEpoch));
+  }, [merged, viewFilter, categoryFilter, sortOrder]);
 
   const loadPage = useCallback(async () => {
     if (loading || end) return;
     setLoading(true);
     try {
-  const token = authService.getToken();
-  const headers: Record<string,string> = {};
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  // X-User-Id no longer strictly required when JWT present, keep fallback if gateway bypassed locally
-  if ((window as any).currentUserId) headers['X-User-Id'] = String((window as any).currentUserId);
-  const res = await fetch(`/api/notifications/page?page=${page}&size=30`, { headers });
+      const token = authService.getToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      // X-User-Id no longer strictly required when JWT present, keep fallback if gateway bypassed locally
+      if ((window as any).currentUserId) headers['X-User-Id'] = String((window as any).currentUserId);
+      const res = await fetch(`/api/notifications/page?page=${page}&size=30`, { headers });
       if (!res.ok) throw new Error('Failed');
       const data = await res.json();
       const list: NotificationItem[] = data.items || [];
@@ -84,35 +122,83 @@ export const NotificationsPage: React.FC = () => {
     }
   }, [loading, pages.length, end, loadPage]);
 
+  useEffect(() => {
+    if (viewFilter === 'unread' && unreadCount === 0 && merged.length > 0) {
+      setViewFilter('all');
+    }
+  }, [viewFilter, unreadCount, merged.length]);
+
   return (
-    <div className="relative mx-auto max-w-5xl px-4 py-10 lg:px-6">
-      <div className="glass-panel rounded-3xl p-6 shadow-2xl">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="glass-inline flex flex-wrap items-center gap-1 rounded-full p-1 text-xs text-foreground">
-            {(['all', 'unread'] as const).map(option => (
+    <div className="relative mx-auto max-w-6xl px-4 py-10 lg:px-8">
+      <section className="rounded-[32px] border border-white/10 bg-manga-black/80 p-8 shadow-[0_40px_80px_-60px_rgba(0,0,0,0.9)]">
+        <header className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+          <div className="space-y-3 text-white">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.24em] text-white/60">
+              Центр уведомлений
+              <span className="inline-flex h-6 items-center rounded-full bg-primary/20 px-2 text-[11px] font-semibold text-primary">
+                {unreadCount > 0 ? `${unreadCount} новых` : 'Без новых'}
+              </span>
+            </div>
+            <h1 className="text-3xl font-semibold leading-tight text-white">Уведомления и события</h1>
+          </div>
+          <div className="flex flex-col gap-3 text-white/70 md:items-end">
+            <div className="text-right text-sm uppercase tracking-[0.18em]">Всего уведомлений</div>
+            <div className="text-3xl font-semibold text-white">{merged.length}</div>
+          </div>
+        </header>
+
+        <div className="mt-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            {CATEGORY_DEFINITIONS.map(def => (
               <button
-                key={option}
+                key={def.key}
                 type="button"
-                onClick={() => setViewFilter(option)}
+                onClick={() => setCategoryFilter(def.key)}
                 className={cn(
-                  'rounded-full px-4 py-1.5 font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40',
-                  viewFilter === option
-                    ? 'bg-blue-500/25 text-white shadow-lg shadow-blue-500/30'
-                    : 'text-slate-200/80 hover:bg-white/10 hover:text-foreground'
+                  'group relative flex min-w-[160px] flex-col gap-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left transition hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50',
+                  categoryFilter === def.key && 'border-primary/60 bg-primary/10 text-white shadow-lg shadow-primary/20'
                 )}
               >
-                {option === 'all' ? 'Все' : 'Непрочитанные'}
+                <span className="text-xs uppercase tracking-[0.18em] text-white/50">{def.label}</span>
+                <span className="text-xl font-semibold text-white">
+                  {countsByCategory[def.key]?.total ?? 0}
+                  {(countsByCategory[def.key]?.unread ?? 0) > 0 && (
+                    <span className="ml-2 rounded-full bg-primary/25 px-2 py-0.5 text-xs font-semibold text-primary">
+                      +{countsByCategory[def.key]?.unread}
+                    </span>
+                  )}
+                </span>
               </button>
             ))}
           </div>
+
           <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
               size="sm"
-              variant="secondary"
+              onClick={() => setViewFilter(viewFilter === 'unread' ? 'all' : 'unread')}
+              className={cn(
+                'h-10 rounded-full border border-white/15 bg-white/10 text-white hover:bg-white/20',
+                viewFilter === 'unread' && 'border-primary/50 bg-primary/10 text-primary'
+              )}
+            >
+              {viewFilter === 'unread' ? 'Показать все' : 'Только новое'}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => setSortOrder(sortOrder === 'new' ? 'old' : 'new')}
+              className="h-10 rounded-full border border-white/15 bg-white/10 text-white hover:bg-white/20"
+            >
+              <span className="mr-2 text-sm font-semibold text-white/80">{sortOrder === 'new' ? 'Новое' : 'Старое'}</span>
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              size="sm"
               disabled={unreadCount === 0}
               onClick={() => markAll()}
-              className="h-9 rounded-full border border-white/20 bg-white/15 text-white transition hover:bg-white/25 disabled:cursor-not-allowed disabled:opacity-40"
+              className="h-10 rounded-full border border-white/15 bg-white/10 text-white hover:bg-white/20 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-white/30"
             >
               <CheckCheck className="mr-2 h-4 w-4" />
               Прочитать все
@@ -132,36 +218,37 @@ export const NotificationsPage: React.FC = () => {
                   console.error(e);
                 }
               }}
-              className="h-9 rounded-full"
+              className="h-10 rounded-full"
             >
               <Trash2 className="mr-2 h-4 w-4" />
               Очистить
             </Button>
           </div>
         </div>
-      </div>
+      </section>
 
       <div className="mt-10 space-y-4">
         {displayed.map(n => (
-          <Row
+          <NotificationCard
             key={n.id}
-            n={n}
-            onActivate={(target) => {
+            item={n}
+            onActivate={target => {
               markRead([n.id]);
               if (target) navigate(target);
             }}
+            onMarkRead={() => markRead([n.id])}
           />
         ))}
       </div>
 
       {displayed.length === 0 && !loading && (
-        <div className="glass-panel mt-10 rounded-3xl p-12 text-center shadow-xl">
-          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full border border-white/10 bg-white/10 text-4xl">📭</div>
-          <h2 className="text-xl font-semibold text-foreground">Ничего нового пока нет</h2>
-          <p className="mt-3 text-sm text-slate-300">
+        <div className="mt-10 rounded-[32px] border border-dashed border-white/10 bg-white/5 p-20 text-center text-white/70">
+          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-white/10 bg-white/10 text-4xl">📭</div>
+          <h2 className="text-2xl font-semibold text-white">Ничего нового пока нет</h2>
+          <p className="mx-auto mt-3 max-w-md text-sm text-white/60">
             {viewFilter === 'unread'
-              ? 'Все уведомления уже прочитаны. Как только появится что-то важное, вы увидите это здесь.'
-              : 'Когда появятся новые события, они мгновенно отобразятся в этом разделе.'}
+              ? 'Вы просмотрели все свежие уведомления. Мы сообщим, как только произойдет что-то важное.'
+              : 'Сейчас уведомлений нет, но как только появятся новые события, вы сразу увидите их здесь.'}
           </p>
         </div>
       )}
@@ -170,69 +257,129 @@ export const NotificationsPage: React.FC = () => {
       {loading && (
         <div className="mt-6 space-y-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-24 rounded-3xl border border-white/5 bg-white/5 skeleton-shimmer" />
+            <div key={i} className="h-28 rounded-[28px] border border-white/5 bg-white/5 skeleton-shimmer" />
           ))}
         </div>
       )}
       {end && displayed.length > 0 && (
-        <div className="py-6 text-center text-xs text-slate-400">Больше нет уведомлений</div>
+        <div className="py-8 text-center text-xs uppercase tracking-[0.24em] text-white/40">Больше уведомлений нет</div>
       )}
     </div>
   );
 };
 
-const Row: React.FC<{ n: NotificationItem; onActivate: (target: string | null) => void }> = ({ n, onActivate }) => {
-  const parsed = parsePayload(n.payload);
-  const title = formatTitle(n.type, parsed);
-  const desc = formatDescription(n.type, parsed);
-  const icon = getIcon(n.type);
-  const target = getNavigationTarget(n.type, parsed);
-  const isUnread = n.status === 'UNREAD';
+const NotificationCard: React.FC<{
+  item: NotificationItem;
+  onActivate: (target: string | null) => void;
+  onMarkRead: () => void;
+}> = ({ item, onActivate, onMarkRead }) => {
+  const parsed = parsePayload(item.payload);
+  const title = formatTitle(item.type, parsed);
+  const desc = formatDescription(item.type, parsed);
+  const icon = getIcon(item.type);
+  const target = getNavigationTarget(item.type, parsed);
+  const isUnread = item.status === 'UNREAD';
+  const coverImage = parsed?.coverImageUrl || parsed?.coverUrl || parsed?.image || parsed?.poster || null;
+  const categoryLabel = CATEGORY_DEFINITIONS.find(def => def.key === resolveCategory(item.type))?.label ?? 'Уведомление';
+
   return (
-    <button
-      type="button"
-      onClick={() => onActivate(target)}
-      className={cn(
-        'glass-panel group relative w-full overflow-hidden rounded-3xl p-6 text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 hover:border-white/30 hover:bg-white/10',
-        isUnread && 'border-blue-400/60 shadow-lg shadow-blue-500/25'
-      )}
-    >
-      <div className="absolute left-0 top-0 h-full w-1 bg-blue-400/70" aria-hidden="true" />
-      <div className="flex items-start gap-4">
-        <div className={cn(
-          'flex h-12 w-12 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-2xl text-white shadow-inner',
-          isUnread && 'border-blue-300/50 bg-blue-500/20 text-white shadow-blue-500/40'
-        )}>
-          {icon}
-        </div>
-        <div className="min-w-0 flex-1 space-y-2">
-          <div className="flex flex-wrap items-start gap-2">
-            <div className="min-w-0 flex-1 text-base font-semibold leading-tight text-foreground line-clamp-2">{title}</div>
-            <div className="shrink-0 text-[11px] uppercase tracking-[0.18em] text-slate-400">
-              {formatDate(n.createdAtEpoch)}
+    <article className={cn('group relative overflow-hidden rounded-[28px] border border-white/10 bg-white/5 p-5 text-white transition hover:border-white/20 hover:bg-white/10', isUnread && 'border-primary/40 bg-primary/10 shadow-lg shadow-primary/20')}>
+      <div className="flex flex-col gap-5 md:flex-row md:items-start">
+        <button
+          type="button"
+          onClick={() => onActivate(target)}
+          className="relative flex h-20 w-full max-w-[88px] shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-white/5 text-3xl transition hover:border-primary/50 md:h-24"
+        >
+          {coverImage ? (
+            <img src={coverImage} alt="cover" className="h-full w-full object-cover" loading="lazy" />
+          ) : (
+            <span className="text-2xl">{icon}</span>
+          )}
+          {isUnread && <span className="absolute -right-1 -top-1 h-6 w-6 rounded-full bg-primary shadow-lg shadow-primary/40" />}
+        </button>
+
+        <div className="flex-1 space-y-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:gap-6">
+            <button
+              type="button"
+              onClick={() => onActivate(target)}
+              className="min-w-0 flex-1 text-left focus-visible:outline-none"
+            >
+              <h3 className="text-lg font-semibold leading-tight text-white md:text-xl">{title}</h3>
+              {desc && <p className="mt-2 text-sm text-white/70 line-clamp-3 md:text-base">{desc}</p>}
+            </button>
+            <div className="flex flex-col items-start gap-2 text-xs uppercase tracking-[0.2em] text-white/40 md:items-end">
+              <span>Опубликовано</span>
+              <span className="text-white/70">{formatDate(item.createdAtEpoch)}</span>
             </div>
           </div>
-          {desc && (
-            <p className="text-sm leading-relaxed text-slate-300 line-clamp-3 group-hover:text-slate-200">
-              {desc}
-            </p>
-          )}
-          <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] uppercase tracking-[0.2em]">
-            <Badge
-              variant="outline"
-              className={cn(
-                'border-white/15 bg-white/5 text-white/80',
-                isUnread && 'border-blue-300/50 bg-blue-500/15 text-white'
+
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge
+                variant="outline"
+                className={cn(
+                  'rounded-full border-white/20 bg-white/10 text-xs uppercase tracking-[0.18em] text-white/70',
+                  isUnread && 'border-primary/60 bg-primary/15 text-primary'
+                )}
+              >
+                {isUnread ? 'Новое' : 'Прочитано'}
+              </Badge>
+              <Badge variant="outline" className="rounded-full border-white/10 bg-white/10 text-xs uppercase tracking-[0.18em] text-white/60">
+                {categoryLabel}
+              </Badge>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {isUnread && (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={onMarkRead}
+                  className="h-9 rounded-full border border-primary/40 bg-primary/20 text-primary hover:bg-primary/30"
+                >
+                  <CheckCheck className="mr-2 h-4 w-4" />
+                  Прочитано
+                </Button>
               )}
-            >
-              {isUnread ? 'Новое' : 'Прочитано'}
-            </Badge>
-            <Badge variant="outline" className="border-white/10 bg-white/5 text-slate-300/90">
-              {n.type.replace(/_/g, ' ').toLowerCase()}
-            </Badge>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                onClick={() => onActivate(target)}
+                className="h-9 w-9 rounded-full border border-white/10 bg-white/5 text-white/70 hover:border-white/20 hover:bg-white/10"
+                title="Открыть уведомление"
+                aria-label="Открыть уведомление"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </div>
-    </button>
+    </article>
   );
+};
+
+type CategoryKey = 'all' | 'updates' | 'social' | 'important';
+
+const CATEGORY_DEFINITIONS: Array<{ key: CategoryKey; label: string }> = [
+  { key: 'all', label: 'Все' },
+  { key: 'updates', label: 'Обновления' },
+  { key: 'social', label: 'Социальные' },
+  { key: 'important', label: 'Важное' },
+];
+
+const resolveCategory = (type: string): CategoryKey => {
+  const normalized = type.toLowerCase();
+  if (normalized.includes('comment') || normalized.includes('friend') || normalized.includes('message')) {
+    return 'social';
+  }
+  if (normalized.includes('ban') || normalized.includes('admin') || normalized.includes('system') || normalized.includes('security')) {
+    return 'important';
+  }
+  if (normalized.includes('chapter') || normalized.includes('manga') || normalized.includes('series') || normalized.includes('update') || normalized.includes('release')) {
+    return 'updates';
+  }
+  return 'updates';
 };
