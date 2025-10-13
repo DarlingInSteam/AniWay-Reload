@@ -341,15 +341,19 @@ export function MangaPage() {
   }, [manga?.tags])
 
   const combinedChips = useMemo(
-    () => [
-      ...genres.map((genre) => ({ type: 'genre' as const, label: genre })),
-      ...tags.map((tag) => ({ type: 'tag' as const, label: tag })),
-    ],
+    () => {
+      const chips = [
+        ...genres.map((genre) => ({ type: 'genre' as const, label: genre })),
+        ...tags.map((tag) => ({ type: 'tag' as const, label: tag })),
+      ]
+      // Сортируем по длине: сначала короткие, потом длинные
+      return chips.sort((a, b) => a.label.length - b.label.length)
+    },
     [genres, tags]
   )
 
   // Показываем кнопку если чипов больше порога
-  const collapsedChipCount = 8
+  const collapsedChipCount = 12
   const hasMoreChips = combinedChips.length > collapsedChipCount
 
   type ChipItem = { type: 'genre' | 'tag'; label: string }
