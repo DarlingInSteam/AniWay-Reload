@@ -349,9 +349,10 @@ export function MangaPage() {
   )
 
   const collapsedChipLimit = 12
-  const visibleChips = showAllChips ? combinedChips : combinedChips.slice(0, collapsedChipLimit)
   const hasHiddenChips = combinedChips.length > collapsedChipLimit
-  const hiddenChipCount = Math.max(combinedChips.length - collapsedChipLimit, 0)
+  const collapsedVisibleLimit = hasHiddenChips ? Math.max(collapsedChipLimit - 1, 1) : collapsedChipLimit
+  const visibleChips = showAllChips ? combinedChips : combinedChips.slice(0, collapsedVisibleLimit)
+  const hiddenChipCount = showAllChips ? 0 : Math.max(combinedChips.length - visibleChips.length, 0)
 
   useEffect(() => {
     setShowAllChips(false)
