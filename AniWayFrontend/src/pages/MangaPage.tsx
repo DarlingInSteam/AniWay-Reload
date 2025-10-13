@@ -543,7 +543,7 @@ export function MangaPage() {
       {/* Content */}
       <div className="relative z-10">
         <div className="container mx-auto px-4 lg:px-8 py-4 md:py-8">
-          <div className="grid grid-cols-1 lg:grid-cols-[283px_minmax(0,1fr)_320px] gap-4 md:gap-5 lg:gap-5 xl:gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-[283px_minmax(0,1fr)_320px] gap-4 md:gap-5 lg:gap-4 xl:gap-5">
             {/* Left Column - Cover and Controls */}
             <div className="lg:col-span-1">
               <div className="lg:sticky lg:top-24 max-w-[258px] w-full lg:w-[283px] mx-auto lg:mx-0 space-y-4 md:space-y-6">
