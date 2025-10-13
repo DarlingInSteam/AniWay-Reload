@@ -9,11 +9,13 @@ import {
 import { toast } from 'sonner'
 
 export function useComments(
-  targetId: number, 
-  type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST'
+  targetId: number,
+  type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST',
+  sortBy: 'createdAt' | 'likesCount' = 'createdAt',
+  sortDir: 'asc' | 'desc' = 'desc'
 ) {
   const queryClient = useQueryClient()
-  const queryKey = ['comments', targetId, type]
+  const queryKey = ['comments', targetId, type, sortBy, sortDir]
 
   const {
     data: comments = [],
@@ -22,7 +24,7 @@ export function useComments(
     refetch
   } = useQuery({
     queryKey,
-    queryFn: () => commentService.getComments(targetId, type),
+    queryFn: () => commentService.getComments(targetId, type, 0, 20, sortBy, sortDir),
     staleTime: 30000, // 30 секунд
   })
 
@@ -44,7 +46,7 @@ export function useComments(
     mutationFn: ({ commentId, data }: { commentId: number; data: CommentUpdateDTO }) =>
       commentService.updateComment(commentId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey })
+  queryClient.invalidateQueries({ queryKey })
       toast.success('Комментарий обновлен')
     },
     onError: (error) => {
@@ -56,7 +58,7 @@ export function useComments(
   const deleteMutation = useMutation({
     mutationFn: (commentId: number) => commentService.deleteComment(commentId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey })
+  queryClient.invalidateQueries({ queryKey })
       document.dispatchEvent(new CustomEvent('comment-count-delta', { detail: { targetId, type, delta: -1 } }))
       toast.success('Комментарий удален')
     },
