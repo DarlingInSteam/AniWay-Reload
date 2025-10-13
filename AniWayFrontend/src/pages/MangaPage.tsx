@@ -543,12 +543,12 @@ export function MangaPage() {
       {/* Content */}
       <div className="relative z-10">
         <div className="container mx-auto px-4 lg:px-8 py-4 md:py-8">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_320px] gap-4 lg:gap-6 xl:gap-8">
             {/* Left Column - Cover and Controls */}
             <div className="lg:col-span-1">
-              <div className="lg:sticky lg:top-24 space-y-4 md:space-y-6">
+              <div className="lg:sticky lg:top-24 lg:w-[260px] mx-auto lg:mx-0 space-y-4 md:space-y-6">
                 {/* Cover Image */}
-                <div className="aspect-[3/4] rounded-3xl overflow-hidden bg-white/5 backdrop-blur-sm max-w-sm mx-auto lg:mx-0 lg:w-[260px] border border-white/10">
+                <div className="aspect-[3/4] rounded-3xl overflow-hidden bg-white/5 backdrop-blur-sm w-full border border-white/10">
                   <img
                     src={manga.coverImageUrl}
                     alt={manga.title}
@@ -577,7 +577,7 @@ export function MangaPage() {
                   <ReadingProgressBar 
                     mangaId={mangaId} 
                     totalChapters={manga.totalChapters} 
-                    className="mb-4" 
+                    className="w-full mb-4" 
                   />
 
                   <button className="w-full bg-white/5 backdrop-blur-sm text-white py-3 rounded-3xl font-medium hover:bg-white/10 transition-colors flex items-center justify-center gap-2 border border-white/10">
@@ -599,7 +599,7 @@ export function MangaPage() {
             </div>
 
             {/* Main Content */}
-            <div className="lg:col-span-2 lg:self-start">
+            <div className="lg:col-span-1 lg:col-start-2 xl:col-span-1 xl:col-start-2 lg:self-start">
               <div className="mb-6 flex flex-col items-center lg:items-start gap-4 text-center lg:text-left">
                 <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 text-sm text-white/80">
                   <span>{getTypeText(manga.type)}</span>
@@ -643,7 +643,7 @@ export function MangaPage() {
                 <ReadingProgressBar 
                   mangaId={mangaId} 
                   totalChapters={manga.totalChapters} 
-                  className="mb-4" 
+                  className="w-full mb-4" 
                 />
 
                 {/* Кнопки действий */}
@@ -1005,7 +1005,7 @@ export function MangaPage() {
             </div>
 
             {/* Right Sidebar - Similar Manga (только на ПК) */}
-            <div className="hidden lg:block lg:col-span-1">
+            <div className="hidden lg:block lg:col-span-1 lg:col-start-3">
               <div className="lg:sticky lg:top-24">
                 <h3 className="text-lg md:text-xl font-bold text-white mb-4">Похожие</h3>
                 <div className="space-y-3">
