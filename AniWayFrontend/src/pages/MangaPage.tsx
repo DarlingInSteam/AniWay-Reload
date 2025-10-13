@@ -351,6 +351,7 @@ export function MangaPage() {
   const collapsedChipLimit = 12
   const visibleChips = showAllChips ? combinedChips : combinedChips.slice(0, collapsedChipLimit)
   const hasHiddenChips = combinedChips.length > collapsedChipLimit
+  const hiddenChipCount = Math.max(combinedChips.length - collapsedChipLimit, 0)
 
   useEffect(() => {
     setShowAllChips(false)
@@ -764,7 +765,7 @@ export function MangaPage() {
                         <div
                           className={cn(
                             'flex flex-wrap gap-2 transition-[max-height] duration-300 ease-out',
-                            showAllChips ? 'max-h-[480px]' : 'max-h-[5.75rem] overflow-hidden'
+                            showAllChips ? 'max-h-[480px]' : 'max-h-[4.75rem] overflow-hidden'
                           )}
                         >
                           {visibleChips.map((chip, index) => {
@@ -794,18 +795,20 @@ export function MangaPage() {
                               </button>
                             )
                           })}
+                          {hasHiddenChips && (
+                            <button
+                              type="button"
+                              onClick={() => setShowAllChips((prev) => !prev)}
+                              className={cn(
+                                'px-3 py-1 text-xs font-semibold uppercase tracking-wide rounded-full border border-dashed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black',
+                                'border-primary/40 text-primary/80 hover:border-primary hover:text-primary'
+                              )}
+                              aria-label={showAllChips ? 'Свернуть список жанров и тегов' : 'Показать все жанры и теги'}
+                            >
+                              {showAllChips ? 'Свернуть' : `Показать больше (${hiddenChipCount})`}
+                            </button>
+                          )}
                         </div>
-                        {hasHiddenChips && (
-                          <button
-                            type="button"
-                            onClick={() => setShowAllChips((prev) => !prev)}
-                            className="mt-3 inline-flex items-center gap-1 rounded-full border border-dashed border-primary/40 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary/80 hover:border-primary hover:text-primary transition-colors"
-                          >
-                            {showAllChips
-                              ? 'Свернуть'
-                              : `Показать больше (${combinedChips.length - visibleChips.length})`}
-                          </button>
-                        )}
                       </div>
                     )}
 
