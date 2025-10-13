@@ -543,12 +543,12 @@ export function MangaPage() {
       {/* Content */}
       <div className="relative z-10">
         <div className="container mx-auto px-4 lg:px-8 py-4 md:py-8">
-          <div className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_320px] gap-4 lg:gap-6 xl:gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-[283px_minmax(0,1fr)_320px] gap-4 lg:gap-6 xl:gap-8">
             {/* Left Column - Cover and Controls */}
             <div className="lg:col-span-1">
-              <div className="lg:sticky lg:top-24 lg:w-[260px] mx-auto lg:mx-0 space-y-4 md:space-y-6">
+              <div className="lg:sticky lg:top-24 max-w-[258px] w-full lg:w-[283px] mx-auto lg:mx-0 space-y-4 md:space-y-6">
                 {/* Cover Image */}
-                <div className="aspect-[3/4] rounded-3xl overflow-hidden bg-white/5 backdrop-blur-sm w-full border border-white/10">
+                <div className="aspect-[283/424] rounded-3xl overflow-hidden bg-white/5 backdrop-blur-sm w-full max-w-[258px] lg:max-w-none border border-white/10">
                   <img
                     src={manga.coverImageUrl}
                     alt={manga.title}
@@ -651,8 +651,8 @@ export function MangaPage() {
               </div>
 
               {/* Tabs */}
-              <div className="border-b border-white/20 mb-6">
-                <div className="flex overflow-x-auto scrollbar-hide">
+              <div className="mb-6">
+                <div className="flex flex-wrap gap-2 overflow-x-auto scrollbar-hide">
                   {tabs.map(tab => {
                     if (tab.mobileOnly && isDesktop) return null
                     return (
@@ -660,10 +660,10 @@ export function MangaPage() {
                         key={tab.id}
                         onClick={() => setActiveTabParam(tab.id as any)}
                         className={cn(
-                          'px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex-shrink-0',
+                          'px-4 py-2 text-sm font-medium whitespace-nowrap rounded-full transition-colors flex-shrink-0 backdrop-blur-sm border border-white/10',
                           activeTab === tab.id
-                            ? 'border-primary text-primary'
-                            : 'border-transparent text-muted-foreground hover:text-white'
+                            ? 'bg-primary text-white border-primary/80 shadow-[0_8px_24px_rgba(37,99,235,0.35)]'
+                            : 'bg-white/5 text-white/70 hover:text-white hover:bg-white/10'
                         )}
                       >
                         {tab.label}
