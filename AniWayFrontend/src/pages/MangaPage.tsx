@@ -381,12 +381,7 @@ export function MangaPage() {
   }, [])
 
   useEffect(() => {
-    setVisibleChipsCount((prev) => {
-      const nextLimit = Math.min(combinedChips.length, collapsedChipLimit)
-      if (prev === nextLimit) return prev
-      if (prev > nextLimit) return nextLimit
-      return nextLimit
-    })
+    setVisibleChipsCount((prev) => Math.min(prev || combinedChips.length, combinedChips.length))
   }, [combinedChips.length])
 
   useLayoutEffect(() => {
