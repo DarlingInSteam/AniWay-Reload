@@ -5,6 +5,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import shadowshift.studio.mangaservice.service.ImportTaskService;
 import shadowshift.studio.mangaservice.service.AutoParsingService;
+import shadowshift.studio.mangaservice.service.MangaUpdateService;
 import java.util.Map;
 import java.util.List;
 import org.slf4j.Logger;
@@ -30,6 +31,9 @@ public class ProgressController {
 
     @Autowired
     private AutoParsingService autoParsingService;
+
+    @Autowired
+    private MangaUpdateService mangaUpdateService;
 
     /**
      * Обновляет прогресс выполнения задачи импорта.
@@ -60,10 +64,11 @@ public class ProgressController {
                 metrics = castedMetrics;
             }
 
-            // Если есть логи, добавляем их в задачу автопарсинга
+            // Если есть логи, добавляем их в задачу автопарсинга/автообновления
             if (logs != null && !logs.isEmpty()) {
                 for (String log : logs) {
                     autoParsingService.addLogToTask(taskId, log);
+                    mangaUpdateService.addLogToUpdateTask(taskId, log);
                 }
             }
 

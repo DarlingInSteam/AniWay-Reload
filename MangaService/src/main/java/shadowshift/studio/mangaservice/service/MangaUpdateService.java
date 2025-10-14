@@ -61,6 +61,9 @@ public class MangaUpdateService {
 
     // Хранилище задач обновления
     private final Map<String, UpdateTask> updateTasks = new HashMap<>();
+    
+    // Маппинг parseTaskId -> autoUpdateTaskId для связывания логов от MelonService
+    private final Map<String, String> parseTaskToUpdateTask = new HashMap<>();
 
     /**
      * Запускает автоматическое обновление всех манг в системе
@@ -183,6 +186,45 @@ public class MangaUpdateService {
     }
 
     /**
+     * Добавляет лог-сообщение в задачу автообновления
+     * Поддерживает как прямой taskId обновления, так и parseTaskId от MelonService
+     */
+    public void addLogToUpdateTask(String taskId, String logMessage) {
+        if (taskId == null || logMessage == null) {
+            return;
+        }
+
+        // Сначала проверяем, не является ли это parseTaskId
+        String updateTaskId = parseTaskToUpdateTask.get(taskId);
+        
+        // Если это parseTaskId, используем связанный updateTaskId
+        if (updateTaskId != null) {
+            taskId = updateTaskId;
+            logger.debug("Лог для parseTaskId={} перенаправлен в updateTaskId={}", taskId, updateTaskId);
+        }
+        
+        UpdateTask task = updateTasks.get(taskId);
+        if (task != null) {
+            appendLog(task, logMessage);
+            logger.debug("Добавлен лог в задачу автообновления {}: {}", taskId, logMessage);
+        } else {
+            logger.debug("Задача автообновления не найдена для taskId={}, лог проигнорирован: {}", taskId, logMessage);
+        }
+    }
+
+    /**
+     * Связывает parseTaskId от MelonService с задачей автообновления
+     */
+    public void linkParseTaskToUpdate(String parseTaskId, String updateTaskId) {
+        if (parseTaskId != null && updateTaskId != null) {
+            synchronized (parseTaskToUpdateTask) {
+                parseTaskToUpdateTask.put(parseTaskId, updateTaskId);
+            }
+            logger.info("Связан parseTaskId={} с updateTaskId={}", parseTaskId, updateTaskId);
+        }
+    }
+
+    /**
      * Асинхронная обработка обновления манг
      */
     @Async
@@ -224,7 +266,7 @@ public class MangaUpdateService {
                     appendLog(task, String.format("[%d/%d] %s: найдено %d глав в базе", i + 1, mangaList.size(), displayName, existingChapterNumbers.size()));
 
                     // Запрашиваем обновленную информацию у Melon
-                    Map<String, Object> updateInfo = checkForUpdates(slug, existingChapterNumbers);
+                    Map<String, Object> updateInfo = checkForUpdates(slug, existingChapterNumbers, taskId);
 
                     if (updateInfo == null) {
                         appendLog(task, String.format("[%d/%d] %s: не удалось получить данные об обновлениях", i + 1, mangaList.size(), displayName));
@@ -305,6 +347,9 @@ public class MangaUpdateService {
             logger.info("Автообновление завершено. Результаты: обновлено={}, новых глав={}, ошибок={}",
                 task.updatedDetails.size(), task.newChaptersCount, task.failedMangas.size());
 
+            // Очищаем маппинг задач
+            cleanupTaskMappings(taskId);
+
             List<String> finalSlugs;
             synchronized (task.updatedSlugs) {
                 finalSlugs = new ArrayList<>(task.updatedSlugs);
@@ -325,9 +370,21 @@ public class MangaUpdateService {
             task.message = "Критическая ошибка автообновления: " + e.getMessage();
             logger.error("Критическая ошибка автообновления", e);
             appendLog(task, "Критическая ошибка автообновления: " + e.getMessage());
+            cleanupTaskMappings(taskId);
         }
 
         return CompletableFuture.completedFuture(null);
+    }
+
+    private void cleanupTaskMappings(String updateTaskId) {
+        if (updateTaskId == null) {
+            return;
+        }
+
+        synchronized (parseTaskToUpdateTask) {
+            parseTaskToUpdateTask.entrySet().removeIf(entry -> updateTaskId.equals(entry.getValue()));
+        }
+        logger.debug("Очищен маппинг задач для updateTaskId={}", updateTaskId);
     }
 
     /**
@@ -363,8 +420,9 @@ public class MangaUpdateService {
 
     /**
      * Проверяет наличие обновлений через парсинг и сравнение глав
+     * @param updateTaskId ID задачи автообновления для связывания логов
      */
-    private Map<String, Object> checkForUpdates(String slug, Set<Double> existingChapterNumbers) {
+    private Map<String, Object> checkForUpdates(String slug, Set<Double> existingChapterNumbers, String updateTaskId) {
         try {
             // ОПТИМИЗАЦИЯ: Сначала получаем ТОЛЬКО метаданные глав (БЕЗ ПАРСИНГА!)
             logger.info("Получение метаданных глав для slug: {}", slug);
@@ -438,6 +496,11 @@ public class MangaUpdateService {
             }
             
             String taskId = (String) parseResult.get("task_id");
+            
+            // Связываем parseTaskId с updateTaskId для логов
+            if (updateTaskId != null) {
+                linkParseTaskToUpdate(taskId, updateTaskId);
+            }
             
             // Ждем завершения парсинга
             if (!waitForTaskCompletion(taskId)) {
