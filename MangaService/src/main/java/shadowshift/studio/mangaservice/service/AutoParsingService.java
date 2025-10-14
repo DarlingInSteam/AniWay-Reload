@@ -49,6 +49,7 @@ public class AutoParsingService {
     // Необходим для связывания логов от MelonService с задачей автопарсинга
     private final ConcurrentMap<String, String> parseTaskToAutoParseTask = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, Set<String>> autoParsingChildTaskIds = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, List<String>> pendingChildTaskLogs = new ConcurrentHashMap<>();
 
     void setMelonServiceForTesting(MelonIntegrationService melonService) {
         this.melonService = melonService;
@@ -209,21 +210,33 @@ public class AutoParsingService {
      */
     public void addLogToTask(String taskId, String logMessage) {
         // Сначала проверяем, не является ли это parseTaskId
+        if (taskId == null || logMessage == null) {
+            return;
+        }
+
+        String originalTaskId = taskId;
         String autoParsingTaskId = parseTaskToAutoParseTask.get(taskId);
-        
-        // Если это parseTaskId, используем связанный autoParsingTaskId
+
         if (autoParsingTaskId != null) {
             taskId = autoParsingTaskId;
-            logger.debug("Лог для parseTaskId={} перенаправлен в autoParsingTaskId={}", taskId, autoParsingTaskId);
+            logger.debug("Лог для parseTaskId={} перенаправлен в autoParsingTaskId={}", originalTaskId, autoParsingTaskId);
         }
-        
+
         AutoParseTask task = autoParsingTasks.get(taskId);
         if (task != null) {
             appendLog(task, logMessage);
+
+            if (!Objects.equals(originalTaskId, taskId)) {
+                flushBufferedChildLogs(taskId, originalTaskId);
+            }
+
             logger.debug("Добавлен лог в задачу {}: {}", taskId, logMessage);
-        } else {
-            logger.warn("Задача не найдена для taskId={}, лог проигнорирован: {}", taskId, logMessage);
+            return;
         }
+
+        // Если прямой задачи тоже нет, буферизуем лог до момента связывания
+        bufferChildTaskLog(originalTaskId, logMessage);
+        logger.debug("Буферизован лог для неизвестной дочерней задачи {}: {}", originalTaskId, logMessage);
     }
     
     /**
@@ -622,6 +635,8 @@ public class AutoParsingService {
         autoParsingChildTaskIds
             .computeIfAbsent(autoTaskId, key -> ConcurrentHashMap.newKeySet())
             .add(childTaskId);
+
+        flushBufferedChildLogs(autoTaskId, childTaskId);
     }
 
     private void cleanupChildTaskMappings(String autoTaskId) {
@@ -636,7 +651,59 @@ public class AutoParsingService {
 
         for (String childId : childIds) {
             parseTaskToAutoParseTask.remove(childId);
+            pendingChildTaskLogs.remove(childId);
         }
+    }
+
+    private void bufferChildTaskLog(String childTaskId, String logMessage) {
+        if (childTaskId == null || logMessage == null) {
+            return;
+        }
+
+        pendingChildTaskLogs.compute(childTaskId, (key, existing) -> {
+            List<String> target = existing;
+            if (target == null) {
+                target = Collections.synchronizedList(new ArrayList<>());
+            }
+
+            synchronized (target) {
+                target.add(logMessage);
+                int overflow = target.size() - MAX_TASK_LOGS;
+                if (overflow > 0) {
+                    for (int i = 0; i < overflow; i++) {
+                        target.remove(0);
+                    }
+                }
+            }
+
+            return target;
+        });
+    }
+
+    private void flushBufferedChildLogs(String autoTaskId, String childTaskId) {
+        if (autoTaskId == null || childTaskId == null) {
+            return;
+        }
+
+        List<String> buffered = pendingChildTaskLogs.remove(childTaskId);
+        if (buffered == null || buffered.isEmpty()) {
+            return;
+        }
+
+        AutoParseTask parentTask = autoParsingTasks.get(autoTaskId);
+        if (parentTask == null) {
+            // Родитель еще не готов — возвращаем лог обратно
+            pendingChildTaskLogs.putIfAbsent(childTaskId, buffered);
+            return;
+        }
+
+        synchronized (buffered) {
+            for (String bufferedLog : buffered) {
+                appendLog(parentTask, bufferedLog);
+            }
+        }
+
+        logger.debug("Флаш логов дочерней задачи {} в autoParsingTask={} ({} записей)", childTaskId, autoTaskId, buffered.size());
     }
 
     private void appendLog(AutoParseTask task, String message) {
