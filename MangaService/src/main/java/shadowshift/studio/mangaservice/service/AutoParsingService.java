@@ -13,6 +13,8 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -41,11 +43,12 @@ public class AutoParsingService {
     private ApplicationContext applicationContext;
 
     // Хранилище задач автопарсинга
-    private final Map<String, AutoParseTask> autoParsingTasks = new HashMap<>();
+    private final ConcurrentMap<String, AutoParseTask> autoParsingTasks = new ConcurrentHashMap<>();
     
     // Маппинг parseTaskId (ID парсинга одной манги) -> autoParsingTaskId (ID задачи автопарсинга)
     // Необходим для связывания логов от MelonService с задачей автопарсинга
-    private final Map<String, String> parseTaskToAutoParseTask = new HashMap<>();
+    private final ConcurrentMap<String, String> parseTaskToAutoParseTask = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Set<String>> autoParsingChildTaskIds = new ConcurrentHashMap<>();
 
     void setMelonServiceForTesting(MelonIntegrationService melonService) {
         this.melonService = melonService;
@@ -77,7 +80,8 @@ public class AutoParsingService {
         task.page = page != null ? page : 1;
         task.limit = limit;
 
-        autoParsingTasks.put(taskId, task);
+    autoParsingTasks.put(taskId, task);
+    autoParsingChildTaskIds.put(taskId, ConcurrentHashMap.newKeySet());
 
         appendLog(task, String.format(
             "Старт автопарсинга: страница %d, лимит: %s",
@@ -180,12 +184,8 @@ public class AutoParsingService {
         
         // Пытаемся отменить связанные задачи в MelonService
         // Находим все связанные taskId и пытаемся их отменить
-        List<String> childTaskIds = parseTaskToAutoParseTask.entrySet().stream()
-            .filter(entry -> taskId.equals(entry.getValue()))
-            .map(Map.Entry::getKey)
-            .toList();
-        
-        for (String childTaskId : childTaskIds) {
+        Set<String> childTaskIds = autoParsingChildTaskIds.getOrDefault(taskId, Collections.emptySet());
+        for (String childTaskId : new ArrayList<>(childTaskIds)) {
             try {
                 logger.info("Отмена связанной задачи в MelonService: {}", childTaskId);
                 melonService.cancelMelonTask(childTaskId);
@@ -194,6 +194,7 @@ public class AutoParsingService {
             }
             parseTaskToAutoParseTask.remove(childTaskId);
         }
+        autoParsingChildTaskIds.remove(taskId);
 
         return Map.of(
             "cancelled", true,
@@ -231,7 +232,7 @@ public class AutoParsingService {
      */
     public void linkAdditionalTaskId(String childTaskId, String autoParsingTaskId) {
         if (childTaskId != null && autoParsingTaskId != null) {
-            parseTaskToAutoParseTask.put(childTaskId, autoParsingTaskId);
+            registerChildTaskMapping(autoParsingTaskId, childTaskId);
             logger.info("Связан дополнительный taskId={} с autoParsingTaskId={}", childTaskId, autoParsingTaskId);
         }
     }
@@ -265,6 +266,7 @@ public class AutoParsingService {
                 task.message = "Ошибка получения каталога: " + errorMessage;
                 appendLog(task, "Ошибка получения каталога: " + errorMessage);
                 logger.error("Не удалось получить каталог: {}", errorMessage);
+                cleanupChildTaskMappings(taskId);
                 return CompletableFuture.completedFuture(null);
             }
 
@@ -278,6 +280,7 @@ public class AutoParsingService {
                 task.message = "Каталог пуст или не найден";
                 appendLog(task, "Каталог пуст или не найден. Автопарсинг завершен.");
                 logger.info("Каталог пуст, автопарсинг завершен");
+                cleanupChildTaskMappings(taskId);
                 return CompletableFuture.completedFuture(null);
             }
 
@@ -346,11 +349,11 @@ public class AutoParsingService {
                         if (parseResult.containsKey("parse_task_id")) {
                             parseTaskId = (String) parseResult.get("parse_task_id");
                             mangaMetric.put("parse_task_id", parseTaskId);
-                            parseTaskToAutoParseTask.put(parseTaskId, taskId);
+                            registerChildTaskMapping(taskId, parseTaskId);
                             logger.info("Связали parseTaskId={} с autoParsingTaskId={}", parseTaskId, taskId);
                         }
 
-                        parseTaskToAutoParseTask.put(fullParsingTaskId, taskId);
+                        registerChildTaskMapping(taskId, fullParsingTaskId);
                         logger.info("Связали fullParsingTaskId={} с autoParsingTaskId={}", fullParsingTaskId, taskId);
 
                         melonService.registerAutoParsingLink(fullParsingTaskId, taskId);
@@ -444,15 +447,6 @@ public class AutoParsingService {
                     appendLog(task, String.format("[%d/%d] %s: критическая ошибка — %s",
                         i + 1, slugs.size(), normalizedSlug, e.getMessage()));
                 } finally {
-                    if (parseTaskId != null) {
-                        parseTaskToAutoParseTask.remove(parseTaskId);
-                        logger.debug("Очистка маппинга для parseTaskId={} в finally", parseTaskId);
-                    }
-                    if (fullParsingTaskId != null) {
-                        parseTaskToAutoParseTask.remove(fullParsingTaskId);
-                        logger.debug("Очистка маппинга для fullParsingTaskId={} в finally", fullParsingTaskId);
-                    }
-
                     if (!metricRecorded) {
                         long slugEndMillis = System.currentTimeMillis();
                         long durationMs = Math.max(0, slugEndMillis - slugStartMillis);
@@ -490,6 +484,8 @@ public class AutoParsingService {
                 task.skippedSlugs.size(),
                 task.failedSlugs.size()
             ));
+
+            cleanupChildTaskMappings(taskId);
             
             logger.info("Автопарсинг завершен. Результаты: импортировано={}, пропущено={}, ошибок={}",
                 task.importedSlugs.size(), task.skippedSlugs.size(), task.failedSlugs.size());
@@ -500,6 +496,7 @@ public class AutoParsingService {
             task.message = "Критическая ошибка автопарсинга: " + e.getMessage();
             logger.error("Критическая ошибка автопарсинга", e);
             appendLog(task, "Критическая ошибка автопарсинга: " + e.getMessage());
+            cleanupChildTaskMappings(taskId);
         }
 
         return CompletableFuture.completedFuture(null);
@@ -613,6 +610,32 @@ public class AutoParsingService {
 
         synchronized (task.mangaMetrics) {
             task.mangaMetrics.add(metric);
+        }
+    }
+
+    private void registerChildTaskMapping(String autoTaskId, String childTaskId) {
+        if (autoTaskId == null || childTaskId == null) {
+            return;
+        }
+
+        parseTaskToAutoParseTask.put(childTaskId, autoTaskId);
+        autoParsingChildTaskIds
+            .computeIfAbsent(autoTaskId, key -> ConcurrentHashMap.newKeySet())
+            .add(childTaskId);
+    }
+
+    private void cleanupChildTaskMappings(String autoTaskId) {
+        if (autoTaskId == null) {
+            return;
+        }
+
+        Set<String> childIds = autoParsingChildTaskIds.remove(autoTaskId);
+        if (childIds == null || childIds.isEmpty()) {
+            return;
+        }
+
+        for (String childId : childIds) {
+            parseTaskToAutoParseTask.remove(childId);
         }
     }
 
