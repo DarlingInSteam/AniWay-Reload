@@ -10,6 +10,8 @@ import shadowshift.studio.mangaservice.repository.MangaRepository;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
@@ -25,6 +27,9 @@ public class AutoParsingService {
     private static final Logger logger = LoggerFactory.getLogger(AutoParsingService.class);
     private static final Duration FULL_PARSING_POLL_INTERVAL = Duration.ofSeconds(2);
     private static final int MAX_MISSING_FULL_STATUS_ATTEMPTS = 30;
+    private static final int MAX_TASK_LOGS = 1_000;
+    private static final DateTimeFormatter LOG_TIMESTAMP_FORMATTER =
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSX").withZone(ZoneOffset.UTC);
 
     @Autowired
     private MelonIntegrationService melonService;
@@ -61,10 +66,10 @@ public class AutoParsingService {
         task.status = "pending";
         task.totalSlugs = 0;
         task.processedSlugs = 0;
-        task.skippedSlugs = new ArrayList<>();
-        task.importedSlugs = new ArrayList<>();
-        task.failedSlugs = new ArrayList<>();
-        task.logs = new ArrayList<>();  // Инициализация списка логов
+    task.skippedSlugs = new ArrayList<>();
+    task.importedSlugs = new ArrayList<>();
+    task.failedSlugs = new ArrayList<>();
+    task.logs = Collections.synchronizedList(new ArrayList<>());  // Инициализация списка логов
     task.mangaMetrics = Collections.synchronizedList(new ArrayList<>());
         task.message = "Получение списка манг из каталога...";
         task.progress = 0;
@@ -73,6 +78,12 @@ public class AutoParsingService {
         task.limit = limit;
 
         autoParsingTasks.put(taskId, task);
+
+        appendLog(task, String.format(
+            "Старт автопарсинга: страница %d, лимит: %s",
+            task.page,
+            limit != null ? limit : "все"
+        ));
 
         // Запускаем асинхронную обработку через Spring proxy для поддержки @Async
         // (self-invocation не работает с @Async)
@@ -107,7 +118,16 @@ public class AutoParsingService {
         result.put("skipped_slugs", task.skippedSlugs);
         result.put("imported_slugs", task.importedSlugs);
         result.put("failed_slugs", task.failedSlugs);
-        result.put("logs", task.logs);  // Добавляем логи в ответ
+
+        List<String> logsSnapshot;
+        if (task.logs != null) {
+            synchronized (task.logs) {
+                logsSnapshot = new ArrayList<>(task.logs);
+            }
+        } else {
+            logsSnapshot = Collections.emptyList();
+        }
+        result.put("logs", logsSnapshot);  // Добавляем логи в ответ
         result.put("start_time", task.startTime);
         result.put("page", task.page);
         if (task.limit != null) {
@@ -154,6 +174,7 @@ public class AutoParsingService {
         task.status = "cancelled";
         task.endTime = new Date();
         task.message = "Задача отменена пользователем";
+    appendLog(task, "Задача автопарсинга отменена пользователем");
         
         logger.info("Задача автопарсинга {} отменена пользователем", taskId);
         
@@ -197,13 +218,7 @@ public class AutoParsingService {
         
         AutoParseTask task = autoParsingTasks.get(taskId);
         if (task != null) {
-            synchronized (task.logs) {
-                task.logs.add(logMessage);
-                // Ограничиваем количество логов (последние 1000 строк)
-                if (task.logs.size() > 1000) {
-                    task.logs.remove(0);
-                }
-            }
+            appendLog(task, logMessage);
             logger.debug("Добавлен лог в задачу {}: {}", taskId, logMessage);
         } else {
             logger.warn("Задача не найдена для taskId={}, лог проигнорирован: {}", taskId, logMessage);
@@ -229,6 +244,11 @@ public class AutoParsingService {
         AutoParseTask task = autoParsingTasks.get(taskId);
         task.status = "running";
         task.message = "Получение списка манг из каталога...";
+        appendLog(task, String.format(
+            "Запущена задача автопарсинга. Страница: %d, лимит: %s",
+            page,
+            limit != null ? limit : "все"
+        ));
 
         try {
             logger.info("Начало автопарсинга: страница {}, лимит {}", page, limit);
@@ -237,10 +257,14 @@ public class AutoParsingService {
             Map<String, Object> catalogResult = melonService.getCatalogSlugs(page, limit);
             
             if (catalogResult == null || !Boolean.TRUE.equals(catalogResult.get("success"))) {
+                String errorMessage = catalogResult != null && catalogResult.get("error") != null
+                    ? String.valueOf(catalogResult.get("error"))
+                    : "Неизвестная ошибка";
                 task.status = "failed";
                 task.endTime = new Date();
-                task.message = "Ошибка получения каталога: " + catalogResult.get("error");
-                logger.error("Не удалось получить каталог: {}", catalogResult.get("error"));
+                task.message = "Ошибка получения каталога: " + errorMessage;
+                appendLog(task, "Ошибка получения каталога: " + errorMessage);
+                logger.error("Не удалось получить каталог: {}", errorMessage);
                 return CompletableFuture.completedFuture(null);
             }
 
@@ -252,16 +276,19 @@ public class AutoParsingService {
                 task.progress = 100;
                 task.endTime = new Date();
                 task.message = "Каталог пуст или не найден";
+                appendLog(task, "Каталог пуст или не найден. Автопарсинг завершен.");
                 logger.info("Каталог пуст, автопарсинг завершен");
                 return CompletableFuture.completedFuture(null);
             }
 
             task.totalSlugs = slugs.size();
             logger.info("Получено {} манг из каталога", slugs.size());
+            appendLog(task, String.format("Найдено %d тайтлов для обработки", slugs.size()));
 
             for (int i = 0; i < slugs.size(); i++) {
                 if ("cancelled".equals(task.status)) {
                     logger.info("Задача автопарсинга {} отменена, прерываем цикл", taskId);
+                    appendLog(task, "Задача была отменена, оставшиеся тайтлы не будут обработаны.");
                     break;
                 }
 
@@ -273,6 +300,7 @@ public class AutoParsingService {
                 mangaMetric.put("slug", slug);
                 mangaMetric.put("normalized_slug", normalizedSlug);
                 mangaMetric.put("started_at", toIsoString(slugStartMillis));
+                appendLog(task, String.format("[%d/%d] Начало обработки: %s", i + 1, slugs.size(), normalizedSlug));
 
                 String fullParsingTaskId = null;
                 String parseTaskId = null;
@@ -283,6 +311,8 @@ public class AutoParsingService {
                         logger.info("Манга с slug '{}' (normalized: '{}') уже импортирована, пропускаем",
                             slug, normalizedSlug);
                         task.skippedSlugs.add(slug);
+                        appendLog(task, String.format("[%d/%d] %s: пропуск — уже импортирована",
+                            i + 1, slugs.size(), normalizedSlug));
 
                         mangaMetric.put("status", "skipped");
                         mangaMetric.put("reason", "already_imported");
@@ -304,6 +334,8 @@ public class AutoParsingService {
                     logger.info("Slug: {}", slug);
                     logger.info("Текущая статистика - Обработано: {}, Пропущено: {}, Импортировано: {}, Ошибок: {}", 
                         task.processedSlugs, task.skippedSlugs.size(), task.importedSlugs.size(), task.failedSlugs.size());
+                    appendLog(task, String.format("[%d/%d] Запуск полного парсинга: %s",
+                        i + 1, slugs.size(), normalizedSlug));
 
                     Map<String, Object> parseResult = melonService.startFullParsing(slug);
 
@@ -338,6 +370,8 @@ public class AutoParsingService {
                             logger.info("✅ ИМПОРТ УСПЕШЕН для slug={}, время: {} мс", slug, durationMs);
                             mangaMetric.put("status", "completed");
                             logger.info("Манга '{}' успешно обработана через полный парсинг (импорт и очистка выполнены автоматически)", slug);
+                            appendLog(task, String.format("[%d/%d] %s: импорт завершен успешно",
+                                i + 1, slugs.size(), normalizedSlug));
                         } else {
                             task.failedSlugs.add(slug);
                             String statusValue = finalStatus != null ? String.valueOf(finalStatus.get("status")) : "failed";
@@ -346,6 +380,11 @@ public class AutoParsingService {
                                 mangaMetric.put("error_message", finalStatus.get("message"));
                             }
                             logger.error("❌ ИМПОРТ ПРОВАЛЕН для slug={}, статус: {}, время: {} мс", slug, statusValue, durationMs);
+                            String failureMessage = finalStatus != null && finalStatus.get("message") != null
+                                ? String.valueOf(finalStatus.get("message"))
+                                : "Неизвестная ошибка";
+                            appendLog(task, String.format("[%d/%d] %s: ошибка импорта — %s",
+                                i + 1, slugs.size(), normalizedSlug, failureMessage));
                         }
 
                         if (finalStatus != null) {
@@ -383,6 +422,8 @@ public class AutoParsingService {
                     } else {
                         logger.error("Не удалось запустить парсинг для slug: {}", slug);
                         task.failedSlugs.add(slug);
+                        appendLog(task, String.format("[%d/%d] %s: не удалось запустить парсинг",
+                            i + 1, slugs.size(), normalizedSlug));
 
                         long slugEndMillis = System.currentTimeMillis();
                         long durationMs = Math.max(0, slugEndMillis - slugStartMillis);
@@ -400,6 +441,8 @@ public class AutoParsingService {
                     task.failedSlugs.add(slug);
                     mangaMetric.put("status", "failed");
                     mangaMetric.put("error_message", e.getMessage());
+                    appendLog(task, String.format("[%d/%d] %s: критическая ошибка — %s",
+                        i + 1, slugs.size(), normalizedSlug, e.getMessage()));
                 } finally {
                     if (parseTaskId != null) {
                         parseTaskToAutoParseTask.remove(parseTaskId);
@@ -426,6 +469,14 @@ public class AutoParsingService {
                 task.message = String.format("Обработано: %d/%d (пропущено: %d, импортировано: %d, ошибок: %d)",
                     task.processedSlugs, task.totalSlugs, task.skippedSlugs.size(),
                     task.importedSlugs.size(), task.failedSlugs.size());
+                appendLog(task, String.format(
+                    "Прогресс: %d/%d | импортировано: %d | пропущено: %d | ошибок: %d",
+                    task.processedSlugs,
+                    task.totalSlugs,
+                    task.importedSlugs.size(),
+                    task.skippedSlugs.size(),
+                    task.failedSlugs.size()
+                ));
             }
 
             task.status = "completed";
@@ -433,6 +484,12 @@ public class AutoParsingService {
             task.endTime = new Date();
             task.message = String.format("Автопарсинг завершен. Импортировано: %d, пропущено: %d, ошибок: %d",
                 task.importedSlugs.size(), task.skippedSlugs.size(), task.failedSlugs.size());
+            appendLog(task, String.format(
+                "Автопарсинг завершен. Импортировано: %d, пропущено: %d, ошибок: %d",
+                task.importedSlugs.size(),
+                task.skippedSlugs.size(),
+                task.failedSlugs.size()
+            ));
             
             logger.info("Автопарсинг завершен. Результаты: импортировано={}, пропущено={}, ошибок={}",
                 task.importedSlugs.size(), task.skippedSlugs.size(), task.failedSlugs.size());
@@ -442,6 +499,7 @@ public class AutoParsingService {
             task.endTime = new Date();
             task.message = "Критическая ошибка автопарсинга: " + e.getMessage();
             logger.error("Критическая ошибка автопарсинга", e);
+            appendLog(task, "Критическая ошибка автопарсинга: " + e.getMessage());
         }
 
         return CompletableFuture.completedFuture(null);
@@ -555,6 +613,34 @@ public class AutoParsingService {
 
         synchronized (task.mangaMetrics) {
             task.mangaMetrics.add(metric);
+        }
+    }
+
+    private void appendLog(AutoParseTask task, String message) {
+        if (task == null || message == null) {
+            return;
+        }
+
+        if (task.logs == null) {
+            task.logs = Collections.synchronizedList(new ArrayList<>());
+        }
+
+        String normalized = message.trim();
+        if (normalized.isEmpty()) {
+            return;
+        }
+
+        String line = normalized;
+        if (!(normalized.startsWith("[") && normalized.contains("]"))) {
+            String timestamp = LOG_TIMESTAMP_FORMATTER.format(Instant.now());
+            line = "[" + timestamp + "] " + normalized;
+        }
+
+        synchronized (task.logs) {
+            task.logs.add(line);
+            if (task.logs.size() > MAX_TASK_LOGS) {
+                task.logs.remove(0);
+            }
         }
     }
 
