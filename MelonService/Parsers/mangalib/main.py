@@ -7,6 +7,7 @@ from dublib.WebRequestor import WebRequestor
 
 from datetime import datetime
 from time import sleep
+from typing import Optional
 
 # Параллельный загрузчик изображений
 from .parallel_downloader import AdaptiveParallelDownloader
@@ -118,82 +119,45 @@ class Parser(MangaParser):
                 
                 if http_proxy or https_proxy:
                     proxies = {}
-                    if http_proxy:
-                        proxies['http'] = http_proxy
-                    if https_proxy:
-                        proxies['https'] = https_proxy
-                    
-                    try:
-                        if hasattr(WebRequestorObject, '_WebRequestor__Session'):
-                            WebRequestorObject._WebRequestor__Session.proxies.update(proxies)
-                            print(f"[INFO] ✅ Proxy configured from env vars: {http_proxy or https_proxy}")
-                        elif hasattr(WebRequestorObject, 'session'):
-                            WebRequestorObject.session.proxies.update(proxies)
-                            print(f"[INFO] ✅ Proxy configured from env vars (public session)")
-                    except Exception as e:
-                        print(f"[WARNING] ⚠️  Failed to configure proxy from env: {e}")
-                else:
-                    print(f"[INFO] ℹ️  No proxy configured (direct connection)")
-        
-        except ImportError as e:
-            print(f"[WARNING] ⚠️  ProxyRotator not available: {e}")
-            print(f"[INFO] ℹ️  Falling back to environment variables...")
-            
-            # Fallback на переменные окружения
-            http_proxy = os.getenv("HTTP_PROXY") or os.getenv("http_proxy")
-            https_proxy = os.getenv("HTTPS_PROXY") or os.getenv("https_proxy")
-            
-            if http_proxy or https_proxy:
-                proxies = {}
-                if http_proxy:
-                    proxies['http'] = http_proxy
-                if https_proxy:
-                    proxies['https'] = https_proxy
-                
-                try:
-                    if hasattr(WebRequestorObject, '_WebRequestor__Session'):
-                        WebRequestorObject._WebRequestor__Session.proxies.update(proxies)
-                        print(f"[INFO] ✅ Proxy configured from env vars: {http_proxy or https_proxy}")
-                    elif hasattr(WebRequestorObject, 'session'):
-                        WebRequestorObject.session.proxies.update(proxies)
-                        print(f"[INFO] ✅ Proxy configured from env vars (public)")
-                except Exception as e:
-                    print(f"[WARNING] ⚠️  Failed to configure proxy: {e}")
+                    def _get_proxy_count(self) -> int:
+                        cached = getattr(self, "_proxy_count_cache", None)
+                        if isinstance(cached, int) and cached > 0:
+                            return cached
 
-        return WebRequestorObject
-    
-    def _download_image_wrapper(self, url: str) -> str | None:
-        """Thread-safe обертка с независимой сессией requests для каждого потока.
-        
-        :param url: URL изображения
-        :return: Имя файла если успешно, None если ошибка
-        """
-        import os
-        from pathlib import Path
-        import hashlib
-        import requests
-        from urllib.parse import urlparse, unquote
-        
-        directory = self._SystemObjects.temper.parser_temp
-        os.makedirs(directory, exist_ok=True)
-        
-        # Определяем имя файла из URL с учётом декодирования
-        parsed_url = urlparse(url)
-        decoded_path = unquote(parsed_url.path or "")
-        trimmed_path = decoded_path.rstrip("/")
-        path_obj = Path(trimmed_path) if trimmed_path else Path("")
+                        from pathlib import Path
+                        import sys
+                        import json
 
-        resolved_suffix = path_obj.suffix if trimmed_path else ""
-        resolved_name = path_obj.stem if trimmed_path else ""
+                        melon_service_path = Path(__file__).parent.parent.parent
+                        if str(melon_service_path) not in sys.path:
+                            sys.path.insert(0, str(melon_service_path))
 
-        if not resolved_name or resolved_name in {".", ".."}:
-            candidate_name = path_obj.name if trimmed_path else ""
-            if candidate_name not in {"", ".", ".."}:
-                resolved_name = Path(candidate_name).stem
-            else:
-                resolved_name = ""
+                        proxy_count = 0
 
-        if not resolved_suffix and trimmed_path:
+                        try:
+                            from proxy_rotator import ProxyRotator
+                            rotator = ProxyRotator(parser="mangalib")
+                            if rotator.enabled:
+                                proxy_count = rotator.get_proxy_count()
+                        except Exception as e:
+                            print(f"[WARNING] ProxyRotator not available: {e}")
+
+                        if proxy_count <= 0:
+                            try:
+                                settings_path = Path(__file__).parent / "settings.json"
+                                if settings_path.exists():
+                                    with open(settings_path, "r", encoding="utf-8") as f:
+                                        data = json.load(f)
+                                        prox_list = data.get("Main", {}).get("proxy", [])
+                                        if isinstance(prox_list, list):
+                                            proxy_count = len(prox_list)
+                            except Exception as e:
+                                print(f"[WARNING] Unable to read proxy count from settings: {e}")
+
+                        proxy_count = max(1, proxy_count)
+                        self._proxy_count_cache = proxy_count
+                        print(f"[INFO] 🌐 Using {proxy_count} proxy endpoints for delay scaling")
+                        return proxy_count
             resolved_suffix = Path(path_obj.name).suffix
 
         if not resolved_name:
@@ -280,6 +244,63 @@ class Parser(MangaParser):
         
         return None
     
+    def _get_scaled_delay(
+        self,
+        base_value: float,
+        *,
+        baseline_proxies: int = 5,
+        minimum: float = 0.02,
+        maximum: Optional[float] = None
+    ) -> float:
+        """Адаптирует задержку под количество доступных прокси."""
+
+        proxies = getattr(self, "_proxy_count_cache", None)
+        if not isinstance(proxies, int) or proxies <= 0:
+            proxies = self._get_proxy_count()
+
+        proxies = max(1, proxies)
+        baseline = max(1, baseline_proxies)
+        scale = baseline / proxies
+        scaled = base_value * scale
+
+        if maximum is not None:
+            scaled = min(scaled, maximum)
+
+        if scaled < minimum:
+            return minimum
+
+        return scaled
+
+    def _get_common_delay(self) -> float:
+        cached = getattr(self, "_common_delay", None)
+        if cached is None:
+            self._common_delay = self._get_scaled_delay(
+                getattr(self._Settings.common, "delay", 0.25),
+                minimum=0.05
+            )
+            return self._common_delay
+        return cached
+
+    def _get_parse_delay(self) -> float:
+        cached = getattr(self, "_parse_delay", None)
+        if cached is None:
+            self._parse_delay = self._get_scaled_delay(
+                getattr(self._Settings.common, "parse_delay", 0.15),
+                minimum=0.04
+            )
+            return self._parse_delay
+        return cached
+
+    def _get_image_delay(self) -> float:
+        cached = getattr(self, "_image_delay", None)
+        if cached is None:
+            self._image_delay = self._get_scaled_delay(
+                getattr(self._Settings.common, "image_delay", 0.1),
+                minimum=0.03
+            )
+            return self._image_delay
+        return cached
+
     def _PostInitMethod(self):
         """Метод, выполняющийся после инициализации объекта."""
         
@@ -317,7 +338,10 @@ class Parser(MangaParser):
         # КРИТИЧЕСКИ ВАЖНО: Инициализация параллельного загрузчика в __init__, а не в parse()
         # Потому что build может вызываться без parse (когда JSON уже существует)
         proxy_count = self._get_proxy_count()
-        image_delay = getattr(self._Settings.common, 'image_delay', 0.1)
+        self._common_delay = self._get_common_delay()
+        self._parse_delay = self._get_parse_delay()
+        self._image_delay = self._get_image_delay()
+        image_delay = self._image_delay
 
         max_workers_override = getattr(self._Settings.common, 'image_max_workers', None)
         if max_workers_override is None:
@@ -427,7 +451,7 @@ class Parser(MangaParser):
         
         if Response.status_code == 200:
             Data = Response.json["data"]
-            sleep(self._Settings.common.delay)
+            sleep(self._get_common_delay())
 
             for CurrentChapterData in Data:
 
@@ -524,7 +548,7 @@ class Parser(MangaParser):
 
         if Response.status_code == 200:
             Data = Response.json["data"]["imageServers"]
-            sleep(self._Settings.common.delay)
+            sleep(self._get_common_delay())
 
             for ServerData in Data:
 
@@ -585,7 +609,7 @@ class Parser(MangaParser):
             self._cached_image_server = self.__GetImagesServers(self._Settings.custom["server"])[0]
         Server = self._cached_image_server
 
-        parse_delay = getattr(self._Settings.common, 'parse_delay', 0.1)
+    parse_delay = self._get_parse_delay()
 
         token = None
         custom_settings = getattr(self._Settings, "custom", None)
@@ -811,7 +835,7 @@ class Parser(MangaParser):
 
         if Response.status_code == 200:
             Response = Response.json["data"]
-            sleep(self._Settings.common.delay)
+            sleep(self._get_common_delay())
 
         elif Response.status_code == 451: 
             self._Portals.request_error(Response, "Account banned.")
@@ -950,7 +974,7 @@ class Parser(MangaParser):
             if not IsUpdatePeriodOut:
                 self._Portals.collect_progress_by_page(Page)
                 Page += 1
-                sleep(self._Settings.common.delay)
+                sleep(self._get_common_delay())
 
         return Updates
 
@@ -960,8 +984,8 @@ class Parser(MangaParser):
             url – ссылка на изображение.
         """
 
-        # Используем отдельный delay для изображений (меньше чем для API)
-        image_delay = getattr(self._Settings.common, 'image_delay', 0.1)
+    # Используем отдельный delay для изображений (меньше чем для API)
+        image_delay = self._get_image_delay()
 
         Result = self._ImagesDownloader.temp_image(url)
         
@@ -1028,6 +1052,43 @@ class Parser(MangaParser):
         # По умолчанию считаем что 1 прокси (или прямое подключение)
         print(f"[INFO] 🌐 No proxies detected, using 1 worker")
         return 1
+        cached = getattr(self, "_proxy_count_cache", None)
+        if isinstance(cached, int) and cached > 0:
+            return cached
+
+        from pathlib import Path
+        import sys
+        import json
+
+        melon_service_path = Path(__file__).parent.parent.parent
+        if str(melon_service_path) not in sys.path:
+            sys.path.insert(0, str(melon_service_path))
+
+        proxy_count = 0
+
+        try:
+            from proxy_rotator import ProxyRotator
+            rotator = ProxyRotator(parser="mangalib")
+            if rotator.enabled:
+                proxy_count = rotator.get_proxy_count()
+        except Exception as e:
+            print(f"[WARNING] ProxyRotator not available: {e}")
+
+        if proxy_count <= 0:
+            try:
+                settings_path = Path(__file__).parent / "settings.json"
+                if settings_path.exists():
+                    with open(settings_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        prox_list = data.get("Main", {}).get("proxy", [])
+                        if isinstance(prox_list, list):
+                            proxy_count = len(prox_list)
+            except Exception as e:
+                print(f"[WARNING] Unable to read proxy count from settings: {e}")
+
+        proxy_count = max(1, proxy_count)
+        self._proxy_count_cache = proxy_count
+        return proxy_count
 
     def batch_download_images(self, urls: list[str]) -> list[str | None]:
         """Параллельная загрузка батча изображений.
@@ -1130,7 +1191,7 @@ class Parser(MangaParser):
 
         # Дополнительный медленный фолбэк: последовательные попытки для оставшихся
         if failed_indices:
-            slow_delay = max(getattr(self._Settings.common, 'image_delay', 0.2) * 3, 0.6)
+            slow_delay = max(self._get_image_delay() * 3, 0.6)
             max_additional_attempts = 3
 
             self._SystemObjects.logger.warning(
