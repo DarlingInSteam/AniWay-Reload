@@ -194,22 +194,34 @@ public class MangaUpdateService {
             return;
         }
 
-        // Сначала проверяем, не является ли это parseTaskId
-        String updateTaskId = parseTaskToUpdateTask.get(taskId);
+        // Сначала проверяем, не является ли это parseTaskId (SYNCHRONIZED!)
+        String updateTaskId;
+        synchronized (parseTaskToUpdateTask) {
+            updateTaskId = parseTaskToUpdateTask.get(taskId);
+        }
         
+        // КРИТИЧНЫЙ DEBUG: показываем состояние маппинга
+        logger.info("🔍 DEBUG addLogToUpdateTask: taskId={}, updateTaskId={}, parseTaskToUpdateTask.size={}, updateTasks.size={}", 
+            taskId, updateTaskId, parseTaskToUpdateTask.size(), updateTasks.size());
+
         // Если это parseTaskId, используем связанный updateTaskId
         String actualTaskId = taskId;
         if (updateTaskId != null) {
             actualTaskId = updateTaskId;
-            logger.debug("Лог для parseTaskId={} перенаправлен в updateTaskId={}", taskId, updateTaskId);
+            logger.info("✅ Лог для parseTaskId={} перенаправлен в updateTaskId={}", taskId, updateTaskId);
+        } else {
+            logger.info("⚠️ parseTaskId={} НЕ НАЙДЕН в маппинге, проверяем как прямой taskId", taskId);
         }
         
         UpdateTask task = updateTasks.get(actualTaskId);
         if (task != null) {
+            int sizeBefore = task.logs.size();
             appendLog(task, logMessage);
-            logger.debug("✅ Добавлен лог в задачу автообновления {}: {}", actualTaskId, logMessage);
+            logger.info("✅ Добавлен лог в задачу автообновления {} (было логов: {}, стало: {})", 
+                actualTaskId, sizeBefore, task.logs.size());
         } else {
-            logger.warn("⚠️ Задача автообновления не найдена для actualTaskId={} (originalTaskId={}), лог проигнорирован: {}", actualTaskId, taskId, logMessage);
+            logger.warn("❌ Задача автообновления не найдена для actualTaskId={} (originalTaskId={}), лог проигнорирован: {}", 
+                actualTaskId, taskId, logMessage.substring(0, Math.min(100, logMessage.length())));
         }
     }
 
@@ -220,8 +232,12 @@ public class MangaUpdateService {
         if (parseTaskId != null && updateTaskId != null) {
             synchronized (parseTaskToUpdateTask) {
                 parseTaskToUpdateTask.put(parseTaskId, updateTaskId);
+                logger.info("🔗 СВЯЗЫВАЕМ parseTaskId={} с updateTaskId={}, теперь в маппинге {} записей", 
+                    parseTaskId, updateTaskId, parseTaskToUpdateTask.size());
+                logger.info("🔗 Все ключи в parseTaskToUpdateTask: {}", parseTaskToUpdateTask.keySet());
             }
-            logger.info("Связан parseTaskId={} с updateTaskId={}", parseTaskId, updateTaskId);
+        } else {
+            logger.warn("⚠️ Попытка связать NULL: parseTaskId={}, updateTaskId={}", parseTaskId, updateTaskId);
         }
     }
 
@@ -487,6 +503,12 @@ public class MangaUpdateService {
             logger.info("Найдено {} новых глав для slug: {}, запускаем полный парсинг...", 
                 newChaptersMetadata.size(), slug);
             
+            // КРИТИЧНО: Связываем задачи ПЕРЕД запуском парсинга!
+            // Это гарантирует что маппинг будет готов когда придут первые логи
+            if (updateTaskId != null) {
+                logger.info("🔗 PRE-LINKING: Подготовка маппинга для updateTaskId={}", updateTaskId);
+            }
+            
             // ТОЛЬКО если есть новые главы - запускаем полный парсинг
             // Это даст нам информацию о страницах для новых глав
             Map<String, Object> parseResult = melonService.startParsing(slug);
@@ -496,15 +518,17 @@ public class MangaUpdateService {
                 return null;
             }
             
-            String taskId = (String) parseResult.get("task_id");
+            String parseTaskId = (String) parseResult.get("task_id");
             
-            // Связываем parseTaskId с updateTaskId для логов
+            // НЕМЕДЛЕННО связываем parseTaskId с updateTaskId ДО того как придут первые логи!
             if (updateTaskId != null) {
-                linkParseTaskToUpdate(taskId, updateTaskId);
+                linkParseTaskToUpdate(parseTaskId, updateTaskId);
+            } else {
+                logger.warn("⚠️ updateTaskId is NULL! Логи парсинга не будут связаны с задачей обновления");
             }
             
             // Ждем завершения парсинга
-            if (!waitForTaskCompletion(taskId)) {
+            if (!waitForTaskCompletion(parseTaskId)) {
                 logger.error("Парсинг не завершен для slug: {}", slug);
                 return null;
             }
