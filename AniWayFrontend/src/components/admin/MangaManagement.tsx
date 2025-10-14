@@ -77,6 +77,11 @@ interface AutoUpdateTask {
   updated_details?: AutoUpdateSummaryEntry[]
 }
 
+interface SlugBackfillSnapshot {
+  updated: Record<string, number>
+  completedAt: string
+}
+
 const AUTO_PARSE_STORAGE_KEY = 'autoParseTaskState'
 const AUTO_UPDATE_STORAGE_KEY = 'autoUpdateTaskState'
 const AUTO_TASK_POLL_INTERVAL = 1000 // Уменьшено с 2000ms до 1000ms для лучшего UX
@@ -819,7 +824,9 @@ export function MangaManagement() {
   const [isAutoUpdating, setIsAutoUpdating] = useState(false)
   const [isCleaningMelon, setIsCleaningMelon] = useState(false)
   const [isCleaningEmptyChapters, setIsCleaningEmptyChapters] = useState(false)
+  const [isBackfillingSlugIds, setIsBackfillingSlugIds] = useState(false)
   const [lastCleanupResult, setLastCleanupResult] = useState<EmptyChaptersCleanupResult | null>(null)
+  const [slugBackfillResult, setSlugBackfillResult] = useState<SlugBackfillSnapshot | null>(null)
   const [automationHydrated, setAutomationHydrated] = useState(false)
   const [selectedLogSource, setSelectedLogSource] = useState<AutomationLogSource>('combined')
 
@@ -900,6 +907,24 @@ export function MangaManagement() {
       importedPages
     }
   }, [autoParseTask?.manga_metrics])
+
+  const slugBackfillPreview = useMemo(() => {
+    if (!slugBackfillResult) {
+      return {
+        count: 0,
+        entries: [] as Array<[string, number]>,
+        remaining: 0
+      }
+    }
+
+    const entries = Object.entries(slugBackfillResult.updated ?? {}) as Array<[string, number]>
+    const preview = entries.slice(0, 8)
+    return {
+      count: entries.length,
+      entries: preview,
+      remaining: Math.max(entries.length - preview.length, 0)
+    }
+  }, [slugBackfillResult])
 
   const combinedAutomationLogs = useMemo(() => {
     const parseLogs = autoParseTask?.logs ?? []
@@ -1310,6 +1335,38 @@ export function MangaManagement() {
     }
   }
 
+  const runSlugIdBackfill = async () => {
+    if (isBackfillingSlugIds) {
+      return
+    }
+
+    setIsBackfillingSlugIds(true)
+
+    try {
+      const result = await apiClient.backfillMelonSlugIds()
+      const normalized = result ?? {}
+      const updatedCount = Object.keys(normalized).length
+
+      setSlugBackfillResult({
+        updated: normalized,
+        completedAt: new Date().toISOString()
+      })
+
+      if (updatedCount > 0) {
+        toast.success(`Проставлены MangaLib ID для ${updatedCount} тайтлов`)
+      } else {
+        toast.info('Все манги уже имеют MangaLib ID')
+      }
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : 'Не удалось синхронизировать MangaLib ID'
+      toast.error(message)
+    } finally {
+      setIsBackfillingSlugIds(false)
+    }
+  }
+
   // Автообновление манги
   const startAutoUpdate = async () => {
     setIsAutoUpdating(true)
@@ -1453,6 +1510,68 @@ export function MangaManagement() {
                       <span>Проверка страниц: <span className="text-white">{lastCleanupResult.pageCheckFailedIds.length}</span>.</span>
                     )}
                   </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-border/60 bg-background/40 p-3 space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <RefreshCw className="h-4 w-4" />
+                <span>Проставить MangaLib ID тайтлам без числового slug'а</span>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={runSlugIdBackfill}
+                disabled={isBackfillingSlugIds}
+                className="whitespace-nowrap"
+              >
+                {isBackfillingSlugIds ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Синхронизация...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Синхронизировать slug'и
+                  </>
+                )}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Сканирует каталог MangaLib и определяет числовые идентификаторы для манг, у которых в базе сохранён только текстовый slug.
+            </p>
+            {slugBackfillResult && (
+              <div className="text-xs text-muted-foreground/90 space-y-1">
+                <p>
+                  Обновлено тайтлов: <span className="text-white">{slugBackfillPreview.count}</span>. Завершено: <span className="text-white">{formatTimestampLabel(slugBackfillResult.completedAt)}</span>
+                </p>
+                {slugBackfillPreview.count === 0 ? (
+                  <p className="text-muted-foreground">Новых сопоставлений не найдено.</p>
+                ) : (
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground">Примеры сопоставлений:</p>
+                    <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
+                      {slugBackfillPreview.entries.map(([mangaId, slugId]) => (
+                        <div
+                          key={mangaId}
+                          className="flex items-center justify-between rounded border border-gray-800 bg-gray-900/50 px-2 py-1 text-[11px] font-mono text-muted-foreground"
+                        >
+                          <span className="text-white">#{mangaId}</span>
+                          <span className="text-blue-300">→ {slugId}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {slugBackfillPreview.remaining > 0 && (
+                      <p className="text-muted-foreground">
+                        И ещё {slugBackfillPreview.remaining} {slugBackfillPreview.remaining === 1 ? 'тайтл' : slugBackfillPreview.remaining < 5 ? 'тайтла' : 'тайтлов'} обновлено.
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
             )}

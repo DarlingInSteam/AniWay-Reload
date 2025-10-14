@@ -19,6 +19,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -63,7 +64,13 @@ public class MangaUpdateService {
     private final Map<String, UpdateTask> updateTasks = new HashMap<>();
     
     // Маппинг parseTaskId -> autoUpdateTaskId для связывания логов от MelonService
-    private final Map<String, String> parseTaskToUpdateTask = new HashMap<>();
+    private final Map<String, String> parseTaskToUpdateTask = new ConcurrentHashMap<>();
+
+    // Маппинг updateTaskId -> множество связанных parseTaskId для последующей очистки
+    private final Map<String, Set<String>> updateTaskChildTaskIds = new ConcurrentHashMap<>();
+
+    // Буфер логов для parseTaskId до момента, пока не появится связь с updateTaskId
+    private final Map<String, List<String>> pendingParseTaskLogs = new ConcurrentHashMap<>();
 
     /**
      * Запускает автоматическое обновление всех манг в системе
@@ -93,7 +100,8 @@ public class MangaUpdateService {
 
         appendLog(task, String.format("Старт автообновления: найдено %d манг с доступным melonSlug", task.totalMangas));
 
-        updateTasks.put(taskId, task);
+    updateTasks.put(taskId, task);
+    updateTaskChildTaskIds.put(taskId, ConcurrentHashMap.newKeySet());
 
         // Запускаем асинхронную обработку
         processAutoUpdateAsync(taskId, mangaList);
@@ -194,51 +202,80 @@ public class MangaUpdateService {
             return;
         }
 
-        // Сначала проверяем, не является ли это parseTaskId (SYNCHRONIZED!)
-        String updateTaskId;
-        synchronized (parseTaskToUpdateTask) {
-            updateTaskId = parseTaskToUpdateTask.get(taskId);
+        // Вначале проверяем, не является ли это прямой задачей автообновления
+        UpdateTask directTask = updateTasks.get(taskId);
+        if (directTask != null) {
+            appendLog(directTask, logMessage);
+            logger.debug("Добавлен прямой лог в задачу автообновления {}", taskId);
+            return;
         }
-        
-        // КРИТИЧНЫЙ DEBUG: показываем состояние маппинга
-        logger.info("🔍 DEBUG addLogToUpdateTask: taskId={}, updateTaskId={}, parseTaskToUpdateTask.size={}, updateTasks.size={}", 
-            taskId, updateTaskId, parseTaskToUpdateTask.size(), updateTasks.size());
 
-        // Если это parseTaskId, используем связанный updateTaskId
-        String actualTaskId = taskId;
+        // Пытаемся найти родительскую задачу по parseTaskId
+        String updateTaskId = parseTaskToUpdateTask.get(taskId);
         if (updateTaskId != null) {
-            actualTaskId = updateTaskId;
-            logger.info("✅ Лог для parseTaskId={} перенаправлен в updateTaskId={}", taskId, updateTaskId);
-        } else {
-            logger.info("⚠️ parseTaskId={} НЕ НАЙДЕН в маппинге, проверяем как прямой taskId", taskId);
+            UpdateTask parentTask = updateTasks.get(updateTaskId);
+            if (parentTask != null) {
+                appendLog(parentTask, logMessage);
+                flushBufferedParseTaskLogs(updateTaskId, taskId);
+                logger.debug("Добавлен лог парсинга {} в задачу автообновления {}", taskId, updateTaskId);
+                return;
+            }
         }
-        
-        UpdateTask task = updateTasks.get(actualTaskId);
-        if (task != null) {
-            int sizeBefore = task.logs.size();
-            appendLog(task, logMessage);
-            logger.info("✅ Добавлен лог в задачу автообновления {} (было логов: {}, стало: {})", 
-                actualTaskId, sizeBefore, task.logs.size());
-        } else {
-            logger.warn("❌ Задача автообновления не найдена для actualTaskId={} (originalTaskId={}), лог проигнорирован: {}", 
-                actualTaskId, taskId, logMessage.substring(0, Math.min(100, logMessage.length())));
-        }
+
+        // Если связь ещё не установлена или родитель пока недоступен, буферизуем лог
+        bufferParseTaskLog(taskId, logMessage);
+        logger.debug("Буферизован лог для parseTaskId={}, ожидаем связывания с задачей автообновления", taskId);
     }
 
     /**
      * Связывает parseTaskId от MelonService с задачей автообновления
      */
     public void linkParseTaskToUpdate(String parseTaskId, String updateTaskId) {
-        if (parseTaskId != null && updateTaskId != null) {
-            synchronized (parseTaskToUpdateTask) {
-                parseTaskToUpdateTask.put(parseTaskId, updateTaskId);
-                logger.info("🔗 СВЯЗЫВАЕМ parseTaskId={} с updateTaskId={}, теперь в маппинге {} записей", 
-                    parseTaskId, updateTaskId, parseTaskToUpdateTask.size());
-                logger.info("🔗 Все ключи в parseTaskToUpdateTask: {}", parseTaskToUpdateTask.keySet());
-            }
-        } else {
+        if (parseTaskId == null || updateTaskId == null) {
             logger.warn("⚠️ Попытка связать NULL: parseTaskId={}, updateTaskId={}", parseTaskId, updateTaskId);
+            return;
         }
+
+        registerParseTaskMapping(updateTaskId, parseTaskId);
+    }
+
+    private void registerParseTaskMapping(String updateTaskId, String parseTaskId) {
+        parseTaskToUpdateTask.put(parseTaskId, updateTaskId);
+        updateTaskChildTaskIds.computeIfAbsent(updateTaskId, key -> ConcurrentHashMap.newKeySet()).add(parseTaskId);
+        flushBufferedParseTaskLogs(updateTaskId, parseTaskId);
+        logger.info("Связан parseTaskId={} с updateTaskId={}", parseTaskId, updateTaskId);
+    }
+
+    private void bufferParseTaskLog(String parseTaskId, String logMessage) {
+        pendingParseTaskLogs.compute(parseTaskId, (key, existing) -> {
+            List<String> target = existing;
+            if (target == null) {
+                target = Collections.synchronizedList(new ArrayList<>());
+            }
+            target.add(logMessage);
+            return target;
+        });
+    }
+
+    private void flushBufferedParseTaskLogs(String updateTaskId, String parseTaskId) {
+        List<String> buffered = pendingParseTaskLogs.remove(parseTaskId);
+        if (buffered == null || buffered.isEmpty()) {
+            return;
+        }
+
+        UpdateTask parentTask = updateTasks.get(updateTaskId);
+        if (parentTask == null) {
+            // Родительская задача ещё не готова, возвращаем буфер обратно
+            pendingParseTaskLogs.put(parseTaskId, buffered);
+            return;
+        }
+
+        synchronized (buffered) {
+            for (String log : buffered) {
+                appendLog(parentTask, log);
+            }
+        }
+        logger.debug("Применено {} буферизованных логов для parseTaskId={} (updateTaskId={})", buffered.size(), parseTaskId, updateTaskId);
     }
 
     /**
@@ -260,15 +297,19 @@ public class MangaUpdateService {
 
             for (int i = 0; i < mangaList.size(); i++) {
                 Manga manga = mangaList.get(i);
+                String title = Optional.ofNullable(manga.getTitle()).orElse("Без названия");
                 String slug = manga.getMelonSlug();
+                Integer slugId = manga.getMelonSlugId();
+                String slugForApi = melonService.buildSlugForMangaLibApi(slug, slugId);
+                if (slugId == null) {
+                    logger.debug("Для манги '{}' отсутствует сохраненный MangaLib ID. Используем slug: {}", title, slugForApi);
+                }
                 if (slug == null || slug.isBlank()) {
-                    String titleFallback = Optional.ofNullable(manga.getTitle()).orElse("Без названия");
-                    appendLog(task, String.format("[%d/%d] Пропуск манги '%s': отсутствует slug", i + 1, mangaList.size(), titleFallback));
-                    task.failedMangas.add(String.format("(slug отсутствует) — %s", titleFallback));
+                    appendLog(task, String.format("[%d/%d] Пропуск манги '%s': отсутствует slug", i + 1, mangaList.size(), title));
+                    task.failedMangas.add(String.format("(slug отсутствует) — %s", title));
                     continue;
                 }
 
-                String title = Optional.ofNullable(manga.getTitle()).orElse("Без названия");
                 String displayName = String.format("%s — %s", slug, title);
 
                 appendLog(task, String.format("[%d/%d] Старт проверки: %s", i + 1, mangaList.size(), displayName));
@@ -283,7 +324,7 @@ public class MangaUpdateService {
                     appendLog(task, String.format("[%d/%d] %s: найдено %d глав в базе", i + 1, mangaList.size(), displayName, existingChapterNumbers.size()));
 
                     // Запрашиваем обновленную информацию у Melon
-                    Map<String, Object> updateInfo = checkForUpdates(slug, existingChapterNumbers, taskId);
+                    Map<String, Object> updateInfo = checkForUpdates(slugForApi, slug, existingChapterNumbers, taskId);
 
                     if (updateInfo == null) {
                         appendLog(task, String.format("[%d/%d] %s: не удалось получить данные об обновлениях", i + 1, mangaList.size(), displayName));
@@ -294,6 +335,16 @@ public class MangaUpdateService {
                         List<Map<String, Object>> newChapters = (List<Map<String, Object>>) updateInfo.get("new_chapters");
                         @SuppressWarnings("unchecked")
                         Map<String, Object> mangaInfoFromUpdate = (Map<String, Object>) updateInfo.get("manga_info");
+
+                        if (slugId == null && mangaInfoFromUpdate != null) {
+                            Object resolvedId = mangaInfoFromUpdate.get("id");
+                            if (resolvedId instanceof Number number) {
+                                slugId = number.intValue();
+                                manga.setMelonSlugId(slugId);
+                                mangaRepository.save(manga);
+                                logger.info("Для манги '{}' сохранен MangaLib ID {}", title, slugId);
+                            }
+                        }
 
                         if (newChapters == null || newChapters.isEmpty()) {
                             appendLog(task, String.format("[%d/%d] %s: новые главы отсутствуют после фильтрации (вероятно платные)", i + 1, mangaList.size(), displayName));
@@ -398,10 +449,17 @@ public class MangaUpdateService {
             return;
         }
 
-        synchronized (parseTaskToUpdateTask) {
+        Set<String> childTaskIds = updateTaskChildTaskIds.remove(updateTaskId);
+        if (childTaskIds != null) {
+            for (String childId : childTaskIds) {
+                parseTaskToUpdateTask.remove(childId);
+                flushBufferedParseTaskLogs(updateTaskId, childId);
+                pendingParseTaskLogs.remove(childId);
+            }
+        } else {
             parseTaskToUpdateTask.entrySet().removeIf(entry -> updateTaskId.equals(entry.getValue()));
         }
-        logger.debug("Очищен маппинг задач для updateTaskId={}", updateTaskId);
+        logger.debug("Очищен маппинг задач для updateTaskId={}, удалено дочерних задач: {}", updateTaskId, childTaskIds != null ? childTaskIds.size() : 0);
     }
 
     /**
@@ -439,16 +497,16 @@ public class MangaUpdateService {
      * Проверяет наличие обновлений через парсинг и сравнение глав
      * @param updateTaskId ID задачи автообновления для связывания логов
      */
-    private Map<String, Object> checkForUpdates(String slug, Set<Double> existingChapterNumbers, String updateTaskId) {
+    private Map<String, Object> checkForUpdates(String slugForApi, String storedSlug, Set<Double> existingChapterNumbers, String updateTaskId) {
         try {
             // ОПТИМИЗАЦИЯ: Сначала получаем ТОЛЬКО метаданные глав (БЕЗ ПАРСИНГА!)
-            logger.info("Получение метаданных глав для slug: {}", slug);
-            Map<String, Object> metadata = melonService.getChaptersMetadataOnly(slug);
+            logger.info("Получение метаданных глав для slug (API формат): {}", slugForApi);
+            Map<String, Object> metadata = melonService.getChaptersMetadataOnly(slugForApi);
             
             // Проверяем успешность получения метаданных
             if (metadata == null || !Boolean.TRUE.equals(metadata.get("success"))) {
-                logger.error("Не удалось получить метаданные для slug '{}': {}", 
-                    slug, metadata != null ? metadata.get("error") : "Unknown error");
+                logger.error("Не удалось получить метаданные для slug '{}' (API '{}'): {}", 
+                    storedSlug, slugForApi, metadata != null ? metadata.get("error") : "Unknown error");
                 return null;
             }
             
@@ -457,7 +515,7 @@ public class MangaUpdateService {
                 (List<Map<String, Object>>) metadata.get("chapters");
             
             if (allChaptersMetadata == null || allChaptersMetadata.isEmpty()) {
-                logger.warn("Не найдено глав в метаданных для slug: {}", slug);
+                logger.warn("Не найдено глав в метаданных для slug: {} (API '{}')", storedSlug, slugForApi);
                 return Map.of(
                     "has_updates", false,
                     "new_chapters", List.of()
@@ -492,16 +550,16 @@ public class MangaUpdateService {
             
             // КРИТИЧНО: Если нет новых глав - возвращаем сразу (БЕЗ ПАРСИНГА!)
             if (newChaptersMetadata.isEmpty()) {
-                logger.info("Новых глав не найдено для slug: {} (проверено {} глав)", 
-                    slug, allChaptersMetadata.size());
+                logger.info("Новых глав не найдено для slug: {} (API '{}') (проверено {} глав)", 
+                    storedSlug, slugForApi, allChaptersMetadata.size());
                 return Map.of(
                     "has_updates", false,
                     "new_chapters", List.of()
                 );
             }
             
-            logger.info("Найдено {} новых глав для slug: {}, запускаем полный парсинг...", 
-                newChaptersMetadata.size(), slug);
+            logger.info("Найдено {} новых глав для slug: {} (API '{}'), запускаем полный парсинг...", 
+                newChaptersMetadata.size(), storedSlug, slugForApi);
             
             // КРИТИЧНО: Связываем задачи ПЕРЕД запуском парсинга!
             // Это гарантирует что маппинг будет готов когда придут первые логи
@@ -511,10 +569,10 @@ public class MangaUpdateService {
             
             // ТОЛЬКО если есть новые главы - запускаем полный парсинг
             // Это даст нам информацию о страницах для новых глав
-            Map<String, Object> parseResult = melonService.startParsing(slug);
+            Map<String, Object> parseResult = melonService.startParsing(slugForApi);
             
             if (parseResult == null || !parseResult.containsKey("task_id")) {
-                logger.error("Не удалось запустить парсинг для slug: {}", slug);
+                logger.error("Не удалось запустить парсинг для slug: {} (API '{}')", storedSlug, slugForApi);
                 return null;
             }
             
@@ -529,15 +587,15 @@ public class MangaUpdateService {
             
             // Ждем завершения парсинга
             if (!waitForTaskCompletion(parseTaskId)) {
-                logger.error("Парсинг не завершен для slug: {}", slug);
+                logger.error("Парсинг не завершен для slug: {} (API '{}')", storedSlug, slugForApi);
                 return null;
             }
             
             // Получаем полную информацию о манге после парсинга
-            Map<String, Object> mangaInfo = melonService.getMangaInfo(slug);
+            Map<String, Object> mangaInfo = melonService.getMangaInfo(storedSlug);
             
             if (mangaInfo == null || !mangaInfo.containsKey("content")) {
-                logger.error("Не удалось получить информацию о манге для slug: {}", slug);
+                logger.error("Не удалось получить информацию о манге для slug: {} (API '{}')", storedSlug, slugForApi);
                 return null;
             }
             
@@ -576,8 +634,8 @@ public class MangaUpdateService {
                 }
             }
             
-            logger.info("Найдено {} новых глав с данными о страницах для slug: {}", 
-                newChaptersWithSlides.size(), slug);
+            logger.info("Найдено {} новых глав с данными о страницах для slug: {} (API '{}')", 
+                newChaptersWithSlides.size(), storedSlug, slugForApi);
             
             return Map.of(
                 "has_updates", !newChaptersWithSlides.isEmpty(),
@@ -586,7 +644,7 @@ public class MangaUpdateService {
             );
             
         } catch (Exception e) {
-            logger.error("Ошибка проверки обновлений для slug '{}': {}", slug, e.getMessage());
+            logger.error("Ошибка проверки обновлений для slug '{}' (API '{}'): {}", storedSlug, slugForApi, e.getMessage());
             return null;
         }
     }

@@ -371,8 +371,18 @@ public interface MangaRepository extends JpaRepository<Manga, Long> {
          */
         Optional<Manga> findByMelonSlug(String melonSlug);
 
+    /**
+     * Проверяет наличие манги по числовому идентификатору MangaLib.
+     */
+    boolean existsByMelonSlugId(Integer melonSlugId);
+
         /**
          * Возвращает список манги по коллекции slug'ов источника.
          */
         List<Manga> findByMelonSlugIn(Collection<String> melonSlugs);
+
+    /**
+     * Возвращает мангу без сохраненного идентификатора MangaLib.
+     */
+    List<Manga> findByMelonSlugIdIsNullAndMelonSlugIsNotNull();
 }

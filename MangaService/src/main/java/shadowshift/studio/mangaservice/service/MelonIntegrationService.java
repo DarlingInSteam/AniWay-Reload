@@ -38,6 +38,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.Base64;
 import java.util.regex.Pattern;
+import java.util.Locale;
 
 /**
  * Сервис для интеграции с MelonService.
@@ -158,6 +159,140 @@ public class MelonIntegrationService {
         
         // Если формат не "ID--slug", возвращаем как есть
         return slug;
+    }
+
+    /**
+     * Формирует slug в формате, ожидаемом MangaLib API (ID--slug), если известен идентификатор.
+     *
+     * @param slug нормализованный или исходный slug
+     * @param slugId числовой идентификатор манги
+     * @return slug в формате ID--slug, если возможно, иначе исходное значение
+     */
+    public String buildSlugForMangaLibApi(String slug, Integer slugId) {
+        if (slug == null || slug.isBlank()) {
+            return slug;
+        }
+
+        if (slug.contains("--")) {
+            return slug;
+        }
+
+        String normalized = normalizeSlugForMangaLib(slug);
+        if (slugId != null) {
+            return slugId + "--" + normalized;
+        }
+
+        return normalized;
+    }
+
+    /**
+     * Разрешает числовые идентификаторы MangaLib для набора slug'ов, используя каталог.
+     * Возвращает карту "нормализованный slug" -> "ID".
+     */
+    public Map<String, Integer> resolveSlugIds(Set<String> normalizedSlugs, int maxPages, int pageSize) {
+        if (normalizedSlugs == null || normalizedSlugs.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        int allowedPages = maxPages > 0 ? maxPages : 500;
+        int effectivePageSize = pageSize > 0 ? pageSize : 60;
+
+        Map<String, Integer> resolved = new HashMap<>();
+        Map<String, String> originalByKey = new HashMap<>();
+        Set<String> remaining = new LinkedHashSet<>();
+
+        normalizedSlugs.stream()
+            .filter(Objects::nonNull)
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .forEach(slug -> {
+                String key = slug.toLowerCase(Locale.ROOT);
+                remaining.add(key);
+                originalByKey.put(key, slug);
+            });
+
+        if (remaining.isEmpty()) {
+            return resolved;
+        }
+
+        int page = 1;
+        int totalPages = Integer.MAX_VALUE;
+
+        while (!remaining.isEmpty() && page <= allowedPages && page <= totalPages) {
+            Map<String, Object> catalogPage = getCatalogSlugs(page, effectivePageSize);
+            if (catalogPage == null || !Boolean.TRUE.equals(catalogPage.get("success"))) {
+                logger.warn("Не удалось получить каталог MangaLib для страницы {}. Осталось slug'ов: {}", page, remaining.size());
+                break;
+            }
+
+            Object slugsObj = catalogPage.get("slugs");
+            if (slugsObj instanceof List<?> slugList) {
+                for (Object slugObj : slugList) {
+                    if (!(slugObj instanceof String slugWithId)) {
+                        continue;
+                    }
+
+                    int delimiterIndex = slugWithId.indexOf("--");
+                    if (delimiterIndex <= 0 || delimiterIndex >= slugWithId.length() - 2) {
+                        continue;
+                    }
+
+                    String idPart = slugWithId.substring(0, delimiterIndex);
+                    String slugPart = slugWithId.substring(delimiterIndex + 2);
+                    String key = slugPart.toLowerCase(Locale.ROOT);
+
+                    if (!remaining.contains(key) || !idPart.matches("\\d+")) {
+                        continue;
+                    }
+
+                    Integer id = Integer.valueOf(idPart);
+                    resolved.put(originalByKey.get(key), id);
+                    remaining.remove(key);
+                }
+            }
+
+            int total = toInt(catalogPage.get("total"));
+            int perPageValue = toInt(catalogPage.get("per_page"), effectivePageSize);
+            if (perPageValue > 0 && total > 0) {
+                totalPages = (int) Math.ceil((double) total / perPageValue);
+            } else if (total <= 0) {
+                totalPages = page;
+            }
+
+            page++;
+        }
+
+        if (!remaining.isEmpty()) {
+            int previewSize = Math.min(remaining.size(), 10);
+            String preview = remaining.stream().limit(previewSize).collect(Collectors.joining(", "));
+            logger.warn("Не удалось обнаружить MangaLib ID для {} slug'ов. Примеры: {}", remaining.size(), preview);
+        }
+
+        return resolved;
+    }
+
+    private int toInt(Object value) {
+        return toInt(value, 0);
+    }
+
+    private int toInt(Object value, int defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+
+        if (value instanceof String text) {
+            try {
+                return Integer.parseInt(text.trim());
+            } catch (NumberFormatException ignored) {
+                // fall through
+            }
+        }
+
+        return defaultValue;
     }
 
     /**
@@ -1222,9 +1357,14 @@ public class MelonIntegrationService {
         // MangaLib изменил формат slug: теперь может быть "7580--i-alone-level-up"
         // Нормализуем до "i-alone-level-up" для совместимости с существующими записями
         String normalizedSlug = normalizeSlugForMangaLib(filename);
-        
+
         // КРИТИЧНО: Устанавливаем melonSlug для проверки дубликатов и автообновления
         manga.setMelonSlug(normalizedSlug);
+
+        Object idRaw = mangaInfo.get("id");
+        if (idRaw instanceof Number number) {
+            manga.setMelonSlugId(number.intValue());
+        }
 
         // Обрабатываем title - используем localized_name (русское название)
         String title = (String) mangaInfo.get("localized_name");

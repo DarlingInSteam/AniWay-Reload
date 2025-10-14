@@ -20,6 +20,7 @@ import shadowshift.studio.mangaservice.service.external.ChapterServiceClient;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * REST-контроллер для управления мангой через API.
@@ -335,6 +336,26 @@ public class MangaRestController {
 
         logger.debug("API ответ: найдено {} глав для манги {}", chapters.size(), id);
         return ResponseEntity.ok(chapters);
+    }
+
+    /**
+     * Синхронизирует отсутствующие MangaLib ID для уже существующих манг.
+     *
+     * @param maxPages ограничение числа страниц каталога
+     * @param pageSize размер страницы каталога
+     * @return ResponseEntity с картой обновленных манг (id -> MangaLib ID)
+     */
+    @PostMapping("/maintenance/melon-slug-ids/backfill")
+    public ResponseEntity<Map<Long, Integer>> backfillMelonSlugIds(
+            @RequestParam(required = false) Integer maxPages,
+            @RequestParam(required = false) Integer pageSize) {
+
+        logger.info("API запрос: синхронизация отсутствующих MangaLib ID (maxPages={}, pageSize={})", maxPages, pageSize);
+
+        Map<Long, Integer> updated = mangaService.backfillMissingMelonSlugIds(maxPages, pageSize);
+
+        logger.info("API ответ: синхронизация MangaLib ID завершена. Обновлено {} записей.", updated.size());
+        return ResponseEntity.ok(updated);
     }
 }
 

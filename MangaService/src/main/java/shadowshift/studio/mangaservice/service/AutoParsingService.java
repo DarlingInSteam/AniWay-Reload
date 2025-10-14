@@ -310,11 +310,15 @@ public class AutoParsingService {
 
                 String slug = slugs.get(i);
                 String normalizedSlug = normalizeSlug(slug);
+                Integer slugId = extractSlugId(slug);
                 long slugStartMillis = System.currentTimeMillis();
                 Map<String, Object> mangaMetric = new LinkedHashMap<>();
                 mangaMetric.put("index", i + 1);
                 mangaMetric.put("slug", slug);
                 mangaMetric.put("normalized_slug", normalizedSlug);
+                if (slugId != null) {
+                    mangaMetric.put("slug_id", slugId);
+                }
                 mangaMetric.put("started_at", toIsoString(slugStartMillis));
                 appendLog(task, String.format("[%d/%d] Начало обработки: %s", i + 1, slugs.size(), normalizedSlug));
 
@@ -323,9 +327,14 @@ public class AutoParsingService {
                 boolean metricRecorded = false;
 
                 try {
-                    if (mangaRepository.existsByMelonSlug(normalizedSlug)) {
-                        logger.info("Манга с slug '{}' (normalized: '{}') уже импортирована, пропускаем",
-                            slug, normalizedSlug);
+                    boolean alreadyImported = mangaRepository.existsByMelonSlug(normalizedSlug);
+                    if (!alreadyImported && slugId != null) {
+                        alreadyImported = mangaRepository.existsByMelonSlugId(slugId);
+                    }
+
+                    if (alreadyImported) {
+                        logger.info("Манга с slug '{}' (normalized: '{}', id: {}) уже импортирована, пропускаем",
+                            slug, normalizedSlug, slugId);
                         task.skippedSlugs.add(slug);
                         appendLog(task, String.format("[%d/%d] %s: пропуск — уже импортирована",
                             i + 1, slugs.size(), normalizedSlug));
@@ -789,6 +798,25 @@ public class AutoParsingService {
         
         // Если формат не "ID--slug", возвращаем как есть
         return slug;
+    }
+
+    private Integer extractSlugId(String slug) {
+        if (slug == null || slug.isEmpty()) {
+            return null;
+        }
+
+        if (slug.contains("--")) {
+            String[] parts = slug.split("--", 2);
+            if (parts.length == 2 && parts[0].matches("\\d+")) {
+                try {
+                    return Integer.valueOf(parts[0]);
+                } catch (NumberFormatException ignored) {
+                    // игнорируем и вернем null
+                }
+            }
+        }
+
+        return null;
     }
 
     /**

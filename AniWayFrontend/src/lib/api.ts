@@ -258,6 +258,24 @@ class ApiClient {
     });
   }
 
+  async backfillMelonSlugIds(params?: { maxPages?: number; pageSize?: number }): Promise<Record<string, number>> {
+    const searchParams = new URLSearchParams();
+    if (params?.maxPages) {
+      searchParams.set('maxPages', String(params.maxPages));
+    }
+    if (params?.pageSize) {
+      searchParams.set('pageSize', String(params.pageSize));
+    }
+
+    const query = searchParams.toString();
+    return this.request<Record<string, number>>(
+      `/manga/maintenance/melon-slug-ids/backfill${query ? `?${query}` : ''}`,
+      {
+        method: 'POST',
+      }
+    );
+  }
+
   // Chapter Likes API
   async likeChapter(chapterId: number): Promise<{ message: string }> {
     return this.request<{ message: string }>(`/chapters/${chapterId}/like`, {

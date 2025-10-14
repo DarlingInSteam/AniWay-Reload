@@ -95,6 +95,12 @@ public class Manga {
     private String melonSlug;
 
     /**
+     * Числовой идентификатор манги в MangaLib (часть slug вида ID--slug).
+     */
+    @Column(name = "melon_slug_id")
+    private Integer melonSlugId;
+
+    /**
      * Тип манги.
      */
     @Enumerated(EnumType.STRING)
@@ -541,6 +547,20 @@ public class Manga {
      * @param melonSlug slug манги
      */
     public void setMelonSlug(String melonSlug) { this.melonSlug = melonSlug; }
+
+    /**
+     * Возвращает числовой идентификатор манги в источнике.
+     *
+     * @return идентификатор манги в MangaLib
+     */
+    public Integer getMelonSlugId() { return melonSlugId; }
+
+    /**
+     * Устанавливает числовой идентификатор манги из MangaLib.
+     *
+     * @param melonSlugId идентификатор манги
+     */
+    public void setMelonSlugId(Integer melonSlugId) { this.melonSlugId = melonSlugId; }
 
     /**
      * Возвращает тип манги.

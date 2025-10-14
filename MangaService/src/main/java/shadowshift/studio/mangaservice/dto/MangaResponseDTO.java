@@ -87,6 +87,11 @@ public class MangaResponseDTO {
     private String melonSlug;
 
     /**
+     * Числовой идентификатор манги в MangaLib.
+     */
+    private Integer melonSlugId;
+
+    /**
      * Тип манги.
      */
     private Manga.MangaType type;
@@ -162,6 +167,7 @@ public class MangaResponseDTO {
         this.engName = manga.getEngName();
         this.alternativeNames = manga.getAlternativeNames();
     this.melonSlug = manga.getMelonSlug();
+    this.melonSlugId = manga.getMelonSlugId();
         this.type = manga.getType();
         this.ageLimit = manga.getAgeLimit();
         this.isLicensed = manga.getIsLicensed();
@@ -367,6 +373,20 @@ public class MangaResponseDTO {
      * @param melonSlug slug манги в Melon
      */
     public void setMelonSlug(String melonSlug) { this.melonSlug = melonSlug; }
+
+    /**
+     * Возвращает числовой идентификатор манги в MangaLib.
+     *
+     * @return идентификатор манги
+     */
+    public Integer getMelonSlugId() { return melonSlugId; }
+
+    /**
+     * Устанавливает числовой идентификатор манги в MangaLib.
+     *
+     * @param melonSlugId идентификатор манги
+     */
+    public void setMelonSlugId(Integer melonSlugId) { this.melonSlugId = melonSlugId; }
 
     /**
      * Возвращает тип манги.
