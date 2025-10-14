@@ -12,7 +12,8 @@ import {
   UpdateProfileRequest,
   User,
   UserSearchParams,
-  UserSearchResult
+  UserSearchResult,
+  EmptyChaptersCleanupResult
 } from '@/types';
 import type {
   CategoryUnreadMap,
@@ -249,6 +250,12 @@ class ApiClient {
 
   async getChaptersByManga(mangaId: number): Promise<ChapterDTO[]> {
     return this.request<ChapterDTO[]>(`/chapters/manga/${mangaId}`);
+  }
+
+  async cleanupEmptyChapters(): Promise<EmptyChaptersCleanupResult> {
+    return this.request<EmptyChaptersCleanupResult>(`/chapters/cleanup-empty`, {
+      method: 'POST',
+    });
   }
 
   // Chapter Likes API

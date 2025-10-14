@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Download, RefreshCw, Loader2, CheckCircle, XCircle, AlertCircle, Search, ListFilter, Layers, Trash2, Eraser } from 'lucide-react'
 import { toast } from 'sonner'
+import { apiClient } from '@/lib/api'
+import { EmptyChaptersCleanupResult } from '@/types'
 import { ImportQueueMonitor } from './ImportQueueMonitor'
 
 interface AutoParseMangaMetric {
@@ -62,15 +64,6 @@ interface AutoUpdateTask {
   start_time: string
   end_time?: string
   logs?: string[]  // Логи в реальном времени
-}
-
-interface EmptyChaptersCleanupResult {
-  totalChecked: number
-  emptyDetected: number
-  deletedCount: number
-  deletedChapterIds: number[]
-  deletionFailedIds: number[]
-  pageCheckFailedIds: number[]
 }
 
 const AUTO_PARSE_STORAGE_KEY = 'autoParseTaskState'
@@ -1157,16 +1150,8 @@ export function MangaManagement() {
     setIsCleaningEmptyChapters(true)
 
     try {
-      const response = await fetch('/api/chapters/cleanup-empty', { method: 'POST' })
-      const rawPayload = await response.json().catch(() => null)
-
-      if (!response.ok) {
-        const message = rawPayload?.message || rawPayload?.error || 'Не удалось очистить пустые главы'
-        toast.error(message)
-        return
-      }
-
-      const normalized = normalizeCleanupResult(rawPayload)
+      const result = await apiClient.cleanupEmptyChapters()
+      const normalized = normalizeCleanupResult(result)
       setLastCleanupResult(normalized)
 
       if (normalized.deletedCount > 0) {
@@ -1185,7 +1170,8 @@ export function MangaManagement() {
         toast.warning(`Не удалось проверить страницы у ${normalized.pageCheckFailedIds.length} глав`)
       }
     } catch (error) {
-      toast.error('Ошибка соединения с сервером при очистке пустых глав')
+      const message = error instanceof Error ? error.message : 'Ошибка соединения с сервером при очистке пустых глав'
+      toast.error(message)
     } finally {
       setIsCleaningEmptyChapters(false)
     }

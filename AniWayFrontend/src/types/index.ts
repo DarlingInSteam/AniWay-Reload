@@ -53,6 +53,15 @@ export interface ChapterCreateRequest {
   publishedDate?: string | null
 }
 
+export interface EmptyChaptersCleanupResult {
+  totalChecked: number
+  emptyDetected: number
+  deletedCount: number
+  deletedChapterIds: number[]
+  deletionFailedIds: number[]
+  pageCheckFailedIds: number[]
+}
+
 // Типы для изображений глав
 export interface ChapterImageDTO {
   id: number
