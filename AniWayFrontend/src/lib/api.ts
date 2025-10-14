@@ -258,13 +258,16 @@ class ApiClient {
     });
   }
 
-  async backfillMelonSlugIds(params?: { maxPages?: number; pageSize?: number }): Promise<Record<string, number>> {
+  async backfillMelonSlugIds(params?: { maxPages?: number; pageSize?: number; startPage?: number }): Promise<Record<string, number>> {
     const searchParams = new URLSearchParams();
-    if (params?.maxPages) {
+    if (params?.maxPages != null) {
       searchParams.set('maxPages', String(params.maxPages));
     }
-    if (params?.pageSize) {
+    if (params?.pageSize != null) {
       searchParams.set('pageSize', String(params.pageSize));
+    }
+    if (params?.startPage != null) {
+      searchParams.set('startPage', String(params.startPage));
     }
 
     const query = searchParams.toString();

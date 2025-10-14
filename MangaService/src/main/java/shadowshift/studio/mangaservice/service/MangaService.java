@@ -752,7 +752,7 @@ public class MangaService {
      * @return карта "ID манги" -> "назначенный MangaLib ID" для успешно обновленных записей
      */
     @Transactional
-    public Map<Long, Integer> backfillMissingMelonSlugIds(Integer maxPages, Integer pageSize) {
+    public Map<Long, Integer> backfillMissingMelonSlugIds(Integer maxPages, Integer pageSize, Integer startPage) {
         List<Manga> candidates = mangaRepository.findByMelonSlugIdIsNullAndMelonSlugIsNotNull();
         if (candidates.isEmpty()) {
             logger.info("Отсутствуют манги без MangaLib ID. Синхронизация не требуется.");
@@ -766,11 +766,16 @@ public class MangaService {
                 .filter(s -> !s.isEmpty())
                 .collect(Collectors.toCollection(LinkedHashSet::new));
 
-        Map<String, Integer> resolved = melonIntegrationService.resolveSlugIds(
-                normalizedSlugs,
-                maxPages != null ? maxPages : 500,
-                pageSize != null ? pageSize : 60
-        );
+    int pagesToScan = maxPages != null ? Math.max(1, maxPages) : 500;
+    int effectivePageSize = pageSize != null ? Math.max(1, pageSize) : 60;
+    int effectiveStartPage = startPage != null ? Math.max(1, startPage) : 1;
+
+    Map<String, Integer> resolved = melonIntegrationService.resolveSlugIds(
+        normalizedSlugs,
+        pagesToScan,
+        effectivePageSize,
+        effectiveStartPage
+    );
 
         if (resolved.isEmpty()) {
             logger.warn("Не удалось определить MangaLib ID ни для одного slug'а. Список ожидал {} записей.", normalizedSlugs.size());

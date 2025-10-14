@@ -189,13 +189,14 @@ public class MelonIntegrationService {
      * Разрешает числовые идентификаторы MangaLib для набора slug'ов, используя каталог.
      * Возвращает карту "нормализованный slug" -> "ID".
      */
-    public Map<String, Integer> resolveSlugIds(Set<String> normalizedSlugs, int maxPages, int pageSize) {
+    public Map<String, Integer> resolveSlugIds(Set<String> normalizedSlugs, int maxPages, int pageSize, int startPage) {
         if (normalizedSlugs == null || normalizedSlugs.isEmpty()) {
             return Collections.emptyMap();
         }
 
         int allowedPages = maxPages > 0 ? maxPages : 500;
         int effectivePageSize = pageSize > 0 ? pageSize : 60;
+        int effectiveStartPage = startPage > 0 ? startPage : 1;
 
         Map<String, Integer> resolved = new HashMap<>();
         Map<String, String> originalByKey = new HashMap<>();
@@ -215,10 +216,11 @@ public class MelonIntegrationService {
             return resolved;
         }
 
-        int page = 1;
+        int page = effectiveStartPage;
         int totalPages = Integer.MAX_VALUE;
+        int processedPages = 0;
 
-        while (!remaining.isEmpty() && page <= allowedPages && page <= totalPages) {
+        while (!remaining.isEmpty() && processedPages < allowedPages && page <= totalPages) {
             Map<String, Object> catalogPage = getCatalogSlugs(page, effectivePageSize);
             if (catalogPage == null || !Boolean.TRUE.equals(catalogPage.get("success"))) {
                 logger.warn("Не удалось получить каталог MangaLib для страницы {}. Осталось slug'ов: {}", page, remaining.size());
@@ -259,6 +261,7 @@ public class MelonIntegrationService {
                 totalPages = page;
             }
 
+            processedPages++;
             page++;
         }
 

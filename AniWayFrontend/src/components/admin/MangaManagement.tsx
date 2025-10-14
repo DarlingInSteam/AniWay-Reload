@@ -827,6 +827,7 @@ export function MangaManagement() {
   const [isBackfillingSlugIds, setIsBackfillingSlugIds] = useState(false)
   const [lastCleanupResult, setLastCleanupResult] = useState<EmptyChaptersCleanupResult | null>(null)
   const [slugBackfillResult, setSlugBackfillResult] = useState<SlugBackfillSnapshot | null>(null)
+  const [slugBackfillStartPage, setSlugBackfillStartPage] = useState<string>('1')
   const [automationHydrated, setAutomationHydrated] = useState(false)
   const [selectedLogSource, setSelectedLogSource] = useState<AutomationLogSource>('combined')
 
@@ -1340,10 +1341,25 @@ export function MangaManagement() {
       return
     }
 
+    const startPageInput = slugBackfillStartPage.trim()
+    if (!startPageInput) {
+      toast.error('Укажите номер страницы каталога MangaLib')
+      return
+    }
+
+    const parsedStart = Number(startPageInput)
+    if (!Number.isFinite(parsedStart) || parsedStart < 1) {
+      toast.error('Номер страницы должен быть положительным целым числом')
+      return
+    }
+
+    const startPage = Math.floor(parsedStart)
+    setSlugBackfillStartPage(String(startPage))
+
     setIsBackfillingSlugIds(true)
 
     try {
-      const result = await apiClient.backfillMelonSlugIds()
+      const result = await apiClient.backfillMelonSlugIds({ startPage })
       const normalized = result ?? {}
       const updatedCount = Object.keys(normalized).length
 
@@ -1353,7 +1369,7 @@ export function MangaManagement() {
       })
 
       if (updatedCount > 0) {
-        toast.success(`Проставлены MangaLib ID для ${updatedCount} тайтлов`)
+        toast.success(`Проставлены MangaLib ID для ${updatedCount} тайтлов (страница ${startPage})`)
       } else {
         toast.info('Все манги уже имеют MangaLib ID')
       }
@@ -1545,6 +1561,23 @@ export function MangaManagement() {
             <p className="text-xs text-muted-foreground">
               Сканирует каталог MangaLib и определяет числовые идентификаторы для манг, у которых в базе сохранён только текстовый slug.
             </p>
+            <div className="space-y-1">
+              <Label htmlFor="slugBackfillStartPage" className="text-xs text-muted-foreground">
+                Стартовая страница каталога
+              </Label>
+              <Input
+                id="slugBackfillStartPage"
+                type="number"
+                min={1}
+                value={slugBackfillStartPage}
+                onChange={(event) => setSlugBackfillStartPage(event.target.value)}
+                disabled={isBackfillingSlugIds}
+                className="bg-background text-white"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                По умолчанию синхронизация начинается с первой страницы каталога MangaLib.
+              </p>
+            </div>
             {slugBackfillResult && (
               <div className="text-xs text-muted-foreground/90 space-y-1">
                 <p>

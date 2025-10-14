@@ -348,11 +348,13 @@ public class MangaRestController {
     @PostMapping("/maintenance/melon-slug-ids/backfill")
     public ResponseEntity<Map<Long, Integer>> backfillMelonSlugIds(
             @RequestParam(required = false) Integer maxPages,
-            @RequestParam(required = false) Integer pageSize) {
+            @RequestParam(required = false) Integer pageSize,
+            @RequestParam(required = false) Integer startPage) {
 
-        logger.info("API запрос: синхронизация отсутствующих MangaLib ID (maxPages={}, pageSize={})", maxPages, pageSize);
+        logger.info("API запрос: синхронизация отсутствующих MangaLib ID (maxPages={}, pageSize={}, startPage={})",
+                maxPages, pageSize, startPage);
 
-        Map<Long, Integer> updated = mangaService.backfillMissingMelonSlugIds(maxPages, pageSize);
+        Map<Long, Integer> updated = mangaService.backfillMissingMelonSlugIds(maxPages, pageSize, startPage);
 
         logger.info("API ответ: синхронизация MangaLib ID завершена. Обновлено {} записей.", updated.size());
         return ResponseEntity.ok(updated);
