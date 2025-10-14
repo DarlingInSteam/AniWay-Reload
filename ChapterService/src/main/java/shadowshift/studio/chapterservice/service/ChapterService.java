@@ -9,6 +9,7 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
 import shadowshift.studio.chapterservice.dto.ChapterCleanupResultDTO;
 import shadowshift.studio.chapterservice.dto.ChapterCreateDTO;
 import shadowshift.studio.chapterservice.dto.ChapterResponseDTO;
@@ -18,10 +19,15 @@ import shadowshift.studio.chapterservice.repository.ChapterRepository;
 import shadowshift.studio.chapterservice.repository.ChapterLikeRepository;
 import shadowshift.studio.chapterservice.repository.ChapterReadRepository;
 import shadowshift.studio.chapterservice.entity.ChapterRead;
+import java.net.ConnectException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import org.springframework.web.client.RestTemplate;
 
@@ -59,6 +65,11 @@ public class ChapterService {
 
     @Value("${image.storage.service.url}")
     private String imageStorageServiceUrl;
+
+    @Value("${image.storage.service.internal-url:http://image-storage-service:8086}")
+    private String imageStorageServiceInternalUrl;
+
+    private final Set<String> reportedImageServiceConnectionIssues = ConcurrentHashMap.newKeySet();
 
     @Value("${notification.service.base-url:http://notification-service:8095}")
     private String notificationServiceBaseUrl;
@@ -283,12 +294,7 @@ public class ChapterService {
     public void deleteChapter(Long id) {
         // Удаляем связанные изображения перед удалением главы
         try {
-            WebClient webClient = webClientBuilder.build();
-            webClient.delete()
-                    .uri(imageStorageServiceUrl + "/api/images/chapter/" + id)
-                    .retrieve()
-                    .bodyToMono(Void.class)
-                    .block();
+            deleteChapterImagesWithFallback(id);
         } catch (Exception e) {
             System.err.println("Failed to delete chapter images: " + e.getMessage());
             // Продолжаем удаление главы даже если изображения не удалились
@@ -395,12 +401,32 @@ public class ChapterService {
      * @return количество страниц
      */
     private Integer getPageCountFromImageService(Long chapterId) {
-        WebClient webClient = webClientBuilder.build();
-        return webClient.get()
-                .uri(imageStorageServiceUrl + "/api/images/chapter/" + chapterId + "/count")
-                .retrieve()
-                .bodyToMono(Integer.class)
-                .block();
+        List<String> baseUrls = resolveImageStorageBaseUrls();
+        WebClientRequestException lastConnectException = null;
+
+        for (String baseUrl : baseUrls) {
+            try {
+                WebClient client = webClientBuilder.baseUrl(baseUrl).build();
+                return client.get()
+                        .uri("/api/images/chapter/{chapterId}/count", chapterId)
+                        .retrieve()
+                        .bodyToMono(Integer.class)
+                        .block();
+            } catch (WebClientRequestException ex) {
+                if (isConnectionRefused(ex)) {
+                    logImageServiceConnectionIssue(baseUrl, ex);
+                    lastConnectException = ex;
+                    continue;
+                }
+                throw ex;
+            }
+        }
+
+        if (lastConnectException != null) {
+            throw lastConnectException;
+        }
+
+        throw new IllegalStateException("ImageStorageService base URLs are not configured");
     }
 
     /**
@@ -674,5 +700,63 @@ public class ChapterService {
             System.err.println("fetchMangaTitle failed url=" + url + " error=" + ex.getMessage());
         }
         return null;
+    }
+
+    private void deleteChapterImagesWithFallback(Long chapterId) {
+        List<String> baseUrls = resolveImageStorageBaseUrls();
+        WebClientRequestException lastConnectException = null;
+
+        for (String baseUrl : baseUrls) {
+            try {
+                WebClient client = webClientBuilder.baseUrl(baseUrl).build();
+                client.delete()
+                        .uri("/api/images/chapter/{chapterId}", chapterId)
+                        .retrieve()
+                        .bodyToMono(Void.class)
+                        .block();
+                return;
+            } catch (WebClientRequestException ex) {
+                if (isConnectionRefused(ex)) {
+                    logImageServiceConnectionIssue(baseUrl, ex);
+                    lastConnectException = ex;
+                    continue;
+                }
+                throw ex;
+            }
+        }
+
+        if (lastConnectException != null) {
+            throw lastConnectException;
+        }
+    }
+
+    private List<String> resolveImageStorageBaseUrls() {
+        LinkedHashSet<String> urls = new LinkedHashSet<>();
+        if (imageStorageServiceUrl != null && !imageStorageServiceUrl.isBlank()) {
+            urls.add(imageStorageServiceUrl.trim());
+        }
+        if (imageStorageServiceInternalUrl != null && !imageStorageServiceInternalUrl.isBlank()) {
+            urls.add(imageStorageServiceInternalUrl.trim());
+        }
+        return new ArrayList<>(urls);
+    }
+
+    private boolean isConnectionRefused(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof ConnectException) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private void logImageServiceConnectionIssue(String baseUrl, Throwable ex) {
+        if (reportedImageServiceConnectionIssues.add(baseUrl)) {
+            logger.warn("ImageStorageService unreachable at {}: {}", baseUrl, ex.getMessage());
+        } else {
+            logger.debug("ImageStorageService still unreachable at {}: {}", baseUrl, ex.getMessage());
+        }
     }
 }
