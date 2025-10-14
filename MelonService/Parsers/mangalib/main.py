@@ -65,32 +65,32 @@ class Parser(MangaParser):
         """Инициализирует модуль WEB-запросов."""
 
         WebRequestorObject = super()._InitializeRequestor()
-        
+
         # Добавляем авторизационный токен если есть
-        if self._Settings.custom["token"]: 
+        if self._Settings.custom["token"]:
             WebRequestorObject.config.add_header("Authorization", self._Settings.custom["token"])
-        
+
         # PROXY ROTATION SUPPORT:
         # Приоритет конфигурации прокси:
         # 1. ProxyRotator из settings.json (если включен и есть прокси)
         # 2. Переменные окружения HTTP_PROXY/HTTPS_PROXY
         # 3. Без прокси
-        
+
         import sys
         import os
         from pathlib import Path
-        
+
         # Добавляем путь к MelonService в sys.path для импорта proxy_rotator
         melon_service_path = Path(__file__).parent.parent.parent
         if str(melon_service_path) not in sys.path:
             sys.path.insert(0, str(melon_service_path))
-        
+
         try:
             from proxy_rotator import ProxyRotator
-            
+
             # Создаём экземпляр ротатора для парсера
             rotator = ProxyRotator(parser="mangalib")
-            
+
             if rotator.enabled and rotator.get_proxy_count() > 0:
                 # Получаем прокси (с ротацией если их несколько)
                 if rotator.get_proxy_count() == 1:
@@ -99,7 +99,7 @@ class Parser(MangaParser):
                 else:
                     proxy_dict = rotator.get_next_proxy()
                     print(f"[INFO] 🔄 Proxy rotation enabled: {rotator.get_proxy_count()} proxies, strategy={rotator.rotation_strategy}")
-                
+
                 if proxy_dict:
                     try:
                         if hasattr(WebRequestorObject, '_WebRequestor__Session'):
@@ -112,52 +112,89 @@ class Parser(MangaParser):
                         print(f"[WARNING] ⚠️  Failed to set proxy from ProxyRotator: {e}")
             else:
                 print(f"[INFO] ℹ️  ProxyRotator disabled, checking environment variables...")
-                
+
                 # Fallback: переменные окружения
                 http_proxy = os.getenv("HTTP_PROXY") or os.getenv("http_proxy")
                 https_proxy = os.getenv("HTTPS_PROXY") or os.getenv("https_proxy")
-                
+
                 if http_proxy or https_proxy:
                     proxies = {}
-                    def _get_proxy_count(self) -> int:
-                        cached = getattr(self, "_proxy_count_cache", None)
-                        if isinstance(cached, int) and cached > 0:
-                            return cached
+                    if http_proxy:
+                        proxies['http'] = http_proxy
+                    if https_proxy:
+                        proxies['https'] = https_proxy
 
-                        from pathlib import Path
-                        import sys
-                        import json
+                    try:
+                        if hasattr(WebRequestorObject, '_WebRequestor__Session'):
+                            WebRequestorObject._WebRequestor__Session.proxies.update(proxies)
+                            print(f"[INFO] ✅ Proxy configured from env vars: {http_proxy or https_proxy}")
+                        elif hasattr(WebRequestorObject, 'session'):
+                            WebRequestorObject.session.proxies.update(proxies)
+                            print(f"[INFO] ✅ Proxy configured from env vars (public session)")
+                    except Exception as e:
+                        print(f"[WARNING] ⚠️  Failed to configure proxy from env: {e}")
+                else:
+                    print(f"[INFO] ℹ️  No proxy configured (direct connection)")
 
-                        melon_service_path = Path(__file__).parent.parent.parent
-                        if str(melon_service_path) not in sys.path:
-                            sys.path.insert(0, str(melon_service_path))
+        except ImportError as e:
+            print(f"[WARNING] ⚠️  ProxyRotator not available: {e}")
+            print(f"[INFO] ℹ️  Falling back to environment variables...")
 
-                        proxy_count = 0
+            # Fallback на переменные окружения
+            http_proxy = os.getenv("HTTP_PROXY") or os.getenv("http_proxy")
+            https_proxy = os.getenv("HTTPS_PROXY") or os.getenv("https_proxy")
 
-                        try:
-                            from proxy_rotator import ProxyRotator
-                            rotator = ProxyRotator(parser="mangalib")
-                            if rotator.enabled:
-                                proxy_count = rotator.get_proxy_count()
-                        except Exception as e:
-                            print(f"[WARNING] ProxyRotator not available: {e}")
+            if http_proxy or https_proxy:
+                proxies = {}
+                if http_proxy:
+                    proxies['http'] = http_proxy
+                if https_proxy:
+                    proxies['https'] = https_proxy
 
-                        if proxy_count <= 0:
-                            try:
-                                settings_path = Path(__file__).parent / "settings.json"
-                                if settings_path.exists():
-                                    with open(settings_path, "r", encoding="utf-8") as f:
-                                        data = json.load(f)
-                                        prox_list = data.get("Main", {}).get("proxy", [])
-                                        if isinstance(prox_list, list):
-                                            proxy_count = len(prox_list)
-                            except Exception as e:
-                                print(f"[WARNING] Unable to read proxy count from settings: {e}")
+                try:
+                    if hasattr(WebRequestorObject, '_WebRequestor__Session'):
+                        WebRequestorObject._WebRequestor__Session.proxies.update(proxies)
+                        print(f"[INFO] ✅ Proxy configured from env vars: {http_proxy or https_proxy}")
+                    elif hasattr(WebRequestorObject, 'session'):
+                        WebRequestorObject.session.proxies.update(proxies)
+                        print(f"[INFO] ✅ Proxy configured from env vars (public)")
+                except Exception as e:
+                    print(f"[WARNING] ⚠️  Failed to configure proxy: {e}")
 
-                        proxy_count = max(1, proxy_count)
-                        self._proxy_count_cache = proxy_count
-                        print(f"[INFO] 🌐 Using {proxy_count} proxy endpoints for delay scaling")
-                        return proxy_count
+        return WebRequestorObject
+
+    def _download_image_wrapper(self, url: str) -> str | None:
+        """Thread-safe обертка с независимой сессией requests для каждого потока.
+
+        :param url: URL изображения
+        :return: Имя файла если успешно, None если ошибка
+        """
+        import os
+        from pathlib import Path
+        import hashlib
+        import requests
+        from urllib.parse import urlparse, unquote
+
+        directory = self._SystemObjects.temper.parser_temp
+        os.makedirs(directory, exist_ok=True)
+
+        # Определяем имя файла из URL с учётом декодирования
+        parsed_url = urlparse(url)
+        decoded_path = unquote(parsed_url.path or "")
+        trimmed_path = decoded_path.rstrip("/")
+        path_obj = Path(trimmed_path) if trimmed_path else Path("")
+
+        resolved_suffix = path_obj.suffix if trimmed_path else ""
+        resolved_name = path_obj.stem if trimmed_path else ""
+
+        if not resolved_name or resolved_name in {".", ".."}:
+            candidate_name = path_obj.name if trimmed_path else ""
+            if candidate_name not in {"", ".", ".."}:
+                resolved_name = Path(candidate_name).stem
+            else:
+                resolved_name = ""
+
+        if not resolved_suffix and trimmed_path:
             resolved_suffix = Path(path_obj.name).suffix
 
         if not resolved_name:
@@ -165,18 +202,18 @@ class Parser(MangaParser):
 
         image_filename = f"{resolved_name}{resolved_suffix}"
         image_path = os.path.join(directory, image_filename)
-        
+
         # Если файл уже существует и не FORCE_MODE, возвращаем имя
         if os.path.exists(image_path) and not self._SystemObjects.FORCE_MODE:
             return image_filename
-        
+
         try:
             # Получаем основной WebRequestor
             requestor = self._ImagesDownloader._ImagesDownloader__Requestor
-            
+
             # Создаем НЕЗАВИСИМУЮ сессию requests для этого потока
             session = requests.Session()
-            
+
             # Копируем cookies из WebRequestor Session (thread-safe read)
             source_session = None
             if hasattr(requestor, '_WebRequestor__Session'):
@@ -185,7 +222,7 @@ class Parser(MangaParser):
                 source_session = requestor.session
             elif hasattr(requestor, '_session'):
                 source_session = requestor._session
-            
+
             if source_session and hasattr(source_session, 'cookies'):
                 try:
                     # КРИТИЧНО: НЕ используем update() напрямую - это вызывает deadlock!
@@ -194,7 +231,7 @@ class Parser(MangaParser):
                         session.cookies.set(name, value)
                 except Exception:
                     pass
-            
+
             # Копируем headers из source session
             if source_session and hasattr(source_session, 'headers'):
                 try:
@@ -202,7 +239,7 @@ class Parser(MangaParser):
                     session.headers.update(headers_dict)
                 except Exception:
                     pass
-            
+
             # Добавляем стандартные headers для изображений
             session.headers.update({
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -210,30 +247,30 @@ class Parser(MangaParser):
                 'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
                 'Referer': 'https://mangalib.me/',
             })
-            
+
             # Получаем прокси (опционально)
             proxies = None
             if hasattr(self, '_ProxyRotator') and self._ProxyRotator:
                 proxy = self._ProxyRotator.get_next_proxy()
                 if proxy and isinstance(proxy, dict):
                     proxies = proxy
-            
+
             # ПАРАЛЛЕЛЬНЫЙ HTTP запрос через независимую сессию!
             # stream=True для защиты от IncompleteRead на больших файлах
             response = session.get(url, timeout=30, proxies=proxies, stream=True)
-            
+
             if response.status_code == 200:
                 # Читаем контент по частям, защита от IncompleteRead
                 content = b""
                 for chunk in response.iter_content(chunk_size=8192):
                     if chunk:
                         content += chunk
-                
+
                 if len(content) > 1000:
                     with open(image_path, "wb") as f:
                         f.write(content)
                     return image_filename
-            
+
         except Exception as e:
             # Тихо пропускаем ошибки, retry механизм обработает
             pass
@@ -241,9 +278,9 @@ class Parser(MangaParser):
             # Закрываем сессию
             if 'session' in locals():
                 session.close()
-        
+
         return None
-    
+
     def _get_scaled_delay(
         self,
         base_value: float,
@@ -609,7 +646,7 @@ class Parser(MangaParser):
             self._cached_image_server = self.__GetImagesServers(self._Settings.custom["server"])[0]
         Server = self._cached_image_server
 
-    parse_delay = self._get_parse_delay()
+        parse_delay = self._get_parse_delay()
 
         token = None
         custom_settings = getattr(self._Settings, "custom", None)
