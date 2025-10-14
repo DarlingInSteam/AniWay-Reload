@@ -672,42 +672,67 @@ class Parser(MangaParser):
         base_endpoint = f"https://{self.__API}/api/manga/{self.__TitleSlug}/chapter"
         url_variants: list[str] = []
 
-        query_params: list[str] = []
-        if chapter.number:
-            query_params.append(f"number={chapter.number}")
-        if chapter.volume:
-            query_params.append(f"volume={chapter.volume}")
-        if branch_query_value:
-            query_params.append(f"branch_id={branch_query_value}")
+        def _build_query(params: dict[str, str | None]) -> str | None:
+            components = [f"{key}={value}" for key, value in params.items() if value is not None and value != ""]
+            if not components:
+                return None
+            return f"{base_endpoint}?{'&'.join(components)}"
 
-        if query_params:
-            url_variants.append(f"{base_endpoint}?{'&'.join(query_params)}")
+        def _ensure_str(value) -> str | None:
+            if value is None:
+                return None
+            try:
+                return str(value)
+            except Exception:
+                return None
 
-        if chapter.id:
-            branch_suffix = f"?branch_id={branch_query_value}" if branch_query_value else ""
-            url_variants.append(f"{base_endpoint}/{chapter.id}{branch_suffix}")
+        def _extend_variants(include_branch: bool) -> None:
+            branch_value = _ensure_str(branch_query_value) if include_branch else None
 
-            id_query_params = [f"chapter_id={chapter.id}"]
-            if branch_query_value:
-                id_query_params.append(f"branch_id={branch_query_value}")
-            url_variants.append(f"{base_endpoint}?{'&'.join(id_query_params)}")
+            number_value = _ensure_str(chapter.number)
+            volume_value = _ensure_str(chapter.volume)
+            chapter_id_value = _ensure_str(chapter.id)
 
-            generic_id_query = [f"id={chapter.id}"]
-            if branch_query_value:
-                generic_id_query.append(f"branch_id={branch_query_value}")
-            url_variants.append(f"{base_endpoint}?{'&'.join(generic_id_query)}")
+            query = _build_query({
+                "number": number_value,
+                "volume": volume_value,
+                "branch_id": branch_value,
+            })
+            if query:
+                url_variants.append(query)
 
-        # Добавляем вариант без фильтров на случай, если номер/том отсутствуют
-        if not url_variants:
-            fallback_params = []
-            if branch_query_value:
-                fallback_params.append(f"branch_id={branch_query_value}")
-            if chapter.id:
-                fallback_params.append(f"id={chapter.id}")
-            if fallback_params:
-                url_variants.append(f"{base_endpoint}?{'&'.join(fallback_params)}")
+            if chapter_id_value:
+                path_variant = f"{base_endpoint}/{chapter_id_value}"
+                if branch_value:
+                    path_variant = f"{path_variant}?branch_id={branch_value}"
+                url_variants.append(path_variant)
 
-        # Удаляем дубликаты, сохраняя порядок
+                chapter_id_query = _build_query({
+                    "chapter_id": chapter_id_value,
+                    "branch_id": branch_value,
+                })
+                if chapter_id_query:
+                    url_variants.append(chapter_id_query)
+
+                generic_id_query = _build_query({
+                    "id": chapter_id_value,
+                    "branch_id": branch_value,
+                })
+                if generic_id_query:
+                    url_variants.append(generic_id_query)
+
+            fallback_query = _build_query({
+                "branch_id": branch_value,
+                "id": chapter_id_value,
+            })
+            if fallback_query:
+                url_variants.append(fallback_query)
+
+        # Пытаемся сначала с branch_id, затем без него, чтобы обойти требования API
+        _extend_variants(include_branch=True)
+        _extend_variants(include_branch=False)
+
+        # Удаляем дубликаты, сохраняя порядок добавления
         url_variants = list(dict.fromkeys(url_variants))
 
         last_error: str | None = None
