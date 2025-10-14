@@ -51,6 +51,14 @@ interface AutoParseTask {
   logs?: string[]  // Логи в реальном времени
 }
 
+interface AutoUpdateSummaryEntry {
+  slug: string
+  title?: string
+  new_chapters: number
+  chapter_labels: string[]
+  chapter_numbers?: number[]
+}
+
 interface AutoUpdateTask {
   task_id: string
   status: string
@@ -64,6 +72,9 @@ interface AutoUpdateTask {
   start_time: string
   end_time?: string
   logs?: string[]  // Логи в реальном времени
+  mangas_with_updates?: number
+  updated_slugs?: string[]
+  updated_details?: AutoUpdateSummaryEntry[]
 }
 
 const AUTO_PARSE_STORAGE_KEY = 'autoParseTaskState'
@@ -435,23 +446,131 @@ const normalizeAutoParseTask = (payload: Partial<AutoParseTask> | null | undefin
   }
 }
 
+const normalizeStringArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  const normalized: string[] = []
+  value.forEach((entry) => {
+    if (entry === null || entry === undefined) {
+      return
+    }
+    const str = typeof entry === 'string' ? entry.trim() : String(entry).trim()
+    if (str.length > 0) {
+      normalized.push(str)
+    }
+  })
+  return normalized
+}
+
+const normalizeNumberArray = (value: unknown): number[] => {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  const normalized: number[] = []
+  value.forEach((entry) => {
+    if (typeof entry === 'number' && Number.isFinite(entry)) {
+      normalized.push(entry)
+      return
+    }
+    if (typeof entry === 'string' && entry.trim() !== '') {
+      const parsed = Number(entry)
+      if (Number.isFinite(parsed)) {
+        normalized.push(parsed)
+      }
+    }
+  })
+  return normalized
+}
+
+const normalizeAutoUpdateDetails = (value: unknown): AutoUpdateSummaryEntry[] => {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  const normalized: AutoUpdateSummaryEntry[] = []
+  value.forEach((entry) => {
+    if (!entry || typeof entry !== 'object') {
+      return
+    }
+
+    const record = entry as Record<string, unknown>
+    const slugSource = record.slug ?? (record as Record<string, unknown>)['melon_slug'] ?? (record as Record<string, unknown>)['melonSlug']
+    if (slugSource === null || slugSource === undefined) {
+      return
+    }
+
+    const slug = typeof slugSource === 'string' ? slugSource.trim() : String(slugSource).trim()
+    if (!slug) {
+      return
+    }
+
+    const titleSource = record.title ?? record['name'] ?? record['manga_title']
+    const title = typeof titleSource === 'string' ? titleSource : undefined
+
+    const newChapters = toNumber(record.new_chapters ?? record.newChapters) ?? 0
+    const chapterLabels = normalizeStringArray(record.chapter_labels ?? record.chapterLabels)
+    const chapterNumbers = normalizeNumberArray(record.chapter_numbers ?? record.chapterNumbers)
+
+    const detail: AutoUpdateSummaryEntry = {
+      slug,
+      title,
+      new_chapters: newChapters,
+      chapter_labels: chapterLabels
+    }
+
+    if (chapterNumbers.length > 0) {
+      detail.chapter_numbers = chapterNumbers
+    }
+
+    normalized.push(detail)
+  })
+
+  return normalized
+}
+
 const normalizeAutoUpdateTask = (payload: Partial<AutoUpdateTask> | null | undefined): AutoUpdateTask => {
-  const base: AutoUpdateTask = {
-    task_id: String(payload?.task_id ?? ''),
+  const updatedMangas = normalizeStringArray((payload as any)?.updated_mangas ?? (payload as any)?.updatedMangas)
+  const failedMangas = normalizeStringArray((payload as any)?.failed_mangas ?? (payload as any)?.failedMangas)
+  const updatedDetails = normalizeAutoUpdateDetails((payload as any)?.updated_details ?? (payload as any)?.updatedDetails)
+  const updatedSlugs = normalizeStringArray((payload as any)?.updated_slugs ?? (payload as any)?.updatedSlugs)
+  const rawMangasWithUpdates = toNumber((payload as any)?.mangas_with_updates ?? (payload as any)?.mangasWithUpdates)
+
+  const logs = Array.isArray(payload?.logs)
+    ? payload!.logs
+        .filter((entry) => entry !== null && entry !== undefined)
+        .map((entry) => (typeof entry === 'string' ? entry : String(entry)))
+    : []
+
+  const computedMangasWithUpdates = typeof rawMangasWithUpdates === 'number'
+    ? rawMangasWithUpdates
+    : updatedDetails.length > 0
+      ? updatedDetails.length
+      : updatedSlugs.length > 0
+        ? updatedSlugs.length
+        : updatedMangas.length
+
+  return {
+    task_id: String((payload as any)?.task_id ?? (payload as any)?.taskId ?? ''),
     status: String(payload?.status ?? 'pending'),
     progress: typeof payload?.progress === 'number' ? payload.progress : 0,
     message: typeof payload?.message === 'string' ? payload.message : '',
     total_mangas: typeof payload?.total_mangas === 'number' ? payload.total_mangas : 0,
     processed_mangas: typeof payload?.processed_mangas === 'number' ? payload.processed_mangas : 0,
-    updated_mangas: Array.isArray(payload?.updated_mangas) ? payload!.updated_mangas : [],
-    failed_mangas: Array.isArray(payload?.failed_mangas) ? payload!.failed_mangas : [],
-    new_chapters_count: typeof payload?.new_chapters_count === 'number' ? payload.new_chapters_count : 0,
+    updated_mangas: updatedMangas,
+    failed_mangas: failedMangas,
+    new_chapters_count: typeof payload?.new_chapters_count === 'number'
+      ? payload.new_chapters_count
+      : toNumber((payload as any)?.newChaptersCount) ?? 0,
     start_time: typeof payload?.start_time === 'string' ? payload.start_time : new Date().toISOString(),
     end_time: typeof payload?.end_time === 'string' ? payload.end_time : undefined,
-    logs: Array.isArray(payload?.logs) ? payload!.logs : []
+    logs,
+    mangas_with_updates: computedMangasWithUpdates,
+    updated_slugs: updatedSlugs,
+    updated_details: updatedDetails
   }
-
-  return base
 }
 
 const normalizeCleanupIdList = (value: unknown): number[] => {
@@ -810,6 +929,16 @@ export function MangaManagement() {
     return augmented
   }, [autoParseTask?.logs, autoUpdateTask?.logs, selectedLogSource])
 
+  const updatedDetails = autoUpdateTask?.updated_details ?? []
+  const updatedSlugs = autoUpdateTask?.updated_slugs ?? []
+  const fallbackUpdatedMangas = autoUpdateTask?.updated_mangas ?? []
+  const updatedMangaCount = autoUpdateTask?.mangas_with_updates
+    ?? (updatedDetails.length > 0
+      ? updatedDetails.length
+      : updatedSlugs.length > 0
+        ? updatedSlugs.length
+        : fallbackUpdatedMangas.length)
+
   const persistAutoParseTask = useCallback((task: AutoParseTask | null) => {
     if (typeof window === 'undefined') {
       return
@@ -984,9 +1113,13 @@ export function MangaManagement() {
 
     if (currentStatus && currentStatus !== previousStatus && FINAL_AUTO_STATUSES.has(currentStatus.toLowerCase())) {
       if (currentStatus.toLowerCase() === 'completed') {
-        const updated = autoUpdateTask?.updated_mangas?.length ?? 0
+        const updated = autoUpdateTask?.mangas_with_updates
+          ?? autoUpdateTask?.updated_details?.length
+          ?? autoUpdateTask?.updated_slugs?.length
+          ?? autoUpdateTask?.updated_mangas?.length
+          ?? 0
         const newChapters = autoUpdateTask?.new_chapters_count ?? 0
-        toast.success(`Автообновление завершено! Обновлено манг: ${updated}, добавлено глав: ${newChapters}`)
+        toast.success(`Автообновление завершено! Тайтлов с новыми главами: ${updated}, добавлено глав: ${newChapters}`)
       } else if (currentStatus.toLowerCase() === 'failed') {
         toast.error('Автообновление завершилось с ошибкой')
       }
@@ -1696,8 +1829,8 @@ export function MangaManagement() {
                   <span className="ml-2 text-white">{autoUpdateTask.processed_mangas}</span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Обновлено манг:</span>
-                  <span className="ml-2 text-green-500">{autoUpdateTask.updated_mangas.length}</span>
+                  <span className="text-muted-foreground">Тайтлов с новыми главами:</span>
+                  <span className="ml-2 text-green-500">{updatedMangaCount}</span>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Добавлено глав:</span>
@@ -1709,13 +1842,32 @@ export function MangaManagement() {
                 </div>
               </div>
 
-              {autoUpdateTask.updated_mangas.length > 0 && (
+              {(updatedDetails.length > 0 || updatedSlugs.length > 0 || fallbackUpdatedMangas.length > 0) && (
                 <div className="space-y-1">
-                  <p className="text-sm font-medium text-white">Обновленные манги:</p>
-                  <div className="text-xs text-muted-foreground max-h-32 overflow-y-auto">
-                    {autoUpdateTask.updated_mangas.map((manga, i) => (
-                      <div key={i}>• {manga}</div>
-                    ))}
+                  <p className="text-sm font-medium text-white">Тайтлы с обновлениями:</p>
+                  <div className="text-xs text-muted-foreground max-h-32 overflow-y-auto space-y-1">
+                    {updatedDetails.length > 0 ? (
+                      updatedDetails.map((entry) => (
+                        <div key={`${entry.slug}-${entry.new_chapters}`} className="leading-snug">
+                          <span className="text-white">{entry.slug}</span>
+                          {entry.title && <span className="text-muted-foreground"> — {entry.title}</span>}
+                          <span className="text-green-400 ml-1">(+{entry.new_chapters} глав)</span>
+                          {entry.chapter_labels.length > 0 && (
+                            <div className="text-[11px] text-muted-foreground/80">
+                              Главы: {entry.chapter_labels.join(', ')}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    ) : updatedSlugs.length > 0 ? (
+                      updatedSlugs.map((slug) => (
+                        <div key={slug}>• {slug}</div>
+                      ))
+                    ) : (
+                      fallbackUpdatedMangas.map((item, index) => (
+                        <div key={`${item}-${index}`}>• {item}</div>
+                      ))
+                    )}
                   </div>
                 </div>
               )}
