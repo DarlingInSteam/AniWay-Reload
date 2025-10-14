@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Download, RefreshCw, Loader2, CheckCircle, XCircle, AlertCircle, Search, ListFilter, Layers, Trash2 } from 'lucide-react'
+import { Download, RefreshCw, Loader2, CheckCircle, XCircle, AlertCircle, Search, ListFilter, Layers, Trash2, Eraser } from 'lucide-react'
 import { toast } from 'sonner'
 import { ImportQueueMonitor } from './ImportQueueMonitor'
 
@@ -62,6 +62,15 @@ interface AutoUpdateTask {
   start_time: string
   end_time?: string
   logs?: string[]  // Логи в реальном времени
+}
+
+interface EmptyChaptersCleanupResult {
+  totalChecked: number
+  emptyDetected: number
+  deletedCount: number
+  deletedChapterIds: number[]
+  deletionFailedIds: number[]
+  pageCheckFailedIds: number[]
 }
 
 const AUTO_PARSE_STORAGE_KEY = 'autoParseTaskState'
@@ -452,6 +461,38 @@ const normalizeAutoUpdateTask = (payload: Partial<AutoUpdateTask> | null | undef
   return base
 }
 
+const normalizeCleanupIdList = (value: unknown): number[] => {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value
+    .map((entry) => {
+      if (typeof entry === 'number' && Number.isFinite(entry)) {
+        return entry
+      }
+      if (typeof entry === 'string' && entry.trim() !== '') {
+        const parsed = Number(entry)
+        if (Number.isFinite(parsed)) {
+          return parsed
+        }
+      }
+      return null
+    })
+    .filter((entry): entry is number => typeof entry === 'number')
+}
+
+const normalizeCleanupResult = (payload: Partial<EmptyChaptersCleanupResult> | null | undefined): EmptyChaptersCleanupResult => {
+  return {
+    totalChecked: typeof payload?.totalChecked === 'number' ? payload.totalChecked : 0,
+    emptyDetected: typeof payload?.emptyDetected === 'number' ? payload.emptyDetected : 0,
+    deletedCount: typeof payload?.deletedCount === 'number' ? payload.deletedCount : 0,
+    deletedChapterIds: normalizeCleanupIdList(payload?.deletedChapterIds),
+    deletionFailedIds: normalizeCleanupIdList(payload?.deletionFailedIds),
+    pageCheckFailedIds: normalizeCleanupIdList(payload?.pageCheckFailedIds)
+  }
+}
+
 // Компонент для отображения логов в реальном времени
 function LogViewer({ logs }: { logs?: string[] }) {
   const logContainerRef = useRef<HTMLDivElement>(null)
@@ -665,6 +706,8 @@ export function MangaManagement() {
   const [isAutoParsing, setIsAutoParsing] = useState(false)
   const [isAutoUpdating, setIsAutoUpdating] = useState(false)
   const [isCleaningMelon, setIsCleaningMelon] = useState(false)
+  const [isCleaningEmptyChapters, setIsCleaningEmptyChapters] = useState(false)
+  const [lastCleanupResult, setLastCleanupResult] = useState<EmptyChaptersCleanupResult | null>(null)
   const [automationHydrated, setAutomationHydrated] = useState(false)
   const [selectedLogSource, setSelectedLogSource] = useState<AutomationLogSource>('combined')
 
@@ -1106,6 +1149,48 @@ export function MangaManagement() {
     }
   }
 
+  const cleanupEmptyChapters = async () => {
+    if (isCleaningEmptyChapters) {
+      return
+    }
+
+    setIsCleaningEmptyChapters(true)
+
+    try {
+      const response = await fetch('/api/chapters/cleanup-empty', { method: 'POST' })
+      const rawPayload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        const message = rawPayload?.message || rawPayload?.error || 'Не удалось очистить пустые главы'
+        toast.error(message)
+        return
+      }
+
+      const normalized = normalizeCleanupResult(rawPayload)
+      setLastCleanupResult(normalized)
+
+      if (normalized.deletedCount > 0) {
+        toast.success(`Удалено пустых глав: ${normalized.deletedCount}`)
+      } else if (normalized.emptyDetected > 0) {
+        toast.warning('Найдены пустые главы, но удалить их не удалось. Проверьте логи.')
+      } else {
+        toast.success('Пустых глав не обнаружено')
+      }
+
+      if (normalized.deletionFailedIds.length > 0) {
+        toast.warning(`Не удалось удалить ${normalized.deletionFailedIds.length} глав`)
+      }
+
+      if (normalized.pageCheckFailedIds.length > 0) {
+        toast.warning(`Не удалось проверить страницы у ${normalized.pageCheckFailedIds.length} глав`)
+      }
+    } catch (error) {
+      toast.error('Ошибка соединения с сервером при очистке пустых глав')
+    } finally {
+      setIsCleaningEmptyChapters(false)
+    }
+  }
+
   // Автообновление манги
   const startAutoUpdate = async () => {
     setIsAutoUpdating(true)
@@ -1202,6 +1287,56 @@ export function MangaManagement() {
             <p className="text-xs text-muted-foreground">
               Удаляет артефакты прошлых запусков (архивы, изображения и JSON файлы), сохраняя структуру директорий.
             </p>
+          </div>
+
+          <div className="rounded-lg border border-border/60 bg-background/40 p-3 space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Eraser className="h-4 w-4" />
+                <span>Очистить пустые главы (0 страниц) во всех мангах</span>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={cleanupEmptyChapters}
+                disabled={isCleaningEmptyChapters}
+                className="whitespace-nowrap"
+              >
+                {isCleaningEmptyChapters ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Очистка...
+                  </>
+                ) : (
+                  <>
+                    <Eraser className="h-4 w-4 mr-2" />
+                    Очистить пустые главы
+                  </>
+                )}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Перепроверяет каждую главу через ImageStorageService и удаляет только те, в которых нет страниц. Список удалённых глав появится ниже.
+            </p>
+            {lastCleanupResult && (
+              <div className="text-xs text-muted-foreground/90 space-y-1">
+                <p>
+                  Проверено глав: <span className="text-white">{lastCleanupResult.totalChecked}</span>. Найдено пустых: <span className="text-white">{lastCleanupResult.emptyDetected}</span>. Удалено: <span className="text-green-400">{lastCleanupResult.deletedCount}</span>.
+                </p>
+                {(lastCleanupResult.deletionFailedIds.length > 0 || lastCleanupResult.pageCheckFailedIds.length > 0) && (
+                  <p>
+                    Пропущено из-за ошибок: {lastCleanupResult.deletionFailedIds.length + lastCleanupResult.pageCheckFailedIds.length}.{' '}
+                    {lastCleanupResult.deletionFailedIds.length > 0 && (
+                      <span>Удаление: <span className="text-white">{lastCleanupResult.deletionFailedIds.length}</span>. </span>
+                    )}
+                    {lastCleanupResult.pageCheckFailedIds.length > 0 && (
+                      <span>Проверка страниц: <span className="text-white">{lastCleanupResult.pageCheckFailedIds.length}</span>.</span>
+                    )}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">

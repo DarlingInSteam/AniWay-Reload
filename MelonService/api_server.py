@@ -1759,6 +1759,8 @@ async def get_chapter_images(filename: str, chapter: str):
             chapter_dir = None
             requested_chapter = chapter.strip()
             
+            logger.info(f"🔎 Looking for chapter: '{requested_chapter}' (len={len(requested_chapter)}) in {manga_dir}")
+            
             for potential_dir in manga_dir.iterdir():
                 if potential_dir.is_dir():
                     dir_name = potential_dir.name.strip()
@@ -1766,12 +1768,14 @@ async def get_chapter_images(filename: str, chapter: str):
                     # 1. Точное совпадение
                     if dir_name == requested_chapter:
                         chapter_dir = potential_dir
+                        logger.info(f"✅ Exact match: '{dir_name}'")
                         break
                     
                     # 2. Начинается с "номер главы." или "номер главы "
                     if (dir_name.startswith(f"{requested_chapter}.") or 
                         dir_name.startswith(f"{requested_chapter} ")):
                         chapter_dir = potential_dir
+                        logger.info(f"✅ Prefix match (. or space): '{dir_name}'")
                         break
                     
                     # 3. Fuzzy match: запрошенное название — префикс реального (игнорируя спецсимволы в конце)
@@ -1783,8 +1787,11 @@ async def get_chapter_images(filename: str, chapter: str):
                             next_char = dir_name[next_char_idx]
                             if next_char in ['?', '!', '.', ' ', '(', ')', ',', ':']:
                                 chapter_dir = potential_dir
-                                logger.info(f"🔍 Fuzzy match: '{requested_chapter}' -> '{dir_name}'")
+                                logger.info(f"✅ Fuzzy match: '{requested_chapter}' -> '{dir_name}' (next char: '{next_char}')")
                                 break
+                    
+                    # Логируем все проверенные папки для отладки
+                    logger.debug(f"  ❌ No match: '{dir_name}' (len={len(dir_name)})")
             
             if not chapter_dir:
                 return False

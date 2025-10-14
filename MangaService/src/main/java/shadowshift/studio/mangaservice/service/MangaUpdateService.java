@@ -28,6 +28,14 @@ import java.util.stream.Collectors;
 public class MangaUpdateService {
 
     private static final Logger logger = LoggerFactory.getLogger(MangaUpdateService.class);
+    private static final List<String> PAID_FLAG_KEYS = Arrays.asList(
+        "is_paid",
+        "isPaid",
+        "paid",
+        "is_paid_chapter",
+        "locked",
+        "is_locked"
+    );
 
     @Autowired
     private MangaRepository mangaRepository;
@@ -265,6 +273,11 @@ public class MangaUpdateService {
                     int volume = volumeObj != null ? Integer.parseInt(volumeObj.toString()) : 1;
                     double number = Double.parseDouble(numberObj.toString());
                     double chapterNum = volume * 10000 + number;
+
+                    if (isChapterPaid(chapterMeta)) {
+                        logger.debug("Глава {} (том {}) отмечена как платная, пропускаем при проверке обновлений", numberObj, volumeObj);
+                        continue;
+                    }
                     
                     // Проверяем, является ли глава новой
                     if (!existingChapterNumbers.contains(chapterNum)) {
@@ -333,6 +346,11 @@ public class MangaUpdateService {
                         double number = Double.parseDouble(numberObj.toString());
                         double chapterNum = volume * 10000 + number;
                         
+                        if (isChapterPaid(chapter)) {
+                            logger.debug("Глава {} (том {}) отмечена как платная, пропускаем при импорте", numberObj, volumeObj);
+                            continue;
+                        }
+
                         // Проверяем, является ли эта глава новой (улучшенное сравнение)
                         if (!existingChapterNumbers.contains(chapterNum)) {
                             newChaptersWithSlides.add(chapter);
@@ -400,6 +418,10 @@ public class MangaUpdateService {
                 for (Map<String, Object> chapter : branchChapters) {
                     Object numberObj = chapter.get("number");
                     if (numberObj != null) {
+                        if (isChapterPaid(chapter)) {
+                            logger.debug("Глава {} пропущена при импорте новых глав, так как она платная", numberObj);
+                            continue;
+                        }
                         // Проверяем, является ли эта глава новой (улучшенное сравнение)
                         String chapterNumStr = String.valueOf(numberObj);
                         boolean isNewChapter = newChapters.stream()
@@ -433,6 +455,11 @@ public class MangaUpdateService {
         
         try {
             for (Map<String, Object> chapterData : chapters) {
+                if (isChapterPaid(chapterData)) {
+                    Object numberObj = chapterData.get("number");
+                    logger.info("Глава {} помечена как платная, пропускаем импорт", numberObj);
+                    continue;
+                }
                 // Получаем номер главы
                 Object volumeObj = chapterData.get("volume");
                 Object numberObj = chapterData.get("number");
@@ -487,6 +514,8 @@ public class MangaUpdateService {
                     List<Map<String, Object>> slides = (List<Map<String, Object>>) chapterData.get("slides");
                     if (slides != null && !slides.isEmpty()) {
                         importChapterPages(chapterId, slides, filename, numberObj.toString());
+                    } else {
+                        logger.warn("Пропускаем импорт страниц для главы {}: слайды отсутствуют (возможно, глава платная)", chapterNumber);
                     }
 
                     logger.info("Успешно импортирована глава {} для манги {}", chapterNumber, mangaId);
@@ -612,6 +641,40 @@ public class MangaUpdateService {
         }
 
         logger.error("Превышено время ожидания завершения задачи");
+        return false;
+    }
+
+    private boolean isChapterPaid(Map<String, Object> chapterData) {
+        if (chapterData == null) {
+            return false;
+        }
+
+        for (String key : PAID_FLAG_KEYS) {
+            if (!chapterData.containsKey(key)) {
+                continue;
+            }
+
+            Object value = chapterData.get(key);
+            if (value == null) {
+                continue;
+            }
+
+            if (value instanceof Boolean) {
+                if ((Boolean) value) {
+                    return true;
+                }
+            } else if (value instanceof Number) {
+                if (((Number) value).intValue() != 0) {
+                    return true;
+                }
+            } else {
+                String strValue = value.toString().trim().toLowerCase(Locale.ROOT);
+                if (strValue.equals("true") || strValue.equals("1") || strValue.equals("yes") || strValue.equals("paid")) {
+                    return true;
+                }
+            }
+        }
+
         return false;
     }
 

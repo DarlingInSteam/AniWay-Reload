@@ -1,12 +1,15 @@
 package shadowshift.studio.chapterservice.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
+import shadowshift.studio.chapterservice.dto.ChapterCleanupResultDTO;
 import shadowshift.studio.chapterservice.dto.ChapterCreateDTO;
 import shadowshift.studio.chapterservice.dto.ChapterResponseDTO;
 import shadowshift.studio.chapterservice.entity.Chapter;
@@ -30,6 +33,8 @@ import org.springframework.web.client.RestTemplate;
  */
 @Service
 public class ChapterService {
+
+    private static final Logger logger = LoggerFactory.getLogger(ChapterService.class);
 
     @Autowired
     private ChapterRepository chapterRepository;
@@ -290,6 +295,71 @@ public class ChapterService {
         }
 
         chapterRepository.deleteById(id);
+    }
+
+    /**
+     * Удаляет все главы, у которых отсутствуют страницы в ImageStorageService.
+     * Метод сначала проверяет все главы, фиксирует идентификаторы пустых глав,
+     * затем выполняет их удаление единым блоком.
+     *
+     * @return результат очистки с подсчетом найденных и удаленных глав
+     */
+    @CacheEvict(value = {"chaptersByManga", "chapterDetails", "chapterCount", "nextChapter", "previousChapter"}, allEntries = true)
+    public ChapterCleanupResultDTO cleanupEmptyChapters() {
+        List<Chapter> allChapters = chapterRepository.findAll();
+        if (allChapters.isEmpty()) {
+            return new ChapterCleanupResultDTO(0, 0, 0, List.of(), List.of(), List.of());
+        }
+
+        List<Long> emptyChapterIds = new java.util.ArrayList<>();
+        List<Long> pageCheckFailed = new java.util.ArrayList<>();
+
+        for (Chapter chapter : allChapters) {
+            Long chapterId = chapter.getId();
+            try {
+                Integer pageCount = getPageCountFromImageService(chapterId);
+                int normalized = pageCount != null ? pageCount : 0;
+                if (normalized <= 0) {
+                    emptyChapterIds.add(chapterId);
+                }
+            } catch (Exception ex) {
+                pageCheckFailed.add(chapterId);
+                logger.warn("Failed to check page count for chapter {}: {}", chapterId, ex.getMessage());
+            }
+        }
+
+        if (emptyChapterIds.isEmpty()) {
+            return new ChapterCleanupResultDTO(
+                allChapters.size(),
+                0,
+                0,
+                List.of(),
+                List.of(),
+                pageCheckFailed
+            );
+        }
+
+        List<Long> deletedChapterIds = new java.util.ArrayList<>();
+        List<Long> deletionFailedIds = new java.util.ArrayList<>();
+
+        for (Long chapterId : emptyChapterIds) {
+            try {
+                deleteChapter(chapterId);
+                deletedChapterIds.add(chapterId);
+            } catch (Exception ex) {
+                deletionFailedIds.add(chapterId);
+                logger.error("Failed to delete empty chapter {}: {}", chapterId, ex.getMessage());
+            }
+        }
+
+        return new ChapterCleanupResultDTO(
+            allChapters.size(),
+            emptyChapterIds.size(),
+            deletedChapterIds.size(),
+            deletedChapterIds,
+            deletionFailedIds,
+            pageCheckFailed
+        );
     }
 
     /**

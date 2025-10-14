@@ -42,6 +42,10 @@ public class AutoParsingService {
     // Необходим для связывания логов от MelonService с задачей автопарсинга
     private final Map<String, String> parseTaskToAutoParseTask = new HashMap<>();
 
+    void setMelonServiceForTesting(MelonIntegrationService melonService) {
+        this.melonService = melonService;
+    }
+
     /**
      * Запускает автоматический парсинг манг из каталога MangaLib по номеру страницы
      * 
