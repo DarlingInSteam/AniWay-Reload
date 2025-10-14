@@ -66,10 +66,12 @@ public class ProgressController {
 
             // Если есть логи, добавляем их в задачу автопарсинга/автообновления
             if (logs != null && !logs.isEmpty()) {
+                logger.info("📋 Получено {} логов от MelonService для задачи {}", logs.size(), taskId);
                 for (String log : logs) {
                     autoParsingService.addLogToTask(taskId, log);
                     mangaUpdateService.addLogToUpdateTask(taskId, log);
                 }
+                logger.info("✅ Логи успешно переданы в AutoParsingService и MangaUpdateService");
             }
 
             if (status == null) {

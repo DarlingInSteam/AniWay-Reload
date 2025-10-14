@@ -198,17 +198,18 @@ public class MangaUpdateService {
         String updateTaskId = parseTaskToUpdateTask.get(taskId);
         
         // Если это parseTaskId, используем связанный updateTaskId
+        String actualTaskId = taskId;
         if (updateTaskId != null) {
-            taskId = updateTaskId;
+            actualTaskId = updateTaskId;
             logger.debug("Лог для parseTaskId={} перенаправлен в updateTaskId={}", taskId, updateTaskId);
         }
         
-        UpdateTask task = updateTasks.get(taskId);
+        UpdateTask task = updateTasks.get(actualTaskId);
         if (task != null) {
             appendLog(task, logMessage);
-            logger.debug("Добавлен лог в задачу автообновления {}: {}", taskId, logMessage);
+            logger.debug("✅ Добавлен лог в задачу автообновления {}: {}", actualTaskId, logMessage);
         } else {
-            logger.debug("Задача автообновления не найдена для taskId={}, лог проигнорирован: {}", taskId, logMessage);
+            logger.warn("⚠️ Задача автообновления не найдена для actualTaskId={} (originalTaskId={}), лог проигнорирован: {}", actualTaskId, taskId, logMessage);
         }
     }
 
