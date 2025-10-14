@@ -66,7 +66,7 @@ public class ChapterService {
     @Value("${image.storage.service.url}")
     private String imageStorageServiceUrl;
 
-    @Value("${image.storage.service.internal-url:http://image-storage-service:8086}")
+    @Value("${image.storage.service.internal-url:http://image-storage-service:8083}")
     private String imageStorageServiceInternalUrl;
 
     private final Set<String> reportedImageServiceConnectionIssues = ConcurrentHashMap.newKeySet();

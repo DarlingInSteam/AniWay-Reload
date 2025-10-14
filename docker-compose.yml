@@ -288,6 +288,7 @@ services:
       - SPRING_DATASOURCE_PASSWORD=chapter_password
       - MANGA_SERVICE_URL=http://manga-service:8081
       - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
+      - IMAGE_STORAGE_SERVICE_INTERNAL_URL=http://image-storage-service:8083
     ports:
       - "8082:8082"
     depends_on:
