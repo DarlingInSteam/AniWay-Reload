@@ -32,7 +32,7 @@ class AdaptiveParallelDownloader:
         self,
         proxy_count: int,
         download_func: Callable[..., Optional[str]],
-        max_workers_per_proxy: int = 2,
+        max_workers_per_proxy: int = 1,
         max_retries: int = 3,
         base_delay: float = 0.1,
         retry_delay: float = 1.0,

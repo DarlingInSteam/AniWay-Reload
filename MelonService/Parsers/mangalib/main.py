@@ -709,7 +709,7 @@ class Parser(MangaParser):
         self._parallel_downloader = AdaptiveParallelDownloader(
             proxy_count=proxy_count,
             download_func=self._download_image_wrapper,
-            max_workers_per_proxy=2,
+            max_workers_per_proxy=1,
             max_retries=3,
             base_delay=image_delay,
             max_total_workers=max_workers_override,
@@ -719,16 +719,25 @@ class Parser(MangaParser):
         print(f"[CRITICAL_DEBUG] AdaptiveParallelDownloader CREATED successfully!", flush=True)
         self._proxy_health_lock = Lock()
         self._proxy_health = {}
-        self._proxy_failure_threshold = 2
-        self._proxy_failure_penalty_seconds = 300.0
-        self._proxy_slow_hits_threshold = 3
-        self._proxy_slow_penalty_seconds = 150.0
-        self._proxy_min_speed_bytes = 120 * 1024  # 120 KB/s
+        # Более терпимые настройки по умолчанию чтобы не банить много прокси сразу
+        # Количество ошибок до временного бана (увеличено чтобы избежать агрессивного бана)
+        self._proxy_failure_threshold = 4
+        # Длительность временного бана (уменьшена чтобы быстро вернуть прокси в пул)
+        self._proxy_failure_penalty_seconds = 120.0
+        # Сколько "медленных" попаданий учитываем перед наказанием
+        self._proxy_slow_hits_threshold = 5
+        # Мягкий penalty для медленных попаданий
+        self._proxy_slow_penalty_seconds = 60.0
+        # Порог скорости (байт/сек). Снизил до ~40 KB/s чтобы соответствовать реальным проксям
+        self._proxy_min_speed_bytes = 40 * 1024  # 40 KB/s
+        # Минимальная длительность для проверки скорости (сек)
         self._proxy_min_duration_for_speed = 3.0
-        self._slow_check_min_size_bytes = 80 * 1024  # пропускаем совсем мелкие изображения
+        # Минимальный размер для проверки скорости — увеличим немного чтобы пропускать мелкие картинки
+        self._slow_check_min_size_bytes = 120 * 1024  # 120 KB
+        # cooldown логирования медленных прокси
         self._slow_retry_logging_cooldown = 45.0
         self._proxy_last_warn: dict[str, float] = {}
-        
+
         # Кешируем сервер изображений для ускорения парсинга
         self._cached_image_server = None
 
