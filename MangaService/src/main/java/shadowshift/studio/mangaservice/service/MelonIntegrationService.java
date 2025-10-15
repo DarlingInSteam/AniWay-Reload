@@ -2207,7 +2207,7 @@ public class MelonIntegrationService {
             .collect(Collectors.toList());
     }
 
-    private String resolveChapterFolderName(String numberAsString, Object titleObj, Integer volumeNumber,
+    public String resolveChapterFolderName(String numberAsString, Object titleObj, Integer volumeNumber,
                                             Map<String, Object> chapterData, Long chapterId) {
         String folderName = numberAsString != null ? numberAsString.trim() : "";
         String titlePart = titleObj != null ? titleObj.toString().trim() : "";
