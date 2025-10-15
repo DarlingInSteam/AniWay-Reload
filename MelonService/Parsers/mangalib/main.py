@@ -7,6 +7,7 @@ from dublib.WebRequestor import WebRequestor
 
 import random
 from datetime import datetime
+from threading import Lock
 from time import sleep
 from typing import Optional
 from email.utils import parsedate_to_datetime
@@ -209,12 +210,18 @@ class Parser(MangaParser):
         if os.path.exists(image_path) and not self._SystemObjects.FORCE_MODE:
             return image_filename
 
+        proxy_key = None
+        proxies = None
+        if hasattr(self, '_ProxyRotator') and self._ProxyRotator:
+            proxies, proxy_key = self._acquire_proxy()
+
         try:
             # Получаем основной WebRequestor
             requestor = self._ImagesDownloader._ImagesDownloader__Requestor
 
             # Создаем НЕЗАВИСИМУЮ сессию requests для этого потока
             session = requests.Session()
+            import time
 
             # Копируем cookies из WebRequestor Session (thread-safe read)
             source_session = None
@@ -250,15 +257,9 @@ class Parser(MangaParser):
                 'Referer': 'https://mangalib.me/',
             })
 
-            # Получаем прокси (опционально)
-            proxies = None
-            if hasattr(self, '_ProxyRotator') and self._ProxyRotator:
-                proxy = self._ProxyRotator.get_next_proxy()
-                if proxy and isinstance(proxy, dict):
-                    proxies = proxy
-
             # ПАРАЛЛЕЛЬНЫЙ HTTP запрос через независимую сессию!
             # stream=True для защиты от IncompleteRead на больших файлах
+            request_started_at = time.perf_counter()
             response = session.get(url, timeout=30, proxies=proxies, stream=True)
 
             if response.status_code == 200:
@@ -271,7 +272,10 @@ class Parser(MangaParser):
                         total_bytes += len(chunk)
                         f.write(chunk)
 
+                elapsed = time.perf_counter() - request_started_at
+
                 if total_bytes > 1000:
+                    self._record_proxy_success(proxy_key, elapsed, total_bytes)
                     return image_filename
 
                 # Если файл подозрительно маленький, удаляем его и считаем попытку неуспешной
@@ -280,16 +284,216 @@ class Parser(MangaParser):
                         os.remove(image_path)
                     except OSError:
                         pass
+                self._record_proxy_failure(proxy_key, reason="tiny-response", details={"bytes": total_bytes, "elapsed": elapsed})
+                return None
+
+            self._record_proxy_failure(proxy_key, reason=f"HTTP {response.status_code}")
 
         except Exception as e:
             # Тихо пропускаем ошибки, retry механизм обработает
-            pass
+            self._record_proxy_failure(proxy_key, reason=str(e))
         finally:
             # Закрываем сессию
             if 'session' in locals():
                 session.close()
 
         return None
+
+    def _acquire_proxy(self) -> tuple[dict[str, str] | None, str | None]:
+        """Возвращает пару (proxy_dict, proxy_key), учитывая временные баны."""
+
+        rotator = getattr(self, "_ProxyRotator", None)
+        if not rotator:
+            return None, None
+
+        try:
+            total = rotator.get_proxy_count()
+        except Exception:
+            total = 0
+
+        total = max(1, total)
+        fallback_proxy = None
+        fallback_key = None
+
+        for _ in range(total):
+            proxy_candidate = rotator.get_next_proxy()
+            if not proxy_candidate:
+                break
+
+            proxy_key = self._normalize_proxy_key(proxy_candidate)
+
+            if fallback_proxy is None:
+                fallback_proxy = proxy_candidate
+                fallback_key = proxy_key
+
+            if proxy_key and self._is_proxy_blacklisted(proxy_key):
+                continue
+
+            return proxy_candidate, proxy_key
+
+        return fallback_proxy, fallback_key
+
+    def _normalize_proxy_key(self, proxy: dict[str, str] | None) -> str | None:
+        if not proxy:
+            return None
+
+        raw_url = proxy.get('http') or proxy.get('https')
+        if not raw_url:
+            return None
+
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(raw_url)
+            host = parsed.hostname or ""
+            port = parsed.port
+            if not host:
+                return raw_url
+            return f"{host}:{port}" if port else host
+        except Exception:
+            return raw_url
+
+    def _is_proxy_blacklisted(self, proxy_key: str | None) -> bool:
+        if not proxy_key or not hasattr(self, "_proxy_health_lock"):
+            return False
+
+        import time
+
+        with self._proxy_health_lock:
+            info = self._proxy_health.get(proxy_key)
+            if not info:
+                return False
+
+            until = info.get("blacklisted_until")
+            if until and until > time.time():
+                return True
+
+            if until and until <= time.time():
+                info["blacklisted_until"] = None
+
+        return False
+
+    def _record_proxy_success(self, proxy_key: str | None, elapsed: float, total_bytes: int) -> None:
+        if not proxy_key or not hasattr(self, "_proxy_health_lock"):
+            return
+
+        import time
+
+        min_speed = getattr(self, "_proxy_min_speed_bytes", 120 * 1024)
+        min_duration = getattr(self, "_proxy_min_duration_for_speed", 3.0)
+        slow_hits_threshold = getattr(self, "_proxy_slow_hits_threshold", 3)
+        slow_penalty_seconds = getattr(self, "_proxy_slow_penalty_seconds", 150.0)
+
+        with self._proxy_health_lock:
+            info = self._proxy_health.setdefault(proxy_key, {
+                "successes": 0,
+                "failures": 0,
+                "slow_hits": 0,
+                "avg_speed": 0.0,
+                "blacklisted_until": None
+            })
+
+            info["successes"] = info.get("successes", 0) + 1
+            info["failures"] = max(info.get("failures", 0) - 1, 0)
+
+            speed = 0.0
+            if elapsed > 0 and total_bytes > 0:
+                speed = total_bytes / elapsed
+
+            prev_speed = info.get("avg_speed", 0.0)
+            window = min(info["successes"], 20)
+            info["avg_speed"] = prev_speed + (speed - prev_speed) / max(window, 1)
+
+            info["last_speed"] = speed
+            info["last_duration"] = elapsed
+            info["last_bytes"] = total_bytes
+            info["last_success_at"] = time.time()
+
+            slow_hits = info.get("slow_hits", 0)
+            if speed > 0 and speed < min_speed and elapsed >= min_duration:
+                slow_hits += 1
+            else:
+                slow_hits = max(slow_hits - 1, 0)
+
+            info["slow_hits"] = slow_hits
+
+            if (
+                slow_hits >= slow_hits_threshold
+                and slow_penalty_seconds > 0
+            ):
+                info["blacklisted_until"] = time.time() + slow_penalty_seconds
+                info["slow_hits"] = 0
+                label = self._mask_proxy_for_log(proxy_key)
+                self._log_proxy_warning(
+                    f"💤 Proxy {label} throttled at {speed/1024:.0f} KB/s — pausing for {slow_penalty_seconds:.0f}s"
+                )
+
+    def _record_proxy_failure(
+        self,
+        proxy_key: str | None,
+        *,
+        reason: str = "",
+        details: dict[str, object] | None = None
+    ) -> None:
+        if not proxy_key or not hasattr(self, "_proxy_health_lock"):
+            return
+
+        import time
+
+        failure_threshold = getattr(self, "_proxy_failure_threshold", 2)
+        penalty_seconds = getattr(self, "_proxy_failure_penalty_seconds", 300.0)
+
+        with self._proxy_health_lock:
+            info = self._proxy_health.setdefault(proxy_key, {
+                "successes": 0,
+                "failures": 0,
+                "slow_hits": 0,
+                "avg_speed": 0.0,
+                "blacklisted_until": None
+            })
+
+            info["failures"] = info.get("failures", 0) + 1
+            info["slow_hits"] = 0
+
+            if info["failures"] < failure_threshold:
+                return
+
+            info["failures"] = 0
+            if penalty_seconds <= 0:
+                return
+
+            info["blacklisted_until"] = time.time() + penalty_seconds
+            label = self._mask_proxy_for_log(proxy_key)
+
+            extra = ""
+            if reason:
+                extra = f" ({reason})"
+            elif details:
+                extra = f" ({details})"
+
+            self._log_proxy_warning(
+                f"🚫 Proxy {label} disabled for {penalty_seconds:.0f}s after repeated errors{extra}"
+            )
+
+    def _mask_proxy_for_log(self, proxy_key: str | None) -> str:
+        if not proxy_key:
+            return "<direct>"
+
+        host, sep, port = proxy_key.partition(":")
+        parts = host.split(".")
+        if len(parts) == 4 and all(segment.isdigit() for segment in parts):
+            parts[-1] = "x"
+            host = ".".join(parts)
+        elif len(host) > 6:
+            host = f"{host[:2]}…{host[-2:]}"
+
+        return f"{host}{sep}{port}" if sep else host
+
+    def _log_proxy_warning(self, message: str) -> None:
+        logger = getattr(getattr(self, "_SystemObjects", None), "logger", None)
+        if logger and hasattr(logger, "warning"):
+            logger.warning(message)
+        else:
+            print(message)
 
     def _get_scaled_delay(
         self,
@@ -416,6 +620,14 @@ class Parser(MangaParser):
         )
         
         print(f"[CRITICAL_DEBUG] AdaptiveParallelDownloader CREATED successfully!", flush=True)
+        self._proxy_health_lock = Lock()
+        self._proxy_health = {}
+        self._proxy_failure_threshold = 2
+        self._proxy_failure_penalty_seconds = 300.0
+        self._proxy_slow_hits_threshold = 3
+        self._proxy_slow_penalty_seconds = 150.0
+        self._proxy_min_speed_bytes = 120 * 1024  # 120 KB/s
+        self._proxy_min_duration_for_speed = 3.0
         
         # Кешируем сервер изображений для ускорения парсинга
         self._cached_image_server = None
