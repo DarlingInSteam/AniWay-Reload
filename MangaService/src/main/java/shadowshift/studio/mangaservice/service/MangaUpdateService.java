@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationContext;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Async;
@@ -54,6 +55,9 @@ public class MangaUpdateService {
     @Autowired
     private RestTemplate restTemplate;
 
+    @Autowired
+    private ApplicationContext applicationContext;
+
     @Value("${melon.service.url:http://melon-service:8084}")
     private String melonServiceUrl;
 
@@ -103,8 +107,9 @@ public class MangaUpdateService {
     updateTasks.put(taskId, task);
     updateTaskChildTaskIds.put(taskId, ConcurrentHashMap.newKeySet());
 
-        // Запускаем асинхронную обработку
-        processAutoUpdateAsync(taskId, mangaList);
+    // Запускаем асинхронную обработку через Spring proxy (self-invocation не активирует @Async)
+    MangaUpdateService proxy = applicationContext.getBean(MangaUpdateService.class);
+    proxy.processAutoUpdateAsync(taskId, mangaList);
 
         Map<String, Object> response = new HashMap<>();
         response.put("task_id", taskId);
