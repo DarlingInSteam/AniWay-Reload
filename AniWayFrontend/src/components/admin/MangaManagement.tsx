@@ -2034,9 +2034,23 @@ export function MangaManagement() {
               )}
 
               {/* Логи в реальном времени */}
-              {selectedLogSource === 'auto-update' && (
-                <LogViewer logs={autoUpdateTask.logs} />
-              )}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium text-white">Логи автообновления</Label>
+                  {selectedLogSource !== 'auto-update' && (
+                    <Badge variant="outline" className="text-xs">
+                      Фокус на вкладке «Автообновление» вверху
+                    </Badge>
+                  )}
+                </div>
+                {(autoUpdateTask.logs?.length ?? 0) > 0 ? (
+                  <LogViewer logs={autoUpdateTask.logs} />
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Логи появятся, как только задача начнёт отправлять сообщения.
+                  </p>
+                )}
+              </div>
             </div>
           )}
         </CardContent>
