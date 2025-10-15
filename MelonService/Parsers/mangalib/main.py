@@ -273,6 +273,28 @@ class Parser(MangaParser):
                         f.write(chunk)
 
                 elapsed = time.perf_counter() - request_started_at
+                speed = total_bytes / elapsed if elapsed > 0 else 0
+
+                min_size = getattr(self, "_slow_check_min_size_bytes", 80 * 1024)
+                min_speed = getattr(self, "_proxy_min_speed_bytes", 120 * 1024)
+                min_duration = getattr(self, "_proxy_min_duration_for_speed", 3.0)
+
+                if (
+                    total_bytes >= min_size
+                    and elapsed >= min_duration
+                    and speed < min_speed
+                ):
+                    self._record_proxy_failure(
+                        proxy_key,
+                        reason="slow-throughput",
+                        details={"speed": speed, "elapsed": elapsed, "bytes": total_bytes}
+                    )
+                    self._maybe_log_slow_proxy(proxy_key, speed, elapsed, total_bytes, url)
+                    try:
+                        os.remove(image_path)
+                    except OSError:
+                        pass
+                    return None
 
                 if total_bytes > 1000:
                     self._record_proxy_success(proxy_key, elapsed, total_bytes)
@@ -495,6 +517,42 @@ class Parser(MangaParser):
         else:
             print(message)
 
+    def _maybe_log_slow_proxy(
+        self,
+        proxy_key: str | None,
+        speed_bytes: float,
+        elapsed: float,
+        total_bytes: int,
+        url: str
+    ) -> None:
+        if not proxy_key:
+            return
+
+        import time
+
+        cooldown = getattr(self, "_slow_retry_logging_cooldown", 45.0)
+        now = time.time()
+        last_logged = self._proxy_last_warn.get(proxy_key, 0.0)
+        if cooldown > 0 and (now - last_logged) < cooldown:
+            return
+
+        self._proxy_last_warn[proxy_key] = now
+
+        masked_proxy = self._mask_proxy_for_log(proxy_key)
+        speed_kb = speed_bytes / 1024 if speed_bytes else 0.0
+
+        try:
+            from urllib.parse import urlparse
+            host = urlparse(url).hostname or "?"
+        except Exception:
+            host = "?"
+
+        message = (
+            f"🐢 Proxy {masked_proxy} delivered {total_bytes/1024:.0f} KB from {host} in {elapsed:.1f}s "
+            f"({speed_kb:.0f} KB/s) — retrying with a different proxy"
+        )
+        self._log_proxy_warning(message)
+
     def _get_scaled_delay(
         self,
         base_value: float,
@@ -628,6 +686,9 @@ class Parser(MangaParser):
         self._proxy_slow_penalty_seconds = 150.0
         self._proxy_min_speed_bytes = 120 * 1024  # 120 KB/s
         self._proxy_min_duration_for_speed = 3.0
+        self._slow_check_min_size_bytes = 80 * 1024  # пропускаем совсем мелкие изображения
+        self._slow_retry_logging_cooldown = 45.0
+        self._proxy_last_warn: dict[str, float] = {}
         
         # Кешируем сервер изображений для ускорения парсинга
         self._cached_image_server = None
