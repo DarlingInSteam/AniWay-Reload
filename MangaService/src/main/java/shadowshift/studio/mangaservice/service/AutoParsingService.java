@@ -62,7 +62,7 @@ public class AutoParsingService {
      * @param limit максимальное количество манг для парсинга (null = все с страницы)
      * @return информация о запущенной задаче
      */
-    public Map<String, Object> startAutoParsing(Integer page, Integer limit) {
+    public Map<String, Object> startAutoParsing(Integer page, Integer limit, Integer minChapters, Integer maxChapters) {
         String taskId = UUID.randomUUID().toString();
 
         AutoParseTask task = new AutoParseTask();
@@ -80,14 +80,18 @@ public class AutoParsingService {
         task.startTime = new Date();
         task.page = page != null ? page : 1;
         task.limit = limit;
+        task.minChapters = minChapters;
+        task.maxChapters = maxChapters;
 
     autoParsingTasks.put(taskId, task);
     autoParsingChildTaskIds.put(taskId, ConcurrentHashMap.newKeySet());
 
         appendLog(task, String.format(
-            "Старт автопарсинга: страница %d, лимит: %s",
+            "Старт автопарсинга: страница %d, лимит: %s, минимум глав: %s, максимум глав: %s",
             task.page,
-            limit != null ? limit : "все"
+            limit != null ? limit : "все",
+            minChapters != null ? minChapters : "—",
+            maxChapters != null ? maxChapters : "—"
         ));
 
         // Запускаем асинхронную обработку через Spring proxy для поддержки @Async
@@ -95,13 +99,20 @@ public class AutoParsingService {
         AutoParsingService proxy = applicationContext.getBean(AutoParsingService.class);
         proxy.processAutoParsingAsync(taskId, task.page, limit);
 
-        return Map.of(
-            "task_id", taskId,
-            "status", "pending",
-            "page", task.page,
-            "limit", limit != null ? limit : "all",
-            "message", "Автопарсинг запущен"
-        );
+        Map<String, Object> response = new HashMap<>();
+        response.put("task_id", taskId);
+        response.put("status", "pending");
+        response.put("page", task.page);
+        response.put("limit", limit != null ? limit : "all");
+        response.put("message", "Автопарсинг запущен");
+        if (minChapters != null) {
+            response.put("min_chapters", minChapters);
+        }
+        if (maxChapters != null) {
+            response.put("max_chapters", maxChapters);
+        }
+
+        return response;
     }
 
     /**
@@ -137,6 +148,12 @@ public class AutoParsingService {
         result.put("page", task.page);
         if (task.limit != null) {
             result.put("limit", task.limit);
+        }
+        if (task.minChapters != null) {
+            result.put("min_chapters", task.minChapters);
+        }
+        if (task.maxChapters != null) {
+            result.put("max_chapters", task.maxChapters);
         }
         
         if (task.endTime != null) {
@@ -325,6 +342,8 @@ public class AutoParsingService {
                 String fullParsingTaskId = null;
                 String parseTaskId = null;
                 boolean metricRecorded = false;
+                Map<String, Object> thresholdMetrics = new LinkedHashMap<>();
+                ChapterThresholdDecision thresholdDecision = null;
 
                 try {
                     boolean alreadyImported = mangaRepository.existsByMelonSlug(normalizedSlug);
@@ -352,6 +371,71 @@ public class AutoParsingService {
                         task.message = String.format("Обработано: %d/%d (пропущено: %d, импортировано: %d)",
                             task.processedSlugs, task.totalSlugs, task.skippedSlugs.size(), task.importedSlugs.size());
                         continue;
+                    }
+
+                    thresholdDecision = evaluateChapterThreshold(slug, normalizedSlug, task);
+                    if (thresholdDecision != null) {
+                        if (thresholdDecision.totalChapters() != null) {
+                            thresholdMetrics.put("total_chapters", thresholdDecision.totalChapters());
+                        }
+                        if (task.minChapters != null) {
+                            thresholdMetrics.put("min_chapters_threshold", task.minChapters);
+                        }
+                        if (task.maxChapters != null) {
+                            thresholdMetrics.put("max_chapters_threshold", task.maxChapters);
+                        }
+
+                        if (thresholdDecision.failureMessage() != null
+                            || thresholdDecision.belowMinimum()
+                            || thresholdDecision.aboveMaximum()) {
+                            String reason;
+                            if (thresholdDecision.failureMessage() != null) {
+                                reason = "threshold_check_failed";
+                            } else if (thresholdDecision.belowMinimum()) {
+                                reason = "below_min_chapters";
+                            } else {
+                                reason = "above_max_chapters";
+                            }
+
+                            task.skippedSlugs.add(slug);
+                            long slugEndMillis = System.currentTimeMillis();
+                            long durationMs = Math.max(0, slugEndMillis - slugStartMillis);
+                            mangaMetric.put("status", "skipped");
+                            mangaMetric.put("reason", reason);
+                            mangaMetric.put("completed_at", toIsoString(slugEndMillis));
+                            mangaMetric.put("duration_ms", durationMs);
+                            mangaMetric.put("duration_formatted", formatDuration(durationMs));
+                            if (thresholdDecision.totalChapters() != null) {
+                                mangaMetric.put("detected_chapters", thresholdDecision.totalChapters());
+                            }
+                            if (thresholdDecision.failureMessage() != null && !thresholdDecision.failureMessage().isBlank()) {
+                                mangaMetric.put("error_message", thresholdDecision.failureMessage());
+                            }
+
+                            mergeMetricData(mangaMetric, thresholdMetrics);
+
+                            if (thresholdDecision.failureMessage() != null) {
+                                appendLog(task, String.format("[%d/%d] %s: пропуск — не удалось проверить количество глав (%s)",
+                                    i + 1, slugs.size(), normalizedSlug, thresholdDecision.failureMessage()));
+                            } else if (thresholdDecision.belowMinimum()) {
+                                appendLog(task, String.format("[%d/%d] %s: пропуск — глав %d меньше минимального %d",
+                                    i + 1, slugs.size(), normalizedSlug,
+                                    thresholdDecision.totalChapters(), task.minChapters));
+                            } else {
+                                appendLog(task, String.format("[%d/%d] %s: пропуск — глав %d больше максимального %d",
+                                    i + 1, slugs.size(), normalizedSlug,
+                                    thresholdDecision.totalChapters(), task.maxChapters));
+                            }
+
+                            addMangaMetric(task, mangaMetric);
+                            metricRecorded = true;
+
+                            task.processedSlugs++;
+                            task.progress = (task.processedSlugs * 100) / task.totalSlugs;
+                            task.message = String.format("Обработано: %d/%d (пропущено: %d, импортировано: %d)",
+                                task.processedSlugs, task.totalSlugs, task.skippedSlugs.size(), task.importedSlugs.size());
+                            continue;
+                        }
                     }
 
                     task.message = String.format("Парсинг манги %d/%d: %s", i + 1, slugs.size(), slug);
@@ -441,6 +525,7 @@ public class AutoParsingService {
                             }
                         }
 
+                        mergeMetricData(mangaMetric, thresholdMetrics);
                         addMangaMetric(task, mangaMetric);
                         metricRecorded = true;
 
@@ -457,6 +542,7 @@ public class AutoParsingService {
                         mangaMetric.put("duration_ms", durationMs);
                         mangaMetric.put("duration_formatted", formatDuration(durationMs));
                         mangaMetric.put("error_message", "Не удалось запустить парсинг");
+                        mergeMetricData(mangaMetric, thresholdMetrics);
                         addMangaMetric(task, mangaMetric);
                         metricRecorded = true;
                     }
@@ -476,6 +562,7 @@ public class AutoParsingService {
                         mangaMetric.putIfAbsent("duration_ms", durationMs);
                         mangaMetric.putIfAbsent("duration_formatted", formatDuration(durationMs));
                         mangaMetric.putIfAbsent("status", "failed");
+                        mergeMetricData(mangaMetric, thresholdMetrics);
                         addMangaMetric(task, mangaMetric);
                     }
                 }
@@ -715,6 +802,114 @@ public class AutoParsingService {
         logger.debug("Флаш логов дочерней задачи {} в autoParsingTask={} ({} записей)", childTaskId, autoTaskId, buffered.size());
     }
 
+    private void mergeMetricData(Map<String, Object> metric, Map<String, Object> additions) {
+        if (metric == null || additions == null || additions.isEmpty()) {
+            return;
+        }
+
+        Map<String, Object> merged = new LinkedHashMap<>();
+        Map<String, Object> existing = asStringObjectMap(metric.get("metrics"));
+        if (!existing.isEmpty()) {
+            merged.putAll(existing);
+        }
+        merged.putAll(additions);
+        metric.put("metrics", merged);
+    }
+
+    private ChapterThresholdDecision evaluateChapterThreshold(String slug, String normalizedSlug, AutoParseTask task) {
+        Integer min = task.minChapters;
+        Integer max = task.maxChapters;
+        if (min == null && max == null) {
+            return null;
+        }
+
+        Map<String, Object> metadata = melonService.getChaptersMetadataOnly(slug);
+        if (metadata == null || !Boolean.TRUE.equals(metadata.get("success"))) {
+            String message = metadata != null && metadata.get("error") != null
+                ? String.valueOf(metadata.get("error"))
+                : "Неизвестная ошибка";
+            logger.warn("Не удалось получить метаданные для '{}' при проверке лимитов глав: {}", slug, message);
+            return new ChapterThresholdDecision(null, false, false, message);
+        }
+
+        Integer total = extractTotalChapters(metadata);
+        if (total == null) {
+            logger.warn("Метаданные для '{}' не содержат информации о количестве глав", slug);
+            return new ChapterThresholdDecision(null, false, false, "Количество глав не определено");
+        }
+
+        boolean below = min != null && total < min;
+        boolean above = max != null && total > max;
+        return new ChapterThresholdDecision(total, below, above, null);
+    }
+
+    private Integer extractTotalChapters(Map<String, Object> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return null;
+        }
+
+        Integer direct = safeToInteger(metadata.get("total_chapters"));
+        if (direct != null) {
+            return direct;
+        }
+
+        direct = safeToInteger(metadata.get("totalChapters"));
+        if (direct != null) {
+            return direct;
+        }
+
+        Object chaptersObj = metadata.get("chapters");
+        if (chaptersObj instanceof Collection<?> collection) {
+            Set<String> unique = new LinkedHashSet<>();
+            for (Object item : collection) {
+                if (item instanceof Map<?, ?> map) {
+                    Object id = map.get("id");
+                    if (id != null) {
+                        unique.add(String.valueOf(id));
+                        continue;
+                    }
+
+                    Object number = map.get("number");
+                    Object volume = map.get("volume");
+                    String key = String.valueOf(volume) + ":" + String.valueOf(number);
+                    unique.add(key);
+                } else if (item != null) {
+                    unique.add(item.toString());
+                }
+            }
+
+            if (!unique.isEmpty()) {
+                return unique.size();
+            }
+        }
+
+        return null;
+    }
+
+    private Integer safeToInteger(Object value) {
+        if (value == null) {
+            return null;
+        }
+
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+
+        if (value instanceof String text) {
+            String trimmed = text.trim();
+            if (trimmed.isEmpty()) {
+                return null;
+            }
+            try {
+                return Integer.parseInt(trimmed);
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
     private void appendLog(AutoParseTask task, String message) {
         if (task == null || message == null) {
             return;
@@ -822,6 +1017,8 @@ public class AutoParsingService {
     /**
      * Внутренний класс для отслеживания задачи автопарсинга
      */
+    private record ChapterThresholdDecision(Integer totalChapters, boolean belowMinimum, boolean aboveMaximum, String failureMessage) {}
+
     private static class AutoParseTask {
         String taskId;
         String status;
@@ -838,5 +1035,7 @@ public class AutoParsingService {
         Date endTime;
         Integer page;   // Номер страницы каталога
         Integer limit;  // Ограничение количества манг для парсинга
+        Integer minChapters;
+        Integer maxChapters;
     }
 }

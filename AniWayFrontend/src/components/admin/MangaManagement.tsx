@@ -47,6 +47,8 @@ interface AutoParseTask {
   duration_formatted?: string
   page?: number
   limit?: number | null
+  min_chapters?: number | null
+  max_chapters?: number | null
   manga_metrics: AutoParseMangaMetric[]
   logs?: string[]  // Логи в реальном времени
 }
@@ -446,6 +448,8 @@ const normalizeAutoParseTask = (payload: Partial<AutoParseTask> | null | undefin
     duration_formatted: durationFormatted,
     page: toNumber(payload?.page) ?? undefined,
     limit: toNumber(payload?.limit) ?? null,
+    min_chapters: toNumber(payload?.min_chapters ?? (payload as any)?.minChapters) ?? null,
+    max_chapters: toNumber(payload?.max_chapters ?? (payload as any)?.maxChapters) ?? null,
     manga_metrics: metricsList,
     logs: Array.isArray(payload?.logs) ? payload!.logs : []
   }
@@ -818,6 +822,8 @@ function LogViewer({ logs }: { logs?: string[] }) {
 export function MangaManagement() {
   const [catalogPage, setCatalogPage] = useState<number>(1)
   const [parseLimit, setParseLimit] = useState<number | null>(null)
+  const [minChapterCount, setMinChapterCount] = useState<number | null>(null)
+  const [maxChapterCount, setMaxChapterCount] = useState<number | null>(null)
   const [autoParseTask, setAutoParseTask] = useState<AutoParseTask | null>(null)
   const [autoUpdateTask, setAutoUpdateTask] = useState<AutoUpdateTask | null>(null)
   const [isAutoParsing, setIsAutoParsing] = useState(false)
@@ -1208,6 +1214,21 @@ export function MangaManagement() {
       return
     }
 
+    if (minChapterCount !== null && minChapterCount < 0) {
+      toast.error('Минимальное количество глав не может быть отрицательным')
+      return
+    }
+
+    if (maxChapterCount !== null && maxChapterCount < 0) {
+      toast.error('Максимальное количество глав не может быть отрицательным')
+      return
+    }
+
+    if (minChapterCount !== null && maxChapterCount !== null && minChapterCount > maxChapterCount) {
+      toast.error('Минимальное количество глав не может превышать максимальное')
+      return
+    }
+
     setIsAutoParsing(true)
     
     try {
@@ -1216,7 +1237,9 @@ export function MangaManagement() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           page: catalogPage,
-          limit: parseLimit 
+          limit: parseLimit,
+          minChapters: minChapterCount,
+          maxChapters: maxChapterCount 
         })
       })
 
@@ -1626,6 +1649,50 @@ export function MangaManagement() {
             />
             <p className="text-xs text-muted-foreground">
               Каждая страница содержит до 60 манг из каталога MangaLib
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="minChapters">
+              Минимальное количество глав для автопарсинга (опционально)
+            </Label>
+            <Input
+              id="minChapters"
+              type="number"
+              min="0"
+              placeholder="Например, 5"
+              value={minChapterCount ?? ''}
+              onChange={(e) => {
+                const value = e.target.value
+                setMinChapterCount(value === '' ? null : parseInt(value, 10))
+              }}
+              disabled={isAutoParsing}
+              className="bg-background text-white"
+            />
+            <p className="text-xs text-muted-foreground">
+              Тайтлы с меньшим количеством глав будут пропущены.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="maxChapters">
+              Максимальное количество глав для автопарсинга (опционально)
+            </Label>
+            <Input
+              id="maxChapters"
+              type="number"
+              min="0"
+              placeholder="Например, 150"
+              value={maxChapterCount ?? ''}
+              onChange={(e) => {
+                const value = e.target.value
+                setMaxChapterCount(value === '' ? null : parseInt(value, 10))
+              }}
+              disabled={isAutoParsing}
+              className="bg-background text-white"
+            />
+            <p className="text-xs text-muted-foreground">
+              Тайтлы с большим количеством глав будут пропущены, чтобы избежать длинных импортаций.
             </p>
           </div>
 
