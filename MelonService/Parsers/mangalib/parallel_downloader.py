@@ -27,12 +27,13 @@ class AdaptiveParallelDownloader:
     def __init__(
         self,
         proxy_count: int,
-        download_func: Callable[[str], Optional[str]],
+        download_func: Callable[..., Optional[str]],
         max_workers_per_proxy: int = 2,
         max_retries: int = 3,
         base_delay: float = 0.1,
         retry_delay: float = 1.0,
         max_total_workers: Optional[int] = None
+        , proxy_pool: Optional[list] = None
     ):
         """
         Инициализация загрузчика.
@@ -46,7 +47,9 @@ class AdaptiveParallelDownloader:
     :param max_total_workers: Жесткий предел на количество потоков (переопределяет авторасчет)
         """
         computed_workers = max(1, proxy_count * max_workers_per_proxy)
-        computed_workers = min(computed_workers, 16)
+        # Allow using more workers when proxy_count is large; keep a safe minimum cap of 16
+        cap = max(16, proxy_count)
+        computed_workers = min(computed_workers, cap)
 
         if proxy_count == 1:
             computed_workers = min(computed_workers, max(2, max_workers_per_proxy + 1))
@@ -71,6 +74,8 @@ class AdaptiveParallelDownloader:
         self.max_retries = max_retries
         self.base_delay = base_delay
         self.retry_delay = retry_delay
+        # Optional deterministic proxy pool (list of {'http':..., 'https':...})
+        self.proxy_pool = proxy_pool or []
         
         # Thread-safe счётчики
         self._lock = Lock()
@@ -85,8 +90,9 @@ class AdaptiveParallelDownloader:
         
         # Единоразовый лог инициализации воркеров (всегда показываем)
         override_note = f", override={max_total_workers}" if max_total_workers else ""
+        pool_note = f", proxy_pool={len(self.proxy_pool)}" if self.proxy_pool else ""
         logger.info(
-            f"⚙️ Workers: {self.max_workers} active, {proxy_count} proxies, {base_delay}s delay{override_note}"
+            f"⚙️ Workers: {self.max_workers} active, {proxy_count} proxies, {base_delay}s delay{override_note}{pool_note}"
         )
     
     def _adaptive_delay(self):
@@ -141,8 +147,20 @@ class AdaptiveParallelDownloader:
                 else:
                     self._adaptive_delay()
                 
-                # Загрузка
-                result = self.download_func(url)
+                # Deterministic proxy assignment: use pool by round-robin if provided
+                assigned_proxies = None
+                try:
+                    if self.proxy_pool:
+                        assigned_proxies = self.proxy_pool[(index - 1) % len(self.proxy_pool)]
+                except Exception:
+                    assigned_proxies = None
+
+                # Загрузка (download_func may accept proxies kw)
+                try:
+                    result = self.download_func(url, proxies=assigned_proxies)
+                except TypeError:
+                    # Fallback if download_func does not accept proxies arg
+                    result = self.download_func(url)
                 
                 if result:
                     with self._lock:

@@ -337,8 +337,25 @@ class Parser(MangaParser):
         fallback_proxy = None
         fallback_key = None
 
-        for _ in range(total):
-            proxy_candidate = rotator.get_next_proxy()
+        # Try to fetch full proxy list if available to avoid advancing internal rotator iterator too much
+        proxies_list = None
+        try:
+            proxies_list = rotator.get_all_proxies() or None
+        except Exception:
+            proxies_list = None
+
+        attempts = min(total, len(proxies_list) if proxies_list else total)
+        if attempts <= 0:
+            attempts = total
+
+        tried = 0
+        while tried < attempts:
+            proxy_candidate = None
+            try:
+                proxy_candidate = rotator.get_next_proxy()
+            except Exception:
+                proxy_candidate = None
+
             if not proxy_candidate:
                 break
 
@@ -349,6 +366,7 @@ class Parser(MangaParser):
                 fallback_key = proxy_key
 
             if proxy_key and self._is_proxy_blacklisted(proxy_key):
+                tried += 1
                 continue
 
             return proxy_candidate, proxy_key
@@ -668,13 +686,21 @@ class Parser(MangaParser):
         )
         
         # НЕ НУЖЕН Lock — каждый поток создает свою сессию requests!
+        proxy_pool = None
+        if self._ProxyRotator:
+            try:
+                proxy_pool = self._ProxyRotator.get_all_proxies()
+            except Exception:
+                proxy_pool = None
+
         self._parallel_downloader = AdaptiveParallelDownloader(
             proxy_count=proxy_count,
             download_func=self._download_image_wrapper,
             max_workers_per_proxy=2,
             max_retries=3,
             base_delay=image_delay,
-            max_total_workers=max_workers_override
+            max_total_workers=max_workers_override,
+            proxy_pool=proxy_pool
         )
         
         print(f"[CRITICAL_DEBUG] AdaptiveParallelDownloader CREATED successfully!", flush=True)
