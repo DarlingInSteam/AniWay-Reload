@@ -166,7 +166,7 @@ class Parser(MangaParser):
 
         return WebRequestorObject
 
-    def _download_image_wrapper(self, url: str) -> str | None:
+    def _download_image_wrapper(self, url: str, proxies: dict | None = None) -> str | None:
         """Thread-safe обертка с независимой сессией requests для каждого потока.
 
         :param url: URL изображения
@@ -211,9 +211,16 @@ class Parser(MangaParser):
             return image_filename
 
         proxy_key = None
-        proxies = None
-        if hasattr(self, '_ProxyRotator') and self._ProxyRotator:
-            proxies, proxy_key = self._acquire_proxy()
+        # If upstream passed explicit proxies (deterministic assignment from downloader), use them
+        if proxies:
+            try:
+                proxy_key = self._normalize_proxy_key(proxies)
+            except Exception:
+                proxy_key = None
+        else:
+            # otherwise try to acquire via rotator (legacy behavior)
+            if hasattr(self, '_ProxyRotator') and self._ProxyRotator:
+                proxies, proxy_key = self._acquire_proxy()
 
         try:
             # Получаем основной WebRequestor
