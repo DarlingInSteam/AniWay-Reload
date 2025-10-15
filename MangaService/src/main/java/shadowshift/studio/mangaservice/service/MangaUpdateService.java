@@ -611,7 +611,7 @@ public class MangaUpdateService {
             }
             
             // Ждем завершения парсинга
-            if (!waitForTaskCompletion(parseTaskId)) {
+            if (!waitForTaskCompletion(parseTaskId, normalizedSlug)) {
                 logger.error("Парсинг не завершен для slug: {} (API '{}')", storedSlug, slugForApi);
                 return null;
             }
@@ -953,28 +953,55 @@ public class MangaUpdateService {
     /**
      * Ждет завершения задачи
      */
-    private boolean waitForTaskCompletion(String taskId) throws InterruptedException {
-        int maxAttempts = 60;
+    private boolean waitForTaskCompletion(String taskId, String normalizedSlug) throws InterruptedException {
+        final int maxAttempts = 120;
+        final int pollIntervalMs = 2000;
+
         int attempts = 0;
+        int missingStatusStreak = 0;
+        boolean infoCheckedAfterMissingStatus = false;
+        Map<String, Object> lastStatus = null;
 
         while (attempts < maxAttempts) {
-            Thread.sleep(2000);
-            
-            Map<String, Object> status = melonService.getTaskStatus(taskId);
-            
-            if (status != null && "completed".equals(status.get("status"))) {
+            Thread.sleep(pollIntervalMs);
+            attempts++;
+
+            lastStatus = melonService.getTaskStatus(taskId);
+            String statusValue = lastStatus != null ? Objects.toString(lastStatus.get("status"), null) : null;
+
+            if (statusValue != null && "completed".equalsIgnoreCase(statusValue)) {
                 return true;
             }
-            
-            if (status != null && "failed".equals(status.get("status"))) {
-                logger.error("Задача завершилась с ошибкой: {}", status.get("message"));
+
+            if (statusValue != null && ("failed".equalsIgnoreCase(statusValue) || "cancelled".equalsIgnoreCase(statusValue))) {
+                logger.error("Задача {} завершилась с ошибкой: {}", taskId, lastStatus.get("message"));
                 return false;
             }
-            
-            attempts++;
+
+            boolean statusMissing = statusValue == null || statusValue.isBlank()
+                || "not_found".equalsIgnoreCase(statusValue)
+                || "unknown".equalsIgnoreCase(statusValue)
+                || "error".equalsIgnoreCase(statusValue);
+
+            if (statusMissing) {
+                missingStatusStreak++;
+
+                if (!infoCheckedAfterMissingStatus && missingStatusStreak >= 3 && normalizedSlug != null && !normalizedSlug.isBlank()) {
+                    Map<String, Object> info = melonService.getMangaInfo(normalizedSlug);
+                    boolean hasContent = info != null && info.containsKey("content");
+                    if (hasContent) {
+                        logger.warn("Статус задачи {} недоступен, но данные для '{}' получены. Продолжаем обработку.", taskId, normalizedSlug);
+                        return true;
+                    }
+                    infoCheckedAfterMissingStatus = true;
+                }
+            } else {
+                missingStatusStreak = 0;
+                infoCheckedAfterMissingStatus = false;
+            }
         }
 
-        logger.error("Превышено время ожидания завершения задачи");
+        logger.error("Превышено время ожидания завершения задачи {}. Последний статус: {}", taskId, lastStatus);
         return false;
     }
 
