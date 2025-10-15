@@ -5,9 +5,11 @@ from Source.Core.Base.Formats.BaseFormat import Statuses
 from dublib.Methods.Data import RemoveRecurringSubstrings, Zerotify
 from dublib.WebRequestor import WebRequestor
 
+import random
 from datetime import datetime
 from time import sleep
 from typing import Optional
+from email.utils import parsedate_to_datetime
 
 # Параллельный загрузчик изображений
 from .parallel_downloader import AdaptiveParallelDownloader
@@ -686,12 +688,21 @@ class Parser(MangaParser):
             except Exception:
                 return None
 
+        def _append_query(path: str, params: dict[str, str | None]) -> str:
+            filtered = [f"{key}={value}" for key, value in params.items() if value is not None and value != ""]
+            if not filtered:
+                return path
+            separator = "&" if "?" in path else "?"
+            return f"{path}{separator}{'&'.join(filtered)}"
+
+        number_value = _ensure_str(chapter.number)
+        volume_value = _ensure_str(chapter.volume)
+        if volume_value is None or volume_value.strip().lower() in {"", "none", "null"}:
+            volume_value = "1"
+        chapter_id_value = _ensure_str(chapter.id)
+
         def _extend_variants(include_branch: bool) -> None:
             branch_value = _ensure_str(branch_query_value) if include_branch else None
-
-            number_value = _ensure_str(chapter.number)
-            volume_value = _ensure_str(chapter.volume)
-            chapter_id_value = _ensure_str(chapter.id)
 
             query = _build_query({
                 "number": number_value,
@@ -703,13 +714,18 @@ class Parser(MangaParser):
 
             if chapter_id_value:
                 path_variant = f"{base_endpoint}/{chapter_id_value}"
-                if branch_value:
-                    path_variant = f"{path_variant}?branch_id={branch_value}"
+                path_variant = _append_query(path_variant, {
+                    "branch_id": branch_value,
+                    "volume": volume_value,
+                    "number": number_value,
+                })
                 url_variants.append(path_variant)
 
                 chapter_id_query = _build_query({
                     "chapter_id": chapter_id_value,
                     "branch_id": branch_value,
+                    "volume": volume_value,
+                    "number": number_value,
                 })
                 if chapter_id_query:
                     url_variants.append(chapter_id_query)
@@ -717,6 +733,8 @@ class Parser(MangaParser):
                 generic_id_query = _build_query({
                     "id": chapter_id_value,
                     "branch_id": branch_value,
+                    "volume": volume_value,
+                    "number": number_value,
                 })
                 if generic_id_query:
                     url_variants.append(generic_id_query)
@@ -724,6 +742,8 @@ class Parser(MangaParser):
             fallback_query = _build_query({
                 "branch_id": branch_value,
                 "id": chapter_id_value,
+                "volume": volume_value,
+                "number": number_value,
             })
             if fallback_query:
                 url_variants.append(fallback_query)
@@ -743,6 +763,13 @@ class Parser(MangaParser):
         max_retry_attempts = getattr(self._Settings.common, "chapter_retry_attempts", 3)
         initial_retry_delay = getattr(self._Settings.common, "chapter_retry_delay", 2.0)
         retry_backoff_factor = getattr(self._Settings.common, "chapter_retry_backoff", 2.0)
+        min_retry_delay = getattr(self._Settings.common, "chapter_retry_min_delay", 1.5)
+        max_retry_delay = getattr(self._Settings.common, "chapter_retry_max_delay", 45.0)
+        extra_rate_limit_attempts = getattr(self._Settings.common, "chapter_retry_attempts_429_extra", 2)
+        retry_jitter_min = getattr(self._Settings.common, "chapter_retry_jitter_min", 0.85)
+        retry_jitter_max = getattr(self._Settings.common, "chapter_retry_jitter_max", 1.25)
+        if retry_jitter_min <= 0 or retry_jitter_max < retry_jitter_min:
+            retry_jitter_min, retry_jitter_max = 0.9, 1.1
 
         def extract_error_message(response) -> str | None:
             if response is None:
@@ -787,16 +814,42 @@ class Parser(MangaParser):
                 if error_message:
                     last_error = f"HTTP {Response.status_code}: {error_message}"
 
-                if Response.status_code in retryable_statuses and attempt < max_retry_attempts:
-                    wait_seconds = initial_retry_delay * (retry_backoff_factor ** attempt)
-                    wait_seconds = max(wait_seconds, 1.5)
-                    wait_seconds = min(wait_seconds, 30.0)
-                    self._SystemObjects.logger.warning(
-                        f"Chapter {chapter.id} request to {url} returned {Response.status_code}. "
-                        f"Retrying in {wait_seconds:.1f}s (attempt {attempt + 1}/{max_retry_attempts}).")
-                    sleep(wait_seconds)
-                    attempt += 1
-                    continue
+                if Response.status_code in retryable_statuses:
+                    allowed_attempts = max_retry_attempts
+                    if Response.status_code == 429:
+                        allowed_attempts += extra_rate_limit_attempts
+
+                    if allowed_attempts > 1 and attempt < allowed_attempts - 1:
+                        wait_seconds = initial_retry_delay * (retry_backoff_factor ** attempt)
+                        retry_after_header = Response.headers.get("Retry-After") if hasattr(Response, "headers") else None
+                        retry_after_value = None
+                        if retry_after_header:
+                            header_value = retry_after_header.strip()
+                            if header_value.isdigit():
+                                retry_after_value = float(header_value)
+                            else:
+                                try:
+                                    retry_dt = parsedate_to_datetime(header_value)
+                                    if retry_dt is not None:
+                                        retry_after_value = max(0.0, (retry_dt - datetime.utcnow()).total_seconds())
+                                except Exception:
+                                    retry_after_value = None
+
+                        if retry_after_value is not None:
+                            wait_seconds = max(wait_seconds, retry_after_value)
+
+                        jitter = random.uniform(retry_jitter_min, retry_jitter_max)
+                        wait_seconds *= jitter
+                        wait_seconds = max(wait_seconds, min_retry_delay)
+                        wait_seconds = min(wait_seconds, max_retry_delay)
+
+                        next_attempt_number = attempt + 2
+                        self._SystemObjects.logger.warning(
+                            f"Chapter {chapter.id} request to {url} returned {Response.status_code}. "
+                            f"Retrying in {wait_seconds:.1f}s (attempt {next_attempt_number}/{allowed_attempts}).")
+                        sleep(wait_seconds)
+                        attempt += 1
+                        continue
 
                 break
 
