@@ -491,6 +491,13 @@ public class MangaUpdateService {
                         if (chapterNumberObj instanceof Number) {
                             return ((Number) chapterNumberObj).doubleValue();
                         }
+                        if (chapterNumberObj instanceof String str && !str.isBlank()) {
+                            try {
+                                return Double.parseDouble(str.trim());
+                            } catch (NumberFormatException ignored) {
+                                // fall through
+                            }
+                        }
                         return null;
                     })
                     .filter(Objects::nonNull)
@@ -920,7 +927,7 @@ public class MangaUpdateService {
                     continue;
                 }
 
-                if (chapterExists(mangaId, chapterNumber)) {
+                if (chapterExists(mangaId, numeric)) {
                     logger.info("Глава {} уже существует для манги {}, пропускаем", chapterNumber, mangaId);
                     continue;
                 }
@@ -983,7 +990,31 @@ public class MangaUpdateService {
     /**
      * Проверяет существование главы
      */
-    private boolean chapterExists(Long mangaId, double chapterNumber) {
+    private boolean chapterExists(Long mangaId, ChapterNumeric numeric) {
+        if (numeric == null) {
+            return false;
+        }
+
+        double composite = numeric.compositeNumber();
+        double raw = numeric.originalNumber();
+        double scaled = numeric.volume() * 100d + raw;
+
+        if (chapterExistsRemote(mangaId, composite)) {
+            return true;
+        }
+
+        if (chapterExistsRemote(mangaId, raw)) {
+            return true;
+        }
+
+        return chapterExistsRemote(mangaId, scaled);
+    }
+
+    private boolean chapterExistsRemote(Long mangaId, double chapterNumber) {
+        if (!Double.isFinite(chapterNumber)) {
+            return false;
+        }
+
         String url = String.format("%s/api/chapters/exists?mangaId=%d&chapterNumber=%f",
             chapterServiceUrl, mangaId, chapterNumber);
         try {
