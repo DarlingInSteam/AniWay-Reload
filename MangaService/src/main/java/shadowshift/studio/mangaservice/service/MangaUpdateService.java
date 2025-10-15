@@ -365,7 +365,7 @@ public class MangaUpdateService {
                             }
 
                             // Импортируем только новые главы (парсинг уже выполнен)
-                            boolean success = parseAndImportNewChapters(slugForApi, manga.getId(), newChapters, mangaInfoFromUpdate);
+                            boolean success = parseAndImportNewChapters(normalizedSlug, slugForApi, manga.getId(), newChapters, mangaInfoFromUpdate);
 
                             if (success) {
                                 UpdatedMangaRecord record = new UpdatedMangaRecord(slug, title, newChapters.size(), chapterLabels, normalizedNumbers);
@@ -378,7 +378,7 @@ public class MangaUpdateService {
                                 appendLog(task, String.format("[%d/%d] %s: импортировано %d глав", i + 1, mangaList.size(), displayName, newChapters.size()));
 
                                 try {
-                                    melonService.deleteManga(slug);
+                                    melonService.deleteManga(normalizedSlug);
                                     appendLog(task, String.format("[%d/%d] %s: временные данные Melon удалены", i + 1, mangaList.size(), displayName));
                                 } catch (Exception cleanupEx) {
                                     logger.warn("Не удалось удалить данные из Melon для slug {}: {}", slug, cleanupEx.getMessage());
@@ -472,15 +472,15 @@ public class MangaUpdateService {
      * Получает номера существующих глав из ChapterService
      */
     private Set<Double> getExistingChapterNumbers(Long mangaId) {
+        String url = chapterServiceUrl + "/api/chapters/manga/" + mangaId;
         try {
-            String url = chapterServiceUrl + "/api/chapters/manga/" + mangaId;
             @SuppressWarnings("rawtypes")
             ResponseEntity<List> response = restTemplate.getForEntity(url, List.class);
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> chapters = (List<Map<String, Object>>) response.getBody();
-                
+
                 return chapters.stream()
                     .map(ch -> {
                         Object chapterNumberObj = ch.get("chapterNumber");
@@ -492,11 +492,15 @@ public class MangaUpdateService {
                     .filter(Objects::nonNull)
                     .collect(Collectors.toSet());
             }
-        } catch (Exception e) {
-            logger.error("Ошибка получения существующих глав для манги {}: {}", mangaId, e.getMessage());
-        }
 
-        return new HashSet<>();
+            throw new IllegalStateException(String.format(
+                "Не удалось получить список существующих глав для манги %d: статус %s",
+                mangaId, response.getStatusCode()));
+
+        } catch (Exception e) {
+            throw new IllegalStateException(String.format(
+                "Не удалось получить существующие главы для манги %d", mangaId), e);
+        }
     }
 
     /**
@@ -617,10 +621,16 @@ public class MangaUpdateService {
             }
             
             // Получаем полную информацию о манге после парсинга
-            Map<String, Object> mangaInfo = melonService.getMangaInfo(storedSlug);
-            
-            if (mangaInfo == null || !mangaInfo.containsKey("content")) {
-                logger.error("Не удалось получить информацию о манге для slug: {} (API '{}')", storedSlug, slugForApi);
+            Map<String, Object> mangaInfo = melonService.getMangaInfo(normalizedSlug);
+
+            if ((mangaInfo == null || !mangaInfo.containsKey("content"))
+                && !Objects.equals(normalizedSlug, storedSlug)) {
+                logger.warn("Не удалось получить информацию по normalized slug '{}', пробуем stored slug '{}'", normalizedSlug, storedSlug);
+                mangaInfo = melonService.getMangaInfo(storedSlug);
+            }
+
+            if (!hasUsableContent(mangaInfo)) {
+                logger.error("Не удалось получить данные о манге для slug: {} (API '{}')", storedSlug, slugForApi);
                 return null;
             }
             
@@ -711,13 +721,16 @@ public class MangaUpdateService {
     /**
      * Импортирует только новые главы (парсинг уже выполнен в checkForUpdates)
      */
-    private boolean parseAndImportNewChapters(String slug, Long mangaId, List<Map<String, Object>> newChapters, Map<String, Object> mangaInfo) {
+    private boolean parseAndImportNewChapters(String normalizedSlug, String slugForApi, Long mangaId,
+                                              List<Map<String, Object>> newChapters,
+                                              Map<String, Object> mangaInfo) {
         try {
-            logger.info("Импорт {} новых глав для манги {}", newChapters.size(), mangaId);
+            logger.info("Импорт {} новых глав для манги {} (normalizedSlug='{}', slugForApi='{}')",
+                newChapters.size(), mangaId, normalizedSlug, slugForApi);
             
             // mangaInfo уже содержит все необходимые данные после парсинга
             // Импортируем только новые главы
-            return importNewChaptersOnly(slug, mangaId, newChapters, mangaInfo);
+            return importNewChaptersOnly(normalizedSlug, mangaId, newChapters, mangaInfo);
             
         } catch (Exception e) {
             logger.error("Ошибка импорта новых глав: {}", e.getMessage(), e);
@@ -728,10 +741,16 @@ public class MangaUpdateService {
     /**
      * Импортирует только новые главы в систему
      */
-    private boolean importNewChaptersOnly(String slug, Long mangaId, List<Map<String, Object>> newChapters, Map<String, Object> mangaInfo) {
+    private boolean importNewChaptersOnly(String normalizedSlug, Long mangaId, List<Map<String, Object>> newChapters,
+                                         Map<String, Object> mangaInfo) {
         try {
             if (mangaInfo == null || !mangaInfo.containsKey("content")) {
                 logger.error("Не удалось получить информацию о манге из Melon");
+                return false;
+            }
+
+            if (!hasUsableContent(mangaInfo)) {
+                logger.error("Полученная информация о манге не содержит страниц. Импорт отменен.");
                 return false;
             }
 
@@ -770,7 +789,7 @@ public class MangaUpdateService {
 
             // Используем существующий метод импорта глав из MelonIntegrationService
             // но передаем только отфильтрованные главы
-            return importChaptersDirectly(mangaId, chaptersToImport, slug);
+            return importChaptersDirectly(mangaId, chaptersToImport, normalizedSlug);
 
         } catch (Exception e) {
             logger.error("Ошибка импорта новых глав: {}", e.getMessage(), e);
@@ -781,7 +800,7 @@ public class MangaUpdateService {
     /**
      * Импортирует главы напрямую, используя логику из MelonIntegrationService
      */
-    private boolean importChaptersDirectly(Long mangaId, List<Map<String, Object>> chapters, String filename) {
+    private boolean importChaptersDirectly(Long mangaId, List<Map<String, Object>> chapters, String normalizedSlug) {
         // Здесь используем ту же логику, что и в MelonIntegrationService.importChaptersWithProgress
         // но без создания задачи импорта
         
@@ -846,7 +865,7 @@ public class MangaUpdateService {
                     @SuppressWarnings("unchecked")
                     List<Map<String, Object>> slides = (List<Map<String, Object>>) chapterData.get("slides");
                     if (slides != null && !slides.isEmpty()) {
-                        importChapterPages(chapterId, slides, filename, numberObj.toString());
+                        importChapterPages(chapterId, slides, normalizedSlug, numberObj.toString());
                     } else {
                         logger.warn("Пропускаем импорт страниц для главы {}: слайды отсутствуют (возможно, глава платная)", chapterNumber);
                     }
@@ -869,14 +888,21 @@ public class MangaUpdateService {
      * Проверяет существование главы
      */
     private boolean chapterExists(Long mangaId, double chapterNumber) {
+        String url = String.format("%s/api/chapters/exists?mangaId=%d&chapterNumber=%f",
+            chapterServiceUrl, mangaId, chapterNumber);
         try {
-            String url = String.format("%s/api/chapters/exists?mangaId=%d&chapterNumber=%f", 
-                chapterServiceUrl, mangaId, chapterNumber);
             ResponseEntity<Boolean> response = restTemplate.getForEntity(url, Boolean.class);
-            return response.getBody() != null && response.getBody();
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                return Boolean.TRUE.equals(response.getBody());
+            }
+
+            throw new IllegalStateException(String.format(
+                "Не удалось проверить существование главы %f для манги %d: статус %s",
+                chapterNumber, mangaId, response.getStatusCode()));
         } catch (Exception e) {
-            logger.warn("Ошибка проверки существования главы: {}", e.getMessage());
-            return false;
+            throw new IllegalStateException(String.format(
+                "Не удалось проверить существование главы %f для манги %d",
+                chapterNumber, mangaId), e);
         }
     }
 
@@ -884,8 +910,8 @@ public class MangaUpdateService {
      * Импортирует страницы главы из Melon Service в ImageStorageService
      * Копия логики из MelonIntegrationService.importChapterPagesFromMelonService
      */
-    private void importChapterPages(Long chapterId, List<Map<String, Object>> slides, 
-                                   String mangaFilename, String originalChapterName) {
+    private void importChapterPages(Long chapterId, List<Map<String, Object>> slides,
+                                   String normalizedSlug, String originalChapterName) {
         try {
             logger.info("Начинается импорт {} страниц для главы {}", slides.size(), chapterId);
 
@@ -893,8 +919,8 @@ public class MangaUpdateService {
                 final int pageNumber = i;
                 
                 // Формируем имя файла в Melon Service (используя правило: глава/номер_страницы.jpg)
-                String melonImagePath = String.format("%s/%s/%d.jpg", 
-                    mangaFilename, originalChapterName, pageNumber);
+                String melonImagePath = String.format("%s/%s/%d.jpg",
+                    normalizedSlug, originalChapterName, pageNumber);
 
                 // URL для загрузки изображения из Melon Service
                 String imageUrl = melonServiceUrl + "/images/" + melonImagePath;
@@ -958,8 +984,7 @@ public class MangaUpdateService {
         final int pollIntervalMs = 2000;
 
         int attempts = 0;
-        int missingStatusStreak = 0;
-        boolean infoCheckedAfterMissingStatus = false;
+    int missingStatusStreak = 0;
         Map<String, Object> lastStatus = null;
 
         while (attempts < maxAttempts) {
@@ -986,22 +1011,56 @@ public class MangaUpdateService {
             if (statusMissing) {
                 missingStatusStreak++;
 
-                if (!infoCheckedAfterMissingStatus && missingStatusStreak >= 3 && normalizedSlug != null && !normalizedSlug.isBlank()) {
+                if (normalizedSlug != null && !normalizedSlug.isBlank()
+                    && missingStatusStreak >= 3
+                    && missingStatusStreak % 3 == 0) {
                     Map<String, Object> info = melonService.getMangaInfo(normalizedSlug);
-                    boolean hasContent = info != null && info.containsKey("content");
-                    if (hasContent) {
-                        logger.warn("Статус задачи {} недоступен, но данные для '{}' получены. Продолжаем обработку.", taskId, normalizedSlug);
+                    if (hasUsableContent(info)) {
+                        logger.warn("Статус задачи {} недоступен, но данные для '{}' получены и содержат страницы. Продолжаем обработку.",
+                            taskId, normalizedSlug);
                         return true;
                     }
-                    infoCheckedAfterMissingStatus = true;
+
+                    Object debugInfo = (info != null) ? info.keySet() : "null";
+                    logger.debug("Задача {} пока не предоставляет статус, данные для '{}' недоступны или неполные (ключи: {})",
+                        taskId, normalizedSlug, debugInfo);
                 }
             } else {
                 missingStatusStreak = 0;
-                infoCheckedAfterMissingStatus = false;
             }
         }
 
         logger.error("Превышено время ожидания завершения задачи {}. Последний статус: {}", taskId, lastStatus);
+        return false;
+    }
+
+    private boolean hasUsableContent(Map<String, Object> mangaInfo) {
+        if (mangaInfo == null || mangaInfo.isEmpty()) {
+            return false;
+        }
+
+        Object contentObj = mangaInfo.get("content");
+        if (!(contentObj instanceof Map<?, ?> contentMap)) {
+            return false;
+        }
+
+        for (Object branchValue : contentMap.values()) {
+            if (!(branchValue instanceof List<?> chapters)) {
+                continue;
+            }
+
+            for (Object chapterObj : chapters) {
+                if (!(chapterObj instanceof Map<?, ?> chapterMap)) {
+                    continue;
+                }
+
+                Object slidesObj = chapterMap.get("slides");
+                if (slidesObj instanceof List<?> slides && !slides.isEmpty()) {
+                    return true;
+                }
+            }
+        }
+
         return false;
     }
 
