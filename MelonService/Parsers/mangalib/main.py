@@ -262,16 +262,24 @@ class Parser(MangaParser):
             response = session.get(url, timeout=30, proxies=proxies, stream=True)
 
             if response.status_code == 200:
-                # Читаем контент по частям, защита от IncompleteRead
-                content = b""
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        content += chunk
+                # Потоково пишем файл, чтобы избежать O(n^2) конкатенации байтов
+                total_bytes = 0
+                with open(image_path, "wb") as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if not chunk:
+                            continue
+                        total_bytes += len(chunk)
+                        f.write(chunk)
 
-                if len(content) > 1000:
-                    with open(image_path, "wb") as f:
-                        f.write(content)
+                if total_bytes > 1000:
                     return image_filename
+
+                # Если файл подозрительно маленький, удаляем его и считаем попытку неуспешной
+                if total_bytes > 0:
+                    try:
+                        os.remove(image_path)
+                    except OSError:
+                        pass
 
         except Exception as e:
             # Тихо пропускаем ошибки, retry механизм обработает
