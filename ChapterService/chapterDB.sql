@@ -10,14 +10,17 @@ CREATE TABLE IF NOT EXISTS chapter (
     published_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    melon_chapter_id VARCHAR(191),
 
     -- Ensure unique chapter numbers per manga
-    UNIQUE(manga_id, chapter_number)
+    UNIQUE(manga_id, chapter_number),
+    UNIQUE(melon_chapter_id)
 );
 
 -- Indexes for faster queries
 CREATE INDEX IF NOT EXISTS idx_chapter_manga_id ON chapter(manga_id);
 CREATE INDEX IF NOT EXISTS idx_chapter_number ON chapter(chapter_number);
+CREATE INDEX IF NOT EXISTS idx_chapter_melon_id ON chapter(melon_chapter_id);
 CREATE INDEX IF NOT EXISTS idx_chapter_published_date ON chapter(published_date);
 
 -- Table for chapter likes

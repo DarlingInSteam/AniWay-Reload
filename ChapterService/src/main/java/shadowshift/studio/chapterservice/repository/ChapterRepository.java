@@ -43,6 +43,14 @@ public interface ChapterRepository extends JpaRepository<Chapter, Long> {
     Optional<Chapter> findByMangaIdAndChapterNumber(Long mangaId, Double chapterNumber);
 
     /**
+     * Найти главу по идентификатору MangaLib.
+     *
+     * @param melonChapterId внешний идентификатор главы
+     * @return Optional с найденной главой или пустой Optional
+     */
+    Optional<Chapter> findByMelonChapterId(String melonChapterId);
+
+    /**
      * Найти следующую главу после указанной.
      * Возвращает главу с наименьшим номером, большим чем текущий.
      *

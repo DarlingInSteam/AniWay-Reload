@@ -11,6 +11,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.util.UriUtils;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 import shadowshift.studio.mangaservice.entity.Manga;
@@ -18,7 +19,9 @@ import shadowshift.studio.mangaservice.dto.MelonChapterImagesResponse;
 import shadowshift.studio.mangaservice.dto.MelonImageData;
 import shadowshift.studio.mangaservice.repository.MangaRepository;
 
+import java.math.BigDecimal;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -44,6 +47,18 @@ public class MangaUpdateService {
         "is_paid_chapter",
         "locked",
         "is_locked"
+    );
+
+    private static final List<String> EXTERNAL_CHAPTER_ID_KEYS = Arrays.asList(
+        "melonChapterId",
+        "melon_chapter_id",
+        "externalChapterId",
+        "external_chapter_id",
+        "chapterId",
+        "chapter_id",
+        "sourceChapterId",
+        "source_chapter_id",
+        "id"
     );
 
     private static final int MAX_TASK_LOGS = 1_000;
@@ -329,12 +344,14 @@ public class MangaUpdateService {
                     logger.info("Проверка обновлений для манги: {} (slug: {})", title, slug);
 
                     // Получаем существующие главы из нашей системы
-                    Set<Double> existingChapterNumbers = getExistingChapterNumbers(manga.getId());
-                    logger.info("Найдено {} существующих глав для манги {}", existingChapterNumbers.size(), title);
-                    appendLog(task, String.format("[%d/%d] %s: найдено %d глав в базе", i + 1, mangaList.size(), displayName, existingChapterNumbers.size()));
+                    ExistingChapters existingChapters = getExistingChapters(manga.getId());
+                    int existingCount = existingChapters.chapterNumbers().size();
+                    logger.info("Найдено {} существующих глав для манги {} ({} внешних идентификаторов)",
+                        existingCount, title, existingChapters.melonChapterIds().size());
+                    appendLog(task, String.format("[%d/%d] %s: найдено %d глав в базе", i + 1, mangaList.size(), displayName, existingCount));
 
                     // Запрашиваем обновленную информацию у Melon
-                    Map<String, Object> updateInfo = checkForUpdates(manga, normalizedSlug, slugForApi, slugId, existingChapterNumbers, taskId);
+                    Map<String, Object> updateInfo = checkForUpdates(manga, normalizedSlug, slugForApi, slugId, existingChapters, taskId);
 
                     if (updateInfo == null) {
                         appendLog(task, String.format("[%d/%d] %s: не удалось получить данные об обновлениях", i + 1, mangaList.size(), displayName));
@@ -475,7 +492,7 @@ public class MangaUpdateService {
     /**
      * Получает номера существующих глав из ChapterService
      */
-    private Set<Double> getExistingChapterNumbers(Long mangaId) {
+    private ExistingChapters getExistingChapters(Long mangaId) {
         String url = chapterServiceUrl + "/api/chapters/manga/" + mangaId;
         try {
             @SuppressWarnings("rawtypes")
@@ -485,23 +502,22 @@ public class MangaUpdateService {
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> chapters = (List<Map<String, Object>>) response.getBody();
 
-                return chapters.stream()
-                    .map(ch -> {
-                        Object chapterNumberObj = ch.get("chapterNumber");
-                        if (chapterNumberObj instanceof Number) {
-                            return ((Number) chapterNumberObj).doubleValue();
-                        }
-                        if (chapterNumberObj instanceof String str && !str.isBlank()) {
-                            try {
-                                return Double.parseDouble(str.trim());
-                            } catch (NumberFormatException ignored) {
-                                // fall through
-                            }
-                        }
-                        return null;
-                    })
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toSet());
+                Set<Double> chapterNumbers = new LinkedHashSet<>();
+                Set<String> melonChapterIds = new LinkedHashSet<>();
+
+                for (Map<String, Object> chapter : chapters) {
+                    Double numeric = extractChapterNumber(chapter.get("chapterNumber"));
+                    if (numeric != null) {
+                        chapterNumbers.add(numeric);
+                    }
+
+                    String externalId = extractStoredMelonChapterId(chapter);
+                    if (externalId != null) {
+                        melonChapterIds.add(externalId);
+                    }
+                }
+
+                return new ExistingChapters(chapterNumbers, melonChapterIds);
             }
 
             throw new IllegalStateException(String.format(
@@ -514,12 +530,164 @@ public class MangaUpdateService {
         }
     }
 
+    private String extractStoredMelonChapterId(Map<String, Object> chapterData) {
+        if (chapterData == null || chapterData.isEmpty()) {
+            return null;
+        }
+
+        Object storedId = chapterData.get("melonChapterId");
+        if (storedId == null) {
+            return null;
+        }
+
+        return normalizeExternalChapterId(storedId);
+    }
+
+    private boolean chapterAlreadyExists(ExistingChapters existingChapters, ChapterNumeric numeric, String melonChapterId) {
+        if (existingChapters == null) {
+            return false;
+        }
+
+        if (melonChapterId != null && !melonChapterId.isBlank()) {
+            String normalizedExternal = normalizeExternalChapterId(melonChapterId);
+            if (normalizedExternal != null && existingChapters.melonChapterIds().contains(normalizedExternal)) {
+                return true;
+            }
+        }
+
+        if (numeric == null) {
+            return false;
+        }
+
+        return chapterAlreadyExists(existingChapters.chapterNumbers(), numeric);
+    }
+
+    private Double extractChapterNumber(Object value) {
+        if (value == null) {
+            return null;
+        }
+
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+
+        String text = value.toString();
+        if (text == null) {
+            return null;
+        }
+
+        text = text.trim();
+        if (text.isEmpty()) {
+            return null;
+        }
+
+        try {
+            return Double.parseDouble(text);
+        } catch (NumberFormatException ex) {
+            logger.debug("Не удалось преобразовать значение '{}' в число главы", text);
+            return null;
+        }
+    }
+
+    private String extractMelonChapterId(Map<String, Object> chapterData) {
+        if (chapterData == null || chapterData.isEmpty()) {
+            return null;
+        }
+
+        Object candidate = findExternalIdCandidate(chapterData);
+        if (candidate == null) {
+            candidate = findExternalIdCandidateFromNested(chapterData, "meta");
+        }
+        if (candidate == null) {
+            candidate = findExternalIdCandidateFromNested(chapterData, "data");
+        }
+        if (candidate == null) {
+            candidate = findExternalIdCandidateFromNested(chapterData, "chapter");
+        }
+
+        if (candidate == null) {
+            for (Object value : chapterData.values()) {
+                if (value instanceof Map<?, ?> nestedMap) {
+                    candidate = findExternalIdCandidate(nestedMap);
+                    if (candidate != null) {
+                        break;
+                    }
+                }
+            }
+        }
+
+        return normalizeExternalChapterId(candidate);
+    }
+
+    private Object findExternalIdCandidateFromNested(Map<String, Object> chapterData, String nestedKey) {
+        Object nested = chapterData.get(nestedKey);
+        if (nested instanceof Map<?, ?> nestedMap) {
+            return findExternalIdCandidate(nestedMap);
+        }
+        return null;
+    }
+
+    private Object findExternalIdCandidate(Map<?, ?> source) {
+        if (source == null || source.isEmpty()) {
+            return null;
+        }
+
+        for (String key : EXTERNAL_CHAPTER_ID_KEYS) {
+            if (source.containsKey(key)) {
+                Object value = source.get(key);
+                if (value != null) {
+                    return value;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private String normalizeExternalChapterId(Object rawValue) {
+        if (rawValue == null) {
+            return null;
+        }
+
+        if (rawValue instanceof Collection<?> collection) {
+            for (Object item : collection) {
+                String normalized = normalizeExternalChapterId(item);
+                if (normalized != null) {
+                    return normalized;
+                }
+            }
+            return null;
+        }
+
+        if (rawValue instanceof Number number) {
+            BigDecimal numeric = new BigDecimal(number.toString());
+            return numeric.stripTrailingZeros().toPlainString();
+        }
+
+        String text = rawValue.toString();
+        if (text == null) {
+            return null;
+        }
+
+        text = text.trim();
+        if (text.isEmpty() || text.equalsIgnoreCase("null")) {
+            return null;
+        }
+
+        try {
+            BigDecimal numeric = new BigDecimal(text);
+            return numeric.stripTrailingZeros().toPlainString();
+        } catch (NumberFormatException ex) {
+            return text;
+        }
+    }
+
     /**
      * Проверяет наличие обновлений через парсинг и сравнение глав
      * @param updateTaskId ID задачи автообновления для связывания логов
      */
     private Map<String, Object> checkForUpdates(Manga manga, String normalizedSlug, String initialSlugForApi, Integer initialSlugId,
-                                                Set<Double> existingChapterNumbers, String updateTaskId) {
+                                                ExistingChapters existingChapters, String updateTaskId) {
         String storedSlug = manga.getMelonSlug();
         Integer slugId = initialSlugId;
         String slugForApi = initialSlugForApi;
@@ -565,6 +733,7 @@ public class MangaUpdateService {
             // Фильтруем ТОЛЬКО новые главы по метаданным
             List<Map<String, Object>> newChaptersMetadata = new ArrayList<>();
             Set<Double> candidateChapterKeys = new LinkedHashSet<>();
+            Set<String> candidateMelonChapterIds = new LinkedHashSet<>();
 
             for (Map<String, Object> chapterMeta : allChaptersMetadata) {
                 try {
@@ -579,6 +748,7 @@ public class MangaUpdateService {
                     }
 
                     ChapterNumeric numeric = numericOpt.get();
+                    String melonChapterId = extractMelonChapterId(chapterMeta);
 
                     if (isChapterPaid(chapterMeta)) {
                         logger.debug("Глава {} (том {}) отмечена как платная, пропускаем при проверке обновлений",
@@ -586,13 +756,22 @@ public class MangaUpdateService {
                         continue;
                     }
 
-                    if (chapterAlreadyExists(existingChapterNumbers, numeric)) {
+                    if (chapterAlreadyExists(existingChapters, numeric, melonChapterId)) {
                         logger.debug("Глава {} (том {}) уже существует, пропускаем", numberObj, volumeObj);
                         continue;
                     }
 
-                    double key = numeric.compositeNumber();
-                    if (candidateChapterKeys.add(key)) {
+                    boolean added = false;
+                    if (melonChapterId != null) {
+                        added = candidateMelonChapterIds.add(melonChapterId);
+                    }
+
+                    if (!added) {
+                        double key = numeric.compositeNumber();
+                        added = candidateChapterKeys.add(key);
+                    }
+
+                    if (added) {
                         newChaptersMetadata.add(chapterMeta);
                     }
                 } catch (Exception e) {
@@ -600,7 +779,7 @@ public class MangaUpdateService {
                 }
             }
 
-            if (candidateChapterKeys.isEmpty()) {
+            if (newChaptersMetadata.isEmpty()) {
                 logger.info("Новых глав не найдено для slug: {} (API '{}') (проверено {} глав)",
                     storedSlug, slugForApi, allChaptersMetadata.size());
                 return Map.of(
@@ -610,7 +789,7 @@ public class MangaUpdateService {
             }
 
             logger.info("Найдено {} потенциально новых глав для slug: {} (API '{}'), запускаем полный парсинг...",
-                candidateChapterKeys.size(), storedSlug, slugForApi);
+                newChaptersMetadata.size(), storedSlug, slugForApi);
             
             // КРИТИЧНО: Связываем задачи ПЕРЕД запуском парсинга!
             // Это гарантирует что маппинг будет готов когда придут первые логи
@@ -662,6 +841,7 @@ public class MangaUpdateService {
             
             List<Map<String, Object>> newChaptersWithSlides = new ArrayList<>();
             Set<Double> processedChapterKeys = new HashSet<>();
+            Set<String> processedMelonChapterIds = new HashSet<>();
 
             for (Map.Entry<String, Object> branchEntry : content.entrySet()) {
                 @SuppressWarnings("unchecked")
@@ -681,16 +861,24 @@ public class MangaUpdateService {
 
                         ChapterNumeric numeric = numericOpt.get();
                         double chapterKey = numeric.compositeNumber();
+                        String melonChapterId = extractMelonChapterId(chapter);
 
-                        if (!candidateChapterKeys.contains(chapterKey)) {
+                        boolean matchesByExternalId = melonChapterId != null && candidateMelonChapterIds.contains(melonChapterId);
+                        boolean matchesByNumber = candidateChapterKeys.contains(chapterKey);
+
+                        if (!matchesByExternalId && !matchesByNumber) {
                             continue;
                         }
 
-                        if (processedChapterKeys.contains(chapterKey)) {
+                        if (matchesByExternalId) {
+                            if (processedMelonChapterIds.contains(melonChapterId)) {
+                                continue;
+                            }
+                        } else if (processedChapterKeys.contains(chapterKey)) {
                             continue;
                         }
 
-                        if (chapterAlreadyExists(existingChapterNumbers, numeric)) {
+                        if (chapterAlreadyExists(existingChapters, numeric, melonChapterId)) {
                             continue;
                         }
 
@@ -708,7 +896,11 @@ public class MangaUpdateService {
                         Map<String, Object> chapterCopy = new LinkedHashMap<>(chapter);
                         chapterCopy.put("slides", slides);
                         newChaptersWithSlides.add(chapterCopy);
-                        processedChapterKeys.add(chapterKey);
+                        if (matchesByExternalId) {
+                            processedMelonChapterIds.add(melonChapterId);
+                        } else {
+                            processedChapterKeys.add(chapterKey);
+                        }
                     } catch (Exception e) {
                         logger.warn("Ошибка обработки главы: {}", e.getMessage());
                     }
@@ -717,7 +909,7 @@ public class MangaUpdateService {
             
             if (newChaptersWithSlides.isEmpty()) {
                 logger.info("Новыми признаны {} глав, но ни одна не содержит доступных изображений. Импорт отменен.",
-                    candidateChapterKeys.size());
+                    newChaptersMetadata.size());
             } else {
                 logger.info("Найдено {} новых глав с данными о страницах для slug: {} (API '{}')",
                     newChaptersWithSlides.size(), storedSlug, slugForApi);
@@ -814,12 +1006,18 @@ public class MangaUpdateService {
                 .map(ChapterNumeric::compositeNumber)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
 
-            if (newChapterKeys.isEmpty()) {
+            Set<String> newChapterExternalIds = newChapters.stream()
+                .map(this::extractMelonChapterId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+            if (newChapterKeys.isEmpty() && newChapterExternalIds.isEmpty()) {
                 logger.error("Не удалось определить номера новых глав для импорта (получено {} записей)", newChapters.size());
                 return false;
             }
 
             Set<Double> processedKeys = new HashSet<>();
+            Set<String> processedExternalIds = new HashSet<>();
             List<Map<String, Object>> chaptersToImport = new ArrayList<>();
             boolean missingSlidesDetected = false;
 
@@ -845,8 +1043,20 @@ public class MangaUpdateService {
 
                     ChapterNumeric numeric = numericOpt.get();
                     double chapterKey = numeric.compositeNumber();
+                    String melonChapterId = extractMelonChapterId(chapter);
 
-                    if (!newChapterKeys.contains(chapterKey) || processedKeys.contains(chapterKey)) {
+                    boolean matchesByExternalId = melonChapterId != null && newChapterExternalIds.contains(melonChapterId);
+                    boolean matchesByNumber = newChapterKeys.contains(chapterKey);
+
+                    if (!matchesByExternalId && !matchesByNumber) {
+                        continue;
+                    }
+
+                    if (matchesByExternalId) {
+                        if (processedExternalIds.contains(melonChapterId)) {
+                            continue;
+                        }
+                    } else if (processedKeys.contains(chapterKey)) {
                         continue;
                     }
 
@@ -863,7 +1073,13 @@ public class MangaUpdateService {
                         continue;
                     }
 
-                    processedKeys.add(chapterKey);
+                    if (matchesByNumber) {
+                        processedKeys.add(chapterKey);
+                    }
+                    if (melonChapterId != null) {
+                        processedExternalIds.add(melonChapterId);
+                        chapter.put("melonChapterId", melonChapterId);
+                    }
                     chapter.put("slides", slides);
                     chaptersToImport.add(chapter);
                 }
@@ -875,7 +1091,8 @@ public class MangaUpdateService {
             }
 
             if (chaptersToImport.isEmpty()) {
-                logger.error("После фильтрации не осталось глав для импорта. Новых глав по ключам: {}", newChapterKeys.size());
+                logger.error("После фильтрации не осталось глав для импорта. Новых глав по ключам: {}, внешних id: {}",
+                    newChapterKeys.size(), newChapterExternalIds.size());
                 return false;
             }
 
@@ -918,6 +1135,7 @@ public class MangaUpdateService {
 
                 ChapterNumeric numeric = numericOpt.get();
                 double chapterNumber = numeric.compositeNumber();
+                String melonChapterId = extractMelonChapterId(chapterData);
 
                 List<Map<String, Object>> slides = extractSlides(chapterData.get("slides"));
                 if (slides.isEmpty()) {
@@ -927,7 +1145,7 @@ public class MangaUpdateService {
                     continue;
                 }
 
-                if (chapterExists(mangaId, numeric)) {
+                if (chapterExists(mangaId, numeric, melonChapterId)) {
                     logger.info("Глава {} уже существует для манги {}, пропускаем", chapterNumber, mangaId);
                     continue;
                 }
@@ -937,6 +1155,9 @@ public class MangaUpdateService {
                 chapterRequest.put("chapterNumber", chapterNumber);
                 chapterRequest.put("volumeNumber", numeric.volume());
                 chapterRequest.put("originalChapterNumber", numeric.originalNumber());
+                if (melonChapterId != null) {
+                    chapterRequest.put("melonChapterId", melonChapterId);
+                }
 
                 Object titleObj = chapterData.get("name");
                 String title = (titleObj != null && !titleObj.toString().trim().isEmpty())
@@ -990,7 +1211,13 @@ public class MangaUpdateService {
     /**
      * Проверяет существование главы
      */
-    private boolean chapterExists(Long mangaId, ChapterNumeric numeric) {
+    private boolean chapterExists(Long mangaId, ChapterNumeric numeric, String melonChapterId) {
+        if (melonChapterId != null && !melonChapterId.isBlank()) {
+            if (chapterExistsRemoteByExternalId(mangaId, melonChapterId)) {
+                return true;
+            }
+        }
+
         if (numeric == null) {
             return false;
         }
@@ -1030,6 +1257,30 @@ public class MangaUpdateService {
             throw new IllegalStateException(String.format(
                 "Не удалось проверить существование главы %f для манги %d",
                 chapterNumber, mangaId), e);
+        }
+    }
+
+    private boolean chapterExistsRemoteByExternalId(Long mangaId, String melonChapterId) {
+        if (melonChapterId == null || melonChapterId.isBlank()) {
+            return false;
+        }
+
+        String encodedId = UriUtils.encode(melonChapterId, StandardCharsets.UTF_8);
+        String url = String.format("%s/api/chapters/exists?mangaId=%d&melonChapterId=%s",
+            chapterServiceUrl, mangaId, encodedId);
+        try {
+            ResponseEntity<Boolean> response = restTemplate.getForEntity(url, Boolean.class);
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                return Boolean.TRUE.equals(response.getBody());
+            }
+
+            throw new IllegalStateException(String.format(
+                "Не удалось проверить существование внешней главы %s для манги %d: статус %s",
+                melonChapterId, mangaId, response.getStatusCode()));
+        } catch (Exception e) {
+            throw new IllegalStateException(String.format(
+                "Не удалось проверить существование внешней главы %s для манги %d",
+                melonChapterId, mangaId), e);
         }
     }
 
@@ -1340,6 +1591,8 @@ public class MangaUpdateService {
             logger.warn("Не удалось удалить главу {} после неудачного импорта: {}", chapterId, e.getMessage());
         }
     }
+
+    private record ExistingChapters(Set<Double> chapterNumbers, Set<String> melonChapterIds) {}
 
     private record ChapterNumeric(int volume, double originalNumber, double compositeNumber) {}
 

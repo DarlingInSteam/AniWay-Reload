@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -157,20 +158,29 @@ public class ChapterService {
      */
     @CacheEvict(value = {"chaptersByManga", "chapterCount", "nextChapter", "previousChapter"}, key = "#createDTO.mangaId")
     public ChapterResponseDTO createChapter(ChapterCreateDTO createDTO) {
-        // Проверяем, что глава с таким номером еще не существует
-        Optional<Chapter> existingChapter = chapterRepository
-                .findByMangaIdAndChapterNumber(createDTO.getMangaId(), createDTO.getChapterNumber());
+    // Проверяем, что глава с таким номером еще не существует
+    Optional<Chapter> existingChapter = chapterRepository
+        .findByMangaIdAndChapterNumber(createDTO.getMangaId(), createDTO.getChapterNumber());
 
-        if (existingChapter.isPresent()) {
-            throw new RuntimeException("Chapter " + createDTO.getChapterNumber() +
-                    " already exists for manga " + createDTO.getMangaId());
+    if (existingChapter.isPresent()) {
+        throw new RuntimeException("Chapter " + createDTO.getChapterNumber() +
+            " already exists for manga " + createDTO.getMangaId());
+    }
+
+    String normalizedMelonChapterId = normalizeExternalId(createDTO.getMelonChapterId());
+    if (normalizedMelonChapterId != null) {
+        Optional<Chapter> existingByExternalId = chapterRepository.findByMelonChapterId(normalizedMelonChapterId);
+        if (existingByExternalId.isPresent()) {
+        throw new RuntimeException("Chapter with external id " + normalizedMelonChapterId + " already exists");
         }
+    }
 
         Chapter chapter = new Chapter();
         chapter.setMangaId(createDTO.getMangaId());
         chapter.setChapterNumber(createDTO.getChapterNumber());
         chapter.setVolumeNumber(createDTO.getVolumeNumber());
         chapter.setOriginalChapterNumber(createDTO.getOriginalChapterNumber());
+    chapter.setMelonChapterId(normalizedMelonChapterId);
         chapter.setTitle(createDTO.getTitle());
         // Ensure likeCount is initialized to 0
         chapter.setLikeCount(0);
@@ -274,6 +284,20 @@ public class ChapterService {
                         chapter.setChapterNumber(updateDTO.getChapterNumber());
                     }
 
+                    String normalizedMelonChapterId = normalizeExternalId(updateDTO.getMelonChapterId());
+                    if (!java.util.Objects.equals(normalizedMelonChapterId, chapter.getMelonChapterId())) {
+                        if (normalizedMelonChapterId != null) {
+                            chapterRepository.findByMelonChapterId(normalizedMelonChapterId)
+                                    .filter(found -> !found.getId().equals(id))
+                                    .ifPresent(found -> {
+                                        throw new RuntimeException("Chapter with external id " + normalizedMelonChapterId + " already exists");
+                                    });
+                        }
+                        chapter.setMelonChapterId(normalizedMelonChapterId);
+                    }
+
+                    chapter.setVolumeNumber(updateDTO.getVolumeNumber());
+                    chapter.setOriginalChapterNumber(updateDTO.getOriginalChapterNumber());
                     chapter.setTitle(updateDTO.getTitle());
                     if (updateDTO.getPublishedDate() != null) {
                         chapter.setPublishedDate(updateDTO.getPublishedDate());
@@ -679,8 +703,31 @@ public class ChapterService {
      * @param chapterNumber номер главы
      * @return true, если глава существует, иначе false
      */
-    public boolean chapterExists(Long mangaId, Double chapterNumber) {
+    public boolean chapterExists(Long mangaId, Double chapterNumber, String melonChapterId) {
+        String normalizedMelonChapterId = normalizeExternalId(melonChapterId);
+        if (normalizedMelonChapterId != null) {
+            if (chapterRepository.findByMelonChapterId(normalizedMelonChapterId).isPresent()) {
+                return true;
+            }
+        }
+
+        if (chapterNumber == null) {
+            return false;
+        }
+
         return chapterRepository.findByMangaIdAndChapterNumber(mangaId, chapterNumber).isPresent();
+    }
+
+    public boolean chapterExists(Long mangaId, Double chapterNumber) {
+        return chapterExists(mangaId, chapterNumber, null);
+    }
+
+    private String normalizeExternalId(String rawId) {
+        if (rawId == null) {
+            return null;
+        }
+        String trimmed = rawId.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private String fetchMangaTitle(Long mangaId) {

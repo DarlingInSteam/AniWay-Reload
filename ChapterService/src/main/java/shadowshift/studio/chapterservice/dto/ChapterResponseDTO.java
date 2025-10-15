@@ -26,6 +26,9 @@ public class ChapterResponseDTO {
     /** Оригинальный номер главы в источнике */
     private Double originalChapterNumber;
 
+    /** Идентификатор главы во внешней системе MangaLib */
+    private String melonChapterId;
+
     /** Название главы */
     private String title;
 
@@ -61,6 +64,7 @@ public class ChapterResponseDTO {
         this.chapterNumber = chapter.getChapterNumber();
         this.volumeNumber = chapter.getVolumeNumber();
         this.originalChapterNumber = chapter.getOriginalChapterNumber();
+    this.melonChapterId = chapter.getMelonChapterId();
         this.title = chapter.getTitle();
         this.pageCount = chapter.getPageCount();
         // Ensure likeCount is never null
@@ -139,6 +143,20 @@ public class ChapterResponseDTO {
      * @param originalChapterNumber оригинальный номер главы
      */
     public void setOriginalChapterNumber(Double originalChapterNumber) { this.originalChapterNumber = originalChapterNumber; }
+
+    /**
+     * Получить идентификатор главы во внешней системе MangaLib.
+     *
+     * @return внешний идентификатор главы
+     */
+    public String getMelonChapterId() { return melonChapterId; }
+
+    /**
+     * Установить идентификатор главы во внешней системе MangaLib.
+     *
+     * @param melonChapterId внешний идентификатор главы
+     */
+    public void setMelonChapterId(String melonChapterId) { this.melonChapterId = melonChapterId; }
 
     /**
      * Получить название главы.

@@ -28,6 +28,10 @@ public class ChapterCreateDTO {
     /** Оригинальный номер главы в источнике */
     private Double originalChapterNumber;
 
+    /** Идентификатор главы во внешней системе MangaLib */
+    @Size(max = 191, message = "External chapter id must not exceed 191 characters")
+    private String melonChapterId;
+
     /** Название главы */
     @Size(max = 255, message = "Title must not exceed 255 characters")
     private String title;
@@ -108,6 +112,20 @@ public class ChapterCreateDTO {
      * @param originalChapterNumber оригинальный номер главы
      */
     public void setOriginalChapterNumber(Double originalChapterNumber) { this.originalChapterNumber = originalChapterNumber; }
+
+    /**
+     * Получить внешний идентификатор главы.
+     *
+     * @return идентификатор во внешней системе
+     */
+    public String getMelonChapterId() { return melonChapterId; }
+
+    /**
+     * Установить внешний идентификатор главы.
+     *
+     * @param melonChapterId идентификатор во внешней системе
+     */
+    public void setMelonChapterId(String melonChapterId) { this.melonChapterId = melonChapterId; }
 
     /**
      * Получить название главы.

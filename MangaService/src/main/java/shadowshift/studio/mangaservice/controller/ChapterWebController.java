@@ -263,6 +263,7 @@ public class ChapterWebController {
         private Long mangaId;
         private Integer chapterNumber;
         private String title;
+    private String melonChapterId;
 
         /**
          * Получает идентификатор манги.
@@ -305,6 +306,10 @@ public class ChapterWebController {
          * @param title заголовок главы
          */
         public void setTitle(String title) { this.title = title; }
+
+    public String getMelonChapterId() { return melonChapterId; }
+
+    public void setMelonChapterId(String melonChapterId) { this.melonChapterId = melonChapterId; }
     }
 
     /**
@@ -317,6 +322,7 @@ public class ChapterWebController {
         private Long mangaId;
         private Integer chapterNumber;
         private String title;
+    private String melonChapterId;
 
         /**
          * Получает идентификатор манги.
@@ -359,6 +365,10 @@ public class ChapterWebController {
          * @param title заголовок главы
          */
         public void setTitle(String title) { this.title = title; }
+
+    public String getMelonChapterId() { return melonChapterId; }
+
+    public void setMelonChapterId(String melonChapterId) { this.melonChapterId = melonChapterId; }
     }
 
     /**
@@ -373,6 +383,7 @@ public class ChapterWebController {
         private Integer chapterNumber;
         private String title;
         private Integer pageCount;
+    private String melonChapterId;
 
         /**
          * Получает идентификатор главы.
@@ -443,5 +454,9 @@ public class ChapterWebController {
          * @param pageCount количество страниц
          */
         public void setPageCount(Integer pageCount) { this.pageCount = pageCount; }
+
+    public String getMelonChapterId() { return melonChapterId; }
+
+    public void setMelonChapterId(String melonChapterId) { this.melonChapterId = melonChapterId; }
     }
 }

@@ -317,8 +317,13 @@ public class ChapterRestController {
     @GetMapping("/exists")
     public ResponseEntity<Boolean> chapterExists(
             @RequestParam Long mangaId,
-            @RequestParam Double chapterNumber) {
-        boolean exists = chapterService.chapterExists(mangaId, chapterNumber);
+            @RequestParam(required = false) Double chapterNumber,
+            @RequestParam(required = false) String melonChapterId) {
+        if (chapterNumber == null && (melonChapterId == null || melonChapterId.trim().isEmpty())) {
+            return ResponseEntity.badRequest().body(Boolean.FALSE);
+        }
+
+        boolean exists = chapterService.chapterExists(mangaId, chapterNumber, melonChapterId);
         return ResponseEntity.ok(exists);
     }
 }

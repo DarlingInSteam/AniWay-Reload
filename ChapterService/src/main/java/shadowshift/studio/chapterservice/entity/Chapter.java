@@ -43,6 +43,11 @@ public class Chapter {
     @Column(name = "original_chapter_number")
     private Double originalChapterNumber;
 
+    /** Идентификатор главы во внешней системе MangaLib */
+    @Size(max = 191, message = "External chapter id must not exceed 191 characters")
+    @Column(name = "melon_chapter_id", unique = true)
+    private String melonChapterId;
+
     /** Название главы */
     @Size(max = 255, message = "Title must not exceed 255 characters")
     private String title;
@@ -176,6 +181,20 @@ public class Chapter {
      * @param originalChapterNumber оригинальный номер главы
      */
     public void setOriginalChapterNumber(Double originalChapterNumber) { this.originalChapterNumber = originalChapterNumber; }
+
+    /**
+     * Получить идентификатор главы во внешней системе MangaLib.
+     *
+     * @return внешний идентификатор главы
+     */
+    public String getMelonChapterId() { return melonChapterId; }
+
+    /**
+     * Установить идентификатор главы во внешней системе MangaLib.
+     *
+     * @param melonChapterId внешний идентификатор главы
+     */
+    public void setMelonChapterId(String melonChapterId) { this.melonChapterId = melonChapterId; }
 
     /**
      * Получить название главы.
