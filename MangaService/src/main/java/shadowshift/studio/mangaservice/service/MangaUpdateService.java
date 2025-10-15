@@ -12,13 +12,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriUtils;
+import org.springframework.web.util.UriComponentsBuilder;
 import shadowshift.studio.mangaservice.entity.Manga;
 import shadowshift.studio.mangaservice.dto.MelonChapterImagesResponse;
 import shadowshift.studio.mangaservice.dto.MelonImageData;
 import shadowshift.studio.mangaservice.repository.MangaRepository;
 
-import java.nio.charset.StandardCharsets;
+import java.net.URI;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -557,42 +557,53 @@ public class MangaUpdateService {
             
             // Фильтруем ТОЛЬКО новые главы по метаданным
             List<Map<String, Object>> newChaptersMetadata = new ArrayList<>();
-            
+            Set<Double> candidateChapterKeys = new LinkedHashSet<>();
+
             for (Map<String, Object> chapterMeta : allChaptersMetadata) {
                 try {
                     Object volumeObj = chapterMeta.get("volume");
                     Object numberObj = chapterMeta.get("number");
-                    
-                    int volume = volumeObj != null ? Integer.parseInt(volumeObj.toString()) : 1;
-                    double number = Double.parseDouble(numberObj.toString());
-                    double chapterNum = volume * 10000 + number;
 
-                    if (isChapterPaid(chapterMeta)) {
-                        logger.debug("Глава {} (том {}) отмечена как платная, пропускаем при проверке обновлений", numberObj, volumeObj);
+                    Optional<ChapterNumeric> numericOpt = parseChapterNumeric(volumeObj, numberObj);
+                    if (numericOpt.isEmpty()) {
+                        logger.warn("Пропускаем главу без корректного номера при проверке обновлений: volume='{}', number='{}'",
+                            volumeObj, numberObj);
                         continue;
                     }
-                    
-                    // Проверяем, является ли глава новой
-                    if (!existingChapterNumbers.contains(chapterNum)) {
+
+                    ChapterNumeric numeric = numericOpt.get();
+
+                    if (isChapterPaid(chapterMeta)) {
+                        logger.debug("Глава {} (том {}) отмечена как платная, пропускаем при проверке обновлений",
+                            numberObj, volumeObj);
+                        continue;
+                    }
+
+                    if (chapterAlreadyExists(existingChapterNumbers, numeric)) {
+                        logger.debug("Глава {} (том {}) уже существует, пропускаем", numberObj, volumeObj);
+                        continue;
+                    }
+
+                    double key = numeric.compositeNumber();
+                    if (candidateChapterKeys.add(key)) {
                         newChaptersMetadata.add(chapterMeta);
                     }
                 } catch (Exception e) {
                     logger.warn("Ошибка обработки метаданных главы: {}", e.getMessage());
                 }
             }
-            
-            // КРИТИЧНО: Если нет новых глав - возвращаем сразу (БЕЗ ПАРСИНГА!)
-            if (newChaptersMetadata.isEmpty()) {
-                logger.info("Новых глав не найдено для slug: {} (API '{}') (проверено {} глав)", 
+
+            if (candidateChapterKeys.isEmpty()) {
+                logger.info("Новых глав не найдено для slug: {} (API '{}') (проверено {} глав)",
                     storedSlug, slugForApi, allChaptersMetadata.size());
                 return Map.of(
                     "has_updates", false,
                     "new_chapters", List.of()
                 );
             }
-            
-            logger.info("Найдено {} новых глав для slug: {} (API '{}'), запускаем полный парсинг...", 
-                newChaptersMetadata.size(), storedSlug, slugForApi);
+
+            logger.info("Найдено {} потенциально новых глав для slug: {} (API '{}'), запускаем полный парсинг...",
+                candidateChapterKeys.size(), storedSlug, slugForApi);
             
             // КРИТИЧНО: Связываем задачи ПЕРЕД запуском парсинга!
             // Это гарантирует что маппинг будет готов когда придут первые логи
@@ -643,7 +654,8 @@ public class MangaUpdateService {
             Map<String, Object> content = (Map<String, Object>) mangaInfo.get("content");
             
             List<Map<String, Object>> newChaptersWithSlides = new ArrayList<>();
-            
+            Set<Double> processedChapterKeys = new HashSet<>();
+
             for (Map.Entry<String, Object> branchEntry : content.entrySet()) {
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> branchChapters = 
@@ -661,7 +673,19 @@ public class MangaUpdateService {
                         }
 
                         ChapterNumeric numeric = numericOpt.get();
-                        double chapterNum = numeric.compositeNumber();
+                        double chapterKey = numeric.compositeNumber();
+
+                        if (!candidateChapterKeys.contains(chapterKey)) {
+                            continue;
+                        }
+
+                        if (processedChapterKeys.contains(chapterKey)) {
+                            continue;
+                        }
+
+                        if (chapterAlreadyExists(existingChapterNumbers, numeric)) {
+                            continue;
+                        }
 
                         if (isChapterPaid(chapter)) {
                             logger.debug("Глава {} (том {}) отмечена как платная, пропускаем при импорте", numberObj, volumeObj);
@@ -674,19 +698,23 @@ public class MangaUpdateService {
                             continue;
                         }
 
-                        if (!existingChapterNumbers.contains(chapterNum)) {
-                            Map<String, Object> chapterCopy = new LinkedHashMap<>(chapter);
-                            chapterCopy.put("slides", slides);
-                            newChaptersWithSlides.add(chapterCopy);
-                        }
+                        Map<String, Object> chapterCopy = new LinkedHashMap<>(chapter);
+                        chapterCopy.put("slides", slides);
+                        newChaptersWithSlides.add(chapterCopy);
+                        processedChapterKeys.add(chapterKey);
                     } catch (Exception e) {
                         logger.warn("Ошибка обработки главы: {}", e.getMessage());
                     }
                 }
             }
             
-            logger.info("Найдено {} новых глав с данными о страницах для slug: {} (API '{}')", 
-                newChaptersWithSlides.size(), storedSlug, slugForApi);
+            if (newChaptersWithSlides.isEmpty()) {
+                logger.info("Новыми признаны {} глав, но ни одна не содержит доступных изображений. Импорт отменен.",
+                    candidateChapterKeys.size());
+            } else {
+                logger.info("Найдено {} новых глав с данными о страницах для slug: {} (API '{}')",
+                    newChaptersWithSlides.size(), storedSlug, slugForApi);
+            }
             
             return Map.of(
                 "has_updates", !newChaptersWithSlides.isEmpty(),
@@ -988,17 +1016,29 @@ public class MangaUpdateService {
         try {
             logger.info("Начинается импорт {} страниц для главы {}", slides.size(), chapterId);
 
-            String safeSlug = normalizedSlug != null ? normalizedSlug : "";
+            String safeSlug = normalizedSlug != null ? normalizedSlug.trim() : "";
             String safeFolder = (chapterFolderName != null && !chapterFolderName.isBlank())
-                ? chapterFolderName
+                ? chapterFolderName.trim()
                 : String.valueOf(chapterId);
 
-            String encodedSlug = UriUtils.encodePathSegment(safeSlug, StandardCharsets.UTF_8);
-            String encodedFolder = UriUtils.encodePathSegment(safeFolder, StandardCharsets.UTF_8);
-            String batchUrl = melonServiceUrl + "/chapter-images/" + encodedSlug + "/" + encodedFolder;
+            if (safeSlug.isEmpty()) {
+                logger.error("Невозможно импортировать страницы для главы {}: пустой slug", chapterId);
+                return false;
+            }
 
-            ResponseEntity<MelonChapterImagesResponse> response =
-                restTemplate.getForEntity(batchUrl, MelonChapterImagesResponse.class);
+            URI batchUri = UriComponentsBuilder.fromUriString(melonServiceUrl)
+                .pathSegment("chapter-images")
+                .pathSegment(safeSlug)
+                .pathSegment(safeFolder)
+                .build()
+                .toUri();
+
+            ResponseEntity<MelonChapterImagesResponse> response = restTemplate.exchange(
+                batchUri,
+                HttpMethod.GET,
+                null,
+                MelonChapterImagesResponse.class
+            );
 
             if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
                 logger.error("Не удалось получить изображения для главы {}: статус {}", chapterId, response.getStatusCode());
@@ -1181,6 +1221,30 @@ public class MangaUpdateService {
         }
 
         return slides;
+    }
+
+    private boolean chapterAlreadyExists(Set<Double> existingChapterNumbers, ChapterNumeric numeric) {
+        if (existingChapterNumbers == null || existingChapterNumbers.isEmpty()) {
+            return false;
+        }
+
+        double compositeKey = numeric.compositeNumber();
+        double rawNumber = numeric.originalNumber();
+        double volumeScaledKey = numeric.volume() * 100d + rawNumber;
+
+        return containsChapterNumber(existingChapterNumbers, compositeKey)
+            || containsChapterNumber(existingChapterNumbers, rawNumber)
+            || containsChapterNumber(existingChapterNumbers, volumeScaledKey);
+    }
+
+    private boolean containsChapterNumber(Set<Double> existingChapterNumbers, double candidate) {
+        final double epsilon = 0.0001d;
+        for (Double value : existingChapterNumbers) {
+            if (Math.abs(value - candidate) < epsilon) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Optional<ChapterNumeric> parseChapterNumeric(Object volumeObj, Object numberObj) {

@@ -2308,6 +2308,7 @@ public class MelonIntegrationService {
     private Double extractVolumeWithKeywords(String raw) {
         Matcher matcher = VOLUME_KEYWORD_PATTERN.matcher(raw);
         Double bestValue = null;
+        Double prioritizedValue = null;
         int bestWeight = Integer.MIN_VALUE;
 
         while (matcher.find()) {
@@ -2318,6 +2319,12 @@ public class MelonIntegrationService {
                 continue;
             }
 
+            String normalizedKeyword = keyword != null ? keyword.toLowerCase(Locale.ROOT) : "";
+            System.out.println("KW=" + keyword + " cand=" + candidate);
+            if (normalizedKeyword.startsWith("том") || normalizedKeyword.startsWith("volume") || normalizedKeyword.startsWith("vol")) {
+                prioritizedValue = candidate;
+            }
+
             int weight = keywordWeight(keyword);
             if (weight > bestWeight) {
                 bestWeight = weight;
@@ -2325,7 +2332,7 @@ public class MelonIntegrationService {
             }
         }
 
-        return bestValue;
+        return prioritizedValue != null ? prioritizedValue : bestValue;
     }
 
     private Double parseNumericToken(String token) {
@@ -2566,6 +2573,7 @@ public class MelonIntegrationService {
     /**
      * Отменяет задачу в MelonService
      */
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public Map<String, Object> cancelMelonTask(String taskId) {
         String url = melonServiceUrl + "/tasks/" + taskId + "/cancel";
         
