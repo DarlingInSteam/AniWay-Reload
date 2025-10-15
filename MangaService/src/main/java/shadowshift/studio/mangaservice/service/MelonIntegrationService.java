@@ -53,7 +53,7 @@ public class MelonIntegrationService {
     private static final Duration TASK_STATUS_POLL_INTERVAL = Duration.ofMillis(500); // Уменьшено с 2s до 500ms
     private static final int MAX_MISSING_TASK_STATUS_ATTEMPTS = 15;
     private static final Pattern NUMERIC_TOKEN_PATTERN = Pattern.compile("[-+]?\\d+(?:[\\.,]\\d+)?");
-    private static final Pattern VOLUME_KEYWORD_PATTERN = Pattern.compile("(?i)(том|volume|vol\\.?|book|часть|part|season|сезон)\\s*([-+]?\\d+(?:[\\.,]\\d+)?)");
+    private static final Pattern VOLUME_KEYWORD_PATTERN = Pattern.compile("(?iu)(том|volume|vol\\.?|book|часть|part|season|сезон)\\s*([-+]?\\d+(?:[\\.,]\\d+)?)");
     private static final Pattern ROMAN_VOLUME_PATTERN = Pattern.compile("(?i)\\b[MDCLXVI]+\\b");
     private static final Map<Character, Integer> ROMAN_VALUES = Map.of(
         'I', 1,
@@ -2320,7 +2320,6 @@ public class MelonIntegrationService {
             }
 
             String normalizedKeyword = keyword != null ? keyword.toLowerCase(Locale.ROOT) : "";
-            System.out.println("KW=" + keyword + " cand=" + candidate);
             if (normalizedKeyword.startsWith("том") || normalizedKeyword.startsWith("volume") || normalizedKeyword.startsWith("vol")) {
                 prioritizedValue = candidate;
             }
