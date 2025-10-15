@@ -305,7 +305,8 @@ public class MangaUpdateService {
                 String title = Optional.ofNullable(manga.getTitle()).orElse("Без названия");
                 String slug = manga.getMelonSlug();
                 Integer slugId = manga.getMelonSlugId();
-                String slugForApi = melonService.buildSlugForMangaLibApi(slug, slugId);
+                String normalizedSlug = normalizeSlug(slug);
+                String slugForApi = melonService.buildSlugForMangaLibApi(normalizedSlug, slugId);
                 if (slugId == null) {
                     logger.debug("Для манги '{}' отсутствует сохраненный MangaLib ID. Используем slug: {}", title, slugForApi);
                 }
@@ -329,7 +330,7 @@ public class MangaUpdateService {
                     appendLog(task, String.format("[%d/%d] %s: найдено %d глав в базе", i + 1, mangaList.size(), displayName, existingChapterNumbers.size()));
 
                     // Запрашиваем обновленную информацию у Melon
-                    Map<String, Object> updateInfo = checkForUpdates(slugForApi, slug, existingChapterNumbers, taskId);
+                    Map<String, Object> updateInfo = checkForUpdates(manga, normalizedSlug, slugForApi, slugId, existingChapterNumbers, taskId);
 
                     if (updateInfo == null) {
                         appendLog(task, String.format("[%d/%d] %s: не удалось получить данные об обновлениях", i + 1, mangaList.size(), displayName));
@@ -364,7 +365,7 @@ public class MangaUpdateService {
                             }
 
                             // Импортируем только новые главы (парсинг уже выполнен)
-                            boolean success = parseAndImportNewChapters(slug, manga.getId(), newChapters, mangaInfoFromUpdate);
+                            boolean success = parseAndImportNewChapters(slugForApi, manga.getId(), newChapters, mangaInfoFromUpdate);
 
                             if (success) {
                                 UpdatedMangaRecord record = new UpdatedMangaRecord(slug, title, newChapters.size(), chapterLabels, normalizedNumbers);
@@ -502,21 +503,40 @@ public class MangaUpdateService {
      * Проверяет наличие обновлений через парсинг и сравнение глав
      * @param updateTaskId ID задачи автообновления для связывания логов
      */
-    private Map<String, Object> checkForUpdates(String slugForApi, String storedSlug, Set<Double> existingChapterNumbers, String updateTaskId) {
+    private Map<String, Object> checkForUpdates(Manga manga, String normalizedSlug, String initialSlugForApi, Integer initialSlugId,
+                                                Set<Double> existingChapterNumbers, String updateTaskId) {
+        String storedSlug = manga.getMelonSlug();
+        Integer slugId = initialSlugId;
+        String slugForApi = initialSlugForApi;
+
         try {
-            // ОПТИМИЗАЦИЯ: Сначала получаем ТОЛЬКО метаданные глав (БЕЗ ПАРСИНГА!)
+
             logger.info("Получение метаданных глав для slug (API формат): {}", slugForApi);
             Map<String, Object> metadata = melonService.getChaptersMetadataOnly(slugForApi);
-            
-            // Проверяем успешность получения метаданных
+
             if (metadata == null || !Boolean.TRUE.equals(metadata.get("success"))) {
-                logger.error("Не удалось получить метаданные для slug '{}' (API '{}'): {}", 
-                    storedSlug, slugForApi, metadata != null ? metadata.get("error") : "Unknown error");
-                return null;
+                logger.warn("Первичная попытка получения метаданных для '{}' не удалась: {}",
+                    storedSlug, metadata != null ? metadata.get("error") : "unknown error");
+
+                if (slugId == null) {
+                    Integer resolvedId = resolveAndPersistSlugId(manga, normalizedSlug);
+                    if (resolvedId != null) {
+                        slugId = resolvedId;
+                        slugForApi = melonService.buildSlugForMangaLibApi(normalizedSlug, slugId);
+                        logger.info("Повторно запрашиваем метаданные для '{}' с ID {}", storedSlug, slugId);
+                        metadata = melonService.getChaptersMetadataOnly(slugForApi);
+                    }
+                }
+
+                if (metadata == null || !Boolean.TRUE.equals(metadata.get("success"))) {
+                    logger.error("Не удалось получить метаданные для slug '{}' (API '{}'): {}",
+                        storedSlug, slugForApi, metadata != null ? metadata.get("error") : "Unknown error");
+                    return null;
+                }
             }
-            
+
             @SuppressWarnings("unchecked")
-            List<Map<String, Object>> allChaptersMetadata = 
+            List<Map<String, Object>> allChaptersMetadata =
                 (List<Map<String, Object>>) metadata.get("chapters");
             
             if (allChaptersMetadata == null || allChaptersMetadata.isEmpty()) {
@@ -652,6 +672,40 @@ public class MangaUpdateService {
             logger.error("Ошибка проверки обновлений для slug '{}' (API '{}'): {}", storedSlug, slugForApi, e.getMessage());
             return null;
         }
+    }
+
+    private Integer resolveAndPersistSlugId(Manga manga, String normalizedSlug) {
+        if (normalizedSlug == null || normalizedSlug.isBlank()) {
+            return null;
+        }
+
+        try {
+            logger.info("Попытка определить MangaLib ID для slug '{}' через каталог", normalizedSlug);
+            Map<String, Integer> resolved = melonService.resolveSlugIds(Set.of(normalizedSlug), 50, 60, 1);
+            Integer resolvedId = resolved.get(normalizedSlug);
+            if (resolvedId != null) {
+                manga.setMelonSlugId(resolvedId);
+                mangaRepository.save(manga);
+                logger.info("Для манги '{}' найден и сохранен MangaLib ID {}", manga.getTitle(), resolvedId);
+                return resolvedId;
+            }
+            logger.warn("Не удалось определить MangaLib ID для slug '{}'", normalizedSlug);
+        } catch (Exception ex) {
+            logger.error("Ошибка при попытке определить MangaLib ID для slug '{}': {}", normalizedSlug, ex.getMessage());
+        }
+        return null;
+    }
+
+    private String normalizeSlug(String slug) {
+        if (slug == null || slug.isBlank()) {
+            return slug;
+        }
+
+        int delimiterIndex = slug.indexOf("--");
+        if (delimiterIndex >= 0 && delimiterIndex + 2 < slug.length()) {
+            return slug.substring(delimiterIndex + 2);
+        }
+        return slug;
     }
 
     /**
