@@ -248,11 +248,16 @@ class Parser(MangaParser):
                 except Exception:
                     pass
 
-            # Копируем headers из source session
+            # Копируем headers из source session (поэлементно чтобы избежать потенциальных блокировок)
             if source_session and hasattr(source_session, 'headers'):
                 try:
                     headers_dict = dict(source_session.headers)
-                    session.headers.update(headers_dict)
+                    for hn, hv in headers_dict.items():
+                        try:
+                            session.headers[hn] = hv
+                        except Exception:
+                            # не критично
+                            pass
                 except Exception:
                     pass
 
@@ -267,7 +272,8 @@ class Parser(MangaParser):
             # ПАРАЛЛЕЛЬНЫЙ HTTP запрос через независимую сессию!
             # stream=True для защиты от IncompleteRead на больших файлах
             request_started_at = time.perf_counter()
-            response = session.get(url, timeout=30, proxies=proxies, stream=True)
+            # Уменьшаем таймауты: сначала connect timeout (10s), затем read timeout (20s)
+            response = session.get(url, timeout=(10, 20), proxies=proxies, stream=True)
 
             if response.status_code == 200:
                 # Потоково пишем файл, чтобы избежать O(n^2) конкатенации байтов

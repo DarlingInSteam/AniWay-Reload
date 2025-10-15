@@ -192,12 +192,10 @@ class AdaptiveParallelDownloader:
                     assigned_proxies = None
 
                 # Загрузка (download_func may accept proxies kw or session kw)
-                session_for_proxy = None
                 proxy_index = None
                 if self.proxy_pool:
                     try:
                         proxy_index = (index - 1) % len(self.proxy_pool)
-                        session_for_proxy = self._proxy_sessions.get(proxy_index)
                     except Exception:
                         proxy_index = None
 
@@ -205,33 +203,15 @@ class AdaptiveParallelDownloader:
                 if proxy_index is not None:
                     sem = self._proxy_semaphores.get(proxy_index)
                     if sem:
-                        acquired = sem.acquire(timeout=30)
+                        # shorter timeout to avoid long stalls
+                        acquired = sem.acquire(timeout=5)
 
                 try:
-                    # If download_func supports 'session' kw, pass it for connection reuse
+                    # Prefer calling download_func with proxies kw; fallback to positional call
                     try:
-                        if session_for_proxy is not None:
-                            result = self.download_func(url, proxies=assigned_proxies, session=session_for_proxy)
-                        else:
-                            result = self.download_func(url, proxies=assigned_proxies)
+                        result = self.download_func(url, proxies=assigned_proxies)
                     except TypeError:
-                        # Fallback if download_func does not accept proxies/session kw
-                        if session_for_proxy is not None:
-                            # try using session directly
-                            try:
-                                resp = session_for_proxy.get(url, timeout=30, stream=True)
-                                if resp.status_code == 200:
-                                    # let caller's download_func handle writes; otherwise return url as stub
-                                    # Here we simply return a truthy value to indicate success
-                                    resp.close()
-                                    result = url
-                                else:
-                                    resp.close()
-                                    result = None
-                            except Exception:
-                                result = None
-                        else:
-                            result = self.download_func(url)
+                        result = self.download_func(url)
                 finally:
                     if acquired and proxy_index is not None:
                         sem = self._proxy_semaphores.get(proxy_index)
