@@ -1,0 +1,154 @@
+package shadowshift.studio.parserservice.web;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import shadowshift.studio.parserservice.config.ParserProperties;
+import shadowshift.studio.parserservice.dto.ChapterInfo;
+import shadowshift.studio.parserservice.service.MangaLibParserService;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+
+/**
+ * Legacy manga-info endpoint for MangaService compatibility
+ */
+@RestController
+@RequestMapping("/manga-info")
+public class MangaInfoController {
+    
+    private static final Logger logger = LoggerFactory.getLogger(MangaInfoController.class);
+    
+    @Autowired
+    private MangaLibParserService parserService;
+    
+    @Autowired
+    private ParserProperties properties;
+    
+    @Autowired
+    private ObjectMapper objectMapper;
+    
+    /**
+     * Get chapters only (legacy endpoint for MangaService)
+     * GET /manga-info/{slug}/chapters-only?parser=mangalib&include_slides_count=true
+     */
+    @GetMapping("/{slug}/chapters-only")
+    public ResponseEntity<Map<String, Object>> getChaptersOnly(
+            @PathVariable String slug,
+            @RequestParam(required = false, defaultValue = "mangalib") String parser,
+            @RequestParam(required = false, defaultValue = "false") boolean include_slides_count) {
+        
+        try {
+            logger.info("Chapters-only request: slug={}, parser={}, includeSlidesCount={}", 
+                slug, parser, include_slides_count);
+            
+            // Normalize slug
+            String normalizedSlug = parserService.normalizeSlug(slug);
+            
+            // Try to read from cached JSON first
+            Path jsonPath = Paths.get(properties.getOutputPath(), normalizedSlug + ".json");
+            
+            List<ChapterInfo> chapters;
+            
+            if (Files.exists(jsonPath)) {
+                logger.debug("Reading chapters from cached file: {}", jsonPath);
+                Map<String, Object> cached = objectMapper.readValue(jsonPath.toFile(), Map.class);
+                chapters = parseChaptersFromCache(cached);
+            } else {
+                logger.debug("Fetching fresh chapters for slug: {}", normalizedSlug);
+                CompletableFuture<List<ChapterInfo>> future = parserService.fetchChapterList(normalizedSlug);
+                chapters = future.join();
+            }
+            
+            // Convert to legacy format
+            Map<String, Object> response = new HashMap<>();
+            List<Map<String, Object>> chaptersList = new ArrayList<>();
+            
+            for (ChapterInfo chapter : chapters) {
+                Map<String, Object> chapterMap = new HashMap<>();
+                chapterMap.put("id", chapter.getChapterId());
+                chapterMap.put("number", chapter.getNumber());
+                chapterMap.put("volume", chapter.getVolume());
+                chapterMap.put("title", chapter.getTitle());
+                chapterMap.put("is_paid", chapter.getIsPaid());
+                
+                // Include slides_count if requested (set to null for now, can be fetched if needed)
+                if (include_slides_count) {
+                    chapterMap.put("slides_count", null);  // TODO: fetch actual count from MangaLib
+                }
+                
+                chaptersList.add(chapterMap);
+            }
+            
+            response.put("chapters", chaptersList);
+            logger.info("Returned {} chapters for slug: {}", chaptersList.size(), normalizedSlug);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            logger.error("Error fetching chapters for slug {}: {}", slug, e.getMessage(), e);
+            
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            error.put("chapters", Collections.emptyList());
+            
+            return ResponseEntity.status(500).body(error);
+        }
+    }
+    
+    /**
+     * Get full manga info (legacy endpoint)
+     * GET /manga-info/{slug}
+     */
+    @GetMapping("/{slug}")
+    public ResponseEntity<Map<String, Object>> getMangaInfo(@PathVariable String slug) {
+        try {
+            logger.info("Manga-info request: slug={}", slug);
+            
+            String normalizedSlug = parserService.normalizeSlug(slug);
+            Path jsonPath = Paths.get(properties.getOutputPath(), normalizedSlug + ".json");
+            
+            if (Files.exists(jsonPath)) {
+                Map<String, Object> mangaInfo = objectMapper.readValue(jsonPath.toFile(), Map.class);
+                return ResponseEntity.ok(mangaInfo);
+            } else {
+                Map<String, Object> error = new HashMap<>();
+                error.put("error", "Manga not found: " + normalizedSlug);
+                return ResponseEntity.status(404).body(error);
+            }
+            
+        } catch (Exception e) {
+            logger.error("Error reading manga info for {}: {}", slug, e.getMessage(), e);
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.status(500).body(error);
+        }
+    }
+    
+    @SuppressWarnings("unchecked")
+    private List<ChapterInfo> parseChaptersFromCache(Map<String, Object> cached) {
+        List<ChapterInfo> chapters = new ArrayList<>();
+        
+        Object chaptersObj = cached.get("chapters");
+        if (chaptersObj instanceof List) {
+            List<Map<String, Object>> chapterMaps = (List<Map<String, Object>>) chaptersObj;
+            for (Map<String, Object> chMap : chapterMaps) {
+                ChapterInfo chapter = new ChapterInfo();
+                chapter.setChapterId(String.valueOf(chMap.get("id")));
+                chapter.setNumber(((Number) chMap.getOrDefault("number", 0)).doubleValue());
+                chapter.setVolume(chMap.get("volume") != null ? ((Number) chMap.get("volume")).intValue() : null);
+                chapter.setTitle((String) chMap.get("title"));
+                chapter.setIsPaid((Boolean) chMap.getOrDefault("is_paid", false));
+                chapters.add(chapter);
+            }
+        }
+        
+        return chapters;
+    }
+}
