@@ -98,6 +98,15 @@ class AdaptiveParallelDownloader:
                         # set the proxy on the session so underlying poolmanager will use it
                         if isinstance(p, dict):
                             s.proxies.update(p)
+                        
+                        # ✅ КРИТИЧНО: Добавляем заголовки для обхода блокировки HTTP 403
+                        s.headers.update({
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                            'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                            'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
+                            'Referer': 'https://mangalib.me/',
+                        })
+                        
                         # ✅ Улучшенные настройки HTTPAdapter для Keep-Alive
                         try:
                             adapter = requests.adapters.HTTPAdapter(
