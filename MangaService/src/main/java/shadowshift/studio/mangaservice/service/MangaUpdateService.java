@@ -694,8 +694,9 @@ public class MangaUpdateService {
 
         try {
 
-            logger.info("Получение метаданных глав для slug (API формат): {}", slugForApi);
-            Map<String, Object> metadata = melonService.getChaptersMetadataOnly(slugForApi);
+            logger.info("Получение метаданных глав с проверкой slides_count для slug (API формат): {}", slugForApi);
+            // ✅ ИСПРАВЛЕНИЕ: Используем новый метод с проверкой slides_count
+            Map<String, Object> metadata = melonService.getChaptersMetadataWithSlidesCount(slugForApi);
 
             if (metadata == null || !Boolean.TRUE.equals(metadata.get("success"))) {
                 logger.warn("Первичная попытка получения метаданных для '{}' не удалась: {}",
@@ -707,7 +708,7 @@ public class MangaUpdateService {
                         slugId = resolvedId;
                         slugForApi = melonService.buildSlugForMangaLibApi(normalizedSlug, slugId);
                         logger.info("Повторно запрашиваем метаданные для '{}' с ID {}", storedSlug, slugId);
-                        metadata = melonService.getChaptersMetadataOnly(slugForApi);
+                        metadata = melonService.getChaptersMetadataWithSlidesCount(slugForApi);
                     }
                 }
 
@@ -730,10 +731,13 @@ public class MangaUpdateService {
                 );
             }
             
-            // Фильтруем ТОЛЬКО новые главы по метаданным
+            // Фильтруем ТОЛЬКО новые главы по метаданным С ПРОВЕРКОЙ slides_count
             List<Map<String, Object>> newChaptersMetadata = new ArrayList<>();
             Set<Double> candidateChapterKeys = new LinkedHashSet<>();
             Set<String> candidateMelonChapterIds = new LinkedHashSet<>();
+            int skippedByPaid = 0;
+            int skippedByExists = 0;
+            int skippedByNoSlides = 0;
 
             for (Map<String, Object> chapterMeta : allChaptersMetadata) {
                 try {
@@ -753,12 +757,34 @@ public class MangaUpdateService {
                     if (isChapterPaid(chapterMeta)) {
                         logger.debug("Глава {} (том {}) отмечена как платная, пропускаем при проверке обновлений",
                             numberObj, volumeObj);
+                        skippedByPaid++;
                         continue;
                     }
 
                     if (chapterAlreadyExists(existingChapters, numeric, melonChapterId)) {
                         logger.debug("Глава {} (том {}) уже существует, пропускаем", numberObj, volumeObj);
+                        skippedByExists++;
                         continue;
+                    }
+
+                    // ✅ КРИТИЧНАЯ ПРОВЕРКА: Есть ли страницы у главы?
+                    Object slidesCountObj = chapterMeta.get("slides_count");
+                    if (slidesCountObj != null) {
+                        int slidesCount = slidesCountObj instanceof Number ? 
+                            ((Number) slidesCountObj).intValue() : 0;
+                        
+                        if (slidesCount == 0) {
+                            logger.warn("⚠️ Глава {} (том {}) пропущена: slides_count=0 (нет доступных изображений)", 
+                                numberObj, volumeObj);
+                            skippedByNoSlides++;
+                            continue;
+                        }
+                        
+                        logger.debug("✅ Глава {} (том {}) имеет {} страниц", numberObj, volumeObj, slidesCount);
+                    } else {
+                        // Если slides_count не определен - логируем предупреждение, но не блокируем
+                        logger.debug("⚠️ Глава {} (том {}) не имеет информации о slides_count, будет проверена после парсинга", 
+                            numberObj, volumeObj);
                     }
 
                     boolean added = false;
@@ -779,8 +805,13 @@ public class MangaUpdateService {
                 }
             }
 
+            // Логируем детальную статистику фильтрации
+            logger.info("📊 Статистика фильтрации глав для slug {}: всего={}, новых={}, пропущено: платные={}, существующие={}, без slides={}",
+                storedSlug, allChaptersMetadata.size(), newChaptersMetadata.size(), 
+                skippedByPaid, skippedByExists, skippedByNoSlides);
+
             if (newChaptersMetadata.isEmpty()) {
-                logger.info("Новых глав не найдено для slug: {} (API '{}') (проверено {} глав)",
+                logger.info("Новых глав с доступными изображениями не найдено для slug: {} (API '{}') (проверено {} глав)",
                     storedSlug, slugForApi, allChaptersMetadata.size());
                 return Map.of(
                     "has_updates", false,
@@ -788,7 +819,7 @@ public class MangaUpdateService {
                 );
             }
 
-            logger.info("Найдено {} потенциально новых глав для slug: {} (API '{}'), запускаем полный парсинг...",
+            logger.info("Найдено {} новых глав с подтвержденными изображениями для slug: {} (API '{}'), запускаем полный парсинг...",
                 newChaptersMetadata.size(), storedSlug, slugForApi);
             
             // КРИТИЧНО: Связываем задачи ПЕРЕД запуском парсинга!
@@ -1109,76 +1140,90 @@ public class MangaUpdateService {
     }
 
     /**
-     * Импортирует главы напрямую, используя логику из MelonIntegrationService
+     * Импортирует главы напрямую, используя логику из MelonIntegrationService.
+     * ✅ ИСПРАВЛЕНИЕ: Добавлена транзакционность с rollback при ошибках.
      */
     private boolean importChaptersDirectly(Long mangaId, List<Map<String, Object>> chapters, String normalizedSlug) {
-        // Здесь используем ту же логику, что и в MelonIntegrationService.importChaptersWithProgress
-        // но без создания задачи импорта
-
         boolean overallSuccess = true;
+        List<Long> createdChapterIds = new ArrayList<>(); // Для rollback при критических ошибках
 
         try {
+            logger.info("🚀 Начало импорта {} глав для манги {}", chapters.size(), mangaId);
+            
             for (Map<String, Object> chapterData : chapters) {
-                if (isChapterPaid(chapterData)) {
-                    Object numberObj = chapterData.get("number");
-                    logger.info("Глава {} помечена как платная, пропускаем импорт", numberObj);
-                    continue;
-                }
+                Long chapterId = null;
+                double chapterNumber = 0;
+                
+                try {
+                    if (isChapterPaid(chapterData)) {
+                        Object numberObj = chapterData.get("number");
+                        logger.info("Глава {} помечена как платная, пропускаем импорт", numberObj);
+                        continue;
+                    }
 
-                Optional<ChapterNumeric> numericOpt = parseChapterNumeric(chapterData.get("volume"), chapterData.get("number"));
-                if (numericOpt.isEmpty()) {
-                    logger.warn("Пропуск главы без корректного номера при импорте: volume='{}', number='{}'",
-                        chapterData.get("volume"), chapterData.get("number"));
-                    overallSuccess = false;
-                    continue;
-                }
+                    Optional<ChapterNumeric> numericOpt = parseChapterNumeric(chapterData.get("volume"), chapterData.get("number"));
+                    if (numericOpt.isEmpty()) {
+                        logger.warn("Пропуск главы без корректного номера при импорте: volume='{}', number='{}'",
+                            chapterData.get("volume"), chapterData.get("number"));
+                        overallSuccess = false;
+                        continue;
+                    }
 
-                ChapterNumeric numeric = numericOpt.get();
-                double chapterNumber = numeric.compositeNumber();
-                String melonChapterId = extractMelonChapterId(chapterData);
+                    ChapterNumeric numeric = numericOpt.get();
+                    chapterNumber = numeric.compositeNumber();
+                    String melonChapterId = extractMelonChapterId(chapterData);
 
-                List<Map<String, Object>> slides = extractSlides(chapterData.get("slides"));
-                if (slides.isEmpty()) {
-                    logger.warn("Пропускаем главу {} (том {}): отсутствуют изображения после парсинга",
-                        chapterData.get("number"), chapterData.get("volume"));
-                    overallSuccess = false;
-                    continue;
-                }
+                    List<Map<String, Object>> slides = extractSlides(chapterData.get("slides"));
+                    if (slides.isEmpty()) {
+                        logger.warn("⚠️ Пропускаем главу {} (том {}): отсутствуют изображения после парсинга",
+                            chapterData.get("number"), chapterData.get("volume"));
+                        overallSuccess = false;
+                        continue;
+                    }
 
-                if (chapterExists(mangaId, numeric, melonChapterId)) {
-                    logger.info("Глава {} уже существует для манги {}, пропускаем", chapterNumber, mangaId);
-                    continue;
-                }
+                    if (chapterExists(mangaId, numeric, melonChapterId)) {
+                        logger.info("Глава {} уже существует для манги {}, пропускаем", chapterNumber, mangaId);
+                        continue;
+                    }
 
-                Map<String, Object> chapterRequest = new HashMap<>();
-                chapterRequest.put("mangaId", mangaId);
-                chapterRequest.put("chapterNumber", chapterNumber);
-                chapterRequest.put("volumeNumber", numeric.volume());
-                chapterRequest.put("originalChapterNumber", numeric.originalNumber());
-                if (melonChapterId != null) {
-                    chapterRequest.put("melonChapterId", melonChapterId);
-                }
+                    // Шаг 1: Создаем главу в ChapterService
+                    Map<String, Object> chapterRequest = new HashMap<>();
+                    chapterRequest.put("mangaId", mangaId);
+                    chapterRequest.put("chapterNumber", chapterNumber);
+                    chapterRequest.put("volumeNumber", numeric.volume());
+                    chapterRequest.put("originalChapterNumber", numeric.originalNumber());
+                    if (melonChapterId != null) {
+                        chapterRequest.put("melonChapterId", melonChapterId);
+                    }
 
-                Object titleObj = chapterData.get("name");
-                String title = (titleObj != null && !titleObj.toString().trim().isEmpty())
-                    ? titleObj.toString().trim()
-                    : "Глава " + chapterData.get("number");
-                chapterRequest.put("title", title);
+                    Object titleObj = chapterData.get("name");
+                    String title = (titleObj != null && !titleObj.toString().trim().isEmpty())
+                        ? titleObj.toString().trim()
+                        : "Глава " + chapterData.get("number");
+                    chapterRequest.put("title", title);
 
-                HttpHeaders headers = new HttpHeaders();
-                headers.setContentType(MediaType.APPLICATION_JSON);
-                HttpEntity<Map<String, Object>> entity = new HttpEntity<>(chapterRequest, headers);
+                    HttpHeaders headers = new HttpHeaders();
+                    headers.setContentType(MediaType.APPLICATION_JSON);
+                    HttpEntity<Map<String, Object>> entity = new HttpEntity<>(chapterRequest, headers);
 
-                @SuppressWarnings("rawtypes")
-                ResponseEntity<Map> response = restTemplate.postForEntity(
-                    "http://chapter-service:8082/api/chapters",
-                    entity,
-                    Map.class
-                );
+                    @SuppressWarnings("rawtypes")
+                    ResponseEntity<Map> response = restTemplate.postForEntity(
+                        "http://chapter-service:8082/api/chapters",
+                        entity,
+                        Map.class
+                    );
 
-                if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                    Long chapterId = Long.parseLong(response.getBody().get("id").toString());
+                    if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                        logger.error("❌ Не удалось создать главу {}: статус {}", chapterNumber, response.getStatusCode());
+                        overallSuccess = false;
+                        continue;
+                    }
 
+                    chapterId = Long.parseLong(response.getBody().get("id").toString());
+                    createdChapterIds.add(chapterId);
+                    logger.debug("✅ Создана глава {} с ID={}", chapterNumber, chapterId);
+
+                    // Шаг 2: Импортируем страницы главы
                     String chapterFolderName = melonService.resolveChapterFolderName(
                         chapterData.get("number") != null ? chapterData.get("number").toString() : null,
                         chapterData.get("name"),
@@ -1188,23 +1233,96 @@ public class MangaUpdateService {
                     );
 
                     boolean pagesImported = importChapterPages(chapterId, slides, normalizedSlug, chapterFolderName);
+                    
                     if (!pagesImported) {
-                        overallSuccess = false;
+                        logger.error("❌ Не удалось импортировать страницы для главы {}, откатываем создание главы", chapterNumber);
                         deleteChapterSilently(chapterId);
+                        createdChapterIds.remove(chapterId);
+                        overallSuccess = false;
                         continue;
                     }
 
-                    logger.info("Успешно импортирована глава {} для манги {}", chapterNumber, mangaId);
-                } else {
-                    logger.error("Не удалось создать главу {}: {}", chapterNumber, response.getStatusCode());
+                    // Шаг 3: Проверяем что страницы действительно импортированы
+                    int pageCount = getChapterPageCount(chapterId);
+                    if (pageCount == 0) {
+                        logger.error("❌ Глава {} создана, но page_count=0! Откатываем создание главы", chapterNumber);
+                        deleteChapterSilently(chapterId);
+                        createdChapterIds.remove(chapterId);
+                        overallSuccess = false;
+                        continue;
+                    }
+
+                    logger.info("✅ Успешно импортирована глава {} для манги {} ({} страниц)", 
+                        chapterNumber, mangaId, pageCount);
+
+                } catch (Exception chapterEx) {
+                    logger.error("❌ Ошибка импорта главы {}: {}", chapterNumber, chapterEx.getMessage(), chapterEx);
+                    
+                    // Откатываем созданную главу если была создана
+                    if (chapterId != null) {
+                        try {
+                            deleteChapterSilently(chapterId);
+                            createdChapterIds.remove(chapterId);
+                            logger.info("🔄 Откатили создание главы {} (ID={})", chapterNumber, chapterId);
+                        } catch (Exception rollbackEx) {
+                            logger.error("⚠️ Не удалось откатить главу {} (ID={}): {}", 
+                                chapterNumber, chapterId, rollbackEx.getMessage());
+                        }
+                    }
+                    
                     overallSuccess = false;
                 }
             }
 
+            logger.info("📊 Завершен импорт глав: успешно={}, создано глав={}", 
+                overallSuccess, createdChapterIds.size());
             return overallSuccess;
+
         } catch (Exception e) {
-            logger.error("Ошибка прямого импорта глав: {}", e.getMessage(), e);
+            logger.error("❌ Критическая ошибка импорта глав для манги {}: {}", mangaId, e.getMessage(), e);
+            
+            // При критической ошибке откатываем ВСЕ созданные главы
+            if (!createdChapterIds.isEmpty()) {
+                logger.warn("🔄 Откатываем {} созданных глав из-за критической ошибки", createdChapterIds.size());
+                for (Long chapterId : createdChapterIds) {
+                    try {
+                        deleteChapterSilently(chapterId);
+                        logger.debug("🔄 Откатили главу ID={}", chapterId);
+                    } catch (Exception rollbackEx) {
+                        logger.error("⚠️ Не удалось откатить главу {}: {}", chapterId, rollbackEx.getMessage());
+                    }
+                }
+            }
+            
             return false;
+        }
+    }
+
+    /**
+     * Получает количество страниц главы из ChapterService.
+     * Используется для проверки успешности импорта страниц.
+     * 
+     * @param chapterId ID главы
+     * @return Количество страниц или 0 если не удалось получить
+     */
+    private int getChapterPageCount(Long chapterId) {
+        try {
+            String url = chapterServiceUrl + "/api/chapters/" + chapterId;
+            ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+            
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                Object pageCountObj = response.getBody().get("pageCount");
+                int pageCount = pageCountObj instanceof Number ? ((Number) pageCountObj).intValue() : 0;
+                logger.debug("Глава {}: pageCount={}", chapterId, pageCount);
+                return pageCount;
+            } else {
+                logger.warn("Не удалось получить page_count для главы {}: статус {}", 
+                    chapterId, response.getStatusCode());
+                return 0;
+            }
+        } catch (Exception e) {
+            logger.error("Ошибка получения page_count для главы {}: {}", chapterId, e.getMessage());
+            return 0;
         }
     }
 

@@ -837,6 +837,50 @@ public class MelonIntegrationService {
     }
 
     /**
+     * Получает метаданные глав с информацией о количестве страниц.
+     * Делает дополнительные запросы к API для получения slides_count каждой главы.
+     * 
+     * @param slug Slug манги
+     * @param includeSlidesCount Если true, включает информацию о количестве страниц
+     * @return Map с метаданными глав (success, total_chapters, chapters, includes_slides_count)
+     */
+    public Map<String, Object> getChaptersMetadataWithSlidesCount(String slug, boolean includeSlidesCount) {
+        try {
+            String url = melonServiceUrl + "/manga-info/" + slug + "/chapters-only?parser=mangalib&include_slides_count=" + includeSlidesCount;
+            
+            logger.info("Получение метаданных глав для slug: {} (include_slides_count={})", slug, includeSlidesCount);
+            ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+            Map<String, Object> result = response.getBody();
+            
+            if (result != null && Boolean.TRUE.equals(result.get("success"))) {
+                logger.info("Успешно получены метаданные для {}: {} глав (includes_slides_count={})", 
+                    slug, result.get("total_chapters"), result.get("includes_slides_count"));
+                return result;
+            } else {
+                logger.error("Не удалось получить метаданные глав для slug '{}': {}", 
+                    slug, result != null ? result.get("error") : "Unknown error");
+                return Map.of("success", false, "error", 
+                    result != null ? result.get("error") : "Unknown error");
+            }
+            
+        } catch (Exception e) {
+            logger.error("Ошибка получения метаданных глав для slug '{}': {}", slug, e.getMessage());
+            return Map.of("success", false, "error", e.getMessage());
+        }
+    }
+
+    /**
+     * Перегруженная версия метода getChaptersMetadataWithSlidesCount.
+     * По умолчанию включает информацию о slides_count.
+     * 
+     * @param slug Slug манги
+     * @return Map с метаданными глав включая slides_count
+     */
+    public Map<String, Object> getChaptersMetadataWithSlidesCount(String slug) {
+        return getChaptersMetadataWithSlidesCount(slug, true);
+    }
+
+    /**
      * Получает список slug'ов манг из каталога MangaLib по номеру страницы.
      * 
      * @param page Номер страницы каталога (начиная с 1)

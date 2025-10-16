@@ -166,10 +166,12 @@ class Parser(MangaParser):
 
         return WebRequestorObject
 
-    def _download_image_wrapper(self, url: str, proxies: dict | None = None) -> str | None:
-        """Thread-safe обертка с независимой сессией requests для каждого потока.
+    def _download_image_wrapper(self, url: str, session: "requests.Session" = None, proxies: dict | None = None) -> str | None:
+        """Thread-safe обертка с поддержкой Keep-Alive через переиспользование session.
 
         :param url: URL изображения
+        :param session: requests.Session для Keep-Alive (приоритет, если передан)
+        :param proxies: dict с прокси (fallback если session=None)
         :return: Имя файла если успешно, None если ошибка
         """
         import os
@@ -226,54 +228,65 @@ class Parser(MangaParser):
             # Получаем основной WebRequestor
             requestor = self._ImagesDownloader._ImagesDownloader__Requestor
 
-            # Создаем НЕЗАВИСИМУЮ сессию requests для этого потока
-            session = requests.Session()
+            # ✅ КРИТИЧНО для Keep-Alive: Используем переданную session или создаем новую
+            if session is not None:
+                # Используем session из parallel_downloader (Keep-Alive активен!)
+                use_existing_session = True
+            else:
+                # Создаем НЕЗАВИСИМУЮ сессию requests для этого потока (fallback)
+                session = requests.Session()
+                use_existing_session = False
+            
             import time
 
-            # Копируем cookies из WebRequestor Session (thread-safe read)
-            source_session = None
-            if hasattr(requestor, '_WebRequestor__Session'):
-                source_session = requestor._WebRequestor__Session
-            elif hasattr(requestor, 'session'):
-                source_session = requestor.session
-            elif hasattr(requestor, '_session'):
-                source_session = requestor._session
+            # Копируем cookies из WebRequestor Session (thread-safe read) только для новой session
+            if not use_existing_session:
+                source_session = None
+                if hasattr(requestor, '_WebRequestor__Session'):
+                    source_session = requestor._WebRequestor__Session
+                elif hasattr(requestor, 'session'):
+                    source_session = requestor.session
+                elif hasattr(requestor, '_session'):
+                    source_session = requestor._session
 
-            if source_session and hasattr(source_session, 'cookies'):
-                try:
-                    # КРИТИЧНО: НЕ используем update() напрямую - это вызывает deadlock!
-                    cookies_dict = dict(source_session.cookies)
-                    for name, value in cookies_dict.items():
-                        session.cookies.set(name, value)
-                except Exception:
-                    pass
+                if source_session and hasattr(source_session, 'cookies'):
+                    try:
+                        # КРИТИЧНО: НЕ используем update() напрямую - это вызывает deadlock!
+                        cookies_dict = dict(source_session.cookies)
+                        for name, value in cookies_dict.items():
+                            session.cookies.set(name, value)
+                    except Exception:
+                        pass
 
-            # Копируем headers из source session (поэлементно чтобы избежать потенциальных блокировок)
-            if source_session and hasattr(source_session, 'headers'):
-                try:
-                    headers_dict = dict(source_session.headers)
-                    for hn, hv in headers_dict.items():
-                        try:
-                            session.headers[hn] = hv
-                        except Exception:
-                            # не критично
-                            pass
-                except Exception:
-                    pass
+                # Копируем headers из source session (поэлементно чтобы избежать потенциальных блокировок)
+                if source_session and hasattr(source_session, 'headers'):
+                    try:
+                        headers_dict = dict(source_session.headers)
+                        for hn, hv in headers_dict.items():
+                            try:
+                                session.headers[hn] = hv
+                            except Exception:
+                                # не критично
+                                pass
+                    except Exception:
+                        pass
 
-            # Добавляем стандартные headers для изображений
-            session.headers.update({
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
-                'Referer': 'https://mangalib.me/',
-            })
+                # Добавляем стандартные headers для изображений
+                session.headers.update({
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
+                    'Referer': 'https://mangalib.me/',
+                })
+            # Если используем переданную session, headers уже настроены в parallel_downloader
 
-            # ПАРАЛЛЕЛЬНЫЙ HTTP запрос через независимую сессию!
+            # ПАРАЛЛЕЛЬНЫЙ HTTP запрос через session (с Keep-Alive если передана!)
             # stream=True для защиты от IncompleteRead на больших файлах
             request_started_at = time.perf_counter()
             # Уменьшаем таймауты: сначала connect timeout (10s), затем read timeout (20s)
-            response = session.get(url, timeout=(10, 20), proxies=proxies, stream=True)
+            # Для переданной session proxies уже настроены, поэтому передаём None
+            effective_proxies = None if use_existing_session else proxies
+            response = session.get(url, timeout=(10, 20), proxies=effective_proxies, stream=True)
 
             if response.status_code == 200:
                 # Потоково пишем файл, чтобы избежать O(n^2) конкатенации байтов
@@ -328,9 +341,13 @@ class Parser(MangaParser):
             # Тихо пропускаем ошибки, retry механизм обработает
             self._record_proxy_failure(proxy_key, reason=str(e))
         finally:
-            # Закрываем сессию
-            if 'session' in locals():
-                session.close()
+            # ✅ Закрываем сессию ТОЛЬКО если создали новую (не Keep-Alive)
+            if 'session' in locals() and 'use_existing_session' in locals():
+                if not use_existing_session and session is not None:
+                    try:
+                        session.close()
+                    except Exception:
+                        pass
 
         return None
 
@@ -401,7 +418,13 @@ class Parser(MangaParser):
             port = parsed.port
             if not host:
                 return raw_url
-            return f"{host}:{port}" if port else host
+            # If host is an IPv6 literal, represent as [addr]:port to avoid ambiguity
+            if ':' in host and not host.startswith('['):
+                host_repr = f"[{host}]"
+            else:
+                host_repr = host
+
+            return f"{host_repr}:{port}" if port else host_repr
         except Exception:
             return raw_url
 

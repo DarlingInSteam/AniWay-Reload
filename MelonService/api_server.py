@@ -1566,8 +1566,56 @@ async def get_catalog(page: int, parser: str = "mangalib", limit: int = 60):
         logger.error(error_msg)
         return {"success": False, "error": error_msg}
 
+def get_chapter_pages_count_from_api(slug: str, chapter_id: int, site_id: str, parser: str = "mangalib") -> Optional[int]:
+    """
+    Получает количество страниц главы через API MangaLib.
+    Использует легкий запрос к API без скачивания изображений.
+    
+    Returns:
+        Количество страниц или None если запрос не удался
+    """
+    try:
+        # API endpoint для получения информации о страницах главы
+        api_url = f"https://api.cdnlibs.org/api/manga/{slug}/chapter?chapter_id={chapter_id}"
+        
+        headers = {
+            "Site-Id": site_id,
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Referer": f"https://{parser}.me/{slug}",
+        }
+        
+        current_proxy = get_proxy_for_request()
+        response = requests.get(api_url, headers=headers, proxies=current_proxy, timeout=10)
+        
+        if response.status_code == 200:
+            chapter_data = response.json().get("data", {})
+            pages = chapter_data.get("pages", [])
+            return len(pages) if pages else 0
+        else:
+            logger.debug(f"Failed to get pages count for chapter {chapter_id}: status {response.status_code}")
+            return None
+            
+    except Exception as e:
+        logger.debug(f"Error getting pages count for chapter {chapter_id}: {str(e)}")
+        return None
+
 @app.get("/manga-info/{slug}/chapters-only")
-async def get_chapters_metadata_only_endpoint(slug: str, parser: str = "mangalib"):
+async def get_chapters_metadata_only_endpoint(
+    slug: str, 
+    parser: str = "mangalib",
+    include_slides_count: bool = False
+):
+    """
+    Получает метаданные глав без полного парсинга.
+    
+    Args:
+        slug: slug манги
+        parser: парсер (mangalib, slashlib, hentailib)
+        include_slides_count: если True, делает дополнительные запросы к API
+                             для получения количества страниц каждой главы
+    """
     try:
         site_ids = {
             "mangalib": "1",
@@ -1612,15 +1660,25 @@ async def get_chapters_metadata_only_endpoint(slug: str, parser: str = "mangalib
                         "number": chapter_data.get("number"),
                         "name": chapter_data.get("name", ""),
                         "id": branch_data.get("id"),
-                        "branch_id": branch_data.get("branch_id")
+                        "branch_id": branch_data.get("branch_id"),
+                        "is_paid": chapter_data.get("is_paid", False)  # Добавляем флаг платности
                     }
+                    
+                    # Если запрошено - получаем количество страниц
+                    if include_slides_count:
+                        chapter_id = branch_data.get("id")
+                        if chapter_id:
+                            slides_count = get_chapter_pages_count_from_api(slug, chapter_id, site_id, parser)
+                            chapter_info["slides_count"] = slides_count
+                            logger.debug(f"Chapter {chapter_id}: slides_count={slides_count}")
+                    
                     chapters.append(chapter_info)
                     
                     # Заполняем кеш метаданных для улучшенного логирования
                     chapter_id = str(branch_data.get("id"))
                     chapters_metadata_cache[chapter_id] = chapter_info
             
-            logger.info(f"Successfully retrieved {len(chapters)} chapters metadata for slug: {slug}")
+            logger.info(f"Successfully retrieved {len(chapters)} chapters metadata for slug: {slug} (include_slides_count={include_slides_count})")
             logger.debug(f"Cached metadata for {len(chapters)} chapters")
             
             return {
@@ -1628,7 +1686,8 @@ async def get_chapters_metadata_only_endpoint(slug: str, parser: str = "mangalib
                 "slug": slug,
                 "parser": parser,
                 "total_chapters": len(chapters),
-                "chapters": chapters
+                "chapters": chapters,
+                "includes_slides_count": include_slides_count
             }
         else:
             error_msg = f"MangaLib API returned status {response.status_code}"

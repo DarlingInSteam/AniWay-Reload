@@ -98,10 +98,14 @@ class AdaptiveParallelDownloader:
                         # set the proxy on the session so underlying poolmanager will use it
                         if isinstance(p, dict):
                             s.proxies.update(p)
-                        # increase pool connections a bit
+                        # ✅ Улучшенные настройки HTTPAdapter для Keep-Alive
                         try:
-                            adapter = requests.adapters.HTTPAdapter(pool_connections=max_workers_per_proxy + 2,
-                                                                    pool_maxsize=max_workers_per_proxy + 10)
+                            adapter = requests.adapters.HTTPAdapter(
+                                pool_connections=10,              # Connection pools
+                                pool_maxsize=20,                  # Max connections in pool
+                                max_retries=3,                    # Retry на уровне adapter
+                                pool_block=False                  # Не блокировать при исчерпании pool
+                            )
                             s.mount('http://', adapter)
                             s.mount('https://', adapter)
                         except Exception:
@@ -127,8 +131,9 @@ class AdaptiveParallelDownloader:
         # Единоразовый лог инициализации воркеров (всегда показываем)
         override_note = f", override={max_total_workers}" if max_total_workers else ""
         pool_note = f", proxy_pool={len(self.proxy_pool)}" if self.proxy_pool else ""
+        keepalive_note = f", Keep-Alive sessions={len(self._proxy_sessions)}" if self._proxy_sessions else ""
         logger.info(
-            f"⚙️ Workers: {self.max_workers} active, {proxy_count} proxies, {base_delay}s delay{override_note}{pool_note}"
+            f"⚙️ Workers: {self.max_workers} active, {proxy_count} proxies, {base_delay}s delay{override_note}{pool_note}{keepalive_note}"
         )
 
     def _adaptive_delay(self):
@@ -206,12 +211,39 @@ class AdaptiveParallelDownloader:
                         # shorter timeout to avoid long stalls
                         acquired = sem.acquire(timeout=5)
 
+                # Optional debug: log assignment and timing if enabled
+                debug_assign = False
                 try:
-                    # Prefer calling download_func with proxies kw; fallback to positional call
+                    import os
+                    debug_assign = os.getenv('MELON_DEBUG_PROXY_ASSIGNMENT') == '1'
+                except Exception:
+                    debug_assign = False
+
+                start_ts = None
+                try:
+                    if debug_assign:
+                        logger.info(f"[DEBUG] Assign idx={index} -> proxy_index={proxy_index} proxies={assigned_proxies}")
+                    # Prefer calling download_func with session (Keep-Alive); fallback to proxies
+                    start_ts = time()
                     try:
-                        result = self.download_func(url, proxies=assigned_proxies)
+                        # ✅ КРИТИЧНО: Используем session для Keep-Alive!
+                        if proxy_index is not None and proxy_index in self._proxy_sessions:
+                            session = self._proxy_sessions[proxy_index]
+                            if session is not None:
+                                # Передаём session для переиспользования TCP-соединения
+                                result = self.download_func(url, session=session)
+                            else:
+                                # Fallback если session не создана
+                                result = self.download_func(url, proxies=assigned_proxies)
+                        else:
+                            # Fallback если нет proxy_pool
+                            result = self.download_func(url, proxies=assigned_proxies)
                     except TypeError:
+                        # Обратная совместимость для старых версий download_func
                         result = self.download_func(url)
+                    duration = time() - start_ts if start_ts is not None else None
+                    if debug_assign:
+                        logger.info(f"[DEBUG] Finished idx={index} proxy_index={proxy_index} duration={duration}")
                 finally:
                     if acquired and proxy_index is not None:
                         sem = self._proxy_semaphores.get(proxy_index)
@@ -338,3 +370,30 @@ class AdaptiveParallelDownloader:
         results.sort(key=lambda x: x['index'])
 
         return results
+
+    def close(self):
+        """
+        Закрывает все Session при завершении работы.
+        Вызывать после окончания всех загрузок для освобождения ресурсов.
+        """
+        closed_count = 0
+        for proxy_idx, session in self._proxy_sessions.items():
+            if session is not None:
+                try:
+                    session.close()
+                    closed_count += 1
+                    logger.debug(f"✅ Closed session for proxy {proxy_idx}")
+                except Exception as e:
+                    logger.warning(f"⚠️  Error closing session for proxy {proxy_idx}: {e}")
+        
+        self._proxy_sessions.clear()
+        
+        if closed_count > 0:
+            logger.info(f"🔌 Closed {closed_count} Keep-Alive sessions")
+
+    def __del__(self):
+        """Cleanup при уничтожении объекта"""
+        try:
+            self.close()
+        except Exception:
+            pass

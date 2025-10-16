@@ -175,6 +175,16 @@ public class ChapterService {
         }
     }
 
+        // ✅ ИСПРАВЛЕНИЕ: Предупреждение о создании главы без страниц
+        if (createDTO.getPageCount() == null || createDTO.getPageCount() == 0) {
+            logger.warn("⚠️ Создается глава {} для манги {} с pageCount={} (melonChapterId={})! " +
+                       "Убедитесь что страницы будут импортированы сразу после создания.",
+                       createDTO.getChapterNumber(), 
+                       createDTO.getMangaId(),
+                       createDTO.getPageCount(),
+                       normalizedMelonChapterId);
+        }
+
         Chapter chapter = new Chapter();
         chapter.setMangaId(createDTO.getMangaId());
         chapter.setChapterNumber(createDTO.getChapterNumber());
@@ -184,6 +194,8 @@ public class ChapterService {
         chapter.setTitle(createDTO.getTitle());
         // Ensure likeCount is initialized to 0
         chapter.setLikeCount(0);
+        // ✅ ИСПРАВЛЕНИЕ: Явно инициализируем page_count=0, обновится после импорта страниц
+        chapter.setPageCount(0);
         if (createDTO.getPublishedDate() != null) {
             chapter.setPublishedDate(createDTO.getPublishedDate());
         }
