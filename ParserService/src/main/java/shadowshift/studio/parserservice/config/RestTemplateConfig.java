@@ -17,8 +17,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
-import shadowshift.studio.parserservice.dto.ProxyConfig;
 import shadowshift.studio.parserservice.service.ProxyManagerService;
+import shadowshift.studio.parserservice.service.ProxyManagerService.ProxyServer;
 
 @Configuration
 public class RestTemplateConfig {
