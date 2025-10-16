@@ -198,7 +198,7 @@ public class MangaLibParserService {
     /**
      * Нормализация slug (убирает ID-- префикс)
      */
-    private String normalizeSlug(String slug) {
+    public String normalizeSlug(String slug) {
         if (slug == null || slug.isEmpty()) {
             return slug;
         }

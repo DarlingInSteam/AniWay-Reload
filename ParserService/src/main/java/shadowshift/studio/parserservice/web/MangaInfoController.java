@@ -62,8 +62,18 @@ public class MangaInfoController {
                 chapters = parseChaptersFromCache(cached);
             } else {
                 logger.debug("Fetching fresh chapters for slug: {}", normalizedSlug);
-                CompletableFuture<List<ChapterInfo>> future = parserService.fetchChapterList(normalizedSlug);
-                chapters = future.join();
+                
+                // Parse manga to get chapters
+                CompletableFuture<shadowshift.studio.parserservice.dto.ParseResult> parseFuture = 
+                    parserService.parseManga(normalizedSlug, "mangalib");
+                shadowshift.studio.parserservice.dto.ParseResult parseResult = parseFuture.join();
+                
+                if (parseResult != null && parseResult.getChapters() != null) {
+                    chapters = parseResult.getChapters();
+                } else {
+                    logger.warn("No chapters found for slug: {}", normalizedSlug);
+                    chapters = Collections.emptyList();
+                }
             }
             
             // Convert to legacy format
