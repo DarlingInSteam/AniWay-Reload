@@ -91,19 +91,15 @@ public class ParserProperties {
         return tempPath;
     }
 
-    public void setTempPath(Path tempPath) {
-        if (tempPath != null) {
-            this.tempPath = tempPath;
-        }
-    }
-    
     /**
      * Setter для tempPath (для Spring Boot property binding).
-     * Принимает строку и конвертирует в Path.
+     * Принимает и строку, и Path.
      */
-    public void setTempPath(String tempPath) {
-        if (StringUtils.hasText(tempPath)) {
-            this.tempPath = Paths.get(tempPath);
+    public void setTempPath(Object tempPath) {
+        if (tempPath instanceof String && StringUtils.hasText((String) tempPath)) {
+            this.tempPath = Paths.get((String) tempPath);
+        } else if (tempPath instanceof Path) {
+            this.tempPath = (Path) tempPath;
         }
     }
 
