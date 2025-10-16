@@ -659,7 +659,7 @@ class Parser(MangaParser):
         if cached is None:
             self._image_delay = self._get_scaled_delay(
                 getattr(self._Settings.common, "image_delay", 0.1),
-                minimum=0.03
+                minimum=0.01  # ✅ ОПТИМИЗАЦИЯ: Уменьшили с 0.03 до 0.01 (×3 быстрее)
             )
             return self._image_delay
         return cached
@@ -732,7 +732,7 @@ class Parser(MangaParser):
         self._parallel_downloader = AdaptiveParallelDownloader(
             proxy_count=proxy_count,
             download_func=self._download_image_wrapper,
-            max_workers_per_proxy=1,
+            max_workers_per_proxy=2,  # ✅ ОПТИМИЗАЦИЯ: Увеличили с 1 до 2 (×2 быстрее)
             max_retries=3,
             base_delay=image_delay,
             max_total_workers=max_workers_override,
