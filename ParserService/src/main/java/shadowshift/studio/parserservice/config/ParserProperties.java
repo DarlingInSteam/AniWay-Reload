@@ -63,6 +63,13 @@ public class ParserProperties {
     public Path getStorageBasePath() {
         return storageBasePath;
     }
+    
+    /**
+     * Алиас для совместимости с кодом, использующим getOutputPath().
+     */
+    public String getOutputPath() {
+        return storageBasePath.toString();
+    }
 
     public void setStorageBasePath(Path storageBasePath) {
         if (storageBasePath != null) {
