@@ -194,8 +194,8 @@ public class ChapterService {
         chapter.setTitle(createDTO.getTitle());
         // Ensure likeCount is initialized to 0
         chapter.setLikeCount(0);
-        // ✅ ИСПРАВЛЕНИЕ: Явно инициализируем page_count=0, обновится после импорта страниц
-        chapter.setPageCount(0);
+        // ✅ ИСПРАВЛЕНИЕ: Устанавливаем page_count из DTO (или 0 по умолчанию)
+        chapter.setPageCount(createDTO.getPageCount() != null ? createDTO.getPageCount() : 0);
         if (createDTO.getPublishedDate() != null) {
             chapter.setPublishedDate(createDTO.getPublishedDate());
         }

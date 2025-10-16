@@ -39,6 +39,10 @@ public class ChapterCreateDTO {
     /** Дата публикации главы */
     private LocalDateTime publishedDate;
 
+    /** Количество страниц в главе */
+    @Min(value = 0, message = "Page count must not be negative")
+    private Integer pageCount;
+
     /**
      * Конструктор по умолчанию.
      */
@@ -154,4 +158,18 @@ public class ChapterCreateDTO {
      * @param publishedDate дата публикации
      */
     public void setPublishedDate(LocalDateTime publishedDate) { this.publishedDate = publishedDate; }
+
+    /**
+     * Получить количество страниц.
+     *
+     * @return количество страниц в главе
+     */
+    public Integer getPageCount() { return pageCount; }
+
+    /**
+     * Установить количество страниц.
+     *
+     * @param pageCount количество страниц в главе
+     */
+    public void setPageCount(Integer pageCount) { this.pageCount = pageCount; }
 }
