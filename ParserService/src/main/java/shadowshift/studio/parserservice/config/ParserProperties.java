@@ -70,6 +70,16 @@ public class ParserProperties {
     public String getOutputPath() {
         return storageBasePath.toString();
     }
+    
+    /**
+     * Setter для outputPath (для Spring Boot property binding).
+     * Принимает строку и конвертирует в Path.
+     */
+    public void setOutputPath(String outputPath) {
+        if (StringUtils.hasText(outputPath)) {
+            this.storageBasePath = Paths.get(outputPath);
+        }
+    }
 
     public void setStorageBasePath(Path storageBasePath) {
         if (storageBasePath != null) {
@@ -84,6 +94,16 @@ public class ParserProperties {
     public void setTempPath(Path tempPath) {
         if (tempPath != null) {
             this.tempPath = tempPath;
+        }
+    }
+    
+    /**
+     * Setter для tempPath (для Spring Boot property binding).
+     * Принимает строку и конвертирует в Path.
+     */
+    public void setTempPath(String tempPath) {
+        if (StringUtils.hasText(tempPath)) {
+            this.tempPath = Paths.get(tempPath);
         }
     }
 
