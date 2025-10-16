@@ -39,24 +39,33 @@ public class CatalogController {
             CompletableFuture<CatalogResult> future = parserService.fetchCatalog(page, 0, Integer.MAX_VALUE);
             CatalogResult result = future.join();
             
-            // Limit results if needed
-            if (result != null && result.getItems() != null && result.getItems().size() > limit) {
+            // Check if result is valid
+            if (result == null) {
+                logger.warn("Catalog fetch returned null for page {}", page);
+                result = createEmptyCatalog(page);
+            } else if (result.getItems() == null) {
+                logger.warn("Catalog items are null for page {}", page);
+                result.setItems(java.util.Collections.emptyList());
+            } else if (result.getItems().size() > limit) {
+                // Limit results if needed
                 result.setItems(result.getItems().subList(0, limit));
             }
             
-            logger.info("Catalog page {} returned {} items", page, result != null ? result.getItems().size() : 0);
+            logger.info("Catalog page {} returned {} items", page, 
+                result.getItems() != null ? result.getItems().size() : 0);
             return ResponseEntity.ok(result);
             
         } catch (Exception e) {
             logger.error("Error fetching catalog page {}: {}", page, e.getMessage(), e);
-            
-            // Return empty catalog instead of error for compatibility
-            CatalogResult emptyResult = new CatalogResult();
-            emptyResult.setPage(page);
-            emptyResult.setTotal(0);
-            emptyResult.setItems(java.util.Collections.emptyList());
-            
-            return ResponseEntity.ok(emptyResult);
+            return ResponseEntity.ok(createEmptyCatalog(page));
         }
+    }
+    
+    private CatalogResult createEmptyCatalog(int page) {
+        CatalogResult emptyResult = new CatalogResult();
+        emptyResult.setPage(page);
+        emptyResult.setTotal(0);
+        emptyResult.setItems(java.util.Collections.emptyList());
+        return emptyResult;
     }
 }

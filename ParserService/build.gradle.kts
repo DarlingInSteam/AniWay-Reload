@@ -29,6 +29,9 @@ dependencies {
     implementation("com.fasterxml.jackson.core:jackson-databind")
     implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
     
+    // Apache HttpClient для прокси с аутентификацией
+    implementation("org.apache.httpcomponents.client5:httpclient5:5.3.1")
+    
     // Lombok для авто-генерации геттеров/сеттеров
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
