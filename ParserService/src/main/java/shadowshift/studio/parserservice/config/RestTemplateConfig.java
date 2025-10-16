@@ -42,7 +42,7 @@ public class RestTemplateConfig {
     
     private CloseableHttpClient createHttpClientWithProxy() {
         // Get proxy from manager
-        ProxyConfig proxy = proxyManager.getNextProxy();
+        ProxyServer proxy = proxyManager.getNextProxy();
         
         if (proxy == null || proxy.getHost() == null) {
             logger.warn("No proxy available, using direct connection");
