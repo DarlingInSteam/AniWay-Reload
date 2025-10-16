@@ -1,0 +1,66 @@
+spring:
+  application:
+    name: parser-service
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  port: 8084
+  compression:
+    enabled: true
+  http2:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  level:
+    root: INFO
+    shadowshift.studio.parserservice: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+parser:
+  output-path: ${PARSER_OUTPUT_PATH:/app/output}
+  temp-path: ${PARSER_TEMP_PATH:/app/temp}
+  max-parallel-downloads: 20
+  image-timeout-seconds: 30
+  
+# Профили
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+logging:
+  level:
+    shadowshift.studio.parserservice: DEBUG
+    
+parser:
+  output-path: ./output
+  temp-path: ./temp
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+logging:
+  level:
+    root: WARN
+    shadowshift.studio.parserservice: INFO

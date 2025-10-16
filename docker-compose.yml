@@ -267,7 +267,7 @@ services:
     ports:
       - "8083:8083"
     volumes:
-      - melon_data:/app/Output  # Общий том с MelonService для доступа к скачанным изображениям
+      - parser_data:/app/output  # Общий том с ParserService для доступа к скачанным изображениям
     depends_on:
       image-storage-postgres:
         condition: service_healthy
@@ -309,7 +309,7 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://manga-postgres:5432/manga_db
       - SPRING_DATASOURCE_USERNAME=manga_user
       - SPRING_DATASOURCE_PASSWORD=manga_password
-      - MELON_SERVICE_URL=http://melon-service:8084
+      - MELON_SERVICE_URL=http://parser-service:8084
       - CHAPTER_SERVICE_URL=http://chapter-service:8082
       - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
     ports:
@@ -354,28 +354,26 @@ services:
       - aniway-network
     restart: unless-stopped
 
-  # MelonService - парсер манги
-  melon-service:
+  # ParserService - Java/Spring парсер манги (замена MelonService)
+  parser-service:
     build:
-      context: ./MelonService
+      context: ./ParserService
       dockerfile: Dockerfile
-    container_name: melon-service
+    container_name: parser-service
     environment:
-      # Прокси для обхода блокировки MangaLib API
-      - HTTP_PROXY=http://PS20z2:fFNHVg@168.80.1.136:8000
-      - HTTPS_PROXY=http://PS20z2:fFNHVg@168.80.1.136:8000
-      - NO_PROXY=localhost,127.0.0.1,manga-service,chapter-service,auth-service
+      - SPRING_PROFILES_ACTIVE=prod
+      - PARSER_OUTPUT_PATH=/app/output
+      - PARSER_TEMP_PATH=/app/temp
     ports:
       - "8084:8084"
     volumes:
-      - melon_data:/app/Output
-      - melon_logs:/app/Logs
-      - melon_temp:/app/Temp
+      - parser_data:/app/output
+      - parser_temp:/app/temp
     networks:
       - aniway-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8084/"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8084/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -612,7 +610,6 @@ volumes:
   friend_postgres_data:
   message_postgres_data:
   notification_postgres_data:
-  melon_data:
-  melon_logs:
-  melon_temp:
+  parser_data:
+  parser_temp:
   forum_postgres_data:

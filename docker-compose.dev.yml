@@ -21,7 +21,7 @@ services:
       - MINIO_ENDPOINT=http://minio:9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
-      - MELON_SERVICE_URL=http://melon-service:8084
+      - MELON_SERVICE_URL=http://parser-service:8084
       - MELON_SERVICE_PUBLIC_URL=http://192.168.0.3:8084
       - CHAPTER_SERVICE_URL=http://chapter-service:8082
       - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
@@ -70,7 +70,7 @@ services:
       - ./ImageStorageService/src:/app/src:ro
       - ./ImageStorageService/build.gradle.kts:/app/build.gradle.kts:ro
       - gradle-cache-image:/home/gradle/.gradle
-      - melon_data:/app/Output  # Общий том с MelonService для доступа к скачанным изображениям
+      - parser_data:/app/output  # Общий том с ParserService для доступа к скачанным изображениям
     environment:
       - SPRING_PROFILES_ACTIVE=dev
       - SPRING_DEVTOOLS_RESTART_ENABLED=true
@@ -121,30 +121,31 @@ services:
       - message-service
       - forum-service
       - notification-service
-      - melon-service
+      - parser-service
       - level-service
       - rabbitmq
     networks:
       - aniway-network
 
-  # MelonService - парсер манги (dev режим)
-  melon-service:
+  # ParserService - Java/Spring парсер манги (dev режим)
+  parser-service:
     build:
-      context: ./MelonService
+      context: ./ParserService
       dockerfile: Dockerfile.dev
     ports:
       - "8084:8084"
     volumes:
-      - ./MelonService:/app
-      - melon_data:/app/Output
-      - melon_logs:/app/Logs
-      - melon_temp:/app/Temp
+      - ./ParserService/src:/app/src
+      - ./ParserService/build.gradle.kts:/app/build.gradle.kts:ro
+      - ./ParserService/src/main/resources:/app/src/main/resources
+      - parser_data:/app/output
+      - parser_temp:/app/temp
+      - gradle-cache-parser:/home/gradle/.gradle
     environment:
-      - PYTHONPATH=/app
-      # Прокси для обхода блокировки MangaLib API
-      - HTTP_PROXY=http://PS20z2:fFNHVg@168.80.1.136:8000
-      - HTTPS_PROXY=http://PS20z2:fFNHVg@168.80.1.136:8000
-      - NO_PROXY=localhost,127.0.0.1,manga-service,chapter-service,auth-service
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DEVTOOLS_RESTART_ENABLED=true
+      - PARSER_OUTPUT_PATH=/app/output
+      - PARSER_TEMP_PATH=/app/temp
     networks:
       - aniway-network
     restart: unless-stopped
@@ -649,11 +650,8 @@ volumes:
   auth_postgres_data:
   comment_postgres_data:
   minio_data:
-  melon_data:
-  melon_logs:
-  melon_temp:
-  melon_logs_temp:
-  melon_data_temp:
+  parser_data:
+  parser_temp:
   forum_postgres_data:
   notification_postgres_data:
   gradle-cache-forum:
@@ -663,3 +661,4 @@ volumes:
   level_postgres_data:
   friend_postgres_data:
   message_postgres_data:
+  gradle-cache-parser:
