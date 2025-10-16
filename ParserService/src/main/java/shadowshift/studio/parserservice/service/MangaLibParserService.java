@@ -238,12 +238,12 @@ public class MangaLibParserService {
     public CompletableFuture<CatalogResult> fetchCatalog(int page, Integer minChapters, Integer maxChapters) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                String url = MANGALIB_API_BASE + "/manga?page=" + page + "&sort=rate";
+                String url = MANGALIB_API_BASE + "/manga?fields[]=rate_avg&fields[]=rate&fields[]=releaseDate&page=" + page;
                 
-                HttpHeaders headers = new HttpHeaders();
-                headers.set("User-Agent", "Mozilla/5.0");
+                HttpHeaders headers = createMangaLibHeaders();
                 HttpEntity<String> entity = new HttpEntity<>(headers);
                 
+                logger.debug("Requesting catalog page {} from {}", page, url);
                 ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
                 
                 JsonNode root = objectMapper.readTree(response.getBody());
@@ -283,5 +283,38 @@ public class MangaLibParserService {
                 return result;
             }
         });
+    }
+    
+    /**
+     * Создание заголовков для запросов к MangaLib API
+     * Полный набор заголовков как в Python MelonService
+     */
+    private HttpHeaders createMangaLibHeaders() {
+        HttpHeaders headers = new HttpHeaders();
+        
+        // Токен авторизации (если есть)
+        String token = properties.getMangalib().getToken();
+        if (token != null && !token.isBlank()) {
+            headers.set("Authorization", token);
+        }
+        
+        // Site-Id для MangaLib
+        headers.set("Site-Id", properties.getMangalib().getSiteId());
+        
+        // Полный набор браузерных заголовков
+        headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
+        headers.set("Accept", "application/json, text/plain, */*");
+        headers.set("Accept-Language", "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7");
+        headers.set("Accept-Encoding", "gzip, deflate, br");
+        headers.set("Origin", "https://mangalib.me");
+        headers.set("Referer", "https://mangalib.me/manga-list");
+        headers.set("Sec-Fetch-Dest", "empty");
+        headers.set("Sec-Fetch-Mode", "cors");
+        headers.set("Sec-Fetch-Site", "cross-site");
+        headers.set("Sec-Ch-Ua", "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"");
+        headers.set("Sec-Ch-Ua-Mobile", "?0");
+        headers.set("Sec-Ch-Ua-Platform", "\"Windows\"");
+        
+        return headers;
     }
 }

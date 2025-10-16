@@ -48,6 +48,32 @@ public class ParserProperties {
     private String mangaServiceUrl = "http://manga-service:8081";
 
     /**
+     * Настройки MangaLib API
+     */
+    private MangaLibConfig mangalib = new MangaLibConfig();
+
+    public static class MangaLibConfig {
+        private String token = "";
+        private String siteId = "1";
+
+        public String getToken() {
+            return token;
+        }
+
+        public void setToken(String token) {
+            this.token = token;
+        }
+
+        public String getSiteId() {
+            return siteId;
+        }
+
+        public void setSiteId(String siteId) {
+            this.siteId = siteId;
+        }
+    }
+
+    /**
      * Стратегия прокси (пока не используется, но оставляем для совместимости).
      */
     private boolean useProxyPool = true;
@@ -178,6 +204,16 @@ public class ParserProperties {
     public void setMaxConcurrentTasks(int maxConcurrentTasks) {
         if (maxConcurrentTasks > 0) {
             this.maxConcurrentTasks = maxConcurrentTasks;
+        }
+    }
+
+    public MangaLibConfig getMangalib() {
+        return mangalib;
+    }
+
+    public void setMangalib(MangaLibConfig mangalib) {
+        if (mangalib != null) {
+            this.mangalib = mangalib;
         }
     }
 }
