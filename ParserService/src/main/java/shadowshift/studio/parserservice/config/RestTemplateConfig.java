@@ -14,6 +14,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.Scope;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 import shadowshift.studio.parserservice.service.ProxyManagerService;
@@ -27,26 +29,35 @@ public class RestTemplateConfig {
     @Autowired
     private ProxyManagerService proxyManager;
 
+    /**
+     * Создаёт RestTemplate с автоматической ротацией прокси
+     * Каждый запрос будет использовать новый прокси из пула
+     */
     @Bean
+    @Primary
+    @Scope("prototype")
     public RestTemplate restTemplate() {
-        // Create HTTP client with proxy and authentication support
-        CloseableHttpClient httpClient = createHttpClientWithProxy();
+        // Get next proxy from pool
+        ProxyServer proxy = proxyManager.getNextProxy();
+        
+        // Create HTTP client with proxy
+        CloseableHttpClient httpClient = createHttpClientWithProxy(proxy);
         
         HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(httpClient);
         
         return new RestTemplate(factory);
     }
     
-    private CloseableHttpClient createHttpClientWithProxy() {
-        // Get proxy from manager
-        ProxyServer proxy = proxyManager.getNextProxy();
-        
+    /**
+     * Создаёт HTTP клиент с указанным прокси
+     */
+    private CloseableHttpClient createHttpClientWithProxy(ProxyServer proxy) {
         if (proxy == null || proxy.getHost() == null) {
             logger.warn("No proxy available, using direct connection");
             return createDirectHttpClient();
         }
         
-        logger.info("Using proxy: {}:{}", proxy.getHost(), proxy.getPort());
+        logger.debug("Creating HTTP client with proxy: {}:{}", proxy.getHost(), proxy.getPort());
         
         // Configure proxy
         HttpHost proxyHost = new HttpHost(proxy.getHost(), proxy.getPort());

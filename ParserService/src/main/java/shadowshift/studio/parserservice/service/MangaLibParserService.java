@@ -7,7 +7,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 import shadowshift.studio.parserservice.config.ParserProperties;
 import shadowshift.studio.parserservice.dto.*;
 
@@ -35,7 +34,7 @@ public class MangaLibParserService {
     private ParserProperties properties;
     
     @Autowired
-    private RestTemplate restTemplate;
+    private ProxyRotatingRestTemplateService proxyRestTemplate;
     
     @Autowired
     private ObjectMapper objectMapper;
@@ -109,7 +108,7 @@ public class MangaLibParserService {
         headers.set("User-Agent", "Mozilla/5.0");
         HttpEntity<String> entity = new HttpEntity<>(headers);
         
-        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+        ResponseEntity<String> response = proxyRestTemplate.exchange(url, HttpMethod.GET, entity, String.class);
         
         if (!response.getStatusCode().is2xxSuccessful()) {
             throw new IOException("Не удалось получить данные манги: " + response.getStatusCode());
@@ -164,7 +163,7 @@ public class MangaLibParserService {
         headers.set("User-Agent", "Mozilla/5.0");
         HttpEntity<String> entity = new HttpEntity<>(headers);
         
-        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+        ResponseEntity<String> response = proxyRestTemplate.exchange(url, HttpMethod.GET, entity, String.class);
         
         if (!response.getStatusCode().is2xxSuccessful()) {
             throw new IOException("Не удалось получить список глав: " + response.getStatusCode());
@@ -244,7 +243,7 @@ public class MangaLibParserService {
                 HttpEntity<String> entity = new HttpEntity<>(headers);
                 
                 logger.debug("Requesting catalog page {} from {}", page, url);
-                ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+                ResponseEntity<String> response = proxyRestTemplate.exchange(url, HttpMethod.GET, entity, String.class);
                 
                 JsonNode root = objectMapper.readTree(response.getBody());
                 JsonNode data = root.get("data");

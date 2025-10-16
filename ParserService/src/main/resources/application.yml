@@ -30,6 +30,8 @@ logging:
   level:
     root: INFO
     shadowshift.studio.parserservice: DEBUG
+    org.apache.hc.client5: DEBUG
+    org.apache.hc.client5.http.wire: DEBUG
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
 

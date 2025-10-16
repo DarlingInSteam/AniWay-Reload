@@ -90,7 +90,9 @@ public class ProxyManagerService {
                 for (JsonNode proxyNode : proxiesNode) {
                     String host = proxyNode.get("host").asText();
                     int port = proxyNode.get("port").asInt();
-                    String username = proxyNode.has("username") ? proxyNode.get("username").asText() : null;
+                    // Поддерживаем оба формата: "login" (из settings.json) и "username"
+                    String username = proxyNode.has("login") ? proxyNode.get("login").asText() : 
+                                    (proxyNode.has("username") ? proxyNode.get("username").asText() : null);
                     String password = proxyNode.has("password") ? proxyNode.get("password").asText() : null;
                     
                     ProxyServer proxy = new ProxyServer(host, port, username, password);
