@@ -1,12 +1,14 @@
 package shadowshift.studio.parserservice.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
 
+@Component
 @ConfigurationProperties(prefix = "parser")
 public class ParserProperties {
 
