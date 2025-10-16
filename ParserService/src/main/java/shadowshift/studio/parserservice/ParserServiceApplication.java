@@ -2,9 +2,10 @@ package shadowshift.studio.parserservice;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.http.client.HttpClientAutoConfiguration;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
-@SpringBootApplication
+@SpringBootApplication(exclude = {HttpClientAutoConfiguration.class})
 @ConfigurationPropertiesScan
 public class ParserServiceApplication {
 

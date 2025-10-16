@@ -12,7 +12,6 @@ import org.apache.hc.core5.util.Timeout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
@@ -29,15 +28,13 @@ public class RestTemplateConfig {
     private ProxyManagerService proxyManager;
 
     @Bean
-    public RestTemplate restTemplate(RestTemplateBuilder builder) {
+    public RestTemplate restTemplate() {
         // Create HTTP client with proxy and authentication support
         CloseableHttpClient httpClient = createHttpClientWithProxy();
         
         HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(httpClient);
         
-        return builder
-                .requestFactory(() -> factory)
-                .build();
+        return new RestTemplate(factory);
     }
     
     private CloseableHttpClient createHttpClientWithProxy() {
