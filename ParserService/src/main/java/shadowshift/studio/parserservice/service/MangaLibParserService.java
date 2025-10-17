@@ -231,12 +231,11 @@ public class MangaLibParserService {
         String outputPathFromProperties = properties.getOutputPath();
         logger.info("🔍 saveToJson: properties.getOutputPath() = '{}'", outputPathFromProperties);
         
-        Path outputDir = Paths.get(outputPathFromProperties);
-        logger.info("🔍 saveToJson: outputDir = '{}'", outputDir);
+        // Создаём папку titles/ как в старом MelonService
+        Path titlesDir = Paths.get(outputPathFromProperties, "titles");
+        Files.createDirectories(titlesDir);
         
-        Files.createDirectories(outputDir);
-        
-        Path outputFile = outputDir.resolve(slug + ".json");
+        Path outputFile = titlesDir.resolve(slug + ".json");
         
         Map<String, Object> data = new HashMap<>();
         data.put("slug", slug);

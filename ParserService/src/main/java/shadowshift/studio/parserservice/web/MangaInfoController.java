@@ -51,8 +51,8 @@ public class MangaInfoController {
             // Normalize slug
             String normalizedSlug = parserService.normalizeSlug(slug);
             
-            // Try to read from cached JSON first
-            Path jsonPath = Paths.get(properties.getOutputPath(), normalizedSlug + ".json");
+            // Try to read from cached JSON first (в директории titles/)
+            Path jsonPath = Paths.get(properties.getOutputPath(), "titles", normalizedSlug + ".json");
             
             List<ChapterInfo> chapters;
             
