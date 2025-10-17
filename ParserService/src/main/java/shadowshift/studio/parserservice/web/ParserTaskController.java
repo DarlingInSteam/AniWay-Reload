@@ -18,6 +18,7 @@ import shadowshift.studio.parserservice.domain.task.ParserTask;
 import shadowshift.studio.parserservice.domain.task.TaskLogEntry;
 import shadowshift.studio.parserservice.domain.task.TaskStatus;
 import shadowshift.studio.parserservice.domain.task.TaskType;
+import shadowshift.studio.parserservice.service.TaskExecutor;
 import shadowshift.studio.parserservice.service.TaskService;
 import shadowshift.studio.parserservice.web.dto.BatchParseRequest;
 import shadowshift.studio.parserservice.web.dto.BuildRequest;
@@ -45,9 +46,11 @@ public class ParserTaskController {
     private static final String SUPPORTED_PARSER = "mangalib";
 
     private final TaskService taskService;
+    private final TaskExecutor taskExecutor;
 
-    public ParserTaskController(TaskService taskService) {
+    public ParserTaskController(TaskService taskService, TaskExecutor taskExecutor) {
         this.taskService = taskService;
+        this.taskExecutor = taskExecutor;
     }
 
     @PostMapping(path = "/parse", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -55,6 +58,10 @@ public class ParserTaskController {
         ensureSupportedParser(request.getParser());
         String slug = normalizeSlug(request.getSlug());
         ParserTask task = taskService.createParseTask(slug);
+        
+        // Запускаем задачу асинхронно
+        taskExecutor.executeParseTask(task);
+        
         return new TaskCreatedResponse(task.getId(), task.getStatus().name());
     }
 
@@ -67,6 +74,10 @@ public class ParserTaskController {
         }
         ParserTask task = taskService.createBuildTask(slug);
         task.setMessage("Build queued (%s)".formatted(request.getType()));
+        
+        // Запускаем задачу асинхронно
+        taskExecutor.executeBuildTask(task);
+        
         return new TaskCreatedResponse(task.getId(), task.getStatus().name());
     }
 
