@@ -893,8 +893,12 @@ public class MelonIntegrationService {
             String url = melonServiceUrl + "/catalog/" + page + "?parser=mangalib&limit=" + pageLimit;
             
             logger.info("Получение каталога манг: страница {}, лимит {}", page, pageLimit);
+            logger.debug("URL запроса: {}", url);
+            
             ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
             Map<String, Object> result = response.getBody();
+            
+            logger.debug("Полученный ответ: {}", result);
             
             if (result != null && Boolean.TRUE.equals(result.get("success"))) {
                 logger.info("Успешно получен каталог: страница {}, найдено {} манг", 
@@ -904,6 +908,7 @@ public class MelonIntegrationService {
                 Object errorObj = (result != null) ? result.get("error") : null;
                 String errorMessage = (errorObj != null) ? errorObj.toString() : "Unknown error - no error message";
                 logger.error("Не удалось получить каталог для страницы {}: {}", page, errorMessage);
+                logger.error("Полный ответ сервера: {}", result);
                 return Map.of("success", false, "error", errorMessage);
             }
             
