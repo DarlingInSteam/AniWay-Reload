@@ -17,6 +17,7 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * Сервис для парсинга манги с MangaLib
@@ -256,11 +257,28 @@ public class MangaLibParserService {
                 JsonNode root = objectMapper.readTree(responseBody);
                 JsonNode data = root.get("data");
                 
+                if (data == null) {
+                    logger.error("Response 'data' field is null. Full response: {}", responseBody != null && responseBody.length() < 500 ? responseBody : (responseBody != null ? responseBody.substring(0, 500) + "..." : "null"));
+                } else {
+                    logger.debug("Data array size: {}", data.isArray() ? data.size() : "not an array");
+                    if (data.isArray() && data.size() > 0) {
+                        logger.debug("First item keys: {}", data.get(0).fieldNames());
+                    }
+                }
+                
                 CatalogResult result = new CatalogResult();
                 List<CatalogItem> items = new ArrayList<>();
                 
                 if (data != null && data.isArray()) {
                     for (JsonNode item : data) {
+                        // Check for required fields
+                        if (!item.has("slug") && !item.has("slug_url")) {
+                            logger.warn("Item missing 'slug' and 'slug_url' fields. Available fields: {}", 
+                                StreamSupport.stream(((Iterable<String>) () -> item.fieldNames()).spliterator(), false)
+                                    .collect(java.util.stream.Collectors.joining(", ")));
+                            continue;
+                        }
+                        
                         int chaptersCount = item.has("chapters_count") ? item.get("chapters_count").asInt() : 0;
                         
                         // Фильтрация по количеству глав
@@ -268,10 +286,41 @@ public class MangaLibParserService {
                         if (maxChapters != null && chaptersCount > maxChapters) continue;
                         
                         CatalogItem catalogItem = new CatalogItem();
-                        catalogItem.setSlug(item.get("slug").asText());
+                        
+                        // Используем slug или slug_url (без префикса ID)
+                        String slug = item.has("slug") ? item.get("slug").asText() : null;
+                        if (slug == null && item.has("slug_url")) {
+                            String slugUrl = item.get("slug_url").asText();
+                            // slug_url формата "7580--i-alone-level-up", берём часть после "--"
+                            if (slugUrl.contains("--")) {
+                                slug = slugUrl.substring(slugUrl.indexOf("--") + 2);
+                            } else {
+                                slug = slugUrl;
+                            }
+                        }
+                        
+                        if (slug == null || slug.isBlank()) {
+                            logger.warn("Could not extract slug from item: {}", item);
+                            continue;
+                        }
+                        
+                        catalogItem.setSlug(slug);
                         catalogItem.setTitle(item.has("rus_name") ? item.get("rus_name").asText() : item.get("name").asText());
                         catalogItem.setChaptersCount(chaptersCount);
-                        catalogItem.setType(item.has("type") ? item.get("type").get("name").asText() : "");
+                        
+                        // Type может быть объектом с полем label
+                        if (item.has("type")) {
+                            JsonNode typeNode = item.get("type");
+                            if (typeNode.isObject() && typeNode.has("label")) {
+                                catalogItem.setType(typeNode.get("label").asText());
+                            } else if (typeNode.isTextual()) {
+                                catalogItem.setType(typeNode.asText());
+                            } else {
+                                catalogItem.setType("");
+                            }
+                        } else {
+                            catalogItem.setType("");
+                        }
                         
                         items.add(catalogItem);
                     }

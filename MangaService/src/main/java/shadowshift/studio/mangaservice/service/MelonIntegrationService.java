@@ -901,15 +901,17 @@ public class MelonIntegrationService {
                     page, result.get("count"));
                 return result;
             } else {
-                logger.error("Не удалось получить каталог для страницы {}: {}", 
-                    page, result != null ? result.get("error") : "Unknown error");
-                return Map.of("success", false, "error", 
-                    result != null ? result.get("error") : "Unknown error");
+                String errorMessage = (result != null && result.get("error") != null) 
+                    ? result.get("error").toString() 
+                    : "Unknown error";
+                logger.error("Не удалось получить каталог для страницы {}: {}", page, errorMessage);
+                return Map.of("success", false, "error", errorMessage);
             }
             
         } catch (Exception e) {
             logger.error("Ошибка получения каталога для страницы {}: {}", page, e.getMessage());
-            return Map.of("success", false, "error", e.getMessage());
+            String errorMessage = e.getMessage() != null ? e.getMessage() : "Unknown exception";
+            return Map.of("success", false, "error", errorMessage);
         }
     }
 
