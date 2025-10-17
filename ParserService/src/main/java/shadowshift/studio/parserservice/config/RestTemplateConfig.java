@@ -1,20 +1,12 @@
 package shadowshift.studio.parserservice.config;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import java.util.Collections;
-
-import org.apache.hc.client5.http.auth.AuthCache;
 import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.config.RequestConfig;
-import org.apache.hc.client5.http.impl.auth.BasicAuthCache;
 import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
-import org.apache.hc.client5.http.impl.auth.BasicScheme;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
-import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.util.Timeout;
 import org.slf4j.Logger;
@@ -48,35 +40,11 @@ public class RestTemplateConfig {
         // Get next proxy from pool
         ProxyServer proxy = proxyManager.getNextProxy();
         
-        // Create HTTP client with proxy
+        // Create HTTP client with proxy and credentials
         CloseableHttpClient httpClient = createHttpClientWithProxy(proxy);
         
-        // Create factory with preemptive proxy auth context
+        // Create factory - credentials are already set in HttpClient
         HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(httpClient);
-        
-        // If proxy has credentials, enable preemptive auth
-        if (proxy != null && proxy.getUsername() != null && !proxy.getUsername().isEmpty()) {
-            HttpHost proxyHost = new HttpHost(proxy.getHost(), proxy.getPort());
-            String password = proxy.getPassword() != null ? proxy.getPassword() : "";
-            
-            // Create credentials provider
-            BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-            credentialsProvider.setCredentials(
-                    new AuthScope(proxy.getHost(), proxy.getPort()),
-                    new UsernamePasswordCredentials(proxy.getUsername(), password.toCharArray()));
-            
-            // Create auth cache for preemptive authentication
-            AuthCache authCache = new BasicAuthCache();
-            BasicScheme basicAuth = new BasicScheme();
-            authCache.put(proxyHost, basicAuth);
-            
-            // Create HTTP context with both auth cache and credentials
-            HttpClientContext context = HttpClientContext.create();
-            context.setAuthCache(authCache);
-            context.setCredentialsProvider(credentialsProvider);
-            
-            factory.setHttpContextFactory((httpMethod, uri) -> context);
-        }
         
         return new RestTemplate(factory);
     }
