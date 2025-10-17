@@ -96,6 +96,8 @@ public class MangaInfoController {
                 chaptersList.add(chapterMap);
             }
             
+            response.put("success", true);
+            response.put("total_chapters", chaptersList.size());
             response.put("chapters", chaptersList);
             logger.info("Returned {} chapters for slug: {}", chaptersList.size(), normalizedSlug);
             
