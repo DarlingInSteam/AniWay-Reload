@@ -901,9 +901,8 @@ public class MelonIntegrationService {
                     page, result.get("count"));
                 return result;
             } else {
-                String errorMessage = (result != null && result.get("error") != null) 
-                    ? result.get("error").toString() 
-                    : "Unknown error";
+                Object errorObj = (result != null) ? result.get("error") : null;
+                String errorMessage = (errorObj != null) ? errorObj.toString() : "Unknown error - no error message";
                 logger.error("Не удалось получить каталог для страницы {}: {}", page, errorMessage);
                 return Map.of("success", false, "error", errorMessage);
             }
