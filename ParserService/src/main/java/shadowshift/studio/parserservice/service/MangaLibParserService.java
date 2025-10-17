@@ -196,18 +196,16 @@ public class MangaLibParserService {
     }
     
     /**
-     * Нормализация slug (убирает ID-- префикс)
+     * Нормализация slug для безопасного использования в имени файла.
+     * ВАЖНО: API MangaLib требует полный slug в формате "id--slug", поэтому НЕ обрезаем ID!
+     * Метод нужен только для валидации, не для преобразования формата.
      */
     public String normalizeSlug(String slug) {
         if (slug == null || slug.isEmpty()) {
             return slug;
         }
         
-        // Формат: "7580--i-alone-level-up" -> "i-alone-level-up"
-        if (slug.matches("\\d+--.*")) {
-            return slug.substring(slug.indexOf("--") + 2);
-        }
-        
+        // API требует полный slug_url в формате "id--slug", поэтому просто возвращаем как есть
         return slug;
     }
     

@@ -195,17 +195,15 @@ public class MangaBuildService {
     }
     
     /**
-     * Нормализация slug
+     * Нормализация slug для безопасного использования.
+     * ВАЖНО: API MangaLib требует полный slug в формате "id--slug", поэтому НЕ обрезаем ID!
      */
     private String normalizeSlug(String slug) {
         if (slug == null || slug.isEmpty()) {
             return slug;
         }
         
-        if (slug.matches("\\d+--.*")) {
-            return slug.substring(slug.indexOf("--") + 2);
-        }
-        
+        // API требует полный slug_url в формате "id--slug", поэтому просто возвращаем как есть
         return slug;
     }
 }
