@@ -57,22 +57,44 @@ public class MangaLibParserService {
         ParseTask task = taskStorage.createParseTask(taskId, slug, parser);
         
         return CompletableFuture.supplyAsync(() -> {
+            long startTime = System.currentTimeMillis();
+            logger.info("🚀 [PARSE START] Slug: {}, TaskId: {}", slug, taskId);
+            
             try {
                 task.updateStatus("running", 10, "Получение метаданных с MangaLib...");
                 
                 // Нормализуем slug (убираем ID-- если есть)
                 String normalizedSlug = normalizeSlug(slug);
+                logger.info("📝 Normalized slug: {} -> {}", slug, normalizedSlug);
                 
                 // Получаем данные манги
+                long metadataStart = System.currentTimeMillis();
                 MangaMetadata metadata = fetchMangaMetadata(normalizedSlug, task);
+                long metadataTime = System.currentTimeMillis() - metadataStart;
+                logger.info("📋 Metadata fetched in {}ms: title='{}', type={}, status={}", 
+                    metadataTime, metadata.getTitle(), metadata.getType(), metadata.getStatus());
                 
                 // Получаем список глав
+                long chaptersStart = System.currentTimeMillis();
                 List<ChapterInfo> chapters = fetchChapterList(normalizedSlug, task);
+                long chaptersTime = System.currentTimeMillis() - chaptersStart;
+                logger.info("📚 Chapters fetched in {}ms: {} chapters (avg {}ms/chapter)", 
+                    chaptersTime, chapters.size(), 
+                    chapters.isEmpty() ? 0 : chaptersTime / chapters.size());
                 
                 // Сохраняем в JSON
+                long saveStart = System.currentTimeMillis();
                 Path outputPath = saveToJson(normalizedSlug, metadata, chapters);
+                long saveTime = System.currentTimeMillis() - saveStart;
+                logger.info("💾 JSON saved in {}ms: {}", saveTime, outputPath);
                 
                 task.updateStatus("completed", 100, "Парсинг завершен успешно");
+                
+                long totalTime = System.currentTimeMillis() - startTime;
+                logger.info("✅ [PARSE COMPLETE] Slug: {}, TaskId: {}, Total time: {}ms, Chapters: {}", 
+                    normalizedSlug, taskId, totalTime, chapters.size());
+                logger.info("⏱️  [TIMING BREAKDOWN] Metadata: {}ms, Chapters: {}ms, Save: {}ms", 
+                    metadataTime, chaptersTime, saveTime);
                 
                 ParseResult result = new ParseResult();
                 result.setSuccess(true);
@@ -86,7 +108,9 @@ public class MangaLibParserService {
                 return result;
                 
             } catch (Exception e) {
-                logger.error("Ошибка парсинга манги {}: {}", slug, e.getMessage(), e);
+                long totalTime = System.currentTimeMillis() - startTime;
+                logger.error("❌ [PARSE FAILED] Slug: {}, TaskId: {}, Time: {}ms, Error: {}", 
+                    slug, taskId, totalTime, e.getMessage(), e);
                 task.updateStatus("failed", 0, "Ошибка: " + e.getMessage());
                 
                 ParseResult result = new ParseResult();

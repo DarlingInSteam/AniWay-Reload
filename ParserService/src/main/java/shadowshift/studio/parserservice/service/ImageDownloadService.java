@@ -31,21 +31,32 @@ public class ImageDownloadService {
     @Autowired
     private ParserProperties properties;
     
-    private final ExecutorService executorService = Executors.newFixedThreadPool(20);
+    private final ExecutorService executorService;
+    
+    public ImageDownloadService(ParserProperties properties) {
+        this.properties = properties;
+        int poolSize = properties.getMaxParallelDownloads();
+        this.executorService = Executors.newFixedThreadPool(poolSize);
+        logger.info("🚀 ImageDownloadService initialized with {} parallel threads", poolSize);
+    }
     
     /**
      * Загружает изображение по URL в указанный путь
      */
-    public CompletableFuture<Boolean> downloadImage(String imageUrl, Path outputPath) {
+    public CompletableFuture<DownloadResult> downloadImage(String imageUrl, Path outputPath) {
         return CompletableFuture.supplyAsync(() -> {
+            long startTime = System.currentTimeMillis();
+            long fileSize = 0;
+            
             try {
                 // Создаем директорию если нет
                 Files.createDirectories(outputPath.getParent());
                 
                 // Если файл уже существует - пропускаем
                 if (Files.exists(outputPath)) {
-                    logger.debug("Файл уже существует: {}", outputPath);
-                    return true;
+                    fileSize = Files.size(outputPath);
+                    logger.debug("✅ File exists: {} ({}KB)", outputPath.getFileName(), fileSize / 1024);
+                    return new DownloadResult(true, System.currentTimeMillis() - startTime, fileSize, true);
                 }
                 
                 // Загружаем изображение
@@ -62,40 +73,96 @@ public class ImageDownloadService {
                 );
                 
                 if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                    Files.write(outputPath, response.getBody());
-                    logger.debug("Загружено изображение: {}", outputPath.getFileName());
-                    return true;
+                    byte[] imageData = response.getBody();
+                    fileSize = imageData.length;
+                    Files.write(outputPath, imageData);
+                    
+                    long downloadTime = System.currentTimeMillis() - startTime;
+                    double speedKBps = (fileSize / 1024.0) / (downloadTime / 1000.0);
+                    
+                    logger.debug("✅ Downloaded: {} ({}KB in {}ms, {:.1f}KB/s)", 
+                        outputPath.getFileName(), fileSize / 1024, downloadTime, speedKBps);
+                    
+                    return new DownloadResult(true, downloadTime, fileSize, false);
                 } else {
-                    logger.error("Не удалось загрузить изображение {}: {}", imageUrl, response.getStatusCode());
-                    return false;
+                    logger.error("❌ Failed to download {}: {}", imageUrl, response.getStatusCode());
+                    return new DownloadResult(false, System.currentTimeMillis() - startTime, 0, false);
                 }
                 
             } catch (Exception e) {
-                logger.error("Ошибка загрузки изображения {}: {}", imageUrl, e.getMessage());
-                return false;
+                logger.error("❌ Error downloading {}: {}", imageUrl, e.getMessage());
+                return new DownloadResult(false, System.currentTimeMillis() - startTime, 0, false);
             }
         }, executorService);
     }
     
     /**
-     * Загружает список изображений параллельно
+     * Загружает список изображений параллельно с периодическим логированием прогресса
      */
-    public CompletableFuture<Integer> downloadImages(java.util.List<ImageDownloadTask> tasks) {
-        logger.info("Начало загрузки {} изображений...", tasks.size());
+    public CompletableFuture<DownloadSummary> downloadImages(java.util.List<ImageDownloadTask> tasks) {
+        long startTime = System.currentTimeMillis();
+        int totalImages = tasks.size();
         
-        java.util.List<CompletableFuture<Boolean>> futures = tasks.stream()
-            .map(task -> downloadImage(task.url, task.outputPath))
+        logger.info("🚀 [DOWNLOAD START] Total images: {}", totalImages);
+        
+        java.util.concurrent.atomic.AtomicInteger completed = new java.util.concurrent.atomic.AtomicInteger(0);
+        java.util.concurrent.atomic.AtomicInteger successful = new java.util.concurrent.atomic.AtomicInteger(0);
+        java.util.concurrent.atomic.AtomicLong totalBytes = new java.util.concurrent.atomic.AtomicLong(0);
+        java.util.concurrent.atomic.AtomicInteger cached = new java.util.concurrent.atomic.AtomicInteger(0);
+        
+        // Прогресс-репортер каждые 10%
+        int reportInterval = Math.max(1, totalImages / 10);
+        
+        java.util.List<CompletableFuture<DownloadResult>> futures = tasks.stream()
+            .map(task -> downloadImage(task.url, task.outputPath)
+                .thenApply(result -> {
+                    int current = completed.incrementAndGet();
+                    
+                    if (result.success) {
+                        successful.incrementAndGet();
+                        totalBytes.addAndGet(result.fileSize);
+                        if (result.cached) {
+                            cached.incrementAndGet();
+                        }
+                    }
+                    
+                    // Логируем прогресс каждые reportInterval изображений
+                    if (current % reportInterval == 0 || current == totalImages) {
+                        long elapsed = System.currentTimeMillis() - startTime;
+                        double progress = (current * 100.0) / totalImages;
+                        double speedImagesPerSec = (current * 1000.0) / elapsed;
+                        long eta = (long) ((totalImages - current) / speedImagesPerSec);
+                        
+                        logger.info("📊 [PROGRESS] {}/{} images ({:.1f}%), Speed: {:.1f} img/s, ETA: {}s, Success: {}, Cached: {}", 
+                            current, totalImages, progress, speedImagesPerSec, eta, successful.get(), cached.get());
+                    }
+                    
+                    return result;
+                })
+            )
             .collect(java.util.stream.Collectors.toList());
         
         return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
             .thenApply(v -> {
-                long successCount = futures.stream()
+                long totalTime = System.currentTimeMillis() - startTime;
+                
+                java.util.List<DownloadResult> results = futures.stream()
                     .map(CompletableFuture::join)
-                    .filter(success -> success)
-                    .count();
-                    
-                logger.info("Загружено {}/{} изображений", successCount, tasks.size());
-                return (int) successCount;
+                    .collect(java.util.stream.Collectors.toList());
+                
+                int successCount = successful.get();
+                int failedCount = totalImages - successCount;
+                long totalMB = totalBytes.get() / (1024 * 1024);
+                double avgSpeedMBps = (totalBytes.get() / 1024.0 / 1024.0) / (totalTime / 1000.0);
+                double avgSpeedImgPerSec = (totalImages * 1000.0) / totalTime;
+                
+                logger.info("✅ [DOWNLOAD COMPLETE] Total: {}, Success: {}, Failed: {}, Cached: {}", 
+                    totalImages, successCount, failedCount, cached.get());
+                logger.info("📈 [DOWNLOAD STATS] Time: {}ms, Size: {}MB, Avg Speed: {:.2f}MB/s, {:.1f} img/s", 
+                    totalTime, totalMB, avgSpeedMBps, avgSpeedImgPerSec);
+                
+                return new DownloadSummary(totalImages, successCount, failedCount, 
+                    cached.get(), totalBytes.get(), totalTime);
             });
     }
     
@@ -109,6 +176,45 @@ public class ImageDownloadService {
         public ImageDownloadTask(String url, Path outputPath) {
             this.url = url;
             this.outputPath = outputPath;
+        }
+    }
+    
+    /**
+     * Результат загрузки одного изображения
+     */
+    public static class DownloadResult {
+        public final boolean success;
+        public final long downloadTime;
+        public final long fileSize;
+        public final boolean cached;
+        
+        public DownloadResult(boolean success, long downloadTime, long fileSize, boolean cached) {
+            this.success = success;
+            this.downloadTime = downloadTime;
+            this.fileSize = fileSize;
+            this.cached = cached;
+        }
+    }
+    
+    /**
+     * Сводка загрузки изображений
+     */
+    public static class DownloadSummary {
+        public final int totalImages;
+        public final int successCount;
+        public final int failedCount;
+        public final int cachedCount;
+        public final long totalBytes;
+        public final long totalTime;
+        
+        public DownloadSummary(int totalImages, int successCount, int failedCount, 
+                              int cachedCount, long totalBytes, long totalTime) {
+            this.totalImages = totalImages;
+            this.successCount = successCount;
+            this.failedCount = failedCount;
+            this.cachedCount = cachedCount;
+            this.totalBytes = totalBytes;
+            this.totalTime = totalTime;
         }
     }
 }

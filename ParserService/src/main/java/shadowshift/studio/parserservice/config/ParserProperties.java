@@ -91,6 +91,16 @@ public class ParserProperties {
      * Максимальное количество одновременно выполняемых задач.
      */
     private int maxConcurrentTasks = 2;
+    
+    /**
+     * Максимальное количество параллельных загрузок изображений.
+     */
+    private int maxParallelDownloads = 20;
+    
+    /**
+     * Таймаут загрузки изображения в секундах.
+     */
+    private int imageTimeoutSeconds = 30;
 
     public Path getStorageBasePath() {
         return Paths.get(outputPath);
@@ -207,6 +217,27 @@ public class ParserProperties {
     public void setMaxConcurrentTasks(int maxConcurrentTasks) {
         if (maxConcurrentTasks > 0) {
             this.maxConcurrentTasks = maxConcurrentTasks;
+        }
+    }
+    
+    public int getMaxParallelDownloads() {
+        return maxParallelDownloads;
+    }
+    
+    public void setMaxParallelDownloads(int maxParallelDownloads) {
+        if (maxParallelDownloads > 0) {
+            this.maxParallelDownloads = maxParallelDownloads;
+            log.info("🔧 maxParallelDownloads установлен в: {}", maxParallelDownloads);
+        }
+    }
+    
+    public int getImageTimeoutSeconds() {
+        return imageTimeoutSeconds;
+    }
+    
+    public void setImageTimeoutSeconds(int imageTimeoutSeconds) {
+        if (imageTimeoutSeconds > 0) {
+            this.imageTimeoutSeconds = imageTimeoutSeconds;
         }
     }
 

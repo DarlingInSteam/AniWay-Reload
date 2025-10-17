@@ -30,31 +30,43 @@ public class TaskExecutor {
      */
     @Async
     public void executeParseTask(ParserTask task) {
+        long startTime = System.currentTimeMillis();
+        String slug = task.getSlugs().get(0);
+        
         try {
-            logger.info("🚀 Начинаем выполнение задачи парсинга: {}", task.getId());
+            logger.info("🚀 [TASK START] TaskId: {}, Slug: {}, Type: PARSE", task.getId(), slug);
             
             taskService.markRunning(task);
             taskService.appendLog(task, "Starting parse task");
             
-            String slug = task.getSlugs().get(0);
-            
             // Запускаем парсинг
             var result = parserService.parseManga(slug, "mangalib").join();
             
+            long totalTime = System.currentTimeMillis() - startTime;
+            
             if (result != null && result.getChapters() != null && !result.getChapters().isEmpty()) {
                 taskService.markCompleted(task);
-                taskService.appendLog(task, String.format("Parse completed: %d chapters", result.getChapters().size()));
-                logger.info("✅ Задача парсинга завершена успешно: {} ({} глав)", 
-                    task.getId(), result.getChapters().size());
+                taskService.appendLog(task, String.format("Parse completed: %d chapters in %dms", 
+                    result.getChapters().size(), totalTime));
+                
+                logger.info("✅ [TASK COMPLETE] TaskId: {}, Slug: {}, Chapters: {}, Time: {}ms, Avg: {}ms/chapter", 
+                    task.getId(), slug, result.getChapters().size(), totalTime, 
+                    totalTime / result.getChapters().size());
+                    
             } else {
                 task.setStatus(TaskStatus.FAILED);
                 task.setCompletedAt(Instant.now());
-                taskService.appendLog(task, "Parse failed: no chapters found");
-                logger.error("❌ Задача парсинга провалена: {} (главы не найдены)", task.getId());
+                taskService.appendLog(task, String.format("Parse failed: no chapters found (time: %dms)", totalTime));
+                
+                logger.error("❌ [TASK FAILED] TaskId: {}, Slug: {}, Reason: No chapters, Time: {}ms", 
+                    task.getId(), slug, totalTime);
             }
             
         } catch (Exception e) {
-            logger.error("❌ Ошибка выполнения задачи парсинга {}: {}", task.getId(), e.getMessage(), e);
+            long totalTime = System.currentTimeMillis() - startTime;
+            logger.error("❌ [TASK ERROR] TaskId: {}, Slug: {}, Time: {}ms, Error: {}", 
+                task.getId(), slug, totalTime, e.getMessage(), e);
+            
             task.setStatus(TaskStatus.FAILED);
             task.setCompletedAt(Instant.now());
             taskService.appendLog(task, "Parse failed: " + e.getMessage());
@@ -66,21 +78,35 @@ public class TaskExecutor {
      */
     @Async
     public void executeBuildTask(ParserTask task) {
+        long startTime = System.currentTimeMillis();
+        String slug = task.getSlugs().get(0);
+        
         try {
-            logger.info("🚀 Начинаем выполнение задачи билда: {}", task.getId());
+            logger.info("🚀 [BUILD START] TaskId: {}, Slug: {}, Type: BUILD", task.getId(), slug);
             
             taskService.markRunning(task);
             taskService.appendLog(task, "Starting build task");
             
             // TODO: Реализовать скачивание изображений
-            taskService.appendLog(task, "Build not implemented yet");
+            // 1. Прочитать JSON с метаданными
+            // 2. Получить список URL изображений для каждой главы
+            // 3. Скачать изображения используя imageDownloader.downloadImages()
+            // 4. Создать CBZ архивы
+            
+            long totalTime = System.currentTimeMillis() - startTime;
+            
+            taskService.appendLog(task, String.format("Build not implemented yet (time: %dms)", totalTime));
             task.setStatus(TaskStatus.FAILED);
             task.setCompletedAt(Instant.now());
             
-            logger.warn("⚠️ Build task not implemented: {}", task.getId());
+            logger.warn("⚠️ [BUILD NOT IMPLEMENTED] TaskId: {}, Slug: {}, Time: {}ms", 
+                task.getId(), slug, totalTime);
             
         } catch (Exception e) {
-            logger.error("❌ Ошибка выполнения задачи билда {}: {}", task.getId(), e.getMessage(), e);
+            long totalTime = System.currentTimeMillis() - startTime;
+            logger.error("❌ [BUILD ERROR] TaskId: {}, Slug: {}, Time: {}ms, Error: {}", 
+                task.getId(), slug, totalTime, e.getMessage(), e);
+            
             task.setStatus(TaskStatus.FAILED);
             task.setCompletedAt(Instant.now());
             taskService.appendLog(task, "Build failed: " + e.getMessage());
