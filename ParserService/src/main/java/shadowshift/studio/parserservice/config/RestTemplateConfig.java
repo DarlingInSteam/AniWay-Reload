@@ -1,16 +1,9 @@
 package shadowshift.studio.parserservice.config;
 
-import org.apache.hc.client5.http.auth.AuthCache;
-import org.apache.hc.client5.http.auth.AuthScope;
-import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.config.RequestConfig;
-import org.apache.hc.client5.http.impl.auth.BasicAuthCache;
-import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
-import org.apache.hc.client5.http.impl.auth.BasicScheme;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
-import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.util.Timeout;
 import org.slf4j.Logger;
@@ -44,41 +37,17 @@ public class RestTemplateConfig {
         // Get next proxy from pool
         ProxyServer proxy = proxyManager.getNextProxy();
         
-        // Create HTTP client with proxy and credentials
+        // Create HTTP client with proxy (IP-based auth, no credentials needed)
         CloseableHttpClient httpClient = createHttpClientWithProxy(proxy);
         
         // Create factory
         HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(httpClient);
         
-        // Set preemptive auth context if proxy has credentials
-        if (proxy != null && proxy.getUsername() != null && !proxy.getUsername().isEmpty()) {
-            HttpHost proxyHost = new HttpHost(proxy.getHost(), proxy.getPort());
-            String password = proxy.getPassword() != null ? proxy.getPassword() : "";
-            
-            // Create credentials provider for context
-            BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-            credentialsProvider.setCredentials(
-                    new AuthScope(proxy.getHost(), proxy.getPort()),
-                    new UsernamePasswordCredentials(proxy.getUsername(), password.toCharArray()));
-            
-            // Create auth cache with BasicScheme for proxy
-            AuthCache authCache = new BasicAuthCache();
-            authCache.put(proxyHost, new BasicScheme());
-            
-            // Create context with BOTH auth cache AND credentials provider
-            HttpClientContext context = HttpClientContext.create();
-            context.setAuthCache(authCache);
-            context.setCredentialsProvider(credentialsProvider);
-            
-            // Set context factory to use our preemptive auth context
-            factory.setHttpContextFactory((httpMethod, uri) -> context);
-        }
-        
         return new RestTemplate(factory);
     }
     
     /**
-     * Создаёт HTTP клиент с указанным прокси
+     * Создаёт HTTP клиент с указанным прокси (IP-based authentication)
      */
     private CloseableHttpClient createHttpClientWithProxy(ProxyServer proxy) {
         if (proxy == null || proxy.getHost() == null) {
@@ -98,23 +67,7 @@ public class RestTemplateConfig {
                 .setProxy(proxyHost)
                 .build();
         
-        // Configure proxy authentication if credentials provided
-        if (proxy.getUsername() != null && !proxy.getUsername().isEmpty()) {
-            BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-            String password = proxy.getPassword() != null ? proxy.getPassword() : "";
-            UsernamePasswordCredentials credentials = new UsernamePasswordCredentials(
-                    proxy.getUsername(), password.toCharArray());
-            // Scope credentials to the current proxy host so CONNECT requests include Proxy-Authorization
-            credentialsProvider.setCredentials(new AuthScope(proxy.getHost(), proxy.getPort()), credentials);
-
-            return HttpClients.custom()
-                    .setDefaultRequestConfig(config)
-                    .setDefaultCredentialsProvider(credentialsProvider)
-                    .setConnectionManager(new PoolingHttpClientConnectionManager())
-                    .build();
-        }
-        
-        // No authentication
+        // Simple proxy without authentication (IP-based auth on proxy side)
         return HttpClients.custom()
                 .setDefaultRequestConfig(config)
                 .setConnectionManager(new PoolingHttpClientConnectionManager())
