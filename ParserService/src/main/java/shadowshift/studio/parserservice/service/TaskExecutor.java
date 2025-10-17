@@ -19,10 +19,12 @@ public class TaskExecutor {
     
     private final MangaLibParserService parserService;
     private final TaskService taskService;
+    private final MangaBuildService buildService;
     
-    public TaskExecutor(MangaLibParserService parserService, TaskService taskService) {
+    public TaskExecutor(MangaLibParserService parserService, TaskService taskService, MangaBuildService buildService) {
         this.parserService = parserService;
         this.taskService = taskService;
+        this.buildService = buildService;
     }
     
     /**
@@ -87,20 +89,18 @@ public class TaskExecutor {
             taskService.markRunning(task);
             taskService.appendLog(task, "Starting build task");
             
-            // TODO: Реализовать скачивание изображений
-            // 1. Прочитать JSON с метаданными
-            // 2. Получить список URL изображений для каждой главы
-            // 3. Скачать изображения используя imageDownloader.downloadImages()
-            // 4. Создать CBZ архивы
+            // Execute the build using MangaBuildService
+            buildService.buildManga(task);
             
             long totalTime = System.currentTimeMillis() - startTime;
             
-            taskService.appendLog(task, String.format("Build not implemented yet (time: %dms)", totalTime));
-            task.setStatus(TaskStatus.FAILED);
-            task.setCompletedAt(Instant.now());
-            
-            logger.warn("⚠️ [BUILD NOT IMPLEMENTED] TaskId: {}, Slug: {}, Time: {}ms", 
-                task.getId(), slug, totalTime);
+            if (task.getStatus() == TaskStatus.COMPLETED) {
+                logger.info("✅ [BUILD COMPLETE] TaskId: {}, Slug: {}, Time: {}ms", 
+                    task.getId(), slug, totalTime);
+            } else {
+                logger.error("❌ [BUILD FAILED] TaskId: {}, Slug: {}, Time: {}ms", 
+                    task.getId(), slug, totalTime);
+            }
             
         } catch (Exception e) {
             long totalTime = System.currentTimeMillis() - startTime;

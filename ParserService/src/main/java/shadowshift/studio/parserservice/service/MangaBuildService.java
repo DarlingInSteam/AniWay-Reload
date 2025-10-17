@@ -9,12 +9,15 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import shadowshift.studio.parserservice.config.ParserProperties;
+import shadowshift.studio.parserservice.domain.task.ParserTask;
+import shadowshift.studio.parserservice.domain.task.TaskStatus;
 import shadowshift.studio.parserservice.dto.*;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -44,157 +47,91 @@ public class MangaBuildService {
     @Autowired
     private ImageDownloadService imageDownloader;
     
-    /**
-     * Запускает процесс билда манги (загрузка всех изображений)
-     */
-    public String startBuild(String slug, String parser, String branchId) {
-        String taskId = UUID.randomUUID().toString();
-        BuildTask task = taskStorage.createBuildTask(taskId, slug, parser);
-        
-        // Запускаем асинхронно
-        CompletableFuture.runAsync(() -> executeBuild(task, slug, branchId));
-        
-        return taskId;
-    }
-    
-    /**
-     * Выполняет билд манги
-     */
-    private void executeBuild(BuildTask task, String slug, String branchId) {
-        try {
-            task.updateStatus("running", 5, "Загрузка метаданных манги...");
-            
-            // Нормализуем slug
-            String normalizedSlug = normalizeSlug(slug);
-            
-            // Загружаем JSON с метаданными (должен быть создан после parse)
-            Path jsonPath = Paths.get(properties.getOutputPath(), normalizedSlug + ".json");
-            if (!Files.exists(jsonPath)) {
-                throw new IOException("Метаданные не найдены. Сначала выполните parse для " + normalizedSlug);
-            }
-            
-            // Читаем метаданные
-            JsonNode rootNode = objectMapper.readTree(jsonPath.toFile());
-            JsonNode chaptersNode = rootNode.get("chapters");
-            
-            if (chaptersNode == null || !chaptersNode.isArray()) {
-                throw new IOException("Некорректный формат метаданных");
-            }
-            
-            List<ChapterInfo> chapters = new ArrayList<>();
-            for (JsonNode chNode : chaptersNode) {
-                ChapterInfo chapter = objectMapper.treeToValue(chNode, ChapterInfo.class);
-                chapters.add(chapter);
-            }
-            
-            task.setTotalChapters(chapters.size());
-            task.updateProgress(10, String.format("Найдено %d глав для загрузки", chapters.size()));
-            
-            // Создаем директорию для изображений
-            Path imagesDir = Paths.get(properties.getOutputPath(), normalizedSlug, "images");
-            Files.createDirectories(imagesDir);
-            
-            // Загружаем изображения для каждой главы
-            int chapterIndex = 0;
-            int totalImages = 0;
-            
-            for (ChapterInfo chapter : chapters) {
-                chapterIndex++;
-                
-                if (chapter.getIsPaid() != null && chapter.getIsPaid()) {
-                    task.addLog(String.format("[%d/%d] Пропуск платной главы %.1f", 
-                        chapterIndex, chapters.size(), chapter.getNumber()));
-                    continue;
-                }
-                
-                task.addLog(String.format("[%d/%d] Загрузка главы %.1f: %s", 
-                    chapterIndex, chapters.size(), chapter.getNumber(), 
-                    chapter.getTitle() != null ? chapter.getTitle() : ""));
-                
-                try {
-                    // Получаем список изображений главы
-                    List<String> imageUrls = fetchChapterImages(normalizedSlug, chapter.getChapterId());
-                    
-                    if (imageUrls.isEmpty()) {
-                        task.addLog(String.format("  Главе %.1f: изображения не найдены", chapter.getNumber()));
-                        continue;
-                    }
-                    
-                    // Создаем директорию главы
-                    String chapterDirName = String.format("ch_%.1f", chapter.getNumber()).replace(",", ".");
-                    Path chapterDir = imagesDir.resolve(chapterDirName);
-                    Files.createDirectories(chapterDir);
-                    
-                    // Подготавливаем задачи загрузки
-                    List<ImageDownloadService.ImageDownloadTask> downloadTasks = new ArrayList<>();
-                    for (int i = 0; i < imageUrls.size(); i++) {
-                        String imageUrl = imageUrls.get(i);
-                        String imageName = String.format("%03d.jpg", i + 1);
-                        Path imagePath = chapterDir.resolve(imageName);
-                        downloadTasks.add(new ImageDownloadService.ImageDownloadTask(imageUrl, imagePath));
-                    }
-                    
-                    totalImages += imageUrls.size();
-                    task.setTotalImages(totalImages);
-                    
-                    // Загружаем изображения параллельно
-                    ImageDownloadService.DownloadSummary summary = imageDownloader.downloadImages(downloadTasks).join();
-                    task.setDownloadedImages(task.getDownloadedImages() + summary.successCount);
-                    
-                    task.addLog(String.format("  Загружено %d/%d изображений (%.2fMB/s, %.1f img/s)", 
-                        summary.successCount, imageUrls.size(),
-                        (summary.totalBytes / 1024.0 / 1024.0) / (summary.totalTime / 1000.0),
-                        (summary.totalImages * 1000.0) / summary.totalTime));
-                    task.setCompletedChapters(chapterIndex);
-                    
-                    int progress = 10 + (chapterIndex * 85 / chapters.size());
-                    task.updateProgress(progress, String.format("Обработано %d/%d глав", chapterIndex, chapters.size()));
-                    
-                } catch (Exception e) {
-                    task.addLog(String.format("  Ошибка загрузки главы %.1f: %s", chapter.getNumber(), e.getMessage()));
-                    logger.error("Ошибка загрузки главы {}: {}", chapter.getNumber(), e.getMessage(), e);
-                }
-            }
-            
-            task.updateStatus("completed", 100, String.format("Билд завершен: загружено %d изображений из %d глав", 
-                task.getDownloadedImages(), task.getCompletedChapters()));
-            
-        } catch (Exception e) {
-            logger.error("Ошибка билда манги {}: {}", slug, e.getMessage(), e);
-            task.updateStatus("failed", 0, "Ошибка: " + e.getMessage());
-        }
-    }
+    @Autowired
+    private TaskService taskService;
     
     /**
      * Получает список URL изображений главы
      */
-    private List<String> fetchChapterImages(String slug, String chapterId) throws IOException {
-        String url = MANGALIB_API_BASE + "/manga/" + slug + "/chapter/" + chapterId;
+    private List<String> fetchChapterImages(String slug, ChapterInfo chapter) throws IOException {
+        // Use the same API endpoint pattern as MangaLib parser: /manga/{slug}/chapter?number={number}&volume={volume}
+        StringBuilder urlBuilder = new StringBuilder(MANGALIB_API_BASE + "/manga/" + slug + "/chapter");
         
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("User-Agent", "Mozilla/5.0");
+        List<String> queryParams = new ArrayList<>();
+        if (chapter.getNumber() != null) {
+            queryParams.add("number=" + chapter.getNumber());
+        }
+        if (chapter.getVolume() != null) {
+            queryParams.add("volume=" + chapter.getVolume());
+        }
+        
+        if (!queryParams.isEmpty()) {
+            urlBuilder.append("?").append(String.join("&", queryParams));
+        }
+        
+        String url = urlBuilder.toString();
+        
+        HttpHeaders headers = createMangaLibHeaders();
         HttpEntity<String> entity = new HttpEntity<>(headers);
         
-        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
-        
-        if (!response.getStatusCode().is2xxSuccessful()) {
-            throw new IOException("Не удалось получить данные главы: " + response.getStatusCode());
-        }
-        
-        JsonNode root = objectMapper.readTree(response.getBody());
-        JsonNode data = root.get("data");
-        JsonNode pages = data.get("pages");
-        
-        List<String> imageUrls = new ArrayList<>();
-        
-        if (pages != null && pages.isArray()) {
-            for (JsonNode page : pages) {
-                String imageUrl = page.get("image").asText();
-                imageUrls.add(imageUrl);
+        try {
+            logger.debug("Fetching chapter images from: {}", url);
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+            
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                throw new IOException("Failed to fetch chapter data: " + response.getStatusCode());
             }
+            
+            JsonNode root = objectMapper.readTree(response.getBody());
+            JsonNode data = root.get("data");
+            
+            if (data == null) {
+                throw new IOException("No 'data' field in response");
+            }
+            
+            JsonNode pages = data.get("pages");
+            
+            if (pages == null || !pages.isArray()) {
+                throw new IOException("No 'pages' array in response data");
+            }
+            
+            // Get image server from response
+            String server = data.has("server") ? data.get("server").asText() : "";
+            
+            List<String> imageUrls = new ArrayList<>();
+            
+            for (JsonNode page : pages) {
+                String relativeUrl = page.get("url").asText();
+                // Combine server + relative URL
+                String fullUrl = server + relativeUrl.replace(" ", "%20");
+                imageUrls.add(fullUrl);
+            }
+            
+            logger.debug("Fetched {} image URLs for chapter {} volume {}", 
+                imageUrls.size(), chapter.getNumber(), chapter.getVolume());
+            return imageUrls;
+            
+        } catch (Exception e) {
+            logger.error("Error fetching chapter images for {}/ch{}: {}", slug, chapter.getNumber(), e.getMessage());
+            throw new IOException("Failed to fetch chapter images: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Создает заголовки для запросов к MangaLib API
+     */
+    private HttpHeaders createMangaLibHeaders() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+        headers.set("Site-Id", "1");
+        
+        // TODO: Get token from properties/config
+        String token = System.getenv("MANGALIB_TOKEN");
+        if (token != null && !token.isEmpty()) {
+            headers.set("Authorization", "Bearer " + token);
         }
         
-        return imageUrls;
+        return headers;
     }
     
     /**
@@ -208,5 +145,142 @@ public class MangaBuildService {
         
         // API требует полный slug_url в формате "id--slug", поэтому просто возвращаем как есть
         return slug;
+    }
+    
+    /**
+     * Выполняет билд манги для ParserTask
+     */
+    public void buildManga(ParserTask task) {
+        long startTime = System.currentTimeMillis();
+        String slug = task.getSlugs().get(0);
+        
+        try {
+            task.setMessage("Loading manga metadata...");
+            task.setProgress(5);
+            
+            // Normalize slug
+            String normalizedSlug = normalizeSlug(slug);
+            
+            // Load JSON with metadata (must exist after parse)
+            Path jsonPath = Paths.get(properties.getOutputPath(), "titles", normalizedSlug + ".json");
+            if (!Files.exists(jsonPath)) {
+                throw new IOException("Metadata not found at: " + jsonPath + ". Run parse first for " + normalizedSlug);
+            }
+            
+            // Read metadata
+            JsonNode rootNode = objectMapper.readTree(jsonPath.toFile());
+            JsonNode chaptersNode = rootNode.get("chapters");
+            
+            if (chaptersNode == null || !chaptersNode.isArray()) {
+                throw new IOException("Invalid metadata format: missing or invalid 'chapters' array");
+            }
+            
+            List<ChapterInfo> chapters = new ArrayList<>();
+            for (JsonNode chNode : chaptersNode) {
+                ChapterInfo chapter = objectMapper.treeToValue(chNode, ChapterInfo.class);
+                chapters.add(chapter);
+            }
+            
+            task.setMessage(String.format("Found %d chapters to download", chapters.size()));
+            task.setProgress(10);
+            taskService.appendLog(task, String.format("📋 Loaded metadata: %d chapters from %s", chapters.size(), jsonPath));
+            
+            // Create images directory
+            Path imagesDir = Paths.get(properties.getOutputPath(), "images", normalizedSlug);
+            Files.createDirectories(imagesDir);
+            taskService.appendLog(task, String.format("📁 Created images directory: %s", imagesDir));
+            
+            // Download images for each chapter
+            int chapterIndex = 0;
+            int totalImages = 0;
+            int downloadedImages = 0;
+            int skippedChapters = 0;
+            
+            for (ChapterInfo chapter : chapters) {
+                chapterIndex++;
+                
+                if (chapter.getIsPaid() != null && chapter.getIsPaid()) {
+                    skippedChapters++;
+                    taskService.appendLog(task, String.format("⏭️ [%d/%d] Skipping paid chapter %.1f", 
+                        chapterIndex, chapters.size(), chapter.getNumber()));
+                    continue;
+                }
+                
+                task.setMessage(String.format("Downloading chapter %d/%d (%.1f)", 
+                    chapterIndex, chapters.size(), chapter.getNumber()));
+                taskService.appendLog(task, String.format("📥 [%d/%d] Downloading chapter %.1f: %s", 
+                    chapterIndex, chapters.size(), chapter.getNumber(), 
+                    chapter.getTitle() != null ? chapter.getTitle() : ""));
+                
+                try {
+                    // Get chapter image URLs
+                    List<String> imageUrls = fetchChapterImages(normalizedSlug, chapter);
+                    
+                    if (imageUrls.isEmpty()) {
+                        taskService.appendLog(task, String.format("   ⚠️ Chapter %.1f: no images found", chapter.getNumber()));
+                        continue;
+                    }
+                    
+                    // Create chapter directory
+                    String chapterDirName = String.format("ch_%.1f", chapter.getNumber()).replace(",", ".");
+                    Path chapterDir = imagesDir.resolve(chapterDirName);
+                    Files.createDirectories(chapterDir);
+                    
+                    // Prepare download tasks
+                    List<ImageDownloadService.ImageDownloadTask> downloadTasks = new ArrayList<>();
+                    for (int i = 0; i < imageUrls.size(); i++) {
+                        String imageUrl = imageUrls.get(i);
+                        String imageName = String.format("%03d.jpg", i + 1);
+                        Path imagePath = chapterDir.resolve(imageName);
+                        downloadTasks.add(new ImageDownloadService.ImageDownloadTask(imageUrl, imagePath));
+                    }
+                    
+                    totalImages += imageUrls.size();
+                    
+                    // Download images in parallel
+                    long chapterStartTime = System.currentTimeMillis();
+                    ImageDownloadService.DownloadSummary summary = imageDownloader.downloadImages(downloadTasks).join();
+                    long chapterElapsed = System.currentTimeMillis() - chapterStartTime;
+                    
+                    downloadedImages += summary.successCount;
+                    
+                    double speedMBps = summary.totalTime > 0 ? 
+                        (summary.totalBytes / 1024.0 / 1024.0) / (summary.totalTime / 1000.0) : 0;
+                    double speedImgps = summary.totalTime > 0 ? 
+                        (summary.totalImages * 1000.0) / summary.totalTime : 0;
+                    
+                    taskService.appendLog(task, String.format("   ✅ Downloaded %d/%d images (%.2f MB/s, %.1f img/s, %dms)", 
+                        summary.successCount, imageUrls.size(), speedMBps, speedImgps, chapterElapsed));
+                    
+                    int progress = 10 + (chapterIndex * 85 / chapters.size());
+                    task.setProgress(progress);
+                    task.setMessage(String.format("Processed %d/%d chapters", chapterIndex, chapters.size()));
+                    
+                } catch (Exception e) {
+                    taskService.appendLog(task, String.format("   ❌ Error downloading chapter %.1f: %s", 
+                        chapter.getNumber(), e.getMessage()));
+                    logger.error("Error downloading chapter {}: {}", chapter.getNumber(), e.getMessage(), e);
+                }
+            }
+            
+            long totalElapsed = System.currentTimeMillis() - startTime;
+            
+            task.setStatus(TaskStatus.COMPLETED);
+            task.setCompletedAt(Instant.now());
+            task.setProgress(100);
+            task.setMessage(String.format("Build completed: %d images from %d chapters (skipped %d paid) in %dms", 
+                downloadedImages, chapterIndex - skippedChapters, skippedChapters, totalElapsed));
+            taskService.appendLog(task, String.format("🎉 Build completed: %d/%d images downloaded, %d chapters processed, %d skipped, time: %dms", 
+                downloadedImages, totalImages, chapterIndex - skippedChapters, skippedChapters, totalElapsed));
+            
+        } catch (Exception e) {
+            long totalElapsed = System.currentTimeMillis() - startTime;
+            logger.error("Build error for {}: {}", slug, e.getMessage(), e);
+            
+            task.setStatus(TaskStatus.FAILED);
+            task.setCompletedAt(Instant.now());
+            task.setMessage("Build failed: " + e.getMessage());
+            taskService.appendLog(task, String.format("❌ Build failed after %dms: %s", totalElapsed, e.getMessage()));
+        }
     }
 }
