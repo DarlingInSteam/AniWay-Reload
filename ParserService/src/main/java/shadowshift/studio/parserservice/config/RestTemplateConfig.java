@@ -72,9 +72,9 @@ public class RestTemplateConfig {
         // Configure proxy authentication if credentials provided
         if (proxy.getUsername() != null && !proxy.getUsername().isEmpty()) {
             BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-            // Use null host/port in AuthScope to match any proxy (preemptive authentication)
+            // Scope credentials to the current proxy host so CONNECT requests include Proxy-Authorization
             credentialsProvider.setCredentials(
-                new AuthScope(null, null, -1, null, null),
+                new AuthScope(proxy.getHost(), proxy.getPort()),
                 new UsernamePasswordCredentials(
                     proxy.getUsername(), 
                     proxy.getPassword() != null ? proxy.getPassword().toCharArray() : new char[0]
