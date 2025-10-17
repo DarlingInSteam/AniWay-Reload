@@ -4,15 +4,18 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collections;
 
+import org.apache.hc.client5.http.auth.AuthCache;
 import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.auth.BasicAuthCache;
 import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
+import org.apache.hc.client5.http.impl.auth.BasicScheme;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.http.HttpHost;
-import org.apache.hc.core5.http.message.BasicHeader;
 import org.apache.hc.core5.util.Timeout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -101,6 +104,23 @@ public class ProxyRotatingRestTemplateService {
     private RestTemplate createRestTemplateWithProxy(ProxyServer proxy) {
         CloseableHttpClient httpClient = createHttpClientWithProxy(proxy);
         HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(httpClient);
+        
+        // If proxy has credentials, enable preemptive auth
+        if (proxy.getUsername() != null && !proxy.getUsername().isEmpty()) {
+            HttpHost proxyHost = new HttpHost(proxy.getHost(), proxy.getPort());
+            
+            // Create auth cache for preemptive authentication
+            AuthCache authCache = new BasicAuthCache();
+            BasicScheme basicAuth = new BasicScheme();
+            authCache.put(proxyHost, basicAuth);
+            
+            // Create HTTP context with auth cache
+            HttpClientContext context = HttpClientContext.create();
+            context.setAuthCache(authCache);
+            
+            factory.setHttpContextFactory((httpMethod, uri) -> context);
+        }
+        
         return new RestTemplate(factory);
     }
     
@@ -123,19 +143,12 @@ public class ProxyRotatingRestTemplateService {
                     proxy.getUsername(), password.toCharArray());
             credentialsProvider.setCredentials(new AuthScope(proxy.getHost(), proxy.getPort()), credentials);
 
-            String encodedCredentials = Base64.getEncoder()
-                    .encodeToString((proxy.getUsername() + ":" + password)
-                            .getBytes(StandardCharsets.UTF_8));
-        return HttpClients.custom()
-            .setDefaultRequestConfig(config)
-            .setDefaultCredentialsProvider(credentialsProvider)
-            .setConnectionManager(new PoolingHttpClientConnectionManager())
-            .setDefaultHeaders(Collections.singletonList(
-                new BasicHeader("Proxy-Authorization", "Basic " + encodedCredentials)))
-            .build();
-        }
-        
-        return HttpClients.custom()
+            return HttpClients.custom()
+                    .setDefaultRequestConfig(config)
+                    .setDefaultCredentialsProvider(credentialsProvider)
+                    .setConnectionManager(new PoolingHttpClientConnectionManager())
+                    .build();
+        }        return HttpClients.custom()
                 .setDefaultRequestConfig(config)
                 .setConnectionManager(new PoolingHttpClientConnectionManager())
                 .build();
