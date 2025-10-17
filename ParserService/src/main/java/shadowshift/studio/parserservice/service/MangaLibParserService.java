@@ -119,13 +119,30 @@ public class MangaLibParserService {
         
         MangaMetadata metadata = new MangaMetadata();
         metadata.setSlug(slug);
-        metadata.setTitle(data.has("rus_name") ? data.get("rus_name").asText() : data.get("name").asText());
+        metadata.setTitle(data.has("rus_name") ? data.get("rus_name").asText() : (data.has("name") ? data.get("name").asText() : "Unknown"));
         metadata.setEnglishTitle(data.has("name") ? data.get("name").asText() : null);
         metadata.setSummary(data.has("summary") ? data.get("summary").asText() : "");
-        metadata.setStatus(data.has("status") ? data.get("status").get("name").asText() : "Unknown");
-        metadata.setType(data.has("type") ? data.get("type").get("name").asText() : "Манга");
+        
+        // Безопасное получение вложенных полей
+        String status = "Unknown";
+        if (data.has("status") && data.get("status") != null && data.get("status").has("name")) {
+            status = data.get("status").get("name").asText();
+        }
+        metadata.setStatus(status);
+        
+        String type = "Манга";
+        if (data.has("type") && data.get("type") != null && data.get("type").has("name")) {
+            type = data.get("type").get("name").asText();
+        }
+        metadata.setType(type);
+        
         metadata.setReleaseYear(data.has("releaseDate") ? data.get("releaseDate").asInt() : null);
-        metadata.setCoverUrl(data.has("cover") ? data.get("cover").get("default").asText() : null);
+        
+        String coverUrl = null;
+        if (data.has("cover") && data.get("cover") != null && data.get("cover").has("default")) {
+            coverUrl = data.get("cover").get("default").asText();
+        }
+        metadata.setCoverUrl(coverUrl);
         
         // Жанры
         if (data.has("genres")) {
