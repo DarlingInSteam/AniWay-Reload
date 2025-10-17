@@ -1,12 +1,16 @@
 package shadowshift.studio.parserservice.config;
 
+import org.apache.hc.client5.http.auth.AuthCache;
 import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.auth.BasicAuthCache;
 import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
+import org.apache.hc.client5.http.impl.auth.BasicScheme;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.util.Timeout;
 import org.slf4j.Logger;
@@ -43,8 +47,24 @@ public class RestTemplateConfig {
         // Create HTTP client with proxy and credentials
         CloseableHttpClient httpClient = createHttpClientWithProxy(proxy);
         
-        // Create factory - credentials are already set in HttpClient
+        // Create factory
         HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(httpClient);
+        
+        // Set preemptive auth context if proxy has credentials
+        if (proxy != null && proxy.getUsername() != null && !proxy.getUsername().isEmpty()) {
+            HttpHost proxyHost = new HttpHost(proxy.getHost(), proxy.getPort());
+            
+            // Create auth cache with BasicScheme for proxy
+            AuthCache authCache = new BasicAuthCache();
+            authCache.put(proxyHost, new BasicScheme());
+            
+            // Create context with auth cache
+            HttpClientContext context = HttpClientContext.create();
+            context.setAuthCache(authCache);
+            
+            // Set context factory to use our preemptive auth context
+            factory.setHttpContextFactory((httpMethod, uri) -> context);
+        }
         
         return new RestTemplate(factory);
     }
