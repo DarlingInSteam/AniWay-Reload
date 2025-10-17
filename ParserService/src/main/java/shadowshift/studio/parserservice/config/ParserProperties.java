@@ -27,13 +27,6 @@ public class ParserProperties {
     private String tempPath = "/app/temp";
 
     /**
-     * Корневая директория хранения артефактов (Output/...).
-     * @deprecated Используйте getOutputPath()
-     */
-    @Deprecated
-    private Path storageBasePath;
-
-    /**
      * Каталог логов.
      */
     private Path logsPath = Paths.get("/app/output/logs");
@@ -122,12 +115,6 @@ public class ParserProperties {
             log.info("✅ outputPath установлен в: {}", this.outputPath);
         } else {
             log.warn("⚠️ outputPath пустой, используется дефолт: {}", this.outputPath);
-        }
-    }
-
-    public void setStorageBasePath(Path storageBasePath) {
-        if (storageBasePath != null) {
-            this.outputPath = storageBasePath.toString();
         }
     }
 
