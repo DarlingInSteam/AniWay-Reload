@@ -67,3 +67,7 @@ logging:
   level:
     root: WARN
     shadowshift.studio.parserservice: INFO
+
+parser:
+  output-path: ${PARSER_OUTPUT_PATH:/app/output}
+  temp-path: ${PARSER_TEMP_PATH:/app/temp}
