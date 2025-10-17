@@ -27,7 +27,7 @@ public class MangaBuildService {
 
     private static final Logger logger = LoggerFactory.getLogger(MangaBuildService.class);
     
-    private static final String MANGALIB_API_BASE = "https://api.lib.social/api";
+    private static final String MANGALIB_API_BASE = "https://api.cdnlibs.org/api";
     
     @Autowired
     private ParserProperties properties;
