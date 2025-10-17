@@ -418,10 +418,10 @@ public class MangaBuildService {
             String jsonFileName = jsonPath.getFileName().toString();
             String actualSlug = jsonFileName.substring(0, jsonFileName.length() - 5); // Remove ".json"
             
-            // Create images directory using the actual slug from JSON
-            Path imagesDir = Paths.get(properties.getOutputPath(), "images", actualSlug);
-            Files.createDirectories(imagesDir);
-            taskService.appendLog(task, String.format("📁 Created images directory: %s", imagesDir));
+            // Create archives directory using the actual slug from JSON (like MelonService)
+            Path archivesDir = Paths.get(properties.getOutputPath(), "archives", actualSlug);
+            Files.createDirectories(archivesDir);
+            taskService.appendLog(task, String.format("📁 Created archives directory: %s", archivesDir));
             
             // Download images for each chapter
             int chapterIndex = 0;
@@ -468,7 +468,7 @@ public class MangaBuildService {
                     
                     // Create chapter directory
                     String chapterDirName = String.format("ch_%.1f", chapter.getNumber()).replace(",", ".");
-                    Path chapterDir = imagesDir.resolve(chapterDirName);
+                    Path chapterDir = archivesDir.resolve(chapterDirName);
                     Files.createDirectories(chapterDir);
                     
                     // Prepare download tasks
