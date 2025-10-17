@@ -521,15 +521,20 @@ public class MangaLibParserService {
                 .collect(Collectors.toList()));
 
         Map<String, Object> contentJson = new LinkedHashMap<>();
+        List<Map<String, Object>> flattenedChapters = new ArrayList<>();
         for (Map.Entry<Integer, List<ChapterInfo>> entry : chaptersPayload.getContent().entrySet()) {
             String branchKey = String.valueOf(entry.getKey());
             List<Map<String, Object>> chapters = new ArrayList<>();
             for (ChapterInfo chapter : entry.getValue()) {
-                chapters.add(buildChapterJson(chapter));
+                Map<String, Object> chapterJson = buildChapterJson(chapter);
+                chapters.add(chapterJson);
+                flattenedChapters.add(chapterJson);
             }
             contentJson.put(branchKey, chapters);
         }
         root.put("content", contentJson);
+        root.put("chapters", flattenedChapters);
+        root.put("chapters_count", flattenedChapters.size());
 
         objectMapper.writerWithDefaultPrettyPrinter().writeValue(outputFile.toFile(), root);
         logger.info("💾 JSON сохранён: {}", outputFile);
@@ -569,7 +574,17 @@ public class MangaLibParserService {
         map.put("number", formatNumber(chapter.getNumber()));
         map.put("name", chapter.getTitle());
         map.put("is_paid", Boolean.TRUE.equals(chapter.getIsPaid()));
-    map.put("workers", Optional.ofNullable(chapter.getWorkers()).orElse(Collections.emptyList()));
+        map.put("branch_id", chapter.getBranchId());
+        if (chapter.getPagesCount() != null) {
+            map.put("pages_count", chapter.getPagesCount());
+        }
+        if (chapter.getFreePublicationDate() != null) {
+            map.put("free_publication_date", chapter.getFreePublicationDate());
+        }
+        if (chapter.getEmptyReason() != null && !chapter.getEmptyReason().isBlank()) {
+            map.put("empty_reason", chapter.getEmptyReason());
+        }
+        map.put("workers", Optional.ofNullable(chapter.getWorkers()).orElse(Collections.emptyList()));
         map.put("slides", Optional.ofNullable(chapter.getSlides()).orElse(Collections.emptyList()).stream()
                 .map(slide -> {
                     Map<String, Object> slideMap = new LinkedHashMap<>();
@@ -584,7 +599,7 @@ public class MangaLibParserService {
                     return slideMap;
                 })
                 .collect(Collectors.toList()));
-    map.put("moderated", chapter.getModerated() != null ? chapter.getModerated() : Boolean.TRUE);
+        map.put("moderated", chapter.getModerated() != null ? chapter.getModerated() : Boolean.TRUE);
         return map;
     }
 

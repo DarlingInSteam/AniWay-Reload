@@ -2,6 +2,8 @@ package shadowshift.studio.parserservice.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -376,6 +378,23 @@ public class MangaBuildService {
             // Read metadata
             JsonNode rootNode = objectMapper.readTree(jsonPath.toFile());
             JsonNode chaptersNode = rootNode.get("chapters");
+            if (chaptersNode == null || !chaptersNode.isArray() || chaptersNode.isEmpty()) {
+                JsonNode contentNode = rootNode.get("content");
+                if (contentNode != null && contentNode.isObject()) {
+                    ArrayNode merged = objectMapper.createArrayNode();
+                    ObjectNode contentObject = (ObjectNode) contentNode;
+                    contentObject.fieldNames().forEachRemaining(field -> {
+                        JsonNode branchChapters = contentObject.get(field);
+                        if (branchChapters != null && branchChapters.isArray()) {
+                            branchChapters.forEach(merged::add);
+                        }
+                    });
+                    if (merged.size() > 0) {
+                        chaptersNode = merged;
+                        logger.debug("Метаданные {} не содержат массива chapters, используем content", slugContext.getFileSlug());
+                    }
+                }
+            }
 
             Integer titleId = extractTitleId(rootNode);
             slugContext.applyId(titleId);
