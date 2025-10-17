@@ -204,49 +204,32 @@ public class MangaLibParserService {
     private MangaMetadata fetchMangaMetadata(SlugContext slugContext, ParseTask task) throws IOException {
         HttpHeaders headers = createMangaLibHeaders();
         String baseUrl = MANGALIB_API_BASE + "/manga/" + slugContext.getApiSlug();
-        String fieldsQuery = "?fields[]=eng_name&fields[]=otherNames&fields[]=summary&fields[]=releaseDate"
-                + "&fields[]=type_id&fields[]=caution&fields[]=genres&fields[]=tags&fields[]=franchise"
-                + "&fields[]=authors&fields[]=manga_status_id&fields[]=status_id&fields[]=ageRestriction"
-                + "&fields[]=cover&fields[]=is_licensed&fields[]=status&fields[]=type";
-
-        List<String> urlVariants = List.of(baseUrl + fieldsQuery, baseUrl);
+        
+        // Убрали fields запрос - он всегда возвращает 422, используем просто базовый URL
+        String url = baseUrl;
         String lastError = null;
 
-        for (int attempt = 0; attempt < urlVariants.size(); attempt++) {
-            String url = urlVariants.get(attempt);
-            try {
-                ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
-                JsonNode root = objectMapper.readTree(response.getBody());
-                JsonNode data = root.path("data");
-                if (!data.isObject()) {
-                    if (root.isObject()) {
-                        data = root;
-                    } else {
-                        throw new IOException("Пустой ответ при получении данных тайтла");
-                    }
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
+            JsonNode root = objectMapper.readTree(response.getBody());
+            JsonNode data = root.path("data");
+            if (!data.isObject()) {
+                if (root.isObject()) {
+                    data = root;
+                } else {
+                    throw new IOException("Пустой ответ при получении данных тайтла");
                 }
-                return mapMetadata(slugContext, data);
-            } catch (HttpStatusCodeException ex) {
-                lastError = "HTTP " + ex.getStatusCode().value() + formatOptionalMessage(ex);
-                if (ex.getStatusCode().value() == 422 && attempt + 1 < urlVariants.size()) {
-                    logger.warn("Получен 422 при запросе метаданных {} — пробуем без fields", slugContext.getApiSlug());
-                    continue;
-                }
-                throw new IOException("Не удалось получить данные манги: " + lastError, ex);
-            } catch (RestClientException ex) {
-                lastError = ex.getMessage();
-                throw new IOException("Ошибка запроса данных манги: " + ex.getMessage(), ex);
-            } catch (IOException ex) {
-                lastError = ex.getMessage();
-                if (attempt + 1 < urlVariants.size()) {
-                    logger.warn("Ошибка парсинга ответа по адресу {}: {} — повтор с запасным URL", url, ex.getMessage());
-                    continue;
-                }
-                throw ex;
             }
+            return mapMetadata(slugContext, data);
+        } catch (HttpStatusCodeException ex) {
+            lastError = "HTTP " + ex.getStatusCode().value() + formatOptionalMessage(ex);
+            throw new IOException("Не удалось получить данные манги: " + lastError, ex);
+        } catch (RestClientException ex) {
+            lastError = ex.getMessage();
+            throw new IOException("Ошибка запроса данных манги: " + ex.getMessage(), ex);
+        } catch (IOException ex) {
+            throw ex;
         }
-
-        throw new IOException(lastError != null ? lastError : "Не удалось получить данные манги");
     }
 
     private ChaptersPayload fetchChapters(SlugContext slugContext, MangaMetadata metadata, ParseTask task) throws IOException {

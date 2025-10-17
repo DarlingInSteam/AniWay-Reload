@@ -32,4 +32,6 @@ public class ChapterInfo {
     private String freePublicationDate;
     @JsonProperty("empty_reason")
     private String emptyReason;
+    @JsonProperty("folder_name")
+    private String folderName; // Имя папки главы на диске (например ch_1.0)
 }

@@ -2260,6 +2260,19 @@ public class MelonIntegrationService {
 
     public String resolveChapterFolderName(String numberAsString, Object titleObj, Integer volumeNumber,
                                             Map<String, Object> chapterData, Long chapterId) {
+        // Приоритет 1: Используем поле folder_name из JSON (установлено ParserService при скачивании)
+        if (chapterData != null) {
+            Object folderNameObj = chapterData.get("folder_name");
+            if (folderNameObj != null && !folderNameObj.toString().trim().isEmpty()) {
+                String folderName = folderNameObj.toString().trim();
+                logger.debug("✅ Using folder_name from JSON: '{}'", folderName);
+                return folderName;
+            }
+        }
+        
+        // Приоритет 2: Генерируем имя папки из метаданных (legacy для старых JSON)
+        logger.warn("⚠️ folder_name not found in JSON for chapter ID {}, falling back to legacy naming", chapterId);
+        
         String folderName = numberAsString != null ? numberAsString.trim() : "";
         String titlePart = titleObj != null ? titleObj.toString().trim() : "";
 

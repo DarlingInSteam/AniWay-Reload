@@ -471,6 +471,9 @@ public class MangaBuildService {
                     Path chapterDir = archivesDir.resolve(chapterDirName);
                     Files.createDirectories(chapterDir);
                     
+                    // Сохраняем имя папки в ChapterInfo для последующего импорта
+                    chapter.setFolderName(chapterDirName);
+                    
                     // Prepare download tasks
                     List<ImageDownloadService.ImageDownloadTask> downloadTasks = new ArrayList<>();
                     for (int i = 0; i < downloadableSlides.size(); i++) {
