@@ -17,14 +17,21 @@ public class ParserProperties {
     private static final Logger log = LoggerFactory.getLogger(ParserProperties.class);
 
     /**
-     * Корневая директория хранения артефактов (Output/...).
+     * Путь для output (используется для property binding из application.yml).
      */
-    private Path storageBasePath = Paths.get("/app/output");
+    private String outputPath = "/app/output";
+    
+    /**
+     * Путь для temp (используется для property binding из application.yml).
+     */
+    private String tempPath = "/app/temp";
 
     /**
-     * Каталог временных файлов.
+     * Корневая директория хранения артефактов (Output/...).
+     * @deprecated Используйте getOutputPath()
      */
-    private Path tempPath = Paths.get("/app/temp");
+    @Deprecated
+    private Path storageBasePath;
 
     /**
      * Каталог логов.
@@ -93,16 +100,15 @@ public class ParserProperties {
     private int maxConcurrentTasks = 2;
 
     public Path getStorageBasePath() {
-        return storageBasePath;
+        return Paths.get(outputPath);
     }
     
     /**
      * Алиас для совместимости с кодом, использующим getOutputPath().
      */
     public String getOutputPath() {
-        String path = storageBasePath.toString();
-        log.debug("📂 getOutputPath() возвращает: {}", path);
-        return path;
+        log.debug("📂 getOutputPath() возвращает: {}", outputPath);
+        return outputPath;
     }
     
     /**
@@ -112,32 +118,32 @@ public class ParserProperties {
     public void setOutputPath(String outputPath) {
         log.info("🔧 setOutputPath вызван с значением: '{}'", outputPath);
         if (StringUtils.hasText(outputPath)) {
-            this.storageBasePath = Paths.get(outputPath);
-            log.info("✅ storageBasePath установлен в: {}", this.storageBasePath);
+            this.outputPath = outputPath;
+            log.info("✅ outputPath установлен в: {}", this.outputPath);
         } else {
-            log.warn("⚠️ outputPath пустой, используется дефолт: {}", this.storageBasePath);
+            log.warn("⚠️ outputPath пустой, используется дефолт: {}", this.outputPath);
         }
     }
 
     public void setStorageBasePath(Path storageBasePath) {
         if (storageBasePath != null) {
-            this.storageBasePath = storageBasePath;
+            this.outputPath = storageBasePath.toString();
         }
     }
 
     public Path getTempPath() {
-        return tempPath;
+        return Paths.get(tempPath);
     }
 
     /**
      * Setter для tempPath (для Spring Boot property binding).
      * Принимает и строку, и Path.
      */
-    public void setTempPath(Object tempPath) {
-        if (tempPath instanceof String && StringUtils.hasText((String) tempPath)) {
-            this.tempPath = Paths.get((String) tempPath);
-        } else if (tempPath instanceof Path) {
-            this.tempPath = (Path) tempPath;
+    public void setTempPath(String tempPath) {
+        log.info("🔧 setTempPath вызван с значением: '{}'", tempPath);
+        if (StringUtils.hasText(tempPath)) {
+            this.tempPath = tempPath;
+            log.info("✅ tempPath установлен в: {}", this.tempPath);
         }
     }
 
