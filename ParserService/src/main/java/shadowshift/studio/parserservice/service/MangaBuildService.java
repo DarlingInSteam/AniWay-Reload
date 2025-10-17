@@ -148,6 +148,41 @@ public class MangaBuildService {
     }
     
     /**
+     * Находит JSON файл манги, поддерживая оба формата slug (с ID и без)
+     */
+    private Path findMangaJsonPath(String slug) throws IOException {
+        Path titlesDir = Paths.get(properties.getOutputPath(), "titles");
+        
+        // Проверяем прямой путь
+        Path directPath = titlesDir.resolve(slug + ".json");
+        if (Files.exists(directPath)) {
+            return directPath;
+        }
+        
+        // Если slug БЕЗ ID (например, "lightning-degree"), ищем файл с ID префиксом
+        if (!slug.contains("--")) {
+            // Ищем файлы вида "12345--lightning-degree.json"
+            try (var stream = Files.list(titlesDir)) {
+                return stream
+                    .filter(p -> p.getFileName().toString().endsWith("--" + slug + ".json"))
+                    .findFirst()
+                    .orElse(null);
+            }
+        }
+        
+        // Если slug С ID (например, "20341--lightning-degree"), проверяем версию БЕЗ ID
+        if (slug.contains("--")) {
+            String slugWithoutId = slug.substring(slug.indexOf("--") + 2);
+            Path pathWithoutId = titlesDir.resolve(slugWithoutId + ".json");
+            if (Files.exists(pathWithoutId)) {
+                return pathWithoutId;
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
      * Выполняет билд манги для ParserTask
      */
     public void buildManga(ParserTask task) {
@@ -162,10 +197,15 @@ public class MangaBuildService {
             String normalizedSlug = normalizeSlug(slug);
             
             // Load JSON with metadata (must exist after parse)
-            Path jsonPath = Paths.get(properties.getOutputPath(), "titles", normalizedSlug + ".json");
-            if (!Files.exists(jsonPath)) {
-                throw new IOException("Metadata not found at: " + jsonPath + ". Run parse first for " + normalizedSlug);
+            // Try to find JSON file - it might have ID prefix or not
+            Path jsonPath = findMangaJsonPath(normalizedSlug);
+            if (jsonPath == null || !Files.exists(jsonPath)) {
+                throw new IOException("Metadata not found for slug: " + normalizedSlug + 
+                    ". Run parse first. Checked paths: " + 
+                    properties.getOutputPath() + "/titles/" + normalizedSlug + ".json and with ID prefix");
             }
+            
+            logger.info("📂 Found JSON metadata at: {}", jsonPath);
             
             // Read metadata
             JsonNode rootNode = objectMapper.readTree(jsonPath.toFile());
@@ -185,8 +225,12 @@ public class MangaBuildService {
             task.setProgress(10);
             taskService.appendLog(task, String.format("📋 Loaded metadata: %d chapters from %s", chapters.size(), jsonPath));
             
-            // Create images directory
-            Path imagesDir = Paths.get(properties.getOutputPath(), "images", normalizedSlug);
+            // Extract actual slug from JSON filename for consistent directory structure
+            String jsonFileName = jsonPath.getFileName().toString();
+            String actualSlug = jsonFileName.substring(0, jsonFileName.length() - 5); // Remove ".json"
+            
+            // Create images directory using the actual slug from JSON
+            Path imagesDir = Paths.get(properties.getOutputPath(), "images", actualSlug);
             Files.createDirectories(imagesDir);
             taskService.appendLog(task, String.format("📁 Created images directory: %s", imagesDir));
             
@@ -214,7 +258,21 @@ public class MangaBuildService {
                 
                 try {
                     // Get chapter image URLs
-                    List<String> imageUrls = fetchChapterImages(normalizedSlug, chapter);
+                    List<String> imageUrls;
+                    
+                    // Try to use slides from JSON first (if already parsed)
+                    if (chapter.getSlides() != null && !chapter.getSlides().isEmpty()) {
+                        imageUrls = chapter.getSlides().stream()
+                            .map(slide -> slide.getLink())
+                            .collect(Collectors.toList());
+                        logger.debug("Using {} image URLs from cached JSON for chapter {}", 
+                            imageUrls.size(), chapter.getNumber());
+                    } else {
+                        // Fetch from API if not in JSON
+                        imageUrls = fetchChapterImages(actualSlug, chapter);
+                        logger.debug("Fetched {} image URLs from API for chapter {}", 
+                            imageUrls.size(), chapter.getNumber());
+                    }
                     
                     if (imageUrls.isEmpty()) {
                         taskService.appendLog(task, String.format("   ⚠️ Chapter %.1f: no images found", chapter.getNumber()));
