@@ -53,10 +53,10 @@ public class CatalogController {
                 return ResponseEntity.ok(createSuccessResponse(page, List.of()));
             }
             
-            // Extract slugs from items
+            // Extract slugUrls from items (format: "id--slug")
             List<String> slugs = result.getItems().stream()
                     .limit(limit)
-                    .map(CatalogItem::getSlug)
+                    .map(CatalogItem::getSlugUrl)  // Используем slugUrl вместо slug
                     .collect(Collectors.toList());
             
             logger.info("Catalog page {} returned {} items", page, slugs.size());

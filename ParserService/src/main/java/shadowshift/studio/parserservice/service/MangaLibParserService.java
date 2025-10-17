@@ -287,10 +287,12 @@ public class MangaLibParserService {
                         
                         CatalogItem catalogItem = new CatalogItem();
                         
-                        // Используем slug или slug_url (без префикса ID)
+                        // Получаем slug_url (формат "id--slug")
+                        String slugUrl = item.has("slug_url") ? item.get("slug_url").asText() : null;
+                        
+                        // Используем slug или извлекаем из slug_url
                         String slug = item.has("slug") ? item.get("slug").asText() : null;
-                        if (slug == null && item.has("slug_url")) {
-                            String slugUrl = item.get("slug_url").asText();
+                        if (slug == null && slugUrl != null) {
                             // slug_url формата "7580--i-alone-level-up", берём часть после "--"
                             if (slugUrl.contains("--")) {
                                 slug = slugUrl.substring(slugUrl.indexOf("--") + 2);
@@ -304,7 +306,13 @@ public class MangaLibParserService {
                             continue;
                         }
                         
+                        // Если нет slug_url, создаём его из ID + slug
+                        if (slugUrl == null && item.has("id")) {
+                            slugUrl = item.get("id").asText() + "--" + slug;
+                        }
+                        
                         catalogItem.setSlug(slug);
+                        catalogItem.setSlugUrl(slugUrl != null ? slugUrl : slug);  // Используем slug как fallback
                         catalogItem.setTitle(item.has("rus_name") ? item.get("rus_name").asText() : item.get("name").asText());
                         catalogItem.setChaptersCount(chaptersCount);
                         

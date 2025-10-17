@@ -824,15 +824,16 @@ public class MelonIntegrationService {
                     slug, result.get("total_chapters"));
                 return result;
             } else {
-                logger.error("Не удалось получить метаданные глав для slug '{}': {}", 
-                    slug, result != null ? result.get("error") : "Unknown error");
-                return Map.of("success", false, "error", 
-                    result != null ? result.get("error") : "Unknown error");
+                Object errorObj = (result != null) ? result.get("error") : null;
+                String errorMessage = (errorObj != null) ? errorObj.toString() : "Unknown error - no error message";
+                logger.error("Не удалось получить метаданные глав для slug '{}': {}", slug, errorMessage);
+                return Map.of("success", false, "error", errorMessage);
             }
             
         } catch (Exception e) {
             logger.error("Ошибка получения метаданных глав для slug '{}': {}", slug, e.getMessage());
-            return Map.of("success", false, "error", e.getMessage());
+            String errorMessage = e.getMessage() != null ? e.getMessage() : "Unknown exception";
+            return Map.of("success", false, "error", errorMessage);
         }
     }
 
