@@ -47,6 +47,7 @@ public class ImageDownloadService {
         return CompletableFuture.supplyAsync(() -> {
             long startTime = System.currentTimeMillis();
             long fileSize = 0;
+            int maxRetries = 3;
             
             try {
                 // Создаем директорию если нет
@@ -59,38 +60,60 @@ public class ImageDownloadService {
                     return new DownloadResult(true, System.currentTimeMillis() - startTime, fileSize, true);
                 }
                 
-                // Загружаем изображение
-                HttpHeaders headers = new HttpHeaders();
-                headers.set("User-Agent", "Mozilla/5.0");
-                headers.set("Referer", "https://mangalib.me/");
-                HttpEntity<String> entity = new HttpEntity<>(headers);
-                
-                ResponseEntity<byte[]> response = restTemplate.exchange(
-                    imageUrl, 
-                    HttpMethod.GET, 
-                    entity, 
-                    byte[].class
-                );
-                
-                if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                    byte[] imageData = response.getBody();
-                    fileSize = imageData.length;
-                    Files.write(outputPath, imageData);
-                    
-                    long downloadTime = System.currentTimeMillis() - startTime;
-                    double speedKBps = (fileSize / 1024.0) / (downloadTime / 1000.0);
-                    
-                    logger.debug("✅ Downloaded: {} ({}KB in {}ms, {:.1f}KB/s)", 
-                        outputPath.getFileName(), fileSize / 1024, downloadTime, speedKBps);
-                    
-                    return new DownloadResult(true, downloadTime, fileSize, false);
-                } else {
-                    logger.error("❌ Failed to download {}: {}", imageUrl, response.getStatusCode());
-                    return new DownloadResult(false, System.currentTimeMillis() - startTime, 0, false);
+                // Retry loop для загрузки
+                Exception lastException = null;
+                for (int attempt = 0; attempt < maxRetries; attempt++) {
+                    try {
+                        // Загружаем изображение
+                        HttpHeaders headers = new HttpHeaders();
+                        headers.set("User-Agent", "Mozilla/5.0");
+                        headers.set("Referer", "https://mangalib.me/");
+                        HttpEntity<String> entity = new HttpEntity<>(headers);
+                        
+                        ResponseEntity<byte[]> response = restTemplate.exchange(
+                            imageUrl, 
+                            HttpMethod.GET, 
+                            entity, 
+                            byte[].class
+                        );
+                        
+                        if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                            byte[] imageData = response.getBody();
+                            fileSize = imageData.length;
+                            Files.write(outputPath, imageData);
+                            
+                            long downloadTime = System.currentTimeMillis() - startTime;
+                            
+                            logger.debug("✅ Downloaded: {} ({}KB in {}ms)", 
+                                outputPath.getFileName(), fileSize / 1024, downloadTime);
+                            
+                            return new DownloadResult(true, downloadTime, fileSize, false);
+                        } else if (attempt < maxRetries - 1) {
+                            logger.warn("⚠️ Bad response for {}: {}, retrying ({}/{})", 
+                                imageUrl, response.getStatusCode(), attempt + 1, maxRetries);
+                            Thread.sleep((long) (1000 * Math.pow(2, attempt))); // exponential backoff
+                            continue;
+                        }
+                        
+                        logger.error("❌ Failed to download {}: {}", imageUrl, response.getStatusCode());
+                        return new DownloadResult(false, System.currentTimeMillis() - startTime, 0, false);
+                        
+                    } catch (Exception e) {
+                        lastException = e;
+                        if (attempt < maxRetries - 1) {
+                            logger.warn("⚠️ Error downloading {} (attempt {}/{}): {}", 
+                                imageUrl, attempt + 1, maxRetries, e.getMessage());
+                            Thread.sleep((long) (1000 * Math.pow(2, attempt))); // exponential backoff
+                        }
+                    }
                 }
                 
+                logger.error("❌ Error downloading {} after {} attempts: {}", 
+                    imageUrl, maxRetries, lastException != null ? lastException.getMessage() : "unknown");
+                return new DownloadResult(false, System.currentTimeMillis() - startTime, 0, false);
+                
             } catch (Exception e) {
-                logger.error("❌ Error downloading {}: {}", imageUrl, e.getMessage());
+                logger.error("❌ Fatal error downloading {}: {}", imageUrl, e.getMessage());
                 return new DownloadResult(false, System.currentTimeMillis() - startTime, 0, false);
             }
         }, executorService);
@@ -133,8 +156,11 @@ public class ImageDownloadService {
                         double speedImagesPerSec = (current * 1000.0) / elapsed;
                         long eta = (long) ((totalImages - current) / speedImagesPerSec);
                         
-                        logger.info("📊 [PROGRESS] {}/{} images ({:.1f}%), Speed: {:.1f} img/s, ETA: {}s, Success: {}, Cached: {}", 
-                            current, totalImages, progress, speedImagesPerSec, eta, successful.get(), cached.get());
+                        logger.info("📊 [PROGRESS] {}/{} images ({}%), Speed: {} img/s, ETA: {}s, Success: {}, Cached: {}", 
+                            current, totalImages, 
+                            String.format("%.1f", progress), 
+                            String.format("%.1f", speedImagesPerSec), 
+                            eta, successful.get(), cached.get());
                     }
                     
                     return result;
@@ -146,10 +172,6 @@ public class ImageDownloadService {
             .thenApply(v -> {
                 long totalTime = System.currentTimeMillis() - startTime;
                 
-                java.util.List<DownloadResult> results = futures.stream()
-                    .map(CompletableFuture::join)
-                    .collect(java.util.stream.Collectors.toList());
-                
                 int successCount = successful.get();
                 int failedCount = totalImages - successCount;
                 long totalMB = totalBytes.get() / (1024 * 1024);
@@ -158,8 +180,10 @@ public class ImageDownloadService {
                 
                 logger.info("✅ [DOWNLOAD COMPLETE] Total: {}, Success: {}, Failed: {}, Cached: {}", 
                     totalImages, successCount, failedCount, cached.get());
-                logger.info("📈 [DOWNLOAD STATS] Time: {}ms, Size: {}MB, Avg Speed: {:.2f}MB/s, {:.1f} img/s", 
-                    totalTime, totalMB, avgSpeedMBps, avgSpeedImgPerSec);
+                logger.info("📈 [DOWNLOAD STATS] Time: {}ms, Size: {}MB, Avg Speed: {} MB/s, {} img/s", 
+                    totalTime, totalMB, 
+                    String.format("%.2f", avgSpeedMBps), 
+                    String.format("%.1f", avgSpeedImgPerSec));
                 
                 return new DownloadSummary(totalImages, successCount, failedCount, 
                     cached.get(), totalBytes.get(), totalTime);

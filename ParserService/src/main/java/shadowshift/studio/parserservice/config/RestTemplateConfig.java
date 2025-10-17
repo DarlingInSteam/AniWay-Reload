@@ -60,29 +60,38 @@ public class RestTemplateConfig {
         // Configure proxy
         HttpHost proxyHost = new HttpHost(proxy.getHost(), proxy.getPort());
         
-        // Configure timeouts
+        // Configure timeouts - более агрессивные для изображений
         RequestConfig config = RequestConfig.custom()
-                .setConnectTimeout(Timeout.ofSeconds(30))
-                .setResponseTimeout(Timeout.ofSeconds(60))
+                .setConnectTimeout(Timeout.ofSeconds(10))
+                .setResponseTimeout(Timeout.ofSeconds(30))
                 .setProxy(proxyHost)
                 .build();
         
-        // Simple proxy without authentication (IP-based auth on proxy side)
+        // Connection pooling для параллельной загрузки
+        PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
+        connectionManager.setMaxTotal(100); // Общее количество соединений
+        connectionManager.setDefaultMaxPerRoute(20); // На один хост
+        
         return HttpClients.custom()
                 .setDefaultRequestConfig(config)
-                .setConnectionManager(new PoolingHttpClientConnectionManager())
+                .setConnectionManager(connectionManager)
                 .build();
     }
     
     private CloseableHttpClient createDirectHttpClient() {
         RequestConfig config = RequestConfig.custom()
-                .setConnectTimeout(Timeout.ofSeconds(30))
-                .setResponseTimeout(Timeout.ofSeconds(60))
+                .setConnectTimeout(Timeout.ofSeconds(10))
+                .setResponseTimeout(Timeout.ofSeconds(30))
                 .build();
+        
+        // Connection pooling для параллельной загрузки
+        PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
+        connectionManager.setMaxTotal(100);
+        connectionManager.setDefaultMaxPerRoute(20);
         
         return HttpClients.custom()
                 .setDefaultRequestConfig(config)
-                .setConnectionManager(new PoolingHttpClientConnectionManager())
+                .setConnectionManager(connectionManager)
                 .build();
     }
 
