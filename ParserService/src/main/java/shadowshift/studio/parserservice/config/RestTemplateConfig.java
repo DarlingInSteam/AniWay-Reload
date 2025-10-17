@@ -1,5 +1,9 @@
 package shadowshift.studio.parserservice.config;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.Collections;
+
 import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.config.RequestConfig;
@@ -8,6 +12,7 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.message.BasicHeader;
 import org.apache.hc.core5.util.Timeout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -72,19 +77,21 @@ public class RestTemplateConfig {
         // Configure proxy authentication if credentials provided
         if (proxy.getUsername() != null && !proxy.getUsername().isEmpty()) {
             BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+            String password = proxy.getPassword() != null ? proxy.getPassword() : "";
+            UsernamePasswordCredentials credentials = new UsernamePasswordCredentials(
+                    proxy.getUsername(), password.toCharArray());
             // Scope credentials to the current proxy host so CONNECT requests include Proxy-Authorization
-            credentialsProvider.setCredentials(
-                new AuthScope(proxy.getHost(), proxy.getPort()),
-                new UsernamePasswordCredentials(
-                    proxy.getUsername(), 
-                    proxy.getPassword() != null ? proxy.getPassword().toCharArray() : new char[0]
-                )
-            );
-            
+            credentialsProvider.setCredentials(new AuthScope(proxy.getHost(), proxy.getPort()), credentials);
+
+            String encodedCredentials = Base64.getEncoder()
+                    .encodeToString((proxy.getUsername() + ":" + password)
+                            .getBytes(StandardCharsets.UTF_8));
             return HttpClients.custom()
                     .setDefaultRequestConfig(config)
                     .setDefaultCredentialsProvider(credentialsProvider)
                     .setConnectionManager(new PoolingHttpClientConnectionManager())
+                    .setDefaultHeaders(Collections.singletonList(
+                            new BasicHeader("Proxy-Authorization", "Basic " + encodedCredentials)))
                     .build();
         }
         
@@ -106,5 +113,6 @@ public class RestTemplateConfig {
                 .setConnectionManager(new PoolingHttpClientConnectionManager())
                 .build();
     }
+
 }
 

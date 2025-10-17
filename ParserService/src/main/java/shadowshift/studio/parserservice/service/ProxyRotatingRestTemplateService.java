@@ -1,5 +1,9 @@
 package shadowshift.studio.parserservice.service;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.Collections;
+
 import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.config.RequestConfig;
@@ -8,11 +12,11 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.message.BasicHeader;
 import org.apache.hc.core5.util.Timeout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
@@ -114,19 +118,21 @@ public class ProxyRotatingRestTemplateService {
         
         if (proxy.getUsername() != null && !proxy.getUsername().isEmpty()) {
             BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-            credentialsProvider.setCredentials(
-                new AuthScope(proxy.getHost(), proxy.getPort()),
-                new UsernamePasswordCredentials(
-                    proxy.getUsername(), 
-                    proxy.getPassword() != null ? proxy.getPassword().toCharArray() : new char[0]
-                )
-            );
-            
-            return HttpClients.custom()
-                    .setDefaultRequestConfig(config)
-                    .setDefaultCredentialsProvider(credentialsProvider)
-                    .setConnectionManager(new PoolingHttpClientConnectionManager())
-                    .build();
+            String password = proxy.getPassword() != null ? proxy.getPassword() : "";
+            UsernamePasswordCredentials credentials = new UsernamePasswordCredentials(
+                    proxy.getUsername(), password.toCharArray());
+            credentialsProvider.setCredentials(new AuthScope(proxy.getHost(), proxy.getPort()), credentials);
+
+            String encodedCredentials = Base64.getEncoder()
+                    .encodeToString((proxy.getUsername() + ":" + password)
+                            .getBytes(StandardCharsets.UTF_8));
+        return HttpClients.custom()
+            .setDefaultRequestConfig(config)
+            .setDefaultCredentialsProvider(credentialsProvider)
+            .setConnectionManager(new PoolingHttpClientConnectionManager())
+            .setDefaultHeaders(Collections.singletonList(
+                new BasicHeader("Proxy-Authorization", "Basic " + encodedCredentials)))
+            .build();
         }
         
         return HttpClients.custom()
@@ -134,4 +140,5 @@ public class ProxyRotatingRestTemplateService {
                 .setConnectionManager(new PoolingHttpClientConnectionManager())
                 .build();
     }
+
 }
