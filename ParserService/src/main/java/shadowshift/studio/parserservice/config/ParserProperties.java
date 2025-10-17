@@ -100,7 +100,9 @@ public class ParserProperties {
      * Алиас для совместимости с кодом, использующим getOutputPath().
      */
     public String getOutputPath() {
-        return storageBasePath.toString();
+        String path = storageBasePath.toString();
+        log.debug("📂 getOutputPath() возвращает: {}", path);
+        return path;
     }
     
     /**
@@ -108,8 +110,12 @@ public class ParserProperties {
      * Принимает строку и конвертирует в Path.
      */
     public void setOutputPath(String outputPath) {
+        log.info("🔧 setOutputPath вызван с значением: '{}'", outputPath);
         if (StringUtils.hasText(outputPath)) {
             this.storageBasePath = Paths.get(outputPath);
+            log.info("✅ storageBasePath установлен в: {}", this.storageBasePath);
+        } else {
+            log.warn("⚠️ outputPath пустой, используется дефолт: {}", this.storageBasePath);
         }
     }
 
