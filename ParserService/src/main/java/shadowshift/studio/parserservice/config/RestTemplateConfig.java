@@ -57,15 +57,23 @@ public class RestTemplateConfig {
         // If proxy has credentials, enable preemptive auth
         if (proxy != null && proxy.getUsername() != null && !proxy.getUsername().isEmpty()) {
             HttpHost proxyHost = new HttpHost(proxy.getHost(), proxy.getPort());
+            String password = proxy.getPassword() != null ? proxy.getPassword() : "";
+            
+            // Create credentials provider
+            BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+            credentialsProvider.setCredentials(
+                    new AuthScope(proxy.getHost(), proxy.getPort()),
+                    new UsernamePasswordCredentials(proxy.getUsername(), password.toCharArray()));
             
             // Create auth cache for preemptive authentication
             AuthCache authCache = new BasicAuthCache();
             BasicScheme basicAuth = new BasicScheme();
             authCache.put(proxyHost, basicAuth);
             
-            // Create HTTP context with auth cache
+            // Create HTTP context with both auth cache and credentials
             HttpClientContext context = HttpClientContext.create();
             context.setAuthCache(authCache);
+            context.setCredentialsProvider(credentialsProvider);
             
             factory.setHttpContextFactory((httpMethod, uri) -> context);
         }
