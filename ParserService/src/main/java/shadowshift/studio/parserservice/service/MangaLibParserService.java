@@ -245,7 +245,15 @@ public class MangaLibParserService {
                 logger.debug("Requesting catalog page {} from {}", page, url);
                 ResponseEntity<String> response = proxyRestTemplate.exchange(url, HttpMethod.GET, entity, String.class);
                 
-                JsonNode root = objectMapper.readTree(response.getBody());
+                String responseBody = response.getBody();
+                logger.debug("Response body length: {} chars", responseBody != null ? responseBody.length() : 0);
+                if (responseBody != null && responseBody.length() < 200) {
+                    logger.debug("Response body (short): {}", responseBody);
+                } else if (responseBody != null) {
+                    logger.debug("Response body preview (first 200 chars): {}", responseBody.substring(0, Math.min(200, responseBody.length())));
+                }
+                
+                JsonNode root = objectMapper.readTree(responseBody);
                 JsonNode data = root.get("data");
                 
                 CatalogResult result = new CatalogResult();
