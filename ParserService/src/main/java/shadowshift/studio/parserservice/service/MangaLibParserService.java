@@ -105,8 +105,7 @@ public class MangaLibParserService {
         
         String url = MANGALIB_API_BASE + "/manga/" + slug + "?fields[]=summary&fields[]=background";
         
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("User-Agent", "Mozilla/5.0");
+        HttpHeaders headers = createMangaLibHeaders();
         HttpEntity<String> entity = new HttpEntity<>(headers);
         
         ResponseEntity<String> response = proxyRestTemplate.exchange(url, HttpMethod.GET, entity, String.class);
@@ -160,8 +159,7 @@ public class MangaLibParserService {
         
         String url = MANGALIB_API_BASE + "/manga/" + slug + "/chapters";
         
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("User-Agent", "Mozilla/5.0");
+        HttpHeaders headers = createMangaLibHeaders();
         HttpEntity<String> entity = new HttpEntity<>(headers);
         
         ResponseEntity<String> response = proxyRestTemplate.exchange(url, HttpMethod.GET, entity, String.class);
