@@ -228,7 +228,12 @@ public class MangaLibParserService {
      * Сохранение данных в JSON файл
      */
     private Path saveToJson(String slug, MangaMetadata metadata, List<ChapterInfo> chapters) throws IOException {
-        Path outputDir = Paths.get(properties.getOutputPath());
+        String outputPathFromProperties = properties.getOutputPath();
+        logger.info("🔍 saveToJson: properties.getOutputPath() = '{}'", outputPathFromProperties);
+        
+        Path outputDir = Paths.get(outputPathFromProperties);
+        logger.info("🔍 saveToJson: outputDir = '{}'", outputDir);
+        
         Files.createDirectories(outputDir);
         
         Path outputFile = outputDir.resolve(slug + ".json");
