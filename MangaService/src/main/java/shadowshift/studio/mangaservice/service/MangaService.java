@@ -911,6 +911,55 @@ public class MangaService {
     }
     
     /**
+     * Batch удаление нескольких манг
+     * 
+     * @param ids список ID манг для удаления
+     * @return Map с результатами операции
+     */
+    @CacheEvict(value = {"mangaCatalog", "mangaSearch", "mangaDetails"}, allEntries = true)
+    public Map<String, Object> batchDeleteMangas(List<Long> ids) {
+        logger.info("Начало batch удаления {} манг", ids.size());
+        
+        Map<String, Object> result = new java.util.LinkedHashMap<>();
+        List<Long> succeeded = new ArrayList<>();
+        List<Map<String, Object>> failed = new ArrayList<>();
+        
+        for (Long id : ids) {
+            try {
+                if (mangaRepository.existsById(id)) {
+                    deleteBookmarksForManga(id);
+                    mangaRepository.deleteById(id);
+                    succeeded.add(id);
+                    logger.info("✅ Манга ID {} успешно удалена", id);
+                } else {
+                    Map<String, Object> failedItem = new java.util.LinkedHashMap<>();
+                    failedItem.put("id", id);
+                    failedItem.put("reason", "Манга не найдена");
+                    failed.add(failedItem);
+                    logger.warn("⚠️ Манга ID {} не найдена", id);
+                }
+            } catch (Exception e) {
+                Map<String, Object> failedItem = new java.util.LinkedHashMap<>();
+                failedItem.put("id", id);
+                failedItem.put("reason", e.getMessage());
+                failed.add(failedItem);
+                logger.error("❌ Ошибка удаления манги ID {}: {}", id, e.getMessage(), e);
+            }
+        }
+        
+        result.put("success", true);
+        result.put("total_requested", ids.size());
+        result.put("succeeded_count", succeeded.size());
+        result.put("failed_count", failed.size());
+        result.put("succeeded", succeeded);
+        result.put("failed", failed);
+        
+        logger.info("Batch удаление завершено: {} успешно, {} ошибок", succeeded.size(), failed.size());
+        
+        return result;
+    }
+    
+    /**
      * Удаляет все закладки для указанной манги через AuthService.
      * 
      * @param mangaId идентификатор манги

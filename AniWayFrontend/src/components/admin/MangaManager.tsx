@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Checkbox } from '@/components/ui/checkbox'
 import { GlassPanel } from '@/components/ui/GlassPanel'
 import { BookOpen, Edit, Trash2, Search, RefreshCw, Plus, Eye, Layers, Loader2, Save } from 'lucide-react'
 import { apiClient } from '@/lib/api'
@@ -149,6 +150,8 @@ export function MangaManager() {
   const [chapterMode, setChapterMode] = useState<'create' | 'edit'>('create')
   const [chapterForm, setChapterForm] = useState<ChapterForm>({ ...DEFAULT_CHAPTER_FORM })
   const [activeChapter, setActiveChapter] = useState<ChapterDTO | null>(null)
+  const [selectedMangaIds, setSelectedMangaIds] = useState<Set<number>>(new Set())
+  const [isBatchDeleteDialogOpen, setIsBatchDeleteDialogOpen] = useState(false)
 
   const queryClient = useQueryClient()
 
@@ -215,6 +218,28 @@ export function MangaManager() {
     },
     onError: (error: Error) => {
       toast.error(error.message)
+    }
+  })
+
+  // Мутация для batch удаления манги
+  const batchDeleteMangaMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      return apiClient.batchDeleteManga(ids)
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['manga-list'] })
+      setSelectedMangaIds(new Set())
+      setIsBatchDeleteDialogOpen(false)
+      
+      if (data.succeeded_count > 0) {
+        toast.success(`Успешно удалено: ${data.succeeded_count} из ${data.total_requested}`)
+      }
+      if (data.failed_count > 0) {
+        toast.error(`Не удалось удалить: ${data.failed_count} манга(и)`)
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(`Ошибка при удалении: ${error.message}`)
     }
   })
 
@@ -459,6 +484,31 @@ export function MangaManager() {
     deleteMangaMutation.mutate(id)
   }
 
+  const toggleMangaSelection = useCallback((id: number) => {
+    setSelectedMangaIds((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(id)) {
+        newSet.delete(id)
+      } else {
+        newSet.add(id)
+      }
+      return newSet
+    })
+  }, [])
+
+  const toggleSelectAll = useCallback(() => {
+    if (selectedMangaIds.size === mangaList.length) {
+      setSelectedMangaIds(new Set())
+    } else {
+      setSelectedMangaIds(new Set(mangaList.map((m) => m.id)))
+    }
+  }, [selectedMangaIds.size, mangaList])
+
+  const handleBatchDelete = useCallback(() => {
+    if (selectedMangaIds.size === 0) return
+    batchDeleteMangaMutation.mutate(Array.from(selectedMangaIds))
+  }, [selectedMangaIds, batchDeleteMangaMutation])
+
   return (
     <div className="space-y-6">
       {/* Фильтры и поиск */}
@@ -518,9 +568,45 @@ export function MangaManager() {
       {/* Список манги */}
       <Card className="glass-panel border border-white/5 shadow-xl">
         <CardHeader>
-          <CardTitle>
-            Манга в системе ({mangaList.length})
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>
+              Манга в системе ({mangaList.length})
+            </CardTitle>
+            {selectedMangaIds.size > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  Выбрано: {selectedMangaIds.size}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedMangaIds(new Set())}
+                >
+                  Снять выбор
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setIsBatchDeleteDialogOpen(true)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Удалить ({selectedMangaIds.size})
+                </Button>
+              </div>
+            )}
+          </div>
+          {mangaList.length > 0 && (
+            <div className="flex items-center gap-2 pt-2">
+              <Checkbox
+                id="select-all"
+                checked={selectedMangaIds.size === mangaList.length && mangaList.length > 0}
+                onCheckedChange={toggleSelectAll}
+              />
+              <Label htmlFor="select-all" className="text-sm text-muted-foreground cursor-pointer">
+                Выбрать все
+              </Label>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -565,6 +651,15 @@ export function MangaManager() {
                     <MangaTooltip manga={tooltipPayload}>
                       <div className="group relative overflow-hidden rounded-lg border border-white/10 bg-white/[0.03] shadow-lg transition-all duration-300 hover:border-primary/40 hover:shadow-primary/20 focus-within:border-primary/40 focus-within:shadow-primary/20">
                         <div className="relative aspect-[3/4]">
+                          {/* Checkbox для выбора */}
+                          <div className="absolute top-2 right-2 z-10">
+                            <Checkbox
+                              checked={selectedMangaIds.has(manga.id)}
+                              onCheckedChange={() => toggleMangaSelection(manga.id)}
+                              className="bg-black/70 border-white/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary backdrop-blur-sm"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
                           <img
                             src={manga.coverImageUrl}
                             alt={manga.title}
@@ -1041,6 +1136,39 @@ export function MangaManager() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Batch Delete Confirmation */}
+      <AlertDialog open={isBatchDeleteDialogOpen} onOpenChange={setIsBatchDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить выбранную мангу?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Вы собираетесь удалить {selectedMangaIds.size} манга(и). Это действие нельзя отменить. 
+              Будут удалены все главы и изображения выбранных манг.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBatchDelete}
+              className="bg-red-500 hover:bg-red-600"
+              disabled={batchDeleteMangaMutation.isPending}
+            >
+              {batchDeleteMangaMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Удаление...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Удалить ({selectedMangaIds.size})
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

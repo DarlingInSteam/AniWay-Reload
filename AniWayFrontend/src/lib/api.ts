@@ -212,6 +212,13 @@ class ApiClient {
     });
   }
 
+  async batchDeleteManga(ids: number[]): Promise<{ success: boolean; total_requested: number; succeeded_count: number; failed_count: number; succeeded: number[]; failed: number[] }> {
+    return this.request<{ success: boolean; total_requested: number; succeeded_count: number; failed_count: number; succeeded: number[]; failed: number[] }>(`/manga/batch`, {
+      method: 'DELETE',
+      body: JSON.stringify({ ids }),
+    });
+  }
+
   async getMangaChapters(mangaId: number): Promise<ChapterDTO[]> {
     // Try direct ChapterService endpoint first
     try {

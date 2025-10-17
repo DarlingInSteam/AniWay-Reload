@@ -19,6 +19,7 @@ import shadowshift.studio.mangaservice.service.MangaService;
 import shadowshift.studio.mangaservice.service.external.ChapterServiceClient;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -297,6 +298,35 @@ public class MangaRestController {
 
         logger.info("API ответ: манга с ID {} удалена", id);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Batch удаление нескольких манг по ID
+     * DELETE /api/manga/batch
+     * 
+     * @param request объект с массивом ID манг для удаления
+     * @return ResponseEntity с результатом batch операции
+     */
+    @DeleteMapping("/batch")
+    public ResponseEntity<Map<String, Object>> batchDeleteManga(@RequestBody Map<String, Object> request) {
+        @SuppressWarnings("unchecked")
+        List<Long> ids = (List<Long>) request.get("ids");
+        
+        if (ids == null || ids.isEmpty()) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("error", "No IDs provided");
+            return ResponseEntity.badRequest().body(error);
+        }
+        
+        logger.info("API запрос: batch удаление {} манг", ids.size());
+        
+        Map<String, Object> result = mangaService.batchDeleteMangas(ids);
+        
+        logger.info("API ответ: batch удаление завершено - {} успешно, {} ошибок", 
+            result.get("succeeded_count"), result.get("failed_count"));
+        
+        return ResponseEntity.ok(result);
     }
 
     /**
