@@ -54,22 +54,27 @@ public class MangaBuildService {
      * Получает список URL изображений главы
      */
     private List<String> fetchChapterImages(String slug, ChapterInfo chapter) throws IOException {
-        // Use the same API endpoint pattern as MangaLib parser: /manga/{slug}/chapter?number={number}&volume={volume}
-        StringBuilder urlBuilder = new StringBuilder(MANGALIB_API_BASE + "/manga/" + slug + "/chapter");
+        // Try multiple API endpoint variants like in MelonService
+        String url;
         
-        List<String> queryParams = new ArrayList<>();
-        if (chapter.getNumber() != null) {
+        // Variant 1: Use chapterId in path if available
+        if (chapter.getChapterId() != null && !chapter.getChapterId().isEmpty()) {
+            url = MANGALIB_API_BASE + "/manga/" + slug + "/chapter/" + chapter.getChapterId();
+        } 
+        // Variant 2: Use number + volume as query params
+        else if (chapter.getNumber() != null) {
+            StringBuilder urlBuilder = new StringBuilder(MANGALIB_API_BASE + "/manga/" + slug + "/chapter");
+            List<String> queryParams = new ArrayList<>();
             queryParams.add("number=" + chapter.getNumber());
-        }
-        if (chapter.getVolume() != null) {
-            queryParams.add("volume=" + chapter.getVolume());
-        }
-        
-        if (!queryParams.isEmpty()) {
+            if (chapter.getVolume() != null) {
+                queryParams.add("volume=" + chapter.getVolume());
+            }
             urlBuilder.append("?").append(String.join("&", queryParams));
+            url = urlBuilder.toString();
         }
-        
-        String url = urlBuilder.toString();
+        else {
+            throw new IOException("Chapter has no ID or number - cannot fetch images");
+        }
         
         HttpHeaders headers = createMangaLibHeaders();
         HttpEntity<String> entity = new HttpEntity<>(headers);
@@ -83,36 +88,49 @@ public class MangaBuildService {
             }
             
             JsonNode root = objectMapper.readTree(response.getBody());
-            JsonNode data = root.get("data");
             
-            if (data == null) {
-                throw new IOException("No 'data' field in response");
-            }
-            
-            JsonNode pages = data.get("pages");
+            // API returns pages directly at root level, not in data
+            JsonNode pages = root.get("pages");
             
             if (pages == null || !pages.isArray()) {
-                throw new IOException("No 'pages' array in response data");
+                // Try data.pages as fallback
+                JsonNode data = root.get("data");
+                if (data != null) {
+                    pages = data.get("pages");
+                }
             }
             
-            // Get image server from response
-            String server = data.has("server") ? data.get("server").asText() : "";
+            if (pages == null || !pages.isArray()) {
+                throw new IOException("No 'pages' array in response");
+            }
             
             List<String> imageUrls = new ArrayList<>();
             
+            // Default image server (MangaLib uses img2.imglib.info)
+            String imageServer = "https://img2.imglib.info/";
+            
             for (JsonNode page : pages) {
                 String relativeUrl = page.get("url").asText();
+                
+                // Remove leading slashes
+                if (relativeUrl.startsWith("//")) {
+                    relativeUrl = relativeUrl.substring(2);
+                } else if (relativeUrl.startsWith("/")) {
+                    relativeUrl = relativeUrl.substring(1);
+                }
+                
                 // Combine server + relative URL
-                String fullUrl = server + relativeUrl.replace(" ", "%20");
+                String fullUrl = imageServer + relativeUrl.replace(" ", "%20");
                 imageUrls.add(fullUrl);
             }
             
-            logger.debug("Fetched {} image URLs for chapter {} volume {}", 
-                imageUrls.size(), chapter.getNumber(), chapter.getVolume());
+            logger.debug("Fetched {} image URLs for chapter {} (ID: {})", 
+                imageUrls.size(), chapter.getNumber(), chapter.getChapterId());
             return imageUrls;
             
         } catch (Exception e) {
-            logger.error("Error fetching chapter images for {}/ch{}: {}", slug, chapter.getNumber(), e.getMessage());
+            logger.error("Error fetching chapter images for {}/ch{} (ID: {}): {}", 
+                slug, chapter.getNumber(), chapter.getChapterId(), e.getMessage());
             throw new IOException("Failed to fetch chapter images: " + e.getMessage(), e);
         }
     }
