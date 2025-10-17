@@ -3,6 +3,7 @@ package shadowshift.studio.parserservice.util;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -56,7 +57,7 @@ public final class MangaLibApiHelper {
                                        boolean includeBranch) {
         String branchParam = includeBranch ? branchValue : null;
 
-        String firstQuery = buildQuery(baseEndpoint, Map.of(
+        String firstQuery = buildQuery(baseEndpoint, params(
                 "number", numberValue,
                 "volume", volumeValue,
                 "branch_id", branchParam
@@ -66,14 +67,14 @@ public final class MangaLibApiHelper {
         }
 
         if (chapterIdValue != null) {
-            String pathVariant = appendQuery(baseEndpoint + "/" + chapterIdValue, Map.of(
+            String pathVariant = appendQuery(baseEndpoint + "/" + chapterIdValue, params(
                     "branch_id", branchParam,
                     "volume", volumeValue,
                     "number", numberValue
             ));
             variants.add(pathVariant);
 
-            String chapterIdQuery = buildQuery(baseEndpoint, Map.of(
+            String chapterIdQuery = buildQuery(baseEndpoint, params(
                     "chapter_id", chapterIdValue,
                     "branch_id", branchParam,
                     "volume", volumeValue,
@@ -83,7 +84,7 @@ public final class MangaLibApiHelper {
                 variants.add(chapterIdQuery);
             }
 
-            String genericIdQuery = buildQuery(baseEndpoint, Map.of(
+            String genericIdQuery = buildQuery(baseEndpoint, params(
                     "id", chapterIdValue,
                     "branch_id", branchParam,
                     "volume", volumeValue,
@@ -94,7 +95,7 @@ public final class MangaLibApiHelper {
             }
         }
 
-        String fallbackQuery = buildQuery(baseEndpoint, Map.of(
+        String fallbackQuery = buildQuery(baseEndpoint, params(
                 "branch_id", branchParam,
                 "id", chapterIdValue,
                 "volume", volumeValue,
@@ -103,6 +104,28 @@ public final class MangaLibApiHelper {
         if (fallbackQuery != null) {
             variants.add(fallbackQuery);
         }
+    }
+
+    private static Map<String, String> params(String... keyValues) {
+        Map<String, String> map = new LinkedHashMap<>();
+        if (keyValues == null) {
+            return map;
+        }
+        if (keyValues.length % 2 != 0) {
+            throw new IllegalArgumentException("Пары ключ-значение должны иметь четное количество элементов");
+        }
+        for (int i = 0; i < keyValues.length; i += 2) {
+            String key = keyValues[i];
+            String value = keyValues[i + 1];
+            if (key == null) {
+                continue;
+            }
+            if (value == null || value.isEmpty()) {
+                continue;
+            }
+            map.put(key, value);
+        }
+        return map;
     }
 
     private static String appendQuery(String base, Map<String, String> params) {
