@@ -58,6 +58,7 @@ public class MangaLibParserService {
     private static final double RETRY_JITTER_MIN = 0.85;
     private static final double RETRY_JITTER_MAX = 1.25;
     private static final long MAX_RETRY_DELAY_MS = 45_000L;
+    private static final int MAX_CATALOG_ATTEMPTS = 5;
     private static final int DEFAULT_CATALOG_LIMIT = 60;
 
     @Autowired
@@ -80,54 +81,70 @@ public class MangaLibParserService {
     public CompletableFuture<CatalogResult> fetchCatalog(int page, Integer minChapters, Integer maxChapters) {
         final int effectivePage = Math.max(page, 1);
         return CompletableFuture.supplyAsync(() -> {
-            try {
-                HttpHeaders headers = createMangaLibHeaders();
-                String url = buildCatalogUrl(effectivePage);
-                ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
-                JsonNode root = objectMapper.readTree(response.getBody());
+            HttpHeaders headers = createMangaLibHeaders();
+            String url = buildCatalogUrl(effectivePage);
+            String lastError = null;
 
-                JsonNode dataNode = root.path("data");
-                if (!dataNode.isArray()) {
-                    if (root.isArray()) {
-                        dataNode = root;
-                    } else {
-                        logger.warn("Каталог MangaLib вернул неожиданную структуру для страницы {}", effectivePage);
-                        dataNode = objectMapper.createArrayNode();
+            for (int attempt = 0; attempt < MAX_CATALOG_ATTEMPTS; attempt++) {
+                try {
+                    ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
+                    JsonNode root = objectMapper.readTree(response.getBody());
+
+                    JsonNode dataNode = root.path("data");
+                    if (!dataNode.isArray()) {
+                        if (root.isArray()) {
+                            dataNode = root;
+                        } else {
+                            logger.warn("Каталог MangaLib вернул неожиданную структуру для страницы {}", effectivePage);
+                            dataNode = objectMapper.createArrayNode();
+                        }
                     }
+
+                    List<CatalogItem> items = new ArrayList<>();
+                    int processed = 0;
+                    for (JsonNode node : dataNode) {
+                        if (processed++ >= DEFAULT_CATALOG_LIMIT) {
+                            break;
+                        }
+                        CatalogItem item = mapCatalogItem(node);
+                        int chaptersCount = Optional.ofNullable(item.getChaptersCount()).orElse(0);
+                        if (minChapters != null && chaptersCount < minChapters) {
+                            continue;
+                        }
+                        if (maxChapters != null && chaptersCount > maxChapters) {
+                            continue;
+                        }
+                        if (item.getSlugUrl() == null) {
+                            continue;
+                        }
+                        items.add(item);
+                    }
+
+                    CatalogResult result = new CatalogResult();
+                    result.setItems(items);
+                    result.setPage(effectivePage);
+                    result.setTotal(root.path("meta").path("total").asInt(items.size()));
+                    logger.info("Каталог страница {}: {} элементов после фильтрации", effectivePage, items.size());
+                    return result;
+                } catch (HttpStatusCodeException ex) {
+                    int statusCode = ex.getStatusCode().value();
+                    lastError = "HTTP " + statusCode + formatOptionalMessage(ex);
+                    if (!MangaLibApiHelper.isRetryableStatus(statusCode) || attempt == MAX_CATALOG_ATTEMPTS - 1) {
+                        throw new RuntimeException("Не удалось получить каталог: " + lastError, ex);
+                    }
+                    logger.warn("Каталог страница {}: {} — повтор через {} мс", effectivePage, lastError, computeRetryDelay(attempt));
+                    safeSleep(computeRetryDelay(attempt));
+                } catch (RestClientException | IOException ex) {
+                    lastError = ex.getMessage();
+                    if (attempt == MAX_CATALOG_ATTEMPTS - 1) {
+                        throw new RuntimeException("Ошибка запроса каталога: " + ex.getMessage(), ex);
+                    }
+                    logger.warn("Каталог страница {}: {} — повтор через {} мс", effectivePage, lastError, computeRetryDelay(attempt));
+                    safeSleep(computeRetryDelay(attempt));
                 }
-
-                List<CatalogItem> items = new ArrayList<>();
-                int processed = 0;
-                for (JsonNode node : dataNode) {
-                    if (processed++ >= DEFAULT_CATALOG_LIMIT) {
-                        break;
-                    }
-                    CatalogItem item = mapCatalogItem(node);
-                    int chaptersCount = Optional.ofNullable(item.getChaptersCount()).orElse(0);
-                    if (minChapters != null && chaptersCount < minChapters) {
-                        continue;
-                    }
-                    if (maxChapters != null && chaptersCount > maxChapters) {
-                        continue;
-                    }
-                    if (item.getSlugUrl() == null) {
-                        continue;
-                    }
-                    items.add(item);
-                }
-
-                CatalogResult result = new CatalogResult();
-                result.setItems(items);
-                result.setPage(effectivePage);
-                result.setTotal(root.path("meta").path("total").asInt(items.size()));
-                logger.info("Каталог страница {}: {} элементов после фильтрации", effectivePage, items.size());
-                return result;
-            } catch (HttpStatusCodeException ex) {
-                throw new RuntimeException("Не удалось получить каталог: HTTP " + ex.getRawStatusCode()
-                        + formatOptionalMessage(ex), ex);
-            } catch (RestClientException | IOException ex) {
-                throw new RuntimeException("Ошибка запроса каталога: " + ex.getMessage(), ex);
             }
+
+            throw new RuntimeException(lastError != null ? lastError : "Не удалось получить каталог");
         });
     }
 
@@ -210,7 +227,7 @@ public class MangaLibParserService {
                 }
                 return mapMetadata(slugContext, data);
             } catch (HttpStatusCodeException ex) {
-                lastError = "HTTP " + ex.getRawStatusCode() + formatOptionalMessage(ex);
+                lastError = "HTTP " + ex.getStatusCode().value() + formatOptionalMessage(ex);
                 if (ex.getStatusCode().value() == 422 && attempt + 1 < urlVariants.size()) {
                     logger.warn("Получен 422 при запросе метаданных {} — пробуем без fields", slugContext.getApiSlug());
                     continue;
@@ -282,10 +299,9 @@ public class MangaLibParserService {
                 }
             }
 
-            List<BranchSummary> branches = content.entrySet().stream()
-                    .sorted(Map.Entry.comparingByKey())
-                    .map(entry -> new BranchSummary(entry.getKey(), entry.getValue().size()))
-                    .collect(Collectors.toList());
+        List<BranchSummary> branches = content.entrySet().stream()
+            .map(entry -> new BranchSummary(entry.getKey(), entry.getValue().size()))
+            .collect(Collectors.toCollection(ArrayList::new));
 
             if (allChapters.isEmpty()) {
                 logger.warn("Манга {} не содержит глав", slugContext.getFileSlug());
@@ -323,7 +339,7 @@ public class MangaLibParserService {
 
             return new ChaptersPayload(content, branches);
         } catch (HttpStatusCodeException ex) {
-            throw new IOException("Не удалось получить список глав: HTTP " + ex.getRawStatusCode()
+            throw new IOException("Не удалось получить список глав: HTTP " + ex.getStatusCode().value()
                     + formatOptionalMessage(ex), ex);
         } catch (RestClientException ex) {
             throw new IOException("Ошибка запроса списка глав: " + ex.getMessage(), ex);
@@ -363,8 +379,9 @@ public class MangaLibParserService {
                     }
                     return parseSlides(pages, imageServer);
                 } catch (HttpStatusCodeException ex) {
-                    lastError = "HTTP " + ex.getRawStatusCode() + formatOptionalMessage(ex);
-                    if (!MangaLibApiHelper.isRetryableStatus(ex.getRawStatusCode())
+                    int statusCode = ex.getStatusCode().value();
+                    lastError = "HTTP " + statusCode + formatOptionalMessage(ex);
+                    if (!MangaLibApiHelper.isRetryableStatus(statusCode)
                             || attempt == MAX_CHAPTER_REQUEST_ATTEMPTS - 1) {
                         break;
                     }
@@ -552,7 +569,7 @@ public class MangaLibParserService {
         map.put("number", formatNumber(chapter.getNumber()));
         map.put("name", chapter.getTitle());
         map.put("is_paid", Boolean.TRUE.equals(chapter.getIsPaid()));
-        map.put("workers", Optional.ofNullable(chapter.getWorkers()).orElse(Collections.emptyList()));
+    map.put("workers", Optional.ofNullable(chapter.getWorkers()).orElse(Collections.emptyList()));
         map.put("slides", Optional.ofNullable(chapter.getSlides()).orElse(Collections.emptyList()).stream()
                 .map(slide -> {
                     Map<String, Object> slideMap = new LinkedHashMap<>();
@@ -567,6 +584,7 @@ public class MangaLibParserService {
                     return slideMap;
                 })
                 .collect(Collectors.toList()));
+    map.put("moderated", chapter.getModerated() != null ? chapter.getModerated() : Boolean.TRUE);
         return map;
     }
 
@@ -770,7 +788,7 @@ public class MangaLibParserService {
                 throw new IOException("Не найден подходящий сервер изображений");
             } catch (HttpStatusCodeException ex) {
                 throw new IOException("Не удалось получить конфигурацию серверов изображений: HTTP "
-                        + ex.getRawStatusCode() + formatOptionalMessage(ex), ex);
+                        + ex.getStatusCode().value() + formatOptionalMessage(ex), ex);
             } catch (RestClientException ex) {
                 throw new IOException("Ошибка запроса серверов изображений: " + ex.getMessage(), ex);
             }

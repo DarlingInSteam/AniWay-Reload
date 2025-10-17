@@ -93,8 +93,9 @@ public class MangaBuildService {
                     }
                     return parseSlides(pages, imageServer);
                 } catch (HttpStatusCodeException ex) {
-                    lastError = "HTTP " + ex.getRawStatusCode() + formatOptionalMessage(ex);
-                    if (!MangaLibApiHelper.isRetryableStatus(ex.getRawStatusCode())
+                    int statusCode = ex.getStatusCode().value();
+                    lastError = "HTTP " + statusCode + formatOptionalMessage(ex);
+                    if (!MangaLibApiHelper.isRetryableStatus(statusCode)
                             || attempt == MAX_CHAPTER_REQUEST_ATTEMPTS - 1) {
                         break;
                     }
@@ -175,7 +176,7 @@ public class MangaBuildService {
                 throw new IOException("Не найден подходящий сервер изображений");
             } catch (HttpStatusCodeException ex) {
                 throw new IOException("Не удалось получить конфигурацию серверов изображений: HTTP "
-                        + ex.getRawStatusCode() + formatOptionalMessage(ex), ex);
+                        + ex.getStatusCode().value() + formatOptionalMessage(ex), ex);
             } catch (RestClientException ex) {
                 throw new IOException("Ошибка запроса серверов изображений: " + ex.getMessage(), ex);
             }
