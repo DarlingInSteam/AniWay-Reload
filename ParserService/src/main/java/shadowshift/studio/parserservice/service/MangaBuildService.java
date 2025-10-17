@@ -138,10 +138,13 @@ public class MangaBuildService {
                     task.setTotalImages(totalImages);
                     
                     // Загружаем изображения параллельно
-                    int downloaded = imageDownloader.downloadImages(downloadTasks).join();
-                    task.setDownloadedImages(task.getDownloadedImages() + downloaded);
+                    ImageDownloadService.DownloadSummary summary = imageDownloader.downloadImages(downloadTasks).join();
+                    task.setDownloadedImages(task.getDownloadedImages() + summary.successCount);
                     
-                    task.addLog(String.format("  Загружено %d/%d изображений", downloaded, imageUrls.size()));
+                    task.addLog(String.format("  Загружено %d/%d изображений (%.2fMB/s, %.1f img/s)", 
+                        summary.successCount, imageUrls.size(),
+                        (summary.totalBytes / 1024.0 / 1024.0) / (summary.totalTime / 1000.0),
+                        (summary.totalImages * 1000.0) / summary.totalTime));
                     task.setCompletedChapters(chapterIndex);
                     
                     int progress = 10 + (chapterIndex * 85 / chapters.size());
