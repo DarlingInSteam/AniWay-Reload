@@ -15,22 +15,22 @@ public class ParserProperties {
     /**
      * Корневая директория хранения артефактов (Output/...).
      */
-    private Path storageBasePath = Paths.get("/melon/Output");
+    private Path storageBasePath = Paths.get("/app/output");
 
     /**
      * Каталог временных файлов.
      */
-    private Path tempPath = Paths.get("/melon/Temp");
+    private Path tempPath = Paths.get("/app/temp");
 
     /**
      * Каталог логов.
      */
-    private Path logsPath = Paths.get("/melon/Logs");
+    private Path logsPath = Paths.get("/app/output/logs");
 
     /**
      * Базовый путь до legacy MelonService (python) для вызова CLI.
      */
-    private Path legacyRoot = Paths.get("/melon");
+    private Path legacyRoot = Paths.get("/app");
 
     /**
      * Команда python для запуска legacy-скриптов.
