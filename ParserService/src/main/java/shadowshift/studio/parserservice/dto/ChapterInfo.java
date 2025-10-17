@@ -15,4 +15,10 @@ public class ChapterInfo {
     private Boolean isPaid;
     private Integer pagesCount;
     private List<SlideInfo> slides; // Список изображений главы
+    private Integer branchId;
+    private String slug;
+    private List<String> workers;
+    private Boolean moderated;
+    private String freePublicationDate;
+    private String emptyReason;
 }

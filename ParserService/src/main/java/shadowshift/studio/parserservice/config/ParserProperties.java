@@ -59,6 +59,9 @@ public class ParserProperties {
     public static class MangaLibConfig {
         private String token = "";
         private String siteId = "1";
+        private String server = "main";
+        private String siteDomain = "mangalib.me";
+        private String referer = "https://mangalib.me";
 
         public String getToken() {
             return token;
@@ -74,6 +77,36 @@ public class ParserProperties {
 
         public void setSiteId(String siteId) {
             this.siteId = siteId;
+        }
+
+        public String getServer() {
+            return server;
+        }
+
+        public void setServer(String server) {
+            if (StringUtils.hasText(server)) {
+                this.server = server;
+            }
+        }
+
+        public String getSiteDomain() {
+            return siteDomain;
+        }
+
+        public void setSiteDomain(String siteDomain) {
+            if (StringUtils.hasText(siteDomain)) {
+                this.siteDomain = siteDomain;
+            }
+        }
+
+        public String getReferer() {
+            return referer;
+        }
+
+        public void setReferer(String referer) {
+            if (StringUtils.hasText(referer)) {
+                this.referer = referer;
+            }
         }
     }
 
