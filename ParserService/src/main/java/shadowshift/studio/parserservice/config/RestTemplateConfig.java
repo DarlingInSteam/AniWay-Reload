@@ -1,5 +1,7 @@
 package shadowshift.studio.parserservice.config;
 
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
@@ -25,20 +27,42 @@ public class RestTemplateConfig {
 
     @Autowired
     private ProxyManagerService proxyManager;
+    
+    // ⚡ ОПТИМИЗАЦИЯ: Общий Connection Pool для ВСЕХ прокси (переиспользование соединений)
+    private PoolingHttpClientConnectionManager sharedConnectionManager;
+    
+    @PostConstruct
+    public void initConnectionPool() {
+        logger.info("🚀 Инициализация общего Connection Pool для всех прокси...");
+        
+        sharedConnectionManager = new PoolingHttpClientConnectionManager();
+        sharedConnectionManager.setMaxTotal(200);           // Общий лимит соединений
+        sharedConnectionManager.setDefaultMaxPerRoute(50);  // Лимит на один прокси/хост
+        
+        logger.info("✅ Connection Pool создан: MaxTotal=200, MaxPerRoute=50");
+    }
+    
+    @PreDestroy
+    public void closeConnectionPool() {
+        if (sharedConnectionManager != null) {
+            logger.info("🔒 Закрытие общего Connection Pool...");
+            sharedConnectionManager.close();
+        }
+    }
 
     /**
      * Создаёт RestTemplate с автоматической ротацией прокси
-     * Каждый запрос будет использовать новый прокси из пула
+     * ⚡ ОПТИМИЗАЦИЯ: Использует Sticky Proxy Assignment (каждый поток привязан к своему прокси)
      */
     @Bean
     @Primary
     @Scope("prototype")
     public RestTemplate restTemplate() {
-        // Get next proxy from pool
-        ProxyServer proxy = proxyManager.getNextProxy();
+        // ⚡ ОПТИМИЗАЦИЯ: Получаем прокси для текущего потока (sticky assignment)
+        ProxyServer proxy = proxyManager.getProxyForCurrentThread();
         
-        // Create HTTP client with proxy (IP-based auth, no credentials needed)
-        CloseableHttpClient httpClient = createHttpClientWithProxy(proxy);
+        // ⚡ ОПТИМИЗАЦИЯ: Используем общий Connection Manager вместо создания нового
+        CloseableHttpClient httpClient = createHttpClientWithSharedPool(proxy);
         
         // Create factory
         HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(httpClient);
@@ -47,8 +71,53 @@ public class RestTemplateConfig {
     }
     
     /**
-     * Создаёт HTTP клиент с указанным прокси (IP-based authentication)
+     * ⚡ ОПТИМИЗАЦИЯ: Создаёт HTTP клиент с общим Connection Pool
      */
+    private CloseableHttpClient createHttpClientWithSharedPool(ProxyServer proxy) {
+        if (proxy == null || proxy.getHost() == null) {
+            logger.debug("Thread {}: No proxy, using direct connection with shared pool", 
+                Thread.currentThread().getName());
+            return createDirectHttpClientWithSharedPool();
+        }
+        
+        logger.debug("Thread {}: Using proxy {} with shared pool", 
+            Thread.currentThread().getName(), proxy.getHost());
+        
+        // Configure proxy
+        HttpHost proxyHost = new HttpHost(proxy.getHost(), proxy.getPort());
+        
+        // ⚡ ОПТИМИЗАЦИЯ: Агрессивные таймауты для быстрой загрузки изображений
+        RequestConfig config = RequestConfig.custom()
+                .setConnectTimeout(Timeout.ofSeconds(5))
+                .setResponseTimeout(Timeout.ofSeconds(15))
+                .setProxy(proxyHost)
+                .build();
+        
+        // ⚡ КРИТИЧНО: Используем ОБЩИЙ Connection Manager для всех прокси
+        return HttpClients.custom()
+                .setDefaultRequestConfig(config)
+                .setConnectionManager(sharedConnectionManager)  // ← ОБЩИЙ ПУЛ!
+                .build();
+    }
+    
+    private CloseableHttpClient createDirectHttpClientWithSharedPool() {
+        // ⚡ ОПТИМИЗАЦИЯ: Агрессивные таймауты для быстрой загрузки
+        RequestConfig config = RequestConfig.custom()
+                .setConnectTimeout(Timeout.ofSeconds(5))
+                .setResponseTimeout(Timeout.ofSeconds(15))
+                .build();
+        
+        // ⚡ КРИТИЧНО: Используем ОБЩИЙ Connection Manager
+        return HttpClients.custom()
+                .setDefaultRequestConfig(config)
+                .setConnectionManager(sharedConnectionManager)  // ← ОБЩИЙ ПУЛ!
+                .build();
+    }
+    
+    /**
+     * @deprecated Старый метод без shared pool - не используется
+     */
+    @Deprecated
     private CloseableHttpClient createHttpClientWithProxy(ProxyServer proxy) {
         if (proxy == null || proxy.getHost() == null) {
             logger.warn("No proxy available, using direct connection");
