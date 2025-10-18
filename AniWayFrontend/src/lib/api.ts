@@ -12,7 +12,8 @@ import {
   UpdateProfileRequest,
   User,
   UserSearchParams,
-  UserSearchResult
+  UserSearchResult,
+  EmptyChaptersCleanupResult
 } from '@/types';
 import type {
   CategoryUnreadMap,
@@ -211,6 +212,13 @@ class ApiClient {
     });
   }
 
+  async batchDeleteManga(ids: number[]): Promise<{ success: boolean; total_requested: number; succeeded_count: number; failed_count: number; succeeded: number[]; failed: number[] }> {
+    return this.request<{ success: boolean; total_requested: number; succeeded_count: number; failed_count: number; succeeded: number[]; failed: number[] }>(`/manga/batch`, {
+      method: 'DELETE',
+      body: JSON.stringify({ ids }),
+    });
+  }
+
   async getMangaChapters(mangaId: number): Promise<ChapterDTO[]> {
     // Try direct ChapterService endpoint first
     try {
@@ -249,6 +257,33 @@ class ApiClient {
 
   async getChaptersByManga(mangaId: number): Promise<ChapterDTO[]> {
     return this.request<ChapterDTO[]>(`/chapters/manga/${mangaId}`);
+  }
+
+  async cleanupEmptyChapters(): Promise<EmptyChaptersCleanupResult> {
+    return this.request<EmptyChaptersCleanupResult>(`/chapters/cleanup-empty`, {
+      method: 'POST',
+    });
+  }
+
+  async backfillMelonSlugIds(params?: { maxPages?: number; pageSize?: number; startPage?: number }): Promise<Record<string, number>> {
+    const searchParams = new URLSearchParams();
+    if (params?.maxPages != null) {
+      searchParams.set('maxPages', String(params.maxPages));
+    }
+    if (params?.pageSize != null) {
+      searchParams.set('pageSize', String(params.pageSize));
+    }
+    if (params?.startPage != null) {
+      searchParams.set('startPage', String(params.startPage));
+    }
+
+    const query = searchParams.toString();
+    return this.request<Record<string, number>>(
+      `/manga/maintenance/melon-slug-ids/backfill${query ? `?${query}` : ''}`,
+      {
+        method: 'POST',
+      }
+    );
   }
 
   // Chapter Likes API

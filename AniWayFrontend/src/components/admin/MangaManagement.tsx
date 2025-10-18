@@ -6,8 +6,10 @@ import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Download, RefreshCw, Loader2, CheckCircle, XCircle, AlertCircle, Search, ListFilter, Layers, Trash2 } from 'lucide-react'
+import { Download, RefreshCw, Loader2, CheckCircle, XCircle, AlertCircle, Search, ListFilter, Layers, Trash2, Eraser } from 'lucide-react'
 import { toast } from 'sonner'
+import { apiClient } from '@/lib/api'
+import { EmptyChaptersCleanupResult } from '@/types'
 import { ImportQueueMonitor } from './ImportQueueMonitor'
 
 interface AutoParseMangaMetric {
@@ -45,8 +47,18 @@ interface AutoParseTask {
   duration_formatted?: string
   page?: number
   limit?: number | null
+  min_chapters?: number | null
+  max_chapters?: number | null
   manga_metrics: AutoParseMangaMetric[]
   logs?: string[]  // Логи в реальном времени
+}
+
+interface AutoUpdateSummaryEntry {
+  slug: string
+  title?: string
+  new_chapters: number
+  chapter_labels: string[]
+  chapter_numbers?: number[]
 }
 
 interface AutoUpdateTask {
@@ -62,6 +74,14 @@ interface AutoUpdateTask {
   start_time: string
   end_time?: string
   logs?: string[]  // Логи в реальном времени
+  mangas_with_updates?: number
+  updated_slugs?: string[]
+  updated_details?: AutoUpdateSummaryEntry[]
+}
+
+interface SlugBackfillSnapshot {
+  updated: Record<string, number>
+  completedAt: string
 }
 
 const AUTO_PARSE_STORAGE_KEY = 'autoParseTaskState'
@@ -428,28 +448,170 @@ const normalizeAutoParseTask = (payload: Partial<AutoParseTask> | null | undefin
     duration_formatted: durationFormatted,
     page: toNumber(payload?.page) ?? undefined,
     limit: toNumber(payload?.limit) ?? null,
+    min_chapters: toNumber(payload?.min_chapters ?? (payload as any)?.minChapters) ?? null,
+    max_chapters: toNumber(payload?.max_chapters ?? (payload as any)?.maxChapters) ?? null,
     manga_metrics: metricsList,
     logs: Array.isArray(payload?.logs) ? payload!.logs : []
   }
 }
 
+const normalizeStringArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  const normalized: string[] = []
+  value.forEach((entry) => {
+    if (entry === null || entry === undefined) {
+      return
+    }
+    const str = typeof entry === 'string' ? entry.trim() : String(entry).trim()
+    if (str.length > 0) {
+      normalized.push(str)
+    }
+  })
+  return normalized
+}
+
+const normalizeNumberArray = (value: unknown): number[] => {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  const normalized: number[] = []
+  value.forEach((entry) => {
+    if (typeof entry === 'number' && Number.isFinite(entry)) {
+      normalized.push(entry)
+      return
+    }
+    if (typeof entry === 'string' && entry.trim() !== '') {
+      const parsed = Number(entry)
+      if (Number.isFinite(parsed)) {
+        normalized.push(parsed)
+      }
+    }
+  })
+  return normalized
+}
+
+const normalizeAutoUpdateDetails = (value: unknown): AutoUpdateSummaryEntry[] => {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  const normalized: AutoUpdateSummaryEntry[] = []
+  value.forEach((entry) => {
+    if (!entry || typeof entry !== 'object') {
+      return
+    }
+
+    const record = entry as Record<string, unknown>
+    const slugSource = record.slug ?? (record as Record<string, unknown>)['melon_slug'] ?? (record as Record<string, unknown>)['melonSlug']
+    if (slugSource === null || slugSource === undefined) {
+      return
+    }
+
+    const slug = typeof slugSource === 'string' ? slugSource.trim() : String(slugSource).trim()
+    if (!slug) {
+      return
+    }
+
+    const titleSource = record.title ?? record['name'] ?? record['manga_title']
+    const title = typeof titleSource === 'string' ? titleSource : undefined
+
+    const newChapters = toNumber(record.new_chapters ?? record.newChapters) ?? 0
+    const chapterLabels = normalizeStringArray(record.chapter_labels ?? record.chapterLabels)
+    const chapterNumbers = normalizeNumberArray(record.chapter_numbers ?? record.chapterNumbers)
+
+    const detail: AutoUpdateSummaryEntry = {
+      slug,
+      title,
+      new_chapters: newChapters,
+      chapter_labels: chapterLabels
+    }
+
+    if (chapterNumbers.length > 0) {
+      detail.chapter_numbers = chapterNumbers
+    }
+
+    normalized.push(detail)
+  })
+
+  return normalized
+}
+
 const normalizeAutoUpdateTask = (payload: Partial<AutoUpdateTask> | null | undefined): AutoUpdateTask => {
-  const base: AutoUpdateTask = {
-    task_id: String(payload?.task_id ?? ''),
+  const updatedMangas = normalizeStringArray((payload as any)?.updated_mangas ?? (payload as any)?.updatedMangas)
+  const failedMangas = normalizeStringArray((payload as any)?.failed_mangas ?? (payload as any)?.failedMangas)
+  const updatedDetails = normalizeAutoUpdateDetails((payload as any)?.updated_details ?? (payload as any)?.updatedDetails)
+  const updatedSlugs = normalizeStringArray((payload as any)?.updated_slugs ?? (payload as any)?.updatedSlugs)
+  const rawMangasWithUpdates = toNumber((payload as any)?.mangas_with_updates ?? (payload as any)?.mangasWithUpdates)
+
+  const logs = Array.isArray(payload?.logs)
+    ? payload!.logs
+        .filter((entry) => entry !== null && entry !== undefined)
+        .map((entry) => (typeof entry === 'string' ? entry : String(entry)))
+    : []
+
+  const computedMangasWithUpdates = typeof rawMangasWithUpdates === 'number'
+    ? rawMangasWithUpdates
+    : updatedDetails.length > 0
+      ? updatedDetails.length
+      : updatedSlugs.length > 0
+        ? updatedSlugs.length
+        : updatedMangas.length
+
+  return {
+    task_id: String((payload as any)?.task_id ?? (payload as any)?.taskId ?? ''),
     status: String(payload?.status ?? 'pending'),
     progress: typeof payload?.progress === 'number' ? payload.progress : 0,
     message: typeof payload?.message === 'string' ? payload.message : '',
     total_mangas: typeof payload?.total_mangas === 'number' ? payload.total_mangas : 0,
     processed_mangas: typeof payload?.processed_mangas === 'number' ? payload.processed_mangas : 0,
-    updated_mangas: Array.isArray(payload?.updated_mangas) ? payload!.updated_mangas : [],
-    failed_mangas: Array.isArray(payload?.failed_mangas) ? payload!.failed_mangas : [],
-    new_chapters_count: typeof payload?.new_chapters_count === 'number' ? payload.new_chapters_count : 0,
+    updated_mangas: updatedMangas,
+    failed_mangas: failedMangas,
+    new_chapters_count: typeof payload?.new_chapters_count === 'number'
+      ? payload.new_chapters_count
+      : toNumber((payload as any)?.newChaptersCount) ?? 0,
     start_time: typeof payload?.start_time === 'string' ? payload.start_time : new Date().toISOString(),
     end_time: typeof payload?.end_time === 'string' ? payload.end_time : undefined,
-    logs: Array.isArray(payload?.logs) ? payload!.logs : []
+    logs,
+    mangas_with_updates: computedMangasWithUpdates,
+    updated_slugs: updatedSlugs,
+    updated_details: updatedDetails
+  }
+}
+
+const normalizeCleanupIdList = (value: unknown): number[] => {
+  if (!Array.isArray(value)) {
+    return []
   }
 
-  return base
+  return value
+    .map((entry) => {
+      if (typeof entry === 'number' && Number.isFinite(entry)) {
+        return entry
+      }
+      if (typeof entry === 'string' && entry.trim() !== '') {
+        const parsed = Number(entry)
+        if (Number.isFinite(parsed)) {
+          return parsed
+        }
+      }
+      return null
+    })
+    .filter((entry): entry is number => typeof entry === 'number')
+}
+
+const normalizeCleanupResult = (payload: Partial<EmptyChaptersCleanupResult> | null | undefined): EmptyChaptersCleanupResult => {
+  return {
+    totalChecked: typeof payload?.totalChecked === 'number' ? payload.totalChecked : 0,
+    emptyDetected: typeof payload?.emptyDetected === 'number' ? payload.emptyDetected : 0,
+    deletedCount: typeof payload?.deletedCount === 'number' ? payload.deletedCount : 0,
+    deletedChapterIds: normalizeCleanupIdList(payload?.deletedChapterIds),
+    deletionFailedIds: normalizeCleanupIdList(payload?.deletionFailedIds),
+    pageCheckFailedIds: normalizeCleanupIdList(payload?.pageCheckFailedIds)
+  }
 }
 
 // Компонент для отображения логов в реальном времени
@@ -660,11 +822,18 @@ function LogViewer({ logs }: { logs?: string[] }) {
 export function MangaManagement() {
   const [catalogPage, setCatalogPage] = useState<number>(1)
   const [parseLimit, setParseLimit] = useState<number | null>(null)
+  const [minChapterCount, setMinChapterCount] = useState<number | null>(null)
+  const [maxChapterCount, setMaxChapterCount] = useState<number | null>(null)
   const [autoParseTask, setAutoParseTask] = useState<AutoParseTask | null>(null)
   const [autoUpdateTask, setAutoUpdateTask] = useState<AutoUpdateTask | null>(null)
   const [isAutoParsing, setIsAutoParsing] = useState(false)
   const [isAutoUpdating, setIsAutoUpdating] = useState(false)
   const [isCleaningMelon, setIsCleaningMelon] = useState(false)
+  const [isCleaningEmptyChapters, setIsCleaningEmptyChapters] = useState(false)
+  const [isBackfillingSlugIds, setIsBackfillingSlugIds] = useState(false)
+  const [lastCleanupResult, setLastCleanupResult] = useState<EmptyChaptersCleanupResult | null>(null)
+  const [slugBackfillResult, setSlugBackfillResult] = useState<SlugBackfillSnapshot | null>(null)
+  const [slugBackfillStartPage, setSlugBackfillStartPage] = useState<string>('1')
   const [automationHydrated, setAutomationHydrated] = useState(false)
   const [selectedLogSource, setSelectedLogSource] = useState<AutomationLogSource>('combined')
 
@@ -746,6 +915,24 @@ export function MangaManagement() {
     }
   }, [autoParseTask?.manga_metrics])
 
+  const slugBackfillPreview = useMemo(() => {
+    if (!slugBackfillResult) {
+      return {
+        count: 0,
+        entries: [] as Array<[string, number]>,
+        remaining: 0
+      }
+    }
+
+    const entries = Object.entries(slugBackfillResult.updated ?? {}) as Array<[string, number]>
+    const preview = entries.slice(0, 8)
+    return {
+      count: entries.length,
+      entries: preview,
+      remaining: Math.max(entries.length - preview.length, 0)
+    }
+  }, [slugBackfillResult])
+
   const combinedAutomationLogs = useMemo(() => {
     const parseLogs = autoParseTask?.logs ?? []
     const updateLogs = autoUpdateTask?.logs ?? []
@@ -773,6 +960,16 @@ export function MangaManagement() {
     augmented.sort((a, b) => parseLogTimestamp(a) - parseLogTimestamp(b))
     return augmented
   }, [autoParseTask?.logs, autoUpdateTask?.logs, selectedLogSource])
+
+  const updatedDetails = autoUpdateTask?.updated_details ?? []
+  const updatedSlugs = autoUpdateTask?.updated_slugs ?? []
+  const fallbackUpdatedMangas = autoUpdateTask?.updated_mangas ?? []
+  const updatedMangaCount = autoUpdateTask?.mangas_with_updates
+    ?? (updatedDetails.length > 0
+      ? updatedDetails.length
+      : updatedSlugs.length > 0
+        ? updatedSlugs.length
+        : fallbackUpdatedMangas.length)
 
   const persistAutoParseTask = useCallback((task: AutoParseTask | null) => {
     if (typeof window === 'undefined') {
@@ -948,9 +1145,13 @@ export function MangaManagement() {
 
     if (currentStatus && currentStatus !== previousStatus && FINAL_AUTO_STATUSES.has(currentStatus.toLowerCase())) {
       if (currentStatus.toLowerCase() === 'completed') {
-        const updated = autoUpdateTask?.updated_mangas?.length ?? 0
+        const updated = autoUpdateTask?.mangas_with_updates
+          ?? autoUpdateTask?.updated_details?.length
+          ?? autoUpdateTask?.updated_slugs?.length
+          ?? autoUpdateTask?.updated_mangas?.length
+          ?? 0
         const newChapters = autoUpdateTask?.new_chapters_count ?? 0
-        toast.success(`Автообновление завершено! Обновлено манг: ${updated}, добавлено глав: ${newChapters}`)
+        toast.success(`Автообновление завершено! Тайтлов с новыми главами: ${updated}, добавлено глав: ${newChapters}`)
       } else if (currentStatus.toLowerCase() === 'failed') {
         toast.error('Автообновление завершилось с ошибкой')
       }
@@ -1013,6 +1214,21 @@ export function MangaManagement() {
       return
     }
 
+    if (minChapterCount !== null && minChapterCount < 0) {
+      toast.error('Минимальное количество глав не может быть отрицательным')
+      return
+    }
+
+    if (maxChapterCount !== null && maxChapterCount < 0) {
+      toast.error('Максимальное количество глав не может быть отрицательным')
+      return
+    }
+
+    if (minChapterCount !== null && maxChapterCount !== null && minChapterCount > maxChapterCount) {
+      toast.error('Минимальное количество глав не может превышать максимальное')
+      return
+    }
+
     setIsAutoParsing(true)
     
     try {
@@ -1021,7 +1237,9 @@ export function MangaManagement() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           page: catalogPage,
-          limit: parseLimit 
+          limit: parseLimit,
+          minChapters: minChapterCount,
+          maxChapters: maxChapterCount 
         })
       })
 
@@ -1103,6 +1321,88 @@ export function MangaManagement() {
       toast.error('Ошибка соединения с сервером при очистке Melon')
     } finally {
       setIsCleaningMelon(false)
+    }
+  }
+
+  const cleanupEmptyChapters = async () => {
+    if (isCleaningEmptyChapters) {
+      return
+    }
+
+    setIsCleaningEmptyChapters(true)
+
+    try {
+      const result = await apiClient.cleanupEmptyChapters()
+      const normalized = normalizeCleanupResult(result)
+      setLastCleanupResult(normalized)
+
+      if (normalized.deletedCount > 0) {
+        toast.success(`Удалено пустых глав: ${normalized.deletedCount}`)
+      } else if (normalized.emptyDetected > 0) {
+        toast.warning('Найдены пустые главы, но удалить их не удалось. Проверьте логи.')
+      } else {
+        toast.success('Пустых глав не обнаружено')
+      }
+
+      if (normalized.deletionFailedIds.length > 0) {
+        toast.warning(`Не удалось удалить ${normalized.deletionFailedIds.length} глав`)
+      }
+
+      if (normalized.pageCheckFailedIds.length > 0) {
+        toast.warning(`Не удалось проверить страницы у ${normalized.pageCheckFailedIds.length} глав`)
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Ошибка соединения с сервером при очистке пустых глав'
+      toast.error(message)
+    } finally {
+      setIsCleaningEmptyChapters(false)
+    }
+  }
+
+  const runSlugIdBackfill = async () => {
+    if (isBackfillingSlugIds) {
+      return
+    }
+
+    const startPageInput = slugBackfillStartPage.trim()
+    if (!startPageInput) {
+      toast.error('Укажите номер страницы каталога MangaLib')
+      return
+    }
+
+    const parsedStart = Number(startPageInput)
+    if (!Number.isFinite(parsedStart) || parsedStart < 1) {
+      toast.error('Номер страницы должен быть положительным целым числом')
+      return
+    }
+
+    const startPage = Math.floor(parsedStart)
+    setSlugBackfillStartPage(String(startPage))
+
+    setIsBackfillingSlugIds(true)
+
+    try {
+      const result = await apiClient.backfillMelonSlugIds({ startPage })
+      const normalized = result ?? {}
+      const updatedCount = Object.keys(normalized).length
+
+      setSlugBackfillResult({
+        updated: normalized,
+        completedAt: new Date().toISOString()
+      })
+
+      if (updatedCount > 0) {
+        toast.success(`Проставлены MangaLib ID для ${updatedCount} тайтлов (страница ${startPage})`)
+      } else {
+        toast.info('Все манги уже имеют MangaLib ID')
+      }
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : 'Не удалось синхронизировать MangaLib ID'
+      toast.error(message)
+    } finally {
+      setIsBackfillingSlugIds(false)
     }
   }
 
@@ -1204,6 +1504,135 @@ export function MangaManagement() {
             </p>
           </div>
 
+          <div className="rounded-lg border border-border/60 bg-background/40 p-3 space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Eraser className="h-4 w-4" />
+                <span>Очистить пустые главы (0 страниц) во всех мангах</span>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={cleanupEmptyChapters}
+                disabled={isCleaningEmptyChapters}
+                className="whitespace-nowrap"
+              >
+                {isCleaningEmptyChapters ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Очистка...
+                  </>
+                ) : (
+                  <>
+                    <Eraser className="h-4 w-4 mr-2" />
+                    Очистить пустые главы
+                  </>
+                )}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Перепроверяет каждую главу через ImageStorageService и удаляет только те, в которых нет страниц. Список удалённых глав появится ниже.
+            </p>
+            {lastCleanupResult && (
+              <div className="text-xs text-muted-foreground/90 space-y-1">
+                <p>
+                  Проверено глав: <span className="text-white">{lastCleanupResult.totalChecked}</span>. Найдено пустых: <span className="text-white">{lastCleanupResult.emptyDetected}</span>. Удалено: <span className="text-green-400">{lastCleanupResult.deletedCount}</span>.
+                </p>
+                {(lastCleanupResult.deletionFailedIds.length > 0 || lastCleanupResult.pageCheckFailedIds.length > 0) && (
+                  <p>
+                    Пропущено из-за ошибок: {lastCleanupResult.deletionFailedIds.length + lastCleanupResult.pageCheckFailedIds.length}.{' '}
+                    {lastCleanupResult.deletionFailedIds.length > 0 && (
+                      <span>Удаление: <span className="text-white">{lastCleanupResult.deletionFailedIds.length}</span>. </span>
+                    )}
+                    {lastCleanupResult.pageCheckFailedIds.length > 0 && (
+                      <span>Проверка страниц: <span className="text-white">{lastCleanupResult.pageCheckFailedIds.length}</span>.</span>
+                    )}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-border/60 bg-background/40 p-3 space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <RefreshCw className="h-4 w-4" />
+                <span>Проставить MangaLib ID тайтлам без числового slug'а</span>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={runSlugIdBackfill}
+                disabled={isBackfillingSlugIds}
+                className="whitespace-nowrap"
+              >
+                {isBackfillingSlugIds ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Синхронизация...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Синхронизировать slug'и
+                  </>
+                )}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Сканирует каталог MangaLib и определяет числовые идентификаторы для манг, у которых в базе сохранён только текстовый slug.
+            </p>
+            <div className="space-y-1">
+              <Label htmlFor="slugBackfillStartPage" className="text-xs text-muted-foreground">
+                Стартовая страница каталога
+              </Label>
+              <Input
+                id="slugBackfillStartPage"
+                type="number"
+                min={1}
+                value={slugBackfillStartPage}
+                onChange={(event) => setSlugBackfillStartPage(event.target.value)}
+                disabled={isBackfillingSlugIds}
+                className="bg-background text-white"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                По умолчанию синхронизация начинается с первой страницы каталога MangaLib.
+              </p>
+            </div>
+            {slugBackfillResult && (
+              <div className="text-xs text-muted-foreground/90 space-y-1">
+                <p>
+                  Обновлено тайтлов: <span className="text-white">{slugBackfillPreview.count}</span>. Завершено: <span className="text-white">{formatTimestampLabel(slugBackfillResult.completedAt)}</span>
+                </p>
+                {slugBackfillPreview.count === 0 ? (
+                  <p className="text-muted-foreground">Новых сопоставлений не найдено.</p>
+                ) : (
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground">Примеры сопоставлений:</p>
+                    <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
+                      {slugBackfillPreview.entries.map(([mangaId, slugId]) => (
+                        <div
+                          key={mangaId}
+                          className="flex items-center justify-between rounded border border-gray-800 bg-gray-900/50 px-2 py-1 text-[11px] font-mono text-muted-foreground"
+                        >
+                          <span className="text-white">#{mangaId}</span>
+                          <span className="text-blue-300">→ {slugId}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {slugBackfillPreview.remaining > 0 && (
+                      <p className="text-muted-foreground">
+                        И ещё {slugBackfillPreview.remaining} {slugBackfillPreview.remaining === 1 ? 'тайтл' : slugBackfillPreview.remaining < 5 ? 'тайтла' : 'тайтлов'} обновлено.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="catalogPage">
               Номер страницы каталога MangaLib
@@ -1220,6 +1649,50 @@ export function MangaManagement() {
             />
             <p className="text-xs text-muted-foreground">
               Каждая страница содержит до 60 манг из каталога MangaLib
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="minChapters">
+              Минимальное количество глав для автопарсинга (опционально)
+            </Label>
+            <Input
+              id="minChapters"
+              type="number"
+              min="0"
+              placeholder="Например, 5"
+              value={minChapterCount ?? ''}
+              onChange={(e) => {
+                const value = e.target.value
+                setMinChapterCount(value === '' ? null : parseInt(value, 10))
+              }}
+              disabled={isAutoParsing}
+              className="bg-background text-white"
+            />
+            <p className="text-xs text-muted-foreground">
+              Тайтлы с меньшим количеством глав будут пропущены.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="maxChapters">
+              Максимальное количество глав для автопарсинга (опционально)
+            </Label>
+            <Input
+              id="maxChapters"
+              type="number"
+              min="0"
+              placeholder="Например, 150"
+              value={maxChapterCount ?? ''}
+              onChange={(e) => {
+                const value = e.target.value
+                setMaxChapterCount(value === '' ? null : parseInt(value, 10))
+              }}
+              disabled={isAutoParsing}
+              className="bg-background text-white"
+            />
+            <p className="text-xs text-muted-foreground">
+              Тайтлы с большим количеством глав будут пропущены, чтобы избежать длинных импортаций.
             </p>
           </div>
 
@@ -1575,8 +2048,8 @@ export function MangaManagement() {
                   <span className="ml-2 text-white">{autoUpdateTask.processed_mangas}</span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Обновлено манг:</span>
-                  <span className="ml-2 text-green-500">{autoUpdateTask.updated_mangas.length}</span>
+                  <span className="text-muted-foreground">Тайтлов с новыми главами:</span>
+                  <span className="ml-2 text-green-500">{updatedMangaCount}</span>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Добавлено глав:</span>
@@ -1588,13 +2061,32 @@ export function MangaManagement() {
                 </div>
               </div>
 
-              {autoUpdateTask.updated_mangas.length > 0 && (
+              {(updatedDetails.length > 0 || updatedSlugs.length > 0 || fallbackUpdatedMangas.length > 0) && (
                 <div className="space-y-1">
-                  <p className="text-sm font-medium text-white">Обновленные манги:</p>
-                  <div className="text-xs text-muted-foreground max-h-32 overflow-y-auto">
-                    {autoUpdateTask.updated_mangas.map((manga, i) => (
-                      <div key={i}>• {manga}</div>
-                    ))}
+                  <p className="text-sm font-medium text-white">Тайтлы с обновлениями:</p>
+                  <div className="text-xs text-muted-foreground max-h-32 overflow-y-auto space-y-1">
+                    {updatedDetails.length > 0 ? (
+                      updatedDetails.map((entry) => (
+                        <div key={`${entry.slug}-${entry.new_chapters}`} className="leading-snug">
+                          <span className="text-white">{entry.slug}</span>
+                          {entry.title && <span className="text-muted-foreground"> — {entry.title}</span>}
+                          <span className="text-green-400 ml-1">(+{entry.new_chapters} глав)</span>
+                          {entry.chapter_labels.length > 0 && (
+                            <div className="text-[11px] text-muted-foreground/80">
+                              Главы: {entry.chapter_labels.join(', ')}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    ) : updatedSlugs.length > 0 ? (
+                      updatedSlugs.map((slug) => (
+                        <div key={slug}>• {slug}</div>
+                      ))
+                    ) : (
+                      fallbackUpdatedMangas.map((item, index) => (
+                        <div key={`${item}-${index}`}>• {item}</div>
+                      ))
+                    )}
                   </div>
                 </div>
               )}
@@ -1609,9 +2101,23 @@ export function MangaManagement() {
               )}
 
               {/* Логи в реальном времени */}
-              {selectedLogSource === 'auto-update' && (
-                <LogViewer logs={autoUpdateTask.logs} />
-              )}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium text-white">Логи автообновления</Label>
+                  {selectedLogSource !== 'auto-update' && (
+                    <Badge variant="outline" className="text-xs">
+                      Фокус на вкладке «Автообновление» вверху
+                    </Badge>
+                  )}
+                </div>
+                {(autoUpdateTask.logs?.length ?? 0) > 0 ? (
+                  <LogViewer logs={autoUpdateTask.logs} />
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Логи появятся, как только задача начнёт отправлять сообщения.
+                  </p>
+                )}
+              </div>
             </div>
           )}
         </CardContent>

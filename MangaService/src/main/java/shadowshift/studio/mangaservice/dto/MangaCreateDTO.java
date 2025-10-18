@@ -77,6 +77,11 @@ public class MangaCreateDTO {
     private String melonSlug;
 
     /**
+     * Числовой идентификатор манги в MangaLib.
+     */
+    private Integer melonSlugId;
+
+    /**
      * Конструктор по умолчанию.
      */
     public MangaCreateDTO() {}
@@ -206,6 +211,20 @@ public class MangaCreateDTO {
      * @param melonSlug slug манги в Melon
      */
     public void setMelonSlug(String melonSlug) { this.melonSlug = melonSlug; }
+
+    /**
+     * Возвращает числовой идентификатор манги в MangaLib.
+     *
+     * @return идентификатор манги
+     */
+    public Integer getMelonSlugId() { return melonSlugId; }
+
+    /**
+     * Устанавливает числовой идентификатор манги в MangaLib.
+     *
+     * @param melonSlugId идентификатор манги
+     */
+    public void setMelonSlugId(Integer melonSlugId) { this.melonSlugId = melonSlugId; }
 
     /**
      * Возвращает список названий жанров манги.

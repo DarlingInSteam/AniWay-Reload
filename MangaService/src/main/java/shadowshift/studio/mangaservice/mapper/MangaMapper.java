@@ -44,8 +44,11 @@ public class MangaMapper {
         manga.setReleaseDate(createDTO.getReleaseDate());
         manga.setStatus(createDTO.getStatus() != null ? createDTO.getStatus() : Manga.MangaStatus.ONGOING);
         manga.setGenre(createDTO.getGenre());
-    manga.setCoverImageUrl(createDTO.getCoverImageUrl());
-    manga.setMelonSlug(normalizeSlug(createDTO.getMelonSlug()));
+        manga.setCoverImageUrl(createDTO.getCoverImageUrl());
+
+        SlugParts slugParts = parseSlug(createDTO.getMelonSlug(), createDTO.getMelonSlugId());
+        manga.setMelonSlug(slugParts.normalizedSlug());
+        manga.setMelonSlugId(slugParts.slugId());
 
         return manga;
     }
@@ -117,13 +120,30 @@ public class MangaMapper {
 
         existingManga.setGenre(updateDTO.getGenre());
         existingManga.setCoverImageUrl(updateDTO.getCoverImageUrl());
-        existingManga.setMelonSlug(normalizeSlug(updateDTO.getMelonSlug()));
+
+        SlugParts slugParts = parseSlug(updateDTO.getMelonSlug(), updateDTO.getMelonSlugId());
+        existingManga.setMelonSlug(slugParts.normalizedSlug());
+        existingManga.setMelonSlugId(slugParts.slugId());
     }
 
-    private String normalizeSlug(String melonSlug) {
-        if (!StringUtils.hasText(melonSlug)) {
-            return null;
+    private SlugParts parseSlug(String rawSlug, Integer explicitId) {
+        if (!StringUtils.hasText(rawSlug)) {
+            return new SlugParts(null, explicitId);
         }
-        return melonSlug.trim();
+
+        String trimmed = rawSlug.trim();
+
+        if (trimmed.contains("--")) {
+            String[] parts = trimmed.split("--", 2);
+            if (parts.length == 2 && parts[0].matches("\\d+")) {
+                Integer parsedId = Integer.valueOf(parts[0]);
+                return new SlugParts(parts[1], parsedId);
+            }
+        }
+
+        return new SlugParts(trimmed, explicitId);
+    }
+
+    private record SlugParts(String normalizedSlug, Integer slugId) {
     }
 }

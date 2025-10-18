@@ -1,0 +1,74 @@
+spring:
+  application:
+    name: parser-service
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  port: 8084
+  compression:
+    enabled: true
+  http2:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  level:
+    root: INFO
+    shadowshift.studio.parserservice: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+parser:
+  output-path: ${PARSER_OUTPUT_PATH:/app/output}
+  temp-path: ${PARSER_TEMP_PATH:/app/temp}
+  max-parallel-downloads: 20
+  image-timeout-seconds: 30
+  manga-service-url: ${MANGA_SERVICE_URL:http://manga-service:8081}
+  mangalib:
+    token: "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiIxIiwianRpIjoiYzE0NWE0MmQwMGI2ZGIzZmYzYjk4OWExNmU4MjFmMDA3ZjQzMTNlN2M3OTRiMzI5MGQ4ZmNmMGQ1NDk1ZWI1ZjM4NWZlODk2NDJlNmRiOTIiLCJpYXQiOjE3NTk4NzAwMDkuNDQ0NjkyLCJuYmYiOjE3NTk4NzAwMDkuNDQ0NjkzLCJleHAiOjE3NjI1NDg0MDkuNDQwNTY3LCJzdWIiOiI1MjI4ODIxIiwic2NvcGVzIjpbXX0.H-o33v830LXZJkQgn-YXtDVkjU2DB7hbOfUnjLI9ulpY1doR1Z-IAiZX9fn6cYBrvaGCZhkR543YCVhA-fzVBO27GafGkzPtuIf-Qqx2bEL1dQyrSvXiZS5Pe2uQoMBN14nOSiV6IM4v1EuLUieidFrDm12yQ0YW2UGc_zc5CWsZhRCYhgVtKSYWdMNFHoQFjONkA-XevVGVZFB8hSQeZh0NdO6YPDcNqM3mLAIo4hGT7Qm3W-hWgFaUw6AhBcP7mPXP8Td4VjKL8qLWJqELLzN_l7nMYQVP_4hNbPGy6HLjW4r6nLjZ8mWJqYy5z4r9wZcGLZvL5nLj7qYz6P0Lm4hZzQ5L8mPz5j6QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8QZz4hP7qLz0nZ6j8Q"
+    site-id: "1"
+  
+# Профили
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+logging:
+  level:
+    shadowshift.studio.parserservice: DEBUG
+    
+parser:
+  output-path: ./output
+  temp-path: ./temp
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+logging:
+  level:
+    root: WARN
+    shadowshift.studio.parserservice: INFO
+
+parser:
+  output-path: ${PARSER_OUTPUT_PATH:/app/output}
+  temp-path: ${PARSER_TEMP_PATH:/app/temp}

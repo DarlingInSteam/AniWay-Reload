@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import shadowshift.studio.chapterservice.dto.ChapterCleanupResultDTO;
 import shadowshift.studio.chapterservice.dto.ChapterCreateDTO;
 import shadowshift.studio.chapterservice.dto.ChapterResponseDTO;
 import shadowshift.studio.chapterservice.service.ChapterService;
@@ -115,6 +116,17 @@ public class ChapterRestController {
     public ResponseEntity<Void> deleteChapter(@PathVariable Long id) {
         chapterService.deleteChapter(id);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Удаляет все главы без страниц из всех манг.
+     *
+     * @return результат очистки пустых глав
+     */
+    @PostMapping("/cleanup-empty")
+    public ResponseEntity<ChapterCleanupResultDTO> cleanupEmptyChapters() {
+        ChapterCleanupResultDTO result = chapterService.cleanupEmptyChapters();
+        return ResponseEntity.ok(result);
     }
 
     /**
@@ -305,8 +317,13 @@ public class ChapterRestController {
     @GetMapping("/exists")
     public ResponseEntity<Boolean> chapterExists(
             @RequestParam Long mangaId,
-            @RequestParam Double chapterNumber) {
-        boolean exists = chapterService.chapterExists(mangaId, chapterNumber);
+            @RequestParam(required = false) Double chapterNumber,
+            @RequestParam(required = false) String melonChapterId) {
+        if (chapterNumber == null && (melonChapterId == null || melonChapterId.trim().isEmpty())) {
+            return ResponseEntity.badRequest().body(Boolean.FALSE);
+        }
+
+        boolean exists = chapterService.chapterExists(mangaId, chapterNumber, melonChapterId);
         return ResponseEntity.ok(exists);
     }
 }

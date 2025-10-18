@@ -34,7 +34,7 @@ services:
       - chapter-service
       - image-storage-service
       - forum-service
-      - melon-service
+      - parser-service
       - post-service
       - level-service
       - rabbitmq
@@ -82,7 +82,7 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://manga-postgres:5432/mangadb
       - SPRING_DATASOURCE_USERNAME=mangauser
       - SPRING_DATASOURCE_PASSWORD=mangapass123
-      - MELON_SERVICE_URL=http://melon-service:8084
+      - MELON_SERVICE_URL=http://parser-service:8084
       - CHAPTER_SERVICE_URL=http://chapter-service:8082
       - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
     restart: unless-stopped
@@ -164,6 +164,9 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://chapter-postgres:5432/chapterdb
       - SPRING_DATASOURCE_USERNAME=chapteruser
       - SPRING_DATASOURCE_PASSWORD=chapterpass123
+      - MANGA_SERVICE_URL=http://manga-service:8081
+      - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
+      - IMAGE_STORAGE_SERVICE_INTERNAL_URL=http://image-storage-service:8083
     restart: unless-stopped
     depends_on:
       - chapter-postgres
@@ -208,30 +211,28 @@ services:
     networks:
       - aniway-network
 
-  # Melon Service - парсер манги
-  melon-service:
+  # ParserService - Java/Spring парсер манги (замена MelonService)
+  parser-service:
     build:
-      context: ./MelonService
+      context: ./ParserService
       dockerfile: Dockerfile
     environment:
-      - PYTHONUNBUFFERED=1
-      # PROXY ROTATION: Теперь используется 3 прокси через settings.json
-      # Ротация управляется через ProxyRotator в api_server.py и main.py
-      # Прокси настроены в MelonService/Parsers/mangalib/settings.json (round-robin)
-      # HTTP_PROXY/HTTPS_PROXY не нужны - ротация внутри приложения
-      # - HTTP_PROXY=http://PS20z2:fFNHVg@168.80.1.136:8000
-      # - HTTPS_PROXY=http://PS20z2:fFNHVg@168.80.1.136:8000
-      - NO_PROXY=localhost,127.0.0.1,manga-service,chapter-service,auth-service
+      - SPRING_PROFILES_ACTIVE=prod
+      - PARSER_OUTPUT_PATH=/app/output
+      - PARSER_TEMP_PATH=/app/temp
     ports:
       - "8084:8084"
     volumes:
-      - ./MelonService:/app
-      - melon_data:/app/Output
-      - melon_logs:/app/Logs
-      - melon_temp:/app/Temp
+      - parser_data:/app/output
+      - parser_temp:/app/temp
     restart: unless-stopped
     networks:
       - aniway-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8084/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # Databases
   post-postgres:
@@ -455,9 +456,8 @@ volumes:
   chapter_data:
   image_data:
   forum_data:
-  melon_data:
-  melon_logs:
-  melon_temp:
+  parser_data:
+  parser_temp:
   notification_data:
   message_data:
   post_data:

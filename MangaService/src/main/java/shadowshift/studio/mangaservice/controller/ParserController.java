@@ -271,8 +271,16 @@ public class ParserController {
     @ResponseBody
     public ResponseEntity<Map<String, Object>> startAutoParsing(@RequestBody Map<String, Object> request) {
         try {
-            Integer page = (Integer) request.get("page");
-            Integer limit = (Integer) request.get("limit");
+            Integer page = toInteger(request.get("page"));
+            Integer limit = toInteger(request.get("limit"));
+            Integer minChapters = toInteger(request.get("minChapters"));
+            if (minChapters == null) {
+                minChapters = toInteger(request.get("min_chapters"));
+            }
+            Integer maxChapters = toInteger(request.get("maxChapters"));
+            if (maxChapters == null) {
+                maxChapters = toInteger(request.get("max_chapters"));
+            }
 
             // Валидация page
             if (page == null || page <= 0) {
@@ -286,7 +294,22 @@ public class ParserController {
                     .body(Map.of("error", "Ограничение должно быть больше 0"));
             }
 
-            Map<String, Object> result = autoParsingService.startAutoParsing(page, limit);
+            if (minChapters != null && minChapters < 0) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Минимальное количество глав не может быть отрицательным"));
+            }
+
+            if (maxChapters != null && maxChapters < 0) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Максимальное количество глав не может быть отрицательным"));
+            }
+
+            if (minChapters != null && maxChapters != null && minChapters > maxChapters) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Минимальное количество глав не может превышать максимальное"));
+            }
+
+            Map<String, Object> result = autoParsingService.startAutoParsing(page, limit, minChapters, maxChapters);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             return ResponseEntity.badRequest()
@@ -328,6 +351,30 @@ public class ParserController {
             return ResponseEntity.badRequest()
                 .body(Map.of("error", "Ошибка отмены задачи: " + e.getMessage()));
         }
+    }
+
+    private Integer toInteger(Object value) {
+        if (value == null) {
+            return null;
+        }
+
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+
+        if (value instanceof String text) {
+            String trimmed = text.trim();
+            if (trimmed.isEmpty()) {
+                return null;
+            }
+            try {
+                return Integer.parseInt(trimmed);
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+
+        return null;
     }
 
     /**

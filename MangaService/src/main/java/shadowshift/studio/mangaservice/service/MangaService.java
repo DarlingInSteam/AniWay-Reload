@@ -25,10 +25,15 @@ import shadowshift.studio.mangaservice.mapper.MangaMapper;
 import shadowshift.studio.mangaservice.repository.MangaRepository;
 import shadowshift.studio.mangaservice.service.external.ChapterServiceClient;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * Основной сервис для управления мангой в системе AniWay.
@@ -60,6 +65,7 @@ public class MangaService {
     private final ServiceUrlProperties serviceUrlProperties;
     private final GenreService genreService;
     private final TagService tagService;
+    private final MelonIntegrationService melonIntegrationService;
 
     // Кэш для rate limiting просмотров: ключ - "userId_mangaId", значение - timestamp последнего просмотра
     private final ConcurrentHashMap<String, Long> viewRateLimitCache = new ConcurrentHashMap<>();
@@ -88,7 +94,8 @@ public class MangaService {
                        RestTemplate restTemplate,
                        ServiceUrlProperties serviceUrlProperties,
                        GenreService genreService,
-                       TagService tagService) {
+                       TagService tagService,
+                       MelonIntegrationService melonIntegrationService) {
         this.mangaRepository = mangaRepository;
         this.chapterServiceClient = chapterServiceClient;
         this.mangaMapper = mangaMapper;
@@ -96,6 +103,7 @@ public class MangaService {
         this.serviceUrlProperties = serviceUrlProperties;
         this.genreService = genreService;
         this.tagService = tagService;
+        this.melonIntegrationService = melonIntegrationService;
         logger.info("Инициализирован MangaService");
     }
 
@@ -573,6 +581,13 @@ public class MangaService {
                     );
                 }
             }
+
+            Integer slugId = resolveSlugId(createDTO.getMelonSlug(), createDTO.getMelonSlugId());
+            if (slugId != null && mangaRepository.existsByMelonSlugId(slugId)) {
+                throw new MangaValidationException(
+                        "Манга с переданным MangaLib ID уже существует: " + slugId
+                );
+            }
             
             Manga manga = mangaMapper.toEntity(createDTO);
             
@@ -634,6 +649,13 @@ public class MangaService {
                             "Манга с переданным Melon slug уже существует: " + normalizedSlug
                     );
                 }
+            }
+
+            Integer slugId = resolveSlugId(createDTO.getMelonSlug(), createDTO.getMelonSlugId());
+            if (slugId != null && mangaRepository.existsByMelonSlugId(slugId)) {
+                throw new MangaValidationException(
+                        "Манга с переданным MangaLib ID уже существует: " + slugId
+                );
             }
 
             Manga manga = mangaMapper.toEntity(createDTO);
@@ -701,6 +723,100 @@ public class MangaService {
                 .toList();
     }
 
+    private Integer resolveSlugId(String rawSlug, Integer explicitId) {
+        if (explicitId != null) {
+            return explicitId;
+        }
+
+        if (!StringUtils.hasText(rawSlug)) {
+            return null;
+        }
+
+        String trimmed = rawSlug.trim();
+        if (trimmed.contains("--")) {
+            String[] parts = trimmed.split("--", 2);
+            if (parts.length == 2 && parts[0].matches("\\d+")) {
+                return Integer.valueOf(parts[0]);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Пытается определить и заполнить отсутствующие MangaLib ID для уже существующих манг.
+     * Использует каталог Melon/MangaLib для получения числовых идентификаторов.
+     *
+     * @param maxPages максимальное число страниц каталога для обхода (может быть null)
+     * @param pageSize размер страницы каталога (может быть null)
+     * @return карта "ID манги" -> "назначенный MangaLib ID" для успешно обновленных записей
+     */
+    @Transactional
+    public Map<Long, Integer> backfillMissingMelonSlugIds(Integer maxPages, Integer pageSize, Integer startPage) {
+        List<Manga> candidates = mangaRepository.findByMelonSlugIdIsNullAndMelonSlugIsNotNull();
+        if (candidates.isEmpty()) {
+            logger.info("Отсутствуют манги без MangaLib ID. Синхронизация не требуется.");
+            return Map.of();
+        }
+
+        Set<String> normalizedSlugs = candidates.stream()
+                .map(Manga::getMelonSlug)
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+    int pagesToScan = maxPages != null ? Math.max(1, maxPages) : 500;
+    int effectivePageSize = pageSize != null ? Math.max(1, pageSize) : 60;
+    int effectiveStartPage = startPage != null ? Math.max(1, startPage) : 1;
+
+    Map<String, Integer> resolved = melonIntegrationService.resolveSlugIds(
+        normalizedSlugs,
+        pagesToScan,
+        effectivePageSize,
+        effectiveStartPage
+    );
+
+        if (resolved.isEmpty()) {
+            logger.warn("Не удалось определить MangaLib ID ни для одного slug'а. Список ожидал {} записей.", normalizedSlugs.size());
+            return Map.of();
+        }
+
+        Map<Long, Integer> applied = new LinkedHashMap<>();
+        List<Manga> toPersist = new ArrayList<>();
+        for (Manga manga : candidates) {
+            String slug = manga.getMelonSlug();
+            if (!StringUtils.hasText(slug)) {
+                continue;
+            }
+
+            Integer resolvedId = resolved.get(slug.trim());
+            if (resolvedId == null) {
+                continue;
+            }
+
+            if (mangaRepository.existsByMelonSlugId(resolvedId)) {
+                logger.warn("Пропускаем обновление манги ID {}: обнаруженный MangaLib ID {} уже используется.",
+                        manga.getId(), resolvedId);
+                continue;
+            }
+
+            manga.setMelonSlugId(resolvedId);
+            applied.put(manga.getId(), resolvedId);
+            toPersist.add(manga);
+        }
+
+        if (applied.isEmpty()) {
+            logger.info("После синхронизации отсутствующих MangaLib ID обновлений не случилось.");
+            return Map.of();
+        }
+
+        mangaRepository.saveAll(toPersist);
+
+        logger.info("Обновлено {} манг с новыми MangaLib ID.", applied.size());
+        return applied;
+    }
+
     /**
      * Обновляет существующую мангу.
      * 
@@ -737,6 +853,15 @@ public class MangaService {
                                         "Манга с переданным Melon slug уже существует: " + normalizedSlug
                                 );
                             }
+                        }
+
+                        Integer newSlugId = resolveSlugId(updateDTO.getMelonSlug(), updateDTO.getMelonSlugId());
+                        Integer currentSlugId = existingManga.getMelonSlugId();
+                        if (newSlugId != null && !newSlugId.equals(currentSlugId)
+                                && mangaRepository.existsByMelonSlugId(newSlugId)) {
+                            throw new MangaValidationException(
+                                    "Манга с переданным MangaLib ID уже существует: " + newSlugId
+                            );
                         }
 
                         mangaMapper.updateEntity(existingManga, updateDTO);
@@ -783,6 +908,55 @@ public class MangaService {
             logger.error("Ошибка при удалении манги с ID {}: {}", id, e.getMessage(), e);
             throw new MangaServiceException("Не удалось удалить мангу", "MANGA_DELETE_ERROR", e) {};
         }
+    }
+    
+    /**
+     * Batch удаление нескольких манг
+     * 
+     * @param ids список ID манг для удаления
+     * @return Map с результатами операции
+     */
+    @CacheEvict(value = {"mangaCatalog", "mangaSearch", "mangaDetails"}, allEntries = true)
+    public Map<String, Object> batchDeleteMangas(List<Long> ids) {
+        logger.info("Начало batch удаления {} манг", ids.size());
+        
+        Map<String, Object> result = new java.util.LinkedHashMap<>();
+        List<Long> succeeded = new ArrayList<>();
+        List<Map<String, Object>> failed = new ArrayList<>();
+        
+        for (Long id : ids) {
+            try {
+                if (mangaRepository.existsById(id)) {
+                    deleteBookmarksForManga(id);
+                    mangaRepository.deleteById(id);
+                    succeeded.add(id);
+                    logger.info("✅ Манга ID {} успешно удалена", id);
+                } else {
+                    Map<String, Object> failedItem = new java.util.LinkedHashMap<>();
+                    failedItem.put("id", id);
+                    failedItem.put("reason", "Манга не найдена");
+                    failed.add(failedItem);
+                    logger.warn("⚠️ Манга ID {} не найдена", id);
+                }
+            } catch (Exception e) {
+                Map<String, Object> failedItem = new java.util.LinkedHashMap<>();
+                failedItem.put("id", id);
+                failedItem.put("reason", e.getMessage());
+                failed.add(failedItem);
+                logger.error("❌ Ошибка удаления манги ID {}: {}", id, e.getMessage(), e);
+            }
+        }
+        
+        result.put("success", true);
+        result.put("total_requested", ids.size());
+        result.put("succeeded_count", succeeded.size());
+        result.put("failed_count", failed.size());
+        result.put("succeeded", succeeded);
+        result.put("failed", failed);
+        
+        logger.info("Batch удаление завершено: {} успешно, {} ошибок", succeeded.size(), failed.size());
+        
+        return result;
     }
     
     /**

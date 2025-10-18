@@ -1,12 +1,16 @@
 package shadowshift.studio.chapterservice.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
+import shadowshift.studio.chapterservice.dto.ChapterCleanupResultDTO;
 import shadowshift.studio.chapterservice.dto.ChapterCreateDTO;
 import shadowshift.studio.chapterservice.dto.ChapterResponseDTO;
 import shadowshift.studio.chapterservice.entity.Chapter;
@@ -15,10 +19,16 @@ import shadowshift.studio.chapterservice.repository.ChapterRepository;
 import shadowshift.studio.chapterservice.repository.ChapterLikeRepository;
 import shadowshift.studio.chapterservice.repository.ChapterReadRepository;
 import shadowshift.studio.chapterservice.entity.ChapterRead;
+import java.net.ConnectException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import org.springframework.web.client.RestTemplate;
 
@@ -30,6 +40,8 @@ import org.springframework.web.client.RestTemplate;
  */
 @Service
 public class ChapterService {
+
+    private static final Logger logger = LoggerFactory.getLogger(ChapterService.class);
 
     @Autowired
     private ChapterRepository chapterRepository;
@@ -54,6 +66,11 @@ public class ChapterService {
 
     @Value("${image.storage.service.url}")
     private String imageStorageServiceUrl;
+
+    @Value("${image.storage.service.internal-url:http://image-storage-service:8083}")
+    private String imageStorageServiceInternalUrl;
+
+    private final Set<String> reportedImageServiceConnectionIssues = ConcurrentHashMap.newKeySet();
 
     @Value("${notification.service.base-url:http://notification-service:8095}")
     private String notificationServiceBaseUrl;
@@ -141,13 +158,31 @@ public class ChapterService {
      */
     @CacheEvict(value = {"chaptersByManga", "chapterCount", "nextChapter", "previousChapter"}, key = "#createDTO.mangaId")
     public ChapterResponseDTO createChapter(ChapterCreateDTO createDTO) {
-        // Проверяем, что глава с таким номером еще не существует
-        Optional<Chapter> existingChapter = chapterRepository
-                .findByMangaIdAndChapterNumber(createDTO.getMangaId(), createDTO.getChapterNumber());
+    // Проверяем, что глава с таким номером еще не существует
+    Optional<Chapter> existingChapter = chapterRepository
+        .findByMangaIdAndChapterNumber(createDTO.getMangaId(), createDTO.getChapterNumber());
 
-        if (existingChapter.isPresent()) {
-            throw new RuntimeException("Chapter " + createDTO.getChapterNumber() +
-                    " already exists for manga " + createDTO.getMangaId());
+    if (existingChapter.isPresent()) {
+        throw new RuntimeException("Chapter " + createDTO.getChapterNumber() +
+            " already exists for manga " + createDTO.getMangaId());
+    }
+
+    String normalizedMelonChapterId = normalizeExternalId(createDTO.getMelonChapterId());
+    if (normalizedMelonChapterId != null) {
+        Optional<Chapter> existingByExternalId = chapterRepository.findByMelonChapterId(normalizedMelonChapterId);
+        if (existingByExternalId.isPresent()) {
+        throw new RuntimeException("Chapter with external id " + normalizedMelonChapterId + " already exists");
+        }
+    }
+
+        // ✅ ИСПРАВЛЕНИЕ: Предупреждение о создании главы без страниц
+        if (createDTO.getPageCount() == null || createDTO.getPageCount() == 0) {
+            logger.warn("⚠️ Создается глава {} для манги {} с pageCount={} (melonChapterId={})! " +
+                       "Убедитесь что страницы будут импортированы сразу после создания.",
+                       createDTO.getChapterNumber(), 
+                       createDTO.getMangaId(),
+                       createDTO.getPageCount(),
+                       normalizedMelonChapterId);
         }
 
         Chapter chapter = new Chapter();
@@ -155,9 +190,12 @@ public class ChapterService {
         chapter.setChapterNumber(createDTO.getChapterNumber());
         chapter.setVolumeNumber(createDTO.getVolumeNumber());
         chapter.setOriginalChapterNumber(createDTO.getOriginalChapterNumber());
+    chapter.setMelonChapterId(normalizedMelonChapterId);
         chapter.setTitle(createDTO.getTitle());
         // Ensure likeCount is initialized to 0
         chapter.setLikeCount(0);
+        // ✅ ИСПРАВЛЕНИЕ: Устанавливаем page_count из DTO (или 0 по умолчанию)
+        chapter.setPageCount(createDTO.getPageCount() != null ? createDTO.getPageCount() : 0);
         if (createDTO.getPublishedDate() != null) {
             chapter.setPublishedDate(createDTO.getPublishedDate());
         }
@@ -258,6 +296,20 @@ public class ChapterService {
                         chapter.setChapterNumber(updateDTO.getChapterNumber());
                     }
 
+                    String normalizedMelonChapterId = normalizeExternalId(updateDTO.getMelonChapterId());
+                    if (!java.util.Objects.equals(normalizedMelonChapterId, chapter.getMelonChapterId())) {
+                        if (normalizedMelonChapterId != null) {
+                            chapterRepository.findByMelonChapterId(normalizedMelonChapterId)
+                                    .filter(found -> !found.getId().equals(id))
+                                    .ifPresent(found -> {
+                                        throw new RuntimeException("Chapter with external id " + normalizedMelonChapterId + " already exists");
+                                    });
+                        }
+                        chapter.setMelonChapterId(normalizedMelonChapterId);
+                    }
+
+                    chapter.setVolumeNumber(updateDTO.getVolumeNumber());
+                    chapter.setOriginalChapterNumber(updateDTO.getOriginalChapterNumber());
                     chapter.setTitle(updateDTO.getTitle());
                     if (updateDTO.getPublishedDate() != null) {
                         chapter.setPublishedDate(updateDTO.getPublishedDate());
@@ -278,18 +330,78 @@ public class ChapterService {
     public void deleteChapter(Long id) {
         // Удаляем связанные изображения перед удалением главы
         try {
-            WebClient webClient = webClientBuilder.build();
-            webClient.delete()
-                    .uri(imageStorageServiceUrl + "/api/images/chapter/" + id)
-                    .retrieve()
-                    .bodyToMono(Void.class)
-                    .block();
+            deleteChapterImagesWithFallback(id);
         } catch (Exception e) {
             System.err.println("Failed to delete chapter images: " + e.getMessage());
             // Продолжаем удаление главы даже если изображения не удалились
         }
 
         chapterRepository.deleteById(id);
+    }
+
+    /**
+     * Удаляет все главы, у которых отсутствуют страницы в ImageStorageService.
+     * Метод сначала проверяет все главы, фиксирует идентификаторы пустых глав,
+     * затем выполняет их удаление единым блоком.
+     *
+     * @return результат очистки с подсчетом найденных и удаленных глав
+     */
+    @CacheEvict(value = {"chaptersByManga", "chapterDetails", "chapterCount", "nextChapter", "previousChapter"}, allEntries = true)
+    public ChapterCleanupResultDTO cleanupEmptyChapters() {
+        List<Chapter> allChapters = chapterRepository.findAll();
+        if (allChapters.isEmpty()) {
+            return new ChapterCleanupResultDTO(0, 0, 0, List.of(), List.of(), List.of());
+        }
+
+        List<Long> emptyChapterIds = new java.util.ArrayList<>();
+        List<Long> pageCheckFailed = new java.util.ArrayList<>();
+
+        for (Chapter chapter : allChapters) {
+            Long chapterId = chapter.getId();
+            try {
+                Integer pageCount = getPageCountFromImageService(chapterId);
+                int normalized = pageCount != null ? pageCount : 0;
+                if (normalized <= 0) {
+                    emptyChapterIds.add(chapterId);
+                }
+            } catch (Exception ex) {
+                pageCheckFailed.add(chapterId);
+                logger.warn("Failed to check page count for chapter {}: {}", chapterId, ex.getMessage());
+            }
+        }
+
+        if (emptyChapterIds.isEmpty()) {
+            return new ChapterCleanupResultDTO(
+                allChapters.size(),
+                0,
+                0,
+                List.of(),
+                List.of(),
+                pageCheckFailed
+            );
+        }
+
+        List<Long> deletedChapterIds = new java.util.ArrayList<>();
+        List<Long> deletionFailedIds = new java.util.ArrayList<>();
+
+        for (Long chapterId : emptyChapterIds) {
+            try {
+                deleteChapter(chapterId);
+                deletedChapterIds.add(chapterId);
+            } catch (Exception ex) {
+                deletionFailedIds.add(chapterId);
+                logger.error("Failed to delete empty chapter {}: {}", chapterId, ex.getMessage());
+            }
+        }
+
+        return new ChapterCleanupResultDTO(
+            allChapters.size(),
+            emptyChapterIds.size(),
+            deletedChapterIds.size(),
+            deletedChapterIds,
+            deletionFailedIds,
+            pageCheckFailed
+        );
     }
 
     /**
@@ -325,12 +437,32 @@ public class ChapterService {
      * @return количество страниц
      */
     private Integer getPageCountFromImageService(Long chapterId) {
-        WebClient webClient = webClientBuilder.build();
-        return webClient.get()
-                .uri(imageStorageServiceUrl + "/api/images/chapter/" + chapterId + "/count")
-                .retrieve()
-                .bodyToMono(Integer.class)
-                .block();
+        List<String> baseUrls = resolveImageStorageBaseUrls();
+        WebClientRequestException lastConnectException = null;
+
+        for (String baseUrl : baseUrls) {
+            try {
+                WebClient client = webClientBuilder.baseUrl(baseUrl).build();
+                return client.get()
+                        .uri("/api/images/chapter/{chapterId}/count", chapterId)
+                        .retrieve()
+                        .bodyToMono(Integer.class)
+                        .block();
+            } catch (WebClientRequestException ex) {
+                if (isConnectionRefused(ex)) {
+                    logImageServiceConnectionIssue(baseUrl, ex);
+                    lastConnectException = ex;
+                    continue;
+                }
+                throw ex;
+            }
+        }
+
+        if (lastConnectException != null) {
+            throw lastConnectException;
+        }
+
+        throw new IllegalStateException("ImageStorageService base URLs are not configured");
     }
 
     /**
@@ -583,8 +715,31 @@ public class ChapterService {
      * @param chapterNumber номер главы
      * @return true, если глава существует, иначе false
      */
-    public boolean chapterExists(Long mangaId, Double chapterNumber) {
+    public boolean chapterExists(Long mangaId, Double chapterNumber, String melonChapterId) {
+        String normalizedMelonChapterId = normalizeExternalId(melonChapterId);
+        if (normalizedMelonChapterId != null) {
+            if (chapterRepository.findByMelonChapterId(normalizedMelonChapterId).isPresent()) {
+                return true;
+            }
+        }
+
+        if (chapterNumber == null) {
+            return false;
+        }
+
         return chapterRepository.findByMangaIdAndChapterNumber(mangaId, chapterNumber).isPresent();
+    }
+
+    public boolean chapterExists(Long mangaId, Double chapterNumber) {
+        return chapterExists(mangaId, chapterNumber, null);
+    }
+
+    private String normalizeExternalId(String rawId) {
+        if (rawId == null) {
+            return null;
+        }
+        String trimmed = rawId.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private String fetchMangaTitle(Long mangaId) {
@@ -604,5 +759,63 @@ public class ChapterService {
             System.err.println("fetchMangaTitle failed url=" + url + " error=" + ex.getMessage());
         }
         return null;
+    }
+
+    private void deleteChapterImagesWithFallback(Long chapterId) {
+        List<String> baseUrls = resolveImageStorageBaseUrls();
+        WebClientRequestException lastConnectException = null;
+
+        for (String baseUrl : baseUrls) {
+            try {
+                WebClient client = webClientBuilder.baseUrl(baseUrl).build();
+                client.delete()
+                        .uri("/api/images/chapter/{chapterId}", chapterId)
+                        .retrieve()
+                        .bodyToMono(Void.class)
+                        .block();
+                return;
+            } catch (WebClientRequestException ex) {
+                if (isConnectionRefused(ex)) {
+                    logImageServiceConnectionIssue(baseUrl, ex);
+                    lastConnectException = ex;
+                    continue;
+                }
+                throw ex;
+            }
+        }
+
+        if (lastConnectException != null) {
+            throw lastConnectException;
+        }
+    }
+
+    private List<String> resolveImageStorageBaseUrls() {
+        LinkedHashSet<String> urls = new LinkedHashSet<>();
+        if (imageStorageServiceUrl != null && !imageStorageServiceUrl.isBlank()) {
+            urls.add(imageStorageServiceUrl.trim());
+        }
+        if (imageStorageServiceInternalUrl != null && !imageStorageServiceInternalUrl.isBlank()) {
+            urls.add(imageStorageServiceInternalUrl.trim());
+        }
+        return new ArrayList<>(urls);
+    }
+
+    private boolean isConnectionRefused(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof ConnectException) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private void logImageServiceConnectionIssue(String baseUrl, Throwable ex) {
+        if (reportedImageServiceConnectionIssues.add(baseUrl)) {
+            logger.warn("ImageStorageService unreachable at {}: {}", baseUrl, ex.getMessage());
+        } else {
+            logger.debug("ImageStorageService still unreachable at {}: {}", baseUrl, ex.getMessage());
+        }
     }
 }

@@ -28,12 +28,20 @@ public class ChapterCreateDTO {
     /** Оригинальный номер главы в источнике */
     private Double originalChapterNumber;
 
+    /** Идентификатор главы во внешней системе MangaLib */
+    @Size(max = 191, message = "External chapter id must not exceed 191 characters")
+    private String melonChapterId;
+
     /** Название главы */
     @Size(max = 255, message = "Title must not exceed 255 characters")
     private String title;
 
     /** Дата публикации главы */
     private LocalDateTime publishedDate;
+
+    /** Количество страниц в главе */
+    @Min(value = 0, message = "Page count must not be negative")
+    private Integer pageCount;
 
     /**
      * Конструктор по умолчанию.
@@ -110,6 +118,20 @@ public class ChapterCreateDTO {
     public void setOriginalChapterNumber(Double originalChapterNumber) { this.originalChapterNumber = originalChapterNumber; }
 
     /**
+     * Получить внешний идентификатор главы.
+     *
+     * @return идентификатор во внешней системе
+     */
+    public String getMelonChapterId() { return melonChapterId; }
+
+    /**
+     * Установить внешний идентификатор главы.
+     *
+     * @param melonChapterId идентификатор во внешней системе
+     */
+    public void setMelonChapterId(String melonChapterId) { this.melonChapterId = melonChapterId; }
+
+    /**
      * Получить название главы.
      *
      * @return название главы
@@ -136,4 +158,18 @@ public class ChapterCreateDTO {
      * @param publishedDate дата публикации
      */
     public void setPublishedDate(LocalDateTime publishedDate) { this.publishedDate = publishedDate; }
+
+    /**
+     * Получить количество страниц.
+     *
+     * @return количество страниц в главе
+     */
+    public Integer getPageCount() { return pageCount; }
+
+    /**
+     * Установить количество страниц.
+     *
+     * @param pageCount количество страниц в главе
+     */
+    public void setPageCount(Integer pageCount) { this.pageCount = pageCount; }
 }

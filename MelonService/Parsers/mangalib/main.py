@@ -5,8 +5,12 @@ from Source.Core.Base.Formats.BaseFormat import Statuses
 from dublib.Methods.Data import RemoveRecurringSubstrings, Zerotify
 from dublib.WebRequestor import WebRequestor
 
+import random
 from datetime import datetime
+from threading import Lock
 from time import sleep
+from typing import Optional
+from email.utils import parsedate_to_datetime
 
 # Параллельный загрузчик изображений
 from .parallel_downloader import AdaptiveParallelDownloader
@@ -64,32 +68,32 @@ class Parser(MangaParser):
         """Инициализирует модуль WEB-запросов."""
 
         WebRequestorObject = super()._InitializeRequestor()
-        
+
         # Добавляем авторизационный токен если есть
-        if self._Settings.custom["token"]: 
+        if self._Settings.custom["token"]:
             WebRequestorObject.config.add_header("Authorization", self._Settings.custom["token"])
-        
+
         # PROXY ROTATION SUPPORT:
         # Приоритет конфигурации прокси:
         # 1. ProxyRotator из settings.json (если включен и есть прокси)
         # 2. Переменные окружения HTTP_PROXY/HTTPS_PROXY
         # 3. Без прокси
-        
+
         import sys
         import os
         from pathlib import Path
-        
+
         # Добавляем путь к MelonService в sys.path для импорта proxy_rotator
         melon_service_path = Path(__file__).parent.parent.parent
         if str(melon_service_path) not in sys.path:
             sys.path.insert(0, str(melon_service_path))
-        
+
         try:
             from proxy_rotator import ProxyRotator
-            
+
             # Создаём экземпляр ротатора для парсера
             rotator = ProxyRotator(parser="mangalib")
-            
+
             if rotator.enabled and rotator.get_proxy_count() > 0:
                 # Получаем прокси (с ротацией если их несколько)
                 if rotator.get_proxy_count() == 1:
@@ -98,7 +102,7 @@ class Parser(MangaParser):
                 else:
                     proxy_dict = rotator.get_next_proxy()
                     print(f"[INFO] 🔄 Proxy rotation enabled: {rotator.get_proxy_count()} proxies, strategy={rotator.rotation_strategy}")
-                
+
                 if proxy_dict:
                     try:
                         if hasattr(WebRequestorObject, '_WebRequestor__Session'):
@@ -111,18 +115,18 @@ class Parser(MangaParser):
                         print(f"[WARNING] ⚠️  Failed to set proxy from ProxyRotator: {e}")
             else:
                 print(f"[INFO] ℹ️  ProxyRotator disabled, checking environment variables...")
-                
+
                 # Fallback: переменные окружения
                 http_proxy = os.getenv("HTTP_PROXY") or os.getenv("http_proxy")
                 https_proxy = os.getenv("HTTPS_PROXY") or os.getenv("https_proxy")
-                
+
                 if http_proxy or https_proxy:
                     proxies = {}
                     if http_proxy:
                         proxies['http'] = http_proxy
                     if https_proxy:
                         proxies['https'] = https_proxy
-                    
+
                     try:
                         if hasattr(WebRequestorObject, '_WebRequestor__Session'):
                             WebRequestorObject._WebRequestor__Session.proxies.update(proxies)
@@ -134,22 +138,22 @@ class Parser(MangaParser):
                         print(f"[WARNING] ⚠️  Failed to configure proxy from env: {e}")
                 else:
                     print(f"[INFO] ℹ️  No proxy configured (direct connection)")
-        
+
         except ImportError as e:
             print(f"[WARNING] ⚠️  ProxyRotator not available: {e}")
             print(f"[INFO] ℹ️  Falling back to environment variables...")
-            
+
             # Fallback на переменные окружения
             http_proxy = os.getenv("HTTP_PROXY") or os.getenv("http_proxy")
             https_proxy = os.getenv("HTTPS_PROXY") or os.getenv("https_proxy")
-            
+
             if http_proxy or https_proxy:
                 proxies = {}
                 if http_proxy:
                     proxies['http'] = http_proxy
                 if https_proxy:
                     proxies['https'] = https_proxy
-                
+
                 try:
                     if hasattr(WebRequestorObject, '_WebRequestor__Session'):
                         WebRequestorObject._WebRequestor__Session.proxies.update(proxies)
@@ -161,11 +165,13 @@ class Parser(MangaParser):
                     print(f"[WARNING] ⚠️  Failed to configure proxy: {e}")
 
         return WebRequestorObject
-    
-    def _download_image_wrapper(self, url: str) -> str | None:
-        """Thread-safe обертка с независимой сессией requests для каждого потока.
-        
+
+    def _download_image_wrapper(self, url: str, session: "requests.Session" = None, proxies: dict | None = None) -> str | None:
+        """Thread-safe обертка с поддержкой Keep-Alive через переиспользование session.
+
         :param url: URL изображения
+        :param session: requests.Session для Keep-Alive (приоритет, если передан)
+        :param proxies: dict с прокси (fallback если session=None)
         :return: Имя файла если успешно, None если ошибка
         """
         import os
@@ -173,10 +179,10 @@ class Parser(MangaParser):
         import hashlib
         import requests
         from urllib.parse import urlparse, unquote
-        
+
         directory = self._SystemObjects.temper.parser_temp
         os.makedirs(directory, exist_ok=True)
-        
+
         # Определяем имя файла из URL с учётом декодирования
         parsed_url = urlparse(url)
         decoded_path = unquote(parsed_url.path or "")
@@ -201,85 +207,463 @@ class Parser(MangaParser):
 
         image_filename = f"{resolved_name}{resolved_suffix}"
         image_path = os.path.join(directory, image_filename)
-        
+
         # Если файл уже существует и не FORCE_MODE, возвращаем имя
         if os.path.exists(image_path) and not self._SystemObjects.FORCE_MODE:
             return image_filename
-        
+
+        proxy_key = None
+        # If upstream passed explicit proxies (deterministic assignment from downloader), use them
+        if proxies:
+            try:
+                proxy_key = self._normalize_proxy_key(proxies)
+            except Exception:
+                proxy_key = None
+        else:
+            # otherwise try to acquire via rotator (legacy behavior)
+            if hasattr(self, '_ProxyRotator') and self._ProxyRotator:
+                proxies, proxy_key = self._acquire_proxy()
+
         try:
             # Получаем основной WebRequestor
             requestor = self._ImagesDownloader._ImagesDownloader__Requestor
+
+            # ✅ КРИТИЧНО для Keep-Alive: Используем переданную session или создаем новую
+            if session is not None:
+                # Используем session из parallel_downloader (Keep-Alive активен!)
+                use_existing_session = True
+            else:
+                # Создаем НЕЗАВИСИМУЮ сессию requests для этого потока (fallback)
+                session = requests.Session()
+                use_existing_session = False
             
-            # Создаем НЕЗАВИСИМУЮ сессию requests для этого потока
-            session = requests.Session()
-            
-            # Копируем cookies из WebRequestor Session (thread-safe read)
-            source_session = None
-            if hasattr(requestor, '_WebRequestor__Session'):
-                source_session = requestor._WebRequestor__Session
-            elif hasattr(requestor, 'session'):
-                source_session = requestor.session
-            elif hasattr(requestor, '_session'):
-                source_session = requestor._session
-            
-            if source_session and hasattr(source_session, 'cookies'):
-                try:
-                    # КРИТИЧНО: НЕ используем update() напрямую - это вызывает deadlock!
-                    cookies_dict = dict(source_session.cookies)
-                    for name, value in cookies_dict.items():
-                        session.cookies.set(name, value)
-                except Exception:
-                    pass
-            
-            # Копируем headers из source session
-            if source_session and hasattr(source_session, 'headers'):
-                try:
-                    headers_dict = dict(source_session.headers)
-                    session.headers.update(headers_dict)
-                except Exception:
-                    pass
-            
-            # Добавляем стандартные headers для изображений
-            session.headers.update({
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
-                'Referer': 'https://mangalib.me/',
-            })
-            
-            # Получаем прокси (опционально)
-            proxies = None
-            if hasattr(self, '_ProxyRotator') and self._ProxyRotator:
-                proxy = self._ProxyRotator.get_next_proxy()
-                if proxy and isinstance(proxy, dict):
-                    proxies = proxy
-            
-            # ПАРАЛЛЕЛЬНЫЙ HTTP запрос через независимую сессию!
+            import time
+
+            # Копируем cookies из WebRequestor Session (thread-safe read) только для новой session
+            if not use_existing_session:
+                source_session = None
+                if hasattr(requestor, '_WebRequestor__Session'):
+                    source_session = requestor._WebRequestor__Session
+                elif hasattr(requestor, 'session'):
+                    source_session = requestor.session
+                elif hasattr(requestor, '_session'):
+                    source_session = requestor._session
+
+                if source_session and hasattr(source_session, 'cookies'):
+                    try:
+                        # КРИТИЧНО: НЕ используем update() напрямую - это вызывает deadlock!
+                        cookies_dict = dict(source_session.cookies)
+                        for name, value in cookies_dict.items():
+                            session.cookies.set(name, value)
+                    except Exception:
+                        pass
+
+                # Копируем headers из source session (поэлементно чтобы избежать потенциальных блокировок)
+                if source_session and hasattr(source_session, 'headers'):
+                    try:
+                        headers_dict = dict(source_session.headers)
+                        for hn, hv in headers_dict.items():
+                            try:
+                                session.headers[hn] = hv
+                            except Exception:
+                                # не критично
+                                pass
+                    except Exception:
+                        pass
+
+                # Добавляем стандартные headers для изображений
+                session.headers.update({
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
+                    'Referer': 'https://mangalib.me/',
+                })
+            # Если используем переданную session, headers уже настроены в parallel_downloader
+
+            # ПАРАЛЛЕЛЬНЫЙ HTTP запрос через session (с Keep-Alive если передана!)
             # stream=True для защиты от IncompleteRead на больших файлах
-            response = session.get(url, timeout=30, proxies=proxies, stream=True)
-            
+            request_started_at = time.perf_counter()
+            # Уменьшаем таймауты: сначала connect timeout (10s), затем read timeout (20s)
+            # Для переданной session proxies уже настроены, поэтому передаём None
+            effective_proxies = None if use_existing_session else proxies
+            response = session.get(url, timeout=(10, 20), proxies=effective_proxies, stream=True)
+
             if response.status_code == 200:
-                # Читаем контент по частям, защита от IncompleteRead
-                content = b""
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        content += chunk
-                
-                if len(content) > 1000:
-                    with open(image_path, "wb") as f:
-                        f.write(content)
+                # Потоково пишем файл, чтобы избежать O(n^2) конкатенации байтов
+                total_bytes = 0
+                with open(image_path, "wb") as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if not chunk:
+                            continue
+                        total_bytes += len(chunk)
+                        f.write(chunk)
+
+                elapsed = time.perf_counter() - request_started_at
+                speed = total_bytes / elapsed if elapsed > 0 else 0
+
+                min_size = getattr(self, "_slow_check_min_size_bytes", 80 * 1024)
+                min_speed = getattr(self, "_proxy_min_speed_bytes", 120 * 1024)
+                min_duration = getattr(self, "_proxy_min_duration_for_speed", 3.0)
+
+                if (
+                    total_bytes >= min_size
+                    and elapsed >= min_duration
+                    and speed < min_speed
+                ):
+                    self._record_proxy_failure(
+                        proxy_key,
+                        reason="slow-throughput",
+                        details={"speed": speed, "elapsed": elapsed, "bytes": total_bytes}
+                    )
+                    self._maybe_log_slow_proxy(proxy_key, speed, elapsed, total_bytes, url)
+                    try:
+                        os.remove(image_path)
+                    except OSError:
+                        pass
+                    return None
+
+                if total_bytes > 1000:
+                    self._record_proxy_success(proxy_key, elapsed, total_bytes)
                     return image_filename
-            
+
+                # Если файл подозрительно маленький, удаляем его и считаем попытку неуспешной
+                if total_bytes > 0:
+                    try:
+                        os.remove(image_path)
+                    except OSError:
+                        pass
+                self._record_proxy_failure(proxy_key, reason="tiny-response", details={"bytes": total_bytes, "elapsed": elapsed})
+                return None
+
+            self._record_proxy_failure(proxy_key, reason=f"HTTP {response.status_code}")
+
         except Exception as e:
             # Тихо пропускаем ошибки, retry механизм обработает
-            pass
+            self._record_proxy_failure(proxy_key, reason=str(e))
         finally:
-            # Закрываем сессию
-            if 'session' in locals():
-                session.close()
-        
+            # ✅ Закрываем сессию ТОЛЬКО если создали новую (не Keep-Alive)
+            if 'session' in locals() and 'use_existing_session' in locals():
+                if not use_existing_session and session is not None:
+                    try:
+                        session.close()
+                    except Exception:
+                        pass
+
         return None
-    
+
+    def _acquire_proxy(self) -> tuple[dict[str, str] | None, str | None]:
+        """Возвращает пару (proxy_dict, proxy_key), учитывая временные баны."""
+
+        rotator = getattr(self, "_ProxyRotator", None)
+        if not rotator:
+            return None, None
+
+        try:
+            total = rotator.get_proxy_count()
+        except Exception:
+            total = 0
+
+        total = max(1, total)
+        fallback_proxy = None
+        fallback_key = None
+
+        # Try to fetch full proxy list if available to avoid advancing internal rotator iterator too much
+        proxies_list = None
+        try:
+            proxies_list = rotator.get_all_proxies() or None
+        except Exception:
+            proxies_list = None
+
+        attempts = min(total, len(proxies_list) if proxies_list else total)
+        if attempts <= 0:
+            attempts = total
+
+        tried = 0
+        while tried < attempts:
+            proxy_candidate = None
+            try:
+                proxy_candidate = rotator.get_next_proxy()
+            except Exception:
+                proxy_candidate = None
+
+            if not proxy_candidate:
+                break
+
+            proxy_key = self._normalize_proxy_key(proxy_candidate)
+
+            if fallback_proxy is None:
+                fallback_proxy = proxy_candidate
+                fallback_key = proxy_key
+
+            if proxy_key and self._is_proxy_blacklisted(proxy_key):
+                tried += 1
+                continue
+
+            return proxy_candidate, proxy_key
+
+        return fallback_proxy, fallback_key
+
+    def _normalize_proxy_key(self, proxy: dict[str, str] | None) -> str | None:
+        if not proxy:
+            return None
+
+        raw_url = proxy.get('http') or proxy.get('https')
+        if not raw_url:
+            return None
+
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(raw_url)
+            host = parsed.hostname or ""
+            port = parsed.port
+            if not host:
+                return raw_url
+            # If host is an IPv6 literal, represent as [addr]:port to avoid ambiguity
+            if ':' in host and not host.startswith('['):
+                host_repr = f"[{host}]"
+            else:
+                host_repr = host
+
+            return f"{host_repr}:{port}" if port else host_repr
+        except Exception:
+            return raw_url
+
+    def _is_proxy_blacklisted(self, proxy_key: str | None) -> bool:
+        if not proxy_key or not hasattr(self, "_proxy_health_lock"):
+            return False
+
+        import time
+
+        with self._proxy_health_lock:
+            info = self._proxy_health.get(proxy_key)
+            if not info:
+                return False
+
+            until = info.get("blacklisted_until")
+            if until and until > time.time():
+                return True
+
+            if until and until <= time.time():
+                info["blacklisted_until"] = None
+
+        return False
+
+    def _record_proxy_success(self, proxy_key: str | None, elapsed: float, total_bytes: int) -> None:
+        if not proxy_key or not hasattr(self, "_proxy_health_lock"):
+            return
+
+        import time
+
+        min_speed = getattr(self, "_proxy_min_speed_bytes", 120 * 1024)
+        min_duration = getattr(self, "_proxy_min_duration_for_speed", 3.0)
+        slow_hits_threshold = getattr(self, "_proxy_slow_hits_threshold", 3)
+        slow_penalty_seconds = getattr(self, "_proxy_slow_penalty_seconds", 150.0)
+
+        with self._proxy_health_lock:
+            info = self._proxy_health.setdefault(proxy_key, {
+                "successes": 0,
+                "failures": 0,
+                "slow_hits": 0,
+                "avg_speed": 0.0,
+                "blacklisted_until": None
+            })
+
+            info["successes"] = info.get("successes", 0) + 1
+            info["failures"] = max(info.get("failures", 0) - 1, 0)
+
+            speed = 0.0
+            if elapsed > 0 and total_bytes > 0:
+                speed = total_bytes / elapsed
+
+            prev_speed = info.get("avg_speed", 0.0)
+            window = min(info["successes"], 20)
+            info["avg_speed"] = prev_speed + (speed - prev_speed) / max(window, 1)
+
+            info["last_speed"] = speed
+            info["last_duration"] = elapsed
+            info["last_bytes"] = total_bytes
+            info["last_success_at"] = time.time()
+
+            slow_hits = info.get("slow_hits", 0)
+            if speed > 0 and speed < min_speed and elapsed >= min_duration:
+                slow_hits += 1
+            else:
+                slow_hits = max(slow_hits - 1, 0)
+
+            info["slow_hits"] = slow_hits
+
+            if (
+                slow_hits >= slow_hits_threshold
+                and slow_penalty_seconds > 0
+            ):
+                info["blacklisted_until"] = time.time() + slow_penalty_seconds
+                info["slow_hits"] = 0
+                label = self._mask_proxy_for_log(proxy_key)
+                self._log_proxy_warning(
+                    f"💤 Proxy {label} throttled at {speed/1024:.0f} KB/s — pausing for {slow_penalty_seconds:.0f}s"
+                )
+
+    def _record_proxy_failure(
+        self,
+        proxy_key: str | None,
+        *,
+        reason: str = "",
+        details: dict[str, object] | None = None
+    ) -> None:
+        if not proxy_key or not hasattr(self, "_proxy_health_lock"):
+            return
+
+        import time
+
+        failure_threshold = getattr(self, "_proxy_failure_threshold", 2)
+        penalty_seconds = getattr(self, "_proxy_failure_penalty_seconds", 300.0)
+
+        with self._proxy_health_lock:
+            info = self._proxy_health.setdefault(proxy_key, {
+                "successes": 0,
+                "failures": 0,
+                "slow_hits": 0,
+                "avg_speed": 0.0,
+                "blacklisted_until": None
+            })
+
+            info["failures"] = info.get("failures", 0) + 1
+            info["slow_hits"] = 0
+
+            if info["failures"] < failure_threshold:
+                return
+
+            info["failures"] = 0
+            if penalty_seconds <= 0:
+                return
+
+            info["blacklisted_until"] = time.time() + penalty_seconds
+            label = self._mask_proxy_for_log(proxy_key)
+
+            extra = ""
+            if reason:
+                extra = f" ({reason})"
+            elif details:
+                extra = f" ({details})"
+
+            self._log_proxy_warning(
+                f"🚫 Proxy {label} disabled for {penalty_seconds:.0f}s after repeated errors{extra}"
+            )
+
+    def _mask_proxy_for_log(self, proxy_key: str | None) -> str:
+        if not proxy_key:
+            return "<direct>"
+
+        host, sep, port = proxy_key.partition(":")
+        parts = host.split(".")
+        if len(parts) == 4 and all(segment.isdigit() for segment in parts):
+            parts[-1] = "x"
+            host = ".".join(parts)
+        elif len(host) > 6:
+            host = f"{host[:2]}…{host[-2:]}"
+
+        return f"{host}{sep}{port}" if sep else host
+
+    def _log_proxy_warning(self, message: str) -> None:
+        logger = getattr(getattr(self, "_SystemObjects", None), "logger", None)
+        if logger and hasattr(logger, "warning"):
+            logger.warning(message)
+        else:
+            print(message)
+
+    def _maybe_log_slow_proxy(
+        self,
+        proxy_key: str | None,
+        speed_bytes: float,
+        elapsed: float,
+        total_bytes: int,
+        url: str
+    ) -> None:
+        if not proxy_key:
+            return
+
+        import time
+
+        cooldown = getattr(self, "_slow_retry_logging_cooldown", 45.0)
+        now = time.time()
+        last_logged = self._proxy_last_warn.get(proxy_key, 0.0)
+        if cooldown > 0 and (now - last_logged) < cooldown:
+            return
+
+        self._proxy_last_warn[proxy_key] = now
+
+        masked_proxy = self._mask_proxy_for_log(proxy_key)
+        speed_kb = speed_bytes / 1024 if speed_bytes else 0.0
+
+        try:
+            from urllib.parse import urlparse
+            host = urlparse(url).hostname or "?"
+        except Exception:
+            host = "?"
+
+        message = (
+            f"🐢 Proxy {masked_proxy} delivered {total_bytes/1024:.0f} KB from {host} in {elapsed:.1f}s "
+            f"({speed_kb:.0f} KB/s) — retrying with a different proxy"
+        )
+        self._log_proxy_warning(message)
+
+    def _get_scaled_delay(
+        self,
+        base_value: float,
+        *,
+        baseline_proxies: int = 5,
+        minimum: float = 0.02,
+        maximum: Optional[float] = None
+    ) -> float:
+        """Адаптирует задержку под количество доступных прокси."""
+
+        proxies = getattr(self, "_proxy_count_cache", None)
+        if not isinstance(proxies, int) or proxies <= 0:
+            proxies = self._get_proxy_count()
+
+        proxies = max(1, proxies)
+        baseline = max(1, baseline_proxies)
+        scale = baseline / proxies
+        scaled = base_value * scale
+
+        if maximum is not None:
+            scaled = min(scaled, maximum)
+
+        if scaled < minimum:
+            return minimum
+
+        return scaled
+
+    def _get_common_delay(self) -> float:
+        cached = getattr(self, "_common_delay", None)
+        if cached is None:
+            self._common_delay = self._get_scaled_delay(
+                getattr(self._Settings.common, "delay", 0.25),
+                minimum=0.05
+            )
+            return self._common_delay
+        return cached
+
+    def _get_parse_delay(self) -> float:
+        cached = getattr(self, "_parse_delay", None)
+        if cached is None:
+            self._parse_delay = self._get_scaled_delay(
+                getattr(self._Settings.common, "parse_delay", 0.15),
+                minimum=0.04
+            )
+            return self._parse_delay
+        return cached
+
+    def _get_image_delay(self) -> float:
+        cached = getattr(self, "_image_delay", None)
+        if cached is None:
+            self._image_delay = self._get_scaled_delay(
+                getattr(self._Settings.common, "image_delay", 0.1),
+                minimum=0.01  # ✅ ОПТИМИЗАЦИЯ: Уменьшили с 0.03 до 0.01 (×3 быстрее)
+            )
+            return self._image_delay
+        return cached
+
     def _PostInitMethod(self):
         """Метод, выполняющийся после инициализации объекта."""
         
@@ -317,7 +701,10 @@ class Parser(MangaParser):
         # КРИТИЧЕСКИ ВАЖНО: Инициализация параллельного загрузчика в __init__, а не в parse()
         # Потому что build может вызываться без parse (когда JSON уже существует)
         proxy_count = self._get_proxy_count()
-        image_delay = getattr(self._Settings.common, 'image_delay', 0.1)
+        self._common_delay = self._get_common_delay()
+        self._parse_delay = self._get_parse_delay()
+        self._image_delay = self._get_image_delay()
+        image_delay = self._image_delay
 
         max_workers_override = getattr(self._Settings.common, 'image_max_workers', None)
         if max_workers_override is None:
@@ -335,17 +722,45 @@ class Parser(MangaParser):
         )
         
         # НЕ НУЖЕН Lock — каждый поток создает свою сессию requests!
+        proxy_pool = None
+        if self._ProxyRotator:
+            try:
+                proxy_pool = self._ProxyRotator.get_all_proxies()
+            except Exception:
+                proxy_pool = None
+
         self._parallel_downloader = AdaptiveParallelDownloader(
             proxy_count=proxy_count,
             download_func=self._download_image_wrapper,
-            max_workers_per_proxy=2,
+            max_workers_per_proxy=2,  # ✅ ОПТИМИЗАЦИЯ: Увеличили с 1 до 2 (×2 быстрее)
             max_retries=3,
             base_delay=image_delay,
-            max_total_workers=max_workers_override
+            max_total_workers=max_workers_override,
+            proxy_pool=proxy_pool
         )
         
         print(f"[CRITICAL_DEBUG] AdaptiveParallelDownloader CREATED successfully!", flush=True)
-        
+        self._proxy_health_lock = Lock()
+        self._proxy_health = {}
+        # Более терпимые настройки по умолчанию чтобы не банить много прокси сразу
+        # Количество ошибок до временного бана (увеличено чтобы избежать агрессивного бана)
+        self._proxy_failure_threshold = 4
+        # Длительность временного бана (уменьшена чтобы быстро вернуть прокси в пул)
+        self._proxy_failure_penalty_seconds = 120.0
+        # Сколько "медленных" попаданий учитываем перед наказанием
+        self._proxy_slow_hits_threshold = 5
+        # Мягкий penalty для медленных попаданий
+        self._proxy_slow_penalty_seconds = 60.0
+        # Порог скорости (байт/сек). Снизил до ~40 KB/s чтобы соответствовать реальным проксям
+        self._proxy_min_speed_bytes = 40 * 1024  # 40 KB/s
+        # Минимальная длительность для проверки скорости (сек)
+        self._proxy_min_duration_for_speed = 3.0
+        # Минимальный размер для проверки скорости — увеличим немного чтобы пропускать мелкие картинки
+        self._slow_check_min_size_bytes = 120 * 1024  # 120 KB
+        # cooldown логирования медленных прокси
+        self._slow_retry_logging_cooldown = 45.0
+        self._proxy_last_warn: dict[str, float] = {}
+
         # Кешируем сервер изображений для ускорения парсинга
         self._cached_image_server = None
 
@@ -427,7 +842,7 @@ class Parser(MangaParser):
         
         if Response.status_code == 200:
             Data = Response.json["data"]
-            sleep(self._Settings.common.delay)
+            sleep(self._get_common_delay())
 
             for CurrentChapterData in Data:
 
@@ -524,7 +939,7 @@ class Parser(MangaParser):
 
         if Response.status_code == 200:
             Data = Response.json["data"]["imageServers"]
-            sleep(self._Settings.common.delay)
+            sleep(self._get_common_delay())
 
             for ServerData in Data:
 
@@ -585,7 +1000,7 @@ class Parser(MangaParser):
             self._cached_image_server = self.__GetImagesServers(self._Settings.custom["server"])[0]
         Server = self._cached_image_server
 
-        parse_delay = getattr(self._Settings.common, 'parse_delay', 0.1)
+        parse_delay = self._get_parse_delay()
 
         token = None
         custom_settings = getattr(self._Settings, "custom", None)
@@ -611,42 +1026,85 @@ class Parser(MangaParser):
         base_endpoint = f"https://{self.__API}/api/manga/{self.__TitleSlug}/chapter"
         url_variants: list[str] = []
 
-        query_params: list[str] = []
-        if chapter.number:
-            query_params.append(f"number={chapter.number}")
-        if chapter.volume:
-            query_params.append(f"volume={chapter.volume}")
-        if branch_query_value:
-            query_params.append(f"branch_id={branch_query_value}")
+        def _build_query(params: dict[str, str | None]) -> str | None:
+            components = [f"{key}={value}" for key, value in params.items() if value is not None and value != ""]
+            if not components:
+                return None
+            return f"{base_endpoint}?{'&'.join(components)}"
 
-        if query_params:
-            url_variants.append(f"{base_endpoint}?{'&'.join(query_params)}")
+        def _ensure_str(value) -> str | None:
+            if value is None:
+                return None
+            try:
+                return str(value)
+            except Exception:
+                return None
 
-        if chapter.id:
-            branch_suffix = f"?branch_id={branch_query_value}" if branch_query_value else ""
-            url_variants.append(f"{base_endpoint}/{chapter.id}{branch_suffix}")
+        def _append_query(path: str, params: dict[str, str | None]) -> str:
+            filtered = [f"{key}={value}" for key, value in params.items() if value is not None and value != ""]
+            if not filtered:
+                return path
+            separator = "&" if "?" in path else "?"
+            return f"{path}{separator}{'&'.join(filtered)}"
 
-            id_query_params = [f"chapter_id={chapter.id}"]
-            if branch_query_value:
-                id_query_params.append(f"branch_id={branch_query_value}")
-            url_variants.append(f"{base_endpoint}?{'&'.join(id_query_params)}")
+        number_value = _ensure_str(chapter.number)
+        volume_value = _ensure_str(chapter.volume)
+        if volume_value is None or volume_value.strip().lower() in {"", "none", "null"}:
+            volume_value = "1"
+        chapter_id_value = _ensure_str(chapter.id)
 
-            generic_id_query = [f"id={chapter.id}"]
-            if branch_query_value:
-                generic_id_query.append(f"branch_id={branch_query_value}")
-            url_variants.append(f"{base_endpoint}?{'&'.join(generic_id_query)}")
+        def _extend_variants(include_branch: bool) -> None:
+            branch_value = _ensure_str(branch_query_value) if include_branch else None
 
-        # Добавляем вариант без фильтров на случай, если номер/том отсутствуют
-        if not url_variants:
-            fallback_params = []
-            if branch_query_value:
-                fallback_params.append(f"branch_id={branch_query_value}")
-            if chapter.id:
-                fallback_params.append(f"id={chapter.id}")
-            if fallback_params:
-                url_variants.append(f"{base_endpoint}?{'&'.join(fallback_params)}")
+            query = _build_query({
+                "number": number_value,
+                "volume": volume_value,
+                "branch_id": branch_value,
+            })
+            if query:
+                url_variants.append(query)
 
-        # Удаляем дубликаты, сохраняя порядок
+            if chapter_id_value:
+                path_variant = f"{base_endpoint}/{chapter_id_value}"
+                path_variant = _append_query(path_variant, {
+                    "branch_id": branch_value,
+                    "volume": volume_value,
+                    "number": number_value,
+                })
+                url_variants.append(path_variant)
+
+                chapter_id_query = _build_query({
+                    "chapter_id": chapter_id_value,
+                    "branch_id": branch_value,
+                    "volume": volume_value,
+                    "number": number_value,
+                })
+                if chapter_id_query:
+                    url_variants.append(chapter_id_query)
+
+                generic_id_query = _build_query({
+                    "id": chapter_id_value,
+                    "branch_id": branch_value,
+                    "volume": volume_value,
+                    "number": number_value,
+                })
+                if generic_id_query:
+                    url_variants.append(generic_id_query)
+
+            fallback_query = _build_query({
+                "branch_id": branch_value,
+                "id": chapter_id_value,
+                "volume": volume_value,
+                "number": number_value,
+            })
+            if fallback_query:
+                url_variants.append(fallback_query)
+
+        # Пытаемся сначала с branch_id, затем без него, чтобы обойти требования API
+        _extend_variants(include_branch=True)
+        _extend_variants(include_branch=False)
+
+        # Удаляем дубликаты, сохраняя порядок добавления
         url_variants = list(dict.fromkeys(url_variants))
 
         last_error: str | None = None
@@ -657,6 +1115,13 @@ class Parser(MangaParser):
         max_retry_attempts = getattr(self._Settings.common, "chapter_retry_attempts", 3)
         initial_retry_delay = getattr(self._Settings.common, "chapter_retry_delay", 2.0)
         retry_backoff_factor = getattr(self._Settings.common, "chapter_retry_backoff", 2.0)
+        min_retry_delay = getattr(self._Settings.common, "chapter_retry_min_delay", 1.5)
+        max_retry_delay = getattr(self._Settings.common, "chapter_retry_max_delay", 45.0)
+        extra_rate_limit_attempts = getattr(self._Settings.common, "chapter_retry_attempts_429_extra", 2)
+        retry_jitter_min = getattr(self._Settings.common, "chapter_retry_jitter_min", 0.85)
+        retry_jitter_max = getattr(self._Settings.common, "chapter_retry_jitter_max", 1.25)
+        if retry_jitter_min <= 0 or retry_jitter_max < retry_jitter_min:
+            retry_jitter_min, retry_jitter_max = 0.9, 1.1
 
         def extract_error_message(response) -> str | None:
             if response is None:
@@ -701,16 +1166,42 @@ class Parser(MangaParser):
                 if error_message:
                     last_error = f"HTTP {Response.status_code}: {error_message}"
 
-                if Response.status_code in retryable_statuses and attempt < max_retry_attempts:
-                    wait_seconds = initial_retry_delay * (retry_backoff_factor ** attempt)
-                    wait_seconds = max(wait_seconds, 1.5)
-                    wait_seconds = min(wait_seconds, 30.0)
-                    self._SystemObjects.logger.warning(
-                        f"Chapter {chapter.id} request to {url} returned {Response.status_code}. "
-                        f"Retrying in {wait_seconds:.1f}s (attempt {attempt + 1}/{max_retry_attempts}).")
-                    sleep(wait_seconds)
-                    attempt += 1
-                    continue
+                if Response.status_code in retryable_statuses:
+                    allowed_attempts = max_retry_attempts
+                    if Response.status_code == 429:
+                        allowed_attempts += extra_rate_limit_attempts
+
+                    if allowed_attempts > 1 and attempt < allowed_attempts - 1:
+                        wait_seconds = initial_retry_delay * (retry_backoff_factor ** attempt)
+                        retry_after_header = Response.headers.get("Retry-After") if hasattr(Response, "headers") else None
+                        retry_after_value = None
+                        if retry_after_header:
+                            header_value = retry_after_header.strip()
+                            if header_value.isdigit():
+                                retry_after_value = float(header_value)
+                            else:
+                                try:
+                                    retry_dt = parsedate_to_datetime(header_value)
+                                    if retry_dt is not None:
+                                        retry_after_value = max(0.0, (retry_dt - datetime.utcnow()).total_seconds())
+                                except Exception:
+                                    retry_after_value = None
+
+                        if retry_after_value is not None:
+                            wait_seconds = max(wait_seconds, retry_after_value)
+
+                        jitter = random.uniform(retry_jitter_min, retry_jitter_max)
+                        wait_seconds *= jitter
+                        wait_seconds = max(wait_seconds, min_retry_delay)
+                        wait_seconds = min(wait_seconds, max_retry_delay)
+
+                        next_attempt_number = attempt + 2
+                        self._SystemObjects.logger.warning(
+                            f"Chapter {chapter.id} request to {url} returned {Response.status_code}. "
+                            f"Retrying in {wait_seconds:.1f}s (attempt {next_attempt_number}/{allowed_attempts}).")
+                        sleep(wait_seconds)
+                        attempt += 1
+                        continue
 
                 break
 
@@ -811,7 +1302,7 @@ class Parser(MangaParser):
 
         if Response.status_code == 200:
             Response = Response.json["data"]
-            sleep(self._Settings.common.delay)
+            sleep(self._get_common_delay())
 
         elif Response.status_code == 451: 
             self._Portals.request_error(Response, "Account banned.")
@@ -950,7 +1441,7 @@ class Parser(MangaParser):
             if not IsUpdatePeriodOut:
                 self._Portals.collect_progress_by_page(Page)
                 Page += 1
-                sleep(self._Settings.common.delay)
+                sleep(self._get_common_delay())
 
         return Updates
 
@@ -960,8 +1451,8 @@ class Parser(MangaParser):
             url – ссылка на изображение.
         """
 
-        # Используем отдельный delay для изображений (меньше чем для API)
-        image_delay = getattr(self._Settings.common, 'image_delay', 0.1)
+    # Используем отдельный delay для изображений (меньше чем для API)
+        image_delay = self._get_image_delay()
 
         Result = self._ImagesDownloader.temp_image(url)
         
@@ -1028,6 +1519,43 @@ class Parser(MangaParser):
         # По умолчанию считаем что 1 прокси (или прямое подключение)
         print(f"[INFO] 🌐 No proxies detected, using 1 worker")
         return 1
+        cached = getattr(self, "_proxy_count_cache", None)
+        if isinstance(cached, int) and cached > 0:
+            return cached
+
+        from pathlib import Path
+        import sys
+        import json
+
+        melon_service_path = Path(__file__).parent.parent.parent
+        if str(melon_service_path) not in sys.path:
+            sys.path.insert(0, str(melon_service_path))
+
+        proxy_count = 0
+
+        try:
+            from proxy_rotator import ProxyRotator
+            rotator = ProxyRotator(parser="mangalib")
+            if rotator.enabled:
+                proxy_count = rotator.get_proxy_count()
+        except Exception as e:
+            print(f"[WARNING] ProxyRotator not available: {e}")
+
+        if proxy_count <= 0:
+            try:
+                settings_path = Path(__file__).parent / "settings.json"
+                if settings_path.exists():
+                    with open(settings_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        prox_list = data.get("Main", {}).get("proxy", [])
+                        if isinstance(prox_list, list):
+                            proxy_count = len(prox_list)
+            except Exception as e:
+                print(f"[WARNING] Unable to read proxy count from settings: {e}")
+
+        proxy_count = max(1, proxy_count)
+        self._proxy_count_cache = proxy_count
+        return proxy_count
 
     def batch_download_images(self, urls: list[str]) -> list[str | None]:
         """Параллельная загрузка батча изображений.
@@ -1130,7 +1658,7 @@ class Parser(MangaParser):
 
         # Дополнительный медленный фолбэк: последовательные попытки для оставшихся
         if failed_indices:
-            slow_delay = max(getattr(self._Settings.common, 'image_delay', 0.2) * 3, 0.6)
+            slow_delay = max(self._get_image_delay() * 3, 0.6)
             max_additional_attempts = 3
 
             self._SystemObjects.logger.warning(

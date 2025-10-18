@@ -19,7 +19,9 @@ import shadowshift.studio.mangaservice.service.MangaService;
 import shadowshift.studio.mangaservice.service.external.ChapterServiceClient;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * REST-контроллер для управления мангой через API.
@@ -299,6 +301,51 @@ public class MangaRestController {
     }
 
     /**
+     * Batch удаление нескольких манг по ID
+     * DELETE /api/manga/batch
+     * 
+     * @param request объект с массивом ID манг для удаления
+     * @return ResponseEntity с результатом batch операции
+     */
+    @DeleteMapping("/batch")
+    public ResponseEntity<Map<String, Object>> batchDeleteManga(@RequestBody Map<String, Object> request) {
+        Object idsObj = request.get("ids");
+        
+        if (idsObj == null) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("error", "No IDs provided");
+            return ResponseEntity.badRequest().body(error);
+        }
+        
+        // Приводим к списку Long, учитывая что могут прийти Integer из JSON
+        List<Long> ids = new ArrayList<>();
+        if (idsObj instanceof List<?>) {
+            for (Object item : (List<?>) idsObj) {
+                if (item instanceof Number) {
+                    ids.add(((Number) item).longValue());
+                }
+            }
+        }
+        
+        if (ids.isEmpty()) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("error", "No valid IDs provided");
+            return ResponseEntity.badRequest().body(error);
+        }
+        
+        logger.info("API запрос: batch удаление {} манг", ids.size());
+        
+        Map<String, Object> result = mangaService.batchDeleteMangas(ids);
+        
+        logger.info("API ответ: batch удаление завершено - {} успешно, {} ошибок", 
+            result.get("succeeded_count"), result.get("failed_count"));
+        
+        return ResponseEntity.ok(result);
+    }
+
+    /**
      * Обновляет URL изображения обложки манги.
      *
      * @param id идентификатор манги
@@ -335,6 +382,28 @@ public class MangaRestController {
 
         logger.debug("API ответ: найдено {} глав для манги {}", chapters.size(), id);
         return ResponseEntity.ok(chapters);
+    }
+
+    /**
+     * Синхронизирует отсутствующие MangaLib ID для уже существующих манг.
+     *
+     * @param maxPages ограничение числа страниц каталога
+     * @param pageSize размер страницы каталога
+     * @return ResponseEntity с картой обновленных манг (id -> MangaLib ID)
+     */
+    @PostMapping("/maintenance/melon-slug-ids/backfill")
+    public ResponseEntity<Map<Long, Integer>> backfillMelonSlugIds(
+            @RequestParam(required = false) Integer maxPages,
+            @RequestParam(required = false) Integer pageSize,
+            @RequestParam(required = false) Integer startPage) {
+
+        logger.info("API запрос: синхронизация отсутствующих MangaLib ID (maxPages={}, pageSize={}, startPage={})",
+                maxPages, pageSize, startPage);
+
+        Map<Long, Integer> updated = mangaService.backfillMissingMelonSlugIds(maxPages, pageSize, startPage);
+
+        logger.info("API ответ: синхронизация MangaLib ID завершена. Обновлено {} записей.", updated.size());
+        return ResponseEntity.ok(updated);
     }
 }
 

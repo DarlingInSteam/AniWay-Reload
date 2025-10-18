@@ -38,6 +38,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.Base64;
 import java.util.regex.Pattern;
+import java.util.Locale;
 
 /**
  * Сервис для интеграции с MelonService.
@@ -52,7 +53,7 @@ public class MelonIntegrationService {
     private static final Duration TASK_STATUS_POLL_INTERVAL = Duration.ofMillis(500); // Уменьшено с 2s до 500ms
     private static final int MAX_MISSING_TASK_STATUS_ATTEMPTS = 15;
     private static final Pattern NUMERIC_TOKEN_PATTERN = Pattern.compile("[-+]?\\d+(?:[\\.,]\\d+)?");
-    private static final Pattern VOLUME_KEYWORD_PATTERN = Pattern.compile("(?i)(том|volume|vol\\.?|book|часть|part|season|сезон)\\s*([-+]?\\d+(?:[\\.,]\\d+)?)");
+    private static final Pattern VOLUME_KEYWORD_PATTERN = Pattern.compile("(?iu)(том|volume|vol\\.?|book|часть|part|season|сезон)\\s*([-+]?\\d+(?:[\\.,]\\d+)?)");
     private static final Pattern ROMAN_VOLUME_PATTERN = Pattern.compile("(?i)\\b[MDCLXVI]+\\b");
     private static final Map<Character, Integer> ROMAN_VALUES = Map.of(
         'I', 1,
@@ -161,6 +162,143 @@ public class MelonIntegrationService {
     }
 
     /**
+     * Формирует slug в формате, ожидаемом MangaLib API (ID--slug), если известен идентификатор.
+     *
+     * @param slug нормализованный или исходный slug
+     * @param slugId числовой идентификатор манги
+     * @return slug в формате ID--slug, если возможно, иначе исходное значение
+     */
+    public String buildSlugForMangaLibApi(String slug, Integer slugId) {
+        if (slug == null || slug.isBlank()) {
+            return slug;
+        }
+
+        if (slug.contains("--")) {
+            return slug;
+        }
+
+        String normalized = normalizeSlugForMangaLib(slug);
+        if (slugId != null) {
+            return slugId + "--" + normalized;
+        }
+
+        return normalized;
+    }
+
+    /**
+     * Разрешает числовые идентификаторы MangaLib для набора slug'ов, используя каталог.
+     * Возвращает карту "нормализованный slug" -> "ID".
+     */
+    public Map<String, Integer> resolveSlugIds(Set<String> normalizedSlugs, int maxPages, int pageSize, int startPage) {
+        if (normalizedSlugs == null || normalizedSlugs.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        int allowedPages = maxPages > 0 ? maxPages : 500;
+        int effectivePageSize = pageSize > 0 ? pageSize : 60;
+        int effectiveStartPage = startPage > 0 ? startPage : 1;
+
+        Map<String, Integer> resolved = new HashMap<>();
+        Map<String, String> originalByKey = new HashMap<>();
+        Set<String> remaining = new LinkedHashSet<>();
+
+        normalizedSlugs.stream()
+            .filter(Objects::nonNull)
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .forEach(slug -> {
+                String key = slug.toLowerCase(Locale.ROOT);
+                remaining.add(key);
+                originalByKey.put(key, slug);
+            });
+
+        if (remaining.isEmpty()) {
+            return resolved;
+        }
+
+        int page = effectiveStartPage;
+        int totalPages = Integer.MAX_VALUE;
+        int processedPages = 0;
+
+        while (!remaining.isEmpty() && processedPages < allowedPages && page <= totalPages) {
+            Map<String, Object> catalogPage = getCatalogSlugs(page, effectivePageSize);
+            if (catalogPage == null || !Boolean.TRUE.equals(catalogPage.get("success"))) {
+                logger.warn("Не удалось получить каталог MangaLib для страницы {}. Осталось slug'ов: {}", page, remaining.size());
+                break;
+            }
+
+            Object slugsObj = catalogPage.get("slugs");
+            if (slugsObj instanceof List<?> slugList) {
+                for (Object slugObj : slugList) {
+                    if (!(slugObj instanceof String slugWithId)) {
+                        continue;
+                    }
+
+                    int delimiterIndex = slugWithId.indexOf("--");
+                    if (delimiterIndex <= 0 || delimiterIndex >= slugWithId.length() - 2) {
+                        continue;
+                    }
+
+                    String idPart = slugWithId.substring(0, delimiterIndex);
+                    String slugPart = slugWithId.substring(delimiterIndex + 2);
+                    String key = slugPart.toLowerCase(Locale.ROOT);
+
+                    if (!remaining.contains(key) || !idPart.matches("\\d+")) {
+                        continue;
+                    }
+
+                    Integer id = Integer.valueOf(idPart);
+                    resolved.put(originalByKey.get(key), id);
+                    remaining.remove(key);
+                }
+            }
+
+            int total = toInt(catalogPage.get("total"));
+            int perPageValue = toInt(catalogPage.get("per_page"), effectivePageSize);
+            if (perPageValue > 0 && total > 0) {
+                totalPages = (int) Math.ceil((double) total / perPageValue);
+            } else if (total <= 0) {
+                totalPages = page;
+            }
+
+            processedPages++;
+            page++;
+        }
+
+        if (!remaining.isEmpty()) {
+            int previewSize = Math.min(remaining.size(), 10);
+            String preview = remaining.stream().limit(previewSize).collect(Collectors.joining(", "));
+            logger.warn("Не удалось обнаружить MangaLib ID для {} slug'ов. Примеры: {}", remaining.size(), preview);
+        }
+
+        return resolved;
+    }
+
+    private int toInt(Object value) {
+        return toInt(value, 0);
+    }
+
+    private int toInt(Object value, int defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+
+        if (value instanceof String text) {
+            try {
+                return Integer.parseInt(text.trim());
+            } catch (NumberFormatException ignored) {
+                // fall through
+            }
+        }
+
+        return defaultValue;
+    }
+
+    /**
      * Запускает парсинг манги через MelonService
      */
     public Map<String, Object> startParsing(String slug) {
@@ -240,7 +378,8 @@ public class MelonIntegrationService {
             }
             
             updateFullParsingTask(fullTaskId, "running", 50, "Парсинг JSON завершен, запускаем скачивание изображений...", null);
-            Map<String, Object> buildResult = buildManga(normalizedSlug, null);
+            // ВАЖНО: НЕ включаем autoImport в ParserService, т.к. MangaService сам управляет импортом!
+            Map<String, Object> buildResult = buildManga(normalizedSlug, null, false);
             if (buildResult == null || !buildResult.containsKey("task_id")) {
                 updateFullParsingTask(fullTaskId, "failed", 100,
                     "Не удалось запустить скачивание изображений", buildResult);
@@ -286,34 +425,41 @@ public class MelonIntegrationService {
                     CompletableFuture.runAsync(() -> {
                         try {
                             // Ждем завершения импорта из очереди
+                            logger.info("⏳ Ожидание завершения импорта для slug={}, importTaskId={}", slug, importTaskId);
                             ImportQueueService.ImportQueueItem importItem;
+                            int checkCount = 0;
                             do {
-                                Thread.sleep(1000); // проверяем каждую секунду
+                                Thread.sleep(2000); // проверяем каждые 2 секунды
                                 importItem = importQueueService.getImportStatus(importTaskId);
+                                checkCount++;
+                                if (checkCount % 10 == 0) { // логируем каждые 20 секунд
+                                    logger.info("⏳ Проверка #{}: импорт slug={} все еще в процессе, статус={}", 
+                                        checkCount, slug, importItem != null ? importItem.getStatus() : "null");
+                                }
                             } while (importItem != null && 
                                     importItem.getStatus() != ImportQueueService.ImportQueueItem.Status.COMPLETED &&
                                     importItem.getStatus() != ImportQueueService.ImportQueueItem.Status.FAILED);
                             
                             if (importItem != null && importItem.getStatus() == ImportQueueService.ImportQueueItem.Status.COMPLETED) {
-                                logger.info("Импорт завершен для slug={}, очищаем данные из MelonService", slug);
+                                logger.info("✅ Импорт завершен для slug={}, очищаем данные из ParserService", slug);
                                 
-                                // После успешного импорта - удаляем из MelonService
-                                updateFullParsingTask(fullTaskId, "running", 95, "Импорт завершен, очистка данных из MelonService...", null);
+                                // После успешного импорта - удаляем из ParserService
+                                updateFullParsingTask(fullTaskId, "running", 95, "Импорт завершен, очистка данных из ParserService...", null);
                                 Map<String, Object> deleteResult = deleteManga(normalizedSlug);
                                 if (deleteResult != null && Boolean.TRUE.equals(deleteResult.get("success"))) {
-                                    logger.info("Данные успешно удалены из MelonService для slug={}", normalizedSlug);
+                                    logger.info("🧹 Очистка завершена: главы и обложки удалены, JSON сохранён для slug={}", normalizedSlug);
                                     updateFullParsingTask(fullTaskId, "completed", 100, "Автопарсинг и импорт завершены успешно", null);
                                 } else {
-                                    logger.warn("Не удалось удалить данные из MelonService для slug={}", normalizedSlug);
-                                    updateFullParsingTask(fullTaskId, "completed", 100, "Импорт завершен, но не удалось очистить MelonService", null);
+                                    logger.warn("⚠️ Не удалось удалить данные из ParserService для slug={}", normalizedSlug);
+                                    updateFullParsingTask(fullTaskId, "completed", 100, "Импорт завершен, но не удалось очистить ParserService", null);
                                 }
                             } else {
                                 String errorMsg = importItem != null ? importItem.getErrorMessage() : "Неизвестная ошибка";
-                                logger.error("Ошибка импорта для slug={}: {}", slug, errorMsg);
+                                logger.error("❌ Ошибка импорта для slug={}: {}", slug, errorMsg);
                                 updateFullParsingTask(fullTaskId, "failed", 90, "Ошибка импорта: " + errorMsg, null);
                             }
                         } catch (Exception e) {
-                            logger.error("Ошибка при отслеживании импорта для slug={}: {}", slug, e.getMessage());
+                            logger.error("❌ Ошибка при отслеживании импорта для slug={}: {}", slug, e.getMessage());
                             updateFullParsingTask(fullTaskId, "failed", 90, "Ошибка отслеживания импорта: " + e.getMessage(), null);
                         }
                     }, executorService);
@@ -576,20 +722,28 @@ public class MelonIntegrationService {
      * Запускает построение архива манги
      */
     public Map<String, Object> buildManga(String filename, String branchId) {
+        return buildManga(filename, branchId, false); // По умолчанию ВЫКЛЮЧАЕМ auto-import (MangaService сам управляет импортом)
+    }
+    
+    /**
+     * Запускает построение архива манги с возможностью включения/выключения автоимпорта
+     */
+    public Map<String, Object> buildManga(String filename, String branchId, boolean autoImport) {
         String url = melonServiceUrl + "/build";
 
-        Map<String, String> request = new HashMap<>();
+        Map<String, Object> request = new HashMap<>();
         request.put("slug", filename);  // MelonService ожидает "slug", а не "filename"
         request.put("parser", "mangalib");
         request.put("type", "simple");  // MelonService ожидает "type", а не "archive_type"
+        request.put("autoImport", autoImport);  // Включаем автоматический импорт после билда
 
         if (branchId != null && !branchId.isEmpty()) {
-            request.put("branch_id", branchId);
+            request.put("branchId", branchId);
         }
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<Map<String, String>> entity = new HttpEntity<>(request, headers);
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(request, headers);
 
         ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
         return response.getBody();
@@ -686,6 +840,40 @@ public class MelonIntegrationService {
                     slug, result.get("total_chapters"));
                 return result;
             } else {
+                Object errorObj = (result != null) ? result.get("error") : null;
+                String errorMessage = (errorObj != null) ? errorObj.toString() : "Unknown error - no error message";
+                logger.error("Не удалось получить метаданные глав для slug '{}': {}", slug, errorMessage);
+                return Map.of("success", false, "error", errorMessage);
+            }
+            
+        } catch (Exception e) {
+            logger.error("Ошибка получения метаданных глав для slug '{}': {}", slug, e.getMessage());
+            String errorMessage = e.getMessage() != null ? e.getMessage() : "Unknown exception";
+            return Map.of("success", false, "error", errorMessage);
+        }
+    }
+
+    /**
+     * Получает метаданные глав с информацией о количестве страниц.
+     * Делает дополнительные запросы к API для получения slides_count каждой главы.
+     * 
+     * @param slug Slug манги
+     * @param includeSlidesCount Если true, включает информацию о количестве страниц
+     * @return Map с метаданными глав (success, total_chapters, chapters, includes_slides_count)
+     */
+    public Map<String, Object> getChaptersMetadataWithSlidesCount(String slug, boolean includeSlidesCount) {
+        try {
+            String url = melonServiceUrl + "/manga-info/" + slug + "/chapters-only?parser=mangalib&include_slides_count=" + includeSlidesCount;
+            
+            logger.info("Получение метаданных глав для slug: {} (include_slides_count={})", slug, includeSlidesCount);
+            ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+            Map<String, Object> result = response.getBody();
+            
+            if (result != null && Boolean.TRUE.equals(result.get("success"))) {
+                logger.info("Успешно получены метаданные для {}: {} глав (includes_slides_count={})", 
+                    slug, result.get("total_chapters"), result.get("includes_slides_count"));
+                return result;
+            } else {
                 logger.error("Не удалось получить метаданные глав для slug '{}': {}", 
                     slug, result != null ? result.get("error") : "Unknown error");
                 return Map.of("success", false, "error", 
@@ -696,6 +884,17 @@ public class MelonIntegrationService {
             logger.error("Ошибка получения метаданных глав для slug '{}': {}", slug, e.getMessage());
             return Map.of("success", false, "error", e.getMessage());
         }
+    }
+
+    /**
+     * Перегруженная версия метода getChaptersMetadataWithSlidesCount.
+     * По умолчанию включает информацию о slides_count.
+     * 
+     * @param slug Slug манги
+     * @return Map с метаданными глав включая slides_count
+     */
+    public Map<String, Object> getChaptersMetadataWithSlidesCount(String slug) {
+        return getChaptersMetadataWithSlidesCount(slug, true);
     }
 
     /**
@@ -711,23 +910,29 @@ public class MelonIntegrationService {
             String url = melonServiceUrl + "/catalog/" + page + "?parser=mangalib&limit=" + pageLimit;
             
             logger.info("Получение каталога манг: страница {}, лимит {}", page, pageLimit);
+            logger.debug("URL запроса: {}", url);
+            
             ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
             Map<String, Object> result = response.getBody();
+            
+            logger.debug("Полученный ответ: {}", result);
             
             if (result != null && Boolean.TRUE.equals(result.get("success"))) {
                 logger.info("Успешно получен каталог: страница {}, найдено {} манг", 
                     page, result.get("count"));
                 return result;
             } else {
-                logger.error("Не удалось получить каталог для страницы {}: {}", 
-                    page, result != null ? result.get("error") : "Unknown error");
-                return Map.of("success", false, "error", 
-                    result != null ? result.get("error") : "Unknown error");
+                Object errorObj = (result != null) ? result.get("error") : null;
+                String errorMessage = (errorObj != null) ? errorObj.toString() : "Unknown error - no error message";
+                logger.error("Не удалось получить каталог для страницы {}: {}", page, errorMessage);
+                logger.error("Полный ответ сервера: {}", result);
+                return Map.of("success", false, "error", errorMessage);
             }
             
         } catch (Exception e) {
             logger.error("Ошибка получения каталога для страницы {}: {}", page, e.getMessage());
-            return Map.of("success", false, "error", e.getMessage());
+            String errorMessage = e.getMessage() != null ? e.getMessage() : "Unknown exception";
+            return Map.of("success", false, "error", errorMessage);
         }
     }
 
@@ -1222,9 +1427,14 @@ public class MelonIntegrationService {
         // MangaLib изменил формат slug: теперь может быть "7580--i-alone-level-up"
         // Нормализуем до "i-alone-level-up" для совместимости с существующими записями
         String normalizedSlug = normalizeSlugForMangaLib(filename);
-        
+
         // КРИТИЧНО: Устанавливаем melonSlug для проверки дубликатов и автообновления
         manga.setMelonSlug(normalizedSlug);
+
+        Object idRaw = mangaInfo.get("id");
+        if (idRaw instanceof Number number) {
+            manga.setMelonSlugId(number.intValue());
+        }
 
         // Обрабатываем title - используем localized_name (русское название)
         String title = (String) mangaInfo.get("localized_name");
@@ -2064,8 +2274,21 @@ public class MelonIntegrationService {
             .collect(Collectors.toList());
     }
 
-    private String resolveChapterFolderName(String numberAsString, Object titleObj, Integer volumeNumber,
+    public String resolveChapterFolderName(String numberAsString, Object titleObj, Integer volumeNumber,
                                             Map<String, Object> chapterData, Long chapterId) {
+        // Приоритет 1: Используем поле folder_name из JSON (установлено ParserService при скачивании)
+        if (chapterData != null) {
+            Object folderNameObj = chapterData.get("folder_name");
+            if (folderNameObj != null && !folderNameObj.toString().trim().isEmpty()) {
+                String folderName = folderNameObj.toString().trim();
+                logger.debug("✅ Using folder_name from JSON: '{}'", folderName);
+                return folderName;
+            }
+        }
+        
+        // Приоритет 2: Генерируем имя папки из метаданных (legacy для старых JSON)
+        logger.warn("⚠️ folder_name not found in JSON for chapter ID {}, falling back to legacy naming", chapterId);
+        
         String folderName = numberAsString != null ? numberAsString.trim() : "";
         String titlePart = titleObj != null ? titleObj.toString().trim() : "";
 
@@ -2165,6 +2388,7 @@ public class MelonIntegrationService {
     private Double extractVolumeWithKeywords(String raw) {
         Matcher matcher = VOLUME_KEYWORD_PATTERN.matcher(raw);
         Double bestValue = null;
+        Double prioritizedValue = null;
         int bestWeight = Integer.MIN_VALUE;
 
         while (matcher.find()) {
@@ -2175,6 +2399,11 @@ public class MelonIntegrationService {
                 continue;
             }
 
+            String normalizedKeyword = keyword != null ? keyword.toLowerCase(Locale.ROOT) : "";
+            if (normalizedKeyword.startsWith("том") || normalizedKeyword.startsWith("volume") || normalizedKeyword.startsWith("vol")) {
+                prioritizedValue = candidate;
+            }
+
             int weight = keywordWeight(keyword);
             if (weight > bestWeight) {
                 bestWeight = weight;
@@ -2182,7 +2411,7 @@ public class MelonIntegrationService {
             }
         }
 
-        return bestValue;
+        return prioritizedValue != null ? prioritizedValue : bestValue;
     }
 
     private Double parseNumericToken(String token) {
@@ -2423,6 +2652,7 @@ public class MelonIntegrationService {
     /**
      * Отменяет задачу в MelonService
      */
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public Map<String, Object> cancelMelonTask(String taskId) {
         String url = melonServiceUrl + "/tasks/" + taskId + "/cancel";
         
