@@ -24,6 +24,9 @@ public class MangaMetadata {
     private List<String> genres;
     private List<String> tags;
     private List<String> authors;
+    private List<String> artists;
+    private List<String> publishers;
+    private List<String> teams;
     private List<String> otherNames;
     private List<String> franchises;
     private Boolean licensed;

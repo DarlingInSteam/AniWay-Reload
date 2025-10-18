@@ -479,11 +479,15 @@ public class MangaLibParserService {
         root.put("id", metadata.getId());
         root.put("slug", slugContext.getFileSlug());
         root.put("content_language", Optional.ofNullable(metadata.getContentLanguage()).orElse("rus"));
+        root.put("title", metadata.getTitle()); // Добавляем title для совместимости
         root.put("localized_name", metadata.getLocalizedName());
         root.put("eng_name", metadata.getEnglishTitle());
         root.put("another_names", Optional.ofNullable(metadata.getOtherNames()).orElse(Collections.emptyList()));
         root.put("covers", buildCovers(metadata));
         root.put("authors", Optional.ofNullable(metadata.getAuthors()).orElse(Collections.emptyList()));
+        root.put("artists", Optional.ofNullable(metadata.getArtists()).orElse(Collections.emptyList()));
+        root.put("publishers", Optional.ofNullable(metadata.getPublishers()).orElse(Collections.emptyList()));
+        root.put("teams", Optional.ofNullable(metadata.getTeams()).orElse(Collections.emptyList()));
         root.put("publication_year", metadata.getReleaseYear());
         root.put("description", metadata.getSummary());
         root.put("age_limit", metadata.getAgeLimit());
@@ -633,6 +637,9 @@ public class MangaLibParserService {
         metadata.setGenres(readNamedArray(data.path("genres"), "name"));
         metadata.setTags(readNamedArray(data.path("tags"), "name"));
         metadata.setAuthors(readNamedArray(data.path("authors"), "name"));
+        metadata.setArtists(readNamedArray(data.path("artists"), "name"));
+        metadata.setPublishers(readNamedArray(data.path("publisher"), "name"));
+        metadata.setTeams(readNamedArray(data.path("teams"), "name"));
         metadata.setFranchises(filterFranchises(readNamedArray(data.path("franchise"), "name")));
         metadata.setOtherNames(buildOtherNames(data.path("otherNames"), canonicalName, localizedName));
         metadata.setLicensed(data.path("is_licensed").asBoolean(false));
