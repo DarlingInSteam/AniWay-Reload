@@ -36,8 +36,8 @@ logging:
 parser:
   output-path: ${PARSER_OUTPUT_PATH:/app/output}
   temp-path: ${PARSER_TEMP_PATH:/app/temp}
-  max-parallel-downloads: 50  # ⚡ 50 потоков ОБЩИЙ пул
-  max-parallel-chapters: 2    # � 2 главы параллельно = 25 потоков на главу = используем ВСЕ 20 прокси
+  max-parallel-downloads: 50  # ⚡ 50 потоков для одной главы = максимальная скорость
+  max-parallel-chapters: 1    # 🎯 ОПТИМАЛЬНО для прокси 10 Mbit/s (параллелизм замедляет!)
   image-timeout-seconds: 30
   manga-service-url: ${MANGA_SERVICE_URL:http://manga-service:8081}
   mangalib:
