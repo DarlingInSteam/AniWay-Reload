@@ -309,13 +309,29 @@ public class MangaRestController {
      */
     @DeleteMapping("/batch")
     public ResponseEntity<Map<String, Object>> batchDeleteManga(@RequestBody Map<String, Object> request) {
-        @SuppressWarnings("unchecked")
-        List<Long> ids = (List<Long>) request.get("ids");
+        Object idsObj = request.get("ids");
         
-        if (ids == null || ids.isEmpty()) {
+        if (idsObj == null) {
             Map<String, Object> error = new HashMap<>();
             error.put("success", false);
             error.put("error", "No IDs provided");
+            return ResponseEntity.badRequest().body(error);
+        }
+        
+        // Приводим к списку Long, учитывая что могут прийти Integer из JSON
+        List<Long> ids = new ArrayList<>();
+        if (idsObj instanceof List<?>) {
+            for (Object item : (List<?>) idsObj) {
+                if (item instanceof Number) {
+                    ids.add(((Number) item).longValue());
+                }
+            }
+        }
+        
+        if (ids.isEmpty()) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("error", "No valid IDs provided");
             return ResponseEntity.badRequest().body(error);
         }
         

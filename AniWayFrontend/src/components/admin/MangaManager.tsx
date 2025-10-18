@@ -16,7 +16,6 @@ import { BookOpen, Edit, Trash2, Search, RefreshCw, Plus, Eye, Layers, Loader2, 
 import { apiClient } from '@/lib/api'
 import { toast } from 'sonner'
 import type { ChapterDTO, ChapterCreateRequest, MangaResponseDTO } from '@/types'
-import { MangaTooltip } from '@/components/manga'
 
 interface MangaItem {
   id: number
@@ -644,12 +643,13 @@ export function MangaManager() {
                   manga.author || 'Автор неизвестен',
                   releaseYear !== '—' ? String(releaseYear) : null
                 ].filter(Boolean).join(' · ')
-                const tooltipPayload = toTooltipManga(manga)
 
                 return (
                   <div key={manga.id} className="flex w-full max-w-[190px] flex-col gap-1.5">
-                    <MangaTooltip manga={tooltipPayload}>
-                      <div className="group relative overflow-hidden rounded-lg border border-white/10 bg-white/[0.03] shadow-lg transition-all duration-300 hover:border-primary/40 hover:shadow-primary/20 focus-within:border-primary/40 focus-within:shadow-primary/20">
+                      <div 
+                        className="group relative overflow-hidden rounded-lg border border-white/10 bg-white/[0.03] shadow-lg transition-all duration-300 hover:border-primary/40 hover:shadow-primary/20 focus-within:border-primary/40 focus-within:shadow-primary/20 cursor-pointer"
+                        onClick={() => toggleMangaSelection(manga.id)}
+                      >
                         <div className="relative aspect-[3/4]">
                           {/* Checkbox для выбора */}
                           <div className="absolute top-2 right-2 z-10">
@@ -710,9 +710,11 @@ export function MangaManager() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => window.open(`/manga/${manga.id}`, '_blank')}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  window.open(`/manga/${manga.id}`, '_blank')
+                                }}
                                 className="pointer-events-auto h-8 w-8 rounded-lg bg-black/45 text-white/75 hover:bg-primary/40 hover:text-white"
-                                title="Открыть страницу манги"
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -720,9 +722,11 @@ export function MangaManager() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => openEditDialog(manga)}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  openEditDialog(manga)
+                                }}
                                 className="pointer-events-auto h-8 w-8 rounded-lg bg-black/45 text-white/75 hover:bg-primary/40 hover:text-white"
-                                title="Редактировать мангу"
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
@@ -730,9 +734,11 @@ export function MangaManager() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => openChapterDialog(manga)}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  openChapterDialog(manga)
+                                }}
                                 className="pointer-events-auto h-8 w-8 rounded-lg bg-black/45 text-white/80 hover:bg-primary/40 hover:text-white"
-                                title="Управление главами"
                               >
                                 <Layers className="h-4 w-4" />
                               </Button>
@@ -742,8 +748,8 @@ export function MangaManager() {
                                   <Button
                                     variant="ghost"
                                     size="icon"
+                                    onClick={(e) => e.stopPropagation()}
                                     className="pointer-events-auto h-8 w-8 rounded-lg bg-black/45 text-red-200 hover:bg-red-500/25 hover:text-white"
-                                    title="Удалить мангу"
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
@@ -770,7 +776,6 @@ export function MangaManager() {
                           </div>
                         </div>
                       </div>
-                    </MangaTooltip>
 
                     <div className="flex flex-col gap-1 px-1">
                       <h3 className="text-xs font-semibold text-white line-clamp-2 md:text-sm" title={manga.title}>
