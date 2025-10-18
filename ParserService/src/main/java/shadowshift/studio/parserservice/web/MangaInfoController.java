@@ -225,9 +225,19 @@ public class MangaInfoController {
                 
                 logger.info("Скачивание обложки с URL: {}", coverUrl);
                 
-                // Скачиваем обложку
+                // Скачиваем обложку с правильными заголовками для обхода 403
                 RestTemplate restTemplate = new RestTemplate();
-                ResponseEntity<byte[]> response = restTemplate.getForEntity(coverUrl, byte[].class);
+                HttpHeaders requestHeaders = new HttpHeaders();
+                requestHeaders.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
+                requestHeaders.set("Referer", "https://mangalib.me/");
+                requestHeaders.set("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8");
+                requestHeaders.set("Accept-Language", "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7");
+                requestHeaders.set("Sec-Fetch-Dest", "image");
+                requestHeaders.set("Sec-Fetch-Mode", "no-cors");
+                requestHeaders.set("Sec-Fetch-Site", "cross-site");
+                
+                org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(requestHeaders);
+                ResponseEntity<byte[]> response = restTemplate.exchange(coverUrl, org.springframework.http.HttpMethod.GET, entity, byte[].class);
                 
                 if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
                     logger.error("Не удалось скачать обложку: HTTP {}", response.getStatusCode());
