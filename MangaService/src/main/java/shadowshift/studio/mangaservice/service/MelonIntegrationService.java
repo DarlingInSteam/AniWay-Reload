@@ -1575,10 +1575,14 @@ public class MelonIntegrationService {
 
         // Обрабатываем описание
         String description = (String) mangaInfo.get("description");
+        System.out.println("DEBUG: Raw description from parsing: " + (description != null ? description.substring(0, Math.min(100, description.length())) + "..." : "NULL"));
         if (description != null && !description.trim().isEmpty()) {
             // Конвертируем HTML-теги в Markdown
             description = convertHtmlToMarkdown(description.trim());
             manga.setDescription(description);
+            System.out.println("DEBUG: Set description to manga (length: " + description.length() + " chars)");
+        } else {
+            System.out.println("DEBUG: Description is NULL or EMPTY!");
         }
 
         Object statusRaw = mangaInfo.get("status");
