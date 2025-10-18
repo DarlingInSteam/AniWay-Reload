@@ -632,7 +632,22 @@ public class MangaLibParserService {
         metadata.setTypeCode(mapType(data.path("type")));
         metadata.setType(metadata.getTypeCode());
 
-        metadata.setReleaseYear(data.hasNonNull("releaseDate") ? data.get("releaseDate").asInt() : null);
+        // Парсим releaseDate - может быть строкой "2020" или числом 2020
+        Integer releaseYear = null;
+        if (data.hasNonNull("releaseDate")) {
+            JsonNode releaseNode = data.get("releaseDate");
+            if (releaseNode.isNumber()) {
+                releaseYear = releaseNode.asInt();
+            } else if (releaseNode.isTextual()) {
+                try {
+                    releaseYear = Integer.parseInt(releaseNode.asText().trim());
+                } catch (NumberFormatException e) {
+                    logger.warn("Не удалось распарсить releaseDate: {}", releaseNode.asText());
+                }
+            }
+        }
+        metadata.setReleaseYear(releaseYear);
+        
         metadata.setCoverUrl(data.path("cover").path("default").asText(null));
         metadata.setGenres(readNamedArray(data.path("genres"), "name"));
         metadata.setTags(readNamedArray(data.path("tags"), "name"));

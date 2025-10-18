@@ -425,34 +425,41 @@ public class MelonIntegrationService {
                     CompletableFuture.runAsync(() -> {
                         try {
                             // Ждем завершения импорта из очереди
+                            logger.info("⏳ Ожидание завершения импорта для slug={}, importTaskId={}", slug, importTaskId);
                             ImportQueueService.ImportQueueItem importItem;
+                            int checkCount = 0;
                             do {
-                                Thread.sleep(1000); // проверяем каждую секунду
+                                Thread.sleep(2000); // проверяем каждые 2 секунды
                                 importItem = importQueueService.getImportStatus(importTaskId);
+                                checkCount++;
+                                if (checkCount % 10 == 0) { // логируем каждые 20 секунд
+                                    logger.info("⏳ Проверка #{}: импорт slug={} все еще в процессе, статус={}", 
+                                        checkCount, slug, importItem != null ? importItem.getStatus() : "null");
+                                }
                             } while (importItem != null && 
                                     importItem.getStatus() != ImportQueueService.ImportQueueItem.Status.COMPLETED &&
                                     importItem.getStatus() != ImportQueueService.ImportQueueItem.Status.FAILED);
                             
                             if (importItem != null && importItem.getStatus() == ImportQueueService.ImportQueueItem.Status.COMPLETED) {
-                                logger.info("Импорт завершен для slug={}, очищаем данные из MelonService", slug);
+                                logger.info("✅ Импорт завершен для slug={}, очищаем данные из ParserService", slug);
                                 
-                                // После успешного импорта - удаляем из MelonService
-                                updateFullParsingTask(fullTaskId, "running", 95, "Импорт завершен, очистка данных из MelonService...", null);
+                                // После успешного импорта - удаляем из ParserService
+                                updateFullParsingTask(fullTaskId, "running", 95, "Импорт завершен, очистка данных из ParserService...", null);
                                 Map<String, Object> deleteResult = deleteManga(normalizedSlug);
                                 if (deleteResult != null && Boolean.TRUE.equals(deleteResult.get("success"))) {
-                                    logger.info("Данные успешно удалены из MelonService для slug={}", normalizedSlug);
+                                    logger.info("🧹 Очистка завершена: главы и обложки удалены, JSON сохранён для slug={}", normalizedSlug);
                                     updateFullParsingTask(fullTaskId, "completed", 100, "Автопарсинг и импорт завершены успешно", null);
                                 } else {
-                                    logger.warn("Не удалось удалить данные из MelonService для slug={}", normalizedSlug);
-                                    updateFullParsingTask(fullTaskId, "completed", 100, "Импорт завершен, но не удалось очистить MelonService", null);
+                                    logger.warn("⚠️ Не удалось удалить данные из ParserService для slug={}", normalizedSlug);
+                                    updateFullParsingTask(fullTaskId, "completed", 100, "Импорт завершен, но не удалось очистить ParserService", null);
                                 }
                             } else {
                                 String errorMsg = importItem != null ? importItem.getErrorMessage() : "Неизвестная ошибка";
-                                logger.error("Ошибка импорта для slug={}: {}", slug, errorMsg);
+                                logger.error("❌ Ошибка импорта для slug={}: {}", slug, errorMsg);
                                 updateFullParsingTask(fullTaskId, "failed", 90, "Ошибка импорта: " + errorMsg, null);
                             }
                         } catch (Exception e) {
-                            logger.error("Ошибка при отслеживании импорта для slug={}: {}", slug, e.getMessage());
+                            logger.error("❌ Ошибка при отслеживании импорта для slug={}: {}", slug, e.getMessage());
                             updateFullParsingTask(fullTaskId, "failed", 90, "Ошибка отслеживания импорта: " + e.getMessage(), null);
                         }
                     }, executorService);
