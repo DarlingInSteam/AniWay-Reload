@@ -36,7 +36,8 @@ logging:
 parser:
   output-path: ${PARSER_OUTPUT_PATH:/app/output}
   temp-path: ${PARSER_TEMP_PATH:/app/temp}
-  max-parallel-downloads: 20
+  max-parallel-downloads: 50  # ⚡ Увеличено с 20 до 50 для параллельной загрузки глав
+  max-parallel-chapters: 2    # ⚡ НОВОЕ: Сколько глав загружать одновременно (осторожно: 2-3)
   image-timeout-seconds: 30
   manga-service-url: ${MANGA_SERVICE_URL:http://manga-service:8081}
   mangalib:
