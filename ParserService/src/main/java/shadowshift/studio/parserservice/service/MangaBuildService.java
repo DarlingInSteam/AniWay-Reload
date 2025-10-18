@@ -24,7 +24,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
@@ -415,7 +417,7 @@ public class MangaBuildService {
             // 2. Если titleId известен — берём дефолтную ветку (titleId * 10)
             // 3. Если дефолтная ветка пуста — берём первую непустую ветку
             // 4. Если веток нет вообще — берём все главы (маловероятно)
-            List<ChapterInfo> chapters;
+            final List<ChapterInfo> chapters;  // ⚡ КРИТИЧНО: final для использования в lambda
             String branchIdParam = task.getBranchId();
             
             if (branchIdParam != null && !branchIdParam.isBlank()) {
@@ -428,11 +430,12 @@ public class MangaBuildService {
                     branchIdParam, chapters.size(), allChapters.size()));
             } else if (titleId != null && titleId > 0) {
                 // Автоматика: пробуем дефолтную ветку
-                chapters = allChapters.stream()
+                List<ChapterInfo> defaultBranchChapters = allChapters.stream()
                     .filter(ch -> ch.getBranchId() != null && ch.getBranchId().equals(defaultBranchId))
                     .collect(Collectors.toList());
                 
-                if (!chapters.isEmpty()) {
+                if (!defaultBranchChapters.isEmpty()) {
+                    chapters = defaultBranchChapters;
                     taskService.appendLog(task, String.format("🔀 Auto: default branch %d → %d/%d chapters", 
                         defaultBranchId, chapters.size(), allChapters.size()));
                 } else {
@@ -499,93 +502,115 @@ public class MangaBuildService {
             Files.createDirectories(archivesDir);
             taskService.appendLog(task, String.format("📁 Created archives directory: %s", archivesDir));
             
-            // Download images for each chapter
-            int chapterIndex = 0;
-            int totalImages = 0;
-            int downloadedImages = 0;
-            int skippedChapters = 0;
+            // ⚡ КРИТИЧНО: Параллельная загрузка глав для максимальной скорости
+            int maxParallelChapters = properties.getMaxParallelChapters();
+            taskService.appendLog(task, String.format("⚡ Downloading chapters with parallelism: %d chapters at once, %d images per chapter", 
+                maxParallelChapters, properties.getMaxParallelDownloads()));
             
-            for (ChapterInfo chapter : chapters) {
-                chapterIndex++;
-                
-                if (chapter.getIsPaid() != null && chapter.getIsPaid()) {
-                    skippedChapters++;
-                    taskService.appendLog(task, String.format("⏭️ [%d/%d] Skipping paid chapter %.1f", 
-                        chapterIndex, chapters.size(), chapter.getNumber()));
-                    continue;
-                }
-                
-                task.setMessage(String.format("Downloading chapter %d/%d (%.1f)", 
-                    chapterIndex, chapters.size(), chapter.getNumber()));
-                taskService.appendLog(task, String.format("📥 [%d/%d] Downloading chapter %.1f: %s", 
-                    chapterIndex, chapters.size(), chapter.getNumber(), 
-                    chapter.getTitle() != null ? chapter.getTitle() : ""));
-                
-                try {
-                    // Get chapter image URLs
-                    List<SlideInfo> slides = chapter.getSlides();
-                    if (slides == null || slides.isEmpty()) {
-                        slides = fetchChapterSlides(slugContext.getApiSlug(), chapter, defaultBranchId);
-                        chapter.setSlides(slides);
-                        logger.debug("Fetched {} slides from API for chapter {}", slides.size(), chapter.getNumber());
-                    } else {
-                        logger.debug("Using {} slides from cached JSON for chapter {}", slides.size(), chapter.getNumber());
-                    }
+            // Download images for each chapter (PARALLEL!)
+            AtomicInteger chapterIndex = new AtomicInteger(0);
+            AtomicInteger totalImages = new AtomicInteger(0);
+            AtomicInteger downloadedImages = new AtomicInteger(0);
+            AtomicInteger skippedChapters = new AtomicInteger(0);
+            
+            // Разбиваем главы на батчи для параллельной загрузки
+            int batchSize = maxParallelChapters;
+            List<List<ChapterInfo>> batches = new ArrayList<>();
+            for (int i = 0; i < chapters.size(); i += batchSize) {
+                batches.add(chapters.subList(i, Math.min(i + batchSize, chapters.size())));
+            }
+            
+            taskService.appendLog(task, String.format("📦 Split %d chapters into %d batches", chapters.size(), batches.size()));
+            
+            for (List<ChapterInfo> batch : batches) {
+                // Обрабатываем батч глав параллельно
+                List<CompletableFuture<Void>> futures = batch.stream()
+                    .map(chapter -> CompletableFuture.runAsync(() -> {
+                        int currentIndex = chapterIndex.incrementAndGet();
+                        
+                        if (chapter.getIsPaid() != null && chapter.getIsPaid()) {
+                            skippedChapters.incrementAndGet();
+                            taskService.appendLog(task, String.format("⏭️ [%d/%d] Skipping paid chapter %.1f", 
+                                currentIndex, chapters.size(), chapter.getNumber()));
+                            return;
+                        }
+                        
+                        task.setMessage(String.format("Downloading chapter %d/%d (%.1f)", 
+                            currentIndex, chapters.size(), chapter.getNumber()));
+                        taskService.appendLog(task, String.format("📥 [%d/%d] Downloading chapter %.1f: %s", 
+                            currentIndex, chapters.size(), chapter.getNumber(), 
+                            chapter.getTitle() != null ? chapter.getTitle() : ""));
+                        
+                        try {
+                            // Get chapter image URLs
+                            List<SlideInfo> slides = chapter.getSlides();
+                            if (slides == null || slides.isEmpty()) {
+                                slides = fetchChapterSlides(slugContext.getApiSlug(), chapter, defaultBranchId);
+                                chapter.setSlides(slides);
+                                logger.debug("Fetched {} slides from API for chapter {}", slides.size(), chapter.getNumber());
+                            } else {
+                                logger.debug("Using {} slides from cached JSON for chapter {}", slides.size(), chapter.getNumber());
+                            }
 
-                    List<SlideInfo> downloadableSlides = slides.stream()
-                            .filter(Objects::nonNull)
-                            .filter(slide -> slide.getLink() != null && !slide.getLink().isBlank())
-                            .collect(Collectors.toList());
+                            List<SlideInfo> downloadableSlides = slides.stream()
+                                    .filter(Objects::nonNull)
+                                    .filter(slide -> slide.getLink() != null && !slide.getLink().isBlank())
+                                    .collect(Collectors.toList());
 
-                    if (downloadableSlides.isEmpty()) {
-                        taskService.appendLog(task, String.format("   ⚠️ Chapter %.1f: no images found", chapter.getNumber()));
-                        continue;
-                    }
-                    
-                    // Create chapter directory
-                    String chapterDirName = String.format("ch_%.1f", chapter.getNumber()).replace(",", ".");
-                    Path chapterDir = archivesDir.resolve(chapterDirName);
-                    Files.createDirectories(chapterDir);
-                    
-                    // Сохраняем имя папки в ChapterInfo для последующего импорта
-                    chapter.setFolderName(chapterDirName);
-                    
-                    // Prepare download tasks
-                    List<ImageDownloadService.ImageDownloadTask> downloadTasks = new ArrayList<>();
-                    for (int i = 0; i < downloadableSlides.size(); i++) {
-                        SlideInfo slide = downloadableSlides.get(i);
-                        int index = slide.getIndex() != null ? slide.getIndex() : (i + 1);
-                        String imageName = String.format("%03d.jpg", index);
-                        Path imagePath = chapterDir.resolve(imageName);
-                        downloadTasks.add(new ImageDownloadService.ImageDownloadTask(slide.getLink(), imagePath));
-                    }
-                    
-                    totalImages += downloadableSlides.size();
-                    
-                    // Download images in parallel
-                    long chapterStartTime = System.currentTimeMillis();
-                    ImageDownloadService.DownloadSummary summary = imageDownloader.downloadImages(downloadTasks).join();
-                    long chapterElapsed = System.currentTimeMillis() - chapterStartTime;
-                    
-                    downloadedImages += summary.successCount;
-                    
-                    double speedMBps = summary.totalTime > 0 ? 
-                        (summary.totalBytes / 1024.0 / 1024.0) / (summary.totalTime / 1000.0) : 0;
-                    double speedImgps = summary.totalTime > 0 ? 
-                        (summary.totalImages * 1000.0) / summary.totalTime : 0;
-                    
-                    taskService.appendLog(task, String.format("   ✅ Downloaded %d/%d images (%.2f MB/s, %.1f img/s, %dms)", 
-                        summary.successCount, downloadableSlides.size(), speedMBps, speedImgps, chapterElapsed));
-                    
-                    int progress = 10 + (chapterIndex * 85 / chapters.size());
-                    task.setProgress(progress);
-                    task.setMessage(String.format("Processed %d/%d chapters", chapterIndex, chapters.size()));
-                    
-                } catch (Exception e) {
-                    taskService.appendLog(task, String.format("   ❌ Error downloading chapter %.1f: %s", 
-                        chapter.getNumber(), e.getMessage()));
-                    logger.error("Error downloading chapter {}: {}", chapter.getNumber(), e.getMessage(), e);
-                }
+                            if (downloadableSlides.isEmpty()) {
+                                taskService.appendLog(task, String.format("   ⚠️ Chapter %.1f: no images found", chapter.getNumber()));
+                                return;
+                            }
+                            
+                            // Create chapter directory
+                            String chapterDirName = String.format("ch_%.1f", chapter.getNumber()).replace(",", ".");
+                            Path chapterDir = archivesDir.resolve(chapterDirName);
+                            Files.createDirectories(chapterDir);
+                            
+                            // Сохраняем имя папки в ChapterInfo для последующего импорта
+                            chapter.setFolderName(chapterDirName);
+                            
+                            // Prepare download tasks
+                            List<ImageDownloadService.ImageDownloadTask> downloadTasks = new ArrayList<>();
+                            for (int i = 0; i < downloadableSlides.size(); i++) {
+                                SlideInfo slide = downloadableSlides.get(i);
+                                int index = slide.getIndex() != null ? slide.getIndex() : (i + 1);
+                                String imageName = String.format("%03d.jpg", index);
+                                Path imagePath = chapterDir.resolve(imageName);
+                                downloadTasks.add(new ImageDownloadService.ImageDownloadTask(slide.getLink(), imagePath));
+                            }
+                            
+                            totalImages.addAndGet(downloadableSlides.size());
+                            
+                            // Download images in parallel
+                            long chapterStartTime = System.currentTimeMillis();
+                            ImageDownloadService.DownloadSummary summary = imageDownloader.downloadImages(downloadTasks).join();
+                            long chapterElapsed = System.currentTimeMillis() - chapterStartTime;
+                            
+                            downloadedImages.addAndGet(summary.successCount);
+                            
+                            double speedMBps = summary.totalTime > 0 ? 
+                                (summary.totalBytes / 1024.0 / 1024.0) / (summary.totalTime / 1000.0) : 0;
+                            double speedImgps = summary.totalTime > 0 ? 
+                                (summary.totalImages * 1000.0) / summary.totalTime : 0;
+                            
+                            taskService.appendLog(task, String.format("   ✅ Downloaded %d/%d images (%.2f MB/s, %.1f img/s, %dms)", 
+                                summary.successCount, downloadableSlides.size(), speedMBps, speedImgps, chapterElapsed));
+                            
+                            int progress = 10 + (currentIndex * 85 / chapters.size());
+                            task.setProgress(progress);
+                            task.setMessage(String.format("Processed %d/%d chapters", currentIndex, chapters.size()));
+                            
+                        } catch (Exception e) {
+                            taskService.appendLog(task, String.format("   ❌ Error downloading chapter %.1f: %s", 
+                                chapter.getNumber(), e.getMessage()));
+                            logger.error("Error downloading chapter {}: {}", chapter.getNumber(), e.getMessage(), e);
+                        }
+                    }))
+                    .collect(Collectors.toList());
+                
+                // Ждем завершения батча перед переходом к следующему
+                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
             }
             
             long totalElapsed = System.currentTimeMillis() - startTime;
@@ -602,9 +627,9 @@ public class MangaBuildService {
             task.setCompletedAt(Instant.now());
             task.setProgress(100);
             task.setMessage(String.format("Build completed: %d images from %d chapters (skipped %d paid) in %dms", 
-                downloadedImages, chapterIndex - skippedChapters, skippedChapters, totalElapsed));
+                downloadedImages.get(), chapterIndex.get() - skippedChapters.get(), skippedChapters.get(), totalElapsed));
             taskService.appendLog(task, String.format("🎉 Build completed: %d/%d images downloaded, %d chapters processed, %d skipped, time: %dms", 
-                downloadedImages, totalImages, chapterIndex - skippedChapters, skippedChapters, totalElapsed));
+                downloadedImages.get(), totalImages.get(), chapterIndex.get() - skippedChapters.get(), skippedChapters.get(), totalElapsed));
             
         } catch (Exception e) {
             long totalElapsed = System.currentTimeMillis() - startTime;

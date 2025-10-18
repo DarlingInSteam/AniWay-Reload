@@ -131,6 +131,13 @@ public class ParserProperties {
     private int maxParallelDownloads = 50; // Увеличено с 20 до 50 для ускорения загрузки
     
     /**
+     * ⚡ КРИТИЧНО: Максимальное количество глав, загружаемых параллельно.
+     * При значении 1 - главы качаются последовательно (медленно).
+     * При значении 3-5 - оптимально используются 50 потоков для изображений.
+     */
+    private int maxParallelChapters = 3;
+    
+    /**
      * Таймаут загрузки изображения в секундах.
      */
     private int imageTimeoutSeconds = 30;
@@ -261,6 +268,17 @@ public class ParserProperties {
         if (maxParallelDownloads > 0) {
             this.maxParallelDownloads = maxParallelDownloads;
             log.info("🔧 maxParallelDownloads установлен в: {}", maxParallelDownloads);
+        }
+    }
+    
+    public int getMaxParallelChapters() {
+        return maxParallelChapters;
+    }
+    
+    public void setMaxParallelChapters(int maxParallelChapters) {
+        if (maxParallelChapters > 0) {
+            this.maxParallelChapters = maxParallelChapters;
+            log.info("🔧 maxParallelChapters установлен в: {}", maxParallelChapters);
         }
     }
     

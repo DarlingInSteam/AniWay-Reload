@@ -86,10 +86,10 @@ public class RestTemplateConfig {
         // Configure proxy
         HttpHost proxyHost = new HttpHost(proxy.getHost(), proxy.getPort());
         
-        // ⚡ ОПТИМИЗАЦИЯ: Агрессивные таймауты для быстрой загрузки изображений
+        // ⚡ ОПТИМИЗАЦИЯ: Агрессивные таймауты для быстрой загрузки изображений (как в Python)
         RequestConfig config = RequestConfig.custom()
-                .setConnectTimeout(Timeout.ofSeconds(5))
-                .setResponseTimeout(Timeout.ofSeconds(15))
+                .setConnectTimeout(Timeout.ofSeconds(2))    // 5s → 2s: прокси должны отвечать быстро
+                .setResponseTimeout(Timeout.ofSeconds(8))   // 15s → 8s: изображения небольшие
                 .setProxy(proxyHost)
                 .build();
         
@@ -101,10 +101,10 @@ public class RestTemplateConfig {
     }
     
     private CloseableHttpClient createDirectHttpClientWithSharedPool() {
-        // ⚡ ОПТИМИЗАЦИЯ: Агрессивные таймауты для быстрой загрузки
+        // ⚡ ОПТИМИЗАЦИЯ: Агрессивные таймауты для быстрой загрузки (как в Python)
         RequestConfig config = RequestConfig.custom()
-                .setConnectTimeout(Timeout.ofSeconds(5))
-                .setResponseTimeout(Timeout.ofSeconds(15))
+                .setConnectTimeout(Timeout.ofSeconds(2))    // 5s → 2s
+                .setResponseTimeout(Timeout.ofSeconds(8))   // 15s → 8s
                 .build();
         
         // ⚡ КРИТИЧНО: Используем ОБЩИЙ Connection Manager
