@@ -91,8 +91,8 @@ public class ImageDownloadService {
                         } else if (attempt < maxRetries - 1) {
                             logger.warn("⚠️ Bad response for {}: {}, retrying ({}/{})", 
                                 imageUrl, response.getStatusCode(), attempt + 1, maxRetries);
-                            // ⚡ ОПТИМИЗАЦИЯ: Убрали задержки retry для максимальной скорости (как в Python)
-                            // Thread.sleep((long) (300 * Math.pow(2, attempt)));
+                            // Задержка между retry для стабильности (200ms, 400ms, 800ms)
+                            Thread.sleep((long) (200 * Math.pow(2, attempt)));
                             continue;
                         }
                         
@@ -104,8 +104,8 @@ public class ImageDownloadService {
                         if (attempt < maxRetries - 1) {
                             logger.warn("⚠️ Error downloading {} (attempt {}/{}): {}", 
                                 imageUrl, attempt + 1, maxRetries, e.getMessage());
-                            // ⚡ ОПТИМИЗАЦИЯ: Убрали задержки retry для максимальной скорости
-                            // Thread.sleep((long) (300 * Math.pow(2, attempt)));
+                            // Задержка между retry для стабильности
+                            Thread.sleep((long) (200 * Math.pow(2, attempt)));
                         }
                     }
                 }
