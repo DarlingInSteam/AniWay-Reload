@@ -28,6 +28,9 @@ public class ProxyManagerService {
     private final Map<String, ProxyStats> proxyStats = new ConcurrentHashMap<>();
     private boolean enabled = false;
     
+    // ⚡ ОПТИМИЗАЦИЯ: Sticky Proxy Assignment - каждый поток привязан к своему прокси
+    private final ThreadLocal<ProxyServer> threadLocalProxy = new ThreadLocal<>();
+    
     @Autowired
     private ObjectMapper objectMapper;
     
@@ -51,6 +54,42 @@ public class ProxyManagerService {
         proxyStats.computeIfAbsent(proxy.getHost(), k -> new ProxyStats()).incrementUsage();
         
         return proxy;
+    }
+    
+    /**
+     * ⚡ ОПТИМИЗАЦИЯ: Получает прокси для текущего потока (Sticky Proxy Assignment)
+     * Каждый поток будет всегда использовать один и тот же прокси для максимальной
+     * эффективности Connection Keep-Alive
+     */
+    public ProxyServer getProxyForCurrentThread() {
+        if (proxyPool.isEmpty()) {
+            return null; // Работаем без прокси
+        }
+        
+        ProxyServer proxy = threadLocalProxy.get();
+        
+        if (proxy == null) {
+            // Первый запрос в этом потоке - назначаем прокси round-robin
+            proxy = assignProxyToThread();
+            threadLocalProxy.set(proxy);
+            
+            logger.debug("Thread {}: Assigned proxy {} (sticky)", 
+                Thread.currentThread().getName(), 
+                proxy.getHost());
+        }
+        
+        // Обновляем статистику
+        proxyStats.computeIfAbsent(proxy.getHost(), k -> new ProxyStats()).incrementUsage();
+        
+        return proxy;
+    }
+    
+    /**
+     * Назначает прокси потоку при первом запросе
+     */
+    private ProxyServer assignProxyToThread() {
+        int index = currentIndex.getAndUpdate(i -> (i + 1) % proxyPool.size());
+        return proxyPool.get(index);
     }
     
     /**

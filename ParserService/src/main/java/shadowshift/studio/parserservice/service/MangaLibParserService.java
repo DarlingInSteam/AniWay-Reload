@@ -205,8 +205,38 @@ public class MangaLibParserService {
         HttpHeaders headers = createMangaLibHeaders();
         String baseUrl = MANGALIB_API_BASE + "/manga/" + slugContext.getApiSlug();
         
-        // Убрали fields запрос - он всегда возвращает 422, используем просто базовый URL
-        String url = baseUrl;
+        // КРИТИЧНО: Запрашиваем ВСЕ поля для получения полных метаданных
+        // Без fields[] API возвращает только минимальный набор данных
+        String url = baseUrl 
+            + "?fields[]=background"
+            + "&fields[]=eng_name"
+            + "&fields[]=otherNames"
+            + "&fields[]=summary"
+            + "&fields[]=releaseDate"
+            + "&fields[]=type_id"
+            + "&fields[]=caution"
+            + "&fields[]=views"
+            + "&fields[]=close_view"
+            + "&fields[]=rate_avg"
+            + "&fields[]=rate"
+            + "&fields[]=genres"
+            + "&fields[]=tags"
+            + "&fields[]=teams"
+            + "&fields[]=user"
+            + "&fields[]=franchise"
+            + "&fields[]=authors"
+            + "&fields[]=publisher"
+            + "&fields[]=userRating"
+            + "&fields[]=moderated"
+            + "&fields[]=metadata"
+            + "&fields[]=metadata.count"
+            + "&fields[]=metadata.close_comments"
+            + "&fields[]=manga_status_id"
+            + "&fields[]=chap_count"
+            + "&fields[]=status_id"
+            + "&fields[]=artists"
+            + "&fields[]=format";
+        
         String lastError = null;
 
         try {
@@ -562,6 +592,12 @@ public class MangaLibParserService {
         map.put("name", chapter.getTitle());
         map.put("is_paid", Boolean.TRUE.equals(chapter.getIsPaid()));
         map.put("branch_id", chapter.getBranchId());
+        
+        // КРИТИЧНО: Сохраняем folder_name для корректного импорта изображений
+        if (chapter.getFolderName() != null && !chapter.getFolderName().isBlank()) {
+            map.put("folder_name", chapter.getFolderName());
+        }
+        
         if (chapter.getPagesCount() != null) {
             map.put("pages_count", chapter.getPagesCount());
         }
@@ -649,9 +685,19 @@ public class MangaLibParserService {
         metadata.setReleaseYear(releaseYear);
         
         metadata.setCoverUrl(data.path("cover").path("default").asText(null));
-        metadata.setGenres(readNamedArray(data.path("genres"), "name"));
-        metadata.setTags(readNamedArray(data.path("tags"), "name"));
-        metadata.setAuthors(readNamedArray(data.path("authors"), "name"));
+        
+        // DEBUG: Логируем что извлекли из API
+        List<String> genres = readNamedArray(data.path("genres"), "name");
+        logger.debug("📊 [PARSER DEBUG] Extracted genres from API: {}", genres);
+        metadata.setGenres(genres);
+        
+        List<String> tags = readNamedArray(data.path("tags"), "name");
+        logger.debug("🏷️ [PARSER DEBUG] Extracted tags from API: {}", tags);
+        metadata.setTags(tags);
+        
+        List<String> authors = readNamedArray(data.path("authors"), "name");
+        logger.debug("✍️ [PARSER DEBUG] Extracted authors from API: {}", authors);
+        metadata.setAuthors(authors);
         metadata.setArtists(readNamedArray(data.path("artists"), "name"));
         metadata.setPublishers(readNamedArray(data.path("publisher"), "name"));
         metadata.setTeams(readNamedArray(data.path("teams"), "name"));

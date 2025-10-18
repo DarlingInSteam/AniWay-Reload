@@ -34,6 +34,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.Base64;
@@ -421,6 +422,10 @@ public class MelonIntegrationService {
                     // Добавляем импорт в очередь с нормальным приоритетом
                     importQueueService.queueImport(importTaskId, normalizedSlug, null, ImportQueueService.ImportQueueItem.Priority.NORMAL);
                     
+                    // Обновляем статус - импорт добавлен в очередь
+                    updateFullParsingTask(fullTaskId, "running", 80, "Парсинг завершен, импорт добавлен в очередь...", null);
+                    logger.info("Импорт добавлен в очередь для slug={}, ожидаем завершения импорта", slug);
+                    
                     // Создаем асинхронный обработчик для отслеживания завершения и очистки
                     CompletableFuture.runAsync(() -> {
                         try {
@@ -446,12 +451,25 @@ public class MelonIntegrationService {
                                 // После успешного импорта - удаляем из ParserService
                                 updateFullParsingTask(fullTaskId, "running", 95, "Импорт завершен, очистка данных из ParserService...", null);
                                 Map<String, Object> deleteResult = deleteManga(normalizedSlug);
+                                
+                                // Формируем финальный результат с информацией о манге
+                                Map<String, Object> result = new HashMap<>();
+                                result.put("filename", slug);
+                                result.put("parse_completed", true);
+                                result.put("build_completed", true);
+                                result.put("import_completed", true);
+                                result.put("cleanup_completed", deleteResult != null && Boolean.TRUE.equals(deleteResult.get("success")));
+                                if (mangaInfo != null) {
+                                    result.put("title", mangaInfo.get("localized_name"));
+                                    result.put("manga_info", mangaInfo);
+                                }
+                                
                                 if (deleteResult != null && Boolean.TRUE.equals(deleteResult.get("success"))) {
                                     logger.info("🧹 Очистка завершена: главы и обложки удалены, JSON сохранён для slug={}", normalizedSlug);
-                                    updateFullParsingTask(fullTaskId, "completed", 100, "Автопарсинг и импорт завершены успешно", null);
+                                    updateFullParsingTask(fullTaskId, "completed", 100, "Автопарсинг и импорт завершены успешно", result);
                                 } else {
                                     logger.warn("⚠️ Не удалось удалить данные из ParserService для slug={}", normalizedSlug);
-                                    updateFullParsingTask(fullTaskId, "completed", 100, "Импорт завершен, но не удалось очистить ParserService", null);
+                                    updateFullParsingTask(fullTaskId, "completed", 100, "Импорт завершен, но не удалось очистить ParserService", result);
                                 }
                             } else {
                                 String errorMsg = importItem != null ? importItem.getErrorMessage() : "Неизвестная ошибка";
@@ -463,24 +481,6 @@ public class MelonIntegrationService {
                             updateFullParsingTask(fullTaskId, "failed", 90, "Ошибка отслеживания импорта: " + e.getMessage(), null);
                         }
                     }, executorService);
-                    
-                    // Сразу переходим к следующему этапу, не дожидаясь импорта
-                    // Импорт теперь происходит в отдельной очереди
-                    logger.info("Импорт добавлен в очередь для slug={}, продолжаем автопарсинг", slug);
-                    
-                    // Формируем результат (mangaInfo уже получен ранее)
-                    Map<String, Object> result = new HashMap<>();
-                    result.put("filename", slug);
-                    result.put("parse_completed", true);
-                    result.put("build_completed", true);
-                    result.put("import_completed", true);
-                    result.put("cleanup_completed", true);
-                    if (mangaInfo != null) {
-                        result.put("title", mangaInfo.get("localized_name"));
-                        result.put("manga_info", mangaInfo);
-                    }
-                    updateFullParsingTask(fullTaskId, "completed", 100,
-                        "Полный парсинг завершен успешно! JSON, изображения импортированы, данные очищены.", result);
                         
                 } catch (Exception importEx) {
                     logger.error("Ошибка при импорте или очистке для slug={}: {}", slug, importEx.getMessage(), importEx);
@@ -587,6 +587,7 @@ public class MelonIntegrationService {
         Map<String, Object> status = null;
         int attempts = 0; // БЕЗ таймаута - некоторые манги парсятся 100+ минут
         int missingStatusAttempts = 0;
+        int lastLogCount = 0; // Отслеживаем количество полученных логов
 
         while (true) {
             sleep(getTaskStatusPollInterval());
@@ -595,7 +596,41 @@ public class MelonIntegrationService {
             status = getTaskStatus(taskId);
             String statusValue = status != null ? String.valueOf(status.get("status")) : null;
 
+            // Получаем и отправляем логи из ParserService
+            if (status != null && !isMissingTaskStatus(status, statusValue)) {
+                try {
+                    List<String> newLogs = fetchTaskLogs(taskId, lastLogCount);
+                    if (newLogs != null && !newLogs.isEmpty()) {
+                        for (String log : newLogs) {
+                            // Отправляем лог через WebSocket (если taskId связан с fullParsingTask)
+                            String fullParsingTaskId = findFullParsingTaskId(taskId);
+                            if (fullParsingTaskId != null) {
+                                webSocketHandler.sendLogMessage(fullParsingTaskId, "INFO", log);
+                            }
+                        }
+                        lastLogCount += newLogs.size();
+                        logger.debug("📋 Получено {} новых логов от ParserService для задачи {}", newLogs.size(), taskId);
+                    }
+                } catch (Exception e) {
+                    logger.debug("Ошибка получения логов для задачи {}: {}", taskId, e.getMessage());
+                }
+            }
+
             if (isTerminalTaskStatus(statusValue)) {
+                // Получаем финальные логи перед выходом
+                try {
+                    List<String> finalLogs = fetchTaskLogs(taskId, lastLogCount);
+                    if (finalLogs != null && !finalLogs.isEmpty()) {
+                        for (String log : finalLogs) {
+                            String fullParsingTaskId = findFullParsingTaskId(taskId);
+                            if (fullParsingTaskId != null) {
+                                webSocketHandler.sendLogMessage(fullParsingTaskId, "INFO", log);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    logger.debug("Ошибка получения финальных логов для задачи {}: {}", taskId, e.getMessage());
+                }
                 return status;
             }
 
@@ -607,7 +642,7 @@ public class MelonIntegrationService {
                         taskId, missingStatusAttempts);
                     String message = status != null && status.get("message") != null
                         ? String.valueOf(status.get("message"))
-                        : "MelonService не предоставляет статус задачи (возможно, сервис был перезапущен)";
+                        : "ParserService не предоставляет статус задачи (возможно, сервис был перезапущен)";
                     return Map.of(
                         "status", "failed",
                         "message", message
@@ -623,6 +658,47 @@ public class MelonIntegrationService {
                     taskId, minutes, statusValue != null ? statusValue : "null");
             }
         }
+    }
+
+    /**
+     * Получает логи задачи из ParserService
+     * @param taskId ID задачи
+     * @param lastCount количество уже полученных логов
+     */
+    @SuppressWarnings("unchecked")
+    private List<String> fetchTaskLogs(String taskId, int lastCount) {
+        try {
+            // ParserService возвращает последние N логов через параметр limit
+            // Запрашиваем все логи и пропускаем уже полученные
+            String url = melonServiceUrl + "/logs/" + taskId + "?limit=1000";
+            ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+            Map<String, Object> body = response.getBody();
+            
+            if (body != null && body.containsKey("logs")) {
+                List<Map<String, Object>> logEntries = (List<Map<String, Object>>) body.get("logs");
+                if (logEntries != null && logEntries.size() > lastCount) {
+                    // Получаем только новые логи
+                    return logEntries.subList(lastCount, logEntries.size()).stream()
+                            .map(entry -> (String) entry.get("message"))
+                            .filter(Objects::nonNull)
+                            .collect(Collectors.toList());
+                }
+            }
+        } catch (Exception e) {
+            logger.debug("Не удалось получить логи для задачи {}: {}", taskId, e.getMessage());
+        }
+        return Collections.emptyList();
+    }
+
+    /**
+     * Находит fullParsingTaskId по taskId парсинга/билда
+     */
+    private String findFullParsingTaskId(String childTaskId) {
+        for (Map.Entry<String, String> entry : fullParsingToAutoParsingTask.entrySet()) {
+            // Можно расширить логику поиска, пока возвращаем null
+            // так как связь между parse/build taskId и fullTaskId не прямая
+        }
+        return null; // Временно, пока не реализуем двустороннюю связь
     }
 
     protected Duration getTaskStatusPollInterval() {
@@ -1111,7 +1187,7 @@ public class MelonIntegrationService {
             // Обрабатываем обложку ПОСЛЕ сохранения манги - скачиваем из MelonService и сохраняем в ImageStorageService
             try {
                 // Скачиваем обложку из MelonService
-                String coverUrl = melonServiceUrl + "/cover/" + filename;
+                String coverUrl = melonServiceUrl + "/manga-info/cover/" + filename;
                 System.out.println("Downloading cover from MelonService: " + coverUrl);
                 ResponseEntity<byte[]> coverResponse = restTemplate.getForEntity(coverUrl, byte[].class);
 
@@ -1460,12 +1536,52 @@ public class MelonIntegrationService {
             }
         }
 
+        // Обрабатываем художников (artists)
+        List<String> artists = (List<String>) mangaInfo.get("artists");
+        if (artists != null && !artists.isEmpty()) {
+            String artistString = artists.stream()
+                .filter(artist -> artist != null && !artist.trim().isEmpty())
+                .map(String::trim)
+                .collect(java.util.stream.Collectors.joining(", "));
+
+            if (!artistString.isEmpty()) {
+                manga.setArtist(artistString);
+                System.out.println("DEBUG: Set artists to: " + artistString);
+            }
+        }
+
+        // Обрабатываем издателей (publishers) - можно добавить в описание или как отдельное поле
+        List<String> publishers = (List<String>) mangaInfo.get("publishers");
+        if (publishers != null && !publishers.isEmpty()) {
+            String publisherString = publishers.stream()
+                .filter(pub -> pub != null && !pub.trim().isEmpty())
+                .map(String::trim)
+                .collect(java.util.stream.Collectors.joining(", "));
+            System.out.println("DEBUG: Publishers: " + publisherString);
+            // TODO: Добавить поле publisher в Manga entity, если нужно
+        }
+
+        // Обрабатываем команды переводчиков (teams) - можно добавить в описание
+        List<String> teams = (List<String>) mangaInfo.get("teams");
+        if (teams != null && !teams.isEmpty()) {
+            String teamString = teams.stream()
+                .filter(team -> team != null && !team.trim().isEmpty())
+                .map(String::trim)
+                .collect(java.util.stream.Collectors.joining(", "));
+            System.out.println("DEBUG: Translation teams: " + teamString);
+            // TODO: Добавить поле translationTeam в Manga entity, если нужно
+        }
+
         // Обрабатываем описание
         String description = (String) mangaInfo.get("description");
+        System.out.println("DEBUG: Raw description from parsing: " + (description != null ? description.substring(0, Math.min(100, description.length())) + "..." : "NULL"));
         if (description != null && !description.trim().isEmpty()) {
             // Конвертируем HTML-теги в Markdown
             description = convertHtmlToMarkdown(description.trim());
             manga.setDescription(description);
+            System.out.println("DEBUG: Set description to manga (length: " + description.length() + " chars)");
+        } else {
+            System.out.println("DEBUG: Description is NULL or EMPTY!");
         }
 
         Object statusRaw = mangaInfo.get("status");
@@ -1607,7 +1723,7 @@ public class MelonIntegrationService {
         try {
             System.out.println("Starting cover processing for manga: " + filename);
             // Скачиваем обложку из MelonService
-            String coverUrl = melonServiceUrl + "/cover/" + filename;
+            String coverUrl = melonServiceUrl + "/manga-info/cover/" + filename;
             ResponseEntity<byte[]> coverResponse = restTemplate.getForEntity(coverUrl, byte[].class);
 
             if (coverResponse.getStatusCode().is2xxSuccessful() && coverResponse.getBody() != null) {
@@ -1929,7 +2045,7 @@ public class MelonIntegrationService {
                                      ", filename: " + filename + ", title: " + manga.getTitle());
 
                     // Скачиваем обложку из MelonService
-                    String melonCoverUrl = melonServiceUrl + "/cover/" + filename;
+                    String melonCoverUrl = melonServiceUrl + "/manga-info/cover/" + filename;
                     ResponseEntity<byte[]> coverResponse = restTemplate.getForEntity(melonCoverUrl, byte[].class);
 
                     if (coverResponse.getStatusCode().is2xxSuccessful() && coverResponse.getBody() != null) {
@@ -2083,6 +2199,14 @@ public class MelonIntegrationService {
                     chapterRequest.put("volumeNumber", volumeNumber);
                 }
                 chapterRequest.put("originalChapterNumber", originalNumber);
+
+                // Сохраняем оригинальный ID главы из MangaLib для автообновления
+                Object chapterIdObj = chapterData.get("id");
+                if (chapterIdObj != null) {
+                    String melonChapterId = chapterIdObj.toString();
+                    chapterRequest.put("melonChapterId", melonChapterId);
+                    logger.debug("Сохранён melonChapterId: {}", melonChapterId);
+                }
 
                 // Обрабатываем title - может быть null
                 Object titleObj = chapterData.get("name");

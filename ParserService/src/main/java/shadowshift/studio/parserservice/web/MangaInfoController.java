@@ -4,12 +4,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
 import shadowshift.studio.parserservice.config.ParserProperties;
 import shadowshift.studio.parserservice.dto.ChapterInfo;
 import shadowshift.studio.parserservice.service.MangaLibParserService;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -89,9 +94,12 @@ public class MangaInfoController {
                 chapterMap.put("title", chapter.getTitle());
                 chapterMap.put("is_paid", chapter.getIsPaid());
                 
-                // Include slides_count if requested (set to null for now, can be fetched if needed)
+                // Include slides_count if requested
                 if (include_slides_count) {
-                    chapterMap.put("slides_count", null);  // TODO: fetch actual count from MangaLib
+                    // Используем pagesCount из ChapterInfo (получено при парсинге из MangaLib)
+                    Integer slidesCount = chapter.getPagesCount();
+                    chapterMap.put("slides_count", slidesCount != null ? slidesCount : 0);
+                    logger.debug("Chapter {} - slides_count: {}", chapter.getNumber(), slidesCount);
                 }
                 
                 chaptersList.add(chapterMap);
@@ -159,6 +167,137 @@ public class MangaInfoController {
         }
     }
     
+    /**
+     * Get cover image for manga
+     * GET /cover/{slug}
+     * 
+     * Returns cover from:
+     * 1. Cached file in /covers/{slug}.jpg (if exists)
+     * 2. Downloads from cover_url in metadata JSON (if cached not found)
+     */
+    @GetMapping("/cover/{slug}")
+    public ResponseEntity<byte[]> getCover(@PathVariable String slug) {
+        try {
+            logger.info("Cover request: slug={}", slug);
+            
+            String normalizedSlug = parserService.normalizeSlug(slug);
+            
+            // Шаг 1: Попытка найти кэшированную обложку
+            Path coversDir = Paths.get(properties.getOutputPath(), "covers");
+            Files.createDirectories(coversDir); // Создаём директорию если нет
+            
+            String[] extensions = {".jpg", ".jpeg", ".png", ".webp"};
+            Path coverPath = null;
+            
+            for (String ext : extensions) {
+                Path candidate = coversDir.resolve(normalizedSlug + ext);
+                if (Files.exists(candidate) && Files.isRegularFile(candidate)) {
+                    coverPath = candidate;
+                    logger.debug("Найдена кэшированная обложка: {}", coverPath);
+                    break;
+                }
+            }
+            
+            // Если кэша нет - скачиваем с URL из metadata
+            if (coverPath == null) {
+                logger.debug("Кэш обложки не найден, читаем metadata для {}", normalizedSlug);
+                
+                // Читаем JSON с метаданными
+                Path titlesDir = Paths.get(properties.getOutputPath(), "titles");
+                Path jsonPath = titlesDir.resolve(normalizedSlug + ".json");
+                
+                if (!Files.exists(jsonPath)) {
+                    logger.warn("JSON metadata не найден для {}", normalizedSlug);
+                    return ResponseEntity.notFound().build();
+                }
+                
+                Map<String, Object> metadata = objectMapper.readValue(jsonPath.toFile(), Map.class);
+                
+                // Извлекаем cover_url из covers массива
+                List<Map<String, Object>> covers = (List<Map<String, Object>>) metadata.get("covers");
+                String coverUrl = null;
+                
+                if (covers != null && !covers.isEmpty()) {
+                    coverUrl = (String) covers.get(0).get("link");
+                }
+                
+                if (coverUrl == null || coverUrl.isEmpty()) {
+                    logger.warn("cover_url не найден в metadata для {}", normalizedSlug);
+                    return ResponseEntity.notFound().build();
+                }
+                
+                logger.info("Скачивание обложки с URL: {}", coverUrl);
+                
+                // Скачиваем обложку с правильными заголовками для обхода 403
+                RestTemplate restTemplate = new RestTemplate();
+                HttpHeaders requestHeaders = new HttpHeaders();
+                requestHeaders.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
+                requestHeaders.set("Referer", "https://mangalib.me/");
+                requestHeaders.set("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8");
+                requestHeaders.set("Accept-Language", "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7");
+                requestHeaders.set("Sec-Fetch-Dest", "image");
+                requestHeaders.set("Sec-Fetch-Mode", "no-cors");
+                requestHeaders.set("Sec-Fetch-Site", "cross-site");
+                
+                org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(requestHeaders);
+                ResponseEntity<byte[]> response = restTemplate.exchange(coverUrl, org.springframework.http.HttpMethod.GET, entity, byte[].class);
+                
+                if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                    logger.error("Не удалось скачать обложку: HTTP {}", response.getStatusCode());
+                    return ResponseEntity.status(response.getStatusCode()).build();
+                }
+                
+                byte[] imageBytes = response.getBody();
+                
+                // Определяем расширение по Content-Type
+                String contentType = response.getHeaders().getContentType() != null 
+                    ? response.getHeaders().getContentType().toString() 
+                    : "image/jpeg";
+                
+                String ext = ".jpg";
+                if (contentType.contains("png")) {
+                    ext = ".png";
+                } else if (contentType.contains("webp")) {
+                    ext = ".webp";
+                }
+                
+                // Сохраняем в кэш
+                coverPath = coversDir.resolve(normalizedSlug + ext);
+                Files.write(coverPath, imageBytes);
+                logger.info("Обложка скачана и сохранена в кэш: {}", coverPath);
+                
+                // Возвращаем скачанную обложку
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.parseMediaType(contentType));
+                headers.setContentLength(imageBytes.length);
+                
+                return new ResponseEntity<>(imageBytes, headers, HttpStatus.OK);
+            }
+            
+            // Шаг 2: Возвращаем кэшированную обложку
+            byte[] imageBytes = Files.readAllBytes(coverPath);
+            
+            String contentType = MediaType.IMAGE_JPEG_VALUE;
+            String filename = coverPath.getFileName().toString().toLowerCase();
+            if (filename.endsWith(".png")) {
+                contentType = MediaType.IMAGE_PNG_VALUE;
+            } else if (filename.endsWith(".webp")) {
+                contentType = "image/webp";
+            }
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.parseMediaType(contentType));
+            headers.setContentLength(imageBytes.length);
+            
+            logger.info("Отдана кэшированная обложка для {}: {} байт", slug, imageBytes.length);
+            return new ResponseEntity<>(imageBytes, headers, HttpStatus.OK);
+            
+        } catch (IOException e) {
+            logger.error("Ошибка обработки обложки для {}: {}", slug, e.getMessage(), e);
+            return ResponseEntity.status(500).build();
+        }
+    }
+    
     @SuppressWarnings("unchecked")
     private List<ChapterInfo> parseChaptersFromCache(Map<String, Object> cached) {
         List<ChapterInfo> chapters = new ArrayList<>();
@@ -173,6 +312,13 @@ public class MangaInfoController {
                 chapter.setVolume(chMap.get("volume") != null ? ((Number) chMap.get("volume")).intValue() : null);
                 chapter.setTitle((String) chMap.get("title"));
                 chapter.setIsPaid((Boolean) chMap.getOrDefault("is_paid", false));
+                
+                // Добавляем чтение pages_count из кэша для поддержки slides_count
+                Object pagesCountObj = chMap.get("pages_count");
+                if (pagesCountObj != null && pagesCountObj instanceof Number) {
+                    chapter.setPagesCount(((Number) pagesCountObj).intValue());
+                }
+                
                 chapters.add(chapter);
             }
         }
