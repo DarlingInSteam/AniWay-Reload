@@ -562,6 +562,12 @@ public class MangaLibParserService {
         map.put("name", chapter.getTitle());
         map.put("is_paid", Boolean.TRUE.equals(chapter.getIsPaid()));
         map.put("branch_id", chapter.getBranchId());
+        
+        // КРИТИЧНО: Сохраняем folder_name для корректного импорта изображений
+        if (chapter.getFolderName() != null && !chapter.getFolderName().isBlank()) {
+            map.put("folder_name", chapter.getFolderName());
+        }
+        
         if (chapter.getPagesCount() != null) {
             map.put("pages_count", chapter.getPagesCount());
         }
@@ -649,9 +655,19 @@ public class MangaLibParserService {
         metadata.setReleaseYear(releaseYear);
         
         metadata.setCoverUrl(data.path("cover").path("default").asText(null));
-        metadata.setGenres(readNamedArray(data.path("genres"), "name"));
-        metadata.setTags(readNamedArray(data.path("tags"), "name"));
-        metadata.setAuthors(readNamedArray(data.path("authors"), "name"));
+        
+        // DEBUG: Логируем что извлекли из API
+        List<String> genres = readNamedArray(data.path("genres"), "name");
+        logger.debug("📊 [PARSER DEBUG] Extracted genres from API: {}", genres);
+        metadata.setGenres(genres);
+        
+        List<String> tags = readNamedArray(data.path("tags"), "name");
+        logger.debug("🏷️ [PARSER DEBUG] Extracted tags from API: {}", tags);
+        metadata.setTags(tags);
+        
+        List<String> authors = readNamedArray(data.path("authors"), "name");
+        logger.debug("✍️ [PARSER DEBUG] Extracted authors from API: {}", authors);
+        metadata.setAuthors(authors);
         metadata.setArtists(readNamedArray(data.path("artists"), "name"));
         metadata.setPublishers(readNamedArray(data.path("publisher"), "name"));
         metadata.setTeams(readNamedArray(data.path("teams"), "name"));

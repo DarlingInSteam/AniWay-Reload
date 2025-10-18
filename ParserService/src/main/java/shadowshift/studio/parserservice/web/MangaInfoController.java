@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
 import shadowshift.studio.parserservice.config.ParserProperties;
 import shadowshift.studio.parserservice.dto.ChapterInfo;
 import shadowshift.studio.parserservice.service.MangaLibParserService;
@@ -166,6 +167,10 @@ public class MangaInfoController {
     /**
      * Get cover image for manga
      * GET /cover/{slug}
+     * 
+     * Returns cover from:
+     * 1. Cached file in /covers/{slug}.jpg (if exists)
+     * 2. Downloads from cover_url in metadata JSON (if cached not found)
      */
     @GetMapping("/cover/{slug}")
     public ResponseEntity<byte[]> getCover(@PathVariable String slug) {
@@ -173,9 +178,11 @@ public class MangaInfoController {
             logger.info("Cover request: slug={}", slug);
             
             String normalizedSlug = parserService.normalizeSlug(slug);
-            Path coversDir = Paths.get(properties.getOutputPath(), "covers");
             
-            // Попытка найти cover файл с разными расширениями
+            // Шаг 1: Попытка найти кэшированную обложку
+            Path coversDir = Paths.get(properties.getOutputPath(), "covers");
+            Files.createDirectories(coversDir); // Создаём директорию если нет
+            
             String[] extensions = {".jpg", ".jpeg", ".png", ".webp"};
             Path coverPath = null;
             
@@ -183,32 +190,81 @@ public class MangaInfoController {
                 Path candidate = coversDir.resolve(normalizedSlug + ext);
                 if (Files.exists(candidate) && Files.isRegularFile(candidate)) {
                     coverPath = candidate;
-                    logger.debug("Найдена обложка: {}", coverPath);
+                    logger.debug("Найдена кэшированная обложка: {}", coverPath);
                     break;
                 }
             }
             
-            // Запасной вариант: ищем по оригинальному slug
-            if (coverPath == null && !normalizedSlug.equals(slug)) {
-                for (String ext : extensions) {
-                    Path candidate = coversDir.resolve(slug + ext);
-                    if (Files.exists(candidate) && Files.isRegularFile(candidate)) {
-                        coverPath = candidate;
-                        logger.debug("Найдена обложка (оригинальный slug): {}", coverPath);
-                        break;
-                    }
-                }
-            }
-            
+            // Если кэша нет - скачиваем с URL из metadata
             if (coverPath == null) {
-                logger.warn("Обложка не найдена для slug: {} (нормализованный: {})", slug, normalizedSlug);
-                return ResponseEntity.notFound().build();
+                logger.debug("Кэш обложки не найден, читаем metadata для {}", normalizedSlug);
+                
+                // Читаем JSON с метаданными
+                Path titlesDir = Paths.get(properties.getOutputPath(), "titles");
+                Path jsonPath = titlesDir.resolve(normalizedSlug + ".json");
+                
+                if (!Files.exists(jsonPath)) {
+                    logger.warn("JSON metadata не найден для {}", normalizedSlug);
+                    return ResponseEntity.notFound().build();
+                }
+                
+                Map<String, Object> metadata = objectMapper.readValue(jsonPath.toFile(), Map.class);
+                
+                // Извлекаем cover_url из covers массива
+                List<Map<String, Object>> covers = (List<Map<String, Object>>) metadata.get("covers");
+                String coverUrl = null;
+                
+                if (covers != null && !covers.isEmpty()) {
+                    coverUrl = (String) covers.get(0).get("link");
+                }
+                
+                if (coverUrl == null || coverUrl.isEmpty()) {
+                    logger.warn("cover_url не найден в metadata для {}", normalizedSlug);
+                    return ResponseEntity.notFound().build();
+                }
+                
+                logger.info("Скачивание обложки с URL: {}", coverUrl);
+                
+                // Скачиваем обложку
+                RestTemplate restTemplate = new RestTemplate();
+                ResponseEntity<byte[]> response = restTemplate.getForEntity(coverUrl, byte[].class);
+                
+                if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                    logger.error("Не удалось скачать обложку: HTTP {}", response.getStatusCode());
+                    return ResponseEntity.status(response.getStatusCode()).build();
+                }
+                
+                byte[] imageBytes = response.getBody();
+                
+                // Определяем расширение по Content-Type
+                String contentType = response.getHeaders().getContentType() != null 
+                    ? response.getHeaders().getContentType().toString() 
+                    : "image/jpeg";
+                
+                String ext = ".jpg";
+                if (contentType.contains("png")) {
+                    ext = ".png";
+                } else if (contentType.contains("webp")) {
+                    ext = ".webp";
+                }
+                
+                // Сохраняем в кэш
+                coverPath = coversDir.resolve(normalizedSlug + ext);
+                Files.write(coverPath, imageBytes);
+                logger.info("Обложка скачана и сохранена в кэш: {}", coverPath);
+                
+                // Возвращаем скачанную обложку
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.parseMediaType(contentType));
+                headers.setContentLength(imageBytes.length);
+                
+                return new ResponseEntity<>(imageBytes, headers, HttpStatus.OK);
             }
             
+            // Шаг 2: Возвращаем кэшированную обложку
             byte[] imageBytes = Files.readAllBytes(coverPath);
             
-            // Определяем Content-Type по расширению
-            String contentType = MediaType.IMAGE_JPEG_VALUE; // default
+            String contentType = MediaType.IMAGE_JPEG_VALUE;
             String filename = coverPath.getFileName().toString().toLowerCase();
             if (filename.endsWith(".png")) {
                 contentType = MediaType.IMAGE_PNG_VALUE;
@@ -220,11 +276,11 @@ public class MangaInfoController {
             headers.setContentType(MediaType.parseMediaType(contentType));
             headers.setContentLength(imageBytes.length);
             
-            logger.info("Отдана обложка для {}: {} байт, тип: {}", slug, imageBytes.length, contentType);
+            logger.info("Отдана кэшированная обложка для {}: {} байт", slug, imageBytes.length);
             return new ResponseEntity<>(imageBytes, headers, HttpStatus.OK);
             
         } catch (IOException e) {
-            logger.error("Ошибка чтения обложки для {}: {}", slug, e.getMessage(), e);
+            logger.error("Ошибка обработки обложки для {}: {}", slug, e.getMessage(), e);
             return ResponseEntity.status(500).build();
         }
     }
