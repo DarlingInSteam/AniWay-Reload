@@ -1187,7 +1187,7 @@ public class MelonIntegrationService {
             // Обрабатываем обложку ПОСЛЕ сохранения манги - скачиваем из MelonService и сохраняем в ImageStorageService
             try {
                 // Скачиваем обложку из MelonService
-                String coverUrl = melonServiceUrl + "/cover/" + filename;
+                String coverUrl = melonServiceUrl + "/manga-info/cover/" + filename;
                 System.out.println("Downloading cover from MelonService: " + coverUrl);
                 ResponseEntity<byte[]> coverResponse = restTemplate.getForEntity(coverUrl, byte[].class);
 
@@ -1723,7 +1723,7 @@ public class MelonIntegrationService {
         try {
             System.out.println("Starting cover processing for manga: " + filename);
             // Скачиваем обложку из MelonService
-            String coverUrl = melonServiceUrl + "/cover/" + filename;
+            String coverUrl = melonServiceUrl + "/manga-info/cover/" + filename;
             ResponseEntity<byte[]> coverResponse = restTemplate.getForEntity(coverUrl, byte[].class);
 
             if (coverResponse.getStatusCode().is2xxSuccessful() && coverResponse.getBody() != null) {
@@ -2045,7 +2045,7 @@ public class MelonIntegrationService {
                                      ", filename: " + filename + ", title: " + manga.getTitle());
 
                     // Скачиваем обложку из MelonService
-                    String melonCoverUrl = melonServiceUrl + "/cover/" + filename;
+                    String melonCoverUrl = melonServiceUrl + "/manga-info/cover/" + filename;
                     ResponseEntity<byte[]> coverResponse = restTemplate.getForEntity(melonCoverUrl, byte[].class);
 
                     if (coverResponse.getStatusCode().is2xxSuccessful() && coverResponse.getBody() != null) {
