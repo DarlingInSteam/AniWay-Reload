@@ -1,5 +1,6 @@
 package shadowshift.studio.parserservice.web;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -141,9 +142,16 @@ public class ChapterImagesController {
      * Image data DTO
      */
     public static class ImageData {
+        @JsonProperty("filename")
         private String filename;
+        
+        @JsonProperty("data")
         private String data; // base64
+        
+        @JsonProperty("contentType")
         private String contentType;
+        
+        @JsonProperty("page")
         private int pageNumber;
         
         public ImageData(String filename, String data, String contentType, int pageNumber) {
@@ -156,6 +164,7 @@ public class ChapterImagesController {
         public String getFilename() { return filename; }
         public String getData() { return data; }
         public String getContentType() { return contentType; }
+        public int getPage() { return pageNumber; }
         public int getPageNumber() { return pageNumber; }
     }
 }
