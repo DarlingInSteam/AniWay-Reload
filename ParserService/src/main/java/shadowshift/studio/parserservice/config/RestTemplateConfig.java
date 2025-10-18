@@ -36,10 +36,10 @@ public class RestTemplateConfig {
         logger.info("🚀 Инициализация общего Connection Pool для всех прокси...");
         
         sharedConnectionManager = new PoolingHttpClientConnectionManager();
-        sharedConnectionManager.setMaxTotal(200);          // Общий лимит соединений
-        sharedConnectionManager.setDefaultMaxPerRoute(10); // 200 / 20 прокси = 10 соединений на прокси
+        sharedConnectionManager.setMaxTotal(400);           // 20 прокси × 20 соединений = 400
+        sharedConnectionManager.setDefaultMaxPerRoute(20);  // 20 соединений на прокси (для 2 глав параллельно)
         
-        logger.info("✅ Connection Pool создан: MaxTotal=200, MaxPerRoute=10 (оптимально для 20 прокси)");
+        logger.info("✅ Connection Pool создан: MaxTotal=400, MaxPerRoute=20 (оптимально для 2 параллельных глав)");
     }
     
     @PreDestroy
