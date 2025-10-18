@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -122,19 +123,34 @@ public class MangaInfoController {
     public ResponseEntity<Map<String, Object>> getMangaInfo(@PathVariable String slug) {
         try {
             logger.info("Manga-info request: slug={}", slug);
-            
+
             String normalizedSlug = parserService.normalizeSlug(slug);
-            Path jsonPath = Paths.get(properties.getOutputPath(), normalizedSlug + ".json");
-            
-            if (Files.exists(jsonPath)) {
-                Map<String, Object> mangaInfo = objectMapper.readValue(jsonPath.toFile(), Map.class);
-                return ResponseEntity.ok(mangaInfo);
-            } else {
-                Map<String, Object> error = new HashMap<>();
-                error.put("error", "Manga not found: " + normalizedSlug);
-                return ResponseEntity.status(404).body(error);
+            Path outputDir = Paths.get(properties.getOutputPath());
+            Path titlesDir = outputDir.resolve("titles");
+
+            List<Path> candidatePaths = new ArrayList<>();
+            candidatePaths.add(titlesDir.resolve(normalizedSlug + ".json"));
+            candidatePaths.add(outputDir.resolve(normalizedSlug + ".json")); // legacy location
+
+            if (!normalizedSlug.equals(slug)) {
+                // Запасной вариант: используем исходный slug как есть
+                candidatePaths.add(titlesDir.resolve(slug + ".json"));
+                candidatePaths.add(outputDir.resolve(slug + ".json"));
             }
-            
+
+            for (Path candidate : candidatePaths) {
+                if (Files.exists(candidate) && Files.isRegularFile(candidate)) {
+                    logger.debug("Чтение manga-info из файла: {}", candidate);
+                    Map<String, Object> mangaInfo = objectMapper.readValue(candidate.toFile(), Map.class);
+                    return ResponseEntity.ok(mangaInfo);
+                }
+            }
+
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", "Manga not found: " + normalizedSlug);
+            error.put("attempted_paths", candidatePaths.stream().map(Path::toString).collect(Collectors.toList()));
+            return ResponseEntity.status(404).body(error);
+
         } catch (Exception e) {
             logger.error("Error reading manga info for {}: {}", slug, e.getMessage(), e);
             Map<String, Object> error = new HashMap<>();

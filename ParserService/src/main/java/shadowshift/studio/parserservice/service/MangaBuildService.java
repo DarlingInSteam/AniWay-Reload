@@ -404,10 +404,86 @@ public class MangaBuildService {
                 throw new IOException("Invalid metadata format: missing or invalid 'chapters' array");
             }
             
-            List<ChapterInfo> chapters = new ArrayList<>();
+            List<ChapterInfo> allChapters = new ArrayList<>();
             for (JsonNode chNode : chaptersNode) {
                 ChapterInfo chapter = objectMapper.treeToValue(chNode, ChapterInfo.class);
-                chapters.add(chapter);
+                allChapters.add(chapter);
+            }
+            
+            // АВТОМАТИЧЕСКАЯ фильтрация по ветке:
+            // 1. Если вручную указан branchId — используем его (редкий кейс для админов)
+            // 2. Если titleId известен — берём дефолтную ветку (titleId * 10)
+            // 3. Если дефолтная ветка пуста — берём первую непустую ветку
+            // 4. Если веток нет вообще — берём все главы (маловероятно)
+            List<ChapterInfo> chapters;
+            String branchIdParam = task.getBranchId();
+            
+            if (branchIdParam != null && !branchIdParam.isBlank()) {
+                // Ручное указание ветки (админский кейс)
+                Integer targetBranch = parseIntegerSafe(branchIdParam);
+                chapters = allChapters.stream()
+                    .filter(ch -> ch.getBranchId() != null && ch.getBranchId().equals(targetBranch))
+                    .collect(Collectors.toList());
+                taskService.appendLog(task, String.format("🔀 Manual branch %s: %d/%d chapters", 
+                    branchIdParam, chapters.size(), allChapters.size()));
+            } else if (titleId != null && titleId > 0) {
+                // Автоматика: пробуем дефолтную ветку
+                chapters = allChapters.stream()
+                    .filter(ch -> ch.getBranchId() != null && ch.getBranchId().equals(defaultBranchId))
+                    .collect(Collectors.toList());
+                
+                if (!chapters.isEmpty()) {
+                    taskService.appendLog(task, String.format("🔀 Auto: default branch %d → %d/%d chapters", 
+                        defaultBranchId, chapters.size(), allChapters.size()));
+                } else {
+                    // Дефолтная ветка пуста → ищем первую непустую
+                    Map<Integer, Long> branchCounts = allChapters.stream()
+                        .filter(ch -> ch.getBranchId() != null)
+                        .collect(Collectors.groupingBy(ChapterInfo::getBranchId, Collectors.counting()));
+                    
+                    Integer firstNonEmptyBranch = branchCounts.entrySet().stream()
+                        .filter(e -> e.getValue() > 0)
+                        .min(Map.Entry.comparingByKey())
+                        .map(Map.Entry::getKey)
+                        .orElse(null);
+                    
+                    if (firstNonEmptyBranch != null) {
+                        chapters = allChapters.stream()
+                            .filter(ch -> ch.getBranchId() != null && ch.getBranchId().equals(firstNonEmptyBranch))
+                            .collect(Collectors.toList());
+                        taskService.appendLog(task, String.format("🔀 Auto: default branch %d empty, using branch %d → %d/%d chapters", 
+                            defaultBranchId, firstNonEmptyBranch, chapters.size(), allChapters.size()));
+                    } else {
+                        // Fallback: нет веток с главами (маловероятно)
+                        chapters = allChapters;
+                        taskService.appendLog(task, String.format("⚠️ Auto: no branches found, using all %d chapters", 
+                            allChapters.size()));
+                    }
+                }
+            } else {
+                // titleId неизвестен → ищем первую непустую ветку
+                Map<Integer, Long> branchCounts = allChapters.stream()
+                    .filter(ch -> ch.getBranchId() != null)
+                    .collect(Collectors.groupingBy(ChapterInfo::getBranchId, Collectors.counting()));
+                
+                Integer firstNonEmptyBranch = branchCounts.entrySet().stream()
+                    .filter(e -> e.getValue() > 0)
+                    .min(Map.Entry.comparingByKey())
+                    .map(Map.Entry::getKey)
+                    .orElse(null);
+                
+                if (firstNonEmptyBranch != null) {
+                    chapters = allChapters.stream()
+                        .filter(ch -> ch.getBranchId() != null && ch.getBranchId().equals(firstNonEmptyBranch))
+                        .collect(Collectors.toList());
+                    taskService.appendLog(task, String.format("🔀 Auto: no titleId, using first branch %d → %d/%d chapters", 
+                        firstNonEmptyBranch, chapters.size(), allChapters.size()));
+                } else {
+                    // Fallback: нет веток вообще
+                    chapters = allChapters;
+                    taskService.appendLog(task, String.format("📋 Auto: no branches detected, using all %d chapters", 
+                        allChapters.size()));
+                }
             }
             
             task.setMessage(String.format("Found %d chapters to download", chapters.size()));

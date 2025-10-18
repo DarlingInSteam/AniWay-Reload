@@ -35,6 +35,8 @@ public class ParserTask {
     private final List<TaskLogEntry> logs = new CopyOnWriteArrayList<>();
     private final Map<String, Object> metrics = new ConcurrentHashMap<>();
 
+    private volatile String branchId;
+
     public ParserTask(UUID id, TaskType type, List<String> slugs) {
         this.id = Objects.requireNonNull(id, "id");
         this.type = Objects.requireNonNull(type, "type");
@@ -179,6 +181,15 @@ public class ParserTask {
             metrics.put(key, value);
             touch();
         }
+    }
+
+    public String getBranchId() {
+        return branchId;
+    }
+
+    public void setBranchId(String branchId) {
+        this.branchId = branchId;
+        touch();
     }
 
     private void touch() {

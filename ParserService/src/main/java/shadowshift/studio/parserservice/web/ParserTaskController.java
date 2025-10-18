@@ -73,6 +73,7 @@ public class ParserTaskController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "type is required");
         }
         ParserTask task = taskService.createBuildTask(slug);
+        task.setBranchId(request.getBranchId());
         task.setMessage("Build queued (%s)".formatted(request.getType()));
         
         // Запускаем задачу асинхронно

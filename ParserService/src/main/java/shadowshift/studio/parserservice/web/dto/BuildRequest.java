@@ -12,6 +12,8 @@ public class BuildRequest {
     @NotBlank
     private String type;
 
+    private String branchId;
+
     public String getSlug() {
         return slug;
     }
@@ -34,5 +36,13 @@ public class BuildRequest {
 
     public void setType(String type) {
         this.type = type;
+    }
+
+    public String getBranchId() {
+        return branchId;
+    }
+
+    public void setBranchId(String branchId) {
+        this.branchId = branchId;
     }
 }
