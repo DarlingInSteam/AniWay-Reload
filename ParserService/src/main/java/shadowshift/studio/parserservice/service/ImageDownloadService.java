@@ -49,6 +49,10 @@ public class ImageDownloadService {
             long fileSize = 0;
             int maxRetries = 3;
             
+            // 🔍 Получаем прокси для текущего потока
+            ProxyManagerService.ProxyServer currentProxy = proxyManager.getProxyForCurrentThread();
+            String proxyInfo = currentProxy != null ? currentProxy.getHost() : "NO_PROXY";
+            
             try {
                 // Создаем директорию если нет
                 Files.createDirectories(outputPath.getParent());
@@ -57,7 +61,7 @@ public class ImageDownloadService {
                 if (Files.exists(outputPath)) {
                     fileSize = Files.size(outputPath);
                     logger.debug("✅ File exists: {} ({}KB)", outputPath.getFileName(), fileSize / 1024);
-                    return new DownloadResult(true, System.currentTimeMillis() - startTime, fileSize, true);
+                    return new DownloadResult(true, System.currentTimeMillis() - startTime, fileSize, true, proxyInfo);
                 }
                 
                 // Retry loop для загрузки
@@ -87,7 +91,7 @@ public class ImageDownloadService {
                             logger.debug("✅ Downloaded: {} ({}KB in {}ms)", 
                                 outputPath.getFileName(), fileSize / 1024, downloadTime);
                             
-                            return new DownloadResult(true, downloadTime, fileSize, false);
+                            return new DownloadResult(true, downloadTime, fileSize, false, proxyInfo);
                         } else if (attempt < maxRetries - 1) {
                             logger.warn("⚠️ Bad response for {}: {}, retrying ({}/{})", 
                                 imageUrl, response.getStatusCode(), attempt + 1, maxRetries);
@@ -97,7 +101,7 @@ public class ImageDownloadService {
                         }
                         
                         logger.error("❌ Failed to download {}: {}", imageUrl, response.getStatusCode());
-                        return new DownloadResult(false, System.currentTimeMillis() - startTime, 0, false);
+                        return new DownloadResult(false, System.currentTimeMillis() - startTime, 0, false, proxyInfo);
                         
                     } catch (Exception e) {
                         lastException = e;
@@ -112,11 +116,11 @@ public class ImageDownloadService {
                 
                 logger.error("❌ Error downloading {} after {} attempts: {}", 
                     imageUrl, maxRetries, lastException != null ? lastException.getMessage() : "unknown");
-                return new DownloadResult(false, System.currentTimeMillis() - startTime, 0, false);
+                return new DownloadResult(false, System.currentTimeMillis() - startTime, 0, false, proxyInfo);
                 
             } catch (Exception e) {
                 logger.error("❌ Fatal error downloading {}: {}", imageUrl, e.getMessage());
-                return new DownloadResult(false, System.currentTimeMillis() - startTime, 0, false);
+                return new DownloadResult(false, System.currentTimeMillis() - startTime, 0, false, proxyInfo != null ? proxyInfo : "NO_PROXY");
             }
         }, executorService);
     }
@@ -135,6 +139,10 @@ public class ImageDownloadService {
         java.util.concurrent.atomic.AtomicLong totalBytes = new java.util.concurrent.atomic.AtomicLong(0);
         java.util.concurrent.atomic.AtomicInteger cached = new java.util.concurrent.atomic.AtomicInteger(0);
         
+        // 🔍 Map для отслеживания использования прокси
+        java.util.Map<String, java.util.concurrent.atomic.AtomicInteger> proxyUsageMap = 
+            new java.util.concurrent.ConcurrentHashMap<>();
+        
         // Прогресс-репортер каждые 10%
         int reportInterval = Math.max(1, totalImages / 10);
         
@@ -149,6 +157,10 @@ public class ImageDownloadService {
                         if (result.cached) {
                             cached.incrementAndGet();
                         }
+                        
+                        // 🔍 Подсчитываем использование прокси
+                        proxyUsageMap.computeIfAbsent(result.proxyUsed, 
+                            k -> new java.util.concurrent.atomic.AtomicInteger(0)).incrementAndGet();
                     }
                     
                     // Логируем прогресс каждые reportInterval изображений
@@ -158,11 +170,15 @@ public class ImageDownloadService {
                         double speedImagesPerSec = (current * 1000.0) / elapsed;
                         long eta = (long) ((totalImages - current) / speedImagesPerSec);
                         
-                        logger.info("📊 [PROGRESS] {}/{} images ({}%), Speed: {} img/s, ETA: {}s, Success: {}, Cached: {}", 
+                        // 🔍 Получаем последний использованный прокси
+                        String proxyInfo = result.proxyUsed != null ? 
+                            " [Proxy: " + result.proxyUsed.substring(0, Math.min(15, result.proxyUsed.length())) + "...]" : "";
+                        
+                        logger.info("📊 [PROGRESS] {}/{} images ({}%), Speed: {} img/s, ETA: {}s, Success: {}, Cached: {}{}", 
                             current, totalImages, 
                             String.format("%.1f", progress), 
                             String.format("%.1f", speedImagesPerSec), 
-                            eta, successful.get(), cached.get());
+                            eta, successful.get(), cached.get(), proxyInfo);
                     }
                     
                     return result;
@@ -187,6 +203,19 @@ public class ImageDownloadService {
                     String.format("%.2f", avgSpeedMBps), 
                     String.format("%.1f", avgSpeedImgPerSec));
                 
+                // 🔍 Логируем статистику по прокси
+                if (!proxyUsageMap.isEmpty()) {
+                    logger.info("🔍 [PROXY USAGE STATS]");
+                    proxyUsageMap.entrySet().stream()
+                        .sorted((e1, e2) -> Integer.compare(e2.getValue().get(), e1.getValue().get()))
+                        .forEach(entry -> {
+                            int count = entry.getValue().get();
+                            double percentage = (count * 100.0) / successCount;
+                            logger.info("  📡 {}: {} images ({}%)", 
+                                entry.getKey(), count, String.format("%.1f", percentage));
+                        });
+                }
+                
                 return new DownloadSummary(totalImages, successCount, failedCount, 
                     cached.get(), totalBytes.get(), totalTime);
             });
@@ -206,19 +235,21 @@ public class ImageDownloadService {
     }
     
     /**
-     * Результат загрузки одного изображения
+     * Результат загрузки изображения
      */
     public static class DownloadResult {
         public final boolean success;
         public final long downloadTime;
         public final long fileSize;
         public final boolean cached;
+        public final String proxyUsed; // 🔍 Добавили поле
         
-        public DownloadResult(boolean success, long downloadTime, long fileSize, boolean cached) {
+        public DownloadResult(boolean success, long downloadTime, long fileSize, boolean cached, String proxyUsed) {
             this.success = success;
             this.downloadTime = downloadTime;
             this.fileSize = fileSize;
             this.cached = cached;
+            this.proxyUsed = proxyUsed;
         }
     }
     
