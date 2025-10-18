@@ -161,6 +161,44 @@ public class MangaLibParserService {
             logger.info("🚀 [PARSE START] Slug: {}, TaskId: {}", slugContext.getRawSlug(), taskId);
 
             try {
+                // ⚡ ОПТИМИЗАЦИЯ: Проверяем существование JSON и актуальность данных
+                Path jsonPath = Paths.get(properties.getOutputPath(), "titles", slugContext.getFileSlug() + ".json");
+                if (Files.exists(jsonPath)) {
+                    logger.debug("📂 Найден существующий JSON для slug: {}", slugContext.getFileSlug());
+                    
+                    try {
+                        // Загружаем существующие данные
+                        Map<String, Object> cachedData = objectMapper.readValue(jsonPath.toFile(), Map.class);
+                        
+                        task.updateStatus("running", 20, "Проверка актуальности данных...");
+                        
+                        // Получаем только список глав (легкий запрос без метаданных)
+                        ChaptersPayload freshChapters = fetchChaptersOnly(slugContext);
+                        
+                        // Сравниваем главы: количество и статусы (платная/бесплатная)
+                        ChapterComparisonResult comparison = compareChapters(cachedData, freshChapters);
+                        
+                        if (!comparison.hasChanges()) {
+                            // Данные актуальны - возвращаем кеш
+                            long totalTime = System.currentTimeMillis() - startedAt;
+                            logger.info("✅ [CACHE HIT] Slug: {}, TaskId: {}, Time: {}ms, Chapters: {} (актуально)",
+                                    slugContext.getFileSlug(), taskId, totalTime, 
+                                    ((List<?>) cachedData.get("chapters")).size());
+                            
+                            task.updateStatus("completed", 100, "Данные актуальны (кеш)");
+                            return buildResultFromCache(cachedData, jsonPath, slugContext);
+                        } else {
+                            // Есть изменения - логируем и делаем полный парсинг
+                            logger.info("🔄 [CACHE MISS] Slug: {}, изменения: {}", 
+                                    slugContext.getFileSlug(), comparison.getChangeDescription());
+                        }
+                    } catch (Exception e) {
+                        logger.warn("⚠️ Ошибка чтения/проверки кеша для slug: {}, делаем полный парсинг", 
+                                slugContext.getFileSlug(), e);
+                    }
+                }
+
+                // Полный парсинг (оригинальная логика)
                 task.updateStatus("running", 10, "Получение метаданных с MangaLib...");
 
                 MangaMetadata metadata = fetchMangaMetadata(slugContext, task);
@@ -1005,6 +1043,234 @@ public class MangaLibParserService {
 
         List<ChapterInfo> flatten() {
             return content.values().stream().flatMap(List::stream).collect(Collectors.toList());
+        }
+    }
+    
+    /**
+     * ⚡ ОПТИМИЗАЦИЯ: Получает только список глав без метаданных и слайдов (легкий запрос)
+     */
+    private ChaptersPayload fetchChaptersOnly(SlugContext slugContext) throws IOException {
+        HttpHeaders headers = createMangaLibHeaders();
+        String url = MANGALIB_API_BASE + "/manga/" + slugContext.getApiSlug() + "/chapters";
+
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
+            JsonNode root = objectMapper.readTree(response.getBody());
+            JsonNode data = root.path("data");
+            if (!data.isArray()) {
+                throw new IOException("Некорректный формат ответа при получении списка глав");
+            }
+
+            Map<Integer, List<ChapterInfo>> content = new LinkedHashMap<>();
+            List<ChapterInfo> allChapters = new ArrayList<>();
+            int defaultBranchId = slugContext.getDefaultBranchId();
+
+            for (JsonNode chapterNode : data) {
+                Double number = parseDouble(chapterNode.path("number"));
+                Integer volume = parseInteger(chapterNode.path("volume"));
+
+                for (JsonNode branchNode : chapterNode.path("branches")) {
+                    Integer branchId = branchNode.path("branch_id").isMissingNode()
+                            ? defaultBranchId
+                            : branchNode.path("branch_id").asInt(defaultBranchId);
+
+                    ChapterInfo chapter = new ChapterInfo();
+                    chapter.setChapterId(branchNode.path("id").asText());
+                    chapter.setBranchId(branchId);
+                    chapter.setNumber(number);
+                    chapter.setVolume(volume);
+
+                    // ВАЖНО: Проверяем статус платная/бесплатная
+                    JsonNode restricted = branchNode.path("restricted_view");
+                    if (!restricted.isMissingNode() && restricted.isObject()) {
+                        Boolean isPaid = restricted.path("is_blocked").asBoolean(false);
+                        chapter.setIsPaid(isPaid);
+                    } else {
+                        chapter.setIsPaid(false);
+                    }
+
+                    content.computeIfAbsent(branchId, k -> new ArrayList<>()).add(chapter);
+                    allChapters.add(chapter);
+                }
+            }
+
+            // Создаем минимальные branch summaries
+            List<BranchSummary> branches = content.entrySet().stream()
+                    .map(e -> new BranchSummary(e.getKey(), e.getValue().size()))
+                    .collect(Collectors.toList());
+
+            return new ChaptersPayload(content, branches);
+        } catch (HttpStatusCodeException ex) {
+            throw new IOException("Не удалось получить список глав: HTTP " + ex.getStatusCode().value(), ex);
+        } catch (RestClientException ex) {
+            throw new IOException("Ошибка запроса списка глав: " + ex.getMessage(), ex);
+        }
+    }
+    
+    /**
+     * ⚡ ОПТИМИЗАЦИЯ: Сравнивает закешированные главы с актуальными
+     */
+    private ChapterComparisonResult compareChapters(Map<String, Object> cachedData, ChaptersPayload freshChapters) {
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> cachedChapters = (List<Map<String, Object>>) cachedData.get("chapters");
+        List<ChapterInfo> freshChaptersList = freshChapters.flatten();
+        
+        if (cachedChapters == null) {
+            return new ChapterComparisonResult(true, "Кеш поврежден (нет списка глав)");
+        }
+        
+        // Разное количество глав = есть изменения
+        if (cachedChapters.size() != freshChaptersList.size()) {
+            return new ChapterComparisonResult(true, 
+                    String.format("Изменилось количество глав: было %d, стало %d", 
+                            cachedChapters.size(), freshChaptersList.size()));
+        }
+        
+        // Сравниваем каждую главу по ID и статусу is_paid
+        Map<String, Boolean> cachedStatuses = new LinkedHashMap<>();
+        for (Map<String, Object> ch : cachedChapters) {
+            Object idObj = ch.get("id");
+            String id = idObj != null ? String.valueOf(idObj) : null;
+            if (id != null) {
+                Object isPaidObj = ch.get("is_paid");
+                Boolean isPaid = isPaidObj != null ? (Boolean) isPaidObj : false;
+                cachedStatuses.put(id, isPaid);
+            }
+        }
+        
+        List<String> changes = new ArrayList<>();
+        for (ChapterInfo fresh : freshChaptersList) {
+            String id = fresh.getChapterId();
+            Boolean cachedIsPaid = cachedStatuses.get(id);
+            Boolean freshIsPaid = fresh.getIsPaid() != null ? fresh.getIsPaid() : false;
+            
+            // Новая глава
+            if (cachedIsPaid == null) {
+                changes.add(String.format("Новая глава: id=%s", id));
+                continue;
+            }
+            
+            // Изменился статус платная/бесплатная (КРИТИЧНО для автообновления!)
+            if (!cachedIsPaid.equals(freshIsPaid)) {
+                String statusChange = cachedIsPaid ? "платная → бесплатная" : "бесплатная → платная";
+                changes.add(String.format("Глава %s: %s", id, statusChange));
+            }
+        }
+        
+        if (!changes.isEmpty()) {
+            return new ChapterComparisonResult(true, String.join("; ", changes));
+        }
+        
+        return new ChapterComparisonResult(false, "Нет изменений");
+    }
+    
+    /**
+     * ⚡ ОПТИМИЗАЦИЯ: Создает ParseResult из закешированного JSON
+     */
+    private ParseResult buildResultFromCache(Map<String, Object> cachedData, Path jsonPath, SlugContext slugContext) {
+        ParseResult result = new ParseResult();
+        result.setSuccess(true);
+        result.setSlug(slugContext.getFileSlug());
+        
+        Object titleObj = cachedData.get("localized_name");
+        if (titleObj == null) {
+            titleObj = cachedData.get("title");
+        }
+        result.setTitle(titleObj != null ? String.valueOf(titleObj) : slugContext.getFileSlug());
+        
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> chaptersRaw = (List<Map<String, Object>>) cachedData.get("chapters");
+        if (chaptersRaw != null) {
+            result.setChaptersCount(chaptersRaw.size());
+            
+            // Конвертируем Map в ChapterInfo
+            List<ChapterInfo> chapters = chaptersRaw.stream()
+                    .map(this::mapChapterFromCache)
+                    .collect(Collectors.toList());
+            result.setChapters(chapters);
+        } else {
+            result.setChaptersCount(0);
+            result.setChapters(Collections.emptyList());
+        }
+        
+        result.setOutputPath(jsonPath.toString());
+        return result;
+    }
+    
+    /**
+     * Конвертирует Map из кеша в ChapterInfo
+     */
+    private ChapterInfo mapChapterFromCache(Map<String, Object> map) {
+        ChapterInfo chapter = new ChapterInfo();
+        
+        Object idObj = map.get("id");
+        if (idObj != null) {
+            chapter.setChapterId(String.valueOf(idObj));
+        }
+        
+        Object numberObj = map.get("number");
+        if (numberObj instanceof Number) {
+            chapter.setNumber(((Number) numberObj).doubleValue());
+        } else if (numberObj instanceof String) {
+            try {
+                chapter.setNumber(Double.parseDouble((String) numberObj));
+            } catch (NumberFormatException e) {
+                // игнорируем
+            }
+        }
+        
+        Object volumeObj = map.get("volume");
+        if (volumeObj instanceof Number) {
+            chapter.setVolume(((Number) volumeObj).intValue());
+        } else if (volumeObj instanceof String) {
+            try {
+                chapter.setVolume(Integer.parseInt((String) volumeObj));
+            } catch (NumberFormatException e) {
+                // игнорируем
+            }
+        }
+        
+        Object titleObj = map.get("name");
+        if (titleObj != null) {
+            chapter.setTitle(String.valueOf(titleObj));
+        }
+        
+        Object isPaidObj = map.get("is_paid");
+        if (isPaidObj instanceof Boolean) {
+            chapter.setIsPaid((Boolean) isPaidObj);
+        }
+        
+        Object branchIdObj = map.get("branch_id");
+        if (branchIdObj instanceof Number) {
+            chapter.setBranchId(((Number) branchIdObj).intValue());
+        }
+        
+        Object pagesCountObj = map.get("pages_count");
+        if (pagesCountObj instanceof Number) {
+            chapter.setPagesCount(((Number) pagesCountObj).intValue());
+        }
+        
+        return chapter;
+    }
+    
+    /**
+     * Результат сравнения глав
+     */
+    private static final class ChapterComparisonResult {
+        private final boolean hasChanges;
+        private final String changeDescription;
+        
+        ChapterComparisonResult(boolean hasChanges, String changeDescription) {
+            this.hasChanges = hasChanges;
+            this.changeDescription = changeDescription;
+        }
+        
+        boolean hasChanges() {
+            return hasChanges;
+        }
+        
+        String getChangeDescription() {
+            return changeDescription;
         }
     }
 
