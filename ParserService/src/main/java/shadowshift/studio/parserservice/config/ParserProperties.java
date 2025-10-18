@@ -128,7 +128,7 @@ public class ParserProperties {
     /**
      * Максимальное количество параллельных загрузок изображений.
      */
-    private int maxParallelDownloads = 20;
+    private int maxParallelDownloads = 50; // Увеличено с 20 до 50 для ускорения загрузки
     
     /**
      * Таймаут загрузки изображения в секундах.

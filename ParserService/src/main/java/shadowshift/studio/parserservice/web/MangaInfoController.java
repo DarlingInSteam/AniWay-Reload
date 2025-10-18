@@ -94,9 +94,12 @@ public class MangaInfoController {
                 chapterMap.put("title", chapter.getTitle());
                 chapterMap.put("is_paid", chapter.getIsPaid());
                 
-                // Include slides_count if requested (set to null for now, can be fetched if needed)
+                // Include slides_count if requested
                 if (include_slides_count) {
-                    chapterMap.put("slides_count", null);  // TODO: fetch actual count from MangaLib
+                    // Используем pagesCount из ChapterInfo (получено при парсинге из MangaLib)
+                    Integer slidesCount = chapter.getPagesCount();
+                    chapterMap.put("slides_count", slidesCount != null ? slidesCount : 0);
+                    logger.debug("Chapter {} - slides_count: {}", chapter.getNumber(), slidesCount);
                 }
                 
                 chaptersList.add(chapterMap);
@@ -309,6 +312,13 @@ public class MangaInfoController {
                 chapter.setVolume(chMap.get("volume") != null ? ((Number) chMap.get("volume")).intValue() : null);
                 chapter.setTitle((String) chMap.get("title"));
                 chapter.setIsPaid((Boolean) chMap.getOrDefault("is_paid", false));
+                
+                // Добавляем чтение pages_count из кэша для поддержки slides_count
+                Object pagesCountObj = chMap.get("pages_count");
+                if (pagesCountObj != null && pagesCountObj instanceof Number) {
+                    chapter.setPagesCount(((Number) pagesCountObj).intValue());
+                }
+                
                 chapters.add(chapter);
             }
         }

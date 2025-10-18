@@ -60,17 +60,17 @@ public class RestTemplateConfig {
         // Configure proxy
         HttpHost proxyHost = new HttpHost(proxy.getHost(), proxy.getPort());
         
-        // Configure timeouts - более агрессивные для изображений
+        // ⚡ ОПТИМИЗАЦИЯ: Агрессивные таймауты для быстрой загрузки изображений
         RequestConfig config = RequestConfig.custom()
-                .setConnectTimeout(Timeout.ofSeconds(10))
-                .setResponseTimeout(Timeout.ofSeconds(30))
+                .setConnectTimeout(Timeout.ofSeconds(5))       // Уменьшено с 10s до 5s
+                .setResponseTimeout(Timeout.ofSeconds(15))     // Уменьшено с 30s до 15s
                 .setProxy(proxyHost)
                 .build();
         
-        // Connection pooling для параллельной загрузки
+        // ⚡ ОПТИМИЗАЦИЯ: Увеличен connection pool для высокой параллельности
         PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
-        connectionManager.setMaxTotal(100); // Общее количество соединений
-        connectionManager.setDefaultMaxPerRoute(20); // На один хост
+        connectionManager.setMaxTotal(200);           // Увеличено со 100 до 200
+        connectionManager.setDefaultMaxPerRoute(50);  // Увеличено с 20 до 50
         
         return HttpClients.custom()
                 .setDefaultRequestConfig(config)
@@ -79,15 +79,16 @@ public class RestTemplateConfig {
     }
     
     private CloseableHttpClient createDirectHttpClient() {
+        // ⚡ ОПТИМИЗАЦИЯ: Агрессивные таймауты для быстрой загрузки
         RequestConfig config = RequestConfig.custom()
-                .setConnectTimeout(Timeout.ofSeconds(10))
-                .setResponseTimeout(Timeout.ofSeconds(30))
+                .setConnectTimeout(Timeout.ofSeconds(5))       // Уменьшено с 10s до 5s
+                .setResponseTimeout(Timeout.ofSeconds(15))     // Уменьшено с 30s до 15s
                 .build();
         
-        // Connection pooling для параллельной загрузки
+        // ⚡ ОПТИМИЗАЦИЯ: Увеличен connection pool для высокой параллельности
         PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
-        connectionManager.setMaxTotal(100);
-        connectionManager.setDefaultMaxPerRoute(20);
+        connectionManager.setMaxTotal(200);           // Увеличено со 100 до 200
+        connectionManager.setDefaultMaxPerRoute(50);  // Увеличено с 20 до 50
         
         return HttpClients.custom()
                 .setDefaultRequestConfig(config)
