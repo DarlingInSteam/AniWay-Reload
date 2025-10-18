@@ -590,6 +590,14 @@ public class MangaBuildService {
             
             long totalElapsed = System.currentTimeMillis() - startTime;
             
+            // КРИТИЧНО: Пересохраняем JSON с обновленными folder_name после билда
+            try {
+                logger.info("💾 Updating JSON with folder_name for {} chapters", chapters.size());
+                updateJsonWithFolderNames(slug, chapters);
+            } catch (Exception jsonEx) {
+                logger.warn("⚠️ Failed to update JSON with folder_name: {}", jsonEx.getMessage());
+            }
+            
             task.setStatus(TaskStatus.COMPLETED);
             task.setCompletedAt(Instant.now());
             task.setProgress(100);
@@ -648,5 +656,65 @@ public class MangaBuildService {
                 this.apiSlug = id + "--" + fileSlug;
             }
         }
+    }
+    
+    /**
+     * Обновляет JSON файл, добавляя folder_name к главам после билда
+     */
+    private void updateJsonWithFolderNames(String slug, List<ChapterInfo> chapters) throws IOException {
+        Path titlesDir = Paths.get(properties.getOutputPath(), "titles");
+        Path jsonPath = titlesDir.resolve(slug + ".json");
+        
+        if (!Files.exists(jsonPath)) {
+            logger.warn("JSON file not found for updating: {}", jsonPath);
+            return;
+        }
+        
+        // Читаем существующий JSON
+        ObjectNode root = (ObjectNode) objectMapper.readTree(jsonPath.toFile());
+        
+        // Создаем мапу chapterId -> folderName для быстрого поиска
+        Map<String, String> folderNameMap = new HashMap<>();
+        for (ChapterInfo chapter : chapters) {
+            if (chapter.getChapterId() != null && chapter.getFolderName() != null) {
+                folderNameMap.put(chapter.getChapterId(), chapter.getFolderName());
+            }
+        }
+        
+        // Обновляем content (по branch_id)
+        JsonNode contentNode = root.get("content");
+        if (contentNode != null && contentNode.isObject()) {
+            ObjectNode content = (ObjectNode) contentNode;
+            content.fields().forEachRemaining(entry -> {
+                JsonNode branchChapters = entry.getValue();
+                if (branchChapters.isArray()) {
+                    ArrayNode chaptersArray = (ArrayNode) branchChapters;
+                    for (int i = 0; i < chaptersArray.size(); i++) {
+                        ObjectNode chapterNode = (ObjectNode) chaptersArray.get(i);
+                        String chapterId = chapterNode.has("id") ? String.valueOf(chapterNode.get("id").asText()) : null;
+                        if (chapterId != null && folderNameMap.containsKey(chapterId)) {
+                            chapterNode.put("folder_name", folderNameMap.get(chapterId));
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Обновляем chapters (плоский массив)
+        JsonNode chaptersNode = root.get("chapters");
+        if (chaptersNode != null && chaptersNode.isArray()) {
+            ArrayNode chaptersArray = (ArrayNode) chaptersNode;
+            for (int i = 0; i < chaptersArray.size(); i++) {
+                ObjectNode chapterNode = (ObjectNode) chaptersArray.get(i);
+                String chapterId = chapterNode.has("id") ? String.valueOf(chapterNode.get("id").asText()) : null;
+                if (chapterId != null && folderNameMap.containsKey(chapterId)) {
+                    chapterNode.put("folder_name", folderNameMap.get(chapterId));
+                }
+            }
+        }
+        
+        // Сохраняем обновленный JSON
+        objectMapper.writerWithDefaultPrettyPrinter().writeValue(jsonPath.toFile(), root);
+        logger.info("✅ Updated JSON with {} folder_name entries", folderNameMap.size());
     }
 }
