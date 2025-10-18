@@ -165,6 +165,5 @@ public class ChapterImagesController {
         public String getData() { return data; }
         public String getContentType() { return contentType; }
         public int getPage() { return pageNumber; }
-        public int getPageNumber() { return pageNumber; }
     }
 }
