@@ -2161,6 +2161,14 @@ public class MelonIntegrationService {
                 }
                 chapterRequest.put("originalChapterNumber", originalNumber);
 
+                // Сохраняем оригинальный ID главы из MangaLib для автообновления
+                Object chapterIdObj = chapterData.get("id");
+                if (chapterIdObj != null) {
+                    String melonChapterId = chapterIdObj.toString();
+                    chapterRequest.put("melonChapterId", melonChapterId);
+                    logger.debug("Сохранён melonChapterId: {}", melonChapterId);
+                }
+
                 // Обрабатываем title - может быть null
                 Object titleObj = chapterData.get("name");
                 String title;
