@@ -13,6 +13,8 @@ public class BuildRequest {
     private String type;
 
     private String branchId;
+    
+    private boolean autoImport = false;
 
     public String getSlug() {
         return slug;
@@ -44,5 +46,13 @@ public class BuildRequest {
 
     public void setBranchId(String branchId) {
         this.branchId = branchId;
+    }
+    
+    public boolean isAutoImport() {
+        return autoImport;
+    }
+    
+    public void setAutoImport(boolean autoImport) {
+        this.autoImport = autoImport;
     }
 }

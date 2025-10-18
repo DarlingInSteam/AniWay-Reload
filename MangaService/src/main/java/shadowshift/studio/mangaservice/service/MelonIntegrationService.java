@@ -378,7 +378,8 @@ public class MelonIntegrationService {
             }
             
             updateFullParsingTask(fullTaskId, "running", 50, "Парсинг JSON завершен, запускаем скачивание изображений...", null);
-            Map<String, Object> buildResult = buildManga(normalizedSlug, null);
+            // ВАЖНО: НЕ включаем autoImport в ParserService, т.к. MangaService сам управляет импортом!
+            Map<String, Object> buildResult = buildManga(normalizedSlug, null, false);
             if (buildResult == null || !buildResult.containsKey("task_id")) {
                 updateFullParsingTask(fullTaskId, "failed", 100,
                     "Не удалось запустить скачивание изображений", buildResult);
@@ -714,20 +715,28 @@ public class MelonIntegrationService {
      * Запускает построение архива манги
      */
     public Map<String, Object> buildManga(String filename, String branchId) {
+        return buildManga(filename, branchId, false); // По умолчанию ВЫКЛЮЧАЕМ auto-import (MangaService сам управляет импортом)
+    }
+    
+    /**
+     * Запускает построение архива манги с возможностью включения/выключения автоимпорта
+     */
+    public Map<String, Object> buildManga(String filename, String branchId, boolean autoImport) {
         String url = melonServiceUrl + "/build";
 
-        Map<String, String> request = new HashMap<>();
+        Map<String, Object> request = new HashMap<>();
         request.put("slug", filename);  // MelonService ожидает "slug", а не "filename"
         request.put("parser", "mangalib");
         request.put("type", "simple");  // MelonService ожидает "type", а не "archive_type"
+        request.put("autoImport", autoImport);  // Включаем автоматический импорт после билда
 
         if (branchId != null && !branchId.isEmpty()) {
-            request.put("branch_id", branchId);
+            request.put("branchId", branchId);
         }
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<Map<String, String>> entity = new HttpEntity<>(request, headers);
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(request, headers);
 
         ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
         return response.getBody();

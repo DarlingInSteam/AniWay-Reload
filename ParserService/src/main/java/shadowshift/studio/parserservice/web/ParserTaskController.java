@@ -74,6 +74,7 @@ public class ParserTaskController {
         }
         ParserTask task = taskService.createBuildTask(slug);
         task.setBranchId(request.getBranchId());
+        task.setAutoImport(request.isAutoImport());
         task.setMessage("Build queued (%s)".formatted(request.getType()));
         
         // Запускаем задачу асинхронно

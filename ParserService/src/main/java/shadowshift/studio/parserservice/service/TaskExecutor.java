@@ -2,12 +2,17 @@ package shadowshift.studio.parserservice.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+import shadowshift.studio.parserservice.config.ParserProperties;
 import shadowshift.studio.parserservice.domain.task.ParserTask;
 import shadowshift.studio.parserservice.domain.task.TaskStatus;
 
 import java.time.Instant;
+import java.util.Map;
 
 /**
  * Асинхронный исполнитель задач парсинга
@@ -20,6 +25,12 @@ public class TaskExecutor {
     private final MangaLibParserService parserService;
     private final TaskService taskService;
     private final MangaBuildService buildService;
+    
+    @Autowired
+    private ParserProperties properties;
+    
+    @Autowired
+    private RestTemplate restTemplate;
     
     public TaskExecutor(MangaLibParserService parserService, TaskService taskService, MangaBuildService buildService) {
         this.parserService = parserService;
@@ -97,6 +108,11 @@ public class TaskExecutor {
             if (task.getStatus() == TaskStatus.COMPLETED) {
                 logger.info("✅ [BUILD COMPLETE] TaskId: {}, Slug: {}, Time: {}ms", 
                     task.getId(), slug, totalTime);
+                
+                // Автоматический импорт после успешного билда (если включен)
+                if (task.isAutoImport()) {
+                    triggerAutoImport(task, slug);
+                }
             } else {
                 logger.error("❌ [BUILD FAILED] TaskId: {}, Slug: {}, Time: {}ms", 
                     task.getId(), slug, totalTime);
@@ -110,6 +126,35 @@ public class TaskExecutor {
             task.setStatus(TaskStatus.FAILED);
             task.setCompletedAt(Instant.now());
             taskService.appendLog(task, "Build failed: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Вызывает автоматический импорт манги в MangaService после успешного билда
+     */
+    private void triggerAutoImport(ParserTask task, String slug) {
+        try {
+            String importUrl = properties.getMangaServiceUrl() + "/parser/import/" + slug;
+            logger.info("🔄 [AUTO-IMPORT] Triggering import for slug: {} (URL: {})", slug, importUrl);
+            taskService.appendLog(task, "Triggering auto-import to MangaService...");
+            
+            @SuppressWarnings("rawtypes")
+            ResponseEntity<Map> response = restTemplate.postForEntity(importUrl, null, Map.class);
+            
+            if (response.getStatusCode().is2xxSuccessful()) {
+                logger.info("✅ [AUTO-IMPORT] Successfully triggered import for slug: {}", slug);
+                taskService.appendLog(task, "Auto-import triggered successfully");
+            } else {
+                logger.warn("⚠️ [AUTO-IMPORT] Failed to trigger import for slug: {}, HTTP status: {}", 
+                    slug, response.getStatusCode());
+                taskService.appendLog(task, "Auto-import failed: HTTP " + response.getStatusCode());
+            }
+            
+        } catch (Exception e) {
+            logger.error("❌ [AUTO-IMPORT] Error triggering import for slug: {}, Error: {}", 
+                slug, e.getMessage(), e);
+            taskService.appendLog(task, "Auto-import error: " + e.getMessage());
+            // Не проваливаем задачу целиком, просто логируем ошибку
         }
     }
 }

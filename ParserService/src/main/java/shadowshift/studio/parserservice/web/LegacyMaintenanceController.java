@@ -46,6 +46,36 @@ public class LegacyMaintenanceController {
     }
     
     /**
+     * Delete specific manga endpoint (MelonService compatibility)
+     * DELETE /delete/{slug}
+     */
+    @DeleteMapping("/delete/{slug}")
+    public ResponseEntity<Map<String, Object>> deleteManga(@PathVariable String slug) {
+        logger.info("Delete manga endpoint called for slug: {}", slug);
+        
+        try {
+            boolean success = maintenanceService.deleteManga(slug);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", success);
+            if (success) {
+                response.put("message", "Manga deleted successfully: " + slug);
+            } else {
+                response.put("message", "Manga not found or already deleted: " + slug);
+            }
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            logger.error("Delete manga error for slug: {}", slug, e);
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("error", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+    
+    /**
      * Legacy list-parsed endpoint
      * GET /list-parsed
      */

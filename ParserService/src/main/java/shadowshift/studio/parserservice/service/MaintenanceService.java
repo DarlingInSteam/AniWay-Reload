@@ -172,50 +172,55 @@ public class MaintenanceService {
     }
 
     /**
-     * Удаляет данные конкретной манги
+     * Удаляет данные конкретной манги после импорта
+     * ВАЖНО: JSON метаданные НЕ удаляются (нужны для повторного импорта)
+     * Удаляются только изображения глав и обложки
      */
     public boolean deleteManga(String slug) {
         try {
             Path outputPath = Paths.get(properties.getOutputPath());
-            boolean deleted = false;
+            int deletedCount = 0;
 
-            // Удаляем JSON из titles/
-            Path jsonFile = outputPath.resolve("titles").resolve(slug + ".json");
-            if (Files.exists(jsonFile)) {
-                Files.delete(jsonFile);
-                deleted = true;
-                logger.info("Удален файл метаданных: {}", jsonFile);
-            }
+            // JSON НЕ УДАЛЯЕМ - оставляем для повторного использования
+            logger.debug("JSON метаданные сохранены: titles/{}.json", slug);
 
             // Удаляем директорию из archives/ (главы с изображениями)
             Path archivesDir = outputPath.resolve("archives").resolve(slug);
             if (Files.exists(archivesDir) && Files.isDirectory(archivesDir)) {
                 deleteDirectory(archivesDir);
-                deleted = true;
-                logger.info("Удалена директория с главами: {}", archivesDir);
+                deletedCount++;
+                logger.info("✅ Удалена директория с главами: {}", archivesDir);
             }
 
             // Удаляем обложку из images/
             Path imagesDir = outputPath.resolve("images");
             if (Files.exists(imagesDir) && Files.isDirectory(imagesDir)) {
                 try (Stream<Path> files = Files.list(imagesDir)) {
-                    files.filter(f -> f.getFileName().toString().startsWith(slug + "."))
-                        .forEach(coverFile -> {
+                    long coverCount = files.filter(f -> f.getFileName().toString().startsWith(slug + "."))
+                        .peek(coverFile -> {
                             try {
                                 Files.delete(coverFile);
-                                logger.info("Удалена обложка: {}", coverFile);
+                                logger.info("✅ Удалена обложка: {}", coverFile);
                             } catch (IOException e) {
-                                logger.error("Ошибка удаления обложки {}: {}", coverFile, e.getMessage());
+                                logger.error("❌ Ошибка удаления обложки {}: {}", coverFile, e.getMessage());
                             }
-                        });
-                    deleted = true;
+                        })
+                        .count();
+                    deletedCount += coverCount;
                 }
+            }
+
+            boolean deleted = deletedCount > 0;
+            if (deleted) {
+                logger.info("🧹 Очистка завершена для '{}': главы и обложки удалены, JSON сохранён", slug);
+            } else {
+                logger.warn("⚠️ Нечего удалять для '{}': файлы не найдены", slug);
             }
 
             return deleted;
 
         } catch (Exception e) {
-            logger.error("Ошибка удаления манги {}: {}", slug, e.getMessage(), e);
+            logger.error("❌ Ошибка удаления манги {}: {}", slug, e.getMessage(), e);
             return false;
         }
     }

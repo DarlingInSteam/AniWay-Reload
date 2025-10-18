@@ -36,6 +36,7 @@ public class ParserTask {
     private final Map<String, Object> metrics = new ConcurrentHashMap<>();
 
     private volatile String branchId;
+    private volatile boolean autoImport = false;
 
     public ParserTask(UUID id, TaskType type, List<String> slugs) {
         this.id = Objects.requireNonNull(id, "id");
@@ -189,6 +190,15 @@ public class ParserTask {
 
     public void setBranchId(String branchId) {
         this.branchId = branchId;
+        touch();
+    }
+
+    public boolean isAutoImport() {
+        return autoImport;
+    }
+
+    public void setAutoImport(boolean autoImport) {
+        this.autoImport = autoImport;
         touch();
     }
 
