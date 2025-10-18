@@ -1537,6 +1537,42 @@ public class MelonIntegrationService {
             }
         }
 
+        // Обрабатываем художников (artists)
+        List<String> artists = (List<String>) mangaInfo.get("artists");
+        if (artists != null && !artists.isEmpty()) {
+            String artistString = artists.stream()
+                .filter(artist -> artist != null && !artist.trim().isEmpty())
+                .map(String::trim)
+                .collect(java.util.stream.Collectors.joining(", "));
+
+            if (!artistString.isEmpty()) {
+                manga.setArtist(artistString);
+                System.out.println("DEBUG: Set artists to: " + artistString);
+            }
+        }
+
+        // Обрабатываем издателей (publishers) - можно добавить в описание или как отдельное поле
+        List<String> publishers = (List<String>) mangaInfo.get("publishers");
+        if (publishers != null && !publishers.isEmpty()) {
+            String publisherString = publishers.stream()
+                .filter(pub -> pub != null && !pub.trim().isEmpty())
+                .map(String::trim)
+                .collect(java.util.stream.Collectors.joining(", "));
+            System.out.println("DEBUG: Publishers: " + publisherString);
+            // TODO: Добавить поле publisher в Manga entity, если нужно
+        }
+
+        // Обрабатываем команды переводчиков (teams) - можно добавить в описание
+        List<String> teams = (List<String>) mangaInfo.get("teams");
+        if (teams != null && !teams.isEmpty()) {
+            String teamString = teams.stream()
+                .filter(team -> team != null && !team.trim().isEmpty())
+                .map(String::trim)
+                .collect(java.util.stream.Collectors.joining(", "));
+            System.out.println("DEBUG: Translation teams: " + teamString);
+            // TODO: Добавить поле translationTeam в Manga entity, если нужно
+        }
+
         // Обрабатываем описание
         String description = (String) mangaInfo.get("description");
         if (description != null && !description.trim().isEmpty()) {

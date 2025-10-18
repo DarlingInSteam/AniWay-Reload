@@ -4,12 +4,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import shadowshift.studio.parserservice.config.ParserProperties;
 import shadowshift.studio.parserservice.dto.ChapterInfo;
 import shadowshift.studio.parserservice.service.MangaLibParserService;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -156,6 +160,72 @@ public class MangaInfoController {
             Map<String, Object> error = new HashMap<>();
             error.put("error", e.getMessage());
             return ResponseEntity.status(500).body(error);
+        }
+    }
+    
+    /**
+     * Get cover image for manga
+     * GET /cover/{slug}
+     */
+    @GetMapping("/cover/{slug}")
+    public ResponseEntity<byte[]> getCover(@PathVariable String slug) {
+        try {
+            logger.info("Cover request: slug={}", slug);
+            
+            String normalizedSlug = parserService.normalizeSlug(slug);
+            Path coversDir = Paths.get(properties.getOutputPath(), "covers");
+            
+            // Попытка найти cover файл с разными расширениями
+            String[] extensions = {".jpg", ".jpeg", ".png", ".webp"};
+            Path coverPath = null;
+            
+            for (String ext : extensions) {
+                Path candidate = coversDir.resolve(normalizedSlug + ext);
+                if (Files.exists(candidate) && Files.isRegularFile(candidate)) {
+                    coverPath = candidate;
+                    logger.debug("Найдена обложка: {}", coverPath);
+                    break;
+                }
+            }
+            
+            // Запасной вариант: ищем по оригинальному slug
+            if (coverPath == null && !normalizedSlug.equals(slug)) {
+                for (String ext : extensions) {
+                    Path candidate = coversDir.resolve(slug + ext);
+                    if (Files.exists(candidate) && Files.isRegularFile(candidate)) {
+                        coverPath = candidate;
+                        logger.debug("Найдена обложка (оригинальный slug): {}", coverPath);
+                        break;
+                    }
+                }
+            }
+            
+            if (coverPath == null) {
+                logger.warn("Обложка не найдена для slug: {} (нормализованный: {})", slug, normalizedSlug);
+                return ResponseEntity.notFound().build();
+            }
+            
+            byte[] imageBytes = Files.readAllBytes(coverPath);
+            
+            // Определяем Content-Type по расширению
+            String contentType = MediaType.IMAGE_JPEG_VALUE; // default
+            String filename = coverPath.getFileName().toString().toLowerCase();
+            if (filename.endsWith(".png")) {
+                contentType = MediaType.IMAGE_PNG_VALUE;
+            } else if (filename.endsWith(".webp")) {
+                contentType = "image/webp";
+            }
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.parseMediaType(contentType));
+            headers.setContentLength(imageBytes.length);
+            
+            logger.info("Отдана обложка для {}: {} байт, тип: {}", slug, imageBytes.length, contentType);
+            return new ResponseEntity<>(imageBytes, headers, HttpStatus.OK);
+            
+        } catch (IOException e) {
+            logger.error("Ошибка чтения обложки для {}: {}", slug, e.getMessage(), e);
+            return ResponseEntity.status(500).build();
         }
     }
     
