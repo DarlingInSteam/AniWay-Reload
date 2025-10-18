@@ -34,6 +34,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.Base64;
@@ -587,6 +588,7 @@ public class MelonIntegrationService {
         Map<String, Object> status = null;
         int attempts = 0; // БЕЗ таймаута - некоторые манги парсятся 100+ минут
         int missingStatusAttempts = 0;
+        int lastLogCount = 0; // Отслеживаем количество полученных логов
 
         while (true) {
             sleep(getTaskStatusPollInterval());
@@ -595,7 +597,41 @@ public class MelonIntegrationService {
             status = getTaskStatus(taskId);
             String statusValue = status != null ? String.valueOf(status.get("status")) : null;
 
+            // Получаем и отправляем логи из ParserService
+            if (status != null && !isMissingTaskStatus(status, statusValue)) {
+                try {
+                    List<String> newLogs = fetchTaskLogs(taskId, lastLogCount);
+                    if (newLogs != null && !newLogs.isEmpty()) {
+                        for (String log : newLogs) {
+                            // Отправляем лог через WebSocket (если taskId связан с fullParsingTask)
+                            String fullParsingTaskId = findFullParsingTaskId(taskId);
+                            if (fullParsingTaskId != null) {
+                                webSocketHandler.sendLogMessage(fullParsingTaskId, "INFO", log);
+                            }
+                        }
+                        lastLogCount += newLogs.size();
+                        logger.debug("📋 Получено {} новых логов от ParserService для задачи {}", newLogs.size(), taskId);
+                    }
+                } catch (Exception e) {
+                    logger.debug("Ошибка получения логов для задачи {}: {}", taskId, e.getMessage());
+                }
+            }
+
             if (isTerminalTaskStatus(statusValue)) {
+                // Получаем финальные логи перед выходом
+                try {
+                    List<String> finalLogs = fetchTaskLogs(taskId, lastLogCount);
+                    if (finalLogs != null && !finalLogs.isEmpty()) {
+                        for (String log : finalLogs) {
+                            String fullParsingTaskId = findFullParsingTaskId(taskId);
+                            if (fullParsingTaskId != null) {
+                                webSocketHandler.sendLogMessage(fullParsingTaskId, "INFO", log);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    logger.debug("Ошибка получения финальных логов для задачи {}: {}", taskId, e.getMessage());
+                }
                 return status;
             }
 
@@ -607,7 +643,7 @@ public class MelonIntegrationService {
                         taskId, missingStatusAttempts);
                     String message = status != null && status.get("message") != null
                         ? String.valueOf(status.get("message"))
-                        : "MelonService не предоставляет статус задачи (возможно, сервис был перезапущен)";
+                        : "ParserService не предоставляет статус задачи (возможно, сервис был перезапущен)";
                     return Map.of(
                         "status", "failed",
                         "message", message
@@ -623,6 +659,47 @@ public class MelonIntegrationService {
                     taskId, minutes, statusValue != null ? statusValue : "null");
             }
         }
+    }
+
+    /**
+     * Получает логи задачи из ParserService
+     * @param taskId ID задачи
+     * @param lastCount количество уже полученных логов
+     */
+    @SuppressWarnings("unchecked")
+    private List<String> fetchTaskLogs(String taskId, int lastCount) {
+        try {
+            // ParserService возвращает последние N логов через параметр limit
+            // Запрашиваем все логи и пропускаем уже полученные
+            String url = melonServiceUrl + "/logs/" + taskId + "?limit=1000";
+            ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+            Map<String, Object> body = response.getBody();
+            
+            if (body != null && body.containsKey("logs")) {
+                List<Map<String, Object>> logEntries = (List<Map<String, Object>>) body.get("logs");
+                if (logEntries != null && logEntries.size() > lastCount) {
+                    // Получаем только новые логи
+                    return logEntries.subList(lastCount, logEntries.size()).stream()
+                            .map(entry -> (String) entry.get("message"))
+                            .filter(Objects::nonNull)
+                            .collect(Collectors.toList());
+                }
+            }
+        } catch (Exception e) {
+            logger.debug("Не удалось получить логи для задачи {}: {}", taskId, e.getMessage());
+        }
+        return Collections.emptyList();
+    }
+
+    /**
+     * Находит fullParsingTaskId по taskId парсинга/билда
+     */
+    private String findFullParsingTaskId(String childTaskId) {
+        for (Map.Entry<String, String> entry : fullParsingToAutoParsingTask.entrySet()) {
+            // Можно расширить логику поиска, пока возвращаем null
+            // так как связь между parse/build taskId и fullTaskId не прямая
+        }
+        return null; // Временно, пока не реализуем двустороннюю связь
     }
 
     protected Duration getTaskStatusPollInterval() {
