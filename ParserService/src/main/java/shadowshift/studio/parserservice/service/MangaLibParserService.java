@@ -205,8 +205,38 @@ public class MangaLibParserService {
         HttpHeaders headers = createMangaLibHeaders();
         String baseUrl = MANGALIB_API_BASE + "/manga/" + slugContext.getApiSlug();
         
-        // Убрали fields запрос - он всегда возвращает 422, используем просто базовый URL
-        String url = baseUrl;
+        // КРИТИЧНО: Запрашиваем ВСЕ поля для получения полных метаданных
+        // Без fields[] API возвращает только минимальный набор данных
+        String url = baseUrl 
+            + "?fields[]=background"
+            + "&fields[]=eng_name"
+            + "&fields[]=otherNames"
+            + "&fields[]=summary"
+            + "&fields[]=releaseDate"
+            + "&fields[]=type_id"
+            + "&fields[]=caution"
+            + "&fields[]=views"
+            + "&fields[]=close_view"
+            + "&fields[]=rate_avg"
+            + "&fields[]=rate"
+            + "&fields[]=genres"
+            + "&fields[]=tags"
+            + "&fields[]=teams"
+            + "&fields[]=user"
+            + "&fields[]=franchise"
+            + "&fields[]=authors"
+            + "&fields[]=publisher"
+            + "&fields[]=userRating"
+            + "&fields[]=moderated"
+            + "&fields[]=metadata"
+            + "&fields[]=metadata.count"
+            + "&fields[]=metadata.close_comments"
+            + "&fields[]=manga_status_id"
+            + "&fields[]=chap_count"
+            + "&fields[]=status_id"
+            + "&fields[]=artists"
+            + "&fields[]=format";
+        
         String lastError = null;
 
         try {
