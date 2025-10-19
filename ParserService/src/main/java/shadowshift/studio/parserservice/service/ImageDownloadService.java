@@ -193,8 +193,9 @@ public class ImageDownloadService {
                 int successCount = successful.get();
                 int failedCount = totalImages - successCount;
                 long totalMB = totalBytes.get() / (1024 * 1024);
-                double avgSpeedMBps = (totalBytes.get() / 1024.0 / 1024.0) / (totalTime / 1000.0);
-                double avgSpeedImgPerSec = (totalImages * 1000.0) / totalTime;
+                // Защита от деления на ноль для кэшированных файлов
+                double avgSpeedMBps = totalTime > 0 ? (totalBytes.get() / 1024.0 / 1024.0) / (totalTime / 1000.0) : 0.0;
+                double avgSpeedImgPerSec = totalTime > 0 ? (totalImages * 1000.0) / totalTime : 0.0;
                 
                 logger.info("✅ [DOWNLOAD COMPLETE] Total: {}, Success: {}, Failed: {}, Cached: {}", 
                     totalImages, successCount, failedCount, cached.get());

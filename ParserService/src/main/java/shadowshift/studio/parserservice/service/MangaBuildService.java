@@ -562,8 +562,18 @@ public class MangaBuildService {
                                 return;
                             }
                             
-                            // Create chapter directory
-                            String chapterDirName = String.format("ch_%.1f", chapter.getNumber()).replace(",", ".");
+                            // Create chapter directory with volume prefix to avoid collisions
+                            String chapterDirName;
+                            Object volumeObj = chapter.getVolume();
+                            String volumeStr = volumeObj != null ? volumeObj.toString().trim() : "";
+                            
+                            // Include volume number in folder name if present
+                            if (!volumeStr.isEmpty() && !volumeStr.equals("0")) {
+                                chapterDirName = String.format("v%s_ch_%.1f", volumeStr, chapter.getNumber()).replace(",", ".");
+                            } else {
+                                chapterDirName = String.format("ch_%.1f", chapter.getNumber()).replace(",", ".");
+                            }
+                            
                             Path chapterDir = archivesDir.resolve(chapterDirName);
                             Files.createDirectories(chapterDir);
                             
