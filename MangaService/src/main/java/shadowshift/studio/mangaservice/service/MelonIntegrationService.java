@@ -1338,7 +1338,7 @@ public class MelonIntegrationService {
     }
 
     /**
-     * Импортирует спаршенную мангу в нашу систему асинхронно
+     * Импортирует спаршенную мангу в нашу систему асинхронно через очередь
      */
     public Map<String, Object> importToSystemAsync(String filename, String branchId) {
         String taskId = UUID.randomUUID().toString();
@@ -1346,14 +1346,15 @@ public class MelonIntegrationService {
         // Создаем задачу
         ImportTaskService.ImportTask task = importTaskService.createTask(taskId);
 
-        // Запускаем импорт асинхронно
-        importMangaWithProgressAsync(taskId, filename, branchId);
+        // Добавляем импорт в очередь (не блокирует парсинг/билдинг других тайтлов)
+        logger.info("📋 [QUEUE] Adding import to queue: taskId={}, filename={}", taskId, filename);
+        importQueueService.queueImport(taskId, filename, branchId, ImportQueueService.ImportQueueItem.Priority.NORMAL);
 
         return Map.of(
             "success", true,
             "taskId", taskId,
-            "status", "pending",
-            "message", "Импорт запущен"
+            "status", "queued",
+            "message", "Импорт добавлен в очередь"
         );
     }
 
