@@ -241,9 +241,13 @@ public class MangaLibParserService {
     }
 
     private MangaMetadata fetchMangaMetadata(SlugContext slugContext, ParseTask task) throws IOException {
+        logger.info("📡 [API] Fetching metadata for slug: {}", slugContext.getApiSlug());
+        
         HttpHeaders headers = createMangaLibHeaders();
         String apiBase = getApiBase();
         String baseUrl = apiBase + "/manga/" + slugContext.getApiSlug();
+        
+        logger.debug("🌐 [API] Using API base: {}", apiBase);
         
         // КРИТИЧНО: Запрашиваем ВСЕ поля для получения полных метаданных
         // Без fields[] API возвращает только минимальный набор данных
@@ -277,10 +281,17 @@ public class MangaLibParserService {
             + "&fields[]=artists"
             + "&fields[]=format";
         
+        logger.info("🔄 [API] GET {}", url.substring(0, Math.min(100, url.length())) + "...");
+        
         String lastError = null;
 
         try {
+            long startTime = System.currentTimeMillis();
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
+            long elapsed = System.currentTimeMillis() - startTime;
+            
+            logger.info("✅ [API] Metadata received in {}ms, status: {}", elapsed, response.getStatusCode());
+            
             JsonNode root = objectMapper.readTree(response.getBody());
             JsonNode data = root.path("data");
             if (!data.isObject()) {
@@ -303,12 +314,21 @@ public class MangaLibParserService {
     }
 
     private ChaptersPayload fetchChapters(SlugContext slugContext, MangaMetadata metadata, ParseTask task) throws IOException {
+        logger.info("📚 [API] Fetching chapters for slug: {}", slugContext.getApiSlug());
+        
         HttpHeaders headers = createMangaLibHeaders();
         String apiBase = getApiBase();
         String url = apiBase + "/manga/" + slugContext.getApiSlug() + "/chapters";
 
         try {
+            long startTime = System.currentTimeMillis();
+            logger.info("🔄 [API] GET {}", url);
+            
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
+            long elapsed = System.currentTimeMillis() - startTime;
+            
+            logger.info("✅ [API] Chapters received in {}ms, status: {}", elapsed, response.getStatusCode());
+            
             JsonNode root = objectMapper.readTree(response.getBody());
             JsonNode data = root.path("data");
             if (!data.isArray()) {
