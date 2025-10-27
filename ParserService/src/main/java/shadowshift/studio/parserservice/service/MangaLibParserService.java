@@ -484,17 +484,26 @@ public class MangaLibParserService {
                     ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(baseHeaders), String.class);
                     long elapsed = System.currentTimeMillis() - startTime;
                     
+                    String responseBody = response.getBody();
                     logger.debug("🌐 [API] Chapter {} - Response status: {}, time: {}ms, URL: {}", 
                         chapter.getNumber(), response.getStatusCode(), elapsed, url);
                     
-                    JsonNode root = objectMapper.readTree(response.getBody());
+                    // DEBUG: Логируем первые 500 символов ответа для диагностики
+                    if (responseBody != null && responseBody.length() > 0) {
+                        String preview = responseBody.length() > 500 
+                            ? responseBody.substring(0, 500) + "..." 
+                            : responseBody;
+                        logger.debug("📄 [API] Response body preview: {}", preview);
+                    }
+                    
+                    JsonNode root = objectMapper.readTree(responseBody);
                     JsonNode pages = root.has("pages") ? root.get("pages") : root.path("data").path("pages");
                     
                     if (!pages.isArray() || pages.isEmpty()) {
                         lastError = "источник не вернул страницы";
-                        logger.warn("⚠️  Chapter {} ({}) - URL: {}, Response has pages: {}, pages.isArray: {}, pages.size: {}", 
+                        logger.warn("⚠️  Chapter {} ({}) - URL: {}, Response has 'pages' field: {}, pages.isArray: {}, pages.size: {}", 
                             chapter.getNumber(), chapter.getChapterId(), url,
-                            root.has("pages") || root.path("data").has("pages"),
+                            root.has("pages"),
                             pages.isArray(),
                             pages.isArray() ? pages.size() : 0);
                         break;
