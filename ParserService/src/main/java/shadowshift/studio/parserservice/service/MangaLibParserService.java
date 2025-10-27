@@ -392,20 +392,38 @@ public class MangaLibParserService {
 
             // Последовательная обработка глав (быстрее из-за оптимизированных URL)
             for (ChapterInfo chapter : allChapters) {
+                long chapterStartTime = System.currentTimeMillis();
+                
                 if (Boolean.TRUE.equals(chapter.getIsPaid())) {
                     chapter.setSlides(Collections.emptyList());
                     chapter.setPagesCount(0);
                     chapter.setEmptyReason("платная глава — доступ ограничен");
+                    logger.info("⏭️  Chapter {} (v{}): PAID - skipped", 
+                        formatNumber(chapter.getNumber()), 
+                        formatVolume(chapter.getVolume()));
                 } else {
                     try {
                         List<SlideInfo> slides = fetchChapterSlides(apiBase, slugContext, chapter, defaultBranchId, headers, imageServer);
                         chapter.setSlides(slides);
                         chapter.setPagesCount(slides.size());
+                        
+                        long chapterElapsed = System.currentTimeMillis() - chapterStartTime;
+                        logger.info("✅ Chapter {} (v{}): {} slides in {}ms", 
+                            formatNumber(chapter.getNumber()), 
+                            formatVolume(chapter.getVolume()),
+                            slides.size(),
+                            chapterElapsed);
                     } catch (IOException ex) {
                         chapter.setSlides(Collections.emptyList());
                         chapter.setPagesCount(0);
                         chapter.setEmptyReason(ex.getMessage());
-                        logger.warn("Глава {} не содержит изображений: {}", chapter.getChapterId(), ex.getMessage());
+                        
+                        long chapterElapsed = System.currentTimeMillis() - chapterStartTime;
+                        logger.warn("❌ Chapter {} (v{}): failed in {}ms - {}", 
+                            formatNumber(chapter.getNumber()), 
+                            formatVolume(chapter.getVolume()),
+                            chapterElapsed,
+                            ex.getMessage());
                     }
                 }
 
