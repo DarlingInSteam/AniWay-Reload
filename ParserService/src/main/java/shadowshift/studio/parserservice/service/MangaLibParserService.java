@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -64,7 +65,11 @@ public class MangaLibParserService {
     private ParserProperties properties;
 
     @Autowired
-    private RestTemplate restTemplate;
+    private RestTemplate restTemplate; // Для изображений (с прокси)
+    
+    @Autowired
+    @Qualifier("apiRestTemplate")
+    private RestTemplate apiRestTemplate; // Для API запросов (БЕЗ прокси, т.к. прокси блокируются)
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -88,7 +93,7 @@ public class MangaLibParserService {
 
             for (int attempt = 0; attempt < MAX_CATALOG_ATTEMPTS; attempt++) {
                 try {
-                    ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
+                    ResponseEntity<String> response = apiRestTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
                     JsonNode root = objectMapper.readTree(response.getBody());
 
                     JsonNode dataNode = root.path("data");
@@ -287,7 +292,7 @@ public class MangaLibParserService {
 
         try {
             long startTime = System.currentTimeMillis();
-            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
+            ResponseEntity<String> response = apiRestTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
             long elapsed = System.currentTimeMillis() - startTime;
             
             logger.info("✅ [API] Metadata received in {}ms, status: {}", elapsed, response.getStatusCode());
@@ -324,7 +329,7 @@ public class MangaLibParserService {
             long startTime = System.currentTimeMillis();
             logger.info("🔄 [API] GET {}", url);
             
-            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
+            ResponseEntity<String> response = apiRestTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
             long elapsed = System.currentTimeMillis() - startTime;
             
             logger.info("✅ [API] Chapters received in {}ms, status: {}", elapsed, response.getStatusCode());
@@ -484,7 +489,7 @@ public class MangaLibParserService {
             for (int attempt = 0; attempt < MAX_CHAPTER_REQUEST_ATTEMPTS; attempt++) {
                 try {
                     long startTime = System.currentTimeMillis();
-                    ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(baseHeaders), String.class);
+                    ResponseEntity<String> response = apiRestTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(baseHeaders), String.class);
                     long elapsed = System.currentTimeMillis() - startTime;
                     
                     String responseBody = response.getBody();
@@ -995,7 +1000,7 @@ public class MangaLibParserService {
                 HttpHeaders headers = createMangaLibHeaders();
                 String constantsEndpoint = buildConstantsEndpoint(apiBase);
                 try {
-                    ResponseEntity<String> response = restTemplate.exchange(constantsEndpoint, HttpMethod.GET, new HttpEntity<>(headers), String.class);
+                    ResponseEntity<String> response = apiRestTemplate.exchange(constantsEndpoint, HttpMethod.GET, new HttpEntity<>(headers), String.class);
                     JsonNode root = objectMapper.readTree(response.getBody());
                     JsonNode servers = root.path("data").path("imageServers");
                     if (!servers.isArray() || servers.isEmpty()) {
@@ -1208,7 +1213,7 @@ public class MangaLibParserService {
     String url = apiBase + "/manga/" + slugContext.getApiSlug() + "/chapters";
 
         try {
-            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
+            ResponseEntity<String> response = apiRestTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
             JsonNode root = objectMapper.readTree(response.getBody());
             JsonNode data = root.path("data");
             if (!data.isArray()) {
