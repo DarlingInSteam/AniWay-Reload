@@ -50,8 +50,7 @@ public class MangaLibParserService {
 
     private static final Logger logger = LoggerFactory.getLogger(MangaLibParserService.class);
 
-    private static final String MANGALIB_API_BASE = "https://api.cdnlibs.org/api";
-    private static final String CONSTANTS_ENDPOINT = MANGALIB_API_BASE + "/constants?fields[]=imageServers";
+    private static final String CONSTANTS_SUFFIX = "/constants?fields[]=imageServers";
     private static final int MAX_CHAPTER_REQUEST_ATTEMPTS = 3;
     private static final long INITIAL_RETRY_DELAY_MS = 2_000L;
     private static final double RETRY_BACKOFF_FACTOR = 2.0;
@@ -74,6 +73,7 @@ public class MangaLibParserService {
     private TaskStorageService taskStorage;
 
     private volatile String cachedImageServer;
+    private volatile String cachedImageServerBase;
 
     /**
      * Получает страницу каталога MangaLib.
@@ -82,7 +82,8 @@ public class MangaLibParserService {
         final int effectivePage = Math.max(page, 1);
         return CompletableFuture.supplyAsync(() -> {
             HttpHeaders headers = createMangaLibHeaders();
-            String url = buildCatalogUrl(effectivePage);
+            String apiBase = getApiBase();
+            String url = buildCatalogUrl(apiBase, effectivePage);
             String lastError = null;
 
             for (int attempt = 0; attempt < MAX_CATALOG_ATTEMPTS; attempt++) {
@@ -241,7 +242,8 @@ public class MangaLibParserService {
 
     private MangaMetadata fetchMangaMetadata(SlugContext slugContext, ParseTask task) throws IOException {
         HttpHeaders headers = createMangaLibHeaders();
-        String baseUrl = MANGALIB_API_BASE + "/manga/" + slugContext.getApiSlug();
+        String apiBase = getApiBase();
+        String baseUrl = apiBase + "/manga/" + slugContext.getApiSlug();
         
         // КРИТИЧНО: Запрашиваем ВСЕ поля для получения полных метаданных
         // Без fields[] API возвращает только минимальный набор данных
@@ -302,7 +304,8 @@ public class MangaLibParserService {
 
     private ChaptersPayload fetchChapters(SlugContext slugContext, MangaMetadata metadata, ParseTask task) throws IOException {
         HttpHeaders headers = createMangaLibHeaders();
-        String url = MANGALIB_API_BASE + "/manga/" + slugContext.getApiSlug() + "/chapters";
+        String apiBase = getApiBase();
+        String url = apiBase + "/manga/" + slugContext.getApiSlug() + "/chapters";
 
         try {
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
@@ -372,7 +375,7 @@ public class MangaLibParserService {
                     chapter.setEmptyReason("платная глава — доступ ограничен");
                 } else {
                     try {
-                        List<SlideInfo> slides = fetchChapterSlides(slugContext, chapter, defaultBranchId, headers, imageServer);
+                        List<SlideInfo> slides = fetchChapterSlides(apiBase, slugContext, chapter, defaultBranchId, headers, imageServer);
                         chapter.setSlides(slides);
                         chapter.setPagesCount(slides.size());
                     } catch (IOException ex) {
@@ -397,13 +400,14 @@ public class MangaLibParserService {
         }
     }
 
-    private List<SlideInfo> fetchChapterSlides(SlugContext slugContext,
+    private List<SlideInfo> fetchChapterSlides(String apiBase,
+                                               SlugContext slugContext,
                                                ChapterInfo chapter,
                                                int defaultBranchId,
                                                HttpHeaders baseHeaders,
                                                String imageServer) throws IOException {
         List<String> urlVariants = MangaLibApiHelper.buildChapterUrlVariants(
-                MANGALIB_API_BASE,
+                apiBase,
                 slugContext.getApiSlug(),
                 chapter.getChapterId(),
                 chapter.getNumber(),
@@ -531,8 +535,21 @@ public class MangaLibParserService {
         return null;
     }
 
-    private String buildCatalogUrl(int page) {
-        return MANGALIB_API_BASE + "/manga?fields[]=rate_avg&fields[]=rate&fields[]=releaseDate&page=" + page;
+    private String getApiBase() {
+        return properties.getMangalib().getApiBase();
+    }
+
+    private List<String> getApiBaseCandidates() {
+        List<String> bases = properties.getMangalib().resolveApiBases();
+        return bases.isEmpty() ? Collections.singletonList(getApiBase()) : bases;
+    }
+
+    private String buildConstantsEndpoint(String apiBase) {
+        return apiBase + CONSTANTS_SUFFIX;
+    }
+
+    private String buildCatalogUrl(String apiBase, int page) {
+        return apiBase + "/manga?fields[]=rate_avg&fields[]=rate&fields[]=releaseDate&page=" + page;
     }
 
     private Path saveToJson(SlugContext slugContext, MangaMetadata metadata, ChaptersPayload chaptersPayload) throws IOException {
@@ -671,18 +688,32 @@ public class MangaLibParserService {
             headers.set("Authorization", token);
         }
         headers.set("Site-Id", properties.getMangalib().getSiteId());
+        
+        // ⚡ КРИТИЧНО: Полный набор заголовков для обхода Cloudflare и анти-бот защиты
         headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
         headers.set("Accept", "application/json, text/plain, */*");
         headers.set("Accept-Language", "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7");
-        headers.set("Accept-Encoding", "gzip, deflate, br");
+        headers.set("Accept-Encoding", "gzip, deflate, br, zstd");
         headers.set("Origin", "https://" + properties.getMangalib().getSiteDomain());
         headers.set("Referer", properties.getMangalib().getReferer());
+        
+        // Sec-Fetch заголовки для маскировки под браузер
         headers.set("Sec-Fetch-Dest", "empty");
         headers.set("Sec-Fetch-Mode", "cors");
         headers.set("Sec-Fetch-Site", "cross-site");
+        
+        // Client Hints для современных браузеров
         headers.set("Sec-CH-UA", "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"");
         headers.set("Sec-CH-UA-Mobile", "?0");
         headers.set("Sec-CH-UA-Platform", "\"Windows\"");
+        
+        // ⚡ КРИТИЧНО: X-Requested-With НЕ ДОЛЖЕН быть установлен (признак AJAX/прокси)
+        // DNT (Do Not Track) тоже не ставим - подозрительно для роботов
+        
+        // Cache control для снижения подозрений
+        headers.set("Cache-Control", "no-cache");
+        headers.set("Pragma", "no-cache");
+        
         return headers;
     }
 
@@ -845,58 +876,78 @@ public class MangaLibParserService {
     }
 
     private String resolveImageServer() throws IOException {
-        String cached = cachedImageServer;
-        if (cached != null) {
-            return cached;
-        }
-        synchronized (this) {
-            if (cachedImageServer != null) {
-                return cachedImageServer;
+        List<String> apiBases = getApiBaseCandidates();
+        IOException lastFailure = null;
+
+        for (String apiBase : apiBases) {
+            String cached = cachedImageServer;
+            if (cached != null && apiBase.equals(cachedImageServerBase)) {
+                return cached;
             }
-            HttpHeaders headers = createMangaLibHeaders();
-            try {
-                ResponseEntity<String> response = restTemplate.exchange(CONSTANTS_ENDPOINT, HttpMethod.GET, new HttpEntity<>(headers), String.class);
-                JsonNode root = objectMapper.readTree(response.getBody());
-                JsonNode servers = root.path("data").path("imageServers");
-                if (!servers.isArray() || servers.isEmpty()) {
-                    throw new IOException("Список серверов изображений пуст");
-                }
 
-                String preferredId = Optional.ofNullable(properties.getMangalib().getServer()).orElse("main");
-                Integer siteId = parseIntegerSafe(properties.getMangalib().getSiteId());
-
-                String fallback = null;
-                for (JsonNode serverNode : servers) {
-                    String id = serverNode.path("id").asText("");
-                    String url = serverNode.path("url").asText("");
-                    if (url.isBlank()) {
-                        continue;
-                    }
-                    boolean supportsSite = siteId == null || serverNode.path("site_ids").toString().contains(String.valueOf(siteId));
-                    if (!supportsSite) {
-                        continue;
-                    }
-                    url = ensureTrailingSlash(url);
-                    if (id.equals(preferredId)) {
-                        cachedImageServer = url;
-                        return cachedImageServer;
-                    }
-                    if (fallback == null) {
-                        fallback = url;
-                    }
-                }
-                if (fallback != null) {
-                    cachedImageServer = fallback;
+            synchronized (this) {
+                if (cachedImageServer != null && apiBase.equals(cachedImageServerBase)) {
                     return cachedImageServer;
                 }
-                throw new IOException("Не найден подходящий сервер изображений");
-            } catch (HttpStatusCodeException ex) {
-                throw new IOException("Не удалось получить конфигурацию серверов изображений: HTTP "
-                        + ex.getStatusCode().value() + formatOptionalMessage(ex), ex);
-            } catch (RestClientException ex) {
-                throw new IOException("Ошибка запроса серверов изображений: " + ex.getMessage(), ex);
+
+                HttpHeaders headers = createMangaLibHeaders();
+                String constantsEndpoint = buildConstantsEndpoint(apiBase);
+                try {
+                    ResponseEntity<String> response = restTemplate.exchange(constantsEndpoint, HttpMethod.GET, new HttpEntity<>(headers), String.class);
+                    JsonNode root = objectMapper.readTree(response.getBody());
+                    JsonNode servers = root.path("data").path("imageServers");
+                    if (!servers.isArray() || servers.isEmpty()) {
+                        throw new IOException("Список серверов изображений пуст");
+                    }
+
+                    String preferredId = Optional.ofNullable(properties.getMangalib().getServer()).orElse("main");
+                    Integer siteId = parseIntegerSafe(properties.getMangalib().getSiteId());
+
+                    String fallback = null;
+                    for (JsonNode serverNode : servers) {
+                        String id = serverNode.path("id").asText("");
+                        String url = serverNode.path("url").asText("");
+                        if (url.isBlank()) {
+                            continue;
+                        }
+                        boolean supportsSite = siteId == null || serverNode.path("site_ids").toString().contains(String.valueOf(siteId));
+                        if (!supportsSite) {
+                            continue;
+                        }
+                        url = ensureTrailingSlash(url);
+                        if (id.equals(preferredId)) {
+                            cachedImageServer = url;
+                            cachedImageServerBase = apiBase;
+                            return cachedImageServer;
+                        }
+                        if (fallback == null) {
+                            fallback = url;
+                        }
+                    }
+                    if (fallback != null) {
+                        cachedImageServer = fallback;
+                        cachedImageServerBase = apiBase;
+                        return cachedImageServer;
+                    }
+                    throw new IOException("Не найден подходящий сервер изображений");
+                } catch (HttpStatusCodeException ex) {
+                    lastFailure = new IOException("Не удалось получить конфигурацию серверов изображений: HTTP "
+                            + ex.getStatusCode().value() + formatOptionalMessage(ex), ex);
+                    cachedImageServer = null;
+                    cachedImageServerBase = null;
+                } catch (RestClientException ex) {
+                    lastFailure = new IOException("Ошибка запроса серверов изображений: " + ex.getMessage(), ex);
+                    cachedImageServer = null;
+                    cachedImageServerBase = null;
+                }
             }
         }
+
+        if (lastFailure != null) {
+            throw lastFailure;
+        }
+
+        throw new IOException("Не удалось получить конфигурацию серверов изображений");
     }
 
     private String ensureTrailingSlash(String url) {
@@ -1051,7 +1102,8 @@ public class MangaLibParserService {
      */
     private ChaptersPayload fetchChaptersOnly(SlugContext slugContext) throws IOException {
         HttpHeaders headers = createMangaLibHeaders();
-        String url = MANGALIB_API_BASE + "/manga/" + slugContext.getApiSlug() + "/chapters";
+    String apiBase = getApiBase();
+    String url = apiBase + "/manga/" + slugContext.getApiSlug() + "/chapters";
 
         try {
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);

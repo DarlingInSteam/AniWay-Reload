@@ -9,6 +9,10 @@ import org.springframework.util.StringUtils;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Component
 @ConfigurationProperties(prefix = "parser")
@@ -62,6 +66,9 @@ public class ParserProperties {
         private String server = "main";
         private String siteDomain = "mangalib.me";
         private String referer = "https://mangalib.me";
+        private String apiBase = "https://api.cdnlibs.org/api";
+        private List<String> alternateApiBases = new ArrayList<>();
+        private boolean useProxyForApi = false; // 🔥 По умолчанию false для обхода блокировки RU прокси
 
         public String getToken() {
             return token;
@@ -107,6 +114,56 @@ public class ParserProperties {
             if (StringUtils.hasText(referer)) {
                 this.referer = referer;
             }
+        }
+
+        public String getApiBase() {
+            return apiBase;
+        }
+
+        public void setApiBase(String apiBase) {
+            if (StringUtils.hasText(apiBase)) {
+                this.apiBase = normalizeApiBase(apiBase);
+            }
+        }
+
+        public List<String> getAlternateApiBases() {
+            return new ArrayList<>(alternateApiBases);
+        }
+
+        public void setAlternateApiBases(List<String> alternateApiBases) {
+            if (alternateApiBases == null) {
+                this.alternateApiBases = new ArrayList<>();
+                return;
+            }
+            this.alternateApiBases = alternateApiBases.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .map(this::normalizeApiBase)
+                .collect(Collectors.toCollection(ArrayList::new));
+        }
+
+        public List<String> resolveApiBases() {
+            List<String> bases = new ArrayList<>();
+            bases.add(apiBase);
+            bases.addAll(alternateApiBases);
+            return bases;
+        }
+
+        private String normalizeApiBase(String base) {
+            String normalized = base.trim();
+            if (normalized.endsWith("/")) {
+                normalized = normalized.substring(0, normalized.length() - 1);
+            }
+            return normalized;
+        }
+
+        public boolean isUseProxyForApi() {
+            return useProxyForApi;
+        }
+
+        public void setUseProxyForApi(boolean useProxyForApi) {
+            this.useProxyForApi = useProxyForApi;
         }
     }
 

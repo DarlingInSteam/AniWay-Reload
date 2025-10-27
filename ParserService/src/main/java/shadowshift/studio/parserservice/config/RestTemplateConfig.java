@@ -28,6 +28,9 @@ public class RestTemplateConfig {
     @Autowired
     private ProxyManagerService proxyManager;
     
+    @Autowired
+    private ParserProperties properties;
+    
     // ⚡ ОПТИМИЗАЦИЯ: Общий Connection Pool для ВСЕХ прокси (переиспользование соединений)
     private PoolingHttpClientConnectionManager sharedConnectionManager;
     
@@ -58,6 +61,16 @@ public class RestTemplateConfig {
     @Primary
     @Scope("prototype")
     public RestTemplate restTemplate() {
+        // 🔥 КРИТИЧНО: Проверяем, нужно ли использовать прокси для API запросов
+        boolean useProxyForApi = properties.getMangalib().isUseProxyForApi();
+        
+        if (!useProxyForApi) {
+            // Прямое подключение без прокси для API (обход блокировки RU прокси)
+            logger.debug("Thread {}: Using DIRECT connection (proxy disabled for API)", 
+                Thread.currentThread().getName());
+            return new RestTemplate(new HttpComponentsClientHttpRequestFactory(createDirectHttpClientWithSharedPool()));
+        }
+        
         // ⚡ ОПТИМИЗАЦИЯ: Получаем прокси для текущего потока (sticky assignment)
         ProxyServer proxy = proxyManager.getProxyForCurrentThread();
         

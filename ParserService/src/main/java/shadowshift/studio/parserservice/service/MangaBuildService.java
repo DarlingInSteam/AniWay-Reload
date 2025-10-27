@@ -258,18 +258,29 @@ public class MangaBuildService {
             headers.set("Authorization", token);
         }
         headers.set("Site-Id", properties.getMangalib().getSiteId());
+        
+        // ⚡ КРИТИЧНО: Полный набор заголовков для обхода Cloudflare и анти-бот защиты
         headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
         headers.set("Accept", "application/json, text/plain, */*");
         headers.set("Accept-Language", "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7");
-        headers.set("Accept-Encoding", "gzip, deflate, br");
+        headers.set("Accept-Encoding", "gzip, deflate, br, zstd");
         headers.set("Origin", "https://" + properties.getMangalib().getSiteDomain());
         headers.set("Referer", properties.getMangalib().getReferer());
+        
+        // Sec-Fetch заголовки для маскировки под браузер
         headers.set("Sec-Fetch-Dest", "empty");
         headers.set("Sec-Fetch-Mode", "cors");
         headers.set("Sec-Fetch-Site", "cross-site");
+        
+        // Client Hints для современных браузеров
         headers.set("Sec-CH-UA", "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"");
         headers.set("Sec-CH-UA-Mobile", "?0");
         headers.set("Sec-CH-UA-Platform", "\"Windows\"");
+        
+        // Cache control для снижения подозрений
+        headers.set("Cache-Control", "no-cache");
+        headers.set("Pragma", "no-cache");
+        
         return headers;
     }
     
