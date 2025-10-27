@@ -43,10 +43,9 @@ parser:
   mangalib:
     token: "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiIxIiwianRpIjoiYzE0NWE0MmQwMGI2ZGIzZmYzYjk4OWExNmU4MjFmMDA3ZjQzMTNlN2M3OTRiMzI5MGQ4ZmNmMGQ1NDk1ZWI1ZjM4NWZlODk2NDJlNmRiOTIiLCJpYXQiOjE3NTk4NzAwMDkuNDQ0NjkyLCJuYmYiOjE3NTk4NzAwMDkuNDQ0NjkzLCJleHAiOjE3NjI1NDg0MDkuNDQwNTY3LCJzdWIiOiI1MjI4ODIxIiwic2NvcGVzIjpbXX0.H-o33v830LXZJkQgn-YXtDVkjU2DB7hbOfUnjLI9ulpY1doR1Z-IAiZX9fn6cYBrvaGCZhkR543YCVhA-fzVBO27GafGkzPtuIf-Qqx2bEL1dQyrSvXiZS5Pe2uQoMBN14nOSiV6IM4v1EuLUieidFrDm12yQ0YW2UGc_zc5CWsZhRCYhgVtKSYW2Fp3KYSikBRyNAf4YUYWQSBugNLMZKPOuuk39_vzxDWVSkJFnL3LKKukhR6AoRX519uXvxjLicM5rXWPPdG54NPDtchdTLt8BMyhsGGc-p8LQXT8-ooqhNlirGz40vbXeO2q1ORkZAzQ3LBjgJs1414cG3fOaWutah0jDp9jfXNK0rx-4UyDY1sYh4c9Skt4KomeppByA1rq1XqZdaVgfvyc9hGhqWtAQs-ly6IzA7lGENMWvLwoNcVtrbI1vl2TJFttD6HiDbuWUuqET6IOnJnlfUfgxNGYRuPTpjiQkISm6Ipk9ZWanJfjXVTZ8KMi2Jpg7Kd3G-Mb8pXelUwHvPN51ilQUJo_bULYOaZkW53TecwzftK3VTR4SJVAoftno3vU7aIo9mM7DAULuqKZ9NJYqescvm0NORzAOeQJBZNOYDSYL_GwlZlaWouceWT-mCOqCp_LiN48jrwc0Qgimp8yvC-_sRtVhJ0BtpIDMbTS73YbDwU"
     site-id: "1"
-    api-base: ${PARSER_MANGALIB_API_BASE:https://api.lib.social/api}
-    alternate-api-bases:
-      - https://api.cdnlibs.org/api
-      - https://api.mangalib.me/api
+    api-base: ${PARSER_MANGALIB_API_BASE:https://api.cdnlibs.org/api}
+    # alternate-api-bases:
+    #   - https://api.mangalib.me/api
     use-proxy-for-api: ${PARSER_MANGALIB_USE_PROXY_FOR_API:false}  # 🔥 ВРЕМЕННО false для обхода блокировки российских прокси
   
 # Профили

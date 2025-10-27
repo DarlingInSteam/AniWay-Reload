@@ -8,10 +8,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import shadowshift.studio.parserservice.config.ParserProperties;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.concurrent.*;
 
 /**
@@ -23,18 +21,14 @@ public class ImageDownloadService {
     private static final Logger logger = LoggerFactory.getLogger(ImageDownloadService.class);
     
     @Autowired
-    private RestTemplate restTemplate;
+    private org.springframework.context.ApplicationContext applicationContext;
     
     @Autowired
     private ProxyManagerService proxyManager;
     
-    @Autowired
-    private ParserProperties properties;
-    
     private final ExecutorService executorService;
     
     public ImageDownloadService(ParserProperties properties) {
-        this.properties = properties;
         int poolSize = properties.getMaxParallelDownloads();
         this.executorService = Executors.newFixedThreadPool(poolSize);
         logger.info("🚀 ImageDownloadService initialized with {} parallel threads", poolSize);
@@ -68,13 +62,14 @@ public class ImageDownloadService {
                 Exception lastException = null;
                 for (int attempt = 0; attempt < maxRetries; attempt++) {
                     try {
-                        // Загружаем изображение
+                        // Загружаем изображение с использованием imageRestTemplate (Russian proxies)
+                        RestTemplate imageRestTemplate = applicationContext.getBean("imageRestTemplate", RestTemplate.class);
                         HttpHeaders headers = new HttpHeaders();
                         headers.set("User-Agent", "Mozilla/5.0");
                         headers.set("Referer", "https://mangalib.me/");
                         HttpEntity<String> entity = new HttpEntity<>(headers);
                         
-                        ResponseEntity<byte[]> response = restTemplate.exchange(
+                        ResponseEntity<byte[]> response = imageRestTemplate.exchange(
                             imageUrl, 
                             HttpMethod.GET, 
                             entity, 

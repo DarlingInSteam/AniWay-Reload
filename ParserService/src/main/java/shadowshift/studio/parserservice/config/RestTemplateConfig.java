@@ -29,6 +29,9 @@ public class RestTemplateConfig {
     private ProxyManagerService proxyManager;
     
     @Autowired
+    private shadowshift.studio.parserservice.service.ApiProxyManagerService apiProxyManager;
+    
+    @Autowired
     private ParserProperties properties;
     
     // ⚡ ОПТИМИЗАЦИЯ: Общий Connection Pool для ВСЕХ прокси (переиспользование соединений)
@@ -54,32 +57,53 @@ public class RestTemplateConfig {
     }
 
     /**
-     * Создаёт RestTemplate с автоматической ротацией прокси
-     * ⚡ ОПТИМИЗАЦИЯ: Использует Sticky Proxy Assignment (каждый поток привязан к своему прокси)
+     * 🌍 Создаёт RestTemplate для API запросов (использует отдельные не российские прокси)
+     * Используется для запросов к MangaLib API (каталог, метаданные, главы и т.д.)
      */
     @Bean
     @Primary
     @Scope("prototype")
     public RestTemplate restTemplate() {
-        // 🔥 КРИТИЧНО: Проверяем, нужно ли использовать прокси для API запросов
-        boolean useProxyForApi = properties.getMangalib().isUseProxyForApi();
+        // 🌍 Получаем API прокси (не российский) для обхода блокировок
+        ProxyServer apiProxy = apiProxyManager.getNextProxy();
         
-        if (!useProxyForApi) {
-            // Прямое подключение без прокси для API (обход блокировки RU прокси)
-            logger.debug("Thread {}: Using DIRECT connection (proxy disabled for API)", 
+        CloseableHttpClient httpClient;
+        if (apiProxy != null) {
+            logger.debug("Thread {}: Using API proxy {} for MangaLib API request", 
+                Thread.currentThread().getName(), apiProxy.getHost());
+            httpClient = createHttpClientWithSharedPool(apiProxy);
+        } else {
+            logger.debug("Thread {}: No API proxy available, using direct connection", 
                 Thread.currentThread().getName());
-            return new RestTemplate(new HttpComponentsClientHttpRequestFactory(createDirectHttpClientWithSharedPool()));
+            httpClient = createDirectHttpClientWithSharedPool();
         }
         
-        // ⚡ ОПТИМИЗАЦИЯ: Получаем прокси для текущего потока (sticky assignment)
-        ProxyServer proxy = proxyManager.getProxyForCurrentThread();
-        
-        // ⚡ ОПТИМИЗАЦИЯ: Используем общий Connection Manager вместо создания нового
-        CloseableHttpClient httpClient = createHttpClientWithSharedPool(proxy);
-        
-        // Create factory
         HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(httpClient);
+        return new RestTemplate(factory);
+    }
+    
+    /**
+     * 📥 Создаёт RestTemplate для загрузки изображений (использует российские прокси)
+     * Используется ImageDownloadService для параллельной загрузки изображений
+     */
+    @Bean("imageRestTemplate")
+    @Scope("prototype")
+    public RestTemplate imageRestTemplate() {
+        // 📥 Получаем прокси для изображений (российский) через sticky assignment
+        ProxyServer imageProxy = proxyManager.getProxyForCurrentThread();
         
+        CloseableHttpClient httpClient;
+        if (imageProxy != null) {
+            logger.debug("Thread {}: Using image proxy {} (sticky)", 
+                Thread.currentThread().getName(), imageProxy.getHost());
+            httpClient = createHttpClientWithSharedPool(imageProxy);
+        } else {
+            logger.debug("Thread {}: No image proxy, using direct connection", 
+                Thread.currentThread().getName());
+            httpClient = createDirectHttpClientWithSharedPool();
+        }
+        
+        HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(httpClient);
         return new RestTemplate(factory);
     }
     
