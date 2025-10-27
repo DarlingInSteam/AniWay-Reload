@@ -528,16 +528,26 @@ public class MangaLibParserService {
                 } catch (HttpStatusCodeException ex) {
                     int statusCode = ex.getStatusCode().value();
                     lastError = "HTTP " + statusCode + formatOptionalMessage(ex);
+                    logger.warn("⚠️  Chapter {} - Variant {} failed: HTTP {}, URL: {}", 
+                        chapter.getNumber(), variantIndex, statusCode, url);
                     if (!MangaLibApiHelper.isRetryableStatus(statusCode)
                             || attempt == MAX_CHAPTER_REQUEST_ATTEMPTS - 1) {
+                        logger.info("❌ Chapter {} - Skipping to next URL variant (non-retryable or max attempts)", chapter.getNumber());
                         break;
                     }
+                    logger.info("🔄 Chapter {} - Retry attempt {} after {}ms", 
+                        chapter.getNumber(), attempt + 1, computeRetryDelay(attempt));
                     safeSleep(computeRetryDelay(attempt));
                 } catch (RestClientException | IOException ex) {
                     lastError = ex.getMessage();
+                    logger.warn("⚠️  Chapter {} - Variant {} exception: {}, URL: {}", 
+                        chapter.getNumber(), variantIndex, ex.getMessage(), url);
                     if (attempt == MAX_CHAPTER_REQUEST_ATTEMPTS - 1) {
+                        logger.info("❌ Chapter {} - Max attempts reached, trying next URL variant", chapter.getNumber());
                         break;
                     }
+                    logger.info("🔄 Chapter {} - Retry attempt {} after {}ms", 
+                        chapter.getNumber(), attempt + 1, computeRetryDelay(attempt));
                     safeSleep(computeRetryDelay(attempt));
                 }
             }
