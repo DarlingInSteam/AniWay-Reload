@@ -472,7 +472,10 @@ public class MangaLibParserService {
             return Collections.emptyList();
         }
 
-        logger.debug("🔍 [API] Chapter {}: trying {} URL variants", chapter.getChapterId(), urlVariants.size());
+        logger.info("🔍 [API] Chapter {} - trying {} URL variants", chapter.getChapterId(), urlVariants.size());
+        for (int i = 0; i < urlVariants.size(); i++) {
+            logger.info("  Variant {}: {}", i + 1, urlVariants.get(i));
+        }
 
         String lastError = null;
         int variantIndex = 0;
@@ -485,19 +488,28 @@ public class MangaLibParserService {
                     long elapsed = System.currentTimeMillis() - startTime;
                     
                     String responseBody = response.getBody();
-                    logger.debug("🌐 [API] Chapter {} - Response status: {}, time: {}ms, URL: {}", 
-                        chapter.getNumber(), response.getStatusCode(), elapsed, url);
+                    logger.info("🌐 [API] Chapter {} - Response status: {}, time: {}ms", 
+                        chapter.getNumber(), response.getStatusCode(), elapsed);
+                    logger.info("🔗 [API] URL used: {}", url);
                     
-                    // DEBUG: Логируем первые 500 символов ответа для диагностики
+                    // DEBUG: Логируем первые 300 символов ответа для диагностики
                     if (responseBody != null && responseBody.length() > 0) {
-                        String preview = responseBody.length() > 500 
-                            ? responseBody.substring(0, 500) + "..." 
+                        String preview = responseBody.length() > 300 
+                            ? responseBody.substring(0, 300) + "..." 
                             : responseBody;
-                        logger.debug("📄 [API] Response body preview: {}", preview);
+                        logger.info("📄 [API] Response preview: {}", preview);
+                    } else {
+                        logger.warn("⚠️  [API] Response body is EMPTY!");
                     }
                     
                     JsonNode root = objectMapper.readTree(responseBody);
                     JsonNode pages = root.has("pages") ? root.get("pages") : root.path("data").path("pages");
+                    
+                    logger.info("🔍 [API] Chapter {} - root.has('pages'): {}, pages.isArray(): {}, pages.size(): {}", 
+                        chapter.getNumber(), 
+                        root.has("pages"),
+                        pages.isArray(),
+                        pages.isArray() ? pages.size() : 0);
                     
                     if (!pages.isArray() || pages.isEmpty()) {
                         lastError = "источник не вернул страницы";
@@ -510,7 +522,7 @@ public class MangaLibParserService {
                     }
                     
                     List<SlideInfo> slides = parseSlides(pages, imageServer);
-                    logger.debug("✅ Chapter {} ({}) - {} slides fetched in {}ms (variant {}/{})", 
+                    logger.info("✅ Chapter {} ({}) - {} slides fetched in {}ms (variant {}/{})", 
                         chapter.getNumber(), chapter.getChapterId(), slides.size(), elapsed, variantIndex, urlVariants.size());
                     return slides;
                 } catch (HttpStatusCodeException ex) {
