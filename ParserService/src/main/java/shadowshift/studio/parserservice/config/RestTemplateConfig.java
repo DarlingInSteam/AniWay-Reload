@@ -2,7 +2,10 @@ package shadowshift.studio.parserservice.config;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import org.apache.hc.client5.http.auth.AuthScope;
+import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
@@ -28,12 +31,6 @@ public class RestTemplateConfig {
     @Autowired
     private ProxyManagerService proxyManager;
     
-    @Autowired
-    private shadowshift.studio.parserservice.service.ApiProxyManagerService apiProxyManager;
-    
-    @Autowired
-    private ParserProperties properties;
-    
     // ⚡ ОПТИМИЗАЦИЯ: Общий Connection Pool для ВСЕХ прокси (переиспользование соединений)
     private PoolingHttpClientConnectionManager sharedConnectionManager;
     
@@ -57,48 +54,23 @@ public class RestTemplateConfig {
     }
 
     /**
-     * 🌍 Создаёт RestTemplate для API запросов (использует отдельные не российские прокси)
-     * Используется для запросов к MangaLib API (каталог, метаданные, главы и т.д.)
+     * 🌍 Создаёт RestTemplate для всех запросов (API + изображения)
+     * Используется единый пул быстрых финских прокси для всего
      */
     @Bean
     @Primary
     @Scope("prototype")
     public RestTemplate restTemplate() {
-        // 🌍 Получаем API прокси (не российский) для обхода блокировок
-        ProxyServer apiProxy = apiProxyManager.getNextProxy();
+        // 🌍 Получаем прокси через sticky assignment для максимального переиспользования соединений
+        ProxyServer proxy = proxyManager.getProxyForCurrentThread();
         
         CloseableHttpClient httpClient;
-        if (apiProxy != null) {
-            logger.debug("Thread {}: Using API proxy {} for MangaLib API request", 
-                Thread.currentThread().getName(), apiProxy.getHost());
-            httpClient = createHttpClientWithSharedPool(apiProxy);
+        if (proxy != null) {
+            logger.debug("Thread {}: Using Finnish proxy {} (sticky)", 
+                Thread.currentThread().getName(), proxy.getHost());
+            httpClient = createHttpClientWithSharedPool(proxy);
         } else {
-            logger.debug("Thread {}: No API proxy available, using direct connection", 
-                Thread.currentThread().getName());
-            httpClient = createDirectHttpClientWithSharedPool();
-        }
-        
-        HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(httpClient);
-        return new RestTemplate(factory);
-    }
-    
-    /**
-     * 📥 Создаёт RestTemplate для загрузки изображений (использует российские прокси)
-     * Используется ImageDownloadService для параллельной загрузки изображений
-     */
-    @Bean("imageRestTemplate")
-    @Scope("prototype")
-    public RestTemplate imageRestTemplate() {
-        // 📥 Получаем прокси для изображений (российский) через sticky assignment
-        ProxyServer imageProxy = proxyManager.getProxyForCurrentThread();
-        
-        CloseableHttpClient httpClient;
-        if (imageProxy != null) {
-            logger.debug("Thread {}: Using image proxy {} (sticky)", 
-                Thread.currentThread().getName(), imageProxy.getHost());
-            httpClient = createHttpClientWithSharedPool(imageProxy);
-        } else {
-            logger.debug("Thread {}: No image proxy, using direct connection", 
+            logger.debug("Thread {}: No proxy available, using direct connection", 
                 Thread.currentThread().getName());
             httpClient = createDirectHttpClientWithSharedPool();
         }
@@ -123,6 +95,18 @@ public class RestTemplateConfig {
         // Configure proxy
         HttpHost proxyHost = new HttpHost(proxy.getHost(), proxy.getPort());
         
+        // ⚡ КРИТИЧНО: Настройка аутентификации для прокси
+        BasicCredentialsProvider credentialsProvider = null;
+        if (proxy.getUsername() != null && proxy.getPassword() != null) {
+            credentialsProvider = new BasicCredentialsProvider();
+            credentialsProvider.setCredentials(
+                new AuthScope(proxy.getHost(), proxy.getPort()),
+                new UsernamePasswordCredentials(proxy.getUsername(), proxy.getPassword().toCharArray())
+            );
+            logger.debug("Thread {}: Proxy authentication configured for {}", 
+                Thread.currentThread().getName(), proxy.getHost());
+        }
+        
         // ⚡ ОПТИМИЗАЦИЯ: Агрессивные таймауты для быстрой загрузки изображений (как в Python)
         RequestConfig config = RequestConfig.custom()
                 .setConnectTimeout(Timeout.ofSeconds(2))    // 5s → 2s: прокси должны отвечать быстро
@@ -131,10 +115,15 @@ public class RestTemplateConfig {
                 .build();
         
         // ⚡ КРИТИЧНО: Используем ОБЩИЙ Connection Manager для всех прокси
-        return HttpClients.custom()
+        var httpClientBuilder = HttpClients.custom()
                 .setDefaultRequestConfig(config)
-                .setConnectionManager(sharedConnectionManager)  // ← ОБЩИЙ ПУЛ!
-                .build();
+                .setConnectionManager(sharedConnectionManager);  // ← ОБЩИЙ ПУЛ!
+        
+        if (credentialsProvider != null) {
+            httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
+        }
+        
+        return httpClientBuilder.build();
     }
     
     private CloseableHttpClient createDirectHttpClientWithSharedPool() {
@@ -148,57 +137,6 @@ public class RestTemplateConfig {
         return HttpClients.custom()
                 .setDefaultRequestConfig(config)
                 .setConnectionManager(sharedConnectionManager)  // ← ОБЩИЙ ПУЛ!
-                .build();
-    }
-    
-    /**
-     * @deprecated Старый метод без shared pool - не используется
-     */
-    @Deprecated
-    private CloseableHttpClient createHttpClientWithProxy(ProxyServer proxy) {
-        if (proxy == null || proxy.getHost() == null) {
-            logger.warn("No proxy available, using direct connection");
-            return createDirectHttpClient();
-        }
-        
-        logger.debug("Creating HTTP client with proxy: {}:{}", proxy.getHost(), proxy.getPort());
-        
-        // Configure proxy
-        HttpHost proxyHost = new HttpHost(proxy.getHost(), proxy.getPort());
-        
-        // ⚡ ОПТИМИЗАЦИЯ: Агрессивные таймауты для быстрой загрузки изображений
-        RequestConfig config = RequestConfig.custom()
-                .setConnectTimeout(Timeout.ofSeconds(5))       // Уменьшено с 10s до 5s
-                .setResponseTimeout(Timeout.ofSeconds(15))     // Уменьшено с 30s до 15s
-                .setProxy(proxyHost)
-                .build();
-        
-        // ⚡ ОПТИМИЗАЦИЯ: Увеличен connection pool для высокой параллельности
-        PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
-        connectionManager.setMaxTotal(200);           // Увеличено со 100 до 200
-        connectionManager.setDefaultMaxPerRoute(50);  // Увеличено с 20 до 50
-        
-        return HttpClients.custom()
-                .setDefaultRequestConfig(config)
-                .setConnectionManager(connectionManager)
-                .build();
-    }
-    
-    private CloseableHttpClient createDirectHttpClient() {
-        // ⚡ ОПТИМИЗАЦИЯ: Агрессивные таймауты для быстрой загрузки
-        RequestConfig config = RequestConfig.custom()
-                .setConnectTimeout(Timeout.ofSeconds(5))       // Уменьшено с 10s до 5s
-                .setResponseTimeout(Timeout.ofSeconds(15))     // Уменьшено с 30s до 15s
-                .build();
-        
-        // ⚡ ОПТИМИЗАЦИЯ: Увеличен connection pool для высокой параллельности
-        PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
-        connectionManager.setMaxTotal(200);           // Увеличено со 100 до 200
-        connectionManager.setDefaultMaxPerRoute(50);  // Увеличено с 20 до 50
-        
-        return HttpClients.custom()
-                .setDefaultRequestConfig(config)
-                .setConnectionManager(connectionManager)
                 .build();
     }
 

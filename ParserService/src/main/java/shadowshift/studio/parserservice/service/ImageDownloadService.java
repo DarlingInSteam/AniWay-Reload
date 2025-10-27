@@ -62,14 +62,14 @@ public class ImageDownloadService {
                 Exception lastException = null;
                 for (int attempt = 0; attempt < maxRetries; attempt++) {
                     try {
-                        // Загружаем изображение с использованием imageRestTemplate (Russian proxies)
-                        RestTemplate imageRestTemplate = applicationContext.getBean("imageRestTemplate", RestTemplate.class);
+                        // Загружаем изображение через единый пул финских прокси
+                        RestTemplate restTemplate = applicationContext.getBean(RestTemplate.class);
                         HttpHeaders headers = new HttpHeaders();
                         headers.set("User-Agent", "Mozilla/5.0");
                         headers.set("Referer", "https://mangalib.me/");
                         HttpEntity<String> entity = new HttpEntity<>(headers);
                         
-                        ResponseEntity<byte[]> response = imageRestTemplate.exchange(
+                        ResponseEntity<byte[]> response = restTemplate.exchange(
                             imageUrl, 
                             HttpMethod.GET, 
                             entity, 

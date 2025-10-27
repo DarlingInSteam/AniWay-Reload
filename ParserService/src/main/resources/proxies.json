@@ -3,62 +3,62 @@
   "rotation": "round-robin",
   "proxies": [
     {
-      "host": "91.230.39.71",
-      "port": 64866,
+      "host": "45.139.31.6",
+      "port": 63040,
       "username": "Kme3Amz9",
       "password": "ETuNHGW5"
     },
     {
-      "host": "194.61.77.176",
-      "port": 62962,
+      "host": "45.139.31.109",
+      "port": 63040,
       "username": "Kme3Amz9",
       "password": "ETuNHGW5"
     },
     {
-      "host": "45.152.224.56",
-      "port": 64954,
+      "host": "45.139.31.137",
+      "port": 63040,
       "username": "Kme3Amz9",
       "password": "ETuNHGW5"
     },
     {
-      "host": "2.59.49.189",
-      "port": 63742,
+      "host": "45.139.31.223",
+      "port": 63040,
       "username": "Kme3Amz9",
       "password": "ETuNHGW5"
     },
     {
-      "host": "92.249.12.51",
-      "port": 63638,
+      "host": "45.139.31.242",
+      "port": 63040,
       "username": "Kme3Amz9",
       "password": "ETuNHGW5"
     },
     {
-      "host": "45.138.214.151",
-      "port": 62186,
+      "host": "195.58.59.236",
+      "port": 62742,
       "username": "Kme3Amz9",
       "password": "ETuNHGW5"
     },
     {
-      "host": "195.19.171.227",
-      "port": 64300,
+      "host": "194.87.34.10",
+      "port": 63552,
       "username": "Kme3Amz9",
       "password": "ETuNHGW5"
     },
     {
-      "host": "85.142.85.181",
-      "port": 63048,
+      "host": "154.85.26.18",
+      "port": 64654,
       "username": "Kme3Amz9",
       "password": "ETuNHGW5"
     },
     {
-      "host": "85.142.67.136",
-      "port": 64876,
+      "host": "154.194.67.231",
+      "port": 63166,
       "username": "Kme3Amz9",
       "password": "ETuNHGW5"
     },
     {
-      "host": "154.205.246.235",
-      "port": 62716,
+      "host": "154.194.59.109",
+      "port": 62798,
       "username": "Kme3Amz9",
       "password": "ETuNHGW5"
     }
