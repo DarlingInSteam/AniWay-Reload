@@ -4,7 +4,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -35,75 +34,35 @@ public final class MangaLibApiHelper {
         if (volumeValue == null || volumeValue.isEmpty()) {
             volumeValue = "1";
         }
-        String chapterIdValue = normalize(chapterId);
-        String branchValue = null;
-        if (branchId != null && !branchId.equals(defaultBranchId)) {
-            branchValue = String.valueOf(branchId);
-        }
+        String branchValue = (branchId != null && !branchId.equals(defaultBranchId)) 
+            ? String.valueOf(branchId) 
+            : null;
 
         List<String> variants = new ArrayList<>();
-        extendVariants(baseEndpoint, variants, numberValue, volumeValue, chapterIdValue, branchValue, true);
-        extendVariants(baseEndpoint, variants, numberValue, volumeValue, chapterIdValue, branchValue, false);
-
-        return new ArrayList<>(new LinkedHashSet<>(variants));
-    }
-
-    private static void extendVariants(String baseEndpoint,
-                                       List<String> variants,
-                                       String numberValue,
-                                       String volumeValue,
-                                       String chapterIdValue,
-                                       String branchValue,
-                                       boolean includeBranch) {
-        String branchParam = includeBranch ? branchValue : null;
-
-        String firstQuery = buildQuery(baseEndpoint, params(
+        
+        // ⚡ ОПТИМИЗАЦИЯ: Самый распространенный формат MangaLib API (99% случаев)
+        // GET /chapter?branch_id=X&number=Y&volume=Z
+        String primaryUrl = buildQuery(baseEndpoint, params(
+            "branch_id", branchValue,
+            "number", numberValue,
+            "volume", volumeValue
+        ));
+        if (primaryUrl != null) {
+            variants.add(primaryUrl);
+        }
+        
+        // Fallback: без branch_id (для default branch)
+        if (branchValue != null) {
+            String fallbackUrl = buildQuery(baseEndpoint, params(
                 "number", numberValue,
-                "volume", volumeValue,
-                "branch_id", branchParam
-        ));
-        if (firstQuery != null) {
-            variants.add(firstQuery);
-        }
-
-        if (chapterIdValue != null) {
-            String pathVariant = appendQuery(baseEndpoint + "/" + chapterIdValue, params(
-                    "branch_id", branchParam,
-                    "volume", volumeValue,
-                    "number", numberValue
+                "volume", volumeValue
             ));
-            variants.add(pathVariant);
-
-            String chapterIdQuery = buildQuery(baseEndpoint, params(
-                    "chapter_id", chapterIdValue,
-                    "branch_id", branchParam,
-                    "volume", volumeValue,
-                    "number", numberValue
-            ));
-            if (chapterIdQuery != null) {
-                variants.add(chapterIdQuery);
-            }
-
-            String genericIdQuery = buildQuery(baseEndpoint, params(
-                    "id", chapterIdValue,
-                    "branch_id", branchParam,
-                    "volume", volumeValue,
-                    "number", numberValue
-            ));
-            if (genericIdQuery != null) {
-                variants.add(genericIdQuery);
+            if (fallbackUrl != null) {
+                variants.add(fallbackUrl);
             }
         }
 
-        String fallbackQuery = buildQuery(baseEndpoint, params(
-                "branch_id", branchParam,
-                "id", chapterIdValue,
-                "volume", volumeValue,
-                "number", numberValue
-        ));
-        if (fallbackQuery != null) {
-            variants.add(fallbackQuery);
-        }
+        return variants;
     }
 
     private static Map<String, String> params(String... keyValues) {
@@ -128,15 +87,6 @@ public final class MangaLibApiHelper {
         return map;
     }
 
-    private static String appendQuery(String base, Map<String, String> params) {
-        String query = buildQuery(null, params);
-        if (query == null || query.isEmpty()) {
-            return base;
-        }
-        String separator = base.contains("?") ? "&" : "?";
-        return base + separator + query;
-    }
-
     private static String buildQuery(String base, Map<String, String> params) {
         StringBuilder builder = new StringBuilder();
         for (Map.Entry<String, String> entry : params.entrySet()) {
@@ -157,14 +107,6 @@ public final class MangaLibApiHelper {
             return builder.toString();
         }
         return base + '?' + builder;
-    }
-
-    private static String normalize(String value) {
-        if (value == null) {
-            return null;
-        }
-        String trimmed = value.trim();
-        return trimmed.isEmpty() ? null : trimmed;
     }
 
     public static String formatDecimal(Double value) {
