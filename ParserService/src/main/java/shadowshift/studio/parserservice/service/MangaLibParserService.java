@@ -382,10 +382,13 @@ public class MangaLibParserService {
                 return new ChaptersPayload(content, branches);
             }
 
+            logger.info("📖 [PARSE] Processing {} chapters, fetching slides...", allChapters.size());
+            
             task.updateProgress(50, "Загрузка страниц глав...");
             String imageServer = resolveImageServer();
             int totalChapters = allChapters.size();
             int processed = 0;
+            int logInterval = Math.max(1, totalChapters / 10); // Логируем каждые 10%
 
             for (ChapterInfo chapter : allChapters) {
                 processed++;
@@ -406,11 +409,19 @@ public class MangaLibParserService {
                     }
                 }
 
+                // Логируем прогресс каждые 10% или на последней главе
+                if (processed % logInterval == 0 || processed == totalChapters) {
+                    double percent = (processed * 100.0) / totalChapters;
+                    logger.info("📊 [PARSE] Chapter slides progress: {}/{} ({:.1f}%)", processed, totalChapters, percent);
+                }
+
                 int progress = 50 + (int) Math.round((processed / (double) totalChapters) * 40.0);
                 progress = Math.min(progress, 90);
                 task.updateProgress(progress, String.format(Locale.ROOT, "Обработано %d/%d глав", processed, totalChapters));
             }
 
+            logger.info("✅ [PARSE] All {} chapters processed", totalChapters);
+            
             return new ChaptersPayload(content, branches);
         } catch (HttpStatusCodeException ex) {
             throw new IOException("Не удалось получить список глав: HTTP " + ex.getStatusCode().value()
@@ -445,14 +456,23 @@ public class MangaLibParserService {
         for (String url : urlVariants) {
             for (int attempt = 0; attempt < MAX_CHAPTER_REQUEST_ATTEMPTS; attempt++) {
                 try {
+                    long startTime = System.currentTimeMillis();
                     ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(baseHeaders), String.class);
+                    long elapsed = System.currentTimeMillis() - startTime;
+                    
                     JsonNode root = objectMapper.readTree(response.getBody());
                     JsonNode pages = root.has("pages") ? root.get("pages") : root.path("data").path("pages");
                     if (!pages.isArray() || pages.isEmpty()) {
                         lastError = "источник не вернул страницы";
+                        logger.debug("❌ Chapter {} ({}) - no pages in response ({}ms)", 
+                            chapter.getNumber(), chapter.getChapterId(), elapsed);
                         break;
                     }
-                    return parseSlides(pages, imageServer);
+                    
+                    List<SlideInfo> slides = parseSlides(pages, imageServer);
+                    logger.debug("✅ Chapter {} ({}) - {} slides fetched in {}ms", 
+                        chapter.getNumber(), chapter.getChapterId(), slides.size(), elapsed);
+                    return slides;
                 } catch (HttpStatusCodeException ex) {
                     int statusCode = ex.getStatusCode().value();
                     lastError = "HTTP " + statusCode + formatOptionalMessage(ex);
