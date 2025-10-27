@@ -1,0 +1,30 @@
+{
+  "enabled": true,
+  "rotation": "round-robin",
+  "proxies": [
+    {
+      "host": "161.0.20.135",
+      "port": 8000,
+      "username": "A79bW0",
+      "password": "0CpyMm"
+    },
+    {
+      "host": "161.0.25.179",
+      "port": 8000,
+      "username": "A79bW0",
+      "password": "0CpyMm"
+    },
+    {
+      "host": "161.0.21.18",
+      "port": 8000,
+      "username": "A79bW0",
+      "password": "0CpyMm"
+    },
+    {
+      "host": "161.0.21.46",
+      "port": 8000,
+      "username": "UQfATE",
+      "password": "Vmnr8g"
+    }
+  ]
+}
