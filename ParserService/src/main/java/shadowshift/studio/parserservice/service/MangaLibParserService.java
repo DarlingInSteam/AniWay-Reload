@@ -38,7 +38,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
@@ -74,6 +77,17 @@ public class MangaLibParserService {
 
     private volatile String cachedImageServer;
     private volatile String cachedImageServerBase;
+    
+    // ⚡ ExecutorService для параллельной обработки глав
+    private final ExecutorService chapterSlidesExecutor;
+    
+    public MangaLibParserService(ParserProperties properties) {
+        // Используем пул потоков для параллельной обработки слайдов глав
+        // Размер = max-parallel-chapters из конфига (по умолчанию 2)
+        int parallelChapters = properties.getMaxParallelChapters();
+        this.chapterSlidesExecutor = Executors.newFixedThreadPool(parallelChapters);
+        logger.info("🚀 MangaLibParserService: initialized with {} parallel chapter processing threads", parallelChapters);
+    }
 
     /**
      * Получает страницу каталога MangaLib.
@@ -382,45 +396,57 @@ public class MangaLibParserService {
                 return new ChaptersPayload(content, branches);
             }
 
-            logger.info("📖 [PARSE] Processing {} chapters, fetching slides...", allChapters.size());
+            logger.info("📖 [PARSE] Processing {} chapters, fetching slides in parallel (up to {} concurrent)...", 
+                allChapters.size(), properties.getMaxParallelChapters());
             
             task.updateProgress(50, "Загрузка страниц глав...");
             String imageServer = resolveImageServer();
             int totalChapters = allChapters.size();
-            int processed = 0;
+            AtomicInteger processed = new AtomicInteger(0);
             int logInterval = Math.max(1, totalChapters / 10); // Логируем каждые 10%
 
-            for (ChapterInfo chapter : allChapters) {
-                processed++;
-                if (Boolean.TRUE.equals(chapter.getIsPaid())) {
-                    chapter.setSlides(Collections.emptyList());
-                    chapter.setPagesCount(0);
-                    chapter.setEmptyReason("платная глава — доступ ограничен");
-                } else {
-                    try {
-                        List<SlideInfo> slides = fetchChapterSlides(apiBase, slugContext, chapter, defaultBranchId, headers, imageServer);
-                        chapter.setSlides(slides);
-                        chapter.setPagesCount(slides.size());
-                    } catch (IOException ex) {
+            // ⚡ ПАРАЛЛЕЛЬНАЯ обработка глав
+            List<CompletableFuture<Void>> futures = allChapters.stream()
+                .map(chapter -> CompletableFuture.runAsync(() -> {
+                    if (Boolean.TRUE.equals(chapter.getIsPaid())) {
                         chapter.setSlides(Collections.emptyList());
                         chapter.setPagesCount(0);
-                        chapter.setEmptyReason(ex.getMessage());
-                        logger.warn("Глава {} не содержит изображений: {}", chapter.getChapterId(), ex.getMessage());
+                        chapter.setEmptyReason("платная глава — доступ ограничен");
+                    } else {
+                        try {
+                            List<SlideInfo> slides = fetchChapterSlides(apiBase, slugContext, chapter, defaultBranchId, headers, imageServer);
+                            chapter.setSlides(slides);
+                            chapter.setPagesCount(slides.size());
+                        } catch (IOException ex) {
+                            chapter.setSlides(Collections.emptyList());
+                            chapter.setPagesCount(0);
+                            chapter.setEmptyReason(ex.getMessage());
+                            logger.warn("Глава {} не содержит изображений: {}", chapter.getChapterId(), ex.getMessage());
+                        }
                     }
-                }
 
-                // Логируем прогресс каждые 10% или на последней главе
-                if (processed % logInterval == 0 || processed == totalChapters) {
-                    double percent = (processed * 100.0) / totalChapters;
-                    logger.info("📊 [PARSE] Chapter slides progress: {}/{} ({:.1f}%)", processed, totalChapters, percent);
-                }
+                    // Логируем прогресс каждые 10% или на последней главе
+                    int currentProcessed = processed.incrementAndGet();
+                    if (currentProcessed % logInterval == 0 || currentProcessed == totalChapters) {
+                        double percent = (currentProcessed * 100.0) / totalChapters;
+                        logger.info("📊 [PARSE] Chapter slides progress: {}/{} ({}%)", 
+                            currentProcessed, totalChapters, String.format("%.1f", percent));
+                    }
 
-                int progress = 50 + (int) Math.round((processed / (double) totalChapters) * 40.0);
-                progress = Math.min(progress, 90);
-                task.updateProgress(progress, String.format(Locale.ROOT, "Обработано %d/%d глав", processed, totalChapters));
+                    int progress = 50 + (int) Math.round((currentProcessed / (double) totalChapters) * 40.0);
+                    progress = Math.min(progress, 90);
+                    task.updateProgress(progress, String.format(Locale.ROOT, "Обработано %d/%d глав", currentProcessed, totalChapters));
+                }, chapterSlidesExecutor))
+                .collect(Collectors.toList());
+
+            // Ждём завершения всех задач
+            try {
+                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            } catch (Exception ex) {
+                logger.error("❌ Error during parallel chapter processing", ex);
             }
 
-            logger.info("✅ [PARSE] All {} chapters processed", totalChapters);
+            logger.info("✅ [PARSE] All {} chapters processed in parallel", totalChapters);
             
             return new ChaptersPayload(content, branches);
         } catch (HttpStatusCodeException ex) {
