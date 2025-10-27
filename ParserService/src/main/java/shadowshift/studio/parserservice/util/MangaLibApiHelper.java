@@ -40,7 +40,13 @@ public final class MangaLibApiHelper {
 
         List<String> variants = new ArrayList<>();
         
-        // ⚡ ОПТИМИЗАЦИЯ: Самый распространенный формат MangaLib API (99% случаев)
+        // ⚡ ВАРИАНТ 1: По ID главы (самый надежный - работает всегда)
+        // GET /chapter/{id}
+        if (chapterId != null && !chapterId.isEmpty()) {
+            variants.add(baseEndpoint + "/" + chapterId);
+        }
+        
+        // ⚡ ВАРИАНТ 2: Стандартный формат MangaLib API (99% случаев)
         // GET /chapter?branch_id=X&number=Y&volume=Z
         String primaryUrl = buildQuery(baseEndpoint, params(
             "branch_id", branchValue,
@@ -51,7 +57,7 @@ public final class MangaLibApiHelper {
             variants.add(primaryUrl);
         }
         
-        // Fallback: без branch_id (для default branch)
+        // ⚡ ВАРИАНТ 3: Без branch_id (для default branch)
         if (branchValue != null) {
             String fallbackUrl = buildQuery(baseEndpoint, params(
                 "number", numberValue,

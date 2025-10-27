@@ -484,12 +484,19 @@ public class MangaLibParserService {
                     ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(baseHeaders), String.class);
                     long elapsed = System.currentTimeMillis() - startTime;
                     
+                    logger.debug("🌐 [API] Chapter {} - Response status: {}, time: {}ms, URL: {}", 
+                        chapter.getNumber(), response.getStatusCode(), elapsed, url);
+                    
                     JsonNode root = objectMapper.readTree(response.getBody());
                     JsonNode pages = root.has("pages") ? root.get("pages") : root.path("data").path("pages");
+                    
                     if (!pages.isArray() || pages.isEmpty()) {
                         lastError = "источник не вернул страницы";
-                        logger.debug("❌ Chapter {} ({}) - no pages in response ({}ms)", 
-                            chapter.getNumber(), chapter.getChapterId(), elapsed);
+                        logger.warn("⚠️  Chapter {} ({}) - URL: {}, Response has pages: {}, pages.isArray: {}, pages.size: {}", 
+                            chapter.getNumber(), chapter.getChapterId(), url,
+                            root.has("pages") || root.path("data").has("pages"),
+                            pages.isArray(),
+                            pages.isArray() ? pages.size() : 0);
                         break;
                     }
                     
