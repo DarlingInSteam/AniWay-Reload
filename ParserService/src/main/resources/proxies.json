@@ -3,124 +3,64 @@
   "rotation": "round-robin",
   "proxies": [
     {
-      "host": "80.243.133.22",
-      "port": 8000,
-      "username": "CFDXZS",
-      "password": "PK0r27"
+      "host": "91.230.39.71",
+      "port": 64866,
+      "username": "Kme3Amz9",
+      "password": "ETuNHGW5"
     },
     {
-      "host": "194.187.120.175",
-      "port": 9775,
-      "username": "kA8vQU",
-      "password": "Ha18hZ"
+      "host": "194.61.77.176",
+      "port": 62962,
+      "username": "Kme3Amz9",
+      "password": "ETuNHGW5"
     },
     {
-      "host": "194.187.120.137",
-      "port": 9182,
-      "username": "kA8vQU",
-      "password": "Ha18hZ"
+      "host": "45.152.224.56",
+      "port": 64954,
+      "username": "Kme3Amz9",
+      "password": "ETuNHGW5"
     },
     {
-      "host": "31.129.21.243",
-      "port": 9559,
-      "username": "kA8vQU",
-      "password": "Ha18hZ"
+      "host": "2.59.49.189",
+      "port": 63742,
+      "username": "Kme3Amz9",
+      "password": "ETuNHGW5"
     },
     {
-      "host": "31.129.21.168",
-      "port": 9883,
-      "username": "kA8vQU",
-      "password": "Ha18hZ"
+      "host": "92.249.12.51",
+      "port": 63638,
+      "username": "Kme3Amz9",
+      "password": "ETuNHGW5"
     },
     {
-      "host": "31.129.21.217",
-      "port": 9346,
-      "username": "kA8vQU",
-      "password": "Ha18hZ"
+      "host": "45.138.214.151",
+      "port": 62186,
+      "username": "Kme3Amz9",
+      "password": "ETuNHGW5"
     },
     {
-      "host": "31.129.21.102",
-      "port": 9663,
-      "username": "kA8vQU",
-      "password": "Ha18hZ"
+      "host": "195.19.171.227",
+      "port": 64300,
+      "username": "Kme3Amz9",
+      "password": "ETuNHGW5"
     },
     {
-      "host": "45.91.65.111",
-      "port": 9320,
-      "username": "kA8vQU",
-      "password": "Ha18hZ"
+      "host": "85.142.85.181",
+      "port": 63048,
+      "username": "Kme3Amz9",
+      "password": "ETuNHGW5"
     },
     {
-      "host": "31.129.21.190",
-      "port": 9944,
-      "username": "kA8vQU",
-      "password": "Ha18hZ"
+      "host": "85.142.67.136",
+      "port": 64876,
+      "username": "Kme3Amz9",
+      "password": "ETuNHGW5"
     },
     {
-      "host": "194.187.120.25",
-      "port": 9223,
-      "username": "kA8vQU",
-      "password": "Ha18hZ"
-    },
-    {
-      "host": "194.187.120.51",
-      "port": 9551,
-      "username": "kA8vQU",
-      "password": "Ha18hZ"
-    },
-    {
-      "host": "91.211.113.112",
-      "port": 9683,
-      "username": "kA8vQU",
-      "password": "Ha18hZ"
-    },
-    {
-      "host": "91.211.113.110",
-      "port": 9591,
-      "username": "kA8vQU",
-      "password": "Ha18hZ"
-    },
-    {
-      "host": "31.129.21.248",
-      "port": 9580,
-      "username": "kA8vQU",
-      "password": "Ha18hZ"
-    },
-    {
-      "host": "91.211.113.247",
-      "port": 9689,
-      "username": "kA8vQU",
-      "password": "Ha18hZ"
-    },
-    {
-      "host": "31.129.21.250",
-      "port": 9785,
-      "username": "kA8vQU",
-      "password": "Ha18hZ"
-    },
-    {
-      "host": "194.187.120.230",
-      "port": 9396,
-      "username": "kA8vQU",
-      "password": "Ha18hZ"
-    },
-    {
-      "host": "45.91.65.119",
-      "port": 9325,
-      "username": "kA8vQU",
-      "password": "Ha18hZ"
-    },
-    {
-      "host": "31.129.21.202",
-      "port": 9390,
-      "username": "kA8vQU",
-      "password": "Ha18hZ"
-    },
-    {
-      "host": "91.211.113.149",
-      "port": 9887,
-      "username": "kA8vQU",
-      "password": "Ha18hZ"
+      "host": "154.205.246.235",
+      "port": 62716,
+      "username": "Kme3Amz9",
+      "password": "ETuNHGW5"
     }
   ]
 }
