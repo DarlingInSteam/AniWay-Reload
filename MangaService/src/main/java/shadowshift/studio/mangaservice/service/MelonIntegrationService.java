@@ -428,9 +428,14 @@ public class MelonIntegrationService {
                     // ВАЖНО: НЕ используем .get() чтобы не блокировать автопарсинг!
                     // Добавляем импорт в очередь с нормальным приоритетом и completion callback
                     importQueueService.queueImport(importTaskId, normalizedSlug, null, ImportQueueService.ImportQueueItem.Priority.NORMAL, () -> {
-                        // Completion callback: удаляем slug из processingSlugs когда импорт завершен
-                        processingSlugs.remove(normalizedSlug);
-                        logger.info("Импорт завершен, удален из processingSlugs: {}", normalizedSlug);
+                        // Completion callback: проверяем, успешно ли импортирована манга, и только тогда удаляем из processingSlugs
+                        boolean importSuccessful = mangaRepository.existsByMelonSlug(normalizedSlug);
+                        if (importSuccessful) {
+                            processingSlugs.remove(normalizedSlug);
+                            logger.info("Импорт завершен успешно, удален из processingSlugs: {}", normalizedSlug);
+                        } else {
+                            logger.warn("Импорт не удался для {}, оставляем в processingSlugs для предотвращения повторного парсинга", normalizedSlug);
+                        }
                     });
                     
                     // Обновляем статус - парсинг завершен, импорт добавлен в очередь
@@ -1311,9 +1316,14 @@ public class MelonIntegrationService {
         // Добавляем импорт в очередь (не блокирует парсинг/билдинг других тайтлов)
         logger.info("📋 [QUEUE] Adding import to queue: taskId={}, filename={}", taskId, filename);
         importQueueService.queueImport(taskId, filename, branchId, ImportQueueService.ImportQueueItem.Priority.NORMAL, () -> {
-            // Completion callback: удаляем filename из processingSlugs когда импорт завершен
-            processingSlugs.remove(filename);
-            logger.info("Импорт завершен, удален из processingSlugs: {}", filename);
+            // Completion callback: проверяем, успешно ли импортирована манга, и только тогда удаляем из processingSlugs
+            boolean importSuccessful = mangaRepository.existsByMelonSlug(filename);
+            if (importSuccessful) {
+                processingSlugs.remove(filename);
+                logger.info("Импорт завершен успешно, удален из processingSlugs: {}", filename);
+            } else {
+                logger.warn("Импорт не удался для {}, оставляем в processingSlugs для предотвращения повторного парсинга", filename);
+            }
         });
 
         return Map.of(
