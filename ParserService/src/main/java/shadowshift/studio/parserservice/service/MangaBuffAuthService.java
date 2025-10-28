@@ -68,7 +68,18 @@ public class MangaBuffAuthService {
         logger.info("🔐 [AUTH] GET {}", loginUrl);
 
         // Получаем страницу логина для CSRF токена
-        Connection.Response loginPageResponse = MangaBuffApiHelper.newConnection(loginUrl, getProxyConfig()).execute();
+        Connection.Response loginPageResponse = MangaBuffApiHelper.newConnection(loginUrl, getProxyConfig())
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
+                .header("Accept-Language", "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7")
+                .header("Cache-Control", "no-cache")
+                .header("Pragma", "no-cache")
+                .header("Sec-Fetch-Dest", "document")
+                .header("Sec-Fetch-Mode", "navigate")
+                .header("Sec-Fetch-Site", "none")
+                .header("Sec-Fetch-User", "?1")
+                .header("Upgrade-Insecure-Requests", "1")
+                .execute();
+
         Document loginPage = loginPageResponse.parse();
 
         // Извлекаем CSRF токен
@@ -85,6 +96,18 @@ public class MangaBuffAuthService {
 
         Connection loginRequest = MangaBuffApiHelper.newConnection(loginUrl, getProxyConfig())
                 .method(Connection.Method.POST)
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
+                .header("Accept-Language", "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7")
+                .header("Cache-Control", "no-cache")
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .header("Origin", MangaBuffApiHelper.BASE_URL)
+                .header("Pragma", "no-cache")
+                .header("Referer", loginUrl)
+                .header("Sec-Fetch-Dest", "document")
+                .header("Sec-Fetch-Mode", "navigate")
+                .header("Sec-Fetch-Site", "same-origin")
+                .header("Sec-Fetch-User", "?1")
+                .header("Upgrade-Insecure-Requests", "1")
                 .header("X-CSRF-TOKEN", csrfToken)
                 .header("X-Requested-With", "XMLHttpRequest")
                 .referrer(loginUrl)
@@ -93,6 +116,11 @@ public class MangaBuffAuthService {
                 .data("_token", csrfToken)
                 .ignoreContentType(true)
                 .followRedirects(false); // Важно не следовать редиректам для проверки статуса
+
+        // Передаем cookies от GET запроса
+        for (Map.Entry<String, String> cookie : loginPageResponse.cookies().entrySet()) {
+            loginRequest.cookie(cookie.getKey(), cookie.getValue());
+        }
 
         Connection.Response authResponse = loginRequest.execute();
 
