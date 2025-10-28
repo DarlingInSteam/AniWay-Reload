@@ -120,6 +120,13 @@ public class MangaBuffParserService {
             try {
                 Connection.Response response = fetchMangaPage(slugContext);
                 Document document = response.parse();
+                
+                // КРИТИЧНО: Кешируем cookies сразу после получения страницы манги
+                // Эти cookies будут использоваться для загрузки глав в BUILD фазе
+                String cacheKey = slugContext.getFileSlug();
+                cookieCache.put(cacheKey, response);
+                logger.info("🍪 [COOKIES] Cached {} cookies for {} from manga page", 
+                           response.cookies().size(), cacheKey);
 
                 task.updateProgress(10, "Парсинг метаданных...");
                 MangaMetadata metadata = buildMetadata(slugContext, document);
