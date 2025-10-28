@@ -228,18 +228,23 @@ public class MangaBuffParserService {
         metadata.setLocalizedName(title);
         metadata.setTitle(title);
 
-        Elements otherNames = document.select("h3.manga__other-names span");
-        if (!otherNames.isEmpty()) {
-            String englishTitle = MangaBuffApiHelper.safeText(otherNames.first());
-            if (!MangaBuffApiHelper.isBlank(englishTitle)) {
-                metadata.setEnglishTitle(englishTitle);
+        // Парсим альтернативные названия (десктоп и мобильная версия)
+        Elements otherNames = document.select("h3.manga__other-names span, h3.manga-mobile__name-alt span");
+        List<String> allNames = new ArrayList<>();
+        for (Element element : otherNames) {
+            String value = MangaBuffApiHelper.safeText(element);
+            if (!MangaBuffApiHelper.isBlank(value)) {
+                allNames.add(value);
             }
+        }
+        
+        if (!allNames.isEmpty()) {
+            String englishTitle = allNames.get(0);
+            metadata.setEnglishTitle(englishTitle);
+            
             List<String> extraNames = new ArrayList<>();
-            for (Element element : otherNames) {
-                String value = MangaBuffApiHelper.safeText(element);
-                if (!MangaBuffApiHelper.isBlank(value) && !value.equals(englishTitle)) {
-                    extraNames.add(value);
-                }
+            for (int i = 1; i < allNames.size(); i++) {
+                extraNames.add(allNames.get(i));
             }
             metadata.setOtherNames(extraNames);
         } else {
@@ -249,8 +254,10 @@ public class MangaBuffParserService {
         Element descriptionMeta = document.selectFirst("meta[name=description]");
         metadata.setSummary(descriptionMeta != null ? descriptionMeta.attr("content") : null);
 
-        metadata.setGenres(extractTexts(document.select(".tags a[href^='/genres/']")));
-        metadata.setTags(extractTexts(document.select(".tags a[href^='/manga?tags']")));
+        // Парсим жанры (href начинается с /genres/)
+        metadata.setGenres(extractTexts(document.select(".tags a[href*='/genres/']")));
+        // Парсим теги (href содержит ?tags)
+        metadata.setTags(extractTexts(document.select(".tags a[href*='?tags']")));
 
         Element adultTag = document.selectFirst(".tags__item--warning");
         metadata.setAgeLimit(adultTag != null ? 18 : null);
@@ -387,7 +394,15 @@ public class MangaBuffParserService {
             if (MangaBuffApiHelper.isBlank(href)) {
                 continue;
             }
-            String normalizedHref = href.startsWith("/") ? href.substring(1) : href;
+            
+            // Убираем BASE_URL если он есть
+            String normalizedHref = href;
+            if (normalizedHref.startsWith("http://") || normalizedHref.startsWith("https://")) {
+                normalizedHref = normalizedHref.replace(MangaBuffApiHelper.BASE_URL + "/", "")
+                                               .replace(MangaBuffApiHelper.BASE_URL, "");
+            }
+            normalizedHref = normalizedHref.startsWith("/") ? normalizedHref.substring(1) : normalizedHref;
+            
             String[] parts = normalizedHref.split("/");
             if (parts.length < 4) {
                 continue;
@@ -404,7 +419,7 @@ public class MangaBuffParserService {
             ChapterInfo chapter = new ChapterInfo();
             chapter.setChapterId(chapterId);
             chapter.setBranchId(DEFAULT_BRANCH_ID);
-            chapter.setSlug(normalizedHref);
+            chapter.setSlug(normalizedHref);  // Сохраняем относительный путь
 
             Double number = MangaBuffApiHelper.parseChapterNumber(anchor.attr("data-chapter"));
             if (number == null) {
@@ -428,8 +443,14 @@ public class MangaBuffParserService {
     }
 
     private List<SlideInfo> fetchChapterSlidesByPath(String relativePath) throws IOException {
-        String path = relativePath.startsWith("/") ? relativePath : "/" + relativePath;
-        String url = MangaBuffApiHelper.BASE_URL + path;
+        // relativePath уже содержит "manga/slug/volume/chapter"
+        String url;
+        if (relativePath.startsWith("http://") || relativePath.startsWith("https://")) {
+            url = relativePath;
+        } else {
+            String path = relativePath.startsWith("/") ? relativePath : "/" + relativePath;
+            url = MangaBuffApiHelper.BASE_URL + path;
+        }
         Connection.Response response = MangaBuffApiHelper.newConnection(url, getProxyConfig()).execute();
         Document document = response.parse();
         return parseSlides(document);
