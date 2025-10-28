@@ -479,10 +479,10 @@ public class MangaBuffParserService {
         Elements anchors = document.select("a.chapters__item");
         List<ChapterInfo> chapters = parseChapterAnchors(context, anchors);
 
-            if (MangaBuffApiHelper.hasAdditionalChapters(document)) {
-                Elements additional = loadAllAdditionalChapters(context, document, response);
-                chapters.addAll(parseChapterAnchors(context, additional));
-            }
+        if (MangaBuffApiHelper.hasAdditionalChapters(document)) {
+            Elements additional = loadAllAdditionalChapters(context, document, response);
+            chapters.addAll(parseChapterAnchors(context, additional));
+        }
 
         Collections.reverse(chapters); // упорядочим от старых к новым (для стабильности)
 
@@ -523,18 +523,26 @@ public class MangaBuffParserService {
             return result;
         }
 
+        // Сет известных глав, чтобы не дублировать их при подкачке
+        Set<String> knownChapterIds = new LinkedHashSet<>();
+        for (Element anchor : document.select("a.chapters__item")) {
+            ChapterAnchorMeta meta = resolveChapterAnchor(anchor);
+            if (meta != null) {
+                knownChapterIds.add(meta.chapterId());
+            }
+        }
+
         Document currentDoc = document;
         Connection.Response currentResponse = response;
         int loadAttempts = 0;
         final int MAX_LOAD_ATTEMPTS = 20; // Максимум 20 вызовов load (для манги с 500+ главами)
         int previousChapterCount = MangaBuffApiHelper.countChapters(currentDoc);
+        boolean safetyExtraRequestUsed = false;
 
         logger.info("🔄 [LOAD] {}: начинаем загрузку дополнительных глав (начально: {} глав)",
             context.getFileSlug(), previousChapterCount);
 
-        // Продолжаем вызывать load, пока есть триггер ИЛИ пока главы добавляются
-        boolean shouldContinue = MangaBuffApiHelper.hasAdditionalChapters(currentDoc);
-        while ((shouldContinue || loadAttempts == 0) && loadAttempts < MAX_LOAD_ATTEMPTS) {
+        while (loadAttempts < MAX_LOAD_ATTEMPTS) {
             loadAttempts++;
 
             Connection connection = MangaBuffApiHelper.cloneConnection(
@@ -572,11 +580,11 @@ public class MangaBuffParserService {
                         parsedResponse = Jsoup.parseBodyFragment(htmlFragment != null ? htmlFragment : "");
                         parsedFromJson = true;
 
-                        jsonSuggestsMore = json.path("load_more").asBoolean(false)
-                            || json.path("hasMore").asBoolean(false)
-                            || json.path("has_more").asBoolean(false)
-                            || json.path("has_more_pages").asBoolean(false)
-                            || json.path("more").asBoolean(false)
+                        jsonSuggestsMore = nodeTruthy(json.path("load_more"))
+                            || nodeTruthy(json.path("hasMore"))
+                            || nodeTruthy(json.path("has_more"))
+                            || nodeTruthy(json.path("has_more_pages"))
+                            || nodeTruthy(json.path("more"))
                             || !json.path("last_page").asBoolean(true);
 
                         String jsonCsrf = json.path("csrf").asText(null);
@@ -598,38 +606,44 @@ public class MangaBuffParserService {
             currentDoc = parsedResponse;
             Elements anchors = currentDoc.select("a.chapters__item");
 
-            int newChaptersAdded;
-            if (parsedFromJson) {
-                newChaptersAdded = anchors.size();
-                previousChapterCount += newChaptersAdded;
-            } else {
-                int currentChapterCount = anchors.size();
-                newChaptersAdded = currentChapterCount - previousChapterCount;
-                previousChapterCount = currentChapterCount;
+            int uniqueChaptersAdded = 0;
+            for (Element anchor : anchors) {
+                ChapterAnchorMeta meta = resolveChapterAnchor(anchor);
+                if (meta == null) {
+                    continue;
+                }
+                if (knownChapterIds.add(meta.chapterId())) {
+                    result.add(anchor.clone());
+                    uniqueChaptersAdded++;
+                }
             }
 
-            int totalKnownChapters = previousChapterCount;
-            logger.info("🔄 [LOAD] {}: после load #{} добавлено {} глав (всего известно: {}, суммарно новых элементов: {})",
-                context.getFileSlug(), loadAttempts, newChaptersAdded, totalKnownChapters, result.size() + newChaptersAdded);
+            previousChapterCount += uniqueChaptersAdded;
 
-            if (newChaptersAdded <= 0) {
-                if (loadAttempts > 1) {
-                    logger.info("🔄 [LOAD] {}: load #{} не добавил новых глав, прекращаем", context.getFileSlug(), loadAttempts);
-                }
+            logger.info("🔄 [LOAD] {}: после load #{} добавлено {} уникальных глав (совокупно: {}), всего собрано: {}",
+                context.getFileSlug(), loadAttempts, uniqueChaptersAdded, knownChapterIds.size(), result.size());
+
+            if (uniqueChaptersAdded <= 0) {
+                logger.info("🔄 [LOAD] {}: load #{} не дал новых глав — завершаем", context.getFileSlug(), loadAttempts);
                 break;
             }
-
-            result.addAll(anchors);
 
             String refreshedCsrf = MangaBuffApiHelper.extractCsrfToken(currentDoc);
             if (!MangaBuffApiHelper.isBlank(refreshedCsrf)) {
                 csrf = refreshedCsrf;
             }
 
-            shouldContinue = MangaBuffApiHelper.hasAdditionalChapters(currentDoc) || jsonSuggestsMore;
+            boolean hasTrigger = MangaBuffApiHelper.hasAdditionalChapters(currentDoc);
+            boolean serverSuggestsMore = hasTrigger || jsonSuggestsMore;
 
-            if (!shouldContinue) {
-                logger.info("🔄 [LOAD] {}: после load #{} триггер отсутствует, предполагаем завершение", context.getFileSlug(), loadAttempts);
+            if (serverSuggestsMore) {
+                safetyExtraRequestUsed = false;
+            } else if (!safetyExtraRequestUsed) {
+                logger.info("🔄 [LOAD] {}: сервер сообщил об окончании, но добавлено {} новых глав — выполняем контрольный запрос",
+                    context.getFileSlug(), uniqueChaptersAdded);
+                safetyExtraRequestUsed = true;
+            } else {
+                logger.info("🔄 [LOAD] {}: дополнительных сигналов нет после контрольного запроса — завершаем", context.getFileSlug());
                 break;
             }
 
@@ -652,44 +666,26 @@ public class MangaBuffParserService {
         List<ChapterInfo> chapters = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
         for (Element anchor : anchors) {
-            String href = anchor.attr("href");
-            if (MangaBuffApiHelper.isBlank(href)) {
+            ChapterAnchorMeta meta = resolveChapterAnchor(anchor);
+            if (meta == null) {
                 continue;
             }
-            
-            // Убираем BASE_URL если он есть
-            String normalizedHref = href;
-            if (normalizedHref.startsWith("http://") || normalizedHref.startsWith("https://")) {
-                normalizedHref = normalizedHref.replace(MangaBuffApiHelper.BASE_URL + "/", "")
-                                               .replace(MangaBuffApiHelper.BASE_URL, "");
-            }
-            normalizedHref = normalizedHref.startsWith("/") ? normalizedHref.substring(1) : normalizedHref;
-            
-            String[] parts = normalizedHref.split("/");
-            if (parts.length < 4) {
+            if (!seen.add(meta.chapterId())) {
                 continue;
             }
-            String volumeSegment = parts[parts.length - 2];
-            String chapterSegment = parts[parts.length - 1];
-
-            String chapterId = MangaBuffApiHelper.normalizeChapterId(volumeSegment, chapterSegment);
-            if (seen.contains(chapterId)) {
-                continue;
-            }
-            seen.add(chapterId);
 
             ChapterInfo chapter = new ChapterInfo();
-            chapter.setChapterId(chapterId);
+            chapter.setChapterId(meta.chapterId());
             chapter.setBranchId(DEFAULT_BRANCH_ID);
-            chapter.setSlug(normalizedHref);  // Сохраняем относительный путь
+            chapter.setSlug(meta.relativePath());  // Сохраняем относительный путь
 
             Double number = MangaBuffApiHelper.parseChapterNumber(anchor.attr("data-chapter"));
             if (number == null) {
-                number = MangaBuffApiHelper.parseChapterNumber(chapterSegment.replace('-', '.'));
+                number = MangaBuffApiHelper.parseChapterNumber(meta.chapterSegment().replace('-', '.'));
             }
             chapter.setNumber(number);
 
-            Integer volume = MangaBuffApiHelper.parseVolume(volumeSegment);
+            Integer volume = MangaBuffApiHelper.parseVolume(meta.volumeSegment());
             chapter.setVolume(volume);
 
             String dateIso = MangaBuffApiHelper.parseDateToIso(anchor.attr("data-chapter-date"));
@@ -764,6 +760,41 @@ public class MangaBuffParserService {
         }
 
         return new ChapterPath(slug, volume, chapter);
+    }
+
+    private ChapterAnchorMeta resolveChapterAnchor(Element anchor) {
+        if (anchor == null) {
+            return null;
+        }
+        String href = anchor.attr("href");
+        if (MangaBuffApiHelper.isBlank(href)) {
+            return null;
+        }
+        ChapterPath path = parseChapterPath(href);
+        if (path == null || path.getSlug() == null || path.getVolume() == null || path.getChapter() == null) {
+            return null;
+        }
+
+        String relative = "manga/" + path.getSlug() + "/" + path.getVolume() + "/" + path.getChapter();
+        String chapterId = MangaBuffApiHelper.normalizeChapterId(path.getVolume(), path.getChapter());
+        return new ChapterAnchorMeta(relative, path.getSlug(), path.getVolume(), path.getChapter(), chapterId);
+    }
+
+    private boolean nodeTruthy(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return false;
+        }
+        if (node.isBoolean()) {
+            return node.asBoolean();
+        }
+        if (node.isInt() || node.isLong() || node.isShort()) {
+            return node.asInt() != 0;
+        }
+        if (node.isTextual()) {
+            String text = node.asText("").trim().toLowerCase(Locale.ROOT);
+            return text.equals("true") || text.equals("1") || text.equals("yes") || text.equals("y");
+        }
+        return false;
     }
 
     private String cleanPathSegment(String value) {
@@ -959,6 +990,13 @@ public class MangaBuffParserService {
         } catch (NumberFormatException ex) {
             return null;
         }
+    }
+
+    private record ChapterAnchorMeta(String relativePath,
+                                     String slug,
+                                     String volumeSegment,
+                                     String chapterSegment,
+                                     String chapterId) {
     }
 
     private Integer parseYearFromLink(Document document) {
