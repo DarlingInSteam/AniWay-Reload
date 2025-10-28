@@ -185,7 +185,10 @@ public class MangaBuffParserService {
                 }
             }
 
-            Connection.Response mangaResponse = cookieCache.computeIfAbsent(slug, key -> fetchAndCacheCookies(key, false));
+            Connection.Response mangaResponse = cookieCache.get(slug);
+            if (mangaResponse == null) {
+                mangaResponse = fetchAndCacheCookies(slug, false);
+            }
             if (mangaResponse == null) {
                 throw new IOException("Failed to obtain DDoS-Guard cookies for slug: " + slug);
             }
