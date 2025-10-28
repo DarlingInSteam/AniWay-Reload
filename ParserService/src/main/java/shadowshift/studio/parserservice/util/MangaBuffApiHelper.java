@@ -40,10 +40,13 @@ public final class MangaBuffApiHelper {
         // Добавляем задержку между запросами для обхода DDoS-Guard rate limiting
         applyRateLimit();
         
-        Connection connection = Jsoup.connect(url)
-                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36")
-                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8")
+    Connection connection = Jsoup.connect(url)
+        .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36")
+        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
                 .header("Accept-Language", "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7")
+            .header("Sec-CH-UA", "\"Google Chrome\";v=\"130\", \"Chromium\";v=\"130\", \"Not;A=Brand\";v=\"99\"")
+            .header("Sec-CH-UA-Mobile", "?0")
+            .header("Sec-CH-UA-Platform", "\"Windows\"")
                 .header("Cache-Control", "no-cache")
                 .referrer(BASE_URL) // Добавляем Referer для всех запросов
                 .timeout(20_000)

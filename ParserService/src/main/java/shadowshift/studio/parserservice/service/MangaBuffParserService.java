@@ -170,79 +170,93 @@ public class MangaBuffParserService {
     }
     
     private List<SlideInfo> fetchChapterSlidesWithRetry(String slug, String volume, String chapter, boolean isRetry) throws IOException {
-        String url = MangaBuffApiHelper.buildChapterUrl(slug, volume, chapter);
-        logger.info("📘 [SLIDES] GET {}{}", url, isRetry ? " (RETRY)" : "");
-        
-        // КРИТИЧНО: Используем кешированные cookies от главной страницы манги
-        // Если нет в кеше - делаем первый запрос для получения DDoS-Guard cookies
-        Connection.Response mangaResponse = cookieCache.computeIfAbsent(slug, key -> fetchAndCacheCookies(key, false));
-        
-        if (mangaResponse == null) {
-            throw new IOException("Failed to obtain DDoS-Guard cookies for slug: " + slug);
-        }
-        
-        // Используем полученные cookies (включая __ddg8_, __ddg9_, __ddg10_, XSRF-TOKEN, session)
-        Connection connection = MangaBuffApiHelper.cloneConnection(url, mangaResponse, getProxyConfig());
-        if (slug != null && !slug.isBlank()) {
-            connection.referrer(MangaBuffApiHelper.buildMangaUrl(slug));
-        }
-        String xsrf = mangaResponse.cookie("XSRF-TOKEN");
-        if (xsrf != null && !xsrf.isBlank()) {
-            String decoded = xsrf;
-            try {
-                decoded = URLDecoder.decode(xsrf, StandardCharsets.UTF_8);
-            } catch (IllegalArgumentException ignored) {
-                // если не удалось декодировать, используем исходное значение
+        final int maxAttempts = 3;
+        int attempt = 0;
+        while (true) {
+            boolean forceCookieRefresh = attempt > 0;
+            if (isRetry) {
+                forceCookieRefresh = true;
             }
-            connection.header("X-XSRF-TOKEN", decoded);
-        }
-        connection.header("Sec-Fetch-Site", "same-origin");
-        connection.header("Sec-Fetch-Mode", "navigate");
-        connection.header("Sec-Fetch-Dest", "document");
-        connection.header("Sec-Fetch-User", "?1");
-        connection.header("Pragma", "no-cache");
-        connection.header("Cache-Control", "no-cache");
-        connection.header("Upgrade-Insecure-Requests", "1");
-        connection.header("Accept-Encoding", "gzip, deflate, br, zstd");
-        connection.ignoreHttpErrors(true);
 
-        Connection.Response response = connection.execute();
-
-        if (!response.cookies().isEmpty()) {
-            logger.info("🔄 [COOKIES] Server sent {} cookies (status {}), updating cache for {}",
-                    response.cookies().size(), response.statusCode(), slug);
-            cookieCache.put(slug, response);
-        }
-
-        if (response.statusCode() == 401) {
-            String body = response.body();
-            if (body != null && !body.isBlank()) {
-                String preview = body.length() > 300 ? body.substring(0, 300) + "…" : body;
-                logger.warn("🚫 [401 BODY] {}", preview.replaceAll("\n", " "));
-            }
-            if (!isRetry) {
-                logger.warn("🔄 [RETRY] 401 from {}, refreshing cookies for {} and retrying {}/{}",
-                        url, slug, volume, chapter);
-                try {
-                    Thread.sleep(600L);
-                } catch (InterruptedException interrupted) {
-                    Thread.currentThread().interrupt();
-                }
+            if (forceCookieRefresh) {
                 Connection.Response refreshed = fetchAndCacheCookies(slug, true);
                 if (refreshed == null) {
                     throw new IOException("Failed to refresh cookies for slug: " + slug);
                 }
-                return fetchChapterSlidesWithRetry(slug, volume, chapter, true);
             }
-            throw new IOException("401 Unauthorized for chapter " + slug + " " + volume + "/" + chapter);
-        }
 
-        if (response.statusCode() >= 400) {
-            throw new IOException("HTTP " + response.statusCode() + " for " + url);
-        }
+            Connection.Response mangaResponse = cookieCache.computeIfAbsent(slug, key -> fetchAndCacheCookies(key, false));
+            if (mangaResponse == null) {
+                throw new IOException("Failed to obtain DDoS-Guard cookies for slug: " + slug);
+            }
 
-        Document document = response.parse();
-        return parseSlides(document);
+            String url = MangaBuffApiHelper.buildChapterUrl(slug, volume, chapter);
+            logger.info("📘 [SLIDES] GET {}{}", url, attempt > 0 || isRetry ? " (RETRY)" : "");
+
+            Connection connection = MangaBuffApiHelper.cloneConnection(url, mangaResponse, getProxyConfig());
+            if (slug != null && !slug.isBlank()) {
+                connection.referrer(MangaBuffApiHelper.buildMangaUrl(slug));
+            }
+            String xsrf = mangaResponse.cookie("XSRF-TOKEN");
+            if (xsrf != null && !xsrf.isBlank()) {
+                String decoded = xsrf;
+                try {
+                    decoded = URLDecoder.decode(xsrf, StandardCharsets.UTF_8);
+                } catch (IllegalArgumentException ignored) {
+                    // если не удалось декодировать, используем исходное значение
+                }
+                connection.header("X-XSRF-TOKEN", decoded);
+            }
+            connection.header("Sec-Fetch-Site", "same-origin");
+            connection.header("Sec-Fetch-Mode", "navigate");
+            connection.header("Sec-Fetch-Dest", "document");
+            connection.header("Sec-Fetch-User", "?1");
+            connection.header("Pragma", "no-cache");
+            connection.header("Cache-Control", "no-cache");
+            connection.header("Upgrade-Insecure-Requests", "1");
+            connection.header("Accept-Encoding", "gzip, deflate, br, zstd");
+            connection.ignoreHttpErrors(true);
+
+            Connection.Response response = connection.execute();
+
+            if (!response.cookies().isEmpty() && response.statusCode() < 400) {
+                logger.info("🔄 [COOKIES] Server sent {} cookies (status {}), updating cache for {}",
+                        response.cookies().size(), response.statusCode(), slug);
+                cookieCache.put(slug, response);
+            }
+
+            if (response.statusCode() == 401) {
+                logUnauthorizedBody(response);
+                if (++attempt < maxAttempts) {
+                    int retryNumber = attempt + 1;
+                    long backoffMs = 600L * retryNumber;
+                    logger.warn("🔄 [RETRY] 401 from {}, retry {}/{} for {}/{} (sleep {}ms)",
+                            url, retryNumber, maxAttempts, volume, chapter, backoffMs);
+                    try {
+                        Thread.sleep(backoffMs);
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                    }
+                    continue;
+                }
+                throw new IOException("401 Unauthorized for chapter " + slug + " " + volume + "/" + chapter);
+            }
+
+            if (response.statusCode() >= 400) {
+                throw new IOException("HTTP " + response.statusCode() + " for " + url);
+            }
+
+            Document document = response.parse();
+            return parseSlides(document);
+        }
+    }
+
+    private void logUnauthorizedBody(Connection.Response response) {
+        String body = response.body();
+        if (body != null && !body.isBlank()) {
+            String preview = body.length() > 300 ? body.substring(0, 300) + "…" : body;
+            logger.warn("🚫 [401 BODY] {}", preview.replaceAll("\n", " "));
+        }
     }
 
     public String normalizeSlug(String slug) {
