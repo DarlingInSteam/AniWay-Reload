@@ -192,7 +192,8 @@ public class MangaBuffParserService {
             
             // ВАЖНО: Обновляем кеш, если сервер прислал новые cookies (DDoS-Guard rotation)
             if (!response.cookies().isEmpty()) {
-                logger.debug("🔄 [COOKIES] Server sent {} new cookies, updating cache", response.cookies().size());
+                logger.info("🔄 [COOKIES] Server sent {} new cookies, updating cache for {}", 
+                           response.cookies().size(), slug);
                 cookieCache.put(slug, response);
             }
             
