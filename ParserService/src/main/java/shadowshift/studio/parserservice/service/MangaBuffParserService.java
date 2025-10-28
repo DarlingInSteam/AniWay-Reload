@@ -523,11 +523,19 @@ public class MangaBuffParserService {
 
         Document currentDoc = document;
         Connection.Response currentResponse = response;
+        int loadAttempts = 0;
+        final int MAX_LOAD_ATTEMPTS = 20; // Максимум 20 вызовов load (для манги с 500+ главами)
+        int previousChapterCount = MangaBuffApiHelper.countChapters(currentDoc);
 
-        while (MangaBuffApiHelper.hasAdditionalChapters(currentDoc)) {
+        logger.info("🔄 [LOAD] {}: начинаем загрузку дополнительных глав (начально: {} глав)",
+            context.getFileSlug(), previousChapterCount);
+
+        while (MangaBuffApiHelper.hasAdditionalChapters(currentDoc) && loadAttempts < MAX_LOAD_ATTEMPTS) {
+            loadAttempts++;
+
             Connection connection = MangaBuffApiHelper.cloneConnection(
-                MangaBuffApiHelper.buildChapterLoadUrl(), 
-                currentResponse, 
+                MangaBuffApiHelper.buildChapterLoadUrl(),
+                currentResponse,
                 getProxyConfig()
             );
             connection.method(Connection.Method.POST);
@@ -537,15 +545,38 @@ public class MangaBuffParserService {
             connection.referrer(MangaBuffApiHelper.buildMangaUrl(context.getPageSlug()));
             connection.data("manga_id", mangaId);
 
+            logger.info("🔄 [LOAD] {}: вызов load #{}, manga_id={}", context.getFileSlug(), loadAttempts, mangaId);
+
             currentResponse = connection.execute();
             currentDoc = currentResponse.parse();
             Elements anchors = currentDoc.select("a.chapters__item");
-            result.addAll(anchors);
 
-            if (anchors.isEmpty()) {
+            int currentChapterCount = anchors.size();
+            int newChaptersAdded = currentChapterCount - previousChapterCount;
+
+            logger.info("🔄 [LOAD] {}: после load #{} получено {} глав (добавлено: {}, всего: {})",
+                context.getFileSlug(), loadAttempts, currentChapterCount, newChaptersAdded, currentChapterCount + result.size());
+
+            // Если не добавилось новых глав, прекращаем
+            if (newChaptersAdded <= 0) {
+                logger.info("🔄 [LOAD] {}: load #{} не добавил новых глав, прекращаем", context.getFileSlug(), loadAttempts);
+                break;
+            }
+
+            result.addAll(anchors);
+            previousChapterCount = currentChapterCount;
+
+            // Небольшая пауза между вызовами
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 break;
             }
         }
+
+        logger.info("✅ [LOAD] {}: завершена загрузка дополнительных глав ({} вызовов load, {} глав добавлено)",
+            context.getFileSlug(), loadAttempts, result.size());
 
         return result;
     }
