@@ -154,7 +154,13 @@ public class MangaBuffParserService {
     public List<SlideInfo> fetchChapterSlides(String slug, String volume, String chapter) throws IOException {
         String url = MangaBuffApiHelper.buildChapterUrl(slug, volume, chapter);
         logger.info("📘 [SLIDES] GET {}", url);
-        Connection.Response response = MangaBuffApiHelper.newConnection(url, getProxyConfig()).execute();
+        
+        // Устанавливаем Referer на страницу манги для избежания 401
+        String mangaUrl = MangaBuffApiHelper.buildMangaUrl(slug);
+        Connection connection = MangaBuffApiHelper.newConnection(url, getProxyConfig());
+        connection.referrer(mangaUrl); // Указываем, что пришли со страницы манги
+        
+        Connection.Response response = connection.execute();
         Document document = response.parse();
         return parseSlides(document);
     }
@@ -268,7 +274,15 @@ public class MangaBuffParserService {
         metadata.setTypeCode(metadata.getType());
         metadata.setStatus(mapStatus(info.get("Статус")));
         metadata.setStatusCode(metadata.getStatus());
-        metadata.setReleaseYear(parseYear(info.get("Год")));
+        
+        // Год парсим из ссылки типа /types/manxva/2024
+        Integer year = parseYearFromLink(document);
+        if (year == null) {
+            year = parseYear(info.get("Год"));
+        }
+        logger.info("📅 [YEAR] Parsed year for {}: {} (from link: {})", 
+                 context.getFileSlug(), year, parseYearFromLink(document));
+        metadata.setReleaseYear(year);
 
         metadata.setAuthors(splitByComma(info.get("Автор")));
         metadata.setArtists(splitByComma(info.get("Художник")));
@@ -498,6 +512,7 @@ public class MangaBuffParserService {
         root.put("publishers", Optional.ofNullable(metadata.getPublishers()).orElse(Collections.emptyList()));
         root.put("teams", Optional.ofNullable(metadata.getTeams()).orElse(Collections.emptyList()));
         root.put("publication_year", metadata.getReleaseYear());
+        logger.info("📄 [JSON] Writing publication_year: {} for {}", metadata.getReleaseYear(), context.getFileSlug());
         root.put("description", metadata.getSummary());
         root.put("age_limit", metadata.getAgeLimit());
         root.put("type", metadata.getTypeCode());
@@ -633,6 +648,28 @@ public class MangaBuffParserService {
         } catch (NumberFormatException ex) {
             return null;
         }
+    }
+
+    private Integer parseYearFromLink(Document document) {
+        // Ищем ссылку вида /types/manxva/2024
+        Elements links = document.select(".manga__middle-link[href*='/types/']");
+        for (Element link : links) {
+            String href = link.attr("href");
+            if (href != null && href.contains("/types/")) {
+                String[] parts = href.split("/");
+                if (parts.length > 0) {
+                    String lastPart = parts[parts.length - 1];
+                    if (lastPart.matches("\\d{4}")) {
+                        try {
+                            return Integer.parseInt(lastPart);
+                        } catch (NumberFormatException ex) {
+                            // ignore
+                        }
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     private String mapType(String value) {
