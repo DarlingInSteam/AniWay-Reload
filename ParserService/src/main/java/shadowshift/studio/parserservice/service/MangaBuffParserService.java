@@ -191,42 +191,49 @@ public class MangaBuffParserService {
             throw new IOException("Failed to obtain DDoS-Guard cookies for slug: " + slug);
         }
         
-        try {
-            // Используем полученные cookies (включая __ddg8_, __ddg9_, __ddg10_, XSRF-TOKEN, session)
-            Connection connection = MangaBuffApiHelper.cloneConnection(url, mangaResponse, getProxyConfig());
-            if (slug != null && !slug.isBlank()) {
-                connection.referrer(MangaBuffApiHelper.buildMangaUrl(slug));
-            }
-            connection.header("Sec-Fetch-Site", "same-origin");
-            connection.header("Sec-Fetch-Mode", "navigate");
-            connection.header("Sec-Fetch-Dest", "document");
-            connection.header("Sec-Fetch-User", "?1");
-            connection.header("Pragma", "no-cache");
-            connection.header("Cache-Control", "no-cache");
-            connection.header("Upgrade-Insecure-Requests", "1");
-            connection.header("Accept-Encoding", "gzip, deflate, br, zstd");
-
-            Connection.Response response = connection.execute();
-            
-            // ВАЖНО: Обновляем кеш, если сервер прислал новые cookies (DDoS-Guard rotation)
-            if (!response.cookies().isEmpty()) {
-                logger.info("🔄 [COOKIES] Server sent {} new cookies, updating cache for {}", 
-                           response.cookies().size(), slug);
-                cookieCache.put(slug, response);
-            }
-            
-            Document document = response.parse();
-            return parseSlides(document);
-            
-        } catch (org.jsoup.HttpStatusException e) {
-            if (e.getStatusCode() == 401 && !isRetry) {
-                // 401 = устаревшие/невалидные cookies, пробуем обновить
-                logger.warn("🔄 [RETRY] 401 error, refreshing cookies for {} and retrying {}/{}", slug, volume, chapter);
-                cookieCache.remove(slug); // Сбрасываем кеш
-                return fetchChapterSlidesWithRetry(slug, volume, chapter, true); // Рекурсивный retry
-            }
-            throw e; // Прокидываем дальше, если это не 401 или уже retry
+        // Используем полученные cookies (включая __ddg8_, __ddg9_, __ddg10_, XSRF-TOKEN, session)
+        Connection connection = MangaBuffApiHelper.cloneConnection(url, mangaResponse, getProxyConfig());
+        if (slug != null && !slug.isBlank()) {
+            connection.referrer(MangaBuffApiHelper.buildMangaUrl(slug));
         }
+        connection.header("Sec-Fetch-Site", "same-origin");
+        connection.header("Sec-Fetch-Mode", "navigate");
+        connection.header("Sec-Fetch-Dest", "document");
+        connection.header("Sec-Fetch-User", "?1");
+        connection.header("Pragma", "no-cache");
+        connection.header("Cache-Control", "no-cache");
+        connection.header("Upgrade-Insecure-Requests", "1");
+        connection.header("Accept-Encoding", "gzip, deflate, br, zstd");
+        connection.ignoreHttpErrors(true);
+
+        Connection.Response response = connection.execute();
+
+        if (!response.cookies().isEmpty()) {
+            logger.info("🔄 [COOKIES] Server sent {} cookies (status {}), updating cache for {}",
+                    response.cookies().size(), response.statusCode(), slug);
+            cookieCache.put(slug, response);
+        }
+
+        if (response.statusCode() == 401) {
+            if (!isRetry) {
+                logger.warn("🔄 [RETRY] 401 from {}, refreshing cookies for {} and retrying {}/{}",
+                        url, slug, volume, chapter);
+                try {
+                    Thread.sleep(600L);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+                return fetchChapterSlidesWithRetry(slug, volume, chapter, true);
+            }
+            throw new IOException("401 Unauthorized for chapter " + slug + " " + volume + "/" + chapter);
+        }
+
+        if (response.statusCode() >= 400) {
+            throw new IOException("HTTP " + response.statusCode() + " for " + url);
+        }
+
+        Document document = response.parse();
+        return parseSlides(document);
     }
 
     public String normalizeSlug(String slug) {
