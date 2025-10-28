@@ -24,6 +24,10 @@ public final class MangaBuffApiHelper {
     public static final String BASE_URL = "https://mangabuff.ru";
     public static final String IMAGE_CDN = "https://c3.mangabuff.ru";
     private static final DateTimeFormatter SOURCE_DATE = DateTimeFormatter.ofPattern("dd.MM.yyyy", Locale.ROOT);
+    
+    // Задержка между запросами для обхода rate limiting (миллисекунды)
+    private static final long REQUEST_DELAY_MS = 500; // 500ms = 2 requests/second
+    private static volatile long lastRequestTime = 0;
 
     private MangaBuffApiHelper() {
     }
@@ -33,6 +37,9 @@ public final class MangaBuffApiHelper {
     }
 
     public static Connection newConnection(String url, ProxyConfig proxyConfig) {
+        // Добавляем задержку между запросами для обхода DDoS-Guard rate limiting
+        applyRateLimit();
+        
         Connection connection = Jsoup.connect(url)
                 .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36")
                 .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8")
@@ -54,6 +61,25 @@ public final class MangaBuffApiHelper {
         }
         
         return connection;
+    }
+    
+    /**
+     * Применяет rate limiting - ждет, если предыдущий запрос был слишком недавно
+     */
+    private static synchronized void applyRateLimit() {
+        long now = System.currentTimeMillis();
+        long timeSinceLastRequest = now - lastRequestTime;
+        
+        if (timeSinceLastRequest < REQUEST_DELAY_MS) {
+            long sleepTime = REQUEST_DELAY_MS - timeSinceLastRequest;
+            try {
+                Thread.sleep(sleepTime);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        
+        lastRequestTime = System.currentTimeMillis();
     }
 
     public static class ProxyConfig {

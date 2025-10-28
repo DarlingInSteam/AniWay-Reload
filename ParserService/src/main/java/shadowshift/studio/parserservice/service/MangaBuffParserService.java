@@ -36,6 +36,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -50,6 +51,10 @@ public class MangaBuffParserService {
     private final ObjectMapper objectMapper;
     private final TaskStorageService taskStorage;
     private final ProxyManagerService proxyManager;
+    
+    // Кеш cookies для избежания повторных запросов к главной странице манги
+    // Key: slug, Value: Response с cookies от DDoS-Guard
+    private final Map<String, Connection.Response> cookieCache = new ConcurrentHashMap<>();
 
     public MangaBuffParserService(ParserProperties properties,
                                   ObjectMapper objectMapper,
@@ -155,10 +160,28 @@ public class MangaBuffParserService {
         String url = MangaBuffApiHelper.buildChapterUrl(slug, volume, chapter);
         logger.info("📘 [SLIDES] GET {}", url);
         
-        // Устанавливаем Referer на страницу манги для избежания 401
-        String mangaUrl = MangaBuffApiHelper.buildMangaUrl(slug);
-        Connection connection = MangaBuffApiHelper.newConnection(url, getProxyConfig());
-        connection.referrer(mangaUrl); // Указываем, что пришли со страницы манги
+        // КРИТИЧНО: Используем кешированные cookies от главной страницы манги
+        // Если нет в кеше - делаем первый запрос для получения DDoS-Guard cookies
+        Connection.Response mangaResponse = cookieCache.computeIfAbsent(slug, key -> {
+            try {
+                String mangaUrl = MangaBuffApiHelper.buildMangaUrl(key);
+                logger.info("🍪 [COOKIES] Fetching DDoS-Guard cookies from {}", mangaUrl);
+                Connection.Response response = MangaBuffApiHelper.newConnection(mangaUrl, getProxyConfig()).execute();
+                logger.info("🍪 [COOKIES] Cached {} cookies: {}", 
+                           response.cookies().size(), response.cookies().keySet());
+                return response;
+            } catch (IOException e) {
+                logger.error("❌ [COOKIES] Failed to fetch cookies for {}: {}", key, e.getMessage());
+                return null;
+            }
+        });
+        
+        if (mangaResponse == null) {
+            throw new IOException("Failed to obtain DDoS-Guard cookies for slug: " + slug);
+        }
+        
+        // Используем полученные cookies (включая __ddg8_, __ddg9_, __ddg10_, XSRF-TOKEN, session)
+        Connection connection = MangaBuffApiHelper.cloneConnection(url, mangaResponse, getProxyConfig());
         
         Connection.Response response = connection.execute();
         Document document = response.parse();
