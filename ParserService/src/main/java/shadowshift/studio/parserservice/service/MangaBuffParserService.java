@@ -1,0 +1,723 @@
+package shadowshift.studio.parserservice.service;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.jsoup.Connection;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import shadowshift.studio.parserservice.config.ParserProperties;
+import shadowshift.studio.parserservice.dto.BranchSummary;
+import shadowshift.studio.parserservice.dto.CatalogItem;
+import shadowshift.studio.parserservice.dto.CatalogResult;
+import shadowshift.studio.parserservice.dto.ChapterInfo;
+import shadowshift.studio.parserservice.dto.MangaCover;
+import shadowshift.studio.parserservice.dto.MangaMetadata;
+import shadowshift.studio.parserservice.dto.ParseResult;
+import shadowshift.studio.parserservice.dto.ParseTask;
+import shadowshift.studio.parserservice.dto.SlideInfo;
+import shadowshift.studio.parserservice.util.MangaBuffApiHelper;
+
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
+
+/**
+ * Парсер MangaBuff.ru с сохранением прежнего формата DTO.
+ */
+@Service
+public class MangaBuffParserService {
+
+    private static final Logger logger = LoggerFactory.getLogger(MangaBuffParserService.class);
+    private static final int DEFAULT_BRANCH_ID = 1;
+    private final ParserProperties properties;
+    private final ObjectMapper objectMapper;
+    private final TaskStorageService taskStorage;
+    private final ProxyManagerService proxyManager;
+
+    public MangaBuffParserService(ParserProperties properties,
+                                  ObjectMapper objectMapper,
+                                  TaskStorageService taskStorage,
+                                  ProxyManagerService proxyManager) {
+        this.properties = properties;
+        this.objectMapper = objectMapper;
+        this.taskStorage = taskStorage;
+        this.proxyManager = proxyManager;
+    }
+
+    private MangaBuffApiHelper.ProxyConfig getProxyConfig() {
+        ProxyManagerService.ProxyServer proxy = proxyManager.getProxyForCurrentThread();
+        if (proxy == null) {
+            return null;
+        }
+        return new MangaBuffApiHelper.ProxyConfig(
+            proxy.getHost(),
+            proxy.getPort(),
+            proxy.getUsername(),
+            proxy.getPassword()
+        );
+    }
+
+    public CompletableFuture<CatalogResult> fetchCatalog(int page, Integer minChapters, Integer maxChapters) {
+        return CompletableFuture.supplyAsync(() -> {
+            SlugContext context = new SlugContext("catalog");
+            try {
+                String url = MangaBuffApiHelper.buildCatalogUrl(page);
+                logger.info("📄 [CATALOG] GET {}", url);
+                Connection.Response response = MangaBuffApiHelper.newConnection(url, getProxyConfig()).execute();
+                Document document = response.parse();
+
+                List<CatalogItem> items = parseCatalog(document);
+                if (minChapters != null || maxChapters != null) {
+                    items = items.stream()
+                            .map(item -> enrichChaptersCount(item, minChapters, maxChapters))
+                            .filter(Optional::isPresent)
+                            .map(Optional::get)
+                            .collect(Collectors.toList());
+                }
+
+                CatalogResult result = new CatalogResult();
+                result.setItems(items);
+                result.setPage(Math.max(page, 1));
+                result.setTotal(items.size());
+                return result;
+            } catch (IOException ex) {
+                throw new RuntimeException("Не удалось получить каталог: " + ex.getMessage(), ex);
+            }
+        });
+    }
+
+    public CompletableFuture<ParseResult> parseManga(String slug, String parser) {
+        String taskId = UUID.randomUUID().toString();
+        SlugContext slugContext = new SlugContext(slug);
+        ParseTask task = taskStorage.createParseTask(taskId, slugContext.getFileSlug(), parser);
+
+        return CompletableFuture.supplyAsync(() -> {
+            long startedAt = System.currentTimeMillis();
+            task.updateStatus("running", 5, "Загрузка страницы манги...");
+
+            try {
+                Connection.Response response = fetchMangaPage(slugContext);
+                Document document = response.parse();
+
+                task.updateProgress(10, "Парсинг метаданных...");
+                MangaMetadata metadata = buildMetadata(slugContext, document);
+
+                task.updateProgress(25, "Парсинг списка глав...");
+                ChaptersPayload chaptersPayload = buildChapters(slugContext, document, response, task);
+
+                task.updateProgress(95, "Сохранение JSON...");
+                Path output = saveToJson(slugContext, metadata, chaptersPayload);
+
+                task.updateStatus("completed", 100, "Парсинг завершен");
+
+                ParseResult result = new ParseResult();
+                result.setSuccess(true);
+                result.setSlug(slugContext.getFileSlug());
+                result.setTitle(Optional.ofNullable(metadata.getLocalizedName()).orElse(metadata.getTitle()));
+                result.setChaptersCount(chaptersPayload.totalChapters());
+                result.setOutputPath(output.toString());
+                result.setMetadata(metadata);
+                result.setChapters(chaptersPayload.flatten());
+
+                long elapsed = System.currentTimeMillis() - startedAt;
+                logger.info("✅ [PARSE] {}: {} глав за {} мс", slugContext.getFileSlug(), chaptersPayload.totalChapters(), elapsed);
+                return result;
+            } catch (Exception ex) {
+                task.updateStatus("failed", 0, "Ошибка: " + ex.getMessage());
+                logger.error("❌ [PARSE] {}: {}", slugContext.getFileSlug(), ex.getMessage(), ex);
+
+                ParseResult result = new ParseResult();
+                result.setSuccess(false);
+                result.setError(ex.getMessage());
+                return result;
+            }
+        });
+    }
+
+    public List<SlideInfo> fetchChapterSlides(String slug, String volume, String chapter) throws IOException {
+        String url = MangaBuffApiHelper.buildChapterUrl(slug, volume, chapter);
+        logger.info("📘 [SLIDES] GET {}", url);
+        Connection.Response response = MangaBuffApiHelper.newConnection(url, getProxyConfig()).execute();
+        Document document = response.parse();
+        return parseSlides(document);
+    }
+
+    public String normalizeSlug(String slug) {
+        return new SlugContext(slug).getFileSlug();
+    }
+
+    private Connection.Response fetchMangaPage(SlugContext context) throws IOException {
+        String url = MangaBuffApiHelper.buildMangaUrl(context.getPageSlug());
+        logger.info("🌐 [MANGA] GET {}", url);
+        return MangaBuffApiHelper.newConnection(url, getProxyConfig()).execute();
+    }
+
+    private List<CatalogItem> parseCatalog(Document document) {
+        Elements cards = document.select("a.cards__item[data-id]");
+        List<CatalogItem> items = new ArrayList<>();
+        for (Element card : cards) {
+            String slug = MangaBuffApiHelper.extractSlugFromUrl(card.attr("href"));
+            if (MangaBuffApiHelper.isBlank(slug)) {
+                continue;
+            }
+            String id = card.attr("data-id");
+            CatalogItem item = new CatalogItem();
+            item.setSlug(slug);
+            item.setSlugUrl(!MangaBuffApiHelper.isBlank(id) ? id + "--" + slug : slug);
+            item.setTitle(MangaBuffApiHelper.safeText(card.selectFirst(".cards__name")));
+
+            String info = MangaBuffApiHelper.safeText(card.selectFirst(".cards__info"));
+            if (info != null && !info.isBlank()) {
+                String[] parts = info.split(",");
+                if (parts.length > 0) {
+                    item.setType(parts[0].trim());
+                }
+            }
+
+            items.add(item);
+        }
+        return items;
+    }
+
+    private Optional<CatalogItem> enrichChaptersCount(CatalogItem item, Integer minChapters, Integer maxChapters) {
+        try {
+            SlugContext context = new SlugContext(item.getSlug());
+            Connection.Response response = fetchMangaPage(context);
+            Document document = response.parse();
+            int total = MangaBuffApiHelper.countChapters(document);
+            if (total == 0 && MangaBuffApiHelper.hasAdditionalChapters(document)) {
+                Elements additional = loadAllAdditionalChapters(context, document, response);
+                total += additional.size();
+            }
+            item.setChaptersCount(total);
+            if (minChapters != null && total < minChapters) {
+                return Optional.empty();
+            }
+            if (maxChapters != null && total > maxChapters) {
+                return Optional.empty();
+            }
+            return Optional.of(item);
+        } catch (IOException ex) {
+            logger.warn("⚠️  [CATALOG] {}: {}", item.getSlug(), ex.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    private MangaMetadata buildMetadata(SlugContext context, Document document) {
+        MangaMetadata metadata = new MangaMetadata();
+        metadata.setSlug(context.getFileSlug());
+
+        String title = MangaBuffApiHelper.safeText(document.selectFirst("h1.manga__name"));
+        metadata.setLocalizedName(title);
+        metadata.setTitle(title);
+
+        Elements otherNames = document.select("h3.manga__other-names span");
+        if (!otherNames.isEmpty()) {
+            String englishTitle = MangaBuffApiHelper.safeText(otherNames.first());
+            if (!MangaBuffApiHelper.isBlank(englishTitle)) {
+                metadata.setEnglishTitle(englishTitle);
+            }
+            List<String> extraNames = new ArrayList<>();
+            for (Element element : otherNames) {
+                String value = MangaBuffApiHelper.safeText(element);
+                if (!MangaBuffApiHelper.isBlank(value) && !value.equals(englishTitle)) {
+                    extraNames.add(value);
+                }
+            }
+            metadata.setOtherNames(extraNames);
+        } else {
+            metadata.setOtherNames(Collections.emptyList());
+        }
+
+        Element descriptionMeta = document.selectFirst("meta[name=description]");
+        metadata.setSummary(descriptionMeta != null ? descriptionMeta.attr("content") : null);
+
+        metadata.setGenres(extractTexts(document.select(".tags a[href^='/genres/']")));
+        metadata.setTags(extractTexts(document.select(".tags a[href^='/manga?tags']")));
+
+        Element adultTag = document.selectFirst(".tags__item--warning");
+        metadata.setAgeLimit(adultTag != null ? 18 : null);
+
+        Map<String, String> info = parseInfoList(document);
+
+        metadata.setType(mapType(info.get("Тип")));
+        metadata.setTypeCode(metadata.getType());
+        metadata.setStatus(mapStatus(info.get("Статус")));
+        metadata.setStatusCode(metadata.getStatus());
+        metadata.setReleaseYear(parseYear(info.get("Год")));
+
+        metadata.setAuthors(splitByComma(info.get("Автор")));
+        metadata.setArtists(splitByComma(info.get("Художник")));
+        metadata.setPublishers(splitByComma(info.get("Издатель")));
+        metadata.setTeams(Collections.emptyList());
+        metadata.setFranchises(Collections.emptyList());
+        metadata.setLicensed(null);
+
+        Element coverMeta = document.selectFirst("meta[property=og:image]");
+        String coverUrl = coverMeta != null ? coverMeta.attr("content") : null;
+        metadata.setCoverUrl(coverUrl);
+        metadata.setCovers(buildCovers(coverUrl));
+
+        metadata.setSite("mangabuff.ru");
+        metadata.setContentLanguage("rus");
+
+        return metadata;
+    }
+
+    private Map<String, String> parseInfoList(Document document) {
+        Map<String, String> info = new LinkedHashMap<>();
+        Elements rows = document.select(".info-list__row");
+        for (Element row : rows) {
+            Element label = row.selectFirst(".info-list__title");
+            Element value = row.selectFirst(".info-list__value");
+            if (label == null || value == null) {
+                continue;
+            }
+            String key = label.text().trim();
+            String val = value.text().trim();
+            if (!key.isEmpty() && !val.isEmpty()) {
+                info.put(key, val);
+            }
+        }
+        return info;
+    }
+
+    private ChaptersPayload buildChapters(SlugContext context,
+                                          Document document,
+                                          Connection.Response response,
+                                          ParseTask task) throws IOException {
+        Elements anchors = document.select("a.chapters__item");
+        List<ChapterInfo> chapters = parseChapterAnchors(context, anchors);
+
+            if (MangaBuffApiHelper.hasAdditionalChapters(document)) {
+                Elements additional = loadAllAdditionalChapters(context, document, response);
+                chapters.addAll(parseChapterAnchors(context, additional));
+            }
+
+        Collections.reverse(chapters); // упорядочим от старых к новым (для стабильности)
+
+        Map<Integer, List<ChapterInfo>> content = new LinkedHashMap<>();
+        content.put(DEFAULT_BRANCH_ID, chapters);
+        List<BranchSummary> branches = List.of(new BranchSummary(DEFAULT_BRANCH_ID, chapters.size()));
+
+        int total = chapters.size();
+        int processed = 0;
+        for (ChapterInfo chapter : chapters) {
+            processed++;
+            try {
+                List<SlideInfo> slides = fetchChapterSlidesByPath(chapter.getSlug());
+                chapter.setSlides(slides);
+                chapter.setPagesCount(slides.size());
+            } catch (IOException ex) {
+                chapter.setSlides(Collections.emptyList());
+                chapter.setPagesCount(0);
+                chapter.setEmptyReason(ex.getMessage());
+                logger.warn("⚠️  [SLIDES] {} {}: {}", context.getFileSlug(), chapter.getChapterId(), ex.getMessage());
+            }
+            int progress = 25 + (int) Math.round(processed * 60.0 / Math.max(total, 1));
+            task.updateProgress(Math.min(progress, 90),
+                    String.format(Locale.ROOT, "Обработано %d/%d глав", processed, total));
+        }
+
+        return new ChaptersPayload(content, branches);
+    }
+
+    private Elements loadAllAdditionalChapters(SlugContext context,
+                                                    Document document,
+                                                    Connection.Response response) throws IOException {
+        Elements result = new Elements();
+        String mangaId = MangaBuffApiHelper.extractMangaId(document);
+        String csrf = MangaBuffApiHelper.extractCsrfToken(document);
+        if (MangaBuffApiHelper.isBlank(mangaId) || MangaBuffApiHelper.isBlank(csrf)) {
+            logger.warn("⚠️  [CHAPTERS] {}: отсутствует manga_id или csrf", context.getFileSlug());
+            return result;
+        }
+
+        Document currentDoc = document;
+        Connection.Response currentResponse = response;
+
+        while (MangaBuffApiHelper.hasAdditionalChapters(currentDoc)) {
+            Connection connection = MangaBuffApiHelper.cloneConnection(
+                MangaBuffApiHelper.buildChapterLoadUrl(), 
+                currentResponse, 
+                getProxyConfig()
+            );
+            connection.method(Connection.Method.POST);
+            connection.ignoreContentType(true);
+            connection.header("X-CSRF-TOKEN", csrf);
+            connection.header("X-Requested-With", "XMLHttpRequest");
+            connection.referrer(MangaBuffApiHelper.buildMangaUrl(context.getPageSlug()));
+            connection.data("manga_id", mangaId);
+
+            currentResponse = connection.execute();
+            currentDoc = currentResponse.parse();
+            Elements anchors = currentDoc.select("a.chapters__item");
+            result.addAll(anchors);
+
+            if (anchors.isEmpty()) {
+                break;
+            }
+        }
+
+        return result;
+    }
+
+    private List<ChapterInfo> parseChapterAnchors(SlugContext context, Elements anchors) {
+        List<ChapterInfo> chapters = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (Element anchor : anchors) {
+            String href = anchor.attr("href");
+            if (MangaBuffApiHelper.isBlank(href)) {
+                continue;
+            }
+            String normalizedHref = href.startsWith("/") ? href.substring(1) : href;
+            String[] parts = normalizedHref.split("/");
+            if (parts.length < 4) {
+                continue;
+            }
+            String volumeSegment = parts[parts.length - 2];
+            String chapterSegment = parts[parts.length - 1];
+
+            String chapterId = MangaBuffApiHelper.normalizeChapterId(volumeSegment, chapterSegment);
+            if (seen.contains(chapterId)) {
+                continue;
+            }
+            seen.add(chapterId);
+
+            ChapterInfo chapter = new ChapterInfo();
+            chapter.setChapterId(chapterId);
+            chapter.setBranchId(DEFAULT_BRANCH_ID);
+            chapter.setSlug(normalizedHref);
+
+            Double number = MangaBuffApiHelper.parseChapterNumber(anchor.attr("data-chapter"));
+            if (number == null) {
+                number = MangaBuffApiHelper.parseChapterNumber(chapterSegment.replace('-', '.'));
+            }
+            chapter.setNumber(number);
+
+            Integer volume = MangaBuffApiHelper.parseVolume(volumeSegment);
+            chapter.setVolume(volume);
+
+            String dateIso = MangaBuffApiHelper.parseDateToIso(anchor.attr("data-chapter-date"));
+            chapter.setFreePublicationDate(dateIso);
+
+            chapter.setIsPaid(Boolean.FALSE);
+            chapter.setModerated(Boolean.TRUE);
+            chapter.setWorkers(Collections.emptyList());
+
+            chapters.add(chapter);
+        }
+        return chapters;
+    }
+
+    private List<SlideInfo> fetchChapterSlidesByPath(String relativePath) throws IOException {
+        String path = relativePath.startsWith("/") ? relativePath : "/" + relativePath;
+        String url = MangaBuffApiHelper.BASE_URL + path;
+        Connection.Response response = MangaBuffApiHelper.newConnection(url, getProxyConfig()).execute();
+        Document document = response.parse();
+        return parseSlides(document);
+    }
+
+    private List<SlideInfo> parseSlides(Document document) {
+        Elements items = document.select(".reader__item img");
+        List<SlideInfo> slides = new ArrayList<>();
+        int index = 1;
+        for (Element image : items) {
+            String link = image.hasAttr("src") ? image.absUrl("src") : null;
+            if (MangaBuffApiHelper.isBlank(link) && image.hasAttr("data-src")) {
+                link = image.absUrl("data-src");
+            }
+            if (MangaBuffApiHelper.isBlank(link)) {
+                continue;
+            }
+            link = MangaBuffApiHelper.ensureAbsoluteImageUrl(link);
+            slides.add(new SlideInfo(index++, link, null, null));
+        }
+        return slides;
+    }
+
+    private Path saveToJson(SlugContext context,
+                             MangaMetadata metadata,
+                             ChaptersPayload payload) throws IOException {
+        Path titlesDir = Paths.get(properties.getOutputPath(), "titles");
+        Files.createDirectories(titlesDir);
+
+        Path outputFile = titlesDir.resolve(context.getFileSlug() + ".json");
+
+        Map<String, Object> root = new LinkedHashMap<>();
+        root.put("format", "melon-manga");
+        root.put("site", metadata.getSite());
+        root.put("id", metadata.getId());
+        root.put("slug", context.getFileSlug());
+        root.put("content_language", Optional.ofNullable(metadata.getContentLanguage()).orElse("rus"));
+        root.put("title", metadata.getTitle());
+        root.put("localized_name", metadata.getLocalizedName());
+        root.put("eng_name", metadata.getEnglishTitle());
+        root.put("another_names", Optional.ofNullable(metadata.getOtherNames()).orElse(Collections.emptyList()));
+        root.put("covers", buildCoverEntries(metadata));
+        root.put("authors", Optional.ofNullable(metadata.getAuthors()).orElse(Collections.emptyList()));
+        root.put("artists", Optional.ofNullable(metadata.getArtists()).orElse(Collections.emptyList()));
+        root.put("publishers", Optional.ofNullable(metadata.getPublishers()).orElse(Collections.emptyList()));
+        root.put("teams", Optional.ofNullable(metadata.getTeams()).orElse(Collections.emptyList()));
+        root.put("publication_year", metadata.getReleaseYear());
+        root.put("description", metadata.getSummary());
+        root.put("age_limit", metadata.getAgeLimit());
+        root.put("type", metadata.getTypeCode());
+        root.put("status", metadata.getStatusCode());
+        root.put("is_licensed", metadata.getLicensed());
+        root.put("genres", Optional.ofNullable(metadata.getGenres()).orElse(Collections.emptyList()));
+        root.put("tags", Optional.ofNullable(metadata.getTags()).orElse(Collections.emptyList()));
+        root.put("franchises", Optional.ofNullable(metadata.getFranchises()).orElse(Collections.emptyList()));
+        root.put("persons", Collections.emptyList());
+        root.put("branches", payload.getBranches().stream()
+                .map(branch -> Map.of(
+                        "id", branch.getId(),
+                        "chapters_count", branch.getChaptersCount()
+                ))
+                .collect(Collectors.toList()));
+
+        Map<String, Object> contentJson = new LinkedHashMap<>();
+        List<Map<String, Object>> flattened = new ArrayList<>();
+        for (Map.Entry<Integer, List<ChapterInfo>> entry : payload.getContent().entrySet()) {
+            List<Map<String, Object>> chapters = new ArrayList<>();
+            for (ChapterInfo chapter : entry.getValue()) {
+                Map<String, Object> json = buildChapterJson(chapter);
+                chapters.add(json);
+                flattened.add(json);
+            }
+            contentJson.put(String.valueOf(entry.getKey()), chapters);
+        }
+
+        root.put("content", contentJson);
+        root.put("chapters", flattened);
+        root.put("chapters_count", flattened.size());
+
+        objectMapper.writerWithDefaultPrettyPrinter().writeValue(outputFile.toFile(), root);
+        return outputFile;
+    }
+
+    private Map<String, Object> buildChapterJson(ChapterInfo chapter) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("id", chapter.getChapterId());
+        map.put("slug", chapter.getSlug());
+        map.put("volume", formatVolume(chapter.getVolume()));
+        map.put("number", formatNumber(chapter.getNumber()));
+        map.put("name", chapter.getTitle());
+        map.put("is_paid", Boolean.TRUE.equals(chapter.getIsPaid()));
+        map.put("branch_id", chapter.getBranchId());
+        map.put("pages_count", chapter.getPagesCount());
+        map.put("free_publication_date", chapter.getFreePublicationDate());
+        map.put("empty_reason", chapter.getEmptyReason());
+        map.put("folder_name", chapter.getFolderName());
+        map.put("workers", Optional.ofNullable(chapter.getWorkers()).orElse(Collections.emptyList()));
+        map.put("moderated", chapter.getModerated() != null ? chapter.getModerated() : Boolean.TRUE);
+    map.put("slides", Optional.ofNullable(chapter.getSlides()).orElse(Collections.emptyList()).stream()
+                .map(slide -> {
+                    Map<String, Object> slideMap = new LinkedHashMap<>();
+                    slideMap.put("index", slide.getIndex());
+                    slideMap.put("link", slide.getLink());
+                    slideMap.put("width", slide.getWidth());
+                    slideMap.put("height", slide.getHeight());
+                    return slideMap;
+                })
+                .collect(Collectors.toList()));
+        return map;
+    }
+
+    private List<Map<String, Object>> buildCoverEntries(MangaMetadata metadata) {
+        List<MangaCover> covers = metadata.getCovers();
+        if (covers == null || covers.isEmpty()) {
+            if (metadata.getCoverUrl() == null) {
+                return Collections.emptyList();
+            }
+            String filename = metadata.getCoverUrl().substring(metadata.getCoverUrl().lastIndexOf('/') + 1);
+            return List.of(Map.of("link", metadata.getCoverUrl(), "filename", filename));
+        }
+        return covers.stream()
+                .map(cover -> {
+                    Map<String, Object> map = new LinkedHashMap<>();
+                    map.put("link", cover.getLink());
+                    map.put("filename", cover.getFilename());
+                    map.put("width", cover.getWidth());
+                    map.put("height", cover.getHeight());
+                    return map;
+                })
+                .collect(Collectors.toList());
+    }
+
+    private List<MangaCover> buildCovers(String coverUrl) {
+        if (MangaBuffApiHelper.isBlank(coverUrl)) {
+            return Collections.emptyList();
+        }
+        String filename = coverUrl.substring(coverUrl.lastIndexOf('/') + 1);
+        return List.of(new MangaCover(coverUrl, filename, null, null));
+    }
+
+    private List<String> extractTexts(Elements elements) {
+        if (elements == null || elements.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<String> values = new ArrayList<>();
+        for (Element element : elements) {
+            String text = element.text().trim();
+            if (!text.isEmpty()) {
+                values.add(text);
+            }
+        }
+        return values;
+    }
+
+    private List<String> splitByComma(String value) {
+        if (value == null || value.isBlank()) {
+            return Collections.emptyList();
+        }
+        String[] parts = value.split(",");
+        List<String> result = new ArrayList<>();
+        for (String part : parts) {
+            String trimmed = part.trim();
+            if (!trimmed.isEmpty()) {
+                result.add(trimmed);
+            }
+        }
+        return result;
+    }
+
+    private Integer parseYear(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String digits = value.replaceAll("[^0-9]", "");
+        if (digits.isEmpty()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(digits);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private String mapType(String value) {
+        if (value == null) {
+            return null;
+        }
+        return switch (value.trim().toLowerCase(Locale.ROOT)) {
+            case "манга" -> "manga";
+            case "манхва" -> "manhwa";
+            case "маньхуа" -> "manhua";
+            case "комикс" -> "western_comic";
+            case "роман" -> "novel";
+            default -> null;
+        };
+    }
+
+    private String mapStatus(String value) {
+        if (value == null) {
+            return null;
+        }
+        return switch (value.trim().toLowerCase(Locale.ROOT)) {
+            case "продолжается", "ongoing" -> "ongoing";
+            case "завершено", "completed" -> "completed";
+            case "заморожено", "приостановлено" -> "dropped";
+            case "анонс", "анонсировано" -> "announced";
+            default -> null;
+        };
+    }
+
+    private String formatNumber(Double value) {
+        if (value == null) {
+            return null;
+        }
+        BigDecimal decimal = BigDecimal.valueOf(value).stripTrailingZeros();
+        return decimal.toPlainString();
+    }
+
+    private String formatVolume(Integer volume) {
+        if (volume == null) {
+            return null;
+        }
+        return String.format(Locale.ROOT, "%d", volume);
+    }
+
+    /**
+     * Контекст slug для совместимости со старыми id--slug форматами.
+     */
+    private static final class SlugContext {
+        private final String rawSlug;
+        private final String pageSlug;
+        private final String fileSlug;
+
+        SlugContext(String rawSlug) {
+            String value = rawSlug == null ? "" : rawSlug.trim();
+            String slugPart = value;
+            String effectiveRaw = value;
+            
+            if (value.contains("--")) {
+                String[] parts = value.split("--", 2);
+                if (parts.length == 2 && parts[0].chars().allMatch(Character::isDigit)) {
+                    slugPart = parts[1];
+                } else {
+                    this.rawSlug = value;
+                    this.pageSlug = value;
+                    this.fileSlug = value.replace('/', '-');
+                    return;
+                }
+            }
+            
+            this.rawSlug = effectiveRaw;
+            this.pageSlug = slugPart;
+            this.fileSlug = slugPart.replace('/', '-');
+        }
+
+        String getFileSlug() {
+            return fileSlug;
+        }
+
+        String getPageSlug() {
+            return pageSlug;
+        }
+    }
+
+    private static final class ChaptersPayload {
+        private final Map<Integer, List<ChapterInfo>> content;
+        private final List<BranchSummary> branches;
+
+        ChaptersPayload(Map<Integer, List<ChapterInfo>> content, List<BranchSummary> branches) {
+            this.content = content;
+            this.branches = branches;
+        }
+
+        Map<Integer, List<ChapterInfo>> getContent() {
+            return content;
+        }
+
+        List<BranchSummary> getBranches() {
+            return branches;
+        }
+
+        int totalChapters() {
+            return content.values().stream().mapToInt(List::size).sum();
+        }
+
+        List<ChapterInfo> flatten() {
+            return content.values().stream().flatMap(List::stream).collect(Collectors.toList());
+        }
+    }
+}

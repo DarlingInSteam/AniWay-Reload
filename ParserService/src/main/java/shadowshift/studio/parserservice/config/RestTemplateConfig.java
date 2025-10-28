@@ -80,14 +80,37 @@ public class RestTemplateConfig {
     }
     
     /**
-     * 🔓 RestTemplate БЕЗ прокси для API запросов MangaLib
-     * Используется для metadata, chapters list и chapter slides
-     * (прокси блокируются MangaLib API с HTTP 500)
+     * 🔓 RestTemplate с умной ротацией прокси для API запросов MangaLib
+     * Используется для каталога и метаданных
      */
     @Bean("apiRestTemplate")
-    @Scope("prototype")
     public RestTemplate apiRestTemplate() {
-        logger.debug("Thread {}: Creating API RestTemplate WITHOUT proxy", 
+        // Используем прокси для каталога и метаданных (работает)
+        ProxyServer proxy = proxyManager.getProxyForCurrentThread();
+        
+        CloseableHttpClient httpClient;
+        if (proxy != null) {
+            logger.debug("Thread {}: API RestTemplate using proxy {} (sticky)", 
+                Thread.currentThread().getName(), proxy.getHost());
+            httpClient = createHttpClientWithSharedPool(proxy);
+        } else {
+            logger.debug("Thread {}: API RestTemplate without proxy (no proxy available)", 
+                Thread.currentThread().getName());
+            httpClient = createDirectHttpClientWithSharedPool();
+        }
+        
+        HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(httpClient);
+        return new RestTemplate(factory);
+    }
+    
+    /**
+     * 🔓 RestTemplate БЕЗ прокси для chapter slides запросов
+     * MangaLib блокирует /chapter эндпоинт с прокси (HTTP 500)
+     * Используется с задержками между запросами для обхода rate limit
+     */
+    @Bean("chapterRestTemplate")
+    public RestTemplate chapterRestTemplate() {
+        logger.debug("Thread {}: Chapter RestTemplate WITHOUT proxy (MangaLib blocks proxies for /chapter)", 
             Thread.currentThread().getName());
         
         CloseableHttpClient httpClient = createDirectHttpClientWithSharedPool();
