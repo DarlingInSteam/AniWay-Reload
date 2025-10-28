@@ -518,9 +518,63 @@ public class MangaBuffParserService {
             String path = relativePath.startsWith("/") ? relativePath : "/" + relativePath;
             url = MangaBuffApiHelper.BASE_URL + path;
         }
-        Connection.Response response = MangaBuffApiHelper.newConnection(url, getProxyConfig()).execute();
+        
+        // Извлекаем slug из пути для поиска в кеше cookies
+        // Формат: manga/slezy-na-uvyadshih-cvetah/1/1 → slezy-na-uvyadshih-cvetah
+        String slug = extractSlugFromPath(relativePath);
+        
+        // Пытаемся использовать кешированные cookies если они есть
+        Connection.Response mangaResponse = cookieCache.get(slug);
+        Connection connection;
+        
+        if (mangaResponse != null) {
+            // Используем cookies из кеша
+            connection = MangaBuffApiHelper.cloneConnection(url, mangaResponse, getProxyConfig());
+            logger.debug("Using cached cookies for chapter slides: {}", slug);
+        } else {
+            // Нет кеша - создаем новое соединение
+            connection = MangaBuffApiHelper.newConnection(url, getProxyConfig());
+            logger.debug("No cached cookies for chapter slides: {}", slug);
+        }
+        
+        Connection.Response response = connection.execute();
+        
+        // Обновляем кеш если сервер прислал новые cookies
+        if (slug != null && !response.cookies().isEmpty()) {
+            cookieCache.put(slug, response);
+        }
+        
         Document document = response.parse();
         return parseSlides(document);
+    }
+    
+    /**
+     * Извлекает slug манги из пути главы
+     * Пример: "manga/slezy-na-uvyadshih-cvetah/1/1" → "slezy-na-uvyadshih-cvetah"
+     */
+    private String extractSlugFromPath(String path) {
+        if (path == null || path.isBlank()) {
+            return null;
+        }
+        String normalized = path.trim();
+        // Убираем protocol если есть
+        if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
+            try {
+                normalized = new java.net.URI(normalized).getPath();
+            } catch (Exception e) {
+                return null;
+            }
+        }
+        // Убираем ведущий слэш
+        if (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+        // Разбираем: manga/slug/volume/chapter
+        String[] parts = normalized.split("/");
+        if (parts.length >= 2 && "manga".equals(parts[0])) {
+            return parts[1]; // Возвращаем slug
+        }
+        return null;
     }
 
     private List<SlideInfo> parseSlides(Document document) {
