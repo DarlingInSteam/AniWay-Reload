@@ -530,7 +530,8 @@ public class MangaBuffParserService {
         logger.info("🔄 [LOAD] {}: начинаем загрузку дополнительных глав (начально: {} глав)",
             context.getFileSlug(), previousChapterCount);
 
-        while (MangaBuffApiHelper.hasAdditionalChapters(currentDoc) && loadAttempts < MAX_LOAD_ATTEMPTS) {
+        // Продолжаем вызывать load, пока есть триггер ИЛИ пока главы добавляются
+        while ((MangaBuffApiHelper.hasAdditionalChapters(currentDoc) || loadAttempts == 0) && loadAttempts < MAX_LOAD_ATTEMPTS) {
             loadAttempts++;
 
             Connection connection = MangaBuffApiHelper.cloneConnection(
@@ -557,8 +558,8 @@ public class MangaBuffParserService {
             logger.info("🔄 [LOAD] {}: после load #{} получено {} глав (добавлено: {}, всего: {})",
                 context.getFileSlug(), loadAttempts, currentChapterCount, newChaptersAdded, currentChapterCount + result.size());
 
-            // Если не добавилось новых глав, прекращаем
-            if (newChaptersAdded <= 0) {
+            // Если не добавилось новых глав И это не первый вызов, прекращаем
+            if (newChaptersAdded <= 0 && loadAttempts > 1) {
                 logger.info("🔄 [LOAD] {}: load #{} не добавил новых глав, прекращаем", context.getFileSlug(), loadAttempts);
                 break;
             }
