@@ -60,6 +60,36 @@ public class ParserProperties {
      */
     private MangaLibConfig mangalib = new MangaLibConfig();
 
+    /**
+     * Настройки MangaBuff авторизации для 18+ контента
+     */
+    private MangaBuffAuthConfig mangabuffAuth = new MangaBuffAuthConfig();
+
+    public static class MangaBuffAuthConfig {
+        private String login = "artempronko241@gmail.com";
+        private String password = "Artem11112003!";
+
+        public String getLogin() {
+            return login;
+        }
+
+        public void setLogin(String login) {
+            this.login = login;
+        }
+
+        public String getPassword() {
+            return password;
+        }
+
+        public void setPassword(String password) {
+            this.password = password;
+        }
+
+        public boolean isEnabled() {
+            return !login.isBlank() && !password.isBlank();
+        }
+    }
+
     public static class MangaLibConfig {
         private String token = "";
         private String siteId = "1";
@@ -356,6 +386,16 @@ public class ParserProperties {
     public void setMangalib(MangaLibConfig mangalib) {
         if (mangalib != null) {
             this.mangalib = mangalib;
+        }
+    }
+
+    public MangaBuffAuthConfig getMangabuffAuth() {
+        return mangabuffAuth;
+    }
+
+    public void setMangabuffAuth(MangaBuffAuthConfig mangabuffAuth) {
+        if (mangabuffAuth != null) {
+            this.mangabuffAuth = mangabuffAuth;
         }
     }
 }

@@ -2,6 +2,7 @@ package shadowshift.studio.parserservice.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jsoup.Connection;
+import org.jsoup.Connection.Response;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
@@ -53,6 +54,7 @@ public class MangaBuffParserService {
     private final ObjectMapper objectMapper;
     private final TaskStorageService taskStorage;
     private final ProxyManagerService proxyManager;
+    private final MangaBuffAuthService authService;
     
     // Кеш cookies для избежания повторных запросов к главной странице манги
     // Key: slug, Value: Response с cookies от DDoS-Guard
@@ -61,11 +63,13 @@ public class MangaBuffParserService {
     public MangaBuffParserService(ParserProperties properties,
                                   ObjectMapper objectMapper,
                                   TaskStorageService taskStorage,
-                                  ProxyManagerService proxyManager) {
+                                  ProxyManagerService proxyManager,
+                                  MangaBuffAuthService authService) {
         this.properties = properties;
         this.objectMapper = objectMapper;
         this.taskStorage = taskStorage;
         this.proxyManager = proxyManager;
+        this.authService = authService;
     }
 
     private MangaBuffApiHelper.ProxyConfig getProxyConfig() {
@@ -241,6 +245,55 @@ public class MangaBuffParserService {
                         Thread.currentThread().interrupt();
                     }
                     continue;
+                }
+                // После всех обычных попыток, попробуем с auth cookies для 18+ контента
+                if (properties.getMangabuffAuth().isEnabled()) {
+                    logger.warn("🔐 [AUTH] Attempting auth for 18+ content {}/{}", volume, chapter);
+                    try {
+                        Map<String, String> authCookies = authService.getAuthCookies();
+                        if (authCookies != null && !authCookies.isEmpty()) {
+                            Connection authConnection = MangaBuffApiHelper.cloneConnection(url, mangaResponse, getProxyConfig());
+                            if (slug != null && !slug.isBlank()) {
+                                authConnection.referrer(MangaBuffApiHelper.buildMangaUrl(slug));
+                            }
+                            // Добавляем auth cookies
+                            for (Map.Entry<String, String> cookie : authCookies.entrySet()) {
+                                authConnection.cookie(cookie.getKey(), cookie.getValue());
+                            }
+                            String authXsrf = mangaResponse.cookie("XSRF-TOKEN");
+                            if (authXsrf != null && !authXsrf.isBlank()) {
+                                String decoded = authXsrf;
+                                try {
+                                    decoded = URLDecoder.decode(authXsrf, StandardCharsets.UTF_8);
+                                } catch (IllegalArgumentException ignored) {
+                                    // если не удалось декодировать, используем исходное значение
+                                }
+                                authConnection.header("X-XSRF-TOKEN", decoded);
+                            }
+                            authConnection.header("Sec-Fetch-Site", "same-origin");
+                            authConnection.header("Sec-Fetch-Mode", "navigate");
+                            authConnection.header("Sec-Fetch-Dest", "document");
+                            authConnection.header("Sec-Fetch-User", "?1");
+                            authConnection.header("Pragma", "no-cache");
+                            authConnection.header("Cache-Control", "no-cache");
+                            authConnection.header("Upgrade-Insecure-Requests", "1");
+                            authConnection.header("Accept-Encoding", "gzip, deflate, br, zstd");
+                            authConnection.ignoreHttpErrors(true);
+
+                            Connection.Response authResponse = authConnection.execute();
+                            if (authResponse.statusCode() == 200) {
+                                logger.info("✅ [AUTH] Successfully accessed 18+ content with auth cookies");
+                                Document document = authResponse.parse();
+                                return parseSlides(document);
+                            } else {
+                                logger.warn("❌ [AUTH] Auth attempt failed with status {}", authResponse.statusCode());
+                            }
+                        } else {
+                            logger.warn("❌ [AUTH] No auth cookies available");
+                        }
+                    } catch (Exception ex) {
+                        logger.warn("❌ [AUTH] Auth attempt failed: {}", ex.getMessage());
+                    }
                 }
                 throw new IOException("401 Unauthorized for chapter " + slug + " " + volume + "/" + chapter);
             }
