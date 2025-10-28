@@ -222,8 +222,8 @@ public class ImportQueueService {
                     item.setCompletedAt(LocalDateTime.now());
                     logger.error("Ошибка импорта для taskId={}: {}", item.getImportTaskId(), e.getMessage());
                 } finally {
-                    // Вызываем completion callback если он есть
-                    if (item.getCompletionCallback() != null) {
+                    // Вызываем completion callback если он есть и импорт не был отменен
+                    if (item.getCompletionCallback() != null && item.getStatus() != ImportQueueItem.Status.CANCELLED) {
                         try {
                             item.getCompletionCallback().run();
                         } catch (Exception e) {

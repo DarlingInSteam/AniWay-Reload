@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import shadowshift.studio.parserservice.config.ParserProperties;
 import shadowshift.studio.parserservice.dto.*;
 
 import java.util.*;
@@ -25,6 +26,9 @@ public class AutoParsingService {
 
     @Autowired
     private TaskStorageService taskStorage;
+
+    @Autowired
+    private ParserProperties properties;
 
     /**
      * Запускает автопарсинг: получение каталога и парсинг манг
@@ -76,18 +80,24 @@ public class AutoParsingService {
                 try {
                     task.addLog(String.format("[%d/%d] Парсинг: %s (%s)", processed, items.size(), item.getTitle(), item.getSlug()));
 
-                    // TODO: Проверка на дубликаты с MangaService
-                    // Пока просто парсим все
-
-                    CompletableFuture<ParseResult> parseFuture = parserService.parseManga(item.getSlug(), "mangalib");
-                    ParseResult result = parseFuture.join();
-
-                    if (result.getSuccess()) {
-                        task.getImportedSlugs().add(item.getSlug());
-                        task.addLog(String.format("  ✓ Успешно: %d глав", result.getChaptersCount()));
+                    // Проверяем, не спаршена ли уже эта манга
+                    String normalizedSlug = parserService.normalizeSlug(item.getSlug());
+                    java.nio.file.Path jsonPath = java.nio.file.Paths.get(properties.getOutputPath(), "titles", normalizedSlug + ".json");
+                    if (java.nio.file.Files.exists(jsonPath)) {
+                        task.getSkippedSlugs().add(item.getSlug());
+                        task.addLog(String.format("  ⊘ Пропущено: уже спаршено (%s.json существует)", normalizedSlug));
+                        logger.info("Манга {} уже спаршена, пропускаем", item.getSlug());
                     } else {
-                        task.getFailedSlugs().add(item.getSlug());
-                        task.addLog(String.format("  ✗ Ошибка: %s", result.getError()));
+                        CompletableFuture<ParseResult> parseFuture = parserService.parseManga(item.getSlug(), "mangalib");
+                        ParseResult result = parseFuture.join();
+
+                        if (result.getSuccess()) {
+                            task.getImportedSlugs().add(item.getSlug());
+                            task.addLog(String.format("  ✓ Успешно: %d глав", result.getChaptersCount()));
+                        } else {
+                            task.getFailedSlugs().add(item.getSlug());
+                            task.addLog(String.format("  ✗ Ошибка: %s", result.getError()));
+                        }
                     }
 
                 } catch (Exception e) {
