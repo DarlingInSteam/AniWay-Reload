@@ -22,9 +22,11 @@ import shadowshift.studio.parserservice.util.MangaBuffApiHelper;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -183,6 +185,16 @@ public class MangaBuffParserService {
         Connection connection = MangaBuffApiHelper.cloneConnection(url, mangaResponse, getProxyConfig());
         if (slug != null && !slug.isBlank()) {
             connection.referrer(MangaBuffApiHelper.buildMangaUrl(slug));
+        }
+        String xsrf = mangaResponse.cookie("XSRF-TOKEN");
+        if (xsrf != null && !xsrf.isBlank()) {
+            String decoded = xsrf;
+            try {
+                decoded = URLDecoder.decode(xsrf, StandardCharsets.UTF_8);
+            } catch (IllegalArgumentException ignored) {
+                // если не удалось декодировать, используем исходное значение
+            }
+            connection.header("X-XSRF-TOKEN", decoded);
         }
         connection.header("Sec-Fetch-Site", "same-origin");
         connection.header("Sec-Fetch-Mode", "navigate");
