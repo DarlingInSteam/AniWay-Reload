@@ -173,19 +173,7 @@ public class MangaBuffParserService {
         
         // КРИТИЧНО: Используем кешированные cookies от главной страницы манги
         // Если нет в кеше - делаем первый запрос для получения DDoS-Guard cookies
-        Connection.Response mangaResponse = cookieCache.computeIfAbsent(slug, key -> {
-            try {
-                String mangaUrl = MangaBuffApiHelper.buildMangaUrl(key);
-                logger.info("🍪 [COOKIES] Fetching DDoS-Guard cookies from {}", mangaUrl);
-                Connection.Response response = MangaBuffApiHelper.newConnection(mangaUrl, getProxyConfig()).execute();
-                logger.info("🍪 [COOKIES] Cached {} cookies: {}", 
-                           response.cookies().size(), response.cookies().keySet());
-                return response;
-            } catch (IOException e) {
-                logger.error("❌ [COOKIES] Failed to fetch cookies for {}: {}", key, e.getMessage());
-                return null;
-            }
-        });
+        Connection.Response mangaResponse = cookieCache.computeIfAbsent(slug, key -> fetchAndCacheCookies(key, false));
         
         if (mangaResponse == null) {
             throw new IOException("Failed to obtain DDoS-Guard cookies for slug: " + slug);
@@ -222,6 +210,10 @@ public class MangaBuffParserService {
                     Thread.sleep(600L);
                 } catch (InterruptedException interrupted) {
                     Thread.currentThread().interrupt();
+                }
+                Connection.Response refreshed = fetchAndCacheCookies(slug, true);
+                if (refreshed == null) {
+                    throw new IOException("Failed to refresh cookies for slug: " + slug);
                 }
                 return fetchChapterSlidesWithRetry(slug, volume, chapter, true);
             }
@@ -533,6 +525,25 @@ public class MangaBuffParserService {
             throw new IOException("Invalid chapter path: " + relativePath);
         }
         return fetchChapterSlidesWithRetry(chapterPath.getSlug(), chapterPath.getVolume(), chapterPath.getChapter(), false);
+    }
+
+    private Connection.Response fetchAndCacheCookies(String slug, boolean forceLog) {
+        try {
+            String mangaUrl = MangaBuffApiHelper.buildMangaUrl(slug);
+            if (forceLog) {
+                logger.info("🍪 [COOKIES] Forcing refresh from {}", mangaUrl);
+            } else {
+                logger.info("🍪 [COOKIES] Fetching DDoS-Guard cookies from {}", mangaUrl);
+            }
+            Connection.Response response = MangaBuffApiHelper.newConnection(mangaUrl, getProxyConfig()).execute();
+            cookieCache.put(slug, response);
+            logger.info("🍪 [COOKIES] Cached {} cookies for {}: {}", 
+                    response.cookies().size(), slug, response.cookies().keySet());
+            return response;
+        } catch (IOException e) {
+            logger.error("❌ [COOKIES] Failed to fetch cookies for {}: {}", slug, e.getMessage());
+            return null;
+        }
     }
 
     private ChapterPath parseChapterPath(String rawPath) {
