@@ -406,6 +406,38 @@ public class AutoParsingService {
                         continue;
                     }
 
+                    // Check if this manga has already been parsed in ParserService
+                    try {
+                        List<Map<String, Object>> parsedManga = melonService.listParsedManga();
+                        boolean alreadyParsed = parsedManga.stream()
+                            .anyMatch(manga -> normalizedSlug.equals(manga.get("slug")));
+                        
+                        if (alreadyParsed) {
+                            logger.info("Манга с slug '{}' (normalized: '{}') уже спаршена в ParserService, пропускаем",
+                                slug, normalizedSlug);
+                            task.skippedSlugs.add(slug);
+                            appendLog(task, String.format("[%d/%d] %s: пропуск — уже спаршена",
+                                i + 1, slugs.size(), normalizedSlug));
+
+                            mangaMetric.put("status", "skipped");
+                            mangaMetric.put("reason", "already_parsed");
+                            mangaMetric.put("completed_at", toIsoString(System.currentTimeMillis()));
+                            mangaMetric.put("duration_ms", 0L);
+                            mangaMetric.put("duration_formatted", formatDuration(0));
+                            addMangaMetric(task, mangaMetric);
+                            metricRecorded = true;
+
+                            task.processedSlugs++;
+                            task.progress = (task.processedSlugs * 100) / task.totalSlugs;
+                            task.message = String.format("Обработано: %d/%d (пропущено: %d, импортировано: %d)",
+                                task.processedSlugs, task.totalSlugs, task.skippedSlugs.size(), task.importedSlugs.size());
+                            continue;
+                        }
+                    } catch (Exception e) {
+                        logger.warn("Не удалось проверить список спаршенных манг для '{}': {}", normalizedSlug, e.getMessage());
+                        // Continue with parsing if we can't check - better to parse than skip unnecessarily
+                    }
+
                     thresholdDecision = evaluateChapterThreshold(slug, normalizedSlug, task);
                     if (thresholdDecision != null) {
                         if (thresholdDecision.totalChapters() != null) {
