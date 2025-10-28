@@ -203,6 +203,11 @@ public class MangaBuffParserService {
         }
 
         if (response.statusCode() == 401) {
+            String body = response.body();
+            if (body != null && !body.isBlank()) {
+                String preview = body.length() > 300 ? body.substring(0, 300) + "…" : body;
+                logger.warn("🚫 [401 BODY] {}", preview.replaceAll("\n", " "));
+            }
             if (!isRetry) {
                 logger.warn("🔄 [RETRY] 401 from {}, refreshing cookies for {} and retrying {}/{}",
                         url, slug, volume, chapter);
