@@ -422,65 +422,16 @@ public class MelonIntegrationService {
                     // Добавляем импорт в очередь с нормальным приоритетом
                     importQueueService.queueImport(importTaskId, normalizedSlug, null, ImportQueueService.ImportQueueItem.Priority.NORMAL);
                     
-                    // Обновляем статус - импорт добавлен в очередь
-                    updateFullParsingTask(fullTaskId, "running", 80, "Парсинг завершен, импорт добавлен в очередь...", null);
-                    logger.info("Импорт добавлен в очередь для slug={}, ожидаем завершения импорта", slug);
-                    
-                    // Создаем асинхронный обработчик для отслеживания завершения и очистки
-                    CompletableFuture.runAsync(() -> {
-                        try {
-                            // Ждем завершения импорта из очереди
-                            logger.info("⏳ Ожидание завершения импорта для slug={}, importTaskId={}", slug, importTaskId);
-                            ImportQueueService.ImportQueueItem importItem;
-                            int checkCount = 0;
-                            do {
-                                Thread.sleep(2000); // проверяем каждые 2 секунды
-                                importItem = importQueueService.getImportStatus(importTaskId);
-                                checkCount++;
-                                if (checkCount % 10 == 0) { // логируем каждые 20 секунд
-                                    logger.info("⏳ Проверка #{}: импорт slug={} все еще в процессе, статус={}", 
-                                        checkCount, slug, importItem != null ? importItem.getStatus() : "null");
-                                }
-                            } while (importItem != null && 
-                                    importItem.getStatus() != ImportQueueService.ImportQueueItem.Status.COMPLETED &&
-                                    importItem.getStatus() != ImportQueueService.ImportQueueItem.Status.FAILED);
-                            
-                            if (importItem != null && importItem.getStatus() == ImportQueueService.ImportQueueItem.Status.COMPLETED) {
-                                logger.info("✅ Импорт завершен для slug={}, очищаем данные из ParserService", slug);
-                                
-                                // После успешного импорта - удаляем из ParserService
-                                updateFullParsingTask(fullTaskId, "running", 95, "Импорт завершен, очистка данных из ParserService...", null);
-                                Map<String, Object> deleteResult = deleteManga(normalizedSlug);
-                                
-                                // Формируем финальный результат с информацией о манге
-                                Map<String, Object> result = new HashMap<>();
-                                result.put("filename", slug);
-                                result.put("parse_completed", true);
-                                result.put("build_completed", true);
-                                result.put("import_completed", true);
-                                result.put("cleanup_completed", deleteResult != null && Boolean.TRUE.equals(deleteResult.get("success")));
-                                if (mangaInfo != null) {
-                                    result.put("title", mangaInfo.get("localized_name"));
-                                    result.put("manga_info", mangaInfo);
-                                }
-                                
-                                if (deleteResult != null && Boolean.TRUE.equals(deleteResult.get("success"))) {
-                                    logger.info("🧹 Очистка завершена: главы и обложки удалены, JSON сохранён для slug={}", normalizedSlug);
-                                    updateFullParsingTask(fullTaskId, "completed", 100, "Автопарсинг и импорт завершены успешно", result);
-                                } else {
-                                    logger.warn("⚠️ Не удалось удалить данные из ParserService для slug={}", normalizedSlug);
-                                    updateFullParsingTask(fullTaskId, "completed", 100, "Импорт завершен, но не удалось очистить ParserService", result);
-                                }
-                            } else {
-                                String errorMsg = importItem != null ? importItem.getErrorMessage() : "Неизвестная ошибка";
-                                logger.error("❌ Ошибка импорта для slug={}: {}", slug, errorMsg);
-                                updateFullParsingTask(fullTaskId, "failed", 90, "Ошибка импорта: " + errorMsg, null);
-                            }
-                        } catch (Exception e) {
-                            logger.error("❌ Ошибка при отслеживании импорта для slug={}: {}", slug, e.getMessage());
-                            updateFullParsingTask(fullTaskId, "failed", 90, "Ошибка отслеживания импорта: " + e.getMessage(), null);
-                        }
-                    }, executorService);
+                    // Обновляем статус - парсинг завершен, импорт добавлен в очередь
+                    updateFullParsingTask(fullTaskId, "completed", 100, "Парсинг завершен, импорт добавлен в очередь для фоновой обработки", Map.of(
+                        "filename", slug,
+                        "parse_completed", true,
+                        "build_completed", true,
+                        "import_queued", true,
+                        "title", mangaInfo != null ? mangaInfo.get("localized_name") : null,
+                        "manga_info", mangaInfo
+                    ));
+                    logger.info("Парсинг завершен для slug={}, импорт добавлен в очередь, задача завершена", slug);
                         
                 } catch (Exception importEx) {
                     logger.error("Ошибка при импорте или очистке для slug={}: {}", slug, importEx.getMessage(), importEx);
