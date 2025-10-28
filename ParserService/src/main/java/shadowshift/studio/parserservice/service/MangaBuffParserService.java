@@ -194,7 +194,18 @@ public class MangaBuffParserService {
         try {
             // Используем полученные cookies (включая __ddg8_, __ddg9_, __ddg10_, XSRF-TOKEN, session)
             Connection connection = MangaBuffApiHelper.cloneConnection(url, mangaResponse, getProxyConfig());
-            
+            if (slug != null && !slug.isBlank()) {
+                connection.referrer(MangaBuffApiHelper.buildMangaUrl(slug));
+            }
+            connection.header("Sec-Fetch-Site", "same-origin");
+            connection.header("Sec-Fetch-Mode", "navigate");
+            connection.header("Sec-Fetch-Dest", "document");
+            connection.header("Sec-Fetch-User", "?1");
+            connection.header("Pragma", "no-cache");
+            connection.header("Cache-Control", "no-cache");
+            connection.header("Upgrade-Insecure-Requests", "1");
+            connection.header("Accept-Encoding", "gzip, deflate, br, zstd");
+
             Connection.Response response = connection.execute();
             
             // ВАЖНО: Обновляем кеш, если сервер прислал новые cookies (DDoS-Guard rotation)
@@ -510,71 +521,61 @@ public class MangaBuffParserService {
     }
 
     private List<SlideInfo> fetchChapterSlidesByPath(String relativePath) throws IOException {
-        // relativePath уже содержит "manga/slug/volume/chapter"
-        String url;
-        if (relativePath.startsWith("http://") || relativePath.startsWith("https://")) {
-            url = relativePath;
-        } else {
-            String path = relativePath.startsWith("/") ? relativePath : "/" + relativePath;
-            url = MangaBuffApiHelper.BASE_URL + path;
+        ChapterPath chapterPath = parseChapterPath(relativePath);
+        if (chapterPath == null || chapterPath.getVolume() == null || chapterPath.getChapter() == null) {
+            throw new IOException("Invalid chapter path: " + relativePath);
         }
-        
-        // Извлекаем slug из пути для поиска в кеше cookies
-        // Формат: manga/slezy-na-uvyadshih-cvetah/1/1 → slezy-na-uvyadshih-cvetah
-        String slug = extractSlugFromPath(relativePath);
-        
-        // Пытаемся использовать кешированные cookies если они есть
-        Connection.Response mangaResponse = cookieCache.get(slug);
-        Connection connection;
-        
-        if (mangaResponse != null) {
-            // Используем cookies из кеша
-            connection = MangaBuffApiHelper.cloneConnection(url, mangaResponse, getProxyConfig());
-            logger.debug("Using cached cookies for chapter slides: {}", slug);
-        } else {
-            // Нет кеша - создаем новое соединение
-            connection = MangaBuffApiHelper.newConnection(url, getProxyConfig());
-            logger.debug("No cached cookies for chapter slides: {}", slug);
-        }
-        
-        Connection.Response response = connection.execute();
-        
-        // Обновляем кеш если сервер прислал новые cookies
-        if (slug != null && !response.cookies().isEmpty()) {
-            cookieCache.put(slug, response);
-        }
-        
-        Document document = response.parse();
-        return parseSlides(document);
+        return fetchChapterSlidesWithRetry(chapterPath.getSlug(), chapterPath.getVolume(), chapterPath.getChapter(), false);
     }
-    
-    /**
-     * Извлекает slug манги из пути главы
-     * Пример: "manga/slezy-na-uvyadshih-cvetah/1/1" → "slezy-na-uvyadshih-cvetah"
-     */
-    private String extractSlugFromPath(String path) {
-        if (path == null || path.isBlank()) {
+
+    private ChapterPath parseChapterPath(String rawPath) {
+        if (rawPath == null || rawPath.isBlank()) {
             return null;
         }
-        String normalized = path.trim();
-        // Убираем protocol если есть
-        if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
-            try {
+        String normalized = rawPath.trim();
+        try {
+            if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
                 normalized = new java.net.URI(normalized).getPath();
-            } catch (Exception e) {
-                return null;
             }
+        } catch (Exception ex) {
+            return null;
         }
-        // Убираем ведущий слэш
+        if (normalized == null || normalized.isBlank()) {
+            return null;
+        }
         if (normalized.startsWith("/")) {
             normalized = normalized.substring(1);
         }
-        // Разбираем: manga/slug/volume/chapter
+
         String[] parts = normalized.split("/");
-        if (parts.length >= 2 && "manga".equals(parts[0])) {
-            return parts[1]; // Возвращаем slug
+        if (parts.length < 4 || !"manga".equals(parts[0])) {
+            return null;
         }
-        return null;
+
+        String slug = cleanPathSegment(parts[1]);
+        String volume = cleanPathSegment(parts[parts.length - 2]);
+        String chapter = cleanPathSegment(parts[parts.length - 1]);
+
+        if (slug == null || slug.isBlank() || volume == null || volume.isBlank() || chapter == null || chapter.isBlank()) {
+            return null;
+        }
+
+        return new ChapterPath(slug, volume, chapter);
+    }
+
+    private String cleanPathSegment(String value) {
+        if (value == null) {
+            return null;
+        }
+        int queryIndex = value.indexOf('?');
+        if (queryIndex >= 0) {
+            value = value.substring(0, queryIndex);
+        }
+        int hashIndex = value.indexOf('#');
+        if (hashIndex >= 0) {
+            value = value.substring(0, hashIndex);
+        }
+        return value.trim();
     }
 
     private List<SlideInfo> parseSlides(Document document) {
@@ -857,6 +858,30 @@ public class MangaBuffParserService {
 
         String getPageSlug() {
             return pageSlug;
+        }
+    }
+
+    private static final class ChapterPath {
+        private final String slug;
+        private final String volume;
+        private final String chapter;
+
+        ChapterPath(String slug, String volume, String chapter) {
+            this.slug = slug;
+            this.volume = volume;
+            this.chapter = chapter;
+        }
+
+        String getSlug() {
+            return slug;
+        }
+
+        String getVolume() {
+            return volume;
+        }
+
+        String getChapter() {
+            return chapter;
         }
     }
 
