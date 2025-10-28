@@ -549,6 +549,9 @@ public class MangaBuffParserService {
             logger.info("🔄 [LOAD] {}: вызов load #{}, manga_id={}", context.getFileSlug(), loadAttempts, mangaId);
 
             currentResponse = connection.execute();
+            String responseBody = currentResponse.body();
+            logger.debug("🔄 [LOAD] {}: load response body length: {}", context.getFileSlug(), responseBody != null ? responseBody.length() : 0);
+            
             currentDoc = currentResponse.parse();
             Elements anchors = currentDoc.select("a.chapters__item");
 

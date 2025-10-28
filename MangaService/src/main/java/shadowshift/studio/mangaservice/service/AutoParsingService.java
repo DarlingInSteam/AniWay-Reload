@@ -314,9 +314,19 @@ public class AutoParsingService {
                 return CompletableFuture.completedFuture(null);
             }
 
+            // Deduplicate slugs based on normalized slug to prevent re-parsing the same manga
+            Map<String, String> normalizedToOriginal = new LinkedHashMap<>();
+            for (String slug : slugs) {
+                String normalized = normalizeSlug(slug);
+                if (!normalizedToOriginal.containsKey(normalized)) {
+                    normalizedToOriginal.put(normalized, slug);
+                }
+            }
+            slugs = new ArrayList<>(normalizedToOriginal.values());
+
             task.totalSlugs = slugs.size();
-            logger.info("Получено {} манг из каталога", slugs.size());
-            appendLog(task, String.format("Найдено %d тайтлов для обработки", slugs.size()));
+            logger.info("Получено {} манг из каталога, после дедупликации: {}", slugs.size(), slugs.size());
+            appendLog(task, String.format("Найдено %d тайтлов для обработки (после дедупликации)", slugs.size()));
 
             for (int i = 0; i < slugs.size(); i++) {
                 if ("cancelled".equals(task.status)) {
