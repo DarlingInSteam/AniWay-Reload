@@ -55,6 +55,7 @@ public class ImportQueueService {
         private volatile String errorMessage;
         private volatile LocalDateTime startedAt;
         private volatile LocalDateTime completedAt;
+        private final Runnable completionCallback;
         
         public enum Priority {
             HIGH(1), NORMAL(2), LOW(3);
@@ -67,13 +68,14 @@ public class ImportQueueService {
             QUEUED, PROCESSING, COMPLETED, FAILED, CANCELLED
         }
         
-        public ImportQueueItem(String importTaskId, String slug, String filename, Priority priority) {
+        public ImportQueueItem(String importTaskId, String slug, String filename, Priority priority, Runnable completionCallback) {
             this.importTaskId = importTaskId;
             this.slug = slug;
             this.filename = filename;
             this.priority = priority;
             this.queuedAt = LocalDateTime.now();
             this.status = Status.QUEUED;
+            this.completionCallback = completionCallback;
         }
         
         @Override
@@ -96,6 +98,7 @@ public class ImportQueueService {
         public String getErrorMessage() { return errorMessage; }
         public LocalDateTime getStartedAt() { return startedAt; }
         public LocalDateTime getCompletedAt() { return completedAt; }
+        public Runnable getCompletionCallback() { return completionCallback; }
         
         // Сеттеры для изменения статуса
         public void setStatus(Status status) { this.status = status; }
@@ -116,7 +119,7 @@ public class ImportQueueService {
     /**
      * Добавить импорт в очередь
      */
-    public String queueImport(String importTaskId, String slug, String filename, ImportQueueItem.Priority priority) {
+    public String queueImport(String importTaskId, String slug, String filename, ImportQueueItem.Priority priority, Runnable completionCallback) {
         boolean permitReserved = false;
         long waitStartedAt = System.nanoTime();
         try {
@@ -129,7 +132,7 @@ public class ImportQueueService {
                 throw new IllegalStateException("Прервано ожидание свободного слота импорта", e);
             }
 
-            ImportQueueItem item = new ImportQueueItem(importTaskId, slug, filename, priority);
+            ImportQueueItem item = new ImportQueueItem(importTaskId, slug, filename, priority, completionCallback);
             
             importQueue.offer(item);
             activeImports.put(importTaskId, item);
@@ -218,6 +221,15 @@ public class ImportQueueService {
                     item.setErrorMessage(e.getMessage());
                     item.setCompletedAt(LocalDateTime.now());
                     logger.error("Ошибка импорта для taskId={}: {}", item.getImportTaskId(), e.getMessage());
+                } finally {
+                    // Вызываем completion callback если он есть
+                    if (item.getCompletionCallback() != null) {
+                        try {
+                            item.getCompletionCallback().run();
+                        } catch (Exception e) {
+                            logger.error("Ошибка выполнения completion callback для taskId={}: {}", item.getImportTaskId(), e.getMessage());
+                        }
+                    }
                 }
                 
                 // Перемещаем из активных в завершенные

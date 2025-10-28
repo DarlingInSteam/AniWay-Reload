@@ -383,6 +383,29 @@ public class AutoParsingService {
                         continue;
                     }
 
+                    // Check if this slug is currently being processed (import in progress)
+                    if (melonService.isSlugBeingProcessed(normalizedSlug)) {
+                        logger.info("Манга с slug '{}' (normalized: '{}') уже находится в обработке, пропускаем до завершения импорта",
+                            slug, normalizedSlug);
+                        task.skippedSlugs.add(slug);
+                        appendLog(task, String.format("[%d/%d] %s: пропуск — находится в обработке",
+                            i + 1, slugs.size(), normalizedSlug));
+
+                        mangaMetric.put("status", "skipped");
+                        mangaMetric.put("reason", "being_processed");
+                        mangaMetric.put("completed_at", toIsoString(System.currentTimeMillis()));
+                        mangaMetric.put("duration_ms", 0L);
+                        mangaMetric.put("duration_formatted", formatDuration(0));
+                        addMangaMetric(task, mangaMetric);
+                        metricRecorded = true;
+
+                        task.processedSlugs++;
+                        task.progress = (task.processedSlugs * 100) / task.totalSlugs;
+                        task.message = String.format("Обработано: %d/%d (пропущено: %d, импортировано: %d)",
+                            task.processedSlugs, task.totalSlugs, task.skippedSlugs.size(), task.importedSlugs.size());
+                        continue;
+                    }
+
                     thresholdDecision = evaluateChapterThreshold(slug, normalizedSlug, task);
                     if (thresholdDecision != null) {
                         if (thresholdDecision.totalChapters() != null) {

@@ -123,6 +123,9 @@ public class MelonIntegrationService {
     // Маппинг fullParsingTaskId -> autoParsingTaskId для связывания логов buildTask
     private final Map<String, String> fullParsingToAutoParsingTask = new HashMap<>();
     
+    // Набор slug'ов, которые находятся в процессе импорта (чтобы предотвратить повторный парсинг)
+    private final Set<String> processingSlugs = Collections.synchronizedSet(new HashSet<>());
+    
     /**
      * Регистрирует связь между fullParsingTaskId и autoParsingTaskId.
      * Используется AutoParsingService для того, чтобы логи от buildTask попадали в правильную задачу.
@@ -369,6 +372,10 @@ public class MelonIntegrationService {
         String normalizedSlug = normalizeSlugForMangaLib(slug);
         logger.info("🔧 Нормализация slug: original='{}', normalized='{}'", slug, normalizedSlug);
         
+        // ДОБАВЛЯЕМ slug в processingSlugs чтобы предотвратить повторный парсинг
+        processingSlugs.add(normalizedSlug);
+        logger.info("Добавлен в processingSlugs: {}", normalizedSlug);
+        
         try {
             updateFullParsingTask(fullTaskId, "running", 5, "Ожидание завершения парсинга JSON...", null);
             Map<String, Object> finalStatus = waitForTaskCompletion(parseTaskId);
@@ -419,8 +426,12 @@ public class MelonIntegrationService {
                     // Поэтому getMangaInfo() должен искать нормализованный файл
                     
                     // ВАЖНО: НЕ используем .get() чтобы не блокировать автопарсинг!
-                    // Добавляем импорт в очередь с нормальным приоритетом
-                    importQueueService.queueImport(importTaskId, normalizedSlug, null, ImportQueueService.ImportQueueItem.Priority.NORMAL);
+                    // Добавляем импорт в очередь с нормальным приоритетом и completion callback
+                    importQueueService.queueImport(importTaskId, normalizedSlug, null, ImportQueueService.ImportQueueItem.Priority.NORMAL, () -> {
+                        // Completion callback: удаляем slug из processingSlugs когда импорт завершен
+                        processingSlugs.remove(normalizedSlug);
+                        logger.info("Импорт завершен, удален из processingSlugs: {}", normalizedSlug);
+                    });
                     
                     // Обновляем статус - парсинг завершен, импорт добавлен в очередь
                     updateFullParsingTask(fullTaskId, "completed", 100, "Парсинг завершен, импорт добавлен в очередь для фоновой обработки", Map.of(
@@ -1299,7 +1310,11 @@ public class MelonIntegrationService {
 
         // Добавляем импорт в очередь (не блокирует парсинг/билдинг других тайтлов)
         logger.info("📋 [QUEUE] Adding import to queue: taskId={}, filename={}", taskId, filename);
-        importQueueService.queueImport(taskId, filename, branchId, ImportQueueService.ImportQueueItem.Priority.NORMAL);
+        importQueueService.queueImport(taskId, filename, branchId, ImportQueueService.ImportQueueItem.Priority.NORMAL, () -> {
+            // Completion callback: удаляем filename из processingSlugs когда импорт завершен
+            processingSlugs.remove(filename);
+            logger.info("Импорт завершен, удален из processingSlugs: {}", filename);
+        });
 
         return Map.of(
             "success", true,
@@ -1307,6 +1322,13 @@ public class MelonIntegrationService {
             "status", "queued",
             "message", "Импорт добавлен в очередь"
         );
+    }
+
+    /**
+     * Проверяет, находится ли slug в обработке (импорт в процессе)
+     */
+    public boolean isSlugBeingProcessed(String normalizedSlug) {
+        return processingSlugs.contains(normalizedSlug);
     }
 
     /**
