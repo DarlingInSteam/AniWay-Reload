@@ -45,7 +45,7 @@ public class ImageDownloadService {
             
             // 🔍 Получаем прокси для текущего потока
             ProxyManagerService.ProxyServer currentProxy = proxyManager.getProxyForCurrentThread();
-            String proxyInfo = currentProxy != null ? currentProxy.getHost() : "NO_PROXY";
+            String proxyInfo = currentProxy != null ? currentProxy.getHost() + ":" + currentProxy.getPort() : "NO_PROXY";
             
             try {
                 // Создаем директорию если нет
@@ -85,6 +85,7 @@ public class ImageDownloadService {
                             
                             logger.debug("✅ Downloaded: {} ({}KB in {}ms)", 
                                 outputPath.getFileName(), fileSize / 1024, downloadTime);
+                            proxyManager.recordProxySample(currentProxy, downloadTime, fileSize, true, false);
                             
                             return new DownloadResult(true, downloadTime, fileSize, false, proxyInfo);
                         } else if (attempt < maxRetries - 1) {
@@ -96,6 +97,7 @@ public class ImageDownloadService {
                         }
                         
                         logger.error("❌ Failed to download {}: {}", imageUrl, response.getStatusCode());
+                        proxyManager.recordProxySample(currentProxy, System.currentTimeMillis() - startTime, 0, false, false);
                         return new DownloadResult(false, System.currentTimeMillis() - startTime, 0, false, proxyInfo);
                         
                     } catch (Exception e) {
@@ -111,10 +113,12 @@ public class ImageDownloadService {
                 
                 logger.error("❌ Error downloading {} after {} attempts: {}", 
                     imageUrl, maxRetries, lastException != null ? lastException.getMessage() : "unknown");
+                proxyManager.recordProxySample(currentProxy, System.currentTimeMillis() - startTime, 0, false, false);
                 return new DownloadResult(false, System.currentTimeMillis() - startTime, 0, false, proxyInfo);
                 
             } catch (Exception e) {
                 logger.error("❌ Fatal error downloading {}: {}", imageUrl, e.getMessage());
+                proxyManager.recordProxySample(currentProxy, System.currentTimeMillis() - startTime, 0, false, false);
                 return new DownloadResult(false, System.currentTimeMillis() - startTime, 0, false, proxyInfo != null ? proxyInfo : "NO_PROXY");
             }
         }, executorService);
