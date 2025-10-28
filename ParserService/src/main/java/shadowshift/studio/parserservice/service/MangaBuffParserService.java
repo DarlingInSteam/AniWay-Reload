@@ -157,8 +157,12 @@ public class MangaBuffParserService {
     }
 
     public List<SlideInfo> fetchChapterSlides(String slug, String volume, String chapter) throws IOException {
+        return fetchChapterSlidesWithRetry(slug, volume, chapter, false);
+    }
+    
+    private List<SlideInfo> fetchChapterSlidesWithRetry(String slug, String volume, String chapter, boolean isRetry) throws IOException {
         String url = MangaBuffApiHelper.buildChapterUrl(slug, volume, chapter);
-        logger.info("📘 [SLIDES] GET {}", url);
+        logger.info("📘 [SLIDES] GET {}{}", url, isRetry ? " (RETRY)" : "");
         
         // КРИТИЧНО: Используем кешированные cookies от главной страницы манги
         // Если нет в кеше - делаем первый запрос для получения DDoS-Guard cookies
@@ -180,12 +184,30 @@ public class MangaBuffParserService {
             throw new IOException("Failed to obtain DDoS-Guard cookies for slug: " + slug);
         }
         
-        // Используем полученные cookies (включая __ddg8_, __ddg9_, __ddg10_, XSRF-TOKEN, session)
-        Connection connection = MangaBuffApiHelper.cloneConnection(url, mangaResponse, getProxyConfig());
-        
-        Connection.Response response = connection.execute();
-        Document document = response.parse();
-        return parseSlides(document);
+        try {
+            // Используем полученные cookies (включая __ddg8_, __ddg9_, __ddg10_, XSRF-TOKEN, session)
+            Connection connection = MangaBuffApiHelper.cloneConnection(url, mangaResponse, getProxyConfig());
+            
+            Connection.Response response = connection.execute();
+            
+            // ВАЖНО: Обновляем кеш, если сервер прислал новые cookies (DDoS-Guard rotation)
+            if (!response.cookies().isEmpty()) {
+                logger.debug("🔄 [COOKIES] Server sent {} new cookies, updating cache", response.cookies().size());
+                cookieCache.put(slug, response);
+            }
+            
+            Document document = response.parse();
+            return parseSlides(document);
+            
+        } catch (org.jsoup.HttpStatusException e) {
+            if (e.getStatusCode() == 401 && !isRetry) {
+                // 401 = устаревшие/невалидные cookies, пробуем обновить
+                logger.warn("🔄 [RETRY] 401 error, refreshing cookies for {} and retrying {}/{}", slug, volume, chapter);
+                cookieCache.remove(slug); // Сбрасываем кеш
+                return fetchChapterSlidesWithRetry(slug, volume, chapter, true); // Рекурсивный retry
+            }
+            throw e; // Прокидываем дальше, если это не 401 или уже retry
+        }
     }
 
     public String normalizeSlug(String slug) {
