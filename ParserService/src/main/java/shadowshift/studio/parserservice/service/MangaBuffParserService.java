@@ -1,8 +1,10 @@
 package shadowshift.studio.parserservice.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jsoup.Connection;
 import org.jsoup.Connection.Response;
+import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
@@ -531,7 +533,8 @@ public class MangaBuffParserService {
             context.getFileSlug(), previousChapterCount);
 
         // Продолжаем вызывать load, пока есть триггер ИЛИ пока главы добавляются
-        while ((MangaBuffApiHelper.hasAdditionalChapters(currentDoc) || loadAttempts == 0) && loadAttempts < MAX_LOAD_ATTEMPTS) {
+        boolean shouldContinue = MangaBuffApiHelper.hasAdditionalChapters(currentDoc);
+        while ((shouldContinue || loadAttempts == 0) && loadAttempts < MAX_LOAD_ATTEMPTS) {
             loadAttempts++;
 
             Connection connection = MangaBuffApiHelper.cloneConnection(
@@ -552,23 +555,83 @@ public class MangaBuffParserService {
             String responseBody = currentResponse.body();
             logger.debug("🔄 [LOAD] {}: load response body length: {}", context.getFileSlug(), responseBody != null ? responseBody.length() : 0);
             
-            currentDoc = currentResponse.parse();
+            Document parsedResponse = null;
+            boolean parsedFromJson = false;
+            boolean jsonSuggestsMore = false;
+
+            if (responseBody != null) {
+                String trimmedBody = responseBody.trim();
+                String contentType = currentResponse.contentType();
+                boolean looksLikeJson = (contentType != null && contentType.toLowerCase(Locale.ROOT).contains("json"))
+                    || trimmedBody.startsWith("{") || trimmedBody.startsWith("[");
+
+                if (looksLikeJson) {
+                    try {
+                        JsonNode json = objectMapper.readTree(trimmedBody);
+                        String htmlFragment = json.path("content").asText("");
+                        parsedResponse = Jsoup.parseBodyFragment(htmlFragment != null ? htmlFragment : "");
+                        parsedFromJson = true;
+
+                        jsonSuggestsMore = json.path("load_more").asBoolean(false)
+                            || json.path("hasMore").asBoolean(false)
+                            || json.path("has_more").asBoolean(false)
+                            || json.path("has_more_pages").asBoolean(false)
+                            || json.path("more").asBoolean(false)
+                            || !json.path("last_page").asBoolean(true);
+
+                        String jsonCsrf = json.path("csrf").asText(null);
+                        if (!MangaBuffApiHelper.isBlank(jsonCsrf)) {
+                            csrf = jsonCsrf;
+                        }
+                    } catch (Exception jsonEx) {
+                        logger.warn("⚠️  [LOAD] {}: не удалось распарсить JSON ответ load #{} ({}), пробуем как HTML", 
+                            context.getFileSlug(), loadAttempts, jsonEx.getMessage());
+                        parsedResponse = Jsoup.parse(trimmedBody);
+                    }
+                }
+            }
+
+            if (parsedResponse == null) {
+                parsedResponse = currentResponse.parse();
+            }
+
+            currentDoc = parsedResponse;
             Elements anchors = currentDoc.select("a.chapters__item");
 
-            int currentChapterCount = anchors.size();
-            int newChaptersAdded = currentChapterCount - previousChapterCount;
+            int newChaptersAdded;
+            if (parsedFromJson) {
+                newChaptersAdded = anchors.size();
+                previousChapterCount += newChaptersAdded;
+            } else {
+                int currentChapterCount = anchors.size();
+                newChaptersAdded = currentChapterCount - previousChapterCount;
+                previousChapterCount = currentChapterCount;
+            }
 
-            logger.info("🔄 [LOAD] {}: после load #{} получено {} глав (добавлено: {}, всего: {})",
-                context.getFileSlug(), loadAttempts, currentChapterCount, newChaptersAdded, currentChapterCount + result.size());
+            int totalKnownChapters = previousChapterCount;
+            logger.info("🔄 [LOAD] {}: после load #{} добавлено {} глав (всего известно: {}, суммарно новых элементов: {})",
+                context.getFileSlug(), loadAttempts, newChaptersAdded, totalKnownChapters, result.size() + newChaptersAdded);
 
-            // Если не добавилось новых глав И это не первый вызов, прекращаем
-            if (newChaptersAdded <= 0 && loadAttempts > 1) {
-                logger.info("🔄 [LOAD] {}: load #{} не добавил новых глав, прекращаем", context.getFileSlug(), loadAttempts);
+            if (newChaptersAdded <= 0) {
+                if (loadAttempts > 1) {
+                    logger.info("🔄 [LOAD] {}: load #{} не добавил новых глав, прекращаем", context.getFileSlug(), loadAttempts);
+                }
                 break;
             }
 
             result.addAll(anchors);
-            previousChapterCount = currentChapterCount;
+
+            String refreshedCsrf = MangaBuffApiHelper.extractCsrfToken(currentDoc);
+            if (!MangaBuffApiHelper.isBlank(refreshedCsrf)) {
+                csrf = refreshedCsrf;
+            }
+
+            shouldContinue = MangaBuffApiHelper.hasAdditionalChapters(currentDoc) || jsonSuggestsMore;
+
+            if (!shouldContinue) {
+                logger.info("🔄 [LOAD] {}: после load #{} триггер отсутствует, предполагаем завершение", context.getFileSlug(), loadAttempts);
+                break;
+            }
 
             // Небольшая пауза между вызовами
             try {

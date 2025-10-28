@@ -13,8 +13,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
-import org.springframework.web.util.UriUtils;
 import shadowshift.studio.mangaservice.dto.MelonChapterImagesResponse;
 import shadowshift.studio.mangaservice.dto.MelonImageData;
 import shadowshift.studio.mangaservice.entity.Manga;
@@ -26,17 +24,13 @@ import shadowshift.studio.mangaservice.websocket.ProgressWebSocketHandler;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.Objects;
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.Base64;
 import java.util.regex.Pattern;
 import java.util.Locale;
@@ -801,11 +795,32 @@ public class MelonIntegrationService {
         ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
         Map<String, Object> body = response.getBody();
 
-        if (body != null && body.containsKey("manga_list")) {
-            return (List<Map<String, Object>>) body.get("manga_list");
+        List<Map<String, Object>> result = new ArrayList<>();
+        if (body == null) {
+            return result;
         }
 
-        return new ArrayList<>();
+        // Поддерживаем как старый ключ "manga_list", так и новый "mangas"
+        Object rawList = body.get("manga_list");
+        if (rawList == null) {
+            rawList = body.get("mangas");
+        }
+
+        if (!(rawList instanceof List<?> items)) {
+            return result;
+        }
+
+        for (Object item : items) {
+            if (item instanceof Map<?, ?> mapItem) {
+                Map<String, Object> normalized = new HashMap<>();
+                mapItem.forEach((key, value) -> normalized.put(String.valueOf(key), value));
+                result.add(normalized);
+            } else if (item != null) {
+                result.add(Map.of("slug", item.toString()));
+            }
+        }
+
+        return result;
     }
 
     /**
