@@ -1,5 +1,5 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Home, Search, Trophy, MessageSquare, MessageCircle, Globe2, User, Bell, Bookmark, MoreHorizontal, ChevronUp } from 'lucide-react'
+import { Home, Search, Trophy, MessageSquare, MessageCircle, Globe2, User, Bell, Bookmark, MoreHorizontal, ChevronUp, Settings } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/utils'
 import { useEffect, useState, useRef, useMemo } from 'react'
@@ -9,7 +9,7 @@ import { useNotifications } from '@/notifications/NotificationContext'
 export function MobileNavBar() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { isAuthenticated, user } = useAuth()
+  const { isAuthenticated, isAdmin, user } = useAuth()
   const { unread } = useNotifications()
   const [hasScrolled, setHasScrolled] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
@@ -33,6 +33,9 @@ export function MobileNavBar() {
   }
 
   const primaryRight: any[] = []
+  if (isAuthenticated && isAdmin) {
+    primaryRight.push({ to: '/admin', icon: Settings, label: 'Админ', match: (p: string) => p.startsWith('/admin') })
+  }
   primaryRight.push({ to: '/notifications', icon: Bell, label: 'Уведомл.', match: (p:string)=> p.startsWith('/notifications') })
   if(isAuthenticated){
     primaryRight.push({ to: `/profile/${user?.id ?? ''}`, icon: User, label: 'Профиль', match:(p:string)=> p.startsWith('/profile') })
@@ -52,8 +55,11 @@ export function MobileNavBar() {
       { to: '/tops', icon: Trophy, label: 'Топы', desc: 'Рейтинги активности' },
       { to: '/forum', icon: MessageSquare, label: 'Форум', desc: 'Обсуждения и темы' },
     ]
+    if (isAuthenticated && isAdmin) {
+      links.unshift({ to: '/admin', icon: Settings, label: 'Админ панель', desc: 'Управление контентом' })
+    }
     return links
-  }, [isAuthenticated])
+  }, [isAuthenticated, isAdmin])
 
   // Close sheet on outside click or ESC
   useEffect(()=> {

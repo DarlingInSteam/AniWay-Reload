@@ -838,7 +838,7 @@ export function MangaParser() {
               <div className="space-y-2">
                 <h5 className="text-lg font-semibold text-white">Результат парсинга</h5>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="bg-muted p-4 rounded-lg">
                     <h6 className="font-medium">Название</h6>
                     <p className="text-sm text-muted-foreground">{currentTask.result.title}</p>
@@ -924,7 +924,7 @@ export function MangaParser() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="bg-muted/50 rounded-lg p-4">
                 <p className="text-sm text-muted-foreground">Глав обработано</p>
                 <p className="text-lg font-semibold text-white">{activeMetrics.aggregate.chapters}</p>
@@ -952,7 +952,7 @@ export function MangaParser() {
             </div>
 
             {activeMetrics.command?.duration_seconds != null && (
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="bg-muted/50 rounded-lg p-4">
                   <p className="text-sm text-muted-foreground">Время запуска</p>
                   <p className="text-xs text-white">
@@ -985,7 +985,7 @@ export function MangaParser() {
                 <h5 className="text-sm font-semibold text-white">Подробно по главам</h5>
                 <div className="max-h-64 overflow-auto rounded-lg border border-border divide-y divide-border">
                   {activeMetrics.chapters.map((chapter, index) => (
-                    <div key={`${chapter.chapter_id ?? index}-${chapter.started_at ?? index}`} className="grid grid-cols-[1fr,auto,auto] gap-3 px-4 py-3 text-sm">
+                    <div key={`${chapter.chapter_id ?? index}-${chapter.started_at ?? index}`} className="grid grid-cols-1 gap-3 px-4 py-3 text-sm md:grid-cols-[1fr_auto_auto]">
                       <div>
                         <p className="text-white font-medium">{chapter.chapter_id ?? `Глава ${index + 1}`}</p>
                         <p className="text-xs text-muted-foreground">
@@ -1032,7 +1032,7 @@ export function MangaParser() {
             <div className="space-y-3">
               {parsedManga.map((manga) => (
                 <div key={manga.filename} className="border border-border rounded-lg p-4 space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-3">
                       <CheckCircle className="h-5 w-5 text-green-500" />
                       <div>

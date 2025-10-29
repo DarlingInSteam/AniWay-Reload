@@ -17,7 +17,6 @@ import org.springframework.web.server.ResponseStatusException;
 import shadowshift.studio.parserservice.domain.task.ParserTask;
 import shadowshift.studio.parserservice.domain.task.TaskLogEntry;
 import shadowshift.studio.parserservice.domain.task.TaskStatus;
-import shadowshift.studio.parserservice.domain.task.TaskType;
 import shadowshift.studio.parserservice.service.TaskExecutor;
 import shadowshift.studio.parserservice.service.TaskService;
 import shadowshift.studio.parserservice.web.dto.BatchParseRequest;
@@ -36,7 +35,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @RestController
 @Validated
@@ -200,7 +198,14 @@ public class ParserTaskController {
                 })
                 .toList();
 
-        return new TaskStatusResponse(
+    List<TaskLogEntry> logEntries = task.getLogs();
+    List<TaskLogDto> logs = logEntries.stream()
+        .sorted(Comparator.comparingLong(TaskLogEntry::sequence))
+        .skip(Math.max(0, logEntries.size() - 200))
+        .map(this::mapLog)
+        .toList();
+
+    return new TaskStatusResponse(
                 task.getId(),
                 task.getType().name(),
                 task.getStatus().name(),
@@ -217,6 +222,7 @@ public class ParserTaskController {
                 task.getCompletedAt(),
                 results,
                 task.getMetrics(),
+                logs,
                 null
         );
     }
