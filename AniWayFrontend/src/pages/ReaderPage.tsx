@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, type CSSProperties } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
@@ -41,6 +41,12 @@ function ChapterImageList({
   setVisibleIndexes,
   wrappersRef
 }: any) {
+  const [intrinsicSizes, setIntrinsicSizes] = useState<Record<number, { width: number; height: number }>>({})
+
+  useEffect(() => {
+    setIntrinsicSizes({})
+  }, [images])
+
   const getWidthClass = () => {
     switch (imageWidth) {
       case 'fit': return 'max-w-4xl'
@@ -53,6 +59,15 @@ function ChapterImageList({
     <div className={cn("mx-auto px-2 sm:px-4 overflow-x-hidden", getWidthClass())}>
       {images.map((image: any, index: number) => {
         const isVisible = visibleIndexes.has(index)
+        const recordedSize = intrinsicSizes[index]
+        const naturalWidth = (image?.width ?? 0) > 0 ? image.width : recordedSize?.width
+        const naturalHeight = (image?.height ?? 0) > 0 ? image.height : recordedSize?.height
+        const imageStyle: CSSProperties = naturalWidth
+          ? { width: '100%', maxWidth: `${naturalWidth}px` }
+          : { width: '100%' }
+        if (naturalWidth && naturalHeight && !imageStyle.aspectRatio) {
+          imageStyle.aspectRatio = `${naturalWidth} / ${naturalHeight}`
+        }
         return (
           <div
             key={image.id}
@@ -65,7 +80,7 @@ function ChapterImageList({
                 src={image.imageUrl || apiClient.getImageUrl(image.imageKey)}
                 alt={`Страница ${image.pageNumber}`}
                 className={cn(
-                  "block w-full h-auto transition-all duration-200 will-change-transform",
+                  "block h-auto transition-all duration-200 will-change-transform",
                   imageWidth === 'fit' && "max-w-4xl",
                   imageWidth === 'full' && "max-w-none w-full sm:w-screen px-0",
                   imageWidth === 'wide' && "max-w-6xl"
@@ -73,11 +88,25 @@ function ChapterImageList({
                 loading={index === 0 ? 'eager' : 'lazy'}
                 decoding="async"
                 fetchPriority={index === 0 ? 'high' : index < 3 ? 'auto' : 'low'}
+                style={imageStyle}
                 onError={(e) => {
                   const target = e.target as HTMLImageElement
                   target.src = '/placeholder-page.jpg'
                 }}
-                onLoad={() => {
+                onLoad={(event) => {
+                  const target = event.currentTarget
+                  if (target?.naturalWidth && target?.naturalHeight) {
+                    setIntrinsicSizes(prev => {
+                      const existing = prev[index]
+                      if (existing && existing.width === target.naturalWidth && existing.height === target.naturalHeight) {
+                        return prev
+                      }
+                      return {
+                        ...prev,
+                        [index]: { width: target.naturalWidth, height: target.naturalHeight }
+                      }
+                    })
+                  }
                   if (!visibleIndexes.has(index + 1) && index + 1 < images.length) {
                     setVisibleIndexes((prev: Set<number>) => new Set(prev).add(index + 1))
                   }

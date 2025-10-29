@@ -12,6 +12,7 @@ import java.net.URI;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -23,6 +24,11 @@ public final class MangaBuffApiHelper {
 
     public static final String BASE_URL = "https://mangabuff.ru";
     public static final String IMAGE_CDN = "https://c3.mangabuff.ru";
+    private static final List<String> IMAGE_CDN_HOSTS = List.of(
+        IMAGE_CDN,
+        "https://c2.mangabuff.ru",
+        "https://c1.mangabuff.ru"
+    );
     private static final DateTimeFormatter SOURCE_DATE = DateTimeFormatter.ofPattern("dd.MM.yyyy", Locale.ROOT);
     
     // Задержка между запросами для обхода rate limiting (миллисекунды)
@@ -200,10 +206,7 @@ public final class MangaBuffApiHelper {
         if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
             return trimmed;
         }
-        while (trimmed.startsWith("/")) {
-            trimmed = trimmed.substring(1);
-        }
-        return IMAGE_CDN + "/" + trimmed;
+        return rewriteImageUrlToHost(trimmed, IMAGE_CDN_HOSTS.get(0));
     }
 
     public static boolean hasAdditionalChapters(Document doc) {
@@ -306,5 +309,80 @@ public final class MangaBuffApiHelper {
         String vol = volume == null || volume.isBlank() ? "1" : volume.trim();
         String ch = chapter == null ? "" : chapter.trim();
         return vol + "_" + ch;
+    }
+
+    public static List<String> getImageCdnHosts() {
+        return IMAGE_CDN_HOSTS;
+    }
+
+    public static boolean isMangaBuffCdnCandidate(String url) {
+        if (isBlank(url)) {
+            return false;
+        }
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            return true;
+        }
+        try {
+            URI uri = URI.create(url);
+            String host = uri.getHost();
+            return host != null && host.endsWith("mangabuff.ru");
+        } catch (IllegalArgumentException ex) {
+            return false;
+        }
+    }
+
+    public static String extractImageHost(String url) {
+        if (isBlank(url)) {
+            return null;
+        }
+        try {
+            URI uri = URI.create(url);
+            String host = uri.getHost();
+            if (host == null || host.isBlank()) {
+                return null;
+            }
+            String scheme = uri.getScheme();
+            if (isBlank(scheme)) {
+                scheme = "https";
+            }
+            return scheme + "://" + host;
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    public static String rewriteImageUrlToHost(String originalUrl, String cdnHost) {
+        if (isBlank(originalUrl) || isBlank(cdnHost)) {
+            return originalUrl;
+        }
+
+        String normalizedHost = cdnHost.endsWith("/") ? cdnHost.substring(0, cdnHost.length() - 1) : cdnHost;
+        if (!normalizedHost.startsWith("http://") && !normalizedHost.startsWith("https://")) {
+            normalizedHost = "https://" + normalizedHost;
+        }
+
+        String pathAndQuery;
+        String trimmed = originalUrl.trim();
+
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            try {
+                URI uri = URI.create(trimmed);
+                String path = uri.getRawPath();
+                if (path == null) {
+                    path = "";
+                }
+                if (!path.startsWith("/")) {
+                    path = "/" + path;
+                }
+                String query = uri.getRawQuery();
+                pathAndQuery = query != null && !query.isEmpty() ? path + "?" + query : path;
+            } catch (IllegalArgumentException ex) {
+                pathAndQuery = trimmed.startsWith("/") ? trimmed : "/" + trimmed;
+            }
+        } else {
+            pathAndQuery = trimmed.startsWith("/") ? trimmed : "/" + trimmed;
+        }
+
+        return normalizedHost + pathAndQuery;
     }
 }

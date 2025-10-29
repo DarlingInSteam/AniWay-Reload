@@ -7,9 +7,13 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import shadowshift.studio.parserservice.config.ParserProperties;
+import shadowshift.studio.parserservice.util.MangaBuffApiHelper;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.*;
 
 /**
@@ -19,6 +23,10 @@ import java.util.concurrent.*;
 public class ImageDownloadService {
 
     private static final Logger logger = LoggerFactory.getLogger(ImageDownloadService.class);
+    private static final long DIRECT_SLOW_THRESHOLD_MS = 4_000L;
+    private static final long DIRECT_SLOW_COOLDOWN_MS = 120_000L;
+    private static final long DIRECT_MIN_BYTES_FOR_SPEED_CHECK = 256 * 1024L;
+    private static final double DIRECT_MIN_SPEED_MBPS = 1.0;
     
     @Autowired
     private org.springframework.context.ApplicationContext applicationContext;
@@ -27,6 +35,7 @@ public class ImageDownloadService {
     private ProxyManagerService proxyManager;
     
     private final ExecutorService executorService;
+    private final java.util.concurrent.ConcurrentMap<String, Long> cdnCooldowns = new java.util.concurrent.ConcurrentHashMap<>();
     
     public ImageDownloadService(ParserProperties properties) {
         int poolSize = properties.getMaxParallelDownloads();
@@ -42,10 +51,8 @@ public class ImageDownloadService {
             long startTime = System.currentTimeMillis();
             long fileSize = 0;
             int maxRetries = 3;
-            
-            // 🔍 Получаем прокси для текущего потока
-            ProxyManagerService.ProxyServer currentProxy = proxyManager.getProxyForCurrentThread();
-            String proxyInfo = currentProxy != null ? currentProxy.getHost() + ":" + currentProxy.getPort() : "NO_PROXY";
+            ProxyManagerService.ProxyServer currentProxy = null;
+            String proxyInfo = "NO_PROXY";
             
             try {
                 // Создаем директорию если нет
@@ -55,8 +62,17 @@ public class ImageDownloadService {
                 if (Files.exists(outputPath)) {
                     fileSize = Files.size(outputPath);
                     logger.debug("✅ File exists: {} ({}KB)", outputPath.getFileName(), fileSize / 1024);
-                    return new DownloadResult(true, System.currentTimeMillis() - startTime, fileSize, true, proxyInfo);
+                    return new DownloadResult(true, System.currentTimeMillis() - startTime, fileSize, true, "CACHE");
                 }
+
+                DownloadResult directResult = tryDirectCdnDownload(imageUrl, outputPath);
+                if (directResult != null) {
+                    return directResult;
+                }
+
+                // 🔍 Получаем прокси для fallback
+                currentProxy = proxyManager.getProxyForCurrentThread();
+                proxyInfo = currentProxy != null ? currentProxy.getHost() + ":" + currentProxy.getPort() : "NO_PROXY";
                 
                 // Retry loop для загрузки
                 Exception lastException = null;
@@ -64,10 +80,7 @@ public class ImageDownloadService {
                     try {
                         // Загружаем изображение через единый пул финских прокси
                         RestTemplate restTemplate = applicationContext.getBean(RestTemplate.class);
-                        HttpHeaders headers = new HttpHeaders();
-                        headers.set("User-Agent", "Mozilla/5.0");
-                        headers.set("Referer", "https://mangalib.me/");
-                        HttpEntity<String> entity = new HttpEntity<>(headers);
+                        HttpEntity<String> entity = new HttpEntity<>(buildImageRequestHeaders());
                         
                         ResponseEntity<byte[]> response = restTemplate.exchange(
                             imageUrl, 
@@ -219,6 +232,148 @@ public class ImageDownloadService {
                 return new DownloadSummary(totalImages, successCount, failedCount, 
                     cached.get(), totalBytes.get(), totalTime);
             });
+    }
+
+    private DownloadResult tryDirectCdnDownload(String imageUrl, Path outputPath) {
+        if (!MangaBuffApiHelper.isMangaBuffCdnCandidate(imageUrl)) {
+            return null;
+        }
+
+        List<String> cdnCandidates = resolveCdnCandidates(imageUrl);
+        if (cdnCandidates.isEmpty()) {
+            return null;
+        }
+
+        RestTemplate directRestTemplate = applicationContext.getBean("chapterRestTemplate", RestTemplate.class);
+        HttpEntity<String> requestEntity = new HttpEntity<>(buildImageRequestHeaders());
+
+        boolean attempted = false;
+
+        for (String host : cdnCandidates) {
+            if (isHostSuppressed(host)) {
+                logger.debug("⏭️ Skipping CDN host {} (cooldown active)", host);
+                continue;
+            }
+
+            attempted = true;
+            String attemptUrl = MangaBuffApiHelper.rewriteImageUrlToHost(imageUrl, host);
+            long attemptStart = System.currentTimeMillis();
+
+            try {
+                ResponseEntity<byte[]> response = directRestTemplate.exchange(
+                        attemptUrl,
+                        HttpMethod.GET,
+                        requestEntity,
+                        byte[].class
+                );
+
+                if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                    markHostSlow(host);
+                    logger.warn("❌ Direct CDN {} replied {} for {}", host, response.getStatusCode(), attemptUrl);
+                    continue;
+                }
+
+                byte[] imageData = response.getBody();
+                long elapsed = System.currentTimeMillis() - attemptStart;
+                long bytes = imageData.length;
+                double speed = calculateSpeedMbPerSec(bytes, elapsed);
+
+                if (isSlowDirectResponse(elapsed, bytes, speed)) {
+                    markHostSlow(host);
+                    logger.warn("🐢 Direct CDN {} slow: {} ms, {} MB/s ({}).", host, elapsed, formatSpeed(speed), attemptUrl);
+                    continue;
+                }
+
+                Files.write(outputPath, imageData);
+                clearHostPenalty(host);
+                logger.debug("⚡ Direct CDN {} delivered {}KB in {}ms", host, bytes / 1024, elapsed);
+                return new DownloadResult(true, elapsed, bytes, false, "DIRECT:" + host);
+            } catch (Exception ex) {
+                markHostSlow(host);
+                logger.warn("⚠️ Direct CDN {} failed for {}: {}", host, attemptUrl, ex.getMessage());
+            }
+        }
+
+        if (!attempted) {
+            logger.debug("⚠️ All CDN hosts currently in cooldown, skipping direct attempt");
+        }
+
+        return null;
+    }
+
+    private List<String> resolveCdnCandidates(String imageUrl) {
+        List<String> defaults = new ArrayList<>(MangaBuffApiHelper.getImageCdnHosts());
+        String preferred = MangaBuffApiHelper.extractImageHost(imageUrl);
+        if (preferred != null) {
+            if (defaults.remove(preferred)) {
+                defaults.add(0, preferred);
+            } else {
+                defaults.add(0, preferred);
+            }
+        }
+        return defaults;
+    }
+
+    private boolean isHostSuppressed(String host) {
+        Long slowUntil = cdnCooldowns.get(host);
+        if (slowUntil == null) {
+            return false;
+        }
+        if (slowUntil <= System.currentTimeMillis()) {
+            cdnCooldowns.remove(host, slowUntil);
+            return false;
+        }
+        return true;
+    }
+
+    private void markHostSlow(String host) {
+        if (host == null) {
+            return;
+        }
+        cdnCooldowns.put(host, System.currentTimeMillis() + DIRECT_SLOW_COOLDOWN_MS);
+    }
+
+    private void clearHostPenalty(String host) {
+        if (host == null) {
+            return;
+        }
+        cdnCooldowns.remove(host);
+    }
+
+    private double calculateSpeedMbPerSec(long bytes, long durationMs) {
+        if (durationMs <= 0 || bytes <= 0) {
+            return Double.POSITIVE_INFINITY;
+        }
+        double seconds = durationMs / 1000.0;
+        if (seconds <= 0.0) {
+            return Double.POSITIVE_INFINITY;
+        }
+        double megabytes = bytes / 1024.0 / 1024.0;
+        return megabytes / seconds;
+    }
+
+    private boolean isSlowDirectResponse(long durationMs, long bytes, double speedMbPerSec) {
+        if (durationMs >= DIRECT_SLOW_THRESHOLD_MS) {
+            return true;
+        }
+        if (bytes < DIRECT_MIN_BYTES_FOR_SPEED_CHECK) {
+            return false;
+        }
+        return speedMbPerSec < DIRECT_MIN_SPEED_MBPS;
+    }
+
+    private HttpHeaders buildImageRequestHeaders() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("User-Agent", "Mozilla/5.0");
+        headers.set("Referer", MangaBuffApiHelper.BASE_URL + "/");
+        return headers;
+    }
+
+    private String formatSpeed(double value) {
+        if (Double.isInfinite(value) || Double.isNaN(value)) {
+            return "inf";
+        }
+        return String.format(Locale.ROOT, "%.2f", value);
     }
     
     /**
