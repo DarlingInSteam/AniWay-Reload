@@ -1066,15 +1066,15 @@ export function CatalogPage() {
                     <ErrorState onRetry={() => refetch()} />
                   ) : (
                     <div className="relative grid
-                      grid-cols-2
+                      grid-cols-3
                       [grid-auto-rows:auto]
-                      gap-2.5 xs:gap-3 sm:gap-4 lg:gap-5 xl:gap-6
-                      sm:[grid-template-columns:repeat(auto-fill,minmax(170px,1fr))]
-                      md:[grid-template-columns:repeat(auto-fill,minmax(175px,1fr))]
-                      lg:[grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]
-                      xl:[grid-template-columns:repeat(auto-fill,minmax(185px,1fr))]
-                      2xl:[grid-template-columns:repeat(auto-fill,minmax(190px,1fr))]
-                      items-start place-content-start justify-items-start animate-fade-in max-w-[1400px]">
+                      gap-2.5 xs:gap-3 md:gap-3.5 lg:gap-4 xl:gap-4.5
+                      sm:grid-cols-3
+                      md:grid-cols-4
+                      lg:grid-cols-6
+                      xl:grid-cols-6
+                      2xl:grid-cols-6
+                      items-start place-content-start justify-items-stretch animate-fade-in max-w-[1400px] w-full">
                       {isLoading && manga.length === 0 && Array.from({ length: pageSize }).map((_, i) => (
                         <MangaCardSkeleton key={i} />
                       ))}

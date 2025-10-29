@@ -619,7 +619,7 @@ export function MangaManager() {
               <p className="text-sm">Попробуйте изменить параметры поиска</p>
             </div>
           ) : (
-            <div className="relative grid grid-cols-1 gap-3 items-stretch sm:grid-cols-2 sm:gap-3.5 lg:grid-cols-3 lg:gap-4 xl:grid-cols-4 2xl:grid-cols-5">
+            <div className="relative grid grid-cols-3 gap-2 items-stretch sm:grid-cols-3 sm:gap-2.5 md:grid-cols-4 md:gap-3 lg:grid-cols-6 lg:gap-3.5 xl:grid-cols-6 2xl:grid-cols-6">
               {mangaList.map((manga) => {
                 const releaseYear = manga.releaseDate ? new Date(manga.releaseDate).getFullYear() : '—'
                 const resolvedChapterCount = typeof manga.chapterCount === 'number'
