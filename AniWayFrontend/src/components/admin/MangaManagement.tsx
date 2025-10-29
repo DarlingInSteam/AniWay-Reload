@@ -2108,7 +2108,7 @@ export function MangaManagement() {
                     <Layers className="h-4 w-4" />
                     <span>Источник логов</span>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2 sm:justify-end">
                     {(['combined', 'auto-parse', 'auto-update'] as AutomationLogSource[]).map((source) => (
                       <Button
                         key={source}

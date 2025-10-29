@@ -49,32 +49,34 @@ export function AdminMangaPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex w-full flex-col gap-6">
         <TabsList
           aria-label="Разделы управления мангой"
-          className="relative flex w-full flex-nowrap items-stretch gap-2 overflow-x-auto rounded-xl border border-white/10 bg-background/60 p-1 text-xs shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/50 sm:flex-wrap sm:justify-start sm:overflow-visible sm:border-transparent sm:bg-transparent sm:p-0 sm:text-sm snap-x snap-mandatory"
+          className="relative flex w-full flex-nowrap items-stretch gap-2 overflow-x-auto rounded-xl border border-white/10 bg-background/60 py-1 pl-6 pr-6 text-xs shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/50 sm:flex-wrap sm:justify-start sm:overflow-visible sm:border-transparent sm:bg-transparent sm:p-0 sm:text-sm snap-x snap-mandatory"
         >
+          <div className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-background/95 to-transparent sm:hidden z-10" aria-hidden="true" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-background/95 to-transparent sm:hidden z-10" aria-hidden="true" />
           <TabsTrigger
             value="parser"
-            className="flex min-w-[9.5rem] flex-none items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-transparent px-3 py-2 font-medium text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:border-primary/60 data-[state=active]:bg-primary/15 data-[state=active]:text-white data-[state=active]:shadow-sm sm:flex-1 sm:px-4 sm:py-2.5 snap-start"
+            className="flex min-w-[8rem] flex-none items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-transparent px-3 py-2 font-medium text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:border-primary/60 data-[state=active]:bg-primary/15 data-[state=active]:text-white data-[state=active]:shadow-sm sm:flex-1 sm:px-4 sm:py-2.5 snap-start"
           >
             <Download className="h-4 w-4" />
             Парсер
           </TabsTrigger>
           <TabsTrigger
             value="importer"
-            className="flex min-w-[9.5rem] flex-none items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-transparent px-3 py-2 font-medium text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:border-primary/60 data-[state=active]:bg-primary/15 data-[state=active]:text-white data-[state=active]:shadow-sm sm:flex-1 sm:px-4 sm:py-2.5 snap-start"
+            className="flex min-w-[8rem] flex-none items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-transparent px-3 py-2 font-medium text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:border-primary/60 data-[state=active]:bg-primary/15 data-[state=active]:text-white data-[state=active]:shadow-sm sm:flex-1 sm:px-4 sm:py-2.5 snap-start"
           >
             <Upload className="h-4 w-4" />
             Импорт
           </TabsTrigger>
           <TabsTrigger
             value="manager"
-            className="flex min-w-[9.5rem] flex-none items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-transparent px-3 py-2 font-medium text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:border-primary/60 data-[state=active]:bg-primary/15 data-[state=active]:text-white data-[state=active]:shadow-sm sm:flex-1 sm:px-4 sm:py-2.5 snap-start"
+            className="flex min-w-[8rem] flex-none items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-transparent px-3 py-2 font-medium text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:border-primary/60 data-[state=active]:bg-primary/15 data-[state=active]:text-white data-[state=active]:shadow-sm sm:flex-1 sm:px-4 sm:py-2.5 snap-start"
           >
             <BookOpen className="h-4 w-4" />
             Управление
           </TabsTrigger>
           <TabsTrigger
             value="auto"
-            className="flex min-w-[9.5rem] flex-none items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-transparent px-3 py-2 font-medium text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:border-primary/60 data-[state=active]:bg-primary/15 data-[state=active]:text-white data-[state=active]:shadow-sm sm:flex-1 sm:px-4 sm:py-2.5 snap-start"
+            className="flex min-w-[8rem] flex-none items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-transparent px-3 py-2 font-medium text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:border-primary/60 data-[state=active]:bg-primary/15 data-[state=active]:text-white data-[state=active]:shadow-sm sm:flex-1 sm:px-4 sm:py-2.5 snap-start"
           >
             <RefreshCw className="h-4 w-4" />
             Автоматизация
