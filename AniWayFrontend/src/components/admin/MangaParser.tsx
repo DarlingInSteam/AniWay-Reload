@@ -772,7 +772,7 @@ export function MangaParser() {
             )}
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
                 {currentTask.status === 'running' ? (
                   <Loader2 className="h-5 w-5 text-blue-500 animate-spin" />
@@ -790,7 +790,7 @@ export function MangaParser() {
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3 sm:justify-end">
                 <Badge className={
                   currentTask.status === 'completed' ? 'bg-green-500' :
                   currentTask.status === 'failed' ? 'bg-red-500' :

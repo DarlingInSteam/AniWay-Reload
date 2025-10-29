@@ -567,12 +567,12 @@ export function MangaManager() {
       {/* Список манги */}
       <Card className="glass-panel border border-white/5 shadow-xl">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle>
               Манга в системе ({mangaList.length})
             </CardTitle>
             {selectedMangaIds.size > 0 && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                 <span className="text-sm text-muted-foreground">
                   Выбрано: {selectedMangaIds.size}
                 </span>
@@ -595,7 +595,7 @@ export function MangaManager() {
             )}
           </div>
           {mangaList.length > 0 && (
-            <div className="flex items-center gap-2 pt-2">
+            <div className="flex flex-wrap items-center gap-2 pt-2">
               <Checkbox
                 id="select-all"
                 checked={selectedMangaIds.size === mangaList.length && mangaList.length > 0}
@@ -905,7 +905,7 @@ export function MangaManager() {
                   <span>Выберите мангу, чтобы управлять её главами.</span>
                 )}
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <Button
                   variant="outline"
                   size="sm"
@@ -930,7 +930,7 @@ export function MangaManager() {
 
             <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
               <GlassPanel className="border border-white/10 space-y-4 max-h-[55vh] overflow-hidden">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <h3 className="text-sm font-semibold text-white uppercase tracking-wide">Список глав</h3>
                   {isLoadingChapters ? <Loader2 className="h-4 w-4 animate-spin text-white/60" /> : null}
                 </div>
@@ -1031,7 +1031,7 @@ export function MangaManager() {
               </GlassPanel>
 
               <GlassPanel className="border border-white/10 space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h3 className="text-sm font-semibold text-white uppercase tracking-wide">
                       {chapterMode === 'create' ? 'Новая глава' : 'Редактирование главы'}
