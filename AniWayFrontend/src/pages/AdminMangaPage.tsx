@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { MangaParser } from '@/components/admin/MangaParser'
 import { MangaImporter } from '@/components/admin/MangaImporter'
@@ -11,6 +11,56 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 export function AdminMangaPage() {
   const [activeTab, setActiveTab] = useState('parser')
   const { isAdmin, loading } = useAuth()
+  const tabsListRef = useRef<HTMLDivElement | null>(null)
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  const [showLeftFade, setShowLeftFade] = useState(false)
+  const [showRightFade, setShowRightFade] = useState(false)
+
+  const updateFadeIndicators = useCallback(() => {
+    const list = tabsListRef.current
+    if (!list) {
+      return
+    }
+
+    const { scrollLeft, scrollWidth, clientWidth } = list
+    const hasOverflow = scrollWidth > clientWidth + 1
+    const nextShowLeft = hasOverflow && scrollLeft > 4
+    const nextShowRight = hasOverflow && scrollLeft + clientWidth < scrollWidth - 4
+
+    setShowLeftFade((prev) => (prev === nextShowLeft ? prev : nextShowLeft))
+    setShowRightFade((prev) => (prev === nextShowRight ? prev : nextShowRight))
+  }, [])
+
+  useEffect(() => {
+    const list = tabsListRef.current
+    if (!list) {
+      return
+    }
+
+    const handleResize = () => window.requestAnimationFrame(updateFadeIndicators)
+
+    updateFadeIndicators()
+    list.addEventListener('scroll', updateFadeIndicators, { passive: true })
+    window.addEventListener('resize', handleResize)
+
+    return () => {
+      list.removeEventListener('scroll', updateFadeIndicators)
+      window.removeEventListener('resize', handleResize)
+    }
+  }, [updateFadeIndicators])
+
+  useEffect(() => {
+    const activeTrigger = tabRefs.current[activeTab]
+    const list = tabsListRef.current
+
+    if (!activeTrigger || !list) {
+      updateFadeIndicators()
+      return
+    }
+
+    activeTrigger.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+    window.requestAnimationFrame(updateFadeIndicators)
+  }, [activeTab, updateFadeIndicators])
 
   if (loading) {
     return (
@@ -48,13 +98,28 @@ export function AdminMangaPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex w-full flex-col gap-6">
         <TabsList
+          ref={tabsListRef}
           aria-label="Разделы управления мангой"
-          className="relative flex w-full flex-nowrap items-stretch gap-2 overflow-x-auto rounded-xl border border-white/10 bg-background/60 py-1 pl-6 pr-6 text-xs shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/50 sm:flex-wrap sm:justify-start sm:overflow-visible sm:border-transparent sm:bg-transparent sm:p-0 sm:text-sm snap-x snap-mandatory"
+          className="relative flex w-full flex-nowrap items-stretch gap-2 overflow-x-auto rounded-xl border border-white/10 bg-background/60 py-1 pl-5 pr-5 text-xs shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/50 sm:flex-wrap sm:justify-start sm:overflow-visible sm:border-transparent sm:bg-transparent sm:p-0 sm:text-sm snap-x snap-mandatory"
+          style={{ scrollPaddingInline: '1.25rem' }}
         >
-          <div className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-background/95 to-transparent sm:hidden z-10" aria-hidden="true" />
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-background/95 to-transparent sm:hidden z-10" aria-hidden="true" />
+          {showLeftFade && (
+            <div
+              className="pointer-events-none absolute inset-y-0 left-0 w-5 bg-gradient-to-r from-background/95 to-transparent sm:hidden z-10"
+              aria-hidden="true"
+            />
+          )}
+          {showRightFade && (
+            <div
+              className="pointer-events-none absolute inset-y-0 right-0 w-5 bg-gradient-to-l from-background/95 to-transparent sm:hidden z-10"
+              aria-hidden="true"
+            />
+          )}
           <TabsTrigger
             value="parser"
+            ref={(node) => {
+              tabRefs.current.parser = node
+            }}
             className="flex min-w-[8rem] flex-none items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-transparent px-3 py-2 font-medium text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:border-primary/60 data-[state=active]:bg-primary/15 data-[state=active]:text-white data-[state=active]:shadow-sm sm:flex-1 sm:px-4 sm:py-2.5 snap-start"
           >
             <Download className="h-4 w-4" />
@@ -62,6 +127,9 @@ export function AdminMangaPage() {
           </TabsTrigger>
           <TabsTrigger
             value="importer"
+            ref={(node) => {
+              tabRefs.current.importer = node
+            }}
             className="flex min-w-[8rem] flex-none items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-transparent px-3 py-2 font-medium text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:border-primary/60 data-[state=active]:bg-primary/15 data-[state=active]:text-white data-[state=active]:shadow-sm sm:flex-1 sm:px-4 sm:py-2.5 snap-start"
           >
             <Upload className="h-4 w-4" />
@@ -69,6 +137,9 @@ export function AdminMangaPage() {
           </TabsTrigger>
           <TabsTrigger
             value="manager"
+            ref={(node) => {
+              tabRefs.current.manager = node
+            }}
             className="flex min-w-[8rem] flex-none items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-transparent px-3 py-2 font-medium text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:border-primary/60 data-[state=active]:bg-primary/15 data-[state=active]:text-white data-[state=active]:shadow-sm sm:flex-1 sm:px-4 sm:py-2.5 snap-start"
           >
             <BookOpen className="h-4 w-4" />
@@ -76,6 +147,9 @@ export function AdminMangaPage() {
           </TabsTrigger>
           <TabsTrigger
             value="auto"
+            ref={(node) => {
+              tabRefs.current.auto = node
+            }}
             className="flex min-w-[8rem] flex-none items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-transparent px-3 py-2 font-medium text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:border-primary/60 data-[state=active]:bg-primary/15 data-[state=active]:text-white data-[state=active]:shadow-sm sm:flex-1 sm:px-4 sm:py-2.5 snap-start"
           >
             <RefreshCw className="h-4 w-4" />
