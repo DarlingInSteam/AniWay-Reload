@@ -619,15 +619,7 @@ export function MangaManager() {
               <p className="text-sm">Попробуйте изменить параметры поиска</p>
             </div>
           ) : (
-            <div className="relative grid
-              grid-cols-2
-              [grid-auto-rows:auto]
-              gap-2 xs:gap-2.5 sm:gap-3 lg:gap-4 xl:gap-4.5
-              sm:[grid-template-columns:repeat(auto-fill,minmax(165px,1fr))]
-              md:[grid-template-columns:repeat(auto-fill,minmax(170px,1fr))]
-              lg:[grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]
-              xl:[grid-template-columns:repeat(auto-fill,minmax(190px,1fr))]
-              items-start justify-items-start">
+            <div className="relative grid grid-cols-1 gap-3 items-stretch sm:grid-cols-2 sm:gap-3.5 lg:grid-cols-3 lg:gap-4 xl:grid-cols-4 2xl:grid-cols-5">
               {mangaList.map((manga) => {
                 const releaseYear = manga.releaseDate ? new Date(manga.releaseDate).getFullYear() : '—'
                 const resolvedChapterCount = typeof manga.chapterCount === 'number'
@@ -645,7 +637,7 @@ export function MangaManager() {
                 ].filter(Boolean).join(' · ')
 
                 return (
-                  <div key={manga.id} className="flex w-full max-w-[190px] flex-col gap-1.5">
+                  <div key={manga.id} className="flex min-w-0 flex-col gap-1.5 h-full">
                       <div 
                         className="group relative overflow-hidden rounded-lg border border-white/10 bg-white/[0.03] shadow-lg transition-all duration-300 hover:border-primary/40 hover:shadow-primary/20 focus-within:border-primary/40 focus-within:shadow-primary/20 cursor-pointer"
                         onClick={() => toggleMangaSelection(manga.id)}
@@ -943,7 +935,7 @@ export function MangaManager() {
                   {isLoadingChapters ? <Loader2 className="h-4 w-4 animate-spin text-white/60" /> : null}
                 </div>
 
-                <div className="overflow-y-auto pr-1" style={{ maxHeight: '45vh' }}>
+                <div className="overflow-y-auto overflow-x-auto pr-1" style={{ maxHeight: '45vh' }}>
                   {isLoadingChapters ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 className="h-5 w-5 animate-spin text-blue-400" />

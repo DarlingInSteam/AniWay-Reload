@@ -46,39 +46,54 @@ export function AdminMangaPage() {
         </p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="w-full flex flex-col gap-2 rounded-xl bg-card/90 p-2 sm:flex-row sm:flex-wrap">
-          <TabsTrigger value="parser" className="flex flex-1 min-w-[140px] items-center justify-center gap-2 text-xs sm:text-sm">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex w-full flex-col gap-6">
+        <TabsList
+          aria-label="Разделы управления мангой"
+          className="relative flex w-full flex-nowrap items-stretch gap-2 overflow-x-auto rounded-xl border border-white/10 bg-background/60 p-1 text-xs shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/50 sm:flex-wrap sm:justify-start sm:overflow-visible sm:border-transparent sm:bg-transparent sm:p-0 sm:text-sm snap-x snap-mandatory"
+        >
+          <TabsTrigger
+            value="parser"
+            className="flex min-w-[9.5rem] flex-none items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-transparent px-3 py-2 font-medium text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:border-primary/60 data-[state=active]:bg-primary/15 data-[state=active]:text-white data-[state=active]:shadow-sm sm:flex-1 sm:px-4 sm:py-2.5 snap-start"
+          >
             <Download className="h-4 w-4" />
             Парсер
           </TabsTrigger>
-          <TabsTrigger value="importer" className="flex flex-1 min-w-[140px] items-center justify-center gap-2 text-xs sm:text-sm">
+          <TabsTrigger
+            value="importer"
+            className="flex min-w-[9.5rem] flex-none items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-transparent px-3 py-2 font-medium text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:border-primary/60 data-[state=active]:bg-primary/15 data-[state=active]:text-white data-[state=active]:shadow-sm sm:flex-1 sm:px-4 sm:py-2.5 snap-start"
+          >
             <Upload className="h-4 w-4" />
             Импорт
           </TabsTrigger>
-          <TabsTrigger value="manager" className="flex flex-1 min-w-[140px] items-center justify-center gap-2 text-xs sm:text-sm">
+          <TabsTrigger
+            value="manager"
+            className="flex min-w-[9.5rem] flex-none items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-transparent px-3 py-2 font-medium text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:border-primary/60 data-[state=active]:bg-primary/15 data-[state=active]:text-white data-[state=active]:shadow-sm sm:flex-1 sm:px-4 sm:py-2.5 snap-start"
+          >
             <BookOpen className="h-4 w-4" />
             Управление
           </TabsTrigger>
-          <TabsTrigger value="auto" className="flex flex-1 min-w-[140px] items-center justify-center gap-2 text-xs sm:text-sm">
+          <TabsTrigger
+            value="auto"
+            className="flex min-w-[9.5rem] flex-none items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-transparent px-3 py-2 font-medium text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:border-primary/60 data-[state=active]:bg-primary/15 data-[state=active]:text-white data-[state=active]:shadow-sm sm:flex-1 sm:px-4 sm:py-2.5 snap-start"
+          >
             <RefreshCw className="h-4 w-4" />
             Автоматизация
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="parser" className="mt-6 sm:mt-8">
+        <TabsContent value="parser" className="focus-visible:outline-none">
           <MangaParser />
         </TabsContent>
 
-        <TabsContent value="importer" className="mt-6 sm:mt-8">
+        <TabsContent value="importer" className="focus-visible:outline-none">
           <MangaImporter />
         </TabsContent>
 
-        <TabsContent value="manager" className="mt-6 sm:mt-8">
+        <TabsContent value="manager" className="focus-visible:outline-none">
           <MangaManager />
         </TabsContent>
 
-        <TabsContent value="auto" className="mt-6 sm:mt-8">
+        <TabsContent value="auto" className="focus-visible:outline-none">
           <MangaManagement />
         </TabsContent>
       </Tabs>
