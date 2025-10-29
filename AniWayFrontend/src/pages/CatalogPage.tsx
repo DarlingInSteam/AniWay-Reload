@@ -1068,10 +1068,9 @@ export function CatalogPage() {
                     <div className="relative grid
                       grid-cols-3
                       [grid-auto-rows:auto]
-                      gap-2.5 xs:gap-3 md:gap-3.5 lg:gap-4 xl:gap-4.5
-                      sm:grid-cols-3
+                      gap-2 sm:gap-2.5 md:gap-3 lg:gap-3.5 xl:gap-4
                       md:grid-cols-4
-                      lg:grid-cols-6
+                      lg:grid-cols-5
                       xl:grid-cols-6
                       2xl:grid-cols-6
                       items-start place-content-start justify-items-stretch animate-fade-in max-w-[1400px] w-full">
