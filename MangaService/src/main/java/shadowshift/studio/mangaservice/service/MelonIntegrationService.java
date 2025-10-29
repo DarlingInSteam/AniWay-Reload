@@ -28,6 +28,7 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.Objects;
 import java.util.regex.Matcher;
@@ -421,8 +422,7 @@ public class MelonIntegrationService {
                     
                     // ВАЖНО: НЕ используем .get() чтобы не блокировать автопарсинг!
                     // Добавляем импорт в очередь с нормальным приоритетом и completion callback
-                    importQueueService.queueImport(importTaskId, normalizedSlug, null, ImportQueueService.ImportQueueItem.Priority.NORMAL, () -> {
-                        // Completion callback: проверяем, успешно ли импортирована манга, и только тогда удаляем из processingSlugs
+                    Runnable completionCallback = () -> {
                         boolean importSuccessful = mangaRepository.existsByMelonSlug(normalizedSlug);
                         if (importSuccessful) {
                             processingSlugs.remove(normalizedSlug);
@@ -430,14 +430,31 @@ public class MelonIntegrationService {
                         } else {
                             logger.warn("Импорт не удался для {}, оставляем в processingSlugs для предотвращения повторного парсинга", normalizedSlug);
                         }
-                    });
+                    };
+
+                    boolean queued = false;
+                    while (!queued) {
+                        try {
+                            importQueueService.queueImport(importTaskId, normalizedSlug, null, ImportQueueService.ImportQueueItem.Priority.NORMAL, completionCallback);
+                            queued = true;
+                        } catch (ImportQueueService.ImportInProgressException busy) {
+                            ImportQueueService.ImportQueueItem active = busy.getCurrentImport();
+                            logger.warn("Импорт уже выполняется ({}). Ждем освобождения слота перед импортом {}", active != null ? active.getSlug() : "unknown", normalizedSlug);
+                            try {
+                                TimeUnit.SECONDS.sleep(20);
+                            } catch (InterruptedException ie) {
+                                Thread.currentThread().interrupt();
+                                throw new IllegalStateException("Ожидание слота импорта прервано", ie);
+                            }
+                        }
+                    }
                     
-                    // Обновляем статус - парсинг завершен, импорт добавлен в очередь
-                    updateFullParsingTask(fullTaskId, "completed", 100, "Парсинг завершен, импорт добавлен в очередь для фоновой обработки", Map.of(
+                    // Обновляем статус - парсинг завершен, импорт запущен
+                    updateFullParsingTask(fullTaskId, "completed", 100, "Парсинг завершен, импорт запущен в эксклюзивном режиме", Map.of(
                         "filename", slug,
                         "parse_completed", true,
                         "build_completed", true,
-                        "import_queued", true,
+                        "import_running", true,
                         "title", mangaInfo != null ? mangaInfo.get("localized_name") : null,
                         "manga_info", mangaInfo
                     ));
@@ -766,6 +783,13 @@ public class MelonIntegrationService {
      * Запускает построение архива манги с возможностью включения/выключения автоимпорта
      */
     public Map<String, Object> buildManga(String filename, String branchId, boolean autoImport) {
+        if (importQueueService.isLocked()) {
+            ImportQueueService.ImportQueueItem active = importQueueService.getCurrentImport();
+            String activeSlug = active != null ? active.getSlug() : "unknown";
+            throw new ImportQueueService.ImportInProgressException(
+                "Импорт уже выполняется для тайтла " + activeSlug, active);
+        }
+
         String url = melonServiceUrl + "/build";
 
         Map<String, Object> request = new HashMap<>();
@@ -1329,7 +1353,7 @@ public class MelonIntegrationService {
         ImportTaskService.ImportTask task = importTaskService.createTask(taskId);
 
         // Добавляем импорт в очередь (не блокирует парсинг/билдинг других тайтлов)
-        logger.info("📋 [QUEUE] Adding import to queue: taskId={}, filename={}", taskId, filename);
+        logger.info("📥 [LOCK] Запуск импорта: taskId={}, filename={}", taskId, filename);
         importQueueService.queueImport(taskId, filename, branchId, ImportQueueService.ImportQueueItem.Priority.NORMAL, () -> {
             // Completion callback: проверяем, успешно ли импортирована манга, и только тогда удаляем из processingSlugs
             boolean importSuccessful = mangaRepository.existsByMelonSlug(filename);
@@ -1344,8 +1368,8 @@ public class MelonIntegrationService {
         return Map.of(
             "success", true,
             "taskId", taskId,
-            "status", "queued",
-            "message", "Импорт добавлен в очередь"
+            "status", "running",
+            "message", "Импорт запущен"
         );
     }
 
