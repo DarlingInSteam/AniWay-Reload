@@ -799,8 +799,14 @@ public class MelonIntegrationService {
         if (importQueueService.isLocked()) {
             ImportQueueService.ImportQueueItem active = importQueueService.getCurrentImport();
             String activeSlug = active != null ? active.getSlug() : "unknown";
-            throw new ImportQueueService.ImportInProgressException(
-                "Импорт уже выполняется для тайтла " + activeSlug, active);
+
+            if (autoImport) {
+                throw new ImportQueueService.ImportInProgressException(
+                    "Импорт уже выполняется для тайтла " + activeSlug, active);
+            }
+
+            logger.info("Очередь импорта занята тайтлом {}. Продолжаем билд без автоимпорта и будем ожидать свободный слот перед постановкой импорта.",
+                activeSlug);
         }
 
         String url = melonServiceUrl + "/build";
