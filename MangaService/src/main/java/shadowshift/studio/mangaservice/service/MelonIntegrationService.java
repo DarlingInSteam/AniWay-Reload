@@ -26,6 +26,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -47,6 +49,7 @@ public class MelonIntegrationService {
 
     private static final Logger logger = LoggerFactory.getLogger(MelonIntegrationService.class);
     private static final Duration TASK_STATUS_POLL_INTERVAL = Duration.ofMillis(500); // Уменьшено с 2s до 500ms
+    private static final Duration IMPORT_STATUS_POLL_INTERVAL = Duration.ofSeconds(2);
     private static final int MAX_MISSING_TASK_STATUS_ATTEMPTS = 15;
     private static final Pattern NUMERIC_TOKEN_PATTERN = Pattern.compile("[-+]?\\d+(?:[\\.,]\\d+)?");
     private static final Pattern VOLUME_KEYWORD_PATTERN = Pattern.compile("(?iu)(том|volume|vol\\.?|book|часть|part|season|сезон)\\s*([-+]?\\d+(?:[\\.,]\\d+)?)");
@@ -117,6 +120,9 @@ public class MelonIntegrationService {
     
     // Маппинг fullParsingTaskId -> autoParsingTaskId для связывания логов buildTask
     private final Map<String, String> fullParsingToAutoParsingTask = new HashMap<>();
+    private final ConcurrentMap<String, String> childTaskToFullParsingTask = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Set<String>> fullParsingChildTasks = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, List<Map<String, Object>>> fullParsingLogs = new ConcurrentHashMap<>();
     
     // Набор slug'ов, которые находятся в процессе импорта (чтобы предотвратить повторный парсинг)
     private final Set<String> processingSlugs = Collections.synchronizedSet(new HashSet<>());
@@ -130,6 +136,113 @@ public class MelonIntegrationService {
             fullParsingToAutoParsingTask.put(fullParsingTaskId, autoParsingTaskId);
             logger.info("Зарегистрирована связь fullParsingTaskId={} → autoParsingTaskId={}", 
                 fullParsingTaskId, autoParsingTaskId);
+            trackChildTask(fullParsingTaskId, fullParsingTaskId);
+        }
+    }
+
+    private void trackChildTask(String fullParsingTaskId, String childTaskId) {
+        if (fullParsingTaskId == null || childTaskId == null) {
+            return;
+        }
+
+        childTaskToFullParsingTask.put(childTaskId, fullParsingTaskId);
+        fullParsingChildTasks
+            .computeIfAbsent(fullParsingTaskId, key -> ConcurrentHashMap.newKeySet())
+            .add(childTaskId);
+    }
+
+    private void cleanupFullParsingMappings(String fullParsingTaskId) {
+        if (fullParsingTaskId == null) {
+            return;
+        }
+
+        fullParsingToAutoParsingTask.remove(fullParsingTaskId);
+        fullParsingLogs.remove(fullParsingTaskId);
+
+        Set<String> children = fullParsingChildTasks.remove(fullParsingTaskId);
+        if (children != null) {
+            for (String childId : children) {
+                childTaskToFullParsingTask.remove(childId);
+            }
+        } else {
+            childTaskToFullParsingTask.remove(fullParsingTaskId);
+        }
+    }
+
+    private String resolveFullParsingTaskId(String taskId) {
+        if (taskId == null) {
+            return null;
+        }
+
+        String mapped = childTaskToFullParsingTask.get(taskId);
+        if (mapped != null) {
+            return mapped;
+        }
+
+        if (fullParsingTasks.containsKey(taskId)) {
+            return taskId;
+        }
+
+        return null;
+    }
+
+    private void recordFullParsingLog(String fullParsingTaskId, String level, String message) {
+        if (fullParsingTaskId == null || message == null) {
+            return;
+        }
+
+        List<Map<String, Object>> logs = fullParsingLogs.computeIfAbsent(
+            fullParsingTaskId,
+            key -> Collections.synchronizedList(new ArrayList<>())
+        );
+
+        String normalizedLevel = level != null && !level.isBlank()
+            ? level.toUpperCase(Locale.ROOT)
+            : "INFO";
+
+        Map<String, Object> entry = new HashMap<>();
+        entry.put("timestamp", System.currentTimeMillis());
+        entry.put("level", normalizedLevel);
+        entry.put("message", message);
+
+        synchronized (logs) {
+            logs.add(entry);
+            if (logs.size() > 200) {
+                logs.remove(0);
+            }
+        }
+    }
+
+    private void broadcastLogMessage(String sourceTaskId, String level, String message) {
+        if (message == null || message.isBlank()) {
+            return;
+        }
+
+        Set<String> targets = new LinkedHashSet<>();
+        if (sourceTaskId != null) {
+            targets.add(sourceTaskId);
+        }
+
+        String fullTaskId = resolveFullParsingTaskId(sourceTaskId);
+        if (fullTaskId != null) {
+            targets.add(fullTaskId);
+            recordFullParsingLog(fullTaskId, level, message);
+
+            String autoTaskId = fullParsingToAutoParsingTask.get(fullTaskId);
+            if (autoTaskId != null) {
+                targets.add(autoTaskId);
+                autoParsingService.addLogToTask(autoTaskId, message);
+            }
+        }
+
+        String normalizedLevel = level != null && !level.isBlank()
+            ? level.toUpperCase(Locale.ROOT)
+            : "INFO";
+
+        for (String targetTaskId : targets) {
+            if (targetTaskId != null) {
+                webSocketHandler.sendLogMessage(targetTaskId, normalizedLevel, message);
+            }
         }
     }
 
@@ -346,6 +459,8 @@ public class MelonIntegrationService {
             }
             String parseTaskId = (String) parseResult.get("task_id");
             String fullParsingTaskId = UUID.randomUUID().toString();
+            trackChildTask(fullParsingTaskId, fullParsingTaskId);
+            trackChildTask(fullParsingTaskId, parseTaskId);
             // Исправлено: передаем ссылку на this
             fullParsingTaskRunner.startFullParsingTask(this, fullParsingTaskId, parseTaskId, slug);
             return Map.of(
@@ -389,6 +504,7 @@ public class MelonIntegrationService {
                 return;
             }
             String buildTaskId = (String) buildResult.get("task_id");
+            trackChildTask(fullTaskId, buildTaskId);
             
             // Если этот fullParsingTask связан с autoParsingTask, то и buildTaskId тоже нужно связать
             String autoParsingTaskId = fullParsingToAutoParsingTask.get(fullTaskId);
@@ -461,17 +577,89 @@ public class MelonIntegrationService {
                             }
                         }
                     }
-                    
-                    // Обновляем статус - парсинг завершен, импорт запущен
-                    updateFullParsingTask(fullTaskId, "completed", 100, "Парсинг завершен, импорт запущен в эксклюзивном режиме", Map.of(
-                        "filename", slug,
-                        "parse_completed", true,
-                        "build_completed", true,
-                        "import_running", true,
-                        "title", mangaInfo != null ? mangaInfo.get("localized_name") : null,
-                        "manga_info", mangaInfo
-                    ));
-                    logger.info("Парсинг завершен для slug={}, импорт добавлен в очередь, задача завершена", slug);
+
+                    Map<String, Object> fullParsingResult = new HashMap<>();
+                    fullParsingResult.put("filename", slug);
+                    fullParsingResult.put("normalized_slug", normalizedSlug);
+                    fullParsingResult.put("parse_task_id", parseTaskId);
+                    fullParsingResult.put("build_task_id", buildTaskId);
+                    fullParsingResult.put("import_task_id", importTaskId);
+                    fullParsingResult.put("parse_completed", true);
+                    fullParsingResult.put("build_completed", true);
+                    fullParsingResult.put("import_running", true);
+                    if (mangaInfo != null) {
+                        fullParsingResult.put("title", mangaInfo.get("localized_name"));
+                        fullParsingResult.put("manga_info", mangaInfo);
+                    }
+
+                    updateFullParsingTask(fullTaskId, "running", 70,
+                        "Импорт поставлен в очередь, ожидание завершения...",
+                        new HashMap<>(fullParsingResult));
+                    logger.info("Импорт для slug={} поставлен в очередь, ожидаем завершения", slug);
+
+                    ImportTaskService.ImportTask finalImportTask;
+                    try {
+                        finalImportTask = waitForImportTaskCompletion(importTaskId, fullTaskId, fullParsingResult);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        fullParsingResult.put("import_running", false);
+                        fullParsingResult.put("import_status", "interrupted");
+                        updateFullParsingTask(fullTaskId, "failed", 100,
+                            "Импорт прерван: " + ie.getMessage(),
+                            new HashMap<>(fullParsingResult));
+                        logger.error("Ожидание импорта прервано для slug={}", slug, ie);
+                        return;
+                    }
+
+                    if (finalImportTask == null) {
+                        fullParsingResult.put("import_running", false);
+                        fullParsingResult.put("import_status", "unknown");
+                        updateFullParsingTask(fullTaskId, "failed", 100,
+                            "Не удалось получить статус импорта",
+                            new HashMap<>(fullParsingResult));
+                        logger.warn("Не удалось получить финальный статус импорта {} для slug={}", importTaskId, slug);
+                        return;
+                    }
+
+                    ImportTaskService.TaskStatus importStatus = finalImportTask.getStatus();
+                    fullParsingResult.put("import_running", false);
+                    fullParsingResult.put("import_progress", finalImportTask.getProgress());
+                    fullParsingResult.put("import_status", importStatus.name().toLowerCase(Locale.ROOT));
+                    Map<String, Object> metricsSnapshot = finalImportTask.getMetrics();
+                    if (metricsSnapshot != null && !metricsSnapshot.isEmpty()) {
+                        fullParsingResult.put("import_metrics", new HashMap<>(metricsSnapshot));
+                    }
+                    fullParsingResult.put("import_task", finalImportTask.toMap());
+
+                    if (importStatus == ImportTaskService.TaskStatus.COMPLETED) {
+                        fullParsingResult.put("import_completed", true);
+                        fullParsingResult.put("import_progress", 100);
+                        updateFullParsingTask(fullTaskId, "completed", 100,
+                            "Парсинг и импорт завершены успешно",
+                            new HashMap<>(fullParsingResult));
+                        logger.info("Парсинг и импорт завершены для slug={}", slug);
+                        return;
+                    }
+
+                    if (importStatus == ImportTaskService.TaskStatus.FAILED) {
+                        String error = finalImportTask.getErrorMessage();
+                        if (error != null && !error.isBlank()) {
+                            fullParsingResult.put("import_error", error);
+                        }
+                        fullParsingResult.put("import_completed", false);
+                        updateFullParsingTask(fullTaskId, "failed", 100,
+                            "Импорт завершился с ошибкой: " + (error != null ? error : "неизвестная ошибка"),
+                            new HashMap<>(fullParsingResult));
+                        logger.error("Импорт завершился с ошибкой для slug={}: {}", slug, error);
+                        return;
+                    }
+
+                    fullParsingResult.put("import_completed", false);
+                    updateFullParsingTask(fullTaskId, "failed", 100,
+                        "Импорт завершился в неопределенном состоянии",
+                        new HashMap<>(fullParsingResult));
+                    logger.warn("Импорт завершился в неопределенном состоянии для slug={} (status={})", slug, importStatus);
+                    return;
                         
                 } catch (Exception importEx) {
                     logger.error("Ошибка при импорте или очистке для slug={}: {}", slug, importEx.getMessage(), importEx);
@@ -487,8 +675,8 @@ public class MelonIntegrationService {
                 "Ошибка при полном парсинге: " + e.getMessage(), null);
         } finally {
             // Очищаем маппинг после завершения (успех или ошибка)
-            fullParsingToAutoParsingTask.remove(fullTaskId);
-            logger.debug("Очищен маппинг fullParsingTaskId={}", fullTaskId);
+            cleanupFullParsingMappings(fullTaskId);
+            logger.debug("Очищены связи для fullParsingTaskId={}", fullTaskId);
         }
     }
 
@@ -534,11 +722,20 @@ public class MelonIntegrationService {
             }
         }
 
+        String safeMessage = message != null ? message : "";
+        broadcastLogMessage(taskId, "INFO", safeMessage);
+
+        List<Map<String, Object>> logs = fullParsingLogs.get(taskId);
+        if (logs != null) {
+            synchronized (logs) {
+                task.put("logs", new ArrayList<>(logs));
+            }
+        }
+
         fullParsingTasks.put(taskId, task);
 
         // Отправляем обновление прогресса через WebSocket
         webSocketHandler.sendProgressUpdate(taskId, task);
-        webSocketHandler.sendLogMessage(taskId, "INFO", message != null ? message : "");
     }
 
     private LocalDateTime parseDateTime(Object value) {
@@ -593,10 +790,7 @@ public class MelonIntegrationService {
                     List<String> newLogs = fetchTaskLogs(taskId, lastLogCount);
                     if (newLogs != null && !newLogs.isEmpty()) {
                         for (String log : newLogs) {
-                            // Отправляем лог через WebSocket (если taskId связан с fullParsingTask)
-                            String fullParsingTaskId = findFullParsingTaskId(taskId);
-                            String targetTaskId = fullParsingTaskId != null ? fullParsingTaskId : taskId;
-                            webSocketHandler.sendLogMessage(targetTaskId, "INFO", log != null ? log : "");
+                            broadcastLogMessage(taskId, "INFO", log != null ? log : "");
                         }
                         lastLogCount += newLogs.size();
                         logger.debug("📋 Получено {} новых логов от ParserService для задачи {}", newLogs.size(), taskId);
@@ -612,9 +806,7 @@ public class MelonIntegrationService {
                     List<String> finalLogs = fetchTaskLogs(taskId, lastLogCount);
                     if (finalLogs != null && !finalLogs.isEmpty()) {
                         for (String log : finalLogs) {
-                            String fullParsingTaskId = findFullParsingTaskId(taskId);
-                            String targetTaskId = fullParsingTaskId != null ? fullParsingTaskId : taskId;
-                            webSocketHandler.sendLogMessage(targetTaskId, "INFO", log != null ? log : "");
+                            broadcastLogMessage(taskId, "INFO", log != null ? log : "");
                         }
                     }
                 } catch (Exception e) {
@@ -679,15 +871,58 @@ public class MelonIntegrationService {
         return Collections.emptyList();
     }
 
-    /**
-     * Находит fullParsingTaskId по taskId парсинга/билда
-     */
-    private String findFullParsingTaskId(String childTaskId) {
-        for (Map.Entry<String, String> entry : fullParsingToAutoParsingTask.entrySet()) {
-            // Можно расширить логику поиска, пока возвращаем null
-            // так как связь между parse/build taskId и fullTaskId не прямая
+    private ImportTaskService.ImportTask waitForImportTaskCompletion(
+        String importTaskId,
+        String fullParsingTaskId,
+        Map<String, Object> resultData
+    ) throws InterruptedException {
+        int lastReportedProgress = 70;
+
+        while (true) {
+            ImportTaskService.ImportTask task = importTaskService.getTask(importTaskId);
+            if (task == null) {
+                Thread.sleep(IMPORT_STATUS_POLL_INTERVAL.toMillis());
+                continue;
+            }
+
+            ImportTaskService.TaskStatus status = task.getStatus();
+            resultData.put("import_status", status.name().toLowerCase(Locale.ROOT));
+            resultData.put("import_progress", task.getProgress());
+
+            String importMessage = task.getMessage();
+            if (importMessage != null && !importMessage.isBlank()) {
+                resultData.put("import_message", importMessage);
+            }
+
+            Map<String, Object> metricsSnapshot = task.getMetrics();
+            if (metricsSnapshot != null && !metricsSnapshot.isEmpty()) {
+                resultData.put("import_metrics", new HashMap<>(metricsSnapshot));
+            }
+
+            if (status == ImportTaskService.TaskStatus.COMPLETED
+                || status == ImportTaskService.TaskStatus.FAILED) {
+                return task;
+            }
+
+            int mappedProgress = mapImportProgress(task.getProgress());
+            if (mappedProgress < lastReportedProgress) {
+                mappedProgress = lastReportedProgress;
+            } else {
+                lastReportedProgress = mappedProgress;
+            }
+
+            String statusMessage = importMessage != null && !importMessage.isBlank()
+                ? "Импорт: " + importMessage
+                : "Импорт выполняется...";
+
+            updateFullParsingTask(fullParsingTaskId, "running", mappedProgress, statusMessage, new HashMap<>(resultData));
+            Thread.sleep(IMPORT_STATUS_POLL_INTERVAL.toMillis());
         }
-        return null; // Временно, пока не реализуем двустороннюю связь
+    }
+
+    private int mapImportProgress(int importProgress) {
+        int clamped = Math.max(0, Math.min(importProgress, 100));
+        return 70 + (clamped * 25) / 100;
     }
 
     protected Duration getTaskStatusPollInterval() {
