@@ -538,7 +538,7 @@ public class MelonIntegrationService {
 
         // Отправляем обновление прогресса через WebSocket
         webSocketHandler.sendProgressUpdate(taskId, task);
-        webSocketHandler.sendLogMessage(taskId, "INFO", message);
+        webSocketHandler.sendLogMessage(taskId, "INFO", message != null ? message : "");
     }
 
     private LocalDateTime parseDateTime(Object value) {
@@ -595,9 +595,8 @@ public class MelonIntegrationService {
                         for (String log : newLogs) {
                             // Отправляем лог через WebSocket (если taskId связан с fullParsingTask)
                             String fullParsingTaskId = findFullParsingTaskId(taskId);
-                            if (fullParsingTaskId != null) {
-                                webSocketHandler.sendLogMessage(fullParsingTaskId, "INFO", log);
-                            }
+                            String targetTaskId = fullParsingTaskId != null ? fullParsingTaskId : taskId;
+                            webSocketHandler.sendLogMessage(targetTaskId, "INFO", log != null ? log : "");
                         }
                         lastLogCount += newLogs.size();
                         logger.debug("📋 Получено {} новых логов от ParserService для задачи {}", newLogs.size(), taskId);
@@ -614,9 +613,8 @@ public class MelonIntegrationService {
                     if (finalLogs != null && !finalLogs.isEmpty()) {
                         for (String log : finalLogs) {
                             String fullParsingTaskId = findFullParsingTaskId(taskId);
-                            if (fullParsingTaskId != null) {
-                                webSocketHandler.sendLogMessage(fullParsingTaskId, "INFO", log);
-                            }
+                            String targetTaskId = fullParsingTaskId != null ? fullParsingTaskId : taskId;
+                            webSocketHandler.sendLogMessage(targetTaskId, "INFO", log != null ? log : "");
                         }
                     }
                 } catch (Exception e) {
