@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { ChevronDown, X, Loader2, Check, RotateCcw } from 'lucide-react'
+import { ChevronDown, X, Loader2, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useFilterData } from '@/hooks/useFilterData'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select'
@@ -22,8 +21,6 @@ interface FilterState {
 interface MangaFilterPanelProps {
   initialFilters?: FilterState
   onFiltersChange: (filters: FilterState) => void
-  onReset: () => void
-  onApply?: () => void
   className?: string
   appearance?: 'desktop' | 'mobile'
 }
@@ -160,8 +157,6 @@ const FilterRow: React.FC<RowProps & { active?: boolean; appearance: 'desktop' |
 export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
   initialFilters,
   onFiltersChange,
-  onReset,
-  onApply,
   className,
   appearance = 'desktop'
 }) => {
@@ -203,12 +198,6 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
     current[idx] = num
     if (current[0] > current[1]) current[idx === 0 ? 1 : 0] = num
     update({ [field]: current } as any)
-  }
-
-  const resetAll = () => {
-    setFilters(DEFAULTS)
-    onFiltersChange(DEFAULTS)
-    onReset()
   }
 
   const rowSummary = {
@@ -375,7 +364,7 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
       )}
 
       {/* Scrollable content */}
-  <div className={cn('flex-1 overflow-y-auto px-0 scrollbar-custom', isMobile ? 'space-y-2 pt-2 pb-24' : 'space-y-2 pt-2 pb-4')}>
+  <div className={cn('flex-1 overflow-y-auto px-0 scrollbar-custom', isMobile ? 'space-y-2 pt-2 pb-24' : 'space-y-2 pt-0 pb-4')}>
         <FilterRow
           id="row-genres"
           title="Жанры"
@@ -536,34 +525,6 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
         </FilterRow>
       </div>
 
-      {onApply && (
-        <div
-          className={cn(
-            'mt-auto flex w-full items-center gap-3 px-5 py-4',
-            isMobile
-              ? 'sticky bottom-0 bg-[#0b0d10]/90 backdrop-blur-2xl shadow-[0_-2px_12px_-3px_rgba(0,0,0,0.6)] sm:hidden'
-              : 'border-t border-white/5'
-          )}
-        >
-          <Button
-            type="button"
-            onClick={onApply}
-            className={cn(
-              'h-11 flex-1 rounded-xl bg-primary/80 text-[13px] font-semibold uppercase tracking-wide text-white transition hover:bg-primary'
-            )}
-          >
-            Применить
-          </Button>
-          <button
-            type="button"
-            onClick={resetAll}
-            className="flex h-11 w-12 items-center justify-center rounded-xl border border-white/10 bg-[#1b1b1b] text-white/65 transition hover:text-white hover:bg-[#212121] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-            aria-label="Сбросить фильтры"
-          >
-            <RotateCcw className="h-4 w-4" />
-          </button>
-        </div>
-      )}
     </div>
   )
 }

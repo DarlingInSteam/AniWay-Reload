@@ -74,6 +74,93 @@ const normalizeRange = (value: unknown): [number, number] | undefined => {
   return [first, second]
 }
 
+type RangeTuple = [number, number]
+
+interface NormalizedFilterState {
+  selectedGenres: string[]
+  selectedTags: string[]
+  mangaType: string
+  status: string
+  ageRating: RangeTuple
+  rating: RangeTuple
+  releaseYear: RangeTuple
+  chapterRange: RangeTuple
+  strictMatch: boolean
+}
+
+const arrayShallowEqual = <T,>(a: readonly T[], b: readonly T[]) => {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false
+  }
+  return true
+}
+
+const ensureRange = (value: unknown, fallback: RangeTuple): RangeTuple => {
+  const normalized = normalizeRange(value)
+  return normalized ? [...normalized] as RangeTuple : [...fallback] as RangeTuple
+}
+
+const coerceStringArray = (value?: unknown): string[] => {
+  if (!Array.isArray(value)) return []
+  return (value as unknown[]).filter((item): item is string => typeof item === 'string' && item.length > 0)
+}
+
+const normalizeFilterState = (filters?: Partial<NormalizedFilterState>): NormalizedFilterState => ({
+  selectedGenres: coerceStringArray(filters?.selectedGenres),
+  selectedTags: coerceStringArray(filters?.selectedTags),
+  mangaType: filters?.mangaType ?? '',
+  status: filters?.status ?? '',
+  ageRating: ensureRange(filters?.ageRating, DEFAULT_AGE_RATING),
+  rating: ensureRange(filters?.rating, DEFAULT_RATING_RANGE),
+  releaseYear: ensureRange(filters?.releaseYear, DEFAULT_RELEASE_YEAR_RANGE),
+  chapterRange: ensureRange(filters?.chapterRange, DEFAULT_CHAPTER_RANGE),
+  strictMatch: Boolean(filters?.strictMatch)
+})
+
+const areDraftFilterStatesEqual = (a: NormalizedFilterState, b: NormalizedFilterState) => (
+  arrayShallowEqual(a.selectedGenres, b.selectedGenres) &&
+  arrayShallowEqual(a.selectedTags, b.selectedTags) &&
+  a.mangaType === b.mangaType &&
+  a.status === b.status &&
+  rangesEqual(a.ageRating, b.ageRating) &&
+  rangesEqual(a.rating, b.rating) &&
+  rangesEqual(a.releaseYear, b.releaseYear) &&
+  rangesEqual(a.chapterRange, b.chapterRange) &&
+  a.strictMatch === b.strictMatch
+)
+
+const buildActiveFilterParams = (filters: NormalizedFilterState) => {
+  const params: Record<string, any> = {}
+  if (filters.selectedGenres.length) params.genres = [...filters.selectedGenres]
+  if (filters.selectedTags.length) params.tags = [...filters.selectedTags]
+  if (filters.mangaType) params.type = filters.mangaType
+  if (filters.status) params.status = filters.status
+  if (!rangesEqual(filters.ageRating, DEFAULT_AGE_RATING)) params.ageRating = [...filters.ageRating]
+  if (!rangesEqual(filters.rating, DEFAULT_RATING_RANGE)) params.rating = [...filters.rating]
+  if (!rangesEqual(filters.releaseYear, DEFAULT_RELEASE_YEAR_RANGE)) params.releaseYear = [...filters.releaseYear]
+  if (!rangesEqual(filters.chapterRange, DEFAULT_CHAPTER_RANGE)) params.chapterRange = [...filters.chapterRange]
+  if (filters.strictMatch) params.strictMatch = true
+  return params
+}
+
+const areActiveFilterParamsEqual = (a: Record<string, any>, b: Record<string, any>) => {
+  const keysA = Object.keys(a)
+  const keysB = Object.keys(b)
+  if (keysA.length !== keysB.length) return false
+  for (const key of keysA) {
+    if (!Object.prototype.hasOwnProperty.call(b, key)) return false
+    const valA = a[key]
+    const valB = b[key]
+    if (Array.isArray(valA) && Array.isArray(valB)) {
+      if (!arrayShallowEqual(valA, valB)) return false
+    } else if (valA !== valB) {
+      return false
+    }
+  }
+  return true
+}
+
 export function CatalogPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [showFilters, setShowFilters] = useState(false)
@@ -126,8 +213,8 @@ export function CatalogPage() {
     const measure = () => {
       const headerEl = document.querySelector('header') as HTMLElement | null
       const h = headerEl ? headerEl.getBoundingClientRect().height : 0
-      // Добавляем небольшой зазор (16px)
-      setFilterOffset(h + 16)
+      // Добавляем небольшой зазор (8px), чтобы панель не пряталась под хедером
+      setFilterOffset(h + 8)
     }
     measure()
     window.addEventListener('resize', measure)
@@ -194,18 +281,18 @@ export function CatalogPage() {
   if (initialActiveFilters.chapterRange && rangesEqual(initialActiveFilters.chapterRange, DEFAULT_CHAPTER_RANGE)) {
     delete initialActiveFilters.chapterRange
   }
-  const [activeFilters, setActiveFilters] = useState<any>(initialActiveFilters) // Применённые фильтры (для API)
-  const [draftFilters, setDraftFilters] = useState<any>(() => ({
-    selectedGenres: initialActiveFilters.genres || [],
-    selectedTags: initialActiveFilters.tags || [],
-    mangaType: initialActiveFilters.type || '',
-    status: initialActiveFilters.status || '',
-    ageRating: initialActiveFilters.ageRating || DEFAULT_AGE_RATING,
-    rating: initialActiveFilters.rating || DEFAULT_RATING_RANGE,
-    releaseYear: initialActiveFilters.releaseYear || DEFAULT_RELEASE_YEAR_RANGE,
-    chapterRange: initialActiveFilters.chapterRange || DEFAULT_CHAPTER_RANGE,
-    strictMatch: initialActiveFilters.strictMatch || false
-  })) // Предварительные фильтры (для UI)
+  const [activeFilters, setActiveFilters] = useState<Record<string, any>>(initialActiveFilters)
+  const [draftFilters, setDraftFilters] = useState<NormalizedFilterState>(() => normalizeFilterState({
+    selectedGenres: initialActiveFilters.genres,
+    selectedTags: initialActiveFilters.tags,
+    mangaType: initialActiveFilters.type,
+    status: initialActiveFilters.status,
+    ageRating: initialActiveFilters.ageRating,
+    rating: initialActiveFilters.rating,
+    releaseYear: initialActiveFilters.releaseYear,
+    chapterRange: initialActiveFilters.chapterRange,
+    strictMatch: initialActiveFilters.strictMatch
+  }))
   // Refs & QueryClient
   const sortDropdownRef = useRef<HTMLDivElement>(null)
   const desktopSortRef = useRef<HTMLDivElement>(null)
@@ -422,119 +509,40 @@ export function CatalogPage() {
   }, [currentPage, sortField, sortDirection, activeType, activeFilters, genre, sortNonce, searchQuery, setSearchParams])
 
   // Обработчики фильтров
-  const memoizedFilterState = useMemo(() => {
-    const filterState = {
-      selectedGenres: draftFilters.selectedGenres || [],
-      selectedTags: draftFilters.selectedTags || [],
-      mangaType: draftFilters.mangaType || '',
-      status: draftFilters.status || '',
-      ageRating: draftFilters.ageRating || [0, 21],
-      rating: draftFilters.rating || [0, 10],
-      releaseYear: draftFilters.releaseYear || [1990, new Date().getFullYear()],
-      chapterRange: draftFilters.chapterRange || [0, 1000],
-      strictMatch: draftFilters.strictMatch || false
-    }
-    return filterState
-  }, [
-    JSON.stringify(draftFilters.selectedGenres || []),
-    JSON.stringify(draftFilters.selectedTags || []),
-    draftFilters.mangaType,
-    draftFilters.status,
-    JSON.stringify(draftFilters.ageRating || [0, 21]),
-    JSON.stringify(draftFilters.rating || [0, 10]),
-    JSON.stringify(draftFilters.releaseYear || [1990, new Date().getFullYear()]),
-    JSON.stringify(draftFilters.chapterRange || [0, 1000]),
-    draftFilters.strictMatch
-  ])
+  const memoizedFilterState = useMemo(() => ({
+    selectedGenres: [...draftFilters.selectedGenres],
+    selectedTags: [...draftFilters.selectedTags],
+    mangaType: draftFilters.mangaType,
+    status: draftFilters.status,
+    ageRating: [...draftFilters.ageRating] as RangeTuple,
+    rating: [...draftFilters.rating] as RangeTuple,
+    releaseYear: [...draftFilters.releaseYear] as RangeTuple,
+    chapterRange: [...draftFilters.chapterRange] as RangeTuple,
+    strictMatch: draftFilters.strictMatch
+  }), [draftFilters])
 
-  const convertActiveFiltersToFilterState = (activeFilters: any) => {
-    const filterState = {
-      selectedGenres: activeFilters.genres || [],
-      selectedTags: activeFilters.tags || [],
-      mangaType: activeFilters.type || '',
-      status: activeFilters.status || '',
-      ageRating: activeFilters.ageRating || [0, 21],
-      rating: activeFilters.rating || [0, 10],
-      releaseYear: activeFilters.releaseYear || [1990, new Date().getFullYear()],
-      chapterRange: activeFilters.chapterRange || [0, 1000],
-      strictMatch: activeFilters.strictMatch || false
-    }
-    // Debug removed
-    return filterState
-  }
+  const applyFilterState = useCallback((nextFilters: Partial<NormalizedFilterState>) => {
+    const normalized = normalizeFilterState(nextFilters)
+    const draftChanged = !areDraftFilterStatesEqual(draftFilters, normalized)
+    const nextActive = buildActiveFilterParams(normalized)
+    const activeChanged = !areActiveFilterParamsEqual(activeFilters, nextActive)
 
-  // Обработка изменений в предварительных фильтрах (не применяем сразу)
-  const handleFiltersChange = (filters: any) => {
-  // Debug removed
-    setDraftFilters(filters)
-  }
-
-  // Функция применения фильтров (вызывается кнопкой "Применить")
-  const applyFilters = () => {
-  // Debug removed
-    
-    // Преобразуем FilterState в SearchParams формат
-    const searchParams: any = {}
-    
-    if (draftFilters.selectedGenres?.length > 0) {
-  // Debug removed
-      searchParams.genres = draftFilters.selectedGenres
-    }
-    
-    if (draftFilters.selectedTags?.length > 0) {
-  // Debug removed
-      searchParams.tags = draftFilters.selectedTags
-    }
-    
-    if (draftFilters.mangaType && draftFilters.mangaType !== '') {
-      searchParams.type = draftFilters.mangaType
-    }
-    
-    if (draftFilters.status && draftFilters.status !== '') {
-      searchParams.status = draftFilters.status
-    }
-    
-    if (draftFilters.ageRating && !rangesEqual(draftFilters.ageRating, DEFAULT_AGE_RATING)) {
-      searchParams.ageRating = draftFilters.ageRating
-    }
-    
-    if (draftFilters.rating && !rangesEqual(draftFilters.rating, DEFAULT_RATING_RANGE)) {
-      searchParams.rating = draftFilters.rating
-    }
-    
-    if (draftFilters.releaseYear && !rangesEqual(draftFilters.releaseYear, DEFAULT_RELEASE_YEAR_RANGE)) {
-      searchParams.releaseYear = draftFilters.releaseYear
-    }
-    
-    if (draftFilters.chapterRange && !rangesEqual(draftFilters.chapterRange, DEFAULT_CHAPTER_RANGE)) {
-      searchParams.chapterRange = draftFilters.chapterRange
-    }
-    if (draftFilters.strictMatch) {
-      searchParams.strictMatch = true
+    if (draftChanged) {
+      setDraftFilters(normalized)
     }
 
-  // Debug removed
-    setActiveFilters(searchParams)
-    setCurrentPage(0) // Сбрасываем на первую страницу при изменении фильтров
-  }
+    if (activeChanged) {
+      setActiveFilters(nextActive)
+    }
 
-  // Функция сброса фильтров
-  const resetFilters = () => {
-  // Debug removed
-    setDraftFilters({
-      selectedGenres: [],
-      selectedTags: [],
-      mangaType: '',
-      status: '',
-      ageRating: DEFAULT_AGE_RATING,
-      rating: DEFAULT_RATING_RANGE,
-      releaseYear: DEFAULT_RELEASE_YEAR_RANGE,
-      chapterRange: DEFAULT_CHAPTER_RANGE,
-      strictMatch: false
-    })
-    setActiveFilters({})
-    setCurrentPage(0)
-  }
+    if (draftChanged || activeChanged) {
+      setCurrentPage(0)
+    }
+  }, [activeFilters, draftFilters, setActiveFilters, setDraftFilters, setCurrentPage])
+
+  const handleFiltersChange = useCallback((filters: Partial<NormalizedFilterState>) => {
+    applyFilterState(filters)
+  }, [applyFilterState])
 
   // Обработчик быстрых фильтров
   const handleActiveTypeChange = (type: string) => {
@@ -639,18 +647,7 @@ export function CatalogPage() {
   }, [showSortDropdown])
 
   const clearAllFilters = () => {
-    setActiveFilters({})
-    setDraftFilters({
-      selectedGenres: [],
-      selectedTags: [],
-      mangaType: '',
-      status: '',
-      ageRating: DEFAULT_AGE_RATING,
-      rating: DEFAULT_RATING_RANGE,
-      releaseYear: DEFAULT_RELEASE_YEAR_RANGE,
-      chapterRange: DEFAULT_CHAPTER_RANGE,
-      strictMatch: false
-    })
+    applyFilterState({})
     setActiveType('все')
     setSearchInput('')
     setSearchQuery('')
@@ -665,154 +662,58 @@ export function CatalogPage() {
       return
     }
 
-  setActiveFilters((prev: any) => {
-      const next: any = { ...prev }
-      let changed = false
-
-      const removeArrayValue = (key: 'genres' | 'tags', target?: string) => {
-        if (!target) return
-        const current = Array.isArray(next[key]) ? (next[key] as string[]).filter(item => item !== target) : []
-        if (current.length > 0) {
-          next[key] = current
-        } else {
-          delete next[key]
-        }
-        changed = true
-      }
-
-      switch (category) {
-        case 'genre':
-          removeArrayValue('genres', value)
-          break
-        case 'tag':
-          removeArrayValue('tags', value)
-          break
-        case 'type':
-          if (next.type) {
-            delete next.type
-            changed = true
-          }
-          break
-        case 'activeType':
-          break
-        case 'status':
-          if (next.status) {
-            delete next.status
-            changed = true
-          }
-          break
-        case 'ageRating':
-          if (next.ageRating) {
-            delete next.ageRating
-            changed = true
-          }
-          break
-        case 'rating':
-          if (next.rating) {
-            delete next.rating
-            changed = true
-          }
-          break
-        case 'releaseYear':
-          if (next.releaseYear) {
-            delete next.releaseYear
-            changed = true
-          }
-          break
-        case 'chapterRange':
-          if (next.chapterRange) {
-            delete next.chapterRange
-            changed = true
-          }
-          break
-        case 'strict':
-          if (next.strictMatch) {
-            delete next.strictMatch
-            changed = true
-          }
-          break
-      }
-
-      return changed ? next : prev
-    })
-
-  setDraftFilters((prev: any) => {
-      const next: any = { ...prev }
-      let changed = false
-
-      const removeDraftArrayValue = (key: 'selectedGenres' | 'selectedTags', target?: string) => {
-        if (!target) return
-        const current = Array.isArray(next[key]) ? (next[key] as string[]).filter(item => item !== target) : []
-        if (current.length > 0) {
-          next[key] = current
-        } else {
-          delete next[key]
-        }
-        changed = true
-      }
-
-      switch (category) {
-        case 'genre':
-          removeDraftArrayValue('selectedGenres', value)
-          break
-        case 'tag':
-          removeDraftArrayValue('selectedTags', value)
-          break
-        case 'type':
-          if (next.mangaType) {
-            next.mangaType = ''
-            changed = true
-          }
-          break
-        case 'activeType':
-          break
-        case 'status':
-          if (next.status) {
-            next.status = ''
-            changed = true
-          }
-          break
-        case 'ageRating':
-          if (next.ageRating) {
-            next.ageRating = DEFAULT_AGE_RATING
-            changed = true
-          }
-          break
-        case 'rating':
-          if (next.rating) {
-            next.rating = DEFAULT_RATING_RANGE
-            changed = true
-          }
-          break
-        case 'releaseYear':
-          if (next.releaseYear) {
-            next.releaseYear = DEFAULT_RELEASE_YEAR_RANGE
-            changed = true
-          }
-          break
-        case 'chapterRange':
-          if (next.chapterRange) {
-            next.chapterRange = DEFAULT_CHAPTER_RANGE
-            changed = true
-          }
-          break
-        case 'strict':
-          if (next.strictMatch) {
-            next.strictMatch = false
-            changed = true
-          }
-          break
-      }
-
-      return changed ? next : prev
-    })
-
     if (category === 'activeType') {
       setActiveType('все')
+      setCurrentPage(0)
+      return
     }
 
-    setCurrentPage(0)
-  }, [setActiveFilters, setDraftFilters, setActiveType, setSearchInput, setSearchQuery])
+    const nextDraft: NormalizedFilterState = {
+      ...draftFilters,
+      selectedGenres: [...draftFilters.selectedGenres],
+      selectedTags: [...draftFilters.selectedTags],
+      ageRating: [...draftFilters.ageRating] as RangeTuple,
+      rating: [...draftFilters.rating] as RangeTuple,
+      releaseYear: [...draftFilters.releaseYear] as RangeTuple,
+      chapterRange: [...draftFilters.chapterRange] as RangeTuple
+    }
+
+    switch (category) {
+      case 'genre':
+        if (value) {
+          nextDraft.selectedGenres = nextDraft.selectedGenres.filter(item => item !== value)
+        }
+        break
+      case 'tag':
+        if (value) {
+          nextDraft.selectedTags = nextDraft.selectedTags.filter(item => item !== value)
+        }
+        break
+      case 'type':
+        nextDraft.mangaType = ''
+        break
+      case 'status':
+        nextDraft.status = ''
+        break
+      case 'ageRating':
+        nextDraft.ageRating = [...DEFAULT_AGE_RATING] as RangeTuple
+        break
+      case 'rating':
+        nextDraft.rating = [...DEFAULT_RATING_RANGE] as RangeTuple
+        break
+      case 'releaseYear':
+        nextDraft.releaseYear = [...DEFAULT_RELEASE_YEAR_RANGE] as RangeTuple
+        break
+      case 'chapterRange':
+        nextDraft.chapterRange = [...DEFAULT_CHAPTER_RANGE] as RangeTuple
+        break
+      case 'strict':
+        nextDraft.strictMatch = false
+        break
+    }
+
+    applyFilterState(nextDraft)
+  }, [applyFilterState, draftFilters, setActiveType, setCurrentPage, setSearchInput, setSearchQuery])
 
   const activeChips = useMemo<ActiveChip[]>(() => {
     const chips: ActiveChip[] = []
@@ -953,8 +854,6 @@ export function CatalogPage() {
             <MangaFilterPanel
               initialFilters={memoizedFilterState}
               onFiltersChange={handleFiltersChange}
-              onReset={resetFilters}
-              onApply={() => { applyFilters(); setShowFilters(false) }}
               className="h-full"
               appearance="mobile"
             />
@@ -1185,8 +1084,6 @@ export function CatalogPage() {
               <MangaFilterPanel
                 initialFilters={memoizedFilterState}
                 onFiltersChange={handleFiltersChange}
-                onReset={resetFilters}
-                onApply={applyFilters}
                 appearance="desktop"
               />
             </div>
