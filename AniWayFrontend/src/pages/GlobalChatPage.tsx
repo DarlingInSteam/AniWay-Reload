@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGlobalChat } from '@/hooks/useGlobalChat';
@@ -11,6 +12,7 @@ import { CategoryCreateDialog, CategoryCreatePayload } from '@/features/global-c
 import { CategoryEditDialog, CategoryEditPayload } from '@/features/global-chat/components/CategoryEditDialog';
 import { useChatMessageNavigation } from '@/features/global-chat/hooks/useChatMessageNavigation';
 import { ChatMobileToggle } from '@/features/global-chat/components/ChatMobileToggle';
+import { MobileChannelDrawer } from '@/features/global-chat/components/MobileChannelDrawer';
 
 export const GlobalChatPage: React.FC = () => {
   const { user, isAdmin, isAuthenticated } = useAuth();
@@ -199,7 +201,7 @@ export const GlobalChatPage: React.FC = () => {
         </div>
 
         <div className="flex flex-1 min-h-0 flex-col gap-1 overflow-hidden">
-          <div className={cn(showChannelSidebar ? 'flex' : 'hidden', 'lg:flex')}>
+          <div className="hidden lg:block">
             <ChannelSidebar
               categories={categories}
               filteredCategories={filteredCategories}
@@ -223,7 +225,13 @@ export const GlobalChatPage: React.FC = () => {
             />
           </div>
 
-          <div className={cn('flex flex-1 min-h-0 flex-col overflow-hidden', showChatPanel ? 'flex' : 'hidden', 'lg:flex')}>
+          <div
+            className={cn(
+              'flex flex-1 min-h-0 flex-col overflow-hidden',
+              !showChatPanel && 'hidden lg:flex',
+              'lg:flex'
+            )}
+          >
             <SelectedCategoryPanel
               category={selectedCategory ?? null}
               messages={messages}
@@ -248,6 +256,33 @@ export const GlobalChatPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showChannelSidebar && (
+          <MobileChannelDrawer
+            categories={categories}
+            filteredCategories={filteredCategories}
+            loading={loadingCategories}
+            loadingMessages={loadingMessages}
+            selectedCategoryId={selectedCategoryId}
+            selectedCategory={selectedCategory ?? null}
+            hasSelectedCategory={hasSelectedCategory}
+            hasMore={hasMore}
+            isAdmin={isAdmin}
+            categoryQuery={categoryQuery}
+            onCategoryQueryChange={setCategoryQuery}
+            onSelectCategory={handleSelectCategory}
+            onRefreshAll={refreshAll}
+            onRefreshCategories={refreshCategories}
+            onRefreshMessages={refreshMessages}
+            onLoadOlderMessages={loadOlderMessages}
+            onMarkSelectedCategoryRead={markSelectedCategoryRead}
+            onOpenCreateCategory={() => setCreateDialogOpen(true)}
+            onOpenEditCategory={() => setEditDialogOpen(true)}
+            onClose={handleShowChat}
+          />
+        )}
+      </AnimatePresence>
 
       {isAdmin && (
         <>
