@@ -422,8 +422,15 @@ public class MangaBuffParserService {
 
         Map<String, String> info = parseInfoList(document);
 
-        metadata.setType(mapType(info.get("Тип")));
-        metadata.setTypeCode(metadata.getType());
+        String resolvedType = mapType(info.get("Тип"));
+        if (resolvedType == null) {
+            resolvedType = mapTypeFromTypeLinks(document);
+        }
+        if (resolvedType == null) {
+            resolvedType = "manga";
+        }
+        metadata.setType(resolvedType);
+        metadata.setTypeCode(resolvedType);
         metadata.setStatus(mapStatus(info.get("Статус")));
         metadata.setStatusCode(metadata.getStatus());
         
@@ -1022,17 +1029,109 @@ public class MangaBuffParserService {
     }
 
     private String mapType(String value) {
-        if (value == null) {
+        return resolveTypeCanonical(value);
+    }
+
+    private String mapTypeFromTypeLinks(Document document) {
+        if (document == null) {
             return null;
         }
-        return switch (value.trim().toLowerCase(Locale.ROOT)) {
-            case "манга" -> "manga";
-            case "манхва" -> "manhwa";
-            case "маньхуа" -> "manhua";
-            case "комикс" -> "western_comic";
-            case "роман" -> "novel";
-            default -> null;
-        };
+
+        Elements links = document.select(".manga__middle-link[href*='/types/']");
+        for (Element link : links) {
+            String href = link.attr("href");
+            if (href != null) {
+                int index = href.indexOf("/types/");
+                if (index >= 0) {
+                    String slugPart = href.substring(index + 7);
+                    if (!slugPart.isEmpty()) {
+                        String slug = slugPart.split("[/?#]")[0];
+                        String resolved = resolveTypeCanonical(slug);
+                        if (resolved != null) {
+                            return resolved;
+                        }
+                    }
+                }
+            }
+
+            String text = MangaBuffApiHelper.safeText(link);
+            String resolvedByText = resolveTypeCanonical(text);
+            if (resolvedByText != null) {
+                return resolvedByText;
+            }
+        }
+
+        return null;
+    }
+
+    private String resolveTypeCanonical(String rawValue) {
+        if (rawValue == null) {
+            return null;
+        }
+
+        String normalized = rawValue.trim().toLowerCase(Locale.ROOT);
+        if (normalized.isEmpty()) {
+            return null;
+        }
+
+        String collapsed = normalized
+            .replace('-', ' ')
+            .replace('_', ' ')
+            .replace('–', ' ')
+            .replace('—', ' ')
+            .replace('/', ' ');
+        collapsed = collapsed.replaceAll("\\s+", " ").trim();
+
+        if (typeMatches(normalized, collapsed, "manxva", "манхва", "манxва", "manhwa")) {
+            return "manhwa";
+        }
+        if (typeMatches(normalized, collapsed, "manxya", "маньхуа", "манxуа", "manhua")) {
+            return "manhua";
+        }
+        if (typeMatches(normalized, collapsed, "руманга", "ruman", "russian comic", "russian_comic", "русский комикс", "комикс русский")) {
+            return "russian_comic";
+        }
+        if (typeMatches(normalized, collapsed, "comiks zapadniy", "комикс западный", "западный комикс", "western comic", "western_comic", "комикс запад", "западный comic")) {
+            return "western_comic";
+        }
+        if (typeMatches(normalized, collapsed, "indonesian", "индонезийский комикс", "комикс индонезийский")) {
+            return "indonesian_comic";
+        }
+        if (typeMatches(normalized, collapsed, "oel", "oel манга", "oel manga", "oel-манга", "oel манхва")) {
+            return "oel";
+        }
+        if (typeMatches(normalized, collapsed, "singl", "сингл", "one shot", "oneshot", "one-shot")) {
+            return "manga";
+        }
+        if (typeMatches(normalized, collapsed, "роман", "novel", "ranobe", "ранобэ", "ранобе")) {
+            return "novel";
+        }
+        if (typeMatches(normalized, collapsed, "manga", "манга")) {
+            return "manga";
+        }
+
+        return null;
+    }
+
+    private boolean typeMatches(String normalized, String collapsed, String... options) {
+        if (options == null) {
+            return false;
+        }
+
+        for (String option : options) {
+            if (option == null) {
+                continue;
+            }
+            String candidate = option.toLowerCase(Locale.ROOT);
+            if (normalized.equals(candidate)
+                || collapsed.equals(candidate)
+                || normalized.contains(candidate)
+                || collapsed.contains(candidate)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private String mapStatus(String value) {
