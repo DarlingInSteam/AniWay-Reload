@@ -22,10 +22,10 @@ export function AdminMangaPage() {
       return
     }
 
-    const { scrollLeft, scrollWidth, clientWidth } = list
-    const hasOverflow = scrollWidth > clientWidth + 1
-    const nextShowLeft = hasOverflow && scrollLeft > 4
-    const nextShowRight = hasOverflow && scrollLeft + clientWidth < scrollWidth - 4
+  const { scrollLeft, scrollWidth, clientWidth } = list
+  const hasOverflow = scrollWidth > clientWidth + 1
+  const nextShowLeft = hasOverflow && scrollLeft > 1
+  const nextShowRight = hasOverflow && scrollLeft + clientWidth < scrollWidth - 1
 
     setShowLeftFade((prev) => (prev === nextShowLeft ? prev : nextShowLeft))
     setShowRightFade((prev) => (prev === nextShowRight ? prev : nextShowRight))
@@ -49,18 +49,45 @@ export function AdminMangaPage() {
     }
   }, [updateFadeIndicators])
 
-  useEffect(() => {
-    const activeTrigger = tabRefs.current[activeTab]
+  const ensureActiveTabVisible = useCallback(() => {
     const list = tabsListRef.current
+    const activeTrigger = tabRefs.current[activeTab]
 
-    if (!activeTrigger || !list) {
+    if (!list || !activeTrigger) {
       updateFadeIndicators()
       return
     }
 
-    activeTrigger.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
-    window.requestAnimationFrame(updateFadeIndicators)
+    const { scrollLeft, clientWidth } = list
+    const scrollRight = scrollLeft + clientWidth
+
+    const computedStyles = window.getComputedStyle(list)
+    const paddingLeft = parseFloat(computedStyles.paddingLeft) || 0
+    const paddingRight = parseFloat(computedStyles.paddingRight) || 0
+
+    const tabLeft = activeTrigger.offsetLeft
+    const tabRight = tabLeft + activeTrigger.offsetWidth
+    const minVisible = scrollLeft + paddingLeft
+    const maxVisible = scrollRight - paddingRight
+    let nextScrollLeft = scrollLeft
+
+    if (tabLeft < minVisible) {
+      nextScrollLeft = Math.max(0, tabLeft - paddingLeft)
+    } else if (tabRight > maxVisible) {
+      nextScrollLeft = Math.max(0, tabRight - clientWidth + paddingRight)
+    }
+
+    if (nextScrollLeft !== scrollLeft) {
+      list.scrollTo({ left: nextScrollLeft, behavior: 'smooth' })
+      window.requestAnimationFrame(updateFadeIndicators)
+    } else {
+      updateFadeIndicators()
+    }
   }, [activeTab, updateFadeIndicators])
+
+  useEffect(() => {
+    ensureActiveTabVisible()
+  }, [ensureActiveTabVisible])
 
   if (loading) {
     return (
@@ -100,18 +127,17 @@ export function AdminMangaPage() {
         <TabsList
           ref={tabsListRef}
           aria-label="Разделы управления мангой"
-          className="relative flex w-full flex-nowrap items-stretch gap-2 overflow-x-auto rounded-xl border border-white/10 bg-background/60 py-1 pl-5 pr-5 text-xs shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/50 sm:flex-wrap sm:justify-start sm:overflow-visible sm:border-transparent sm:bg-transparent sm:p-0 sm:text-sm snap-x snap-mandatory"
-          style={{ scrollPaddingInline: '1.25rem' }}
+          className="relative flex w-full flex-nowrap items-stretch gap-2 overflow-x-auto rounded-xl border border-white/10 bg-background/60 py-1 pl-4 pr-4 text-xs shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/50 sm:flex-wrap sm:justify-start sm:overflow-visible sm:border-transparent sm:bg-transparent sm:p-0 sm:text-sm snap-x snap-mandatory"
         >
           {showLeftFade && (
             <div
-              className="pointer-events-none absolute inset-y-0 left-0 w-5 bg-gradient-to-r from-background/95 to-transparent sm:hidden z-10"
+              className="pointer-events-none absolute inset-y-0 left-0 w-4 bg-gradient-to-r from-background/90 to-transparent sm:hidden z-10"
               aria-hidden="true"
             />
           )}
           {showRightFade && (
             <div
-              className="pointer-events-none absolute inset-y-0 right-0 w-5 bg-gradient-to-l from-background/95 to-transparent sm:hidden z-10"
+              className="pointer-events-none absolute inset-y-0 right-0 w-4 bg-gradient-to-l from-background/90 to-transparent sm:hidden z-10"
               aria-hidden="true"
             />
           )}
