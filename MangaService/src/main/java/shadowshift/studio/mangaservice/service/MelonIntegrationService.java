@@ -427,6 +427,19 @@ public class MelonIntegrationService {
                         if (importSuccessful) {
                             processingSlugs.remove(normalizedSlug);
                             logger.info("Импорт завершен успешно, удален из processingSlugs: {}", normalizedSlug);
+
+                            try {
+                                logger.info("Запрос очистки данных парсера для '{}'", normalizedSlug);
+                                Map<String, Object> cleanupResponse = deleteManga(normalizedSlug);
+                                boolean cleanupSuccess = cleanupResponse != null && Boolean.TRUE.equals(cleanupResponse.get("success"));
+                                if (cleanupSuccess) {
+                                    logger.info("Очистка данных парсера запрошена успешно для '{}': {}", normalizedSlug, cleanupResponse.get("message"));
+                                } else {
+                                    logger.warn("Очистка данных парсера вернула неожиданный результат для '{}': {}", normalizedSlug, cleanupResponse);
+                                }
+                            } catch (Exception cleanupEx) {
+                                logger.error("Ошибка при очистке данных парсера для '{}': {}", normalizedSlug, cleanupEx.getMessage(), cleanupEx);
+                            }
                         } else {
                             logger.warn("Импорт не удался для {}, оставляем в processingSlugs для предотвращения повторного парсинга", normalizedSlug);
                         }

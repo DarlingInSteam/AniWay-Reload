@@ -10,7 +10,6 @@ import { SelectedCategoryPanel } from '@/features/global-chat/components/Selecte
 import { CategoryCreateDialog, CategoryCreatePayload } from '@/features/global-chat/components/CategoryCreateDialog';
 import { CategoryEditDialog, CategoryEditPayload } from '@/features/global-chat/components/CategoryEditDialog';
 import { useChatMessageNavigation } from '@/features/global-chat/hooks/useChatMessageNavigation';
-import { ChatPageHeader } from '@/features/global-chat/components/ChatPageHeader';
 import { ChatMobileToggle } from '@/features/global-chat/components/ChatMobileToggle';
 
 export const GlobalChatPage: React.FC = () => {
@@ -189,15 +188,6 @@ export const GlobalChatPage: React.FC = () => {
   return (
     <div className="h-[calc(100vh-88px)] flex flex-col overflow-hidden">
       <div className="mx-auto flex w-full max-w-[1500px] flex-1 min-h-0 flex-col gap-3 overflow-hidden px-4 pt-1 pb-[2px] sm:px-6 sm:pt-1.5 sm:pb-[2px] lg:px-10 lg:pt-2 lg:pb-[2px]">
-        <div className="hidden lg:block">
-          <ChatPageHeader
-            hasSelectedCategory={hasSelectedCategory}
-            onRefreshAll={refreshAll}
-            onRefreshCategories={refreshCategories}
-            onRefreshMessages={refreshMessages}
-          />
-        </div>
-
         <div className="lg:hidden">
           <ChatMobileToggle
             showList={showChannelSidebar}
