@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { ChevronRight, X, Loader2, Filter } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react'
+import { ChevronDown, X, Loader2, Filter, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useFilterData } from '@/hooks/useFilterData'
 import { Button } from '@/components/ui/button'
@@ -74,10 +74,32 @@ const FilterRow: React.FC<RowProps & { active?: boolean; appearance: 'desktop' |
   appearance
 }) => {
   const isMobile = appearance === 'mobile'
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onToggle()
+      }
+    }
+    document.addEventListener('keydown', handleKey)
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        onToggle()
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('keydown', handleKey)
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isOpen, onToggle])
 
   return (
     <div
-      className="group/filter rounded-xl transition-colors duration-150"
+      ref={containerRef}
+      className="group/filter relative rounded-xl"
       aria-expanded={isOpen}
       aria-controls={id}
       role="group"
@@ -87,28 +109,37 @@ const FilterRow: React.FC<RowProps & { active?: boolean; appearance: 'desktop' |
         aria-haspopup="true"
         aria-expanded={isOpen}
         aria-controls={`${id}-content`}
-        className="w-full flex items-center gap-3 px-5 py-4 text-left rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-0"
+        className={cn(
+          'w-full flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#181f2c] px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-offset-0',
+          active && !isOpen ? 'border-primary/40 bg-[#1f293b] text-white' : '',
+          isOpen ? 'bg-[#1f293b] shadow-[0_18px_32px_-24px_rgba(0,0,0,0.6)]' : 'hover:bg-[#1d2638]'
+        )}
       >
-        <div className="flex-1 text-left">
-          <div className="flex items-center gap-1.5 text-[13px] font-semibold text-white tracking-tight leading-none mb-1">
-            {title}
-            {active && (
-              <span className="inline-flex h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_0_3px_rgba(59,130,246,0.25)]" aria-hidden />
-            )}
-          </div>
-          <div className="text-[11px] text-white/55 line-clamp-1 font-normal">{summary}</div>
+        <div className="flex min-w-0 flex-col">
+          <span className="text-[13px] font-medium text-white tracking-tight">{title}</span>
+          <span className="text-[11px] text-white/55 line-clamp-1">{summary}</span>
         </div>
-        <div className={cn('text-white/45 transition-transform duration-200 shrink-0', isOpen ? 'rotate-90' : '')}>
-          <ChevronRight className="h-4 w-4" />
-        </div>
+        <ChevronDown
+          className={cn(
+            'h-4 w-4 shrink-0 text-white/55 transition-transform duration-200',
+            isOpen ? 'rotate-180 text-white/80' : ''
+          )}
+        />
       </button>
-      <div
-        id={`${id}-content`}
-        hidden={!isOpen}
-        className={cn('px-5 pb-5 pt-2 space-y-3 animate-fade-in', isMobile ? 'text-[13px]' : 'text-sm')}
-      >
-        {isOpen && children}
-      </div>
+
+      {isOpen && (
+        <div
+          id={`${id}-content`}
+          className={cn(
+            'absolute left-0 right-0 top-[calc(100%+0.5rem)] z-40 rounded-xl border border-white/8 bg-[#111a27] p-4 shadow-[0_28px_60px_-32px_rgba(0,0,0,0.85)]',
+            isMobile ? 'max-h-[70vh] overflow-y-auto' : ''
+          )}
+        >
+          <div className={cn('space-y-3', isMobile ? 'text-[13px]' : 'text-sm')}>
+            {children}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -186,12 +217,17 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
       key={text}
       onClick={onClick}
       className={cn(
-        'text-xs px-3 py-1.5 rounded-xl transition-colors duration-150 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]',
+        'text-xs px-3 py-1.5 rounded-xl transition-colors duration-150 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]',
         active
-          ? 'bg-primary/25 text-primary font-medium shadow-[0_8px_20px_-14px_rgba(37,99,235,0.65)] hover:text-white hover:bg-primary/30'
-          : 'bg-[#151e2c] text-white/70 hover:text-white hover:bg-[#1d2838]'
+          ? 'bg-primary/45 text-white font-medium shadow-[0_10px_28px_-18px_rgba(37,99,235,0.72)] hover:bg-primary/55'
+          : 'bg-[#1d2635] text-white/80 hover:text-white hover:bg-[#263248]'
       )}
-    >{text}</button>
+    >
+      <span className="flex items-center gap-1.5">
+        {active && <Check className="h-3.5 w-3.5 shrink-0" />}
+        <span>{text}</span>
+      </span>
+    </button>
   )
 
   const checkboxList = <T extends string>(items: readonly {value:T,label:string}[], value: string, field: keyof FilterState) => (
@@ -211,7 +247,7 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
           max={val[1]}
           step={step}
           onChange={e=>handleNumberRange(field,0,e.target.value)}
-          className="h-9 w-24 rounded-lg border-none bg-[#141b2a] text-xs text-white/85 focus:bg-[#1c2436] focus:ring-2 focus:ring-primary/35 focus:ring-offset-0"
+          className="h-9 w-24 rounded-lg border border-white/10 bg-[#151f30] text-xs text-white/80 focus:border-primary/40 focus:bg-[#1d283c] focus:ring-0"
         />
         <span className="text-white/40">—</span>
         <Input
@@ -221,7 +257,7 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
           max={max}
           step={step}
           onChange={e=>handleNumberRange(field,1,e.target.value)}
-          className="h-9 w-24 rounded-lg border-none bg-[#141b2a] text-xs text-white/85 focus:bg-[#1c2436] focus:ring-2 focus:ring-primary/35 focus:ring-offset-0"
+          className="h-9 w-24 rounded-lg border border-white/10 bg-[#151f30] text-xs text-white/80 focus:border-primary/40 focus:bg-[#1d283c] focus:ring-0"
         />
         {suffix && <span>{suffix}</span>}
       </div>
@@ -258,24 +294,14 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
           'sticky top-0 z-30 px-5 py-4 bg-transparent'
         )}
       >
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-base font-semibold tracking-tight text-white">
-            <Filter className="h-4 w-4 text-primary/80" />
-            <span>Фильтр</span>
-            {!isMobile && activeChips.length > 0 && (
-              <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[11px] font-medium text-primary/85 leading-none">
-                {activeChips.length}
-              </span>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={resetAll}
-            className="text-[11px] font-semibold uppercase tracking-[0.26em] text-white/45 transition hover:text-white"
-            aria-label="Сбросить все фильтры"
-          >
-            очистить
-          </button>
+        <div className="flex items-center gap-2 text-base font-semibold tracking-tight text-white">
+          <Filter className="h-4 w-4 text-primary/80" />
+          <span>Фильтр</span>
+          {!isMobile && activeChips.length > 0 && (
+            <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[11px] font-medium text-primary/85 leading-none">
+              {activeChips.length}
+            </span>
+          )}
         </div>
         {!isMobile && (
           <div className="mt-3 text-[12px] text-white/45 leading-snug">
@@ -287,21 +313,8 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
       {/* Active chips bar (mobile emphasis) */}
       {/* Mobile secondary actions & helper text */}
       {isMobile && (
-        <div className="px-5 pt-3 flex items-center gap-2">
-          <button
-            type="button"
-            disabled
-            className="flex-1 h-9 rounded-lg bg-[#101724]/70 text-[11px] uppercase tracking-[0.18em] text-white/35"
-          >
-            Сохранить пресет
-          </button>
-          <button
-            type="button"
-            onClick={resetAll}
-            className="h-9 px-3 rounded-lg bg-[#141b2a] text-[11px] uppercase tracking-[0.18em] text-white/70 transition hover:text-white hover:bg-[#1c2436]"
-          >
-            Сбросить
-          </button>
+        <div className="px-5 pt-3 text-[12px] text-white/45 leading-snug">
+          Фильтры применяются в строгом режиме совпадений.
         </div>
       )}
       {isMobile && activeChips.length === 0 && (
@@ -330,13 +343,6 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
               </span>
             </button>
           ))}
-          <button
-            onClick={resetAll}
-            className="rounded-full bg-transparent px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-white/65 transition hover:text-white hover:bg-white/5"
-            aria-label="Очистить все фильтры"
-          >
-            Очистить
-          </button>
         </div>
       )}
 
@@ -355,17 +361,17 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
             <div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><Loader2 className="h-4 w-4 animate-spin" /> Загрузка...</div>
           ) : genresError ? <div className="text-xs text-red-400 py-2">{genresError}</div> : (
             <div className="space-y-3">
-              <Input value={genreSearch} onChange={e=>setGenreSearch(e.target.value)} placeholder="Поиск жанров" className="h-8 text-xs rounded-lg bg-[#141b2a] border-none focus:bg-[#1c2436]" />
+              <Input value={genreSearch} onChange={e=>setGenreSearch(e.target.value)} placeholder="Поиск жанров" className="h-8 text-xs rounded-lg border border-white/10 bg-[#151f30] text-white/80 placeholder:text-white/40 focus:border-primary/40 focus:bg-[#1d283c]" />
               <div className="flex flex-wrap gap-1 max-h-40 overflow-y-auto scrollbar-custom">
                 {filteredGenres.map(g => (
                   <button
                     key={g.id}
                     onClick={()=>toggleGenre(g.name)}
                     className={cn(
-                      'text-[11px] px-2 py-1 rounded-md transition-colors duration-150',
+                      'text-[11px] px-2.5 py-1.5 rounded-lg transition-colors duration-150 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]',
                       filters.selectedGenres.includes(g.name)
-                        ? 'bg-primary/25 text-primary hover:bg-primary/30'
-                        : 'bg-[#141b2a] text-white/70 hover:text-white hover:bg-[#1c2436]'
+                        ? 'bg-primary/45 text-white shadow-[0_10px_28px_-18px_rgba(37,99,235,0.72)] hover:bg-primary/55'
+                        : 'bg-[#1d2635] text-white/80 hover:text-white hover:bg-[#263248]'
                     )}
                   >
                     {g.name}
@@ -396,7 +402,7 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
             <div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><Loader2 className="h-4 w-4 animate-spin" /> Загрузка...</div>
           ) : tagsError ? <div className="text-xs text-red-400 py-2">{tagsError}</div> : (
             <div className="space-y-3">
-              <Input value={tagSearch} onChange={e=>setTagSearch(e.target.value)} placeholder="Поиск тегов" className="h-8 text-xs rounded-lg bg-[#141b2a] border-none focus:bg-[#1c2436]" />
+              <Input value={tagSearch} onChange={e=>setTagSearch(e.target.value)} placeholder="Поиск тегов" className="h-8 text-xs rounded-lg border border-white/10 bg-[#151f30] text-white/80 placeholder:text-white/40 focus:border-primary/40 focus:bg-[#1d283c]" />
               <div className="flex flex-wrap gap-1 max-h-40 overflow-y-auto scrollbar-custom">
                 {filteredTags.map(t => (
                   <button
@@ -404,10 +410,10 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
                     onClick={()=>toggleTag(t.name)}
                     style={{ color: t.color }}
                     className={cn(
-                      'text-[11px] px-2 py-1 rounded-md transition-colors duration-150',
+                      'text-[11px] px-2.5 py-1.5 rounded-lg transition-colors duration-150 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]',
                       filters.selectedTags.includes(t.name)
-                        ? 'bg-white/20'
-                        : 'bg-[#141b2a] hover:bg-[#1c2436]'
+                        ? 'bg-white/25 text-[#f4f7ff] shadow-[0_10px_26px_-18px_rgba(255,255,255,0.55)] hover:bg-white/30'
+                        : 'bg-[#1d2635] text-white/80 hover:text-white hover:bg-[#263248]'
                     )}
                   >
                     {t.name}
@@ -513,20 +519,9 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
         >
           <Button
             type="button"
-            onClick={resetAll}
-            className={cn(
-              'h-11 rounded-xl bg-[#152132] text-[13px] text-white/75 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition hover:bg-[#1d2b3d] hover:text-white',
-              isMobile ? 'flex-1' : 'px-6'
-            )}
-          >
-            Сброс
-          </Button>
-          <Button
-            type="button"
             onClick={onApply}
             className={cn(
-              'h-11 rounded-xl bg-primary/80 text-[13px] font-semibold uppercase tracking-wide text-white shadow-[0_14px_28px_-16px_rgba(37,99,235,0.75)] transition hover:bg-primary',
-              isMobile ? 'flex-1' : 'px-8'
+              'h-11 w-full rounded-xl bg-primary/80 text-[13px] font-semibold uppercase tracking-wide text-white shadow-[0_14px_28px_-16px_rgba(37,99,235,0.75)] transition hover:bg-primary'
             )}
           >
             Применить
