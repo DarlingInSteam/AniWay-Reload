@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { ChevronRight, ChevronDown, X, RotateCcw, Loader2, Filter, HelpCircle } from 'lucide-react'
+import { ChevronRight, X, Loader2, Filter } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useFilterData } from '@/hooks/useFilterData'
 import { Button } from '@/components/ui/button'
@@ -63,46 +63,64 @@ interface RowProps {
   onToggle: () => void
   children: React.ReactNode
 }
-const FilterRow: React.FC<RowProps & { active?: boolean }> = ({ id, title, summary, isOpen, onToggle, children, active }) => (
-  <div
-    className="border-b border-white/10 mobile-filter:rounded-[14px] mobile-filter:border mobile-filter:border-white/10 mobile-filter:bg-gradient-to-br mobile-filter:from-white/4 mobile-filter:to-white/2 mobile-filter:shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_4px_12px_-2px_rgba(0,0,0,0.4)] mobile-filter:overflow-hidden mobile-filter:backdrop-blur-sm"
-    aria-expanded={isOpen}
-    aria-controls={id}
-    role="group"
-  >
-    <button
-      onClick={onToggle}
-      aria-haspopup="true"
-      aria-expanded={isOpen}
-      aria-controls={`${id}-content`}
-      className={cn(
-        'w-full flex items-center gap-3 py-3 px-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-colors',
-        'mobile-filter:px-4 mobile-filter:py-3.5',
-        isOpen ? 'bg-white/5 mobile-filter:bg-white/10' : 'hover:bg-white/5 mobile-filter:hover:bg-white/10'
-      )}
-    >
-      <div className="flex-1 text-left">
-        <div className="text-[13px] font-semibold text-white leading-none mb-1 tracking-tight flex items-center gap-1.5">
-          {title}
-          {active && (
-            <span className="inline-flex h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_0_3px_rgba(59,130,246,0.25)]" aria-hidden />
-          )}
-        </div>
-        <div className="text-[11px] text-muted-foreground/80 line-clamp-1 font-normal">{summary}</div>
-      </div>
-      <div className={cn('text-muted-foreground transition-transform shrink-0', isOpen ? 'rotate-90' : '')}>
-        <ChevronRight className="h-4 w-4" />
-      </div>
-    </button>
+const FilterRow: React.FC<RowProps & { active?: boolean; appearance: 'desktop' | 'mobile' }> = ({
+  id,
+  title,
+  summary,
+  isOpen,
+  onToggle,
+  children,
+  active,
+  appearance
+}) => {
+  const isMobile = appearance === 'mobile'
+
+  return (
     <div
-      id={`${id}-content`}
-      hidden={!isOpen}
-      className="px-2 pb-4 animate-fade-in mobile-filter:px-4 mobile-filter:pb-4 mobile-filter:pt-1"
+      className={cn(
+        'group/filter rounded-2xl border transition-all duration-200',
+        isMobile
+          ? 'border-white/12 bg-[#0b1016]/95 shadow-[0_16px_40px_-28px_rgba(6,9,18,0.85)]'
+          : 'border-white/10 bg-[#0b1119]/95 shadow-[0_18px_48px_-30px_rgba(6,9,18,0.85)] hover:border-primary/25',
+        isOpen && 'border-primary/45 shadow-[0_26px_58px_-32px_rgba(37,99,235,0.55)]'
+      )}
+      aria-expanded={isOpen}
+      aria-controls={id}
+      role="group"
     >
-      {isOpen && children}
+      <button
+        onClick={onToggle}
+        aria-haspopup="true"
+        aria-expanded={isOpen}
+        aria-controls={`${id}-content`}
+        className={cn(
+          'w-full flex items-center gap-3 px-4 py-3 text-left rounded-2xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-offset-0',
+          isOpen ? 'bg-[#111a27]/75' : 'hover:bg-[#111a27]/40'
+        )}
+      >
+        <div className="flex-1 text-left">
+          <div className="flex items-center gap-1.5 text-[13px] font-semibold text-white tracking-tight leading-none mb-1">
+            {title}
+            {active && (
+              <span className="inline-flex h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_0_3px_rgba(59,130,246,0.25)]" aria-hidden />
+            )}
+          </div>
+          <div className="text-[11px] text-white/55 line-clamp-1 font-normal">{summary}</div>
+        </div>
+        <div className={cn('text-white/45 transition-transform duration-200 shrink-0', isOpen ? 'rotate-90' : '')}>
+          <ChevronRight className="h-4 w-4" />
+        </div>
+      </button>
+      <div
+        id={`${id}-content`}
+        hidden={!isOpen}
+        className={cn('px-4 pb-4 pt-2 animate-fade-in', isMobile ? 'text-[13px]' : 'text-sm')}
+      >
+        {isOpen && children}
+      </div>
     </div>
-  </div>
-)
+  )
+}
 
 export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
   initialFilters,
@@ -172,8 +190,12 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
     <button
       key={text}
       onClick={onClick}
-      className={cn('text-xs px-2 py-1 rounded-md border transition-colors',
-        active ? 'bg-primary/20 text-primary border-primary/40' : 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10 hover:text-white')}
+      className={cn(
+        'text-xs px-3 py-1.5 rounded-lg border transition-colors duration-150',
+        active
+          ? 'bg-primary/15 text-primary border-primary/45 shadow-[0_6px_18px_-10px_rgba(37,99,235,0.6)]'
+          : 'bg-[#111827] text-white/70 border-white/12 hover:text-white hover:border-white/20 hover:bg-[#162133]'
+      )}
     >{text}</button>
   )
 
@@ -186,11 +208,27 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
   const numberRange = (field: keyof Pick<FilterState,'ageRating'|'rating'|'releaseYear'|'chapterRange'>, min: number, max: number, step=1, suffix='') => {
     const val = filters[field]
     return (
-      <div className="flex items-center gap-2">
-        <Input type="number" value={val[0]} min={min} max={val[1]} step={step} onChange={e=>handleNumberRange(field,0,e.target.value)} className="h-8 w-20 bg-white/5 border-white/10 text-xs" />
-        <span className="text-muted-foreground text-xs">—</span>
-        <Input type="number" value={val[1]} min={val[0]} max={max} step={step} onChange={e=>handleNumberRange(field,1,e.target.value)} className="h-8 w-20 bg-white/5 border-white/10 text-xs" />
-        {suffix && <span className="text-muted-foreground text-xs">{suffix}</span>}
+      <div className="flex flex-wrap items-center gap-2 text-[13px] text-white/65">
+        <Input
+          type="number"
+          value={val[0]}
+          min={min}
+          max={val[1]}
+          step={step}
+          onChange={e=>handleNumberRange(field,0,e.target.value)}
+          className="h-9 w-24 rounded-lg border border-white/12 bg-[#111827] text-xs text-white/85 focus:border-primary/45 focus:ring-2 focus:ring-primary/35 focus:ring-offset-0"
+        />
+        <span className="text-white/40">—</span>
+        <Input
+          type="number"
+          value={val[1]}
+          min={val[0]}
+          max={max}
+          step={step}
+          onChange={e=>handleNumberRange(field,1,e.target.value)}
+          className="h-9 w-24 rounded-lg border border-white/12 bg-[#111827] text-xs text-white/85 focus:border-primary/45 focus:ring-2 focus:ring-primary/35 focus:ring-offset-0"
+        />
+        {suffix && <span>{suffix}</span>}
       </div>
     )
   }
@@ -207,118 +245,110 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
   if (filters.chapterRange.some((v,i)=>v!==DEFAULTS.chapterRange[i])) activeChips.push({ label: `${filters.chapterRange[0]}–${filters.chapterRange[1]} гл.`, onRemove: () => update({ chapterRange: DEFAULTS.chapterRange }), key: 'chapters' })
 
   const isMobile = appearance === 'mobile'
+  const rowAppearance: 'desktop' | 'mobile' = isMobile ? 'mobile' : 'desktop'
 
   return (
-    <div className={cn(
-      'flex flex-col h-full max-h-full',
-      isMobile
-        ? 'w-full rounded-none bg-[#0b0d10] text-white bg-[radial-gradient(circle_at_20%_0%,rgba(40,70,120,0.25),transparent_60%),radial-gradient(circle_at_80%_20%,rgba(120,60,160,0.18),transparent_55%)]'
-        : 'w-80 glass-panel overflow-hidden rounded-xl bg-background/40'
-    , className)}>
+    <div
+      className={cn(
+        'flex flex-col h-full max-h-full overflow-hidden text-white',
+        isMobile
+          ? 'w-full rounded-none border-none bg-[#050811]/96 shadow-none'
+          : 'w-80 rounded-[22px] border border-white/12 bg-[#0b1018]/98 shadow-[0_32px_64px_-34px_rgba(6,9,18,0.95)]',
+        className
+      )}
+    >
       {/* Header */}
       <div
         className={cn(
-          'sticky top-0 z-30 flex items-center justify-between px-4 py-3 border-b border-white/10 backdrop-blur-xl',
-          isMobile ? 'bg-[#0b0d10]/85' : 'bg-transparent backdrop-blur-none'
+          'sticky top-0 z-30 px-5 py-4 border-b border-white/12',
+          isMobile ? 'bg-[#050811]/96 shadow-[0_12px_28px_-22px_rgba(0,0,0,0.8)]' : 'bg-[#0b1018]/98'
         )}
       >
-        <div className="flex items-center gap-2 text-sm font-semibold text-white">
-          <Filter className="h-4 w-4 text-primary" /> Фильтры
-          {activeChips.length > 0 && (
-            <span className="text-[11px] font-medium text-primary/70 bg-primary/10 rounded-full px-2 py-0.5 leading-none">
-              {activeChips.length}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-1 flex-nowrap">
-          <Button
-            variant="ghost"
-            size="sm"
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-base font-semibold tracking-tight text-white">
+            <Filter className="h-4 w-4 text-primary/80" />
+            <span>Фильтр</span>
+            {!isMobile && activeChips.length > 0 && (
+              <span className="rounded-full border border-primary/40 bg-primary/15 px-2 py-0.5 text-[11px] font-medium text-primary/80 leading-none">
+                {activeChips.length}
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
             onClick={resetAll}
-            className="h-8 px-1.5 text-muted-foreground hover:text-white hover:bg-white/10"
+            className="text-[11px] font-semibold uppercase tracking-[0.26em] text-white/45 transition hover:text-white"
             aria-label="Сбросить все фильтры"
           >
-            <RotateCcw className="h-4 w-4" />
-          </Button>
-          {/* Desktop strict toggle (compact, tooltip on hover) */}
-          {!isMobile && (
-            <div className="relative group shrink-0">
-              <button
-                type="button"
-                onClick={() => update({ strictMatch: !filters.strictMatch })}
-                className={cn(
-                  'h-8 px-2 rounded-md border text-[11px] font-medium tracking-tight transition flex items-center gap-1',
-                  filters.strictMatch
-                    ? 'bg-primary/20 border-primary/40 text-primary hover:bg-primary/30'
-                    : 'bg-white/5 border-white/10 text-muted-foreground hover:text-white hover:bg-white/10'
-                )}
-                aria-pressed={filters.strictMatch ? 'true' : 'false'}
-                aria-describedby="strict-tooltip"
-              >
-                <span className="inline-block h-2 w-2 rounded-full bg-current" />
-                Строго
-              </button>
-              <div
-                id="strict-tooltip"
-                role="tooltip"
-                className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity absolute top-full left-0 mt-2 w-56 rounded-md border border-white/15 bg-[#111418] p-2.5 shadow-lg text-[11px] leading-snug text-muted-foreground z-50"
-              >
-                Показать только тайтлы, у которых есть все выбранные жанры и теги (И). Выключено — любое совпадение (ИЛИ).
-                <div className="absolute -top-2 left-4 h-2 w-2 rotate-45 bg-[#111418] border-l border-t border-white/15" />
-              </div>
-            </div>
-          )}
-          {onApply && !isMobile && (
-            <Button
-              size="sm"
-              onClick={onApply}
-              className="h-8 px-2 shrink-0 bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 text-[11px]"
-            >
-              Применить
-            </Button>
-          )}
+            очистить
+          </button>
         </div>
+        {!isMobile && (
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => update({ strictMatch: !filters.strictMatch })}
+              className={cn(
+                'h-9 px-3 rounded-lg border text-[11px] uppercase tracking-wide transition flex items-center gap-2',
+                filters.strictMatch
+                  ? 'border-primary/45 bg-primary/15 text-primary shadow-[0_8px_22px_-12px_rgba(37,99,235,0.6)]'
+                  : 'border-white/12 bg-[#111827] text-white/65 hover:text-white hover:border-white/20 hover:bg-[#162133]'
+              )}
+              aria-pressed={filters.strictMatch ? 'true' : 'false'}
+            >
+              <span className="inline-block h-2 w-2 rounded-full bg-current" />
+              Строго
+            </button>
+            {onApply && (
+              <Button
+                size="sm"
+                onClick={onApply}
+                className="h-9 px-4 rounded-lg bg-primary text-[12px] font-semibold uppercase tracking-wide text-white hover:bg-primary/90 shadow-[0_14px_28px_-16px_rgba(37,99,235,0.75)]"
+              >
+                Применить
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Active chips bar (mobile emphasis) */}
-      {/* Mobile secondary actions & search */}
+      {/* Mobile secondary actions & helper text */}
       {isMobile && (
-        <div className="px-4 pt-3 flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
+        <div className="px-5 pt-3 flex items-center gap-2">
+          <button
+            type="button"
             disabled
-            className="h-8 px-3 text-[11px] bg-white/5 border-white/15 text-muted-foreground cursor-not-allowed"
+            className="flex-1 h-9 rounded-lg border border-white/12 bg-transparent text-[11px] uppercase tracking-[0.18em] text-white/30"
           >
             Сохранить пресет
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
+          </button>
+          <button
+            type="button"
             onClick={resetAll}
-            className="h-8 px-3 text-[11px] text-muted-foreground hover:text-white hover:bg-white/10"
+            className="h-9 px-3 rounded-lg border border-white/12 bg-[#111827] text-[11px] uppercase tracking-[0.18em] text-white/65 transition hover:text-white hover:border-white/20 hover:bg-[#162133]"
           >
             Сбросить
-          </Button>
+          </button>
           <button
             type="button"
             onClick={() => update({ strictMatch: !filters.strictMatch })}
             className={cn(
-              'h-8 px-3 text-[11px] rounded-md border transition flex items-center gap-1',
+              'h-9 px-3 rounded-lg border text-[11px] uppercase tracking-[0.18em] transition flex items-center gap-2',
               filters.strictMatch
-                ? 'bg-primary/20 border-primary/40 text-primary hover:bg-primary/30'
-                : 'bg-white/5 border-white/10 text-muted-foreground hover:text-white hover:bg-white/10'
+                ? 'border-primary/45 bg-primary/15 text-primary shadow-[0_8px_20px_-12px_rgba(37,99,235,0.6)]'
+                : 'border-white/12 bg-[#111827] text-white/65 hover:text-white hover:border-white/20 hover:bg-[#162133]'
             )}
             aria-pressed={filters.strictMatch ? 'true' : 'false'}
             aria-label="Строгое совпадение жанров и тегов"
           >
-            <span className="inline-block h-2 w-2 rounded-full bg-current opacity-80" />
+            <span className="inline-block h-2 w-2 rounded-full bg-current" />
             Строго
           </button>
         </div>
       )}
       {isMobile && activeChips.length === 0 && (
-        <div className="px-4 mt-2 text-[11px] text-muted-foreground/70 leading-snug">
+        <div className="px-5 mt-2 text-[12px] text-white/45 leading-snug">
           Выберите параметры ниже. Жанры и теги имеют встроенный поиск внутри секций.
         </div>
       )}
@@ -326,8 +356,8 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
       {activeChips.length > 0 && (
         <div
           className={cn(
-            'px-4 pt-3 pb-2 overflow-x-auto scrollbar-thin flex gap-2 flex-wrap',
-            isMobile && 'bg-transparent mt-1'
+            'px-5 pt-3 pb-3 flex flex-wrap gap-2 border-b border-white/12 bg-[#0d1523]/85',
+            isMobile ? 'mt-3' : ''
           )}
         >
           {activeChips.map(c => (
@@ -335,21 +365,21 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
               key={c.key}
               onClick={c.onRemove}
               aria-label={`Удалить фильтр ${c.label}`}
-              className="group flex items-center gap-1 pl-2 pr-1 py-1 rounded-full text-[11px] bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 hover:border-primary/40 transition"
+              className="group flex items-center gap-2 rounded-full border border-primary/45 bg-primary/15 px-3 py-1 text-[11px] font-medium text-primary/85 shadow-[0_10px_24px_-14px_rgba(37,99,235,0.6)] transition hover:bg-primary/25"
             >
-              <span className="font-medium leading-none">{c.label}</span>
-              <span className="flex items-center justify-center h-4 w-4 rounded-full bg-primary/25 group-hover:bg-primary/35">
+              <span className="leading-none">{c.label}</span>
+              <span className="flex items-center justify-center h-4 w-4 rounded-full bg-primary/30 text-primary/95 group-hover:bg-primary/45 group-hover:text-white">
                 <X className="h-3 w-3" />
               </span>
             </button>
           ))}
           {filters.strictMatch && (
-            <span className="flex items-center gap-1 pl-2 pr-1 py-1 rounded-full text-[11px] bg-amber-400/20 text-amber-300 border border-amber-300/30">
+            <span className="flex items-center gap-2 rounded-full border border-amber-300/35 bg-amber-400/15 px-3 py-1 text-[11px] font-medium text-amber-200">
               AND
               <button
                 onClick={() => update({ strictMatch: false })}
                 aria-label="Выключить строгий режим"
-                className="flex items-center justify-center h-4 w-4 rounded-full bg-amber-400/25 hover:bg-amber-400/40 transition"
+                className="flex items-center justify-center h-4 w-4 rounded-full bg-amber-300/25 text-amber-100 hover:bg-amber-300/40"
               >
                 <X className="h-3 w-3" />
               </button>
@@ -357,7 +387,7 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
           )}
           <button
             onClick={resetAll}
-            className="text-[11px] px-2 py-1 rounded-full bg-white/5 text-muted-foreground hover:text-white hover:bg-white/10 border border-white/10"
+            className="rounded-full border border-white/15 bg-transparent px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-white/55 transition hover:text-white hover:border-white/30"
             aria-label="Очистить все фильтры"
           >
             Очистить
@@ -366,8 +396,16 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
       )}
 
       {/* Scrollable content */}
-  <div className={cn('flex-1 overflow-y-auto px-0 scrollbar-custom', isMobile ? 'space-y-2 pt-2 pb-24' : 'divide-y divide-white/10 pb-4')}>        
-        <FilterRow id="row-genres" title="Жанры" summary={rowSummary.genres} isOpen={openRow==='genres'} onToggle={()=>setOpenRow(openRow==='genres'?null:'genres')} active={filters.selectedGenres.length>0}>
+      <div className={cn('flex-1 overflow-y-auto px-0 scrollbar-custom', isMobile ? 'space-y-2 pt-2 pb-24' : 'divide-y divide-white/10 pb-4')}>
+        <FilterRow
+          id="row-genres"
+          title="Жанры"
+          summary={rowSummary.genres}
+          isOpen={openRow==='genres'}
+          onToggle={()=>setOpenRow(openRow==='genres'?null:'genres')}
+          active={filters.selectedGenres.length>0}
+          appearance={rowAppearance}
+        >
           {isLoadingGenres ? (
             <div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><Loader2 className="h-4 w-4 animate-spin" /> Загрузка...</div>
           ) : genresError ? <div className="text-xs text-red-400 py-2">{genresError}</div> : (
@@ -390,7 +428,15 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
           )}
         </FilterRow>
 
-  <FilterRow id="row-tags" title="Теги" summary={rowSummary.tags} isOpen={openRow==='tags'} onToggle={()=>setOpenRow(openRow==='tags'?null:'tags')} active={filters.selectedTags.length>0}>
+        <FilterRow
+          id="row-tags"
+          title="Теги"
+          summary={rowSummary.tags}
+          isOpen={openRow==='tags'}
+          onToggle={()=>setOpenRow(openRow==='tags'?null:'tags')}
+          active={filters.selectedTags.length>0}
+          appearance={rowAppearance}
+        >
           {isLoadingTags ? (
             <div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><Loader2 className="h-4 w-4 animate-spin" /> Загрузка...</div>
           ) : tagsError ? <div className="text-xs text-red-400 py-2">{tagsError}</div> : (
@@ -413,31 +459,79 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
           )}
         </FilterRow>
 
-  <FilterRow id="row-type" title="Тип" summary={rowSummary.type} isOpen={openRow==='type'} onToggle={()=>setOpenRow(openRow==='type'?null:'type')} active={!!filters.mangaType}>
+        <FilterRow
+          id="row-type"
+          title="Тип"
+          summary={rowSummary.type}
+          isOpen={openRow==='type'}
+          onToggle={()=>setOpenRow(openRow==='type'?null:'type')}
+          active={!!filters.mangaType}
+          appearance={rowAppearance}
+        >
           {checkboxList([
             {value:'MANGA',label:'Манга'},{value:'MANHWA',label:'Манхва'},{value:'MANHUA',label:'Маньхуа'},{value:'WESTERN_COMIC',label:'Западный комикс'},{value:'RUSSIAN_COMIC',label:'Русский комикс'},{value:'OEL',label:'OEL'},{value:'OTHER',label:'Другое'}
           ] as const, filters.mangaType, 'mangaType')}
         </FilterRow>
 
-  <FilterRow id="row-status" title="Статус" summary={rowSummary.status} isOpen={openRow==='status'} onToggle={()=>setOpenRow(openRow==='status'?null:'status')} active={!!filters.status}>
+        <FilterRow
+          id="row-status"
+          title="Статус"
+          summary={rowSummary.status}
+          isOpen={openRow==='status'}
+          onToggle={()=>setOpenRow(openRow==='status'?null:'status')}
+          active={!!filters.status}
+          appearance={rowAppearance}
+        >
           {checkboxList([
             {value:'ONGOING',label:'Выходит'},{value:'COMPLETED',label:'Завершена'},{value:'HIATUS',label:'Пауза'},{value:'CANCELLED',label:'Отменена'}
           ] as const, filters.status, 'status')}
         </FilterRow>
 
-  <FilterRow id="row-age" title="Возрастной рейтинг" summary={rowSummary.age} isOpen={openRow==='age'} onToggle={()=>setOpenRow(openRow==='age'?null:'age')} active={filters.ageRating.some((v,i)=>v!==DEFAULTS.ageRating[i])}>
+        <FilterRow
+          id="row-age"
+          title="Возрастной рейтинг"
+          summary={rowSummary.age}
+          isOpen={openRow==='age'}
+          onToggle={()=>setOpenRow(openRow==='age'?null:'age')}
+          active={filters.ageRating.some((v,i)=>v!==DEFAULTS.ageRating[i])}
+          appearance={rowAppearance}
+        >
           {numberRange('ageRating',0,21,1,'+')}
         </FilterRow>
 
-  <FilterRow id="row-rating" title="Рейтинг" summary={rowSummary.rating} isOpen={openRow==='rating'} onToggle={()=>setOpenRow(openRow==='rating'?null:'rating')} active={filters.rating.some((v,i)=>v!==DEFAULTS.rating[i])}>
+        <FilterRow
+          id="row-rating"
+          title="Рейтинг"
+          summary={rowSummary.rating}
+          isOpen={openRow==='rating'}
+          onToggle={()=>setOpenRow(openRow==='rating'?null:'rating')}
+          active={filters.rating.some((v,i)=>v!==DEFAULTS.rating[i])}
+          appearance={rowAppearance}
+        >
           {numberRange('rating',0,10,1)}
         </FilterRow>
 
-  <FilterRow id="row-year" title="Год релиза" summary={rowSummary.year} isOpen={openRow==='year'} onToggle={()=>setOpenRow(openRow==='year'?null:'year')} active={filters.releaseYear.some((v,i)=>v!==DEFAULTS.releaseYear[i])}>
+        <FilterRow
+          id="row-year"
+          title="Год релиза"
+          summary={rowSummary.year}
+          isOpen={openRow==='year'}
+          onToggle={()=>setOpenRow(openRow==='year'?null:'year')}
+          active={filters.releaseYear.some((v,i)=>v!==DEFAULTS.releaseYear[i])}
+          appearance={rowAppearance}
+        >
           {numberRange('releaseYear',1990,new Date().getFullYear(),1)}
         </FilterRow>
 
-  <FilterRow id="row-chapters" title="Количество глав" summary={rowSummary.chapters} isOpen={openRow==='chapters'} onToggle={()=>setOpenRow(openRow==='chapters'?null:'chapters')} active={filters.chapterRange.some((v,i)=>v!==DEFAULTS.chapterRange[i])}>
+        <FilterRow
+          id="row-chapters"
+          title="Количество глав"
+          summary={rowSummary.chapters}
+          isOpen={openRow==='chapters'}
+          onToggle={()=>setOpenRow(openRow==='chapters'?null:'chapters')}
+          active={filters.chapterRange.some((v,i)=>v!==DEFAULTS.chapterRange[i])}
+          appearance={rowAppearance}
+        >
           {numberRange('chapterRange',0,1000,1,'гл.')}
         </FilterRow>
       </div>
