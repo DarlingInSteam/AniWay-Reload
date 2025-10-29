@@ -46,9 +46,9 @@ const DEFAULT_CHAPTER_RANGE: [number, number] = [0, 1000]
 const DEFAULT_RELEASE_YEAR_RANGE: [number, number] = [1990, new Date().getFullYear()]
 
 const CHIP_TONE_CLASSES: Record<'default' | 'primary' | 'warm', string> = {
-  default: 'border-white/12 bg-[#0e1623] text-white/75 hover:text-white hover:border-white/18 hover:bg-[#111c2e]',
-  primary: 'border-primary/40 bg-primary/20 text-primary hover:bg-primary/30 hover:text-white',
-  warm: 'border-amber-300/35 bg-amber-400/20 text-amber-200 hover:bg-amber-400/30'
+  default: 'bg-[#1c2331] text-white/80 hover:text-white hover:bg-[#232d3e]',
+  primary: 'bg-primary/18 text-primary hover:bg-primary/28 hover:text-white',
+  warm: 'bg-amber-400/15 text-amber-200 hover:bg-amber-400/25'
 }
 
 const rangesEqual = (a?: [number, number], b?: [number, number]) => {
@@ -974,7 +974,7 @@ export function CatalogPage() {
         <div className="flex gap-8">
           {/* Левая колонка: каталог */}
             <div className="flex-1 min-w-0">
-              <div className="space-y-5 p-4 lg:p-5 rounded-[26px] border border-white/12 bg-[#070d15]/95 shadow-[0_32px_70px_-38px_rgba(3,7,15,0.85)]">
+              <div className="space-y-6 px-1 sm:px-0">
                 {/* Заголовок + поиск + сортировка */}
                 <div className="flex flex-col gap-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -1021,7 +1021,7 @@ export function CatalogPage() {
                 </div>
 
                 {activeChips.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/12 bg-[#0b121f]/92 px-4 py-3 shadow-[0_22px_54px_-36px_rgba(5,8,16,0.85)]">
+                  <div className="flex flex-wrap items-center gap-2 px-1 py-2">
                     {activeChips.map(chip => (
                       <button
                         key={chip.key}
@@ -1039,7 +1039,7 @@ export function CatalogPage() {
                     ))}
                     <button
                       onClick={clearAllFilters}
-                      className="inline-flex items-center gap-2 rounded-full border border-white/15 px-3 py-1.5 text-[11px] text-muted-foreground transition hover:bg-white/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 antialiased"
+                      className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 antialiased"
                     >
                       <RotateCcw className="h-3 w-3" />
                       Сбросить все
@@ -1047,7 +1047,7 @@ export function CatalogPage() {
                   </div>
                 )}
 
-                <div className="border-t border-white/10 pt-4" />
+                <div className="pt-4" />
 
                 {/* Сетка карточек */}
                 <ErrorBoundary fallback={
