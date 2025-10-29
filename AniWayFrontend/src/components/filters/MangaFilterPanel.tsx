@@ -51,7 +51,7 @@ const DEFAULTS: FilterState = {
   rating: [0,10],
   releaseYear: [1990, new Date().getFullYear()],
   chapterRange: [0,1000],
-  strictMatch: false
+  strictMatch: true
 }
 
 // Генерик компонент строки фильтра
@@ -122,16 +122,20 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
   appearance = 'desktop'
 }) => {
   const { genres, tags, isLoadingGenres, isLoadingTags, genresError, tagsError } = useFilterData()
-  const [filters, setFilters] = useState<FilterState>(initialFilters ? { ...DEFAULTS, ...initialFilters } : DEFAULTS)
+  const [filters, setFilters] = useState<FilterState>(initialFilters ? { ...DEFAULTS, ...initialFilters, strictMatch: true } : DEFAULTS)
   const [openRow, setOpenRow] = useState<string | null>(null)
   const [genreSearch, setGenreSearch] = useState('')
   const [tagSearch, setTagSearch] = useState('')
 
   // Синхронизация входных фильтров
-  useEffect(() => { if (initialFilters) setFilters(prev => ({ ...prev, ...initialFilters })) }, [initialFilters])
+  useEffect(() => {
+    if (initialFilters) {
+      setFilters(prev => ({ ...prev, ...initialFilters, strictMatch: true }))
+    }
+  }, [initialFilters])
 
   const update = (partial: Partial<FilterState>) => {
-    const next = { ...filters, ...partial }
+    const next = { ...filters, ...partial, strictMatch: true }
     setFilters(next)
     onFiltersChange(next)
   }
@@ -182,10 +186,10 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
       key={text}
       onClick={onClick}
       className={cn(
-        'text-xs px-3 py-1.5 rounded-xl transition-colors duration-150',
+        'text-xs px-3 py-1.5 rounded-xl transition-colors duration-150 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]',
         active
-          ? 'bg-primary/22 text-primary font-medium shadow-sm hover:text-white hover:bg-primary/28'
-          : 'bg-[#141b2a] text-white/70 hover:text-white hover:bg-[#1c2436]'
+          ? 'bg-primary/25 text-primary font-medium shadow-[0_8px_20px_-14px_rgba(37,99,235,0.65)] hover:text-white hover:bg-primary/30'
+          : 'bg-[#151e2c] text-white/70 hover:text-white hover:bg-[#1d2838]'
       )}
     >{text}</button>
   )
@@ -274,30 +278,8 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
           </button>
         </div>
         {!isMobile && (
-          <div className="mt-3 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => update({ strictMatch: !filters.strictMatch })}
-              className={cn(
-                'h-9 px-3 rounded-lg text-[11px] uppercase tracking-wide transition flex items-center gap-2',
-                filters.strictMatch
-                  ? 'bg-primary/20 text-primary shadow-[0_8px_22px_-12px_rgba(37,99,235,0.6)] hover:bg-primary/24'
-                  : 'bg-[#141b2a] text-white/65 hover:text-white hover:bg-[#1c2436]'
-              )}
-              aria-pressed={filters.strictMatch ? 'true' : 'false'}
-            >
-              <span className="inline-block h-2 w-2 rounded-full bg-current" />
-              Строго
-            </button>
-            {onApply && (
-              <Button
-                size="sm"
-                onClick={onApply}
-                className="h-9 px-4 rounded-lg bg-primary text-[12px] font-semibold uppercase tracking-wide text-white hover:bg-primary/90 shadow-[0_14px_28px_-16px_rgba(37,99,235,0.75)]"
-              >
-                Применить
-              </Button>
-            )}
+          <div className="mt-3 text-[12px] text-white/45 leading-snug">
+            Фильтры применяются в строгом режиме совпадений.
           </div>
         )}
       </div>
@@ -319,21 +301,6 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
             className="h-9 px-3 rounded-lg bg-[#141b2a] text-[11px] uppercase tracking-[0.18em] text-white/70 transition hover:text-white hover:bg-[#1c2436]"
           >
             Сбросить
-          </button>
-          <button
-            type="button"
-            onClick={() => update({ strictMatch: !filters.strictMatch })}
-            className={cn(
-              'h-9 px-3 rounded-lg text-[11px] uppercase tracking-[0.18em] transition flex items-center gap-2',
-              filters.strictMatch
-                ? 'bg-primary/20 text-primary shadow-[0_8px_20px_-12px_rgba(37,99,235,0.6)] hover:bg-primary/25'
-                : 'bg-[#141b2a] text-white/70 hover:text-white hover:bg-[#1c2436]'
-            )}
-            aria-pressed={filters.strictMatch ? 'true' : 'false'}
-            aria-label="Строгое совпадение жанров и тегов"
-          >
-            <span className="inline-block h-2 w-2 rounded-full bg-current" />
-            Строго
           </button>
         </div>
       )}
@@ -363,18 +330,6 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
               </span>
             </button>
           ))}
-          {filters.strictMatch && (
-            <span className="flex items-center gap-2 rounded-full bg-amber-300/25 px-3 py-1 text-[11px] font-medium text-amber-100">
-              AND
-              <button
-                onClick={() => update({ strictMatch: false })}
-                aria-label="Выключить строгий режим"
-                className="flex items-center justify-center h-4 w-4 rounded-full bg-amber-300/35 text-amber-950/60 hover:bg-amber-300/45"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </span>
-          )}
           <button
             onClick={resetAll}
             className="rounded-full bg-transparent px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-white/65 transition hover:text-white hover:bg-white/5"
@@ -386,7 +341,7 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
       )}
 
       {/* Scrollable content */}
-  <div className={cn('flex-1 overflow-y-auto px-0 scrollbar-custom', isMobile ? 'space-y-2 pt-2 pb-24' : 'space-y-2 pb-4')}>
+      <div className={cn('flex-1 overflow-y-auto px-0 scrollbar-custom', isMobile ? 'space-y-2 pt-2 pb-24' : 'space-y-2 pb-4')}>
         <FilterRow
           id="row-genres"
           title="Жанры"
@@ -547,39 +502,35 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
         </FilterRow>
       </div>
 
-      {/* Sticky bottom bar (mobile) */}
-      {isMobile && (
-        <div className="sticky bottom-0 mt-auto bg-[#0b0d10]/90 backdrop-blur-2xl px-4 py-3 flex gap-3 sm:hidden shadow-[0_-2px_12px_-3px_rgba(0,0,0,0.6)]">
+      {onApply && (
+        <div
+          className={cn(
+            'mt-auto flex w-full items-center gap-3 px-5 py-4',
+            isMobile
+              ? 'sticky bottom-0 bg-[#0b0d10]/90 backdrop-blur-2xl shadow-[0_-2px_12px_-3px_rgba(0,0,0,0.6)] sm:hidden'
+              : 'border-t border-white/5'
+          )}
+        >
           <Button
-            variant="outline"
+            type="button"
             onClick={resetAll}
-            className="flex-1 h-11 bg-[#141b2a] border-none text-[13px] text-muted-foreground hover:bg-[#1c2436] hover:text-white"
-            aria-label="Сбросить фильтры"
+            className={cn(
+              'h-11 rounded-xl bg-[#152132] text-[13px] text-white/75 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition hover:bg-[#1d2b3d] hover:text-white',
+              isMobile ? 'flex-1' : 'px-6'
+            )}
           >
             Сброс
           </Button>
-          <button
+          <Button
             type="button"
-            onClick={() => update({ strictMatch: !filters.strictMatch })}
+            onClick={onApply}
             className={cn(
-              'h-11 px-3 rounded-lg flex items-center gap-2 text-[12px] font-medium',
-              filters.strictMatch
-                ? 'bg-primary/25 text-primary hover:bg-primary/35'
-                : 'bg-[#141b2a] text-muted-foreground hover:text-white hover:bg-[#1c2436]'
+              'h-11 rounded-xl bg-primary/80 text-[13px] font-semibold uppercase tracking-wide text-white shadow-[0_14px_28px_-16px_rgba(37,99,235,0.75)] transition hover:bg-primary',
+              isMobile ? 'flex-1' : 'px-8'
             )}
           >
-            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-current/70" />
-            Строго
-          </button>
-          {onApply && (
-            <Button
-              onClick={onApply}
-              className="flex-1 h-11 bg-primary/70 text-[13px] text-white font-semibold hover:bg-primary/80 shadow-lg shadow-primary/30"
-              aria-label="Применить фильтры"
-            >
-              Применить
-            </Button>
-          )}
+            Применить
+          </Button>
         </div>
       )}
     </div>
