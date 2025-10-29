@@ -36,49 +36,49 @@ export function AdminMangaPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white mb-2">
+    <div className="container mx-auto px-4 py-6 sm:py-8">
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">
           Управление мангой
         </h1>
-        <p className="text-muted-foreground">
+        <p className="text-sm sm:text-base text-muted-foreground">
           Парсинг, импорт и управление мангой в системе AniWay
         </p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 bg-card">
-          <TabsTrigger value="parser" className="flex items-center gap-2">
+        <TabsList className="w-full flex flex-col gap-2 rounded-xl bg-card/90 p-2 sm:flex-row sm:flex-wrap">
+          <TabsTrigger value="parser" className="flex flex-1 min-w-[140px] items-center justify-center gap-2 text-xs sm:text-sm">
             <Download className="h-4 w-4" />
             Парсер
           </TabsTrigger>
-          <TabsTrigger value="importer" className="flex items-center gap-2">
+          <TabsTrigger value="importer" className="flex flex-1 min-w-[140px] items-center justify-center gap-2 text-xs sm:text-sm">
             <Upload className="h-4 w-4" />
             Импорт
           </TabsTrigger>
-          <TabsTrigger value="manager" className="flex items-center gap-2">
+          <TabsTrigger value="manager" className="flex flex-1 min-w-[140px] items-center justify-center gap-2 text-xs sm:text-sm">
             <BookOpen className="h-4 w-4" />
             Управление
           </TabsTrigger>
-          <TabsTrigger value="auto" className="flex items-center gap-2">
+          <TabsTrigger value="auto" className="flex flex-1 min-w-[140px] items-center justify-center gap-2 text-xs sm:text-sm">
             <RefreshCw className="h-4 w-4" />
             Автоматизация
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="parser" className="mt-6">
+        <TabsContent value="parser" className="mt-6 sm:mt-8">
           <MangaParser />
         </TabsContent>
 
-        <TabsContent value="importer" className="mt-6">
+        <TabsContent value="importer" className="mt-6 sm:mt-8">
           <MangaImporter />
         </TabsContent>
 
-        <TabsContent value="manager" className="mt-6">
+        <TabsContent value="manager" className="mt-6 sm:mt-8">
           <MangaManager />
         </TabsContent>
 
-        <TabsContent value="auto" className="mt-6">
+        <TabsContent value="auto" className="mt-6 sm:mt-8">
           <MangaManagement />
         </TabsContent>
       </Tabs>

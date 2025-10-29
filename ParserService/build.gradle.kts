@@ -28,6 +28,7 @@ dependencies {
     implementation("commons-io:commons-io:2.16.1")
     implementation("com.fasterxml.jackson.core:jackson-databind")
     implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
+    implementation("org.jsoup:jsoup:1.17.2")
     
     // Apache HttpClient для прокси с аутентификацией
     implementation("org.apache.httpcomponents.client5:httpclient5:5.3.1")

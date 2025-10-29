@@ -9,6 +9,10 @@ import org.springframework.util.StringUtils;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Component
 @ConfigurationProperties(prefix = "parser")
@@ -56,12 +60,45 @@ public class ParserProperties {
      */
     private MangaLibConfig mangalib = new MangaLibConfig();
 
+    /**
+     * Настройки MangaBuff авторизации для 18+ контента
+     */
+    private MangaBuffAuthConfig mangabuffAuth = new MangaBuffAuthConfig();
+
+    public static class MangaBuffAuthConfig {
+        private String login = "artempronko241@gmail.com";
+        private String password = "Artem11112003!";
+
+        public String getLogin() {
+            return login;
+        }
+
+        public void setLogin(String login) {
+            this.login = login;
+        }
+
+        public String getPassword() {
+            return password;
+        }
+
+        public void setPassword(String password) {
+            this.password = password;
+        }
+
+        public boolean isEnabled() {
+            return !login.isBlank() && !password.isBlank();
+        }
+    }
+
     public static class MangaLibConfig {
         private String token = "";
         private String siteId = "1";
         private String server = "main";
         private String siteDomain = "mangalib.me";
         private String referer = "https://mangalib.me";
+        private String apiBase = "https://api.cdnlibs.org/api";
+        private List<String> alternateApiBases = new ArrayList<>();
+        private boolean useProxyForApi = false; // 🔥 По умолчанию false для обхода блокировки RU прокси
 
         public String getToken() {
             return token;
@@ -108,6 +145,56 @@ public class ParserProperties {
                 this.referer = referer;
             }
         }
+
+        public String getApiBase() {
+            return apiBase;
+        }
+
+        public void setApiBase(String apiBase) {
+            if (StringUtils.hasText(apiBase)) {
+                this.apiBase = normalizeApiBase(apiBase);
+            }
+        }
+
+        public List<String> getAlternateApiBases() {
+            return new ArrayList<>(alternateApiBases);
+        }
+
+        public void setAlternateApiBases(List<String> alternateApiBases) {
+            if (alternateApiBases == null) {
+                this.alternateApiBases = new ArrayList<>();
+                return;
+            }
+            this.alternateApiBases = alternateApiBases.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .map(this::normalizeApiBase)
+                .collect(Collectors.toCollection(ArrayList::new));
+        }
+
+        public List<String> resolveApiBases() {
+            List<String> bases = new ArrayList<>();
+            bases.add(apiBase);
+            bases.addAll(alternateApiBases);
+            return bases;
+        }
+
+        private String normalizeApiBase(String base) {
+            String normalized = base.trim();
+            if (normalized.endsWith("/")) {
+                normalized = normalized.substring(0, normalized.length() - 1);
+            }
+            return normalized;
+        }
+
+        public boolean isUseProxyForApi() {
+            return useProxyForApi;
+        }
+
+        public void setUseProxyForApi(boolean useProxyForApi) {
+            this.useProxyForApi = useProxyForApi;
+        }
     }
 
     /**
@@ -128,7 +215,14 @@ public class ParserProperties {
     /**
      * Максимальное количество параллельных загрузок изображений.
      */
-    private int maxParallelDownloads = 50; // Увеличено с 20 до 50 для ускорения загрузки
+    private int maxParallelDownloads = 80; // 10 быстрых прокси × 8 потоков на каждую ноду
+    
+    /**
+    * ⚡ КРИТИЧНО: Максимальное количество глав, загружаемых параллельно.
+    * При значении 1 - главы качаются последовательно (медленно).
+    * При значении 2 сохраняем запас до rate-limit при 10 быстрых прокси.
+    */
+    private int maxParallelChapters = 2;
     
     /**
      * Таймаут загрузки изображения в секундах.
@@ -264,6 +358,17 @@ public class ParserProperties {
         }
     }
     
+    public int getMaxParallelChapters() {
+        return maxParallelChapters;
+    }
+    
+    public void setMaxParallelChapters(int maxParallelChapters) {
+        if (maxParallelChapters > 0) {
+            this.maxParallelChapters = maxParallelChapters;
+            log.info("🔧 maxParallelChapters установлен в: {}", maxParallelChapters);
+        }
+    }
+    
     public int getImageTimeoutSeconds() {
         return imageTimeoutSeconds;
     }
@@ -281,6 +386,16 @@ public class ParserProperties {
     public void setMangalib(MangaLibConfig mangalib) {
         if (mangalib != null) {
             this.mangalib = mangalib;
+        }
+    }
+
+    public MangaBuffAuthConfig getMangabuffAuth() {
+        return mangabuffAuth;
+    }
+
+    public void setMangabuffAuth(MangaBuffAuthConfig mangabuffAuth) {
+        if (mangabuffAuth != null) {
+            this.mangabuffAuth = mangabuffAuth;
         }
     }
 }

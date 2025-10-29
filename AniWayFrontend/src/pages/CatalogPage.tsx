@@ -136,11 +136,11 @@ export function CatalogPage() {
 
   // Разбор значений из URL
   const parseArray = (value: string | null) => !value ? [] : value.split(',').filter(Boolean)
-  const parseRange = (value: string | null, fallback: [number, number]) => {
-    if (!value) return fallback
+  const parseRange = (value: string | null): [number, number] | undefined => {
+    if (!value) return undefined
     const parts = value.split('-').map(v => parseInt(v, 10)).filter(v => !isNaN(v))
     if (parts.length === 2) return [parts[0], parts[1]] as [number, number]
-    return fallback
+    return undefined
   }
   // Build initial filters once from URL (single capture to avoid race with writer effect)
   const collectInitialFilters = () => {
@@ -163,10 +163,11 @@ export function CatalogPage() {
       tags: combinedTags,
       type: searchParams.get('type') || undefined,
       status: searchParams.get('status') || undefined,
-      ageRating: parseRange(searchParams.get('ageRating'), [0, 21]),
-      rating: parseRange(searchParams.get('rating'), [0, 10]),
-      releaseYear: parseRange(searchParams.get('releaseYear'), [1990, new Date().getFullYear()]),
-      chapterRange: parseRange(searchParams.get('chapterRange'), [0, 1000])
+      ageRating: parseRange(searchParams.get('ageRating')),
+      rating: parseRange(searchParams.get('rating')),
+      releaseYear: parseRange(searchParams.get('releaseYear')),
+      chapterRange: parseRange(searchParams.get('chapterRange')),
+      strictMatch: searchParams.get('strict') === '1' || searchParams.get('strictMatch') === 'true'
     }
     Object.keys(f).forEach(k => {
       const v = f[k]
@@ -181,16 +182,29 @@ export function CatalogPage() {
     if (Array.isArray(v) && v.length === 0) delete (initialActiveFilters as any)[k]
     if (v === undefined) delete (initialActiveFilters as any)[k]
   })
+  if (initialActiveFilters.ageRating && rangesEqual(initialActiveFilters.ageRating, DEFAULT_AGE_RATING)) {
+    delete initialActiveFilters.ageRating
+  }
+  if (initialActiveFilters.rating && rangesEqual(initialActiveFilters.rating, DEFAULT_RATING_RANGE)) {
+    delete initialActiveFilters.rating
+  }
+  if (initialActiveFilters.releaseYear && rangesEqual(initialActiveFilters.releaseYear, DEFAULT_RELEASE_YEAR_RANGE)) {
+    delete initialActiveFilters.releaseYear
+  }
+  if (initialActiveFilters.chapterRange && rangesEqual(initialActiveFilters.chapterRange, DEFAULT_CHAPTER_RANGE)) {
+    delete initialActiveFilters.chapterRange
+  }
   const [activeFilters, setActiveFilters] = useState<any>(initialActiveFilters) // Применённые фильтры (для API)
   const [draftFilters, setDraftFilters] = useState<any>(() => ({
     selectedGenres: initialActiveFilters.genres || [],
     selectedTags: initialActiveFilters.tags || [],
     mangaType: initialActiveFilters.type || '',
     status: initialActiveFilters.status || '',
-    ageRating: initialActiveFilters.ageRating || [0, 21],
-    rating: initialActiveFilters.rating || [0, 10],
-    releaseYear: initialActiveFilters.releaseYear || [1990, new Date().getFullYear()],
-    chapterRange: initialActiveFilters.chapterRange || [0, 1000]
+    ageRating: initialActiveFilters.ageRating || DEFAULT_AGE_RATING,
+    rating: initialActiveFilters.rating || DEFAULT_RATING_RANGE,
+    releaseYear: initialActiveFilters.releaseYear || DEFAULT_RELEASE_YEAR_RANGE,
+    chapterRange: initialActiveFilters.chapterRange || DEFAULT_CHAPTER_RANGE,
+    strictMatch: initialActiveFilters.strictMatch || false
   })) // Предварительные фильтры (для UI)
   // Refs & QueryClient
   const sortDropdownRef = useRef<HTMLDivElement>(null)
@@ -381,11 +395,11 @@ export function CatalogPage() {
     if (activeFilters.tags?.length) params.tags = activeFilters.tags.join(',')
     if (activeFilters.type) params.type = activeFilters.type
     if (activeFilters.status) params.status = activeFilters.status
-    if (activeFilters.ageRating) params.ageRating = activeFilters.ageRating.join('-')
-    if (activeFilters.rating) params.rating = activeFilters.rating.join('-')
-    if (activeFilters.releaseYear) params.releaseYear = activeFilters.releaseYear.join('-')
-    if (activeFilters.chapterRange) params.chapterRange = activeFilters.chapterRange.join('-')
-  if (activeFilters.strictMatch) params.strict = '1'
+    if (activeFilters.ageRating && !rangesEqual(activeFilters.ageRating, DEFAULT_AGE_RATING)) params.ageRating = activeFilters.ageRating.join('-')
+    if (activeFilters.rating && !rangesEqual(activeFilters.rating, DEFAULT_RATING_RANGE)) params.rating = activeFilters.rating.join('-')
+    if (activeFilters.releaseYear && !rangesEqual(activeFilters.releaseYear, DEFAULT_RELEASE_YEAR_RANGE)) params.releaseYear = activeFilters.releaseYear.join('-')
+    if (activeFilters.chapterRange && !rangesEqual(activeFilters.chapterRange, DEFAULT_CHAPTER_RANGE)) params.chapterRange = activeFilters.chapterRange.join('-')
+    if (activeFilters.strictMatch) params.strict = '1'
 
     // Сравнение текущих и новых search params чтобы избежать лишних обновлений
     const current = new URLSearchParams(searchParams)
@@ -480,19 +494,19 @@ export function CatalogPage() {
       searchParams.status = draftFilters.status
     }
     
-    if (draftFilters.ageRating) {
+    if (draftFilters.ageRating && !rangesEqual(draftFilters.ageRating, DEFAULT_AGE_RATING)) {
       searchParams.ageRating = draftFilters.ageRating
     }
     
-    if (draftFilters.rating) {
+    if (draftFilters.rating && !rangesEqual(draftFilters.rating, DEFAULT_RATING_RANGE)) {
       searchParams.rating = draftFilters.rating
     }
     
-    if (draftFilters.releaseYear) {
+    if (draftFilters.releaseYear && !rangesEqual(draftFilters.releaseYear, DEFAULT_RELEASE_YEAR_RANGE)) {
       searchParams.releaseYear = draftFilters.releaseYear
     }
     
-    if (draftFilters.chapterRange) {
+    if (draftFilters.chapterRange && !rangesEqual(draftFilters.chapterRange, DEFAULT_CHAPTER_RANGE)) {
       searchParams.chapterRange = draftFilters.chapterRange
     }
     if (draftFilters.strictMatch) {
@@ -507,7 +521,17 @@ export function CatalogPage() {
   // Функция сброса фильтров
   const resetFilters = () => {
   // Debug removed
-    setDraftFilters({})
+    setDraftFilters({
+      selectedGenres: [],
+      selectedTags: [],
+      mangaType: '',
+      status: '',
+      ageRating: DEFAULT_AGE_RATING,
+      rating: DEFAULT_RATING_RANGE,
+      releaseYear: DEFAULT_RELEASE_YEAR_RANGE,
+      chapterRange: DEFAULT_CHAPTER_RANGE,
+      strictMatch: false
+    })
     setActiveFilters({})
     setCurrentPage(0)
   }
@@ -616,7 +640,17 @@ export function CatalogPage() {
 
   const clearAllFilters = () => {
     setActiveFilters({})
-    setDraftFilters({})
+    setDraftFilters({
+      selectedGenres: [],
+      selectedTags: [],
+      mangaType: '',
+      status: '',
+      ageRating: DEFAULT_AGE_RATING,
+      rating: DEFAULT_RATING_RANGE,
+      releaseYear: DEFAULT_RELEASE_YEAR_RANGE,
+      chapterRange: DEFAULT_CHAPTER_RANGE,
+      strictMatch: false
+    })
     setActiveType('все')
     setSearchInput('')
     setSearchQuery('')

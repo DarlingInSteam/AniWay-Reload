@@ -15,7 +15,8 @@ import java.time.LocalDateTime;
  */
 @Entity
 @Table(name = "chapter", uniqueConstraints = {
-    @UniqueConstraint(columnNames = {"manga_id", "chapter_number"})
+    @UniqueConstraint(columnNames = {"manga_id", "chapter_number"}),
+    @UniqueConstraint(columnNames = {"manga_id", "melon_chapter_id"})
 })
 public class Chapter {
 
@@ -45,7 +46,7 @@ public class Chapter {
 
     /** Идентификатор главы во внешней системе MangaLib */
     @Size(max = 191, message = "External chapter id must not exceed 191 characters")
-    @Column(name = "melon_chapter_id", unique = true)
+    @Column(name = "melon_chapter_id")
     private String melonChapterId;
 
     /** Название главы */

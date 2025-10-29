@@ -1,15 +1,18 @@
 package shadowshift.studio.mangaservice.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.ui.Model;
 import shadowshift.studio.mangaservice.service.MelonIntegrationService;
 import shadowshift.studio.mangaservice.service.AutoParsingService;
+import shadowshift.studio.mangaservice.service.ImportQueueService;
 import shadowshift.studio.mangaservice.service.MangaUpdateService;
 
 import java.util.Map;
+import java.util.HashMap;
 import java.util.List;
 
 /**
@@ -199,6 +202,16 @@ public class ParserController {
         try {
             Map<String, Object> result = melonService.importToSystemAsync(filename, branchId);
             return ResponseEntity.ok(result);
+            } catch (ImportQueueService.ImportInProgressException busy) {
+                ImportQueueService.ImportQueueItem active = busy.getCurrentImport();
+                Map<String, Object> body = new HashMap<>();
+                body.put("error", "Другой импорт уже выполняется");
+                if (active != null) {
+                    body.put("activeTaskId", active.getImportTaskId());
+                    body.put("activeSlug", active.getSlug());
+                    body.put("startedAt", active.getStartedAt());
+                }
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
         } catch (Exception e) {
             return ResponseEntity.badRequest()
                 .body(Map.of("error", "Ошибка импорта: " + e.getMessage()));

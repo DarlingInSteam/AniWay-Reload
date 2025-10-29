@@ -195,16 +195,16 @@ export function MangaImporter() {
 
   return (
     <div className="space-y-6">
-      {/* Заголовок и ��бновление */}
-      <div className="flex items-center justify-between">
+      {/* Заголовок и обновление */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="text-lg font-medium text-white">Импорт манги</h3>
-          <p className="text-sm text-muted-foreground">
+          <h3 className="text-base sm:text-lg font-medium text-white">Импорт манги</h3>
+          <p className="text-xs sm:text-sm text-muted-foreground">
             Импорт спарсенной манги в систему AniWay
           </p>
         </div>
-        <Button onClick={loadParsedManga} variant="outline" size="sm">
-          <RefreshCw className="h-4 w-4 mr-2" />
+        <Button onClick={loadParsedManga} variant="outline" size="sm" className="gap-2 self-start sm:self-auto">
+          <RefreshCw className="h-4 w-4" />
           Обновить
         </Button>
       </div>

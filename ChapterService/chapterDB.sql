@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS chapter (
 
     -- Ensure unique chapter numbers per manga
     UNIQUE(manga_id, chapter_number),
-    UNIQUE(melon_chapter_id)
+    UNIQUE(manga_id, melon_chapter_id)
 );
 
 -- Indexes for faster queries

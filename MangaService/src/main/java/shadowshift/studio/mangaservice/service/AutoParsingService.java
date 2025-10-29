@@ -314,9 +314,19 @@ public class AutoParsingService {
                 return CompletableFuture.completedFuture(null);
             }
 
+            // Deduplicate slugs based on normalized slug to prevent re-parsing the same manga
+            Map<String, String> normalizedToOriginal = new LinkedHashMap<>();
+            for (String slug : slugs) {
+                String normalized = normalizeSlug(slug);
+                if (!normalizedToOriginal.containsKey(normalized)) {
+                    normalizedToOriginal.put(normalized, slug);
+                }
+            }
+            slugs = new ArrayList<>(normalizedToOriginal.values());
+
             task.totalSlugs = slugs.size();
-            logger.info("Получено {} манг из каталога", slugs.size());
-            appendLog(task, String.format("Найдено %d тайтлов для обработки", slugs.size()));
+            logger.info("Получено {} манг из каталога, после дедупликации: {}", slugs.size(), slugs.size());
+            appendLog(task, String.format("Найдено %d тайтлов для обработки (после дедупликации)", slugs.size()));
 
             for (int i = 0; i < slugs.size(); i++) {
                 if ("cancelled".equals(task.status)) {
@@ -371,6 +381,61 @@ public class AutoParsingService {
                         task.message = String.format("Обработано: %d/%d (пропущено: %d, импортировано: %d)",
                             task.processedSlugs, task.totalSlugs, task.skippedSlugs.size(), task.importedSlugs.size());
                         continue;
+                    }
+
+                    // Check if this slug is currently being processed (import in progress)
+                    if (melonService.isSlugBeingProcessed(normalizedSlug)) {
+                        logger.info("Манга с slug '{}' (normalized: '{}') уже находится в обработке, пропускаем до завершения импорта",
+                            slug, normalizedSlug);
+                        task.skippedSlugs.add(slug);
+                        appendLog(task, String.format("[%d/%d] %s: пропуск — находится в обработке",
+                            i + 1, slugs.size(), normalizedSlug));
+
+                        mangaMetric.put("status", "skipped");
+                        mangaMetric.put("reason", "being_processed");
+                        mangaMetric.put("completed_at", toIsoString(System.currentTimeMillis()));
+                        mangaMetric.put("duration_ms", 0L);
+                        mangaMetric.put("duration_formatted", formatDuration(0));
+                        addMangaMetric(task, mangaMetric);
+                        metricRecorded = true;
+
+                        task.processedSlugs++;
+                        task.progress = (task.processedSlugs * 100) / task.totalSlugs;
+                        task.message = String.format("Обработано: %d/%d (пропущено: %d, импортировано: %d)",
+                            task.processedSlugs, task.totalSlugs, task.skippedSlugs.size(), task.importedSlugs.size());
+                        continue;
+                    }
+
+                    // Check if this manga has already been parsed in ParserService
+                    try {
+                        List<Map<String, Object>> parsedManga = melonService.listParsedManga();
+                        boolean alreadyParsed = parsedManga.stream()
+                            .anyMatch(manga -> normalizedSlug.equals(manga.get("slug")));
+                        
+                        if (alreadyParsed) {
+                            logger.info("Манга с slug '{}' (normalized: '{}') уже спаршена в ParserService, пропускаем",
+                                slug, normalizedSlug);
+                            task.skippedSlugs.add(slug);
+                            appendLog(task, String.format("[%d/%d] %s: пропуск — уже спаршена",
+                                i + 1, slugs.size(), normalizedSlug));
+
+                            mangaMetric.put("status", "skipped");
+                            mangaMetric.put("reason", "already_parsed");
+                            mangaMetric.put("completed_at", toIsoString(System.currentTimeMillis()));
+                            mangaMetric.put("duration_ms", 0L);
+                            mangaMetric.put("duration_formatted", formatDuration(0));
+                            addMangaMetric(task, mangaMetric);
+                            metricRecorded = true;
+
+                            task.processedSlugs++;
+                            task.progress = (task.processedSlugs * 100) / task.totalSlugs;
+                            task.message = String.format("Обработано: %d/%d (пропущено: %d, импортировано: %d)",
+                                task.processedSlugs, task.totalSlugs, task.skippedSlugs.size(), task.importedSlugs.size());
+                            continue;
+                        }
+                    } catch (Exception e) {
+                        logger.warn("Не удалось проверить список спаршенных манг для '{}': {}", normalizedSlug, e.getMessage());
+                        // Continue with parsing if we can't check - better to parse than skip unnecessarily
                     }
 
                     thresholdDecision = evaluateChapterThreshold(slug, normalizedSlug, task);

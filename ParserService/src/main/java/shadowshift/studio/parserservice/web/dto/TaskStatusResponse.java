@@ -23,6 +23,7 @@ public class TaskStatusResponse {
     private final Instant completedAt;
     private final List<TaskResultDto> results;
     private final Map<String, Object> metrics;
+    private final List<TaskLogDto> logs;
     private final String buildState;
 
     public TaskStatusResponse(UUID taskId,
@@ -41,6 +42,7 @@ public class TaskStatusResponse {
                               Instant completedAt,
                               List<TaskResultDto> results,
                               Map<String, Object> metrics,
+                              List<TaskLogDto> logs,
                               String buildState) {
         this.taskId = taskId;
         this.type = type;
@@ -58,6 +60,7 @@ public class TaskStatusResponse {
         this.completedAt = completedAt;
         this.results = results;
         this.metrics = metrics;
+        this.logs = logs;
         this.buildState = buildState;
     }
 
@@ -123,6 +126,10 @@ public class TaskStatusResponse {
 
     public Map<String, Object> getMetrics() {
         return metrics;
+    }
+
+    public List<TaskLogDto> getLogs() {
+        return logs;
     }
 
     public String getBuildState() {

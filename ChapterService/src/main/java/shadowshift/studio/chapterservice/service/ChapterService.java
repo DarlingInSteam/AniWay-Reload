@@ -167,13 +167,15 @@ public class ChapterService {
             " already exists for manga " + createDTO.getMangaId());
     }
 
-    String normalizedMelonChapterId = normalizeExternalId(createDTO.getMelonChapterId());
-    if (normalizedMelonChapterId != null) {
-        Optional<Chapter> existingByExternalId = chapterRepository.findByMelonChapterId(normalizedMelonChapterId);
-        if (existingByExternalId.isPresent()) {
-        throw new RuntimeException("Chapter with external id " + normalizedMelonChapterId + " already exists");
+        String normalizedMelonChapterId = normalizeExternalId(createDTO.getMelonChapterId());
+        if (normalizedMelonChapterId != null) {
+            Optional<Chapter> existingByExternalId = chapterRepository
+                    .findByMangaIdAndMelonChapterId(createDTO.getMangaId(), normalizedMelonChapterId);
+            if (existingByExternalId.isPresent()) {
+                throw new RuntimeException("Chapter with external id " + normalizedMelonChapterId +
+                        " already exists for manga " + createDTO.getMangaId());
+            }
         }
-    }
 
         // ✅ ИСПРАВЛЕНИЕ: Предупреждение о создании главы без страниц
         if (createDTO.getPageCount() == null || createDTO.getPageCount() == 0) {
@@ -190,7 +192,7 @@ public class ChapterService {
         chapter.setChapterNumber(createDTO.getChapterNumber());
         chapter.setVolumeNumber(createDTO.getVolumeNumber());
         chapter.setOriginalChapterNumber(createDTO.getOriginalChapterNumber());
-    chapter.setMelonChapterId(normalizedMelonChapterId);
+        chapter.setMelonChapterId(normalizedMelonChapterId);
         chapter.setTitle(createDTO.getTitle());
         // Ensure likeCount is initialized to 0
         chapter.setLikeCount(0);
@@ -299,10 +301,11 @@ public class ChapterService {
                     String normalizedMelonChapterId = normalizeExternalId(updateDTO.getMelonChapterId());
                     if (!java.util.Objects.equals(normalizedMelonChapterId, chapter.getMelonChapterId())) {
                         if (normalizedMelonChapterId != null) {
-                            chapterRepository.findByMelonChapterId(normalizedMelonChapterId)
+                            chapterRepository.findByMangaIdAndMelonChapterId(chapter.getMangaId(), normalizedMelonChapterId)
                                     .filter(found -> !found.getId().equals(id))
                                     .ifPresent(found -> {
-                                        throw new RuntimeException("Chapter with external id " + normalizedMelonChapterId + " already exists");
+                                        throw new RuntimeException("Chapter with external id " + normalizedMelonChapterId +
+                                                " already exists for manga " + chapter.getMangaId());
                                     });
                         }
                         chapter.setMelonChapterId(normalizedMelonChapterId);
@@ -718,7 +721,7 @@ public class ChapterService {
     public boolean chapterExists(Long mangaId, Double chapterNumber, String melonChapterId) {
         String normalizedMelonChapterId = normalizeExternalId(melonChapterId);
         if (normalizedMelonChapterId != null) {
-            if (chapterRepository.findByMelonChapterId(normalizedMelonChapterId).isPresent()) {
+            if (chapterRepository.findByMangaIdAndMelonChapterId(mangaId, normalizedMelonChapterId).isPresent()) {
                 return true;
             }
         }

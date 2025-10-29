@@ -1755,7 +1755,7 @@ export function MangaManagement() {
           {/* Статус автопарсинга */}
           {autoParseTask && (
             <div className="border border-border rounded-lg p-4 space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
                   {getStatusIcon(autoParseTask.status)}
                   <div>
@@ -1776,7 +1776,7 @@ export function MangaManagement() {
 
               <Progress value={autoParseTask.progress} className="h-2" />
 
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
                 <div>
                   <span className="text-muted-foreground">Всего:</span>
                   <span className="ml-2 text-white">{autoParseTask.total_slugs || 0}</span>
@@ -1851,7 +1851,7 @@ export function MangaManagement() {
 
               {autoParseTask.manga_metrics.length > 0 && (
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <Label className="text-sm font-medium text-white">Результаты по тайтлам</Label>
                     <Badge variant="outline" className="text-xs">
                       {autoParseTask.manga_metrics.length}
@@ -2017,7 +2017,7 @@ export function MangaManagement() {
           {/* Статус автообновления */}
           {autoUpdateTask && (
             <div className="border border-border rounded-lg p-4 space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
                   {getStatusIcon(autoUpdateTask.status)}
                   <div>
@@ -2038,7 +2038,7 @@ export function MangaManagement() {
 
               <Progress value={autoUpdateTask.progress} className="h-2" />
 
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
                 <div>
                   <span className="text-muted-foreground">Всего манг:</span>
                   <span className="ml-2 text-white">{autoUpdateTask.total_mangas}</span>
@@ -2102,7 +2102,7 @@ export function MangaManagement() {
 
               {/* Логи в реальном времени */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <Label className="text-sm font-medium text-white">Логи автообновления</Label>
                   {selectedLogSource !== 'auto-update' && (
                     <Badge variant="outline" className="text-xs">

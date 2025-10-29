@@ -275,7 +275,7 @@ export function RealTimeProgress({
 
   if (isMinimized) {
     return (
-      <div className={`fixed bottom-4 right-4 z-50 ${className}`}>
+      <div className={`fixed bottom-4 left-4 right-4 z-50 sm:left-auto sm:right-4 ${className}`}>
         <Button
           onClick={() => setIsMinimized(false)}
           variant="outline"
@@ -294,7 +294,7 @@ export function RealTimeProgress({
   }
 
   return (
-    <Card className={`fixed bottom-4 right-4 w-96 max-h-96 z-50 bg-background/95 backdrop-blur-sm border-border ${className}`}>
+    <Card className={`fixed bottom-4 left-4 right-4 z-50 max-h-96 w-auto max-w-md bg-background/95 backdrop-blur-sm border-border sm:left-auto sm:right-4 sm:w-96 sm:max-w-none ${className}`}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
