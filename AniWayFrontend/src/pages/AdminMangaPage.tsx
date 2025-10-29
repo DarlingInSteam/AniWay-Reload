@@ -31,24 +31,6 @@ export function AdminMangaPage() {
     setShowRightFade((prev) => (prev === nextShowRight ? prev : nextShowRight))
   }, [])
 
-  useEffect(() => {
-    const list = tabsListRef.current
-    if (!list) {
-      return
-    }
-
-    const handleResize = () => window.requestAnimationFrame(updateFadeIndicators)
-
-    updateFadeIndicators()
-    list.addEventListener('scroll', updateFadeIndicators, { passive: true })
-    window.addEventListener('resize', handleResize)
-
-    return () => {
-      list.removeEventListener('scroll', updateFadeIndicators)
-      window.removeEventListener('resize', handleResize)
-    }
-  }, [updateFadeIndicators])
-
   const ensureActiveTabVisible = useCallback(() => {
     const list = tabsListRef.current
     const activeTrigger = tabRefs.current[activeTab]
@@ -84,6 +66,24 @@ export function AdminMangaPage() {
       updateFadeIndicators()
     }
   }, [activeTab, updateFadeIndicators])
+
+  useEffect(() => {
+    const list = tabsListRef.current
+    if (!list) {
+      return
+    }
+
+    const handleResize = () => window.requestAnimationFrame(ensureActiveTabVisible)
+
+    ensureActiveTabVisible()
+    list.addEventListener('scroll', updateFadeIndicators, { passive: true })
+    window.addEventListener('resize', handleResize)
+
+    return () => {
+      list.removeEventListener('scroll', updateFadeIndicators)
+      window.removeEventListener('resize', handleResize)
+    }
+  }, [ensureActiveTabVisible, updateFadeIndicators])
 
   useEffect(() => {
     ensureActiveTabVisible()
