@@ -49,17 +49,23 @@ export function AdminMangaPage() {
 
     const tabLeft = activeTrigger.offsetLeft
     const tabRight = tabLeft + activeTrigger.offsetWidth
+    
+    // Larger buffer to guarantee full visibility including right edge
+    const buffer = 12
     const minVisible = scrollLeft + paddingLeft
     const maxVisible = scrollRight - paddingRight
     let nextScrollLeft = scrollLeft
 
-    if (tabLeft < minVisible) {
-      nextScrollLeft = Math.max(0, tabLeft - paddingLeft)
-    } else if (tabRight > maxVisible) {
-      nextScrollLeft = Math.max(0, tabRight - clientWidth + paddingRight)
+    // If tab starts before visible area, scroll it into view with buffer
+    if (tabLeft < minVisible + buffer) {
+      nextScrollLeft = Math.max(0, tabLeft - paddingLeft - buffer)
+    } 
+    // If tab ends after visible area, scroll so it's fully visible with buffer
+    else if (tabRight > maxVisible - buffer) {
+      nextScrollLeft = tabRight - clientWidth + paddingRight + buffer
     }
 
-    if (nextScrollLeft !== scrollLeft) {
+    if (Math.abs(nextScrollLeft - scrollLeft) > 1) {
       list.scrollTo({ left: nextScrollLeft, behavior: 'smooth' })
       window.requestAnimationFrame(updateFadeIndicators)
     } else {
@@ -127,17 +133,22 @@ export function AdminMangaPage() {
         <TabsList
           ref={tabsListRef}
           aria-label="Разделы управления мангой"
-          className="relative flex w-full flex-nowrap items-stretch gap-2 overflow-x-auto rounded-xl border border-white/10 bg-background/60 py-1 pl-4 pr-4 text-xs shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/50 sm:flex-wrap sm:justify-start sm:overflow-visible sm:border-transparent sm:bg-transparent sm:p-0 sm:text-sm snap-x snap-mandatory"
+          className="relative flex w-full flex-nowrap items-stretch gap-1.5 overflow-x-auto rounded-xl border border-white/10 bg-background/60 py-1 pl-3 pr-3 text-xs shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/50 sm:flex-wrap sm:justify-start sm:overflow-visible sm:border-transparent sm:bg-transparent sm:p-0 sm:text-sm"
+          style={{ 
+            scrollbarWidth: 'none', 
+            msOverflowStyle: 'none',
+            WebkitOverflowScrolling: 'touch'
+          }}
         >
           {showLeftFade && (
             <div
-              className="pointer-events-none absolute inset-y-0 left-0 w-4 bg-gradient-to-r from-background/90 to-transparent sm:hidden z-10"
+              className="pointer-events-none absolute inset-y-0 left-0 w-2 bg-gradient-to-r from-background/95 via-background/60 to-transparent sm:hidden z-10"
               aria-hidden="true"
             />
           )}
           {showRightFade && (
             <div
-              className="pointer-events-none absolute inset-y-0 right-0 w-4 bg-gradient-to-l from-background/90 to-transparent sm:hidden z-10"
+              className="pointer-events-none absolute inset-y-0 right-0 w-2 bg-gradient-to-l from-background/95 via-background/60 to-transparent sm:hidden z-10"
               aria-hidden="true"
             />
           )}
@@ -146,7 +157,7 @@ export function AdminMangaPage() {
             ref={(node) => {
               tabRefs.current.parser = node
             }}
-            className="flex min-w-[8rem] flex-none items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-transparent px-3 py-2 font-medium text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:border-primary/60 data-[state=active]:bg-primary/15 data-[state=active]:text-white data-[state=active]:shadow-sm sm:flex-1 sm:px-4 sm:py-2.5 snap-start"
+            className="flex min-w-[7.5rem] flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-transparent px-2.5 py-2 font-medium text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:border-primary/60 data-[state=active]:bg-primary/15 data-[state=active]:text-white data-[state=active]:shadow-sm sm:flex-1 sm:px-4 sm:py-2.5"
           >
             <Download className="h-4 w-4" />
             Парсер
@@ -156,7 +167,7 @@ export function AdminMangaPage() {
             ref={(node) => {
               tabRefs.current.importer = node
             }}
-            className="flex min-w-[8rem] flex-none items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-transparent px-3 py-2 font-medium text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:border-primary/60 data-[state=active]:bg-primary/15 data-[state=active]:text-white data-[state=active]:shadow-sm sm:flex-1 sm:px-4 sm:py-2.5 snap-start"
+            className="flex min-w-[7.5rem] flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-transparent px-2.5 py-2 font-medium text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:border-primary/60 data-[state=active]:bg-primary/15 data-[state=active]:text-white data-[state=active]:shadow-sm sm:flex-1 sm:px-4 sm:py-2.5"
           >
             <Upload className="h-4 w-4" />
             Импорт
@@ -166,7 +177,7 @@ export function AdminMangaPage() {
             ref={(node) => {
               tabRefs.current.manager = node
             }}
-            className="flex min-w-[8rem] flex-none items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-transparent px-3 py-2 font-medium text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:border-primary/60 data-[state=active]:bg-primary/15 data-[state=active]:text-white data-[state=active]:shadow-sm sm:flex-1 sm:px-4 sm:py-2.5 snap-start"
+            className="flex min-w-[7.5rem] flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-transparent px-2.5 py-2 font-medium text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:border-primary/60 data-[state=active]:bg-primary/15 data-[state=active]:text-white data-[state=active]:shadow-sm sm:flex-1 sm:px-4 sm:py-2.5"
           >
             <BookOpen className="h-4 w-4" />
             Управление
@@ -176,7 +187,7 @@ export function AdminMangaPage() {
             ref={(node) => {
               tabRefs.current.auto = node
             }}
-            className="flex min-w-[8rem] flex-none items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-transparent px-3 py-2 font-medium text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:border-primary/60 data-[state=active]:bg-primary/15 data-[state=active]:text-white data-[state=active]:shadow-sm sm:flex-1 sm:px-4 sm:py-2.5 snap-start"
+            className="flex min-w-[7.5rem] flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-transparent px-2.5 py-2 font-medium text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:border-primary/60 data-[state=active]:bg-primary/15 data-[state=active]:text-white data-[state=active]:shadow-sm sm:flex-1 sm:px-4 sm:py-2.5"
           >
             <RefreshCw className="h-4 w-4" />
             Автоматизация
