@@ -109,16 +109,22 @@ public class ImportQueueService {
      * Добавить импорт в очередь
      */
     public String queueImport(String importTaskId, String slug, String filename, ImportQueueItem.Priority priority, Runnable completionCallback) {
-        if (!importLock.tryLock()) {
+        importLock.lock();
+        ImportQueueItem item;
+        try {
             ImportQueueItem active = currentImport.get();
-            throw new ImportInProgressException("Импорт уже выполняется", active);
-        }
+            if (active != null) {
+                throw new ImportInProgressException("Импорт уже выполняется", active);
+            }
 
-        ImportQueueItem item = new ImportQueueItem(importTaskId, slug, filename, priority, completionCallback);
-        item.setStatus(ImportQueueItem.Status.PROCESSING);
-        item.setStartedAt(LocalDateTime.now());
-        currentImport.set(item);
-        activeImports.put(importTaskId, item);
+            item = new ImportQueueItem(importTaskId, slug, filename, priority, completionCallback);
+            item.setStatus(ImportQueueItem.Status.PROCESSING);
+            item.setStartedAt(LocalDateTime.now());
+            currentImport.set(item);
+            activeImports.put(importTaskId, item);
+        } finally {
+            importLock.unlock();
+        }
 
         logger.info("=== СТАРТ ОДНОГО ИМПОРТА === taskId={}, slug={}, priority={} ===", importTaskId, slug, priority);
 
@@ -131,35 +137,39 @@ public class ImportQueueService {
         }
 
         importFuture.whenComplete((result, throwable) -> {
+            Runnable completionCb = item.getCompletionCallback();
+
+            if (throwable == null) {
+                item.setStatus(ImportQueueItem.Status.COMPLETED);
+                logger.info("Импорт завершен успешно: taskId={}", item.getImportTaskId());
+            } else {
+                item.setStatus(ImportQueueItem.Status.FAILED);
+                item.setErrorMessage(throwable.getMessage());
+                logger.error("Ошибка импорта taskId={}: {}", item.getImportTaskId(), throwable.getMessage(), throwable);
+            }
+            item.setCompletedAt(LocalDateTime.now());
+
+            importLock.lock();
             try {
-                if (throwable == null) {
-                    item.setStatus(ImportQueueItem.Status.COMPLETED);
-                    logger.info("Импорт завершен успешно: taskId={}", item.getImportTaskId());
-                } else {
-                    item.setStatus(ImportQueueItem.Status.FAILED);
-                    item.setErrorMessage(throwable.getMessage());
-                    logger.error("Ошибка импорта taskId={}: {}", item.getImportTaskId(), throwable.getMessage(), throwable);
-                }
-                item.setCompletedAt(LocalDateTime.now());
-
-                if (item.getCompletionCallback() != null) {
-                    try {
-                        item.getCompletionCallback().run();
-                    } catch (Exception callbackEx) {
-                        logger.error("Ошибка completion callback taskId={}: {}", item.getImportTaskId(), callbackEx.getMessage(), callbackEx);
-                    }
-                }
-
-                completedImports.put(item.getImportTaskId(), item);
-                CompletableFuture.delayedExecutor(30, TimeUnit.MINUTES).execute(() -> {
-                    completedImports.remove(item.getImportTaskId());
-                    logger.debug("Удален завершенный импорт из кэша: {}", item.getImportTaskId());
-                });
-            } finally {
                 activeImports.remove(item.getImportTaskId());
                 currentImport.compareAndSet(item, null);
+            } finally {
                 importLock.unlock();
             }
+
+            if (completionCb != null) {
+                try {
+                    completionCb.run();
+                } catch (Exception callbackEx) {
+                    logger.error("Ошибка completion callback taskId={}: {}", item.getImportTaskId(), callbackEx.getMessage(), callbackEx);
+                }
+            }
+
+            completedImports.put(item.getImportTaskId(), item);
+            CompletableFuture.delayedExecutor(30, TimeUnit.MINUTES).execute(() -> {
+                completedImports.remove(item.getImportTaskId());
+                logger.debug("Удален завершенный импорт из кэша: {}", item.getImportTaskId());
+            });
         });
 
         return importTaskId;
@@ -194,11 +204,11 @@ public class ImportQueueService {
      * Получить статистику очереди
      */
     public Map<String, Object> getQueueStats() {
-        Map<String, Object> stats = new HashMap<>();
-        stats.put("queueSize", currentImport.get() != null ? 1 : 0);
-        stats.put("activeImports", activeImports.size());
-        stats.put("maxActiveImports", MAX_ACTIVE_IMPORTS);
-        stats.put("availableSlots", importLock.isLocked() ? 0 : 1);
+    Map<String, Object> stats = new HashMap<>();
+    stats.put("queueSize", currentImport.get() != null ? 1 : 0);
+    stats.put("activeImports", activeImports.size());
+    stats.put("maxActiveImports", MAX_ACTIVE_IMPORTS);
+    stats.put("availableSlots", currentImport.get() == null ? 1 : 0);
         
         // Статистика по статусам
         Map<ImportQueueItem.Status, Integer> statusCounts = new HashMap<>();
@@ -222,7 +232,7 @@ public class ImportQueueService {
     }
 
     public boolean isLocked() {
-        return importLock.isLocked();
+    return currentImport.get() != null;
     }
 
     public ImportQueueItem getCurrentImport() {
@@ -230,14 +240,16 @@ public class ImportQueueService {
     }
 
     private void handleImmediateFailure(ImportQueueItem item, Exception ex) {
+        item.setStatus(ImportQueueItem.Status.FAILED);
+        item.setErrorMessage(ex.getMessage());
+        item.setCompletedAt(LocalDateTime.now());
+        completedImports.put(item.getImportTaskId(), item);
+
+        importLock.lock();
         try {
-            item.setStatus(ImportQueueItem.Status.FAILED);
-            item.setErrorMessage(ex.getMessage());
-            item.setCompletedAt(LocalDateTime.now());
-            completedImports.put(item.getImportTaskId(), item);
-        } finally {
             activeImports.remove(item.getImportTaskId());
             currentImport.compareAndSet(item, null);
+        } finally {
             importLock.unlock();
         }
     }
