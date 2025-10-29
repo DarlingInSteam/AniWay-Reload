@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { ChevronDown, X, Loader2, Filter, Check } from 'lucide-react'
+import { ChevronDown, X, Loader2, Check, RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useFilterData } from '@/hooks/useFilterData'
 import { Button } from '@/components/ui/button'
@@ -345,35 +345,6 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
         className
       )}
     >
-      {/* Header */}
-      <div
-        className={cn(
-          'sticky top-0 z-30 px-5 py-4 bg-transparent'
-        )}
-      >
-        <div className="flex items-center gap-2 text-base font-semibold tracking-tight text-white">
-          <Filter className="h-4 w-4 text-primary/80" />
-          <span>Фильтр</span>
-          {!isMobile && activeChips.length > 0 && (
-            <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[11px] font-medium text-primary/85 leading-none">
-              {activeChips.length}
-            </span>
-          )}
-        </div>
-        {!isMobile && (
-          <div className="mt-3 text-[12px] text-white/45 leading-snug">
-            Фильтры применяются в строгом режиме совпадений.
-          </div>
-        )}
-      </div>
-
-      {/* Active chips bar (mobile emphasis) */}
-      {/* Mobile secondary actions & helper text */}
-      {isMobile && (
-        <div className="px-5 pt-3 text-[12px] text-white/45 leading-snug">
-          Фильтры применяются в строгом режиме совпадений.
-        </div>
-      )}
       {isMobile && activeChips.length === 0 && (
         <div className="px-5 mt-2 text-[12px] text-white/45 leading-snug">
           Выберите параметры ниже. Жанры и теги имеют встроенный поиск внутри секций.
@@ -383,8 +354,8 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
       {activeChips.length > 0 && (
         <div
           className={cn(
-            'px-5 pt-3 pb-3 flex flex-wrap gap-2',
-            isMobile ? 'mt-3' : ''
+            'px-5 pt-4 pb-3 flex flex-wrap gap-2',
+            isMobile ? 'mt-3' : 'mt-2'
           )}
         >
           {activeChips.map(c => (
@@ -404,7 +375,7 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
       )}
 
       {/* Scrollable content */}
-      <div className={cn('flex-1 overflow-y-auto px-0 scrollbar-custom', isMobile ? 'space-y-2 pt-2 pb-24' : 'space-y-2 pb-4')}>
+  <div className={cn('flex-1 overflow-y-auto px-0 scrollbar-custom', isMobile ? 'space-y-2 pt-2 pb-24' : 'space-y-2 pt-2 pb-4')}>
         <FilterRow
           id="row-genres"
           title="Жанры"
@@ -578,11 +549,19 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
             type="button"
             onClick={onApply}
             className={cn(
-              'h-11 w-full rounded-xl bg-primary/80 text-[13px] font-semibold uppercase tracking-wide text-white transition hover:bg-primary'
+              'h-11 flex-1 rounded-xl bg-primary/80 text-[13px] font-semibold uppercase tracking-wide text-white transition hover:bg-primary'
             )}
           >
             Применить
           </Button>
+          <button
+            type="button"
+            onClick={resetAll}
+            className="flex h-11 w-12 items-center justify-center rounded-xl border border-white/10 bg-[#1b1b1b] text-white/65 transition hover:text-white hover:bg-[#212121] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            aria-label="Сбросить фильтры"
+          >
+            <RotateCcw className="h-4 w-4" />
+          </button>
         </div>
       )}
     </div>
