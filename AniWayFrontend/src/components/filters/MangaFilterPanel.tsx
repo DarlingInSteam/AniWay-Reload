@@ -77,11 +77,7 @@ const FilterRow: React.FC<RowProps & { active?: boolean; appearance: 'desktop' |
 
   return (
     <div
-      className={cn(
-        'group/filter rounded-2xl transition-all duration-200 bg-[#161c27]',
-        isMobile ? 'hover:bg-[#1b2333]' : 'hover:bg-[#1c2436]',
-        isOpen && 'bg-[#1f283c] shadow-[0_0_0_1px_rgba(59,130,246,0.18)]'
-      )}
+      className="group/filter rounded-xl transition-colors duration-150"
       aria-expanded={isOpen}
       aria-controls={id}
       role="group"
@@ -188,8 +184,8 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
       className={cn(
         'text-xs px-3 py-1.5 rounded-xl transition-colors duration-150',
         active
-          ? 'bg-primary/25 text-primary font-medium shadow-sm hover:text-white hover:bg-primary/30'
-          : 'bg-[#1e2434] text-white/70 hover:text-white hover:bg-[#252d40]'
+          ? 'bg-primary/22 text-primary font-medium shadow-sm hover:text-white hover:bg-primary/28'
+          : 'bg-[#141b2a] text-white/70 hover:text-white hover:bg-[#1c2436]'
       )}
     >{text}</button>
   )
@@ -211,7 +207,7 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
           max={val[1]}
           step={step}
           onChange={e=>handleNumberRange(field,0,e.target.value)}
-          className="h-9 w-24 rounded-lg border-none bg-[#1e2434] text-xs text-white/85 focus:bg-[#252d40] focus:ring-2 focus:ring-primary/35 focus:ring-offset-0"
+          className="h-9 w-24 rounded-lg border-none bg-[#141b2a] text-xs text-white/85 focus:bg-[#1c2436] focus:ring-2 focus:ring-primary/35 focus:ring-offset-0"
         />
         <span className="text-white/40">—</span>
         <Input
@@ -221,7 +217,7 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
           max={max}
           step={step}
           onChange={e=>handleNumberRange(field,1,e.target.value)}
-          className="h-9 w-24 rounded-lg border-none bg-[#1e2434] text-xs text-white/85 focus:bg-[#252d40] focus:ring-2 focus:ring-primary/35 focus:ring-offset-0"
+          className="h-9 w-24 rounded-lg border-none bg-[#141b2a] text-xs text-white/85 focus:bg-[#1c2436] focus:ring-2 focus:ring-primary/35 focus:ring-offset-0"
         />
         {suffix && <span>{suffix}</span>}
       </div>
@@ -248,15 +244,14 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
         'flex flex-col h-full max-h-full overflow-hidden text-white',
         isMobile
           ? 'w-full rounded-none bg-transparent shadow-none'
-          : 'w-80 rounded-[22px] bg-[#0b1018]/98 shadow-[0_32px_64px_-34px_rgba(6,9,18,0.95)]',
+          : 'w-80 bg-transparent shadow-none',
         className
       )}
     >
       {/* Header */}
       <div
         className={cn(
-          'sticky top-0 z-30 px-5 py-4',
-          isMobile ? 'bg-[#050811]/96 shadow-[0_12px_28px_-22px_rgba(0,0,0,0.8)]' : 'bg-[#0b1018]/98'
+          'sticky top-0 z-30 px-5 py-4 bg-transparent'
         )}
       >
         <div className="flex items-center justify-between gap-3">
@@ -287,7 +282,7 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
                 'h-9 px-3 rounded-lg text-[11px] uppercase tracking-wide transition flex items-center gap-2',
                 filters.strictMatch
                   ? 'bg-primary/20 text-primary shadow-[0_8px_22px_-12px_rgba(37,99,235,0.6)] hover:bg-primary/24'
-                  : 'bg-[#1e2434] text-white/65 hover:text-white hover:bg-[#252d40]'
+                  : 'bg-[#141b2a] text-white/65 hover:text-white hover:bg-[#1c2436]'
               )}
               aria-pressed={filters.strictMatch ? 'true' : 'false'}
             >
@@ -314,14 +309,14 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
           <button
             type="button"
             disabled
-            className="flex-1 h-9 rounded-lg bg-[#121824]/70 text-[11px] uppercase tracking-[0.18em] text-white/35"
+            className="flex-1 h-9 rounded-lg bg-[#101724]/70 text-[11px] uppercase tracking-[0.18em] text-white/35"
           >
             Сохранить пресет
           </button>
           <button
             type="button"
             onClick={resetAll}
-            className="h-9 px-3 rounded-lg bg-[#1e2434] text-[11px] uppercase tracking-[0.18em] text-white/70 transition hover:text-white hover:bg-[#252d40]"
+            className="h-9 px-3 rounded-lg bg-[#141b2a] text-[11px] uppercase tracking-[0.18em] text-white/70 transition hover:text-white hover:bg-[#1c2436]"
           >
             Сбросить
           </button>
@@ -332,7 +327,7 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
               'h-9 px-3 rounded-lg text-[11px] uppercase tracking-[0.18em] transition flex items-center gap-2',
               filters.strictMatch
                 ? 'bg-primary/20 text-primary shadow-[0_8px_20px_-12px_rgba(37,99,235,0.6)] hover:bg-primary/25'
-                : 'bg-[#1e2434] text-white/70 hover:text-white hover:bg-[#252d40]'
+                : 'bg-[#141b2a] text-white/70 hover:text-white hover:bg-[#1c2436]'
             )}
             aria-pressed={filters.strictMatch ? 'true' : 'false'}
             aria-label="Строгое совпадение жанров и тегов"
@@ -351,7 +346,7 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
       {activeChips.length > 0 && (
         <div
           className={cn(
-            'px-5 pt-3 pb-3 flex flex-wrap gap-2 bg-[#0d1523]/85',
+            'px-5 pt-3 pb-3 flex flex-wrap gap-2',
             isMobile ? 'mt-3' : ''
           )}
         >
@@ -405,7 +400,7 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
             <div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><Loader2 className="h-4 w-4 animate-spin" /> Загрузка...</div>
           ) : genresError ? <div className="text-xs text-red-400 py-2">{genresError}</div> : (
             <div className="space-y-3">
-              <Input value={genreSearch} onChange={e=>setGenreSearch(e.target.value)} placeholder="Поиск жанров" className="h-8 text-xs rounded-lg bg-[#1b2333] border-none focus:bg-[#232d42]" />
+              <Input value={genreSearch} onChange={e=>setGenreSearch(e.target.value)} placeholder="Поиск жанров" className="h-8 text-xs rounded-lg bg-[#141b2a] border-none focus:bg-[#1c2436]" />
               <div className="flex flex-wrap gap-1 max-h-40 overflow-y-auto scrollbar-custom">
                 {filteredGenres.map(g => (
                   <button
@@ -415,7 +410,7 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
                       'text-[11px] px-2 py-1 rounded-md transition-colors duration-150',
                       filters.selectedGenres.includes(g.name)
                         ? 'bg-primary/25 text-primary hover:bg-primary/30'
-                        : 'bg-[#1b2333] text-white/70 hover:text-white hover:bg-[#232d42]'
+                        : 'bg-[#141b2a] text-white/70 hover:text-white hover:bg-[#1c2436]'
                     )}
                   >
                     {g.name}
@@ -446,7 +441,7 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
             <div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><Loader2 className="h-4 w-4 animate-spin" /> Загрузка...</div>
           ) : tagsError ? <div className="text-xs text-red-400 py-2">{tagsError}</div> : (
             <div className="space-y-3">
-              <Input value={tagSearch} onChange={e=>setTagSearch(e.target.value)} placeholder="Поиск тегов" className="h-8 text-xs rounded-lg bg-[#1b2333] border-none focus:bg-[#232d42]" />
+              <Input value={tagSearch} onChange={e=>setTagSearch(e.target.value)} placeholder="Поиск тегов" className="h-8 text-xs rounded-lg bg-[#141b2a] border-none focus:bg-[#1c2436]" />
               <div className="flex flex-wrap gap-1 max-h-40 overflow-y-auto scrollbar-custom">
                 {filteredTags.map(t => (
                   <button
@@ -457,7 +452,7 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
                       'text-[11px] px-2 py-1 rounded-md transition-colors duration-150',
                       filters.selectedTags.includes(t.name)
                         ? 'bg-white/20'
-                        : 'bg-[#1b2333] hover:bg-[#232d42]'
+                        : 'bg-[#141b2a] hover:bg-[#1c2436]'
                     )}
                   >
                     {t.name}
@@ -558,7 +553,7 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
           <Button
             variant="outline"
             onClick={resetAll}
-            className="flex-1 h-11 bg-white/5 border-none text-[13px] text-muted-foreground hover:bg-white/10 hover:text-white"
+            className="flex-1 h-11 bg-[#141b2a] border-none text-[13px] text-muted-foreground hover:bg-[#1c2436] hover:text-white"
             aria-label="Сбросить фильтры"
           >
             Сброс
@@ -570,7 +565,7 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
               'h-11 px-3 rounded-lg flex items-center gap-2 text-[12px] font-medium',
               filters.strictMatch
                 ? 'bg-primary/25 text-primary hover:bg-primary/35'
-                : 'bg-white/5 text-muted-foreground hover:text-white hover:bg-white/10'
+                : 'bg-[#141b2a] text-muted-foreground hover:text-white hover:bg-[#1c2436]'
             )}
           >
             <span className="inline-block h-2.5 w-2.5 rounded-sm bg-current/70" />
