@@ -49,7 +49,7 @@ export function AdminMangaPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex w-full flex-col gap-6">
         <TabsList
           aria-label="Разделы управления мангой"
-          className="flex w-full items-stretch gap-2 overflow-x-auto rounded-xl border border-white/10 bg-background/60 p-1 text-xs shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/50 sm:flex-wrap sm:justify-start sm:overflow-visible sm:border-transparent sm:bg-transparent sm:p-0 sm:text-sm"
+          className="flex w-full items-stretch justify-start gap-2 overflow-x-auto rounded-xl border border-white/10 bg-background/60 p-1 text-xs shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/50 sm:flex-wrap sm:overflow-visible sm:border-transparent sm:bg-transparent sm:p-0 sm:text-sm"
         >
           <TabsTrigger
             value="parser"
