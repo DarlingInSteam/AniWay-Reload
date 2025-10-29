@@ -50,18 +50,18 @@ export function AdminMangaPage() {
     const tabLeft = activeTrigger.offsetLeft
     const tabRight = tabLeft + activeTrigger.offsetWidth
     
-    // Larger buffer to guarantee full visibility including right edge
-    const buffer = 12
-    const minVisible = scrollLeft + paddingLeft
-    const maxVisible = scrollRight - paddingRight
+    // Buffer to ensure tabs are fully visible with some breathing room
+    const buffer = 4
+    const visibleLeft = scrollLeft + paddingLeft + buffer
+    const visibleRight = scrollRight - paddingRight - buffer
     let nextScrollLeft = scrollLeft
 
-    // If tab starts before visible area, scroll it into view with buffer
-    if (tabLeft < minVisible + buffer) {
+    // If left edge of tab is cut off, scroll left to show it fully
+    if (tabLeft < visibleLeft) {
       nextScrollLeft = Math.max(0, tabLeft - paddingLeft - buffer)
     } 
-    // If tab ends after visible area, scroll so it's fully visible with buffer
-    else if (tabRight > maxVisible - buffer) {
+    // If right edge of tab is cut off, scroll right to show it fully
+    else if (tabRight > visibleRight) {
       nextScrollLeft = tabRight - clientWidth + paddingRight + buffer
     }
 
