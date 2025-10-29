@@ -123,9 +123,9 @@ const FilterRow: React.FC<RowProps & { active?: boolean; appearance: 'desktop' |
         aria-expanded={isOpen}
         aria-controls={`${id}-content`}
         className={cn(
-          'w-full flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-[#0f1622] px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-offset-0',
-          active && !isOpen ? 'border-primary/35 bg-[#152233]' : '',
-          isOpen ? 'border-white/12 bg-[#162435] shadow-[0_18px_32px_-24px_rgba(0,0,0,0.6)]' : 'hover:bg-[#141e2d]'
+          'w-full flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#1b1b1b] px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-offset-0',
+          active && !isOpen ? 'border-primary/35 bg-[#202020]' : '',
+          isOpen ? 'border-white/15 bg-[#232323] shadow-[0_18px_32px_-24px_rgba(0,0,0,0.6)]' : 'hover:bg-[#202020]'
         )}
       >
         <div className="flex min-w-0 flex-col">
@@ -144,7 +144,7 @@ const FilterRow: React.FC<RowProps & { active?: boolean; appearance: 'desktop' |
         <div
           id={`${id}-content`}
           className={cn(
-            'absolute left-0 right-0 top-[calc(100%+0.5rem)] z-40 rounded-xl border border-white/8 bg-[#111a27] p-4 shadow-[0_28px_60px_-32px_rgba(0,0,0,0.85)]',
+            'absolute left-0 right-0 top-[calc(100%+0.5rem)] z-40 rounded-xl border border-white/12 bg-[#1f1f1f] p-4 shadow-[0_28px_60px_-32px_rgba(0,0,0,0.85)]',
             isMobile ? 'max-h-[70vh] overflow-y-auto' : ''
           )}
         >
@@ -243,9 +243,9 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
       key={text}
       onClick={onClick}
       className={cn(
-        'text-xs px-3 py-1.5 rounded-xl border border-white/5 transition-colors duration-150 bg-[#101924] text-white/75 hover:text-white hover:bg-[#162233] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+        'text-xs px-3 py-1.5 rounded-xl border border-white/8 transition-colors duration-150 bg-[#1b1b1b] text-white/75 hover:text-white hover:bg-[#212121] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35',
         active
-          ? 'border-primary/35 bg-[#1f2d44] text-white font-medium hover:bg-[#233656]'
+          ? 'border-primary/35 bg-[#232323] text-white font-medium hover:bg-[#282828]'
           : ''
       )}
     >
@@ -273,7 +273,7 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
           max={val[1]}
           step={step}
           onChange={e=>handleNumberRange(field,0,e.target.value)}
-          className="h-9 w-24 rounded-lg border border-white/8 bg-[#101924] text-xs text-white/75 focus:border-primary/35 focus:bg-[#162233] focus:ring-0"
+          className="h-9 w-24 rounded-lg border border-white/8 bg-[#1b1b1b] text-xs text-white/75 focus:border-primary/35 focus:bg-[#212121] focus:ring-0"
         />
         <span className="text-white/40">—</span>
         <Input
@@ -283,7 +283,7 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
           max={max}
           step={step}
           onChange={e=>handleNumberRange(field,1,e.target.value)}
-          className="h-9 w-24 rounded-lg border border-white/8 bg-[#101924] text-xs text-white/75 focus:border-primary/35 focus:bg-[#162233] focus:ring-0"
+          className="h-9 w-24 rounded-lg border border-white/8 bg-[#1b1b1b] text-xs text-white/75 focus:border-primary/35 focus:bg-[#212121] focus:ring-0"
         />
         {suffix && <span>{suffix}</span>}
       </div>
@@ -295,20 +295,20 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
       <div className="space-y-2">
         <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45">Быстрый выбор</div>
         <Select value={chapterPresetKey} onValueChange={handleChapterPresetChange}>
-          <SelectTrigger className="h-9 w-full rounded-lg border border-white/8 bg-[#101924] text-xs text-white/75 focus:border-primary/35 focus:bg-[#162233] focus:ring-0">
+          <SelectTrigger className="h-9 w-full rounded-lg border border-white/8 bg-[#1b1b1b] text-xs text-white/75 focus:border-primary/35 focus:bg-[#212121] focus:ring-0">
             <SelectValue placeholder="Выберите диапазон" />
           </SelectTrigger>
-          <SelectContent className="border border-white/8 bg-[#0d141f] text-white/80">
+          <SelectContent className="border border-white/12 bg-[#212121] text-white/80">
             {CHAPTER_PRESETS.map(p => (
               <SelectItem
                 key={p.key}
                 value={p.key}
-                className="text-xs text-white/75 focus:bg-[#172335] focus:text-white"
+                className="text-xs text-white/75 focus:bg-[#292929] focus:text-white"
               >
                 {p.label}
               </SelectItem>
             ))}
-            <SelectItem value="custom" className="text-xs text-white/75 focus:bg-[#172335] focus:text-white">
+            <SelectItem value="custom" className="text-xs text-white/75 focus:bg-[#292929] focus:text-white">
               Свой диапазон
             </SelectItem>
           </SelectContent>
@@ -418,16 +418,16 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
             <div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><Loader2 className="h-4 w-4 animate-spin" /> Загрузка...</div>
           ) : genresError ? <div className="text-xs text-red-400 py-2">{genresError}</div> : (
             <div className="space-y-3">
-              <Input value={genreSearch} onChange={e=>setGenreSearch(e.target.value)} placeholder="Поиск жанров" className="h-8 text-xs rounded-lg border border-white/8 bg-[#101924] text-white/75 placeholder:text-white/35 focus:border-primary/35 focus:bg-[#162233]" />
+              <Input value={genreSearch} onChange={e=>setGenreSearch(e.target.value)} placeholder="Поиск жанров" className="h-8 text-xs rounded-lg border border-white/8 bg-[#1b1b1b] text-white/75 placeholder:text-white/35 focus:border-primary/35 focus:bg-[#212121]" />
               <div className="flex flex-wrap gap-1 max-h-40 overflow-y-auto scrollbar-custom">
                 {filteredGenres.map(g => (
                   <button
                     key={g.id}
                     onClick={()=>toggleGenre(g.name)}
                     className={cn(
-                      'text-[11px] px-2.5 py-1.5 rounded-lg border border-white/5 transition-colors duration-150 bg-[#101924] text-white/75 hover:text-white hover:bg-[#162233] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+                      'text-[11px] px-2.5 py-1.5 rounded-lg border border-white/8 transition-colors duration-150 bg-[#1b1b1b] text-white/75 hover:text-white hover:bg-[#212121] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35',
                       filters.selectedGenres.includes(g.name)
-                        ? 'border-primary/35 bg-[#1f2d44] text-white hover:bg-[#233656]'
+                        ? 'border-primary/35 bg-[#232323] text-white hover:bg-[#282828]'
                         : ''
                     )}
                   >
@@ -459,16 +459,16 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
             <div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><Loader2 className="h-4 w-4 animate-spin" /> Загрузка...</div>
           ) : tagsError ? <div className="text-xs text-red-400 py-2">{tagsError}</div> : (
             <div className="space-y-3">
-              <Input value={tagSearch} onChange={e=>setTagSearch(e.target.value)} placeholder="Поиск тегов" className="h-8 text-xs rounded-lg border border-white/8 bg-[#101924] text-white/75 placeholder:text-white/35 focus:border-primary/35 focus:bg-[#162233]" />
+              <Input value={tagSearch} onChange={e=>setTagSearch(e.target.value)} placeholder="Поиск тегов" className="h-8 text-xs rounded-lg border border-white/8 bg-[#1b1b1b] text-white/75 placeholder:text-white/35 focus:border-primary/35 focus:bg-[#212121]" />
               <div className="flex flex-wrap gap-1 max-h-40 overflow-y-auto scrollbar-custom">
                 {filteredTags.map(t => (
                   <button
                     key={t.id}
                     onClick={()=>toggleTag(t.name)}
                     className={cn(
-                      'text-[11px] px-2.5 py-1.5 rounded-lg border border-white/5 transition-colors duration-150 bg-[#101924] text-white/75 hover:text-white hover:bg-[#162233] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+                      'text-[11px] px-2.5 py-1.5 rounded-lg border border-white/8 transition-colors duration-150 bg-[#1b1b1b] text-white/75 hover:text-white hover:bg-[#212121] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35',
                       filters.selectedTags.includes(t.name)
-                        ? 'border-primary/35 bg-[#1f2d44] text-white hover:bg-[#233656]'
+                        ? 'border-primary/35 bg-[#232323] text-white hover:bg-[#282828]'
                         : ''
                     )}
                     style={filters.selectedTags.includes(t.name) ? undefined : t.color ? { color: t.color } : undefined}
