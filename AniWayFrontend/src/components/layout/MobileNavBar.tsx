@@ -33,9 +33,6 @@ export function MobileNavBar() {
   }
 
   const primaryRight: any[] = []
-  if (isAuthenticated && isAdmin) {
-    primaryRight.push({ to: '/admin', icon: Settings, label: 'Админ', match: (p: string) => p.startsWith('/admin') })
-  }
   primaryRight.push({ to: '/notifications', icon: Bell, label: 'Уведомл.', match: (p:string)=> p.startsWith('/notifications') })
   if(isAuthenticated){
     primaryRight.push({ to: `/profile/${user?.id ?? ''}`, icon: User, label: 'Профиль', match:(p:string)=> p.startsWith('/profile') })
