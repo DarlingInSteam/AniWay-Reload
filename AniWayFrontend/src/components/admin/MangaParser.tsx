@@ -409,22 +409,14 @@ export function MangaParser() {
         })
       }
 
-      const allowedIds = new Set<string>(manualTaskIds)
-      if (currentTask?.taskId) {
-        allowedIds.add(currentTask.taskId)
-      }
-
-      const filteredSummaries = allowedIds.size > 0
-        ? summaries.filter(summary => allowedIds.has(summary.taskId))
-        : []
-
-      setTaskSummaries(filteredSummaries)
-      return filteredSummaries
+      // Показываем весь список задач, чтобы администраторы видели прогресс независимо от устройства
+      setTaskSummaries(summaries)
+      return summaries
     } catch (error) {
       console.error('Ошибка получения списка задач:', error)
       return []
     }
-  }, [currentTask?.taskId, manualTaskIds])
+  }, [])
 
   // Восстанавливаем активную задачу после перезагрузки страницы
   useEffect(() => {
@@ -451,13 +443,13 @@ export function MangaParser() {
         }
       }
 
-      if (storedTaskId && !manualTaskIds.includes(storedTaskId)) {
+      const summaries = await refreshTaskSummaries()
+
+      if (storedTaskId && !summaries.some(summary => summary.taskId === storedTaskId)) {
         window.localStorage.removeItem('currentParsingTask')
         storedTaskId = undefined
         storedSlug = undefined
       }
-
-      const summaries = await refreshTaskSummaries()
 
       let targetTaskId = storedTaskId
       let targetSlug = storedSlug
@@ -490,7 +482,7 @@ export function MangaParser() {
     }
 
     bootstrap()
-  }, [hydrateTask, manualIdsInitialized, manualTaskIds, refreshTaskSummaries])
+  }, [hydrateTask, manualIdsInitialized, refreshTaskSummaries])
 
   // Периодически обновляем статус активной задачи
   useEffect(() => {
