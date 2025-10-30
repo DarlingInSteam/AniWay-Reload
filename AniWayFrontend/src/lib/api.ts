@@ -41,6 +41,106 @@ import type {
 const API_BASE_URL = '/api';
 
 class ApiClient {
+  private normalizeUserId(candidate?: string | null): string | null {
+    if (!candidate) {
+      return null;
+    }
+    const trimmed = candidate.trim();
+    if (!trimmed) {
+      return null;
+    }
+    const lowered = trimmed.toLowerCase();
+    if (lowered === 'null' || lowered === 'undefined' || lowered === 'nan') {
+      return null;
+    }
+    if (!/^\d+$/.test(trimmed)) {
+      return null;
+    }
+    const parsed = Number.parseInt(trimmed, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return null;
+    }
+    return String(parsed);
+  }
+
+  private normalizeUserRole(candidate?: string | null): string | null {
+    if (!candidate) {
+      return null;
+    }
+    const trimmed = candidate.trim();
+    if (!trimmed) {
+      return null;
+    }
+    const lowered = trimmed.toLowerCase();
+    if (lowered === 'null' || lowered === 'undefined') {
+      return null;
+    }
+    return trimmed.toUpperCase().replace(/^ROLE_/, '');
+  }
+
+  private resolveUserContext(token: string | null): { userId?: string; userRole?: string } {
+    const idKeys: Array<'userId' | 'userID' | 'currentUserId'> = ['userId', 'userID', 'currentUserId'];
+    let userId: string | null = null;
+    for (const key of idKeys) {
+      const value = this.normalizeUserId(localStorage.getItem(key));
+      if (value) {
+        userId = value;
+        if (key !== 'userId') {
+          localStorage.setItem('userId', value);
+        }
+        break;
+      }
+    }
+    if (!userId) {
+      localStorage.removeItem('userId');
+    }
+
+    const roleKeys: Array<'userRole' | 'user_role'> = ['userRole', 'user_role'];
+    let userRole: string | null = null;
+    for (const key of roleKeys) {
+      const value = this.normalizeUserRole(localStorage.getItem(key));
+      if (value) {
+        userRole = value;
+        if (key !== 'userRole') {
+          localStorage.setItem('userRole', value);
+        }
+        break;
+      }
+    }
+    if (!userRole) {
+      localStorage.removeItem('userRole');
+    }
+
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1] || ''));
+        if (!userId) {
+          const extracted = payload.userId ?? payload.userID ?? payload.sub ?? payload.id;
+          const normalized = this.normalizeUserId(extracted != null ? String(extracted) : null);
+          if (normalized) {
+            userId = normalized;
+            localStorage.setItem('userId', normalized);
+          }
+        }
+        if (!userRole) {
+          const rawRole = payload.role || (Array.isArray(payload.authorities) ? payload.authorities[0] : undefined);
+          const normalizedRole = this.normalizeUserRole(rawRole != null ? String(rawRole) : null);
+          if (normalizedRole) {
+            userRole = normalizedRole;
+            localStorage.setItem('userRole', normalizedRole);
+          }
+        }
+      } catch {
+        // ignore malformed or non-JWT payloads
+      }
+    }
+
+    return {
+      userId: userId ?? undefined,
+      userRole: userRole ?? undefined,
+    };
+  }
+
   private getAuthHeaders(): Record<string, string> {
     const token = localStorage.getItem('authToken');
     return token ? { 'Authorization': `Bearer ${token}` } : {};
@@ -48,31 +148,8 @@ class ApiClient {
 
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
-  const token = localStorage.getItem('authToken');
-  let userId: string | null = localStorage.getItem('userId') || localStorage.getItem('userID') || localStorage.getItem('currentUserId');
-  if (userId && ['null', 'undefined', 'NaN', ''].includes(userId.trim())) {
-    userId = null;
-  }
-    let userRole = localStorage.getItem('userRole') || localStorage.getItem('user_role');
-    if (userRole === 'null' || userRole === 'undefined' || userRole === '') {
-      userRole = null;
-    }
-    // Fallback: try decode JWT payload (assuming standard 'sub' or 'userId' claim) if userId absent
-    if(!userId && token){
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1] || ''));
-        const extracted = payload.userId || payload.userID || payload.sub || payload.id;
-        if (extracted) {
-          userId = String(extracted);
-          localStorage.setItem('userId', userId);
-        }
-        const roleValue = payload.role || (Array.isArray(payload.authorities) ? payload.authorities[0] : undefined);
-        if (roleValue && !userRole) {
-          userRole = String(roleValue).toUpperCase().replace(/^ROLE_/, '');
-          localStorage.setItem('userRole', userRole);
-        }
-      } catch { /* silent */ }
-    }
+    const token = localStorage.getItem('authToken');
+    const { userId, userRole } = this.resolveUserContext(token);
 
     console.log(`API Request: ${options?.method || 'GET'} ${url}`);
     console.log(`Auth token present: ${!!token}`);
@@ -89,8 +166,7 @@ class ApiClient {
       (/^\/forum\/threads\b/.test(endpoint)) ||
       (/^\/forum\/manga\b/.test(endpoint))
     );
-    const normalizedUserRole = userRole ? userRole.toUpperCase().replace(/^ROLE_/, '') : undefined;
-    const headerUserRole = normalizedUserRole || (token ? 'USER' : undefined);
+  const headerUserRole = userRole || (token ? 'USER' : undefined);
 
     const response = await fetch(url, {
       headers: {
@@ -1131,40 +1207,16 @@ class ApiClient {
       formData.append('mangaId', String(metadata.mangaId));
     }
 
-    let token = localStorage.getItem('authToken');
-    let userId = localStorage.getItem('userId') || localStorage.getItem('userID') || localStorage.getItem('currentUserId') || undefined;
-    let userRole = localStorage.getItem('userRole') || localStorage.getItem('user_role') || undefined;
-
-    if ((!userId || !userRole) && token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1] || ''));
-        if (!userId) {
-          const extracted = payload.userId || payload.userID || payload.sub || payload.id;
-          if (extracted) {
-            userId = String(extracted);
-            localStorage.setItem('userId', userId);
-          }
-        }
-        if (!userRole) {
-          const roleValue = payload.role || (Array.isArray(payload.authorities) ? payload.authorities[0] : undefined);
-          if (roleValue) {
-            userRole = String(roleValue);
-            localStorage.setItem('userRole', userRole);
-          }
-        }
-      } catch {
-        // ignore decode errors
-      }
-    }
-
-    const normalizedRole = userRole ? userRole.toUpperCase().replace(/^ROLE_/, '') : undefined;
+    const token = localStorage.getItem('authToken');
+    const { userId, userRole } = this.resolveUserContext(token);
+    const headerRole = userRole || (token ? 'USER' : undefined);
 
     const response = await fetch(`${API_BASE_URL}/moments/upload`, {
       method: 'POST',
       headers: {
         ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         ...(userId ? { 'X-User-Id': userId } : {}),
-        ...(normalizedRole ? { 'X-User-Role': normalizedRole } : {}),
+        ...(headerRole ? { 'X-User-Role': headerRole } : {}),
       },
       body: formData
     });
