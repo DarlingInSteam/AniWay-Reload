@@ -49,7 +49,10 @@ class ApiClient {
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
   const token = localStorage.getItem('authToken');
-  let userId = localStorage.getItem('userId') || localStorage.getItem('userID') || localStorage.getItem('currentUserId');
+  let userId: string | null = localStorage.getItem('userId') || localStorage.getItem('userID') || localStorage.getItem('currentUserId');
+  if (userId && ['null', 'undefined', 'NaN', ''].includes(userId.trim())) {
+    userId = null;
+  }
     let userRole = localStorage.getItem('userRole') || localStorage.getItem('user_role');
     if (userRole === 'null' || userRole === 'undefined' || userRole === '') {
       userRole = null;
