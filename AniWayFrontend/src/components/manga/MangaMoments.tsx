@@ -142,8 +142,9 @@ export function MangaMoments({ mangaId, mangaTitle }: MangaMomentsProps) {
 
   const setReactionMutation = useMutation<MomentResponse, Error, ReactionPayload>({
     mutationFn: ({ momentId, reaction }) => apiClient.setMomentReaction(momentId, reaction),
-    onSuccess: (data) => {
-      updateCache(data)
+    onSuccess: (data, variables) => {
+      const patched = data.userReaction ? data : { ...data, userReaction: variables.reaction }
+      updateCache(patched)
     },
     onError: () => {
       toast.error('Не удалось сохранить реакцию')
@@ -152,8 +153,11 @@ export function MangaMoments({ mangaId, mangaTitle }: MangaMomentsProps) {
 
   const clearReactionMutation = useMutation<MomentResponse, Error, { momentId: number }>({
     mutationFn: ({ momentId }) => apiClient.clearMomentReaction(momentId),
-    onSuccess: (data) => {
-      updateCache(data)
+    onSuccess: (data, variables) => {
+      const patched = data.userReaction === null || data.userReaction === undefined
+        ? data
+        : { ...data, userReaction: null }
+      updateCache(patched)
     },
     onError: () => {
       toast.error('Не удалось обновить реакцию')
