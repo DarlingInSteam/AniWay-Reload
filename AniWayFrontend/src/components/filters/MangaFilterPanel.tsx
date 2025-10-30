@@ -311,16 +311,6 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
   )
 
   // Active chips (flattened) for mobile quick view
-  const activeChips: { label: string; onRemove: () => void; key: string }[] = []
-  filters.selectedGenres.forEach(g => activeChips.push({ label: g, onRemove: () => toggleGenre(g), key: 'g-'+g }))
-  filters.selectedTags.forEach(t => activeChips.push({ label: t, onRemove: () => toggleTag(t), key: 't-'+t }))
-  if (filters.mangaType) activeChips.push({ label: TYPE_MAP[filters.mangaType] || filters.mangaType, onRemove: () => update({ mangaType: '' }), key: 'type' })
-  if (filters.status) activeChips.push({ label: STATUS_MAP[filters.status] || filters.status, onRemove: () => update({ status: '' }), key: 'status' })
-  if (filters.ageRating.some((v,i)=>v!==DEFAULTS.ageRating[i])) activeChips.push({ label: `${filters.ageRating[0]}+–${filters.ageRating[1]}+`, onRemove: () => update({ ageRating: DEFAULTS.ageRating }), key: 'age' })
-  if (filters.rating.some((v,i)=>v!==DEFAULTS.rating[i])) activeChips.push({ label: `${filters.rating[0]}–${filters.rating[1]}`, onRemove: () => update({ rating: DEFAULTS.rating }), key: 'rating' })
-  if (filters.releaseYear.some((v,i)=>v!==DEFAULTS.releaseYear[i])) activeChips.push({ label: `${filters.releaseYear[0]}–${filters.releaseYear[1]}`, onRemove: () => update({ releaseYear: DEFAULTS.releaseYear }), key: 'year' })
-  if (filters.chapterRange.some((v,i)=>v!==DEFAULTS.chapterRange[i])) activeChips.push({ label: `${filters.chapterRange[0]}–${filters.chapterRange[1]} гл.`, onRemove: () => update({ chapterRange: DEFAULTS.chapterRange }), key: 'chapters' })
-
   const isMobile = appearance === 'mobile'
   const rowAppearance: 'desktop' | 'mobile' = isMobile ? 'mobile' : 'desktop'
 
@@ -334,32 +324,9 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
         className
       )}
     >
-      {isMobile && activeChips.length === 0 && (
+      {isMobile && (
         <div className="px-5 mt-2 text-[12px] text-white/45 leading-snug">
           Выберите параметры ниже. Жанры и теги имеют встроенный поиск внутри секций.
-        </div>
-      )}
-
-      {activeChips.length > 0 && (
-        <div
-          className={cn(
-            'px-5 pt-4 pb-3 flex flex-wrap gap-2',
-            isMobile ? 'mt-3' : 'mt-2'
-          )}
-        >
-          {activeChips.map(c => (
-            <button
-              key={c.key}
-              onClick={c.onRemove}
-              aria-label={`Удалить фильтр ${c.label}`}
-              className="group flex items-center gap-2 rounded-full bg-primary/20 px-3 py-1 text-[11px] font-medium text-primary/85 shadow-[0_10px_24px_-14px_rgba(37,99,235,0.6)] transition hover:bg-primary/25"
-            >
-              <span className="leading-none">{c.label}</span>
-              <span className="flex items-center justify-center h-4 w-4 rounded-full bg-primary/30 text-primary/95 group-hover:bg-primary/45 group-hover:text-white">
-                <X className="h-3 w-3" />
-              </span>
-            </button>
-          ))}
         </div>
       )}
 
