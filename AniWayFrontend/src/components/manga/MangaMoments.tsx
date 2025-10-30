@@ -41,6 +41,7 @@ export function MangaMoments({ mangaId, mangaTitle }: MangaMomentsProps) {
   const [activeMomentId, setActiveMomentId] = useState<number | null>(null)
   const [viewerOpen, setViewerOpen] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<'next' | null>(null)
+  const [reactionOverrides, setReactionOverrides] = useState<Record<number, MomentReactionType | null>>({})
 
   const queryKey = useMemo(() => ['manga-moments', mangaId, sort] as const, [mangaId, sort])
 
@@ -83,6 +84,44 @@ export function MangaMoments({ mangaId, mangaTitle }: MangaMomentsProps) {
     })
     return base
   }, [moments, commentCountsQuery.data])
+
+  useEffect(() => {
+    setReactionOverrides((prev) => {
+      if (!Object.keys(prev).length) {
+        return prev
+      }
+      const next: Record<number, MomentReactionType | null> = { ...prev }
+      let changed = false
+      for (const key of Object.keys(prev)) {
+        const id = Number(key)
+        if (Number.isNaN(id)) {
+          continue
+        }
+        const moment = moments.find((item) => item.id === id)
+        if (!moment) {
+          delete next[id]
+          changed = true
+          continue
+        }
+        const serverReaction = moment.userReaction ?? null
+        if (serverReaction === prev[id]) {
+          delete next[id]
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [moments])
+
+  const reactionMap = useMemo(() => {
+    const map: Record<number, MomentReactionType | null> = {}
+    moments.forEach((moment) => {
+      const hasOverride = Object.prototype.hasOwnProperty.call(reactionOverrides, moment.id)
+      const override = hasOverride ? reactionOverrides[moment.id] : undefined
+      map[moment.id] = override !== undefined ? override : (moment.userReaction ?? null)
+    })
+    return map
+  }, [moments, reactionOverrides])
 
   const { ref: sentinelRef, inView } = useInView({ threshold: 0.5 })
 
@@ -143,8 +182,9 @@ export function MangaMoments({ mangaId, mangaTitle }: MangaMomentsProps) {
   const setReactionMutation = useMutation<MomentResponse, Error, ReactionPayload>({
     mutationFn: ({ momentId, reaction }) => apiClient.setMomentReaction(momentId, reaction),
     onSuccess: (data, variables) => {
-      const patched = data.userReaction ? data : { ...data, userReaction: variables.reaction }
-      updateCache(patched)
+      const nextReaction = data.userReaction ?? variables.reaction
+      setReactionOverrides((prev) => ({ ...prev, [variables.momentId]: nextReaction }))
+      updateCache({ ...data, userReaction: nextReaction })
     },
     onError: () => {
       toast.error('Не удалось сохранить реакцию')
@@ -154,10 +194,9 @@ export function MangaMoments({ mangaId, mangaTitle }: MangaMomentsProps) {
   const clearReactionMutation = useMutation<MomentResponse, Error, { momentId: number }>({
     mutationFn: ({ momentId }) => apiClient.clearMomentReaction(momentId),
     onSuccess: (data, variables) => {
-      const patched = data.userReaction === null || data.userReaction === undefined
-        ? data
-        : { ...data, userReaction: null }
-      updateCache(patched)
+      const nextReaction = data.userReaction ?? null
+      setReactionOverrides((prev) => ({ ...prev, [variables.momentId]: nextReaction }))
+      updateCache({ ...data, userReaction: nextReaction })
     },
     onError: () => {
       toast.error('Не удалось обновить реакцию')
@@ -200,8 +239,9 @@ export function MangaMoments({ mangaId, mangaTitle }: MangaMomentsProps) {
       return null
     }
     const commentCount = commentCountMap[activeMoment.id] ?? activeMoment.commentsCount
-    return { ...activeMoment, commentsCount: commentCount }
-  }, [activeMoment, commentCountMap])
+    const userReaction = reactionMap[activeMoment.id] ?? null
+    return { ...activeMoment, commentsCount: commentCount, userReaction }
+  }, [activeMoment, commentCountMap, reactionMap])
   const activeUploader = enrichedActiveMoment ? uploaderMap[enrichedActiveMoment.uploaderId] : undefined
   const currentMomentIndex = useMemo(() => {
     if (!activeMomentId) return -1
@@ -356,6 +396,7 @@ export function MangaMoments({ mangaId, mangaTitle }: MangaMomentsProps) {
               onClearReaction={handleClearReaction}
               disabled={isProcessing(moment.id)}
               commentCount={commentCountMap[moment.id] ?? moment.commentsCount}
+              resolvedReaction={reactionMap[moment.id] ?? null}
               uploader={uploaderMap[moment.uploaderId]}
             />
           ))}
@@ -394,11 +435,12 @@ interface MomentCardProps {
   onClearReaction: (moment: MomentResponse) => void
   disabled: boolean
   commentCount: number
+  resolvedReaction: MomentReactionType | null
   uploader?: UserMini
 }
 
-function MomentCard({ moment, onOpen, onToggleReaction, onClearReaction, disabled, commentCount, uploader }: MomentCardProps) {
-  const reaction = moment.userReaction ?? null
+function MomentCard({ moment, onOpen, onToggleReaction, onClearReaction, disabled, commentCount, resolvedReaction, uploader }: MomentCardProps) {
+  const reaction = resolvedReaction ?? moment.userReaction ?? null
   const isLiked = reaction === 'LIKE'
   const isDisliked = reaction === 'DISLIKE'
   const showWarning = moment.nsfw || moment.spoiler
