@@ -79,7 +79,7 @@ public class MomentController {
         try {
             return Long.parseLong(header.trim());
         } catch (NumberFormatException ex) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid X-User-Id header");
+            return null;
         }
     }
 
