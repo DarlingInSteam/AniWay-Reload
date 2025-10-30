@@ -192,10 +192,10 @@ export function MomentViewerModal({
     <Dialog open={open} onOpenChange={(next) => { if (!next) { setRevealed(false); onClose() } }}>
       <DialogContent
         className={cn(
-          'relative border border-white/15 bg-black/95 text-white',
+          '!relative !border !border-white/15 !bg-black/95 !text-white !flex !flex-col !gap-0',
           isDesktop
-            ? 'max-w-5xl flex flex-col gap-5 p-6'
-            : 'max-w-[min(100vw-1.5rem,28rem)] w-full flex h-[90vh] flex-col overflow-hidden p-0'
+            ? '!max-w-5xl !p-6 !rounded-3xl'
+            : '!max-w-[min(100vw-1.5rem,28rem)] !p-0 !rounded-[1.75rem] !h-[min(92vh,680px)] !overflow-hidden'
         )}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
