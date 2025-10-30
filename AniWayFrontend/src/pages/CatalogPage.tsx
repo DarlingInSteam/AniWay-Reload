@@ -873,7 +873,7 @@ export function CatalogPage() {
         <div className="flex gap-8">
           {/* Левая колонка: каталог */}
             <div className="flex-1 min-w-0">
-              <div className="space-y-4 px-0">
+              <div className="space-y-4 px-0 md:pl-8">
                 {/* Заголовок + поиск + сортировка */}
                 <div className="flex flex-col gap-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

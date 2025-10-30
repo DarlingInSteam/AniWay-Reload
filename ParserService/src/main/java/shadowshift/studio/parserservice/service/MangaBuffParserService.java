@@ -3,7 +3,6 @@ package shadowshift.studio.parserservice.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jsoup.Connection;
-import org.jsoup.Connection.Response;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -89,7 +88,6 @@ public class MangaBuffParserService {
 
     public CompletableFuture<CatalogResult> fetchCatalog(int page, Integer minChapters, Integer maxChapters) {
         return CompletableFuture.supplyAsync(() -> {
-            SlugContext context = new SlugContext("catalog");
             try {
                 String url = MangaBuffApiHelper.buildCatalogUrl(page);
                 logger.info("📄 [CATALOG] GET {}", url);
@@ -571,7 +569,6 @@ public class MangaBuffParserService {
             logger.debug("🔄 [LOAD] {}: load response body length: {}", context.getFileSlug(), responseBody != null ? responseBody.length() : 0);
             
             Document parsedResponse = null;
-            boolean parsedFromJson = false;
             boolean jsonSuggestsMore = false;
 
             if (responseBody != null) {
@@ -585,7 +582,6 @@ public class MangaBuffParserService {
                         JsonNode json = objectMapper.readTree(trimmedBody);
                         String htmlFragment = json.path("content").asText("");
                         parsedResponse = Jsoup.parseBodyFragment(htmlFragment != null ? htmlFragment : "");
-                        parsedFromJson = true;
 
                         jsonSuggestsMore = nodeTruthy(json.path("load_more"))
                             || nodeTruthy(json.path("hasMore"))
@@ -1138,13 +1134,37 @@ public class MangaBuffParserService {
         if (value == null) {
             return null;
         }
-        return switch (value.trim().toLowerCase(Locale.ROOT)) {
-            case "продолжается", "ongoing" -> "ongoing";
-            case "завершено", "completed" -> "completed";
-            case "заморожено", "приостановлено" -> "dropped";
-            case "анонс", "анонсировано" -> "announced";
-            default -> null;
-        };
+
+        String normalized = value.trim().toLowerCase(Locale.ROOT)
+            .replace('ё', 'е');
+
+        if (normalized.isEmpty()) {
+            return null;
+        }
+
+        if (normalized.equals("ongoing") || normalized.contains("продолж")) {
+            return "ongoing";
+        }
+
+        if (normalized.equals("completed") || normalized.contains("заверш")) {
+            return "completed";
+        }
+
+        if (normalized.equals("hiatus") || normalized.contains("заморож") || normalized.contains("приостанов")) {
+            return "hiatus";
+        }
+
+        if (normalized.contains("заброш") || normalized.contains("отмен")
+            || normalized.contains("cancel") || normalized.contains("dropped")
+            || normalized.contains("прекращ")) {
+            return "cancelled";
+        }
+
+        if (normalized.equals("announced") || normalized.contains("анонс")) {
+            return "announced";
+        }
+
+        return null;
     }
 
     private String formatNumber(Double value) {
@@ -1166,7 +1186,8 @@ public class MangaBuffParserService {
      * Контекст slug для совместимости со старыми id--slug форматами.
      */
     private static final class SlugContext {
-        private final String rawSlug;
+    @SuppressWarnings("unused")
+    private final String rawSlug;
         private final String pageSlug;
         private final String fileSlug;
 
