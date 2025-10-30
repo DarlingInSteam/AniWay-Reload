@@ -43,8 +43,7 @@ public interface ForumThreadRepository extends JpaRepository<ForumThread, Long> 
     /**
      * Найти темы связанные с мангой
      */
-    @Query("SELECT t FROM ForumThread t WHERE t.mangaId = :mangaId AND t.isDeleted = false ORDER BY t.lastActivityAt DESC")
-    List<ForumThread> findByMangaIdAndNotDeleted(@Param("mangaId") Long mangaId);
+    Page<ForumThread> findByMangaIdAndIsDeletedFalse(Long mangaId, Pageable pageable);
     
     /**
      * Поиск тем по тексту (полнотекстовый поиск)

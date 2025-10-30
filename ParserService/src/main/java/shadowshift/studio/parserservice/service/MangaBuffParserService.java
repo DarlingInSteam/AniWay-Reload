@@ -60,6 +60,7 @@ public class MangaBuffParserService {
     // Кеш cookies для избежания повторных запросов к главной странице манги
     // Key: slug, Value: Response с cookies от DDoS-Guard
     private final Map<String, Connection.Response> cookieCache = new ConcurrentHashMap<>();
+    private final Set<String> adultContentSlugs = ConcurrentHashMap.newKeySet();
 
     public MangaBuffParserService(ParserProperties properties,
                                   ObjectMapper objectMapper,
@@ -226,6 +227,14 @@ public class MangaBuffParserService {
 
             if (statusCode == 401) {
                 logUnauthorizedBody(response);
+                boolean slugMarkedAdult = isAdultSlug(slug);
+                if ((slugMarkedAdult || attempt + 1 >= maxAttempts) && !adultAuthAttempted) {
+                    adultAuthAttempted = true;
+                    List<SlideInfo> authorized = attemptAdultChapterFetch(slug, volume, chapter, url, mangaResponse, response);
+                    if (authorized != null) {
+                        return authorized;
+                    }
+                }
                 if (++attempt < maxAttempts) {
                     int retryNumber = attempt + 1;
                     long backoffMs = 600L * retryNumber;
@@ -238,17 +247,17 @@ public class MangaBuffParserService {
                     }
                     continue;
                 }
-                adultAuthAttempted = true;
-                List<SlideInfo> authorized = attemptAdultChapterFetch(slug, volume, chapter, url, mangaResponse, response);
-                if (authorized != null) {
-                    return authorized;
-                }
                 throw new IOException("401 Unauthorized for chapter " + slug + " " + volume + "/" + chapter);
             }
 
             if (statusCode == 403 || statusCode == 404) {
                 logUnauthorizedBody(response);
+                boolean slugMarkedAdult = isAdultSlug(slug);
                 boolean looksAdultRestricted = shouldAttemptAdultAuth(response);
+                if (!looksAdultRestricted && slugMarkedAdult) {
+                    logger.debug("🔐 [AUTH] Slug {} marked as adult, forcing auth attempt", slug);
+                    looksAdultRestricted = true;
+                }
                 if (looksAdultRestricted && !adultAuthAttempted) {
                     adultAuthAttempted = true;
                     List<SlideInfo> authorized = attemptAdultChapterFetch(slug, volume, chapter, url, mangaResponse, response);
@@ -413,6 +422,15 @@ public class MangaBuffParserService {
         return new SlugContext(slug).getFileSlug();
     }
 
+    public void registerAdultSlug(String slug) {
+        if (slug == null || slug.isBlank()) {
+            return;
+        }
+        String normalized = slug.trim();
+        adultContentSlugs.add(normalized);
+        adultContentSlugs.add(normalized.replace('/', '-'));
+    }
+
     private Connection.Response fetchMangaPage(SlugContext context) throws IOException {
         String url = MangaBuffApiHelper.buildMangaUrl(context.getPageSlug());
         logger.info("🌐 [MANGA] GET {}", url);
@@ -510,7 +528,11 @@ public class MangaBuffParserService {
         metadata.setTags(extractTexts(document.select(".tags a[href*='?tags']")));
 
         Element adultTag = document.selectFirst(".tags__item--warning");
-        metadata.setAgeLimit(adultTag != null ? 18 : null);
+        Integer ageLimit = adultTag != null ? 18 : null;
+        metadata.setAgeLimit(ageLimit);
+        if (ageLimit != null && ageLimit >= 18) {
+            registerAdultSlug(context.getPageSlug());
+        }
 
         Map<String, String> info = parseInfoList(document);
 
@@ -803,6 +825,18 @@ public class MangaBuffParserService {
             throw new IOException("Invalid chapter path: " + relativePath);
         }
         return fetchChapterSlidesWithRetry(chapterPath.getSlug(), chapterPath.getVolume(), chapterPath.getChapter(), false);
+    }
+
+    private boolean isAdultSlug(String slug) {
+        if (slug == null || slug.isBlank()) {
+            return false;
+        }
+        String normalized = slug.trim();
+        if (adultContentSlugs.contains(normalized)) {
+            return true;
+        }
+        String alt = normalized.replace('/', '-');
+        return adultContentSlugs.contains(alt);
     }
 
     private Connection.Response fetchAndCacheCookies(String slug, boolean forceLog) {

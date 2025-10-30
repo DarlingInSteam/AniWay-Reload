@@ -15,6 +15,7 @@ import { formatChapterTitle, formatChapterNumber, formatVolumeNumber } from '@/l
 import { BookmarkControls } from '../components/bookmarks/BookmarkControls'
 import { ReadingProgressBar, LastReadChapter } from '../components/progress/ReadingProgress'
 import { ReadingButton } from '../components/reading/ReadingButton'
+import { MangaDiscussions } from '@/components/manga/MangaDiscussions'
 import { useReadingProgress } from '@/hooks/useProgress'
 import { CommentSection } from '../components/comments/CommentSection'
 import MangaReviews from '../components/MangaReviews'
@@ -997,8 +998,12 @@ export function MangaPage() {
                   </div>
                 )}
 
+                {activeTab === 'discussions' && (
+                  <MangaDiscussions mangaId={mangaId} mangaTitle={manga.title} />
+                )}
+
                 {/* Other Tabs - In Development */}
-                {['discussions', 'moments', 'cards', 'characters', 'similar'].includes(activeTab) && (
+                {['moments', 'cards', 'characters', 'similar'].includes(activeTab) && (
                   <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 text-center border border-white/10">
                     <div className="text-muted-foreground">Раздел в разработке</div>
                   </div>

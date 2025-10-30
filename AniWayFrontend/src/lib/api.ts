@@ -15,6 +15,7 @@ import {
   UserSearchResult,
   EmptyChaptersCleanupResult
 } from '@/types';
+import type { PaginatedResponse, ForumThread } from '@/types/forum';
 import type {
   CategoryUnreadMap,
   CategoryView,
@@ -72,7 +73,9 @@ class ApiClient {
       (/^\/posts\/.*\/vote$/.test(endpoint)) ||
       (/^\/comments\b/.test(endpoint) && ['POST','PUT','DELETE','GET'].includes(method)) ||
       (/^\/messages\b/.test(endpoint)) ||
-      (/^\/chapters\b/.test(endpoint))
+      (/^\/chapters\b/.test(endpoint)) ||
+      (/^\/forum\/threads\b/.test(endpoint)) ||
+      (/^\/forum\/manga\b/.test(endpoint))
     );
     const normalizedUserRole = userRole ? userRole.toUpperCase().replace(/^ROLE_/, '') : undefined;
     const headerUserRole = normalizedUserRole || (token ? 'USER' : undefined);
@@ -406,6 +409,29 @@ class ApiClient {
       console.error(`Ошибка при загрузке публичных закладок для пользователя ${username}:`, error);
       return [];
     }
+  }
+
+  // Manga discussions API
+  async getMangaDiscussions(
+    mangaId: number,
+    params: { page?: number; size?: number; sort?: 'popular' | 'active' | 'new' } = {}
+  ): Promise<PaginatedResponse<ForumThread>> {
+    const searchParams = new URLSearchParams();
+    if (params.page != null) searchParams.append('page', params.page.toString());
+    if (params.size != null) searchParams.append('size', params.size.toString());
+    if (params.sort) searchParams.append('sort', params.sort);
+    const query = searchParams.toString();
+    return this.request<PaginatedResponse<ForumThread>>(`/forum/manga/${mangaId}/threads${query ? `?${query}` : ''}`);
+  }
+
+  async createMangaDiscussion(
+    mangaId: number,
+    payload: { categoryName: string; title: string; content: string }
+  ): Promise<ForumThread> {
+    return this.request<ForumThread>(`/forum/manga/${mangaId}/threads`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   }
 
   // =============================

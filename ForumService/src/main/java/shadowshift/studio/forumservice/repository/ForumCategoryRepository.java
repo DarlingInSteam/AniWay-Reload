@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 import shadowshift.studio.forumservice.entity.ForumCategory;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ForumCategoryRepository extends JpaRepository<ForumCategory, Long> {
@@ -29,6 +30,11 @@ public interface ForumCategoryRepository extends JpaRepository<ForumCategory, Lo
      */
     boolean existsByNameIgnoreCase(String name);
     
+    /**
+     * Найти категорию по точному имени без учета регистра
+     */
+    Optional<ForumCategory> findByNameIgnoreCase(String name);
+
     /**
      * Найти категории по имени (поиск)
      */

@@ -94,3 +94,11 @@ export interface CreatePostRequest {
 export interface UpdatePostRequest {
   content: string;
 }
+
+export type MangaDiscussionSort = 'popular' | 'active' | 'new';
+
+export interface CreateMangaDiscussionPayload {
+  categoryName: string;
+  title: string;
+  content: string;
+}
