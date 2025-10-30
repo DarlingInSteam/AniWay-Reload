@@ -392,7 +392,10 @@ export function ReaderPage() {
     if (pendingIndex == null) return
     const hasEntry = chapterEntriesRef.current.some(entry => entry.index === pendingIndex)
     if (!hasEntry) return
-    setActiveIndex(prev => prev === pendingIndex ? prev : pendingIndex)
+    setActiveIndex(prev => {
+      if (prev === pendingIndex) return prev
+      return pendingIndex
+    })
     pendingActiveIndexRef.current = null
   }, [chapterEntries])
 
@@ -544,7 +547,7 @@ export function ReaderPage() {
       const match = chapterEntries.find(entry => entry.index === activeIndex)
       if (match) return match
     }
-    return chapterEntries[0]
+    return chapterEntries.length > 0 ? chapterEntries[0] : undefined
   }, [activeIndex, chapterEntries])
 
   const activeChapter = activeEntry?.chapter
@@ -808,12 +811,18 @@ export function ReaderPage() {
     if (activeChapterIndex == null || activeChapterIndex === -1) return
     const target = activeChapterIndex + 1
     if (target >= sortedChapters.length) return
+    
+    // Clear existing pending
+    pendingActiveIndexRef.current = null
+    pendingScrollIndexRef.current = null
+    
     pendingActiveIndexRef.current = target
     pendingScrollIndexRef.current = target
     pendingScrollBehaviorRef.current = 'smooth'
     await ensureChapterLoaded(target, 'append')
     if (chapterEntriesRef.current.some(entry => entry.index === target)) {
       setActiveIndex(target)
+      pendingActiveIndexRef.current = null
     }
     scheduleScrollToIndex(target)
     const targetChapter = sortedChapters[target]
@@ -827,12 +836,18 @@ export function ReaderPage() {
     if (activeChapterIndex == null || activeChapterIndex === -1) return
     const target = activeChapterIndex - 1
     if (target < 0) return
+    
+    // Clear existing pending
+    pendingActiveIndexRef.current = null
+    pendingScrollIndexRef.current = null
+    
     pendingActiveIndexRef.current = target
     pendingScrollIndexRef.current = target
     pendingScrollBehaviorRef.current = 'smooth'
     await ensureChapterLoaded(target, 'prepend')
     if (chapterEntriesRef.current.some(entry => entry.index === target)) {
       setActiveIndex(target)
+      pendingActiveIndexRef.current = null
     }
     scheduleScrollToIndex(target)
     const targetChapter = sortedChapters[target]
@@ -852,15 +867,27 @@ export function ReaderPage() {
     if (!sortedChapters) return
     const targetIndex = sortedChapters.findIndex(ch => ch.id === targetId)
     if (targetIndex === -1) return
-    const direction: 'append' | 'prepend' = activeChapterIndex != null && targetIndex < activeChapterIndex ? 'prepend' : 'append'
+    
+    // Clear any existing pending operations
+    pendingActiveIndexRef.current = null
+    pendingScrollIndexRef.current = null
+    
+    // Set new target
     pendingActiveIndexRef.current = targetIndex
     pendingScrollIndexRef.current = targetIndex
-    pendingScrollBehaviorRef.current = 'smooth'
+    pendingScrollBehaviorRef.current = 'auto'
+    
+    const direction: 'append' | 'prepend' = activeChapterIndex != null && targetIndex < activeChapterIndex ? 'prepend' : 'append'
     await ensureChapterLoaded(targetIndex, direction)
+    
+    // Force set active index if entry exists
     if (chapterEntriesRef.current.some(entry => entry.index === targetIndex)) {
       setActiveIndex(targetIndex)
+      pendingActiveIndexRef.current = null
     }
+    
     scheduleScrollToIndex(targetIndex)
+    
     const targetChapter = sortedChapters[targetIndex]
     if (targetChapter && String(targetChapter.id) !== chapterId) {
       navigate(`/reader/${targetChapter.id}`, { replace: true })
