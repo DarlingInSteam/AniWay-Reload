@@ -64,6 +64,14 @@ export function MangaMoments({ mangaId, mangaTitle }: MangaMomentsProps) {
   const uploaderIds = useMemo(() => moments.map((item) => item.uploaderId), [moments])
   const uploaderMap = useUserMiniBatch(uploaderIds)
 
+  const reactionsQuery = useQuery({
+    queryKey: ['moment-reactions', mangaId, sort, momentIds.join(',')],
+    queryFn: () => apiClient.getMomentUserReactions(momentIds),
+    enabled: isAuthenticated && momentIds.length > 0
+  })
+
+  const backendReactions = reactionsQuery.data ?? {}
+
   const commentCountsQuery = useQuery({
     queryKey: ['moment-comment-counts', mangaId, sort, momentIds.join(',')],
     queryFn: () => apiClient.getMomentCommentsCount(momentIds),
@@ -103,7 +111,7 @@ export function MangaMoments({ mangaId, mangaTitle }: MangaMomentsProps) {
           changed = true
           continue
         }
-        const serverReaction = moment.userReaction ?? null
+        const serverReaction = backendReactions[id] ?? moment.userReaction ?? null
         if (serverReaction === prev[id]) {
           delete next[id]
           changed = true
@@ -111,17 +119,26 @@ export function MangaMoments({ mangaId, mangaTitle }: MangaMomentsProps) {
       }
       return changed ? next : prev
     })
-  }, [moments])
+  }, [moments, backendReactions])
 
   const reactionMap = useMemo(() => {
     const map: Record<number, MomentReactionType | null> = {}
     moments.forEach((moment) => {
       const hasOverride = Object.prototype.hasOwnProperty.call(reactionOverrides, moment.id)
       const override = hasOverride ? reactionOverrides[moment.id] : undefined
-      map[moment.id] = override !== undefined ? override : (moment.userReaction ?? null)
+      if (override !== undefined) {
+        map[moment.id] = override
+        return
+      }
+      const backend = backendReactions[moment.id]
+      if (backend) {
+        map[moment.id] = backend
+        return
+      }
+      map[moment.id] = moment.userReaction ?? null
     })
     return map
-  }, [moments, reactionOverrides])
+  }, [moments, reactionOverrides, backendReactions])
 
   const { ref: sentinelRef, inView } = useInView({ threshold: 0.5 })
 
