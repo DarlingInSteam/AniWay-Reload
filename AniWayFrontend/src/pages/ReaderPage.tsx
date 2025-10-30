@@ -304,19 +304,21 @@ const ChapterBlock = ({
     >
       <div ref={topSentinelRef} aria-hidden className="h-1 w-full" />
       {entry.chapter && (
-        <div className="relative py-10">
-          {entry.index !== 0 && (
-            <div className="text-center mb-3 text-[10px] uppercase tracking-[0.35em] text-white/40">
-              Следующая глава
+        <div className="relative px-4 sm:px-6">
+          {entry.index === 0 ? (
+            <div className="py-6" />
+          ) : (
+            <div className="py-8">
+              <div className="flex items-center gap-3">
+                <span className="flex-1 h-px bg-white/10" />
+                <div className="flex items-center gap-2 px-5 py-2 rounded-full border border-white/20 bg-black/80 backdrop-blur-sm text-[11px] sm:text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
+                  <span className="hidden sm:inline text-white/50">Глава</span>
+                  <span>{formatChapterTitle(entry.chapter)}</span>
+                </div>
+                <span className="flex-1 h-px bg-white/10" />
+              </div>
             </div>
           )}
-          <div className="flex items-center gap-4">
-            <span className="flex-1 h-px bg-white/10" />
-            <div className="max-w-[80vw] sm:max-w-3xl px-4 py-2 rounded-full border border-white/15 bg-black/70 backdrop-blur text-xs sm:text-sm font-medium text-white/80 truncate">
-              {formatChapterTitle(entry.chapter)}
-            </div>
-            <span className="flex-1 h-px bg-white/10" />
-          </div>
         </div>
       )}
       <ChapterImageList
@@ -806,11 +808,12 @@ export function ReaderPage() {
     if (activeChapterIndex == null || activeChapterIndex === -1) return
     const target = activeChapterIndex + 1
     if (target >= sortedChapters.length) return
+    pendingActiveIndexRef.current = target
+    pendingScrollIndexRef.current = target
+    pendingScrollBehaviorRef.current = 'smooth'
     await ensureChapterLoaded(target, 'append')
     if (chapterEntriesRef.current.some(entry => entry.index === target)) {
       setActiveIndex(target)
-    } else {
-      pendingActiveIndexRef.current = target
     }
     scheduleScrollToIndex(target)
     const targetChapter = sortedChapters[target]
@@ -824,11 +827,12 @@ export function ReaderPage() {
     if (activeChapterIndex == null || activeChapterIndex === -1) return
     const target = activeChapterIndex - 1
     if (target < 0) return
+    pendingActiveIndexRef.current = target
+    pendingScrollIndexRef.current = target
+    pendingScrollBehaviorRef.current = 'smooth'
     await ensureChapterLoaded(target, 'prepend')
     if (chapterEntriesRef.current.some(entry => entry.index === target)) {
       setActiveIndex(target)
-    } else {
-      pendingActiveIndexRef.current = target
     }
     scheduleScrollToIndex(target)
     const targetChapter = sortedChapters[target]
@@ -849,11 +853,12 @@ export function ReaderPage() {
     const targetIndex = sortedChapters.findIndex(ch => ch.id === targetId)
     if (targetIndex === -1) return
     const direction: 'append' | 'prepend' = activeChapterIndex != null && targetIndex < activeChapterIndex ? 'prepend' : 'append'
+    pendingActiveIndexRef.current = targetIndex
+    pendingScrollIndexRef.current = targetIndex
+    pendingScrollBehaviorRef.current = 'smooth'
     await ensureChapterLoaded(targetIndex, direction)
     if (chapterEntriesRef.current.some(entry => entry.index === targetIndex)) {
       setActiveIndex(targetIndex)
-    } else {
-      pendingActiveIndexRef.current = targetIndex
     }
     scheduleScrollToIndex(targetIndex)
     const targetChapter = sortedChapters[targetIndex]
@@ -964,17 +969,18 @@ export function ReaderPage() {
         setLastTap(0)
         return
       }
-    }
 
-    initialShowUIRef.current = showUI
-    if (pendingUiToggleRef.current) {
-      clearTimeout(pendingUiToggleRef.current)
+      initialShowUIRef.current = showUI
+      setLastTap(now)
+
+      if (pendingUiToggleRef.current) {
+        clearTimeout(pendingUiToggleRef.current)
+      }
+      pendingUiToggleRef.current = setTimeout(() => {
+        setShowUI((prev) => !prev)
+        pendingUiToggleRef.current = null
+      }, 260)
     }
-    pendingUiToggleRef.current = setTimeout(() => {
-      setShowUI((prev) => !prev)
-      pendingUiToggleRef.current = null
-    }, 260)
-    setLastTap(now)
   }
 
   const handleDoubleClickDesktop = (e: React.MouseEvent) => {
