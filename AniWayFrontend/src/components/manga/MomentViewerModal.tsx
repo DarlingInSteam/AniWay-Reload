@@ -59,10 +59,15 @@ export function MomentViewerModal({
   })
   const [commentCount, setCommentCount] = useState<number>(moment?.commentsCount ?? 0)
   const touchStartYRef = useRef<number | null>(null)
+  const touchStartTargetRef = useRef<EventTarget | null>(null)
+  const lastTapTimeRef = useRef<number>(0)
+  const mediaContainerRef = useRef<HTMLDivElement | null>(null)
   const commentOverlayRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     setRevealed(false)
+    lastTapTimeRef.current = 0
+    touchStartTargetRef.current = null
   }, [moment?.id])
 
   useEffect(() => {
@@ -175,33 +180,61 @@ export function MomentViewerModal({
     const targetNode = event.target as Node | null
     if (!isDesktop && showComments && targetNode && commentOverlayRef.current?.contains(targetNode)) {
       touchStartYRef.current = null
+      touchStartTargetRef.current = null
       return
     }
     if (typeof window !== 'undefined' && window.innerWidth >= 768) {
       touchStartYRef.current = null
+      touchStartTargetRef.current = null
       return
     }
     const touch = event.touches?.[0]
     touchStartYRef.current = touch ? touch.clientY : null
+    touchStartTargetRef.current = event.target
   }
 
   const handleTouchEnd = (event: ReactTouchEvent<HTMLDivElement>) => {
     const targetNode = event.target as Node | null
     if (!isDesktop && showComments && targetNode && commentOverlayRef.current?.contains(targetNode)) {
       touchStartYRef.current = null
+      touchStartTargetRef.current = null
       return
     }
     if (typeof window !== 'undefined' && window.innerWidth >= 768) {
       touchStartYRef.current = null
+      touchStartTargetRef.current = null
       return
     }
     const startY = touchStartYRef.current
     const touch = event.changedTouches?.[0]
     touchStartYRef.current = null
+    const beganNode = touchStartTargetRef.current as Node | null
+    touchStartTargetRef.current = null
     if (startY == null || !touch) {
       return
     }
     const delta = startY - touch.clientY
+
+    if (!isDesktop && !showWarning) {
+      const beganInMedia = beganNode ? (mediaContainerRef.current?.contains(beganNode) ?? false) : false
+      if (beganInMedia) {
+        if (Math.abs(delta) < 12) {
+          const now = Date.now()
+          if (now - lastTapTimeRef.current < 280) {
+            lastTapTimeRef.current = 0
+            handleLike()
+            return
+          }
+          lastTapTimeRef.current = now
+          return
+        }
+        lastTapTimeRef.current = 0
+      } else {
+        lastTapTimeRef.current = 0
+      }
+    } else {
+      lastTapTimeRef.current = 0
+    }
     if (Math.abs(delta) < 50) {
       return
     }
@@ -305,6 +338,7 @@ export function MomentViewerModal({
                   src={effectiveMoment.image.url}
                   alt={effectiveMoment.caption}
                   className={cn('max-h-[75vh] w-full object-contain transition-filter duration-300', showWarning ? 'blur-xl select-none' : '')}
+                  onDoubleClick={handleLike}
                 />
                 {showWarning && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black/80 text-center px-6">
@@ -444,11 +478,12 @@ export function MomentViewerModal({
               </Button>
               <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-white/70">Момент #{effectiveMoment.id}</span>
             </div>
-            <div className="relative flex flex-1 items-center justify-center bg-black">
+            <div ref={mediaContainerRef} className="relative flex flex-1 items-center justify-center bg-black">
               <img
                 src={effectiveMoment.image.url}
                 alt={effectiveMoment.caption}
-                className={cn('max-h-full w-full object-contain transition-filter duration-300', showWarning ? 'blur-xl select-none' : '')}
+                className={cn('max-h-full w-full object-contain transition-filter duration-300 select-none', showWarning ? 'blur-xl pointer-events-none' : '')}
+                onDoubleClick={handleLike}
               />
               {showWarning && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black/80 px-6 text-center">

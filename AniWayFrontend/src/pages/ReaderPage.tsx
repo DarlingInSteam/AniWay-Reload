@@ -31,7 +31,7 @@ function ChapterImageList({
   imageWidth,
   showUI,
   previousChapter,
-  setShowUI,
+  handleImageClick,
   handleTapOrClick,
   handleDoubleClickDesktop,
   handleTouchStartSwipe,
@@ -111,9 +111,9 @@ function ChapterImageList({
                     setVisibleIndexes((prev: Set<number>) => new Set(prev).add(index + 1))
                   }
                 }}
-                onClick={() => setShowUI((v: boolean) => !v)}
+                onClick={handleImageClick}
                 onDoubleClick={handleDoubleClickDesktop}
-                onTouchStart={(e) => { handleTapOrClick(e); handleTouchStartSwipe(e) }}
+                onTouchStart={(e) => { handleTouchStartSwipe(e); handleTapOrClick(e) }}
                 onTouchMove={handleTouchMoveSwipe}
                 onTouchEnd={handleTouchEndSwipe}
               />
@@ -173,6 +173,10 @@ export function ReaderPage() {
   const [gestureBursts, setGestureBursts] = useState<Array<{id:number,x:number,y:number}>>([])
   const touchStartRef = useRef<{x:number,y:number,time:number}|null>(null)
   const touchMovedRef = useRef<boolean>(false)
+  const skipClickToggleRef = useRef(false)
+  const skipClickResetRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const initialShowUIRef = useRef<boolean>(showUI)
+  const pendingUiToggleRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [showSideComments, setShowSideComments] = useState(false)
   const [viewportWidth, setViewportWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1024)
   // Local adaptive title component state
@@ -220,6 +224,19 @@ export function ReaderPage() {
       // ignore
     }
   }, [readingMode, imageWidth])
+
+  useEffect(() => {
+    return () => {
+      if (skipClickResetRef.current) {
+        clearTimeout(skipClickResetRef.current)
+        skipClickResetRef.current = null
+      }
+      if (pendingUiToggleRef.current) {
+        clearTimeout(pendingUiToggleRef.current)
+        pendingUiToggleRef.current = null
+      }
+    }
+  }, [])
 
   // Reading progress tracking
   const { trackChapterViewed, markChapterCompleted, isChapterCompleted, clearTrackedChapters } = useReadingProgress()
@@ -371,6 +388,22 @@ export function ReaderPage() {
     }
   }
 
+  const handleImageClick = useCallback(() => {
+    if (skipClickToggleRef.current) {
+      skipClickToggleRef.current = false
+      if (skipClickResetRef.current) {
+        clearTimeout(skipClickResetRef.current)
+        skipClickResetRef.current = null
+      }
+      return
+    }
+    if (pendingUiToggleRef.current) {
+      // Touch path will handle toggle via scheduled timer
+      return
+    }
+    setShowUI((v) => !v)
+  }, [setShowUI])
+
   // Handle double tap / double click for like with cooldown & visual feedback
   const triggerHeartBurst = (clientX:number, clientY:number) => {
     // store relative to viewport; container is full width so OK
@@ -386,11 +419,21 @@ export function ReaderPage() {
     if (now - likeGestureCooldownRef.current < 600) return // cooldown
     likeGestureCooldownRef.current = now
     triggerHeartBurst(clientX, clientY)
+    if (skipClickResetRef.current) {
+      clearTimeout(skipClickResetRef.current)
+    }
+    skipClickToggleRef.current = true
+    skipClickResetRef.current = setTimeout(() => {
+      skipClickToggleRef.current = false
+      skipClickResetRef.current = null
+    }, 400)
     handleChapterLike()
   }
 
   const handleTapOrClick = (e: React.MouseEvent | React.TouchEvent) => {
-    // On mobile treat it as potential like only if almost no vertical movement and within 2 quick taps
+    if (!('touches' in e) && !('changedTouches' in (e as any))) {
+      return
+    }
     let clientX: number
     let clientY: number
     if ('touches' in e && e.touches.length > 0) {
@@ -400,17 +443,28 @@ export function ReaderPage() {
       clientX = (e as any).changedTouches[0].clientX
       clientY = (e as any).changedTouches[0].clientY
     } else {
-      const mouseEvent = e as React.MouseEvent
-      clientX = mouseEvent.clientX
-      clientY = mouseEvent.clientY
+      return
     }
     const now = Date.now()
     const delta = now - lastTap
-    // Require tighter window AND ensure the last gesture did not move notably
     if (delta > 0 && delta < 280 && !touchMovedRef.current) {
+      if (pendingUiToggleRef.current) {
+        clearTimeout(pendingUiToggleRef.current)
+        pendingUiToggleRef.current = null
+      }
+      // Restore UI state if the first tap toggled it already
+      setShowUI((prev) => (prev === initialShowUIRef.current ? prev : initialShowUIRef.current))
       attemptLikeFromGesture(clientX, clientY)
-      setLastTap(0) // reset so triple taps don't like twice
+      setLastTap(0)
     } else {
+      initialShowUIRef.current = showUI
+      if (pendingUiToggleRef.current) {
+        clearTimeout(pendingUiToggleRef.current)
+      }
+      pendingUiToggleRef.current = setTimeout(() => {
+        setShowUI((prev) => !prev)
+        pendingUiToggleRef.current = null
+      }, 260)
       setLastTap(now)
     }
   }
@@ -431,7 +485,13 @@ export function ReaderPage() {
     const t = e.touches[0]
     const dx = t.clientX - touchStartRef.current.x
     const dy = t.clientY - touchStartRef.current.y
-    if (Math.abs(dx) > 6 || Math.abs(dy) > 6) touchMovedRef.current = true
+    if (Math.abs(dx) > 6 || Math.abs(dy) > 6) {
+      touchMovedRef.current = true
+      if (pendingUiToggleRef.current) {
+        clearTimeout(pendingUiToggleRef.current)
+        pendingUiToggleRef.current = null
+      }
+    }
   }
   const handleTouchEndSwipe = (e: React.TouchEvent) => {
     if (!touchStartRef.current) return
@@ -944,7 +1004,7 @@ export function ReaderPage() {
           imageWidth={imageWidth}
           showUI={showUI}
           previousChapter={previousChapter}
-          setShowUI={setShowUI}
+          handleImageClick={handleImageClick}
           handleTapOrClick={handleTapOrClick}
           handleDoubleClickDesktop={handleDoubleClickDesktop}
           handleTouchStartSwipe={handleTouchStartSwipe}
