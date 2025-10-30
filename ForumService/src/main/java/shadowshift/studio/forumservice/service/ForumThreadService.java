@@ -59,7 +59,7 @@ public class ForumThreadService {
     public Page<ForumThreadResponse> getThreadsForManga(Long mangaId, Pageable pageable, Long currentUserId, String sort) {
         log.debug("Получение тем манги: {}, страница: {}, сортировка: {}", mangaId, pageable.getPageNumber(), sort);
 
-        Sort effectiveSort = buildMangaSort(sort, pageable.getSort());
+    Sort effectiveSort = buildMangaSort(sort);
         Pageable effectivePageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), effectiveSort);
 
         Page<ForumThread> threadsPage = threadRepository.findByMangaIdAndIsDeletedFalse(mangaId, effectivePageable);
@@ -345,7 +345,7 @@ public class ForumThreadService {
                 .build();
     }
 
-    private Sort buildMangaSort(String sort, Sort requestedSort) {
+    private Sort buildMangaSort(String sort) {
         String normalized = Optional.ofNullable(sort)
                 .map(s -> s.toLowerCase(Locale.ROOT))
                 .orElse(SORT_POPULAR);
@@ -371,11 +371,7 @@ public class ForumThreadService {
             }
         }
 
-        Sort combined = base.and(ranking).and(Sort.by(Sort.Order.desc("id")));
-        if (requestedSort != null && requestedSort.isSorted()) {
-            combined = combined.and(requestedSort);
-        }
-        return combined;
+        return base.and(ranking).and(Sort.by(Sort.Order.desc("id")));
     }
 
     private ForumCategory resolveOrCreateMangaCategory(String categoryName) {
