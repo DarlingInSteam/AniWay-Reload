@@ -36,8 +36,7 @@ function ChapterImageList({
   handleDoubleClickDesktop,
   handleTouchStartSwipe,
   handleTouchMoveSwipe,
-  handleTouchEndSwipe,
-  onFocusChapter
+  handleTouchEndSwipe
 }: any) {
   const [intrinsicSizes, setIntrinsicSizes] = useState<Record<number, { width: number; height: number }>>({})
   const [visibleIndexes, setVisibleIndexes] = useState<Set<number>>(() => new Set([0, 1, 2]))
@@ -154,9 +153,9 @@ function ChapterImageList({
                     })
                   }
                 }}
-                onClick={(event) => { onFocusChapter?.(); handleImageClick(event) }}
+                onClick={(event) => { handleImageClick(event) }}
                 onDoubleClick={handleDoubleClickDesktop}
-                onTouchStart={(e) => { onFocusChapter?.(); handleTouchStartSwipe(e); handleTapOrClick(e) }}
+                onTouchStart={(e) => { handleTouchStartSwipe(e); handleTapOrClick(e) }}
                 onTouchMove={handleTouchMoveSwipe}
                 onTouchEnd={handleTouchEndSwipe}
               />
@@ -214,11 +213,11 @@ interface ChapterBlockProps {
   handleTouchStartSwipe: any
   handleTouchMoveSwipe: any
   handleTouchEndSwipe: any
-  onActivate: () => void
   onNearBottom: () => void
   onNearTop: () => void
   onCompleted: () => void
-  onFocusChapter: () => void
+  registerNode: (index: number, node: HTMLDivElement | null) => void
+  onContentResize: (index: number) => void
   isActive: boolean
 }
 
@@ -233,11 +232,11 @@ const ChapterBlock = ({
   handleTouchStartSwipe,
   handleTouchMoveSwipe,
   handleTouchEndSwipe,
-  onActivate,
   onNearBottom,
   onNearTop,
   onCompleted,
-  onFocusChapter,
+  registerNode,
+  onContentResize,
   isActive
 }: ChapterBlockProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -246,18 +245,19 @@ const ChapterBlock = ({
   const completionSentinelRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
+    registerNode(entry.index, containerRef.current)
+    return () => registerNode(entry.index, null)
+  }, [entry.index, registerNode])
+
+  useEffect(() => {
     const node = containerRef.current
     if (!node) return
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          onActivate()
-        }
-      })
-    }, { rootMargin: '-30% 0px -55% 0px', threshold: 0.1 })
+    const observer = new ResizeObserver(() => {
+      onContentResize(entry.index)
+    })
     observer.observe(node)
     return () => observer.disconnect()
-  }, [onActivate])
+  }, [entry.index, onContentResize])
 
   useEffect(() => {
     const node = topSentinelRef.current
@@ -332,7 +332,6 @@ const ChapterBlock = ({
         handleTouchStartSwipe={handleTouchStartSwipe}
         handleTouchMoveSwipe={handleTouchMoveSwipe}
         handleTouchEndSwipe={handleTouchEndSwipe}
-        onFocusChapter={onFocusChapter}
       />
       <div ref={completionSentinelRef} aria-hidden className="h-1 w-full" />
       <div ref={bottomSentinelRef} aria-hidden className="h-64 w-full" />
@@ -378,6 +377,11 @@ export function ReaderPage() {
   const pendingScrollBehaviorRef = useRef<ScrollBehavior>('smooth')
   const pendingActiveIndexRef = useRef<number | null>(null)
   const manualNavigationLockRef = useRef<number>(0)
+  const pendingScrollAttemptsRef = useRef<number>(0)
+  const chapterNodesRef = useRef<Map<number, HTMLDivElement>>(new Map())
+  const activeIndexRef = useRef<number | null>(null)
+  const scrollAnimationRef = useRef<number | null>(null)
+  const [contentVersion, setContentVersion] = useState(0)
   const [autoCompletedMap, setAutoCompletedMap] = useState<Record<number, boolean>>({})
   const [loadingForward, setLoadingForward] = useState(false)
   const [loadingBackward, setLoadingBackward] = useState(false)
@@ -387,6 +391,10 @@ export function ReaderPage() {
   useEffect(() => {
     chapterEntriesRef.current = chapterEntries
   }, [chapterEntries])
+
+  useEffect(() => {
+    activeIndexRef.current = activeIndex
+  }, [activeIndex])
 
   useEffect(() => {
     const pendingIndex = pendingActiveIndexRef.current
@@ -685,105 +693,179 @@ export function ReaderPage() {
     }
   }, [sortedChapters])
 
-  const attemptScrollToIndex = useCallback((index: number, behavior: ScrollBehavior = 'smooth') => {
-    if (!sortedChapters) return false
-    const chapter = sortedChapters[index]
-    if (!chapter) return false
-    const element = document.querySelector<HTMLElement>(`[data-chapter-id="${chapter.id}"]`)
-    if (!element) return false
-    
-    // Scroll to absolute top of chapter container
-    const rect = element.getBoundingClientRect()
-    const scrollTop = window.pageYOffset || document.documentElement.scrollTop
-    const targetPosition = scrollTop + rect.top
-    
-    window.scrollTo({
-      top: targetPosition,
-      behavior
-    })
+  const getVisibleHeaderHeight = useCallback(() => {
+    if (typeof document === 'undefined') return 0
+    const topBar = document.querySelector('[data-reader-top-bar]') as HTMLElement | null
+    if (!topBar) return 0
+    const rect = topBar.getBoundingClientRect()
+    if (rect.bottom <= 0) return 0
+    return rect.height
+  }, [])
+
+  const scrollChapterIntoView = useCallback((index: number, behavior: ScrollBehavior = 'auto') => {
+    if (typeof window === 'undefined') return false
+    const node = chapterNodesRef.current.get(index)
+    if (!node) return false
+    const headerHeight = getVisibleHeaderHeight()
+    const margin = headerHeight > 0 ? 16 : 12
+    const targetTop = window.scrollY + node.getBoundingClientRect().top - (headerHeight + margin)
+    const clampedTop = Math.max(0, targetTop)
+    window.scrollTo({ top: clampedTop, behavior })
     return true
-  }, [sortedChapters])
+  }, [getVisibleHeaderHeight])
 
-  const scheduleScrollToIndex = useCallback((index: number, behavior: ScrollBehavior = 'smooth') => {
-    pendingScrollIndexRef.current = index
-    pendingScrollBehaviorRef.current = behavior
-    if (attemptScrollToIndex(index, behavior)) {
-      pendingScrollIndexRef.current = null
+  const evaluateActiveChapter = useCallback((force = false) => {
+    if (!sortedChapters || sortedChapters.length === 0) return
+    if (!force) {
+      if (pendingScrollIndexRef.current != null) return
+      if (pendingActiveIndexRef.current != null) return
+      const elapsed = Date.now() - manualNavigationLockRef.current
+      if (elapsed < 600) return
     }
-  }, [attemptScrollToIndex])
 
-  const handleChapterActivated = useCallback((index: number) => {
-    if (!sortedChapters) return
-    const entry = chapterEntriesRef.current.find(item => item.index === index)
-    if (!entry) return
-    
-    // Don't override if pending scroll operation exists
-    if (pendingActiveIndexRef.current != null || pendingScrollIndexRef.current != null) {
-      return
-    }
-    
-    // Don't override within 800ms of manual navigation
-    const now = Date.now()
-    if (now - manualNavigationLockRef.current < 800) {
-      return
-    }
-    
-    setActiveIndex(prev => prev === index ? prev : index)
+    const nodes = Array.from(chapterNodesRef.current.entries())
+      .filter(([, node]) => node != null)
+      .sort((a, b) => a[0] - b[0]) as Array<[number, HTMLDivElement]>
 
-    const chapterDetail = entry.chapter
-    const chapterIdNumeric = chapterDetail?.id
-    if (chapterIdNumeric) {
-      if (!viewedChaptersRef.current.has(chapterIdNumeric)) {
-        const previousMeta = index > 0 ? sortedChapters[index - 1] : undefined
-        viewedChaptersRef.current.add(chapterIdNumeric)
-        trackChapterViewed(
-          chapterDetail.mangaId,
-          chapterIdNumeric,
-          chapterDetail.chapterNumber,
-          previousMeta ? { id: previousMeta.id, chapterNumber: previousMeta.chapterNumber } : undefined
-        ).catch(error => {
-          console.error('Failed to track chapter view', error)
-          viewedChaptersRef.current.delete(chapterIdNumeric)
-        })
-      }
+    if (nodes.length === 0) return
 
-      if (String(chapterIdNumeric) !== chapterId) {
-        navigate(`/reader/${chapterIdNumeric}`, { replace: true })
+    const viewportHeight = typeof window !== 'undefined' && window.innerHeight ? window.innerHeight : 800
+    const headerHeight = getVisibleHeaderHeight()
+    const activationLine = viewportHeight * 0.35
+
+    let candidate = nodes[0][0]
+    for (const [idx, node] of nodes) {
+      const rect = node.getBoundingClientRect()
+      const effectiveTop = rect.top - headerHeight
+      if (effectiveTop <= activationLine) {
+        candidate = idx
+      } else {
+        break
       }
     }
-  }, [chapterId, navigate, sortedChapters, trackChapterViewed])
+
+    if (typeof window !== 'undefined') {
+      const scrollBottom = window.scrollY + viewportHeight
+      const docHeight = document.documentElement?.scrollHeight ?? 0
+      if (docHeight > 0 && docHeight - scrollBottom < viewportHeight * 0.3) {
+        candidate = nodes[nodes.length - 1][0]
+      }
+    }
+
+    if (candidate !== activeIndexRef.current) {
+      setActiveIndex(candidate)
+    }
+  }, [getVisibleHeaderHeight, sortedChapters])
+
+  const registerChapterNode = useCallback((index: number, node: HTMLDivElement | null) => {
+    const map = chapterNodesRef.current
+    const existing = map.get(index) ?? null
+    if (node) {
+      if (existing !== node) {
+        map.set(index, node)
+        setContentVersion(v => v + 1)
+        evaluateActiveChapter(true)
+      }
+    } else if (existing) {
+      map.delete(index)
+      setContentVersion(v => v + 1)
+      evaluateActiveChapter(true)
+    }
+  }, [evaluateActiveChapter])
+
+  const handleChapterContentResize = useCallback((index: number) => {
+    setContentVersion(v => v + 1)
+    if (pendingScrollIndexRef.current === index) {
+      pendingScrollAttemptsRef.current = 0
+    }
+    evaluateActiveChapter(true)
+  }, [evaluateActiveChapter])
 
   useEffect(() => {
-    const pendingIndex = pendingScrollIndexRef.current
-    if (pendingIndex == null) return
-    const initialBehavior = pendingScrollBehaviorRef.current ?? 'smooth'
-    if (attemptScrollToIndex(pendingIndex, initialBehavior)) {
-      pendingScrollIndexRef.current = null
-      return
+    if (typeof window === 'undefined') return
+    const handle = () => {
+      if (scrollAnimationRef.current != null) return
+      scrollAnimationRef.current = requestAnimationFrame(() => {
+        scrollAnimationRef.current = null
+        evaluateActiveChapter(false)
+      })
     }
-    let raf: number | null = null
-    let attempts = 0
-    const MAX_ATTEMPTS = 120
-    const tick = () => {
-      const stillPending = pendingScrollIndexRef.current
-      if (stillPending == null) return
-      const currentBehavior = pendingScrollBehaviorRef.current ?? 'smooth'
-      if (attemptScrollToIndex(stillPending, currentBehavior)) {
-        pendingScrollIndexRef.current = null
-        return
-      }
-      attempts += 1
-      if (attempts >= MAX_ATTEMPTS) {
-        pendingScrollIndexRef.current = null
-        return
-      }
-      raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
+    window.addEventListener('scroll', handle, { passive: true })
+    window.addEventListener('resize', handle)
+    handle()
     return () => {
-      if (raf != null) cancelAnimationFrame(raf)
+      window.removeEventListener('scroll', handle)
+      window.removeEventListener('resize', handle)
+      if (scrollAnimationRef.current != null) {
+        cancelAnimationFrame(scrollAnimationRef.current)
+        scrollAnimationRef.current = null
+      }
     }
-  }, [chapterEntries, attemptScrollToIndex])
+  }, [evaluateActiveChapter])
+
+  useEffect(() => {
+    if (contentVersion === 0) return
+    evaluateActiveChapter(true)
+  }, [contentVersion, evaluateActiveChapter])
+
+  useEffect(() => {
+    const index = pendingScrollIndexRef.current
+    if (index == null) return
+    let cancelled = false
+    let frameId: number | null = null
+    const attempt = () => {
+      if (cancelled) return
+      const targetIndex = pendingScrollIndexRef.current
+      if (targetIndex == null) return
+      const behavior = pendingScrollBehaviorRef.current ?? 'auto'
+      const success = scrollChapterIntoView(targetIndex, behavior)
+      if (success) {
+        pendingScrollIndexRef.current = null
+        pendingScrollAttemptsRef.current = 0
+        manualNavigationLockRef.current = Date.now()
+        evaluateActiveChapter(true)
+        return
+      }
+      pendingScrollAttemptsRef.current += 1
+      if (pendingScrollAttemptsRef.current > 80) {
+        pendingScrollIndexRef.current = null
+        return
+      }
+      frameId = requestAnimationFrame(attempt)
+    }
+    frameId = requestAnimationFrame(attempt)
+    return () => {
+      cancelled = true
+      if (frameId != null) cancelAnimationFrame(frameId)
+    }
+  }, [chapterEntries, contentVersion, evaluateActiveChapter, scrollChapterIntoView, showUI])
+
+  useEffect(() => {
+    if (activeIndex == null) return
+    const entry = chapterEntriesRef.current.find(item => item.index === activeIndex)
+    if (!entry) return
+    const chapterDetail = entry.chapter
+    const chapterIdNumeric = chapterDetail?.id
+    if (!chapterIdNumeric) return
+
+    if (!viewedChaptersRef.current.has(chapterIdNumeric)) {
+      const previousMeta = activeIndex > 0 ? sortedChapters?.[activeIndex - 1] : undefined
+      viewedChaptersRef.current.add(chapterIdNumeric)
+      trackChapterViewed(
+        chapterDetail.mangaId,
+        chapterIdNumeric,
+        chapterDetail.chapterNumber,
+        previousMeta ? { id: previousMeta.id, chapterNumber: previousMeta.chapterNumber } : undefined
+      ).catch(error => {
+        console.error('Failed to track chapter view', error)
+        viewedChaptersRef.current.delete(chapterIdNumeric)
+      })
+    }
+
+    if (String(chapterIdNumeric) !== chapterId) {
+      navigate(`/reader/${chapterIdNumeric}`, { replace: true })
+    }
+  }, [activeIndex, chapterId, navigate, sortedChapters, trackChapterViewed])
 
   const handleChapterCompleted = useCallback((index: number) => {
     const entry = chapterEntriesRef.current.find(item => item.index === index)
@@ -833,52 +915,68 @@ export function ReaderPage() {
     if (activeChapterIndex == null || activeChapterIndex === -1) return
     const target = activeChapterIndex + 1
     if (target >= sortedChapters.length) return
-    
-    // Lock observer and clear pending
+
     manualNavigationLockRef.current = Date.now()
     pendingActiveIndexRef.current = null
     pendingScrollIndexRef.current = null
-    
+
     pendingActiveIndexRef.current = target
     pendingScrollIndexRef.current = target
-    pendingScrollBehaviorRef.current = 'smooth'
+    pendingScrollBehaviorRef.current = 'auto'
+    pendingScrollAttemptsRef.current = 0
+
     await ensureChapterLoaded(target, 'append')
+
     if (chapterEntriesRef.current.some(entry => entry.index === target)) {
-      setActiveIndex(target)
+      setActiveIndex(prev => prev === target ? prev : target)
       pendingActiveIndexRef.current = null
     }
-    scheduleScrollToIndex(target)
+
+    if (scrollChapterIntoView(target, pendingScrollBehaviorRef.current)) {
+      pendingScrollIndexRef.current = null
+      manualNavigationLockRef.current = Date.now()
+      evaluateActiveChapter(true)
+    }
+
     const targetChapter = sortedChapters[target]
     if (targetChapter && String(targetChapter.id) !== chapterId) {
       navigate(`/reader/${targetChapter.id}`, { replace: true })
     }
-  }, [activeChapterIndex, chapterId, ensureChapterLoaded, navigate, scheduleScrollToIndex, sortedChapters])
+  }, [activeChapterIndex, chapterId, ensureChapterLoaded, evaluateActiveChapter, navigate, scrollChapterIntoView, sortedChapters])
 
   const navigateToPreviousChapter = useCallback(async () => {
     if (!sortedChapters) return
     if (activeChapterIndex == null || activeChapterIndex === -1) return
     const target = activeChapterIndex - 1
     if (target < 0) return
-    
-    // Lock observer and clear pending
+
     manualNavigationLockRef.current = Date.now()
     pendingActiveIndexRef.current = null
     pendingScrollIndexRef.current = null
-    
+
     pendingActiveIndexRef.current = target
     pendingScrollIndexRef.current = target
-    pendingScrollBehaviorRef.current = 'smooth'
+    pendingScrollBehaviorRef.current = 'auto'
+    pendingScrollAttemptsRef.current = 0
+
     await ensureChapterLoaded(target, 'prepend')
+
     if (chapterEntriesRef.current.some(entry => entry.index === target)) {
-      setActiveIndex(target)
+      setActiveIndex(prev => prev === target ? prev : target)
       pendingActiveIndexRef.current = null
     }
-    scheduleScrollToIndex(target)
+
+    if (scrollChapterIntoView(target, pendingScrollBehaviorRef.current)) {
+      pendingScrollIndexRef.current = null
+      manualNavigationLockRef.current = Date.now()
+      evaluateActiveChapter(true)
+    }
+
     const targetChapter = sortedChapters[target]
     if (targetChapter && String(targetChapter.id) !== chapterId) {
       navigate(`/reader/${targetChapter.id}`, { replace: true })
     }
-  }, [activeChapterIndex, chapterId, ensureChapterLoaded, navigate, scheduleScrollToIndex, sortedChapters])
+  }, [activeChapterIndex, chapterId, ensureChapterLoaded, evaluateActiveChapter, navigate, scrollChapterIntoView, sortedChapters])
 
   useEffect(() => {
     if (!sortedChapters) return
@@ -901,6 +999,7 @@ export function ReaderPage() {
     pendingActiveIndexRef.current = targetIndex
     pendingScrollIndexRef.current = targetIndex
     pendingScrollBehaviorRef.current = 'auto'
+    pendingScrollAttemptsRef.current = 0
     
     const direction: 'append' | 'prepend' = activeChapterIndex != null && targetIndex < activeChapterIndex ? 'prepend' : 'append'
     await ensureChapterLoaded(targetIndex, direction)
@@ -911,14 +1010,18 @@ export function ReaderPage() {
       pendingActiveIndexRef.current = null
     }
     
-    scheduleScrollToIndex(targetIndex)
+    if (scrollChapterIntoView(targetIndex, pendingScrollBehaviorRef.current)) {
+      pendingScrollIndexRef.current = null
+      manualNavigationLockRef.current = Date.now()
+      evaluateActiveChapter(true)
+    }
     
     const targetChapter = sortedChapters[targetIndex]
     if (targetChapter && String(targetChapter.id) !== chapterId) {
       navigate(`/reader/${targetChapter.id}`, { replace: true })
     }
     setShowChapterList(false)
-  }, [activeChapterIndex, chapterId, ensureChapterLoaded, navigate, scheduleScrollToIndex, setShowChapterList, sortedChapters])
+  }, [activeChapterIndex, chapterId, ensureChapterLoaded, evaluateActiveChapter, navigate, scrollChapterIntoView, setShowChapterList, sortedChapters])
 
 
   // Handle chapter like/unlike
@@ -1246,10 +1349,13 @@ export function ReaderPage() {
         </div>
       ))}
       {/* Top Navigation Bar - updated with prev/next buttons */}
-      <div className={cn(
+      <div
+        data-reader-top-bar
+        className={cn(
         'fixed top-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-sm border-b border-white/10 transition-all duration-300',
         showUI ? 'translate-y-0' : '-translate-y-full'
-      )}>
+      )}
+      >
         <div className="container mx-auto px-4 h-16">
           <div className="grid grid-cols-3 items-center h-full">
             {/* Left side - фиксированная ширина */}
@@ -1441,11 +1547,11 @@ export function ReaderPage() {
                 handleTouchStartSwipe={handleTouchStartSwipe}
                 handleTouchMoveSwipe={handleTouchMoveSwipe}
                 handleTouchEndSwipe={handleTouchEndSwipe}
-                onActivate={() => handleChapterActivated(entry.index)}
                 onNearBottom={() => handleNearBottom(entry.index)}
                 onNearTop={() => handleNearTop(entry.index)}
                 onCompleted={() => handleChapterCompleted(entry.index)}
-                onFocusChapter={() => handleChapterActivated(entry.index)}
+                registerNode={registerChapterNode}
+                onContentResize={handleChapterContentResize}
                 isActive={entry.index === activeChapterIndex}
               />
             )
