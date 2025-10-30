@@ -99,6 +99,32 @@ export function MomentViewerModal({
   }, [open, isDesktop])
 
   useEffect(() => {
+    if (typeof document === 'undefined') {
+      return
+    }
+
+    const deactivate = () => {
+      document.body.classList.remove('moment-viewer-active')
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('moment-viewer-visibility', { detail: false }))
+      }
+    }
+
+    if (open && !isDesktop) {
+      document.body.classList.add('moment-viewer-active')
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('moment-viewer-visibility', { detail: true }))
+      }
+      return () => {
+        deactivate()
+      }
+    }
+
+    deactivate()
+    return
+  }, [open, isDesktop])
+
+  useEffect(() => {
     if (!open) return
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'ArrowUp') {
@@ -192,10 +218,10 @@ export function MomentViewerModal({
     <Dialog open={open} onOpenChange={(next) => { if (!next) { setRevealed(false); onClose() } }}>
       <DialogContent
         className={cn(
-          '!border !border-white/15 !bg-black/95 !text-white !p-0',
+          '!border !border-white/15 !bg-black/95 !text-white !p-0 !flex !flex-col !gap-0',
           isDesktop
             ? '!max-w-5xl !rounded-3xl !p-6'
-            : '!max-w-[min(100vw-1.5rem,28rem)] !rounded-[1.75rem] !w-[min(100vw-1.5rem,28rem)] !h-[min(92vh,680px)]'
+            : '!top-0 !left-0 !translate-x-0 !translate-y-0 !max-w-none !w-screen !h-screen !rounded-none'
         )}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
