@@ -192,15 +192,20 @@ export function MomentViewerModal({
     <Dialog open={open} onOpenChange={(next) => { if (!next) { setRevealed(false); onClose() } }}>
       <DialogContent
         className={cn(
-          '!relative !border !border-white/15 !bg-black/95 !text-white !flex !flex-col !gap-0',
+          '!border !border-white/15 !bg-black/95 !text-white !p-0',
           isDesktop
-            ? '!max-w-5xl !p-6 !rounded-3xl'
-            : '!max-w-[min(100vw-1.5rem,28rem)] !p-0 !rounded-[1.75rem] !h-[min(92vh,680px)] !overflow-hidden'
+            ? '!max-w-5xl !rounded-3xl !p-6'
+            : '!max-w-[min(100vw-1.5rem,28rem)] !rounded-[1.75rem] !w-[min(100vw-1.5rem,28rem)] !h-[min(92vh,680px)]'
         )}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        {isDesktop ? (
+        <div
+          className={cn(
+            isDesktop ? 'relative flex flex-col gap-5' : 'relative flex h-full flex-1 flex-col overflow-hidden'
+          )}
+        >
+          {isDesktop ? (
           <>
             <div className="pointer-events-none absolute inset-y-0 -right-16 hidden lg:flex flex-col items-center justify-center gap-3">
               <Button
@@ -395,9 +400,9 @@ export function MomentViewerModal({
                 )}
               </div>
             </div>
-          </>
-        ) : (
-          <div className="relative flex h-full flex-1 flex-col">
+            </>
+          ) : (
+            <div className="relative flex h-full flex-1 flex-col">
             <DialogHeader className="sr-only">
               <DialogTitle>Момент #{effectiveMoment.id}</DialogTitle>
             </DialogHeader>
@@ -553,6 +558,7 @@ export function MomentViewerModal({
             )}
           </div>
         )}
+        </div>
       </DialogContent>
     </Dialog>
   )
