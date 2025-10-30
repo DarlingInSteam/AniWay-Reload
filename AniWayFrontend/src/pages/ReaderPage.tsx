@@ -377,6 +377,7 @@ export function ReaderPage() {
   const pendingScrollIndexRef = useRef<number | null>(null)
   const pendingScrollBehaviorRef = useRef<ScrollBehavior>('smooth')
   const pendingActiveIndexRef = useRef<number | null>(null)
+  const manualNavigationLockRef = useRef<number>(0)
   const [autoCompletedMap, setAutoCompletedMap] = useState<Record<number, boolean>>({})
   const [loadingForward, setLoadingForward] = useState(false)
   const [loadingBackward, setLoadingBackward] = useState(false)
@@ -690,7 +691,16 @@ export function ReaderPage() {
     if (!chapter) return false
     const element = document.querySelector<HTMLElement>(`[data-chapter-id="${chapter.id}"]`)
     if (!element) return false
-    element.scrollIntoView({ behavior, block: 'start', inline: 'nearest' })
+    
+    // Scroll to absolute top of chapter container
+    const rect = element.getBoundingClientRect()
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop
+    const targetPosition = scrollTop + rect.top
+    
+    window.scrollTo({
+      top: targetPosition,
+      behavior
+    })
     return true
   }, [sortedChapters])
 
@@ -707,9 +717,14 @@ export function ReaderPage() {
     const entry = chapterEntriesRef.current.find(item => item.index === index)
     if (!entry) return
     
-    // Only update if different and not currently pending a manual jump
-    if (pendingActiveIndexRef.current != null) {
-      // Manual navigation in progress, don't override
+    // Don't override if pending scroll operation exists
+    if (pendingActiveIndexRef.current != null || pendingScrollIndexRef.current != null) {
+      return
+    }
+    
+    // Don't override within 800ms of manual navigation
+    const now = Date.now()
+    if (now - manualNavigationLockRef.current < 800) {
       return
     }
     
@@ -819,7 +834,8 @@ export function ReaderPage() {
     const target = activeChapterIndex + 1
     if (target >= sortedChapters.length) return
     
-    // Clear existing pending
+    // Lock observer and clear pending
+    manualNavigationLockRef.current = Date.now()
     pendingActiveIndexRef.current = null
     pendingScrollIndexRef.current = null
     
@@ -844,7 +860,8 @@ export function ReaderPage() {
     const target = activeChapterIndex - 1
     if (target < 0) return
     
-    // Clear existing pending
+    // Lock observer and clear pending
+    manualNavigationLockRef.current = Date.now()
     pendingActiveIndexRef.current = null
     pendingScrollIndexRef.current = null
     
@@ -875,7 +892,8 @@ export function ReaderPage() {
     const targetIndex = sortedChapters.findIndex(ch => ch.id === targetId)
     if (targetIndex === -1) return
     
-    // Clear any existing pending operations
+    // Lock observer and clear any existing pending operations
+    manualNavigationLockRef.current = Date.now()
     pendingActiveIndexRef.current = null
     pendingScrollIndexRef.current = null
     
