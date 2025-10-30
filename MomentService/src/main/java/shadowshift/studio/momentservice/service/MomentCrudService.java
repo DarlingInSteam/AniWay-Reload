@@ -239,14 +239,15 @@ public class MomentCrudService {
         if (momentIds == null || momentIds.isEmpty()) {
             return Collections.emptyMap();
         }
-        List<MomentReaction> reactions = momentReactionRepository.findByUserIdAndMomentIdIn(viewerId, momentIds);
-        if (reactions.isEmpty()) {
+        List<MomentReactionRepository.ReactionView> rows = momentReactionRepository.findReactionViews(viewerId, momentIds);
+        if (rows.isEmpty()) {
             return Collections.emptyMap();
         }
         Map<Long, ReactionType> map = new HashMap<>();
-        for (MomentReaction reaction : reactions) {
-            if (reaction.getMoment() != null && reaction.getMoment().getId() != null) {
-                map.putIfAbsent(reaction.getMoment().getId(), reaction.getReaction());
+        for (MomentReactionRepository.ReactionView row : rows) {
+            Long momentId = row.getMomentId();
+            if (momentId != null) {
+                map.putIfAbsent(momentId, row.getReaction());
             }
         }
         return map;

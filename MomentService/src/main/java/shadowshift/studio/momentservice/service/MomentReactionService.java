@@ -153,15 +153,15 @@ public class MomentReactionService {
         if (userId == null || momentIds == null || momentIds.isEmpty()) {
             return Collections.emptyMap();
         }
-        List<MomentReaction> reactions = momentReactionRepository.findByUserIdAndMomentIdIn(userId, momentIds);
-        if (reactions.isEmpty()) {
+        List<MomentReactionRepository.ReactionView> rows = momentReactionRepository.findReactionViews(userId, momentIds);
+        if (rows.isEmpty()) {
             return Collections.emptyMap();
         }
         Map<Long, ReactionType> map = new HashMap<>();
-        for (MomentReaction reaction : reactions) {
-            Moment moment = reaction.getMoment();
-            if (moment != null && moment.getId() != null) {
-                map.putIfAbsent(moment.getId(), reaction.getReaction());
+        for (MomentReactionRepository.ReactionView row : rows) {
+            Long momentId = row.getMomentId();
+            if (momentId != null) {
+                map.putIfAbsent(momentId, row.getReaction());
             }
         }
         return map;
