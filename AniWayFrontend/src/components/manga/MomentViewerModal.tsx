@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { CommentSection } from '@/components/comments/CommentSection'
 import { cn, formatRelativeTime } from '@/lib/utils'
 import type { MomentReactionType, MomentResponse } from '@/types/moments'
-import { Heart, ThumbsDown, MessageCircle, ArrowUp, ArrowDown } from 'lucide-react'
+import { Heart, ThumbsDown, MessageCircle, ArrowUp, ArrowDown, ArrowLeft } from 'lucide-react'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { buildProfileUrl } from '@/lib/profileUrl'
@@ -173,7 +173,10 @@ export function MomentViewerModal({
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next) { setRevealed(false); onClose() } }}>
       <DialogContent
-        className="max-w-5xl bg-black/95 border border-white/15 text-white"
+        className={cn(
+          'max-w-5xl border border-white/15 bg-black/95 text-white',
+          !isDesktop && 'pb-[calc(env(safe-area-inset-bottom)+7rem)]'
+        )}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
@@ -201,11 +204,24 @@ export function MomentViewerModal({
             {isNextLoading ? <LoadingSpinner size="sm" /> : <ArrowDown className="h-5 w-5" />}
           </Button>
         </div>
-        <DialogHeader>
-          <DialogTitle className="text-xl font-semibold">
-            Момент #{effectiveMoment.id}
-          </DialogTitle>
-        </DialogHeader>
+        <div className="flex items-center justify-between gap-3">
+          {!isDesktop && (
+            <Button
+              type="button"
+              variant="ghost"
+              className="-ml-2 inline-flex items-center gap-2 text-white/70 hover:text-white"
+              onClick={() => { setRevealed(false); onClose() }}
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Назад
+            </Button>
+          )}
+          <DialogHeader className="flex-1">
+            <DialogTitle className="text-xl font-semibold">
+              Момент #{effectiveMoment.id}
+            </DialogTitle>
+          </DialogHeader>
+        </div>
         <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
           <div className="flex items-center gap-3">
             <Avatar className="h-11 w-11 border border-white/10 bg-white/10">
@@ -230,7 +246,7 @@ export function MomentViewerModal({
             Обновлено {formatRelativeTime(effectiveMoment.lastActivityAt)}
           </div>
         </div>
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+        <div className={cn('grid gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]', !isDesktop && 'pb-6')}>
           <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-black/60 flex items-center justify-center max-h-[75vh]">
             <img
               src={effectiveMoment.image.url}
@@ -267,33 +283,34 @@ export function MomentViewerModal({
                 )}
               </div>
             </div>
-
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  variant={userReaction === 'LIKE' ? 'default' : 'outline'}
-                  className={cn('flex items-center gap-2', userReaction === 'LIKE' ? 'bg-emerald-500 text-black hover:bg-emerald-500/90' : 'border-white/20 text-white/80 hover:text-white')}
-                  onClick={handleLike}
-                  disabled={isProcessing(effectiveMoment.id)}
-                >
-                  <Heart className={cn('h-4 w-4', userReaction === 'LIKE' ? 'fill-current' : '')} />
-                  <span>{effectiveMoment.likesCount}</span>
-                </Button>
-                <Button
-                  variant={userReaction === 'DISLIKE' ? 'default' : 'outline'}
-                  className={cn('flex items-center gap-2', userReaction === 'DISLIKE' ? 'bg-slate-500 text-black hover:bg-slate-500/90' : 'border-white/20 text-white/80 hover:text-white')}
-                  onClick={handleDislike}
-                  disabled={isProcessing(effectiveMoment.id)}
-                >
-                  <ThumbsDown className={cn('h-4 w-4', userReaction === 'DISLIKE' ? 'fill-current' : '')} />
-                  <span>{effectiveMoment.dislikesCount}</span>
-                </Button>
-                <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-sm text-white/80">
-                  <MessageCircle className="h-4 w-4" />
-                  <span>{effectiveMoment.commentsCount}</span>
+            {isDesktop && (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    variant={userReaction === 'LIKE' ? 'default' : 'outline'}
+                    className={cn('flex items-center gap-2', userReaction === 'LIKE' ? 'bg-emerald-500 text-black hover:bg-emerald-500/90' : 'border-white/20 text-white/80 hover:text-white')}
+                    onClick={handleLike}
+                    disabled={isProcessing(effectiveMoment.id)}
+                  >
+                    <Heart className={cn('h-4 w-4', userReaction === 'LIKE' ? 'fill-current' : '')} />
+                    <span>{effectiveMoment.likesCount}</span>
+                  </Button>
+                  <Button
+                    variant={userReaction === 'DISLIKE' ? 'default' : 'outline'}
+                    className={cn('flex items-center gap-2', userReaction === 'DISLIKE' ? 'bg-slate-500 text-black hover:bg-slate-500/90' : 'border-white/20 text-white/80 hover:text-white')}
+                    onClick={handleDislike}
+                    disabled={isProcessing(effectiveMoment.id)}
+                  >
+                    <ThumbsDown className={cn('h-4 w-4', userReaction === 'DISLIKE' ? 'fill-current' : '')} />
+                    <span>{effectiveMoment.dislikesCount}</span>
+                  </Button>
+                  <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-sm text-white/80">
+                    <MessageCircle className="h-4 w-4" />
+                    <span>{effectiveMoment.commentsCount}</span>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {isDesktop ? (
               <>
@@ -309,13 +326,6 @@ export function MomentViewerModal({
               </>
             ) : (
               <div className="space-y-3">
-                <Button
-                  variant="outline"
-                  className="w-full border-white/20 text-white/80 hover:bg-white/10"
-                  onClick={() => setShowComments((prev) => !prev)}
-                >
-                  {showComments ? 'Скрыть комментарии' : `Показать комментарии (${effectiveMoment.commentsCount})`}
-                </Button>
                 {showComments && (
                   <div className="max-h-[60vh] overflow-y-auto rounded-2xl border border-white/10 bg-white/5 pr-1">
                     <CommentSection
@@ -330,6 +340,43 @@ export function MomentViewerModal({
             )}
           </div>
         </div>
+        {!isDesktop && (
+          <div className="sticky bottom-0 left-0 right-0 -mx-6 mt-2 border-t border-white/10 bg-black/90 px-6 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-4 backdrop-blur">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-1 items-center gap-2">
+                <Button
+                  size="sm"
+                  variant={userReaction === 'LIKE' ? 'default' : 'outline'}
+                  className={cn('flex-1 min-w-0 items-center justify-center gap-2', userReaction === 'LIKE' ? 'bg-emerald-500 text-black hover:bg-emerald-500/90' : 'border-white/20 text-white/80 hover:text-white')}
+                  onClick={handleLike}
+                  disabled={isProcessing(effectiveMoment.id)}
+                >
+                  <Heart className={cn('h-4 w-4', userReaction === 'LIKE' ? 'fill-current' : '')} />
+                  <span>{effectiveMoment.likesCount}</span>
+                </Button>
+                <Button
+                  size="sm"
+                  variant={userReaction === 'DISLIKE' ? 'default' : 'outline'}
+                  className={cn('flex-1 min-w-0 items-center justify-center gap-2', userReaction === 'DISLIKE' ? 'bg-slate-500 text-black hover:bg-slate-500/90' : 'border-white/20 text-white/80 hover:text-white')}
+                  onClick={handleDislike}
+                  disabled={isProcessing(effectiveMoment.id)}
+                >
+                  <ThumbsDown className={cn('h-4 w-4', userReaction === 'DISLIKE' ? 'fill-current' : '')} />
+                  <span>{effectiveMoment.dislikesCount}</span>
+                </Button>
+              </div>
+              <Button
+                size="sm"
+                variant={showComments ? 'default' : 'outline'}
+                className={cn('flex items-center gap-2 whitespace-nowrap', showComments ? 'bg-white text-black hover:bg-white/90' : 'border-white/20 text-white/80 hover:text-white')}
+                onClick={() => setShowComments((prev) => !prev)}
+              >
+                <MessageCircle className="h-4 w-4" />
+                {showComments ? 'Скрыть' : effectiveMoment.commentsCount}
+              </Button>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   )

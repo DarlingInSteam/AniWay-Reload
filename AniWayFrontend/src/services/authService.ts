@@ -112,6 +112,7 @@ class AuthService {
     try {
       // Декодируем JWT токен для проверки срока действия
       const payload = JSON.parse(atob(token.split('.')[1]))
+      this.backfillCacheFromToken(token)
       return payload.exp * 1000 > Date.now()
     } catch {
       return false
