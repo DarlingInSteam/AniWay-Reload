@@ -212,12 +212,20 @@ export function CatalogPage() {
   const [sortNonce, setSortNonce] = useState(0)
   // Динамический отступ для sticky панели фильтров (чтобы не пряталась под глобальным хедером)
   const [filterOffset, setFilterOffset] = useState<number>(80) // fallback 80px
+  const [filtersMaxHeight, setFiltersMaxHeight] = useState<number>(0)
   useEffect(() => {
     const measure = () => {
       const headerEl = document.querySelector('header') as HTMLElement | null
-      const h = headerEl ? headerEl.getBoundingClientRect().height : 0
-      // Добавляем небольшой зазор (8px), чтобы панель не пряталась под хедером
-      setFilterOffset(h + 8)
+      const headerHeight = headerEl ? headerEl.getBoundingClientRect().height : 0
+      const newOffset = headerHeight + 8
+      setFilterOffset(newOffset)
+      if (typeof window !== 'undefined') {
+        const viewportHeight = window.innerHeight || 0
+        const availableSpace = viewportHeight - newOffset - 24
+        // Keep the desktop filter panel visible while allowing its content to scroll when it overflows.
+        const cappedSpace = Math.min(Math.max(availableSpace, 320), Math.max(viewportHeight - 24, 320))
+        setFiltersMaxHeight(cappedSpace)
+      }
     }
     measure()
     window.addEventListener('resize', measure)
@@ -1051,11 +1059,17 @@ export function CatalogPage() {
           {/* Правая колонка: фильтры */}
           <div className="hidden lg:block w-80 flex-shrink-0">
             <div className="sticky" style={{ top: filterOffset }}>
-              <MangaFilterPanel
-                initialFilters={memoizedFilterState}
-                onFiltersChange={handleFiltersChange}
-                appearance="desktop"
-              />
+              <div
+                className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md shadow-[0_24px_48px_-28px_rgba(0,0,0,0.6)]"
+                style={filtersMaxHeight ? { maxHeight: `${filtersMaxHeight}px` } : undefined}
+              >
+                <MangaFilterPanel
+                  initialFilters={memoizedFilterState}
+                  onFiltersChange={handleFiltersChange}
+                  appearance="desktop"
+                  className="h-full"
+                />
+              </div>
             </div>
           </div>
         </div>
