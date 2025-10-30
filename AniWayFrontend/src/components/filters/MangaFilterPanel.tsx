@@ -87,7 +87,7 @@ const FilterRow: React.FC<RowProps & { active?: boolean; appearance: 'desktop' |
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen || isMobile) return
     const handleKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         onToggle()
@@ -104,12 +104,15 @@ const FilterRow: React.FC<RowProps & { active?: boolean; appearance: 'desktop' |
       document.removeEventListener('keydown', handleKey)
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [isOpen, onToggle])
+  }, [isOpen, onToggle, isMobile])
 
   return (
     <div
       ref={containerRef}
-      className="group/filter relative rounded-xl"
+      className={cn(
+        'group/filter relative',
+        isMobile ? 'px-5' : 'rounded-xl'
+      )}
       aria-expanded={isOpen}
       aria-controls={id}
       role="group"
@@ -120,9 +123,13 @@ const FilterRow: React.FC<RowProps & { active?: boolean; appearance: 'desktop' |
         aria-expanded={isOpen}
         aria-controls={`${id}-content`}
         className={cn(
-          'w-full flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#1b1b1b] px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-offset-0',
+          'w-full flex items-center justify-between gap-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-offset-0',
+          isMobile
+            ? 'rounded-lg border border-white/8 bg-[#151515] px-4 py-3'
+            : 'rounded-xl border border-white/10 bg-[#1b1b1b] px-4 py-3',
           active && !isOpen ? 'border-primary/35 bg-[#202020]' : '',
-          isOpen ? 'border-white/15 bg-[#232323] shadow-[0_18px_32px_-24px_rgba(0,0,0,0.6)]' : 'hover:bg-[#202020]'
+          !isMobile && (isOpen ? 'border-white/15 bg-[#232323] shadow-[0_18px_32px_-24px_rgba(0,0,0,0.6)]' : 'hover:bg-[#202020]'),
+          isMobile && isOpen ? 'border-primary/30 bg-[#1c1c1c]' : ''
         )}
       >
         <div className="flex min-w-0 flex-col">
@@ -138,17 +145,25 @@ const FilterRow: React.FC<RowProps & { active?: boolean; appearance: 'desktop' |
       </button>
 
       {isOpen && (
-        <div
-          id={`${id}-content`}
-          className={cn(
-            'absolute left-0 right-0 top-[calc(100%+0.5rem)] z-40 rounded-xl border border-white/12 bg-[#1f1f1f] p-4 shadow-[0_28px_60px_-32px_rgba(0,0,0,0.85)]',
-            isMobile ? 'max-h-[70vh] overflow-y-auto' : ''
-          )}
-        >
-          <div className={cn('space-y-3', isMobile ? 'text-[13px]' : 'text-sm')}>
-            {children}
+        isMobile ? (
+          <div
+            id={`${id}-content`}
+            className="mt-3 rounded-xl border border-white/10 bg-[#111112] p-4 text-[13px] text-white/80 shadow-[0_12px_32px_-18px_rgba(0,0,0,0.7)]"
+          >
+            <div className="space-y-3">
+              {children}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div
+            id={`${id}-content`}
+            className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-40 rounded-xl border border-white/12 bg-[#1f1f1f] p-4 shadow-[0_28px_60px_-32px_rgba(0,0,0,0.85)]"
+          >
+            <div className="space-y-3 text-sm">
+              {children}
+            </div>
+          </div>
+        )
       )}
     </div>
   )
@@ -325,13 +340,13 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
       )}
     >
       {isMobile && (
-        <div className="px-5 mt-2 text-[12px] text-white/45 leading-snug">
+        <div className="px-5 mt-3 text-[12px] text-white/45 leading-snug">
           Выберите параметры ниже. Жанры и теги имеют встроенный поиск внутри секций.
         </div>
       )}
 
       {/* Scrollable content */}
-  <div className={cn('flex-1 overflow-y-auto px-0 scrollbar-custom', isMobile ? 'space-y-2 pt-2 pb-24' : 'space-y-2 pt-0 pb-4')}>
+  <div className={cn('flex-1 overflow-y-auto px-0 scrollbar-custom', isMobile ? 'space-y-3 pt-3 pb-12' : 'space-y-2 pt-0 pb-4')}>
         <FilterRow
           id="row-genres"
           title="Жанры"
