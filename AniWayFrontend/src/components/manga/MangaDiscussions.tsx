@@ -95,7 +95,7 @@ export function MangaDiscussions({ mangaId, mangaTitle }: MangaDiscussionsProps)
   return (
     <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10 space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex w-full flex-wrap gap-2 sm:justify-end">
+        <div className="flex w-full flex-wrap gap-2 sm:justify-start">
           {sortOptions.map((option) => (
             <Button
               key={option.key}
@@ -108,62 +108,57 @@ export function MangaDiscussions({ mangaId, mangaTitle }: MangaDiscussionsProps)
             </Button>
           ))}
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            if (!user) {
+              setFormError('Войдите в аккаунт, чтобы создавать обсуждения')
+              return
+            }
+            setIsCreating((prev) => !prev)
+            setFormError(null)
+          }}
+          className="border-white/20 text-white/80 hover:bg-white/10 w-full sm:w-auto justify-center"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          {isCreating ? 'Отменить' : 'Новая тема'}
+        </Button>
       </div>
 
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {isCreating && (
+        <form onSubmit={handleCreate} className="space-y-3 bg-white/5 rounded-2xl p-4 border border-white/10">
           <h4 className="text-base font-medium text-white">Создать обсуждение</h4>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              if (!user) {
-                setFormError('Войдите в аккаунт, чтобы создавать обсуждения')
-                return
-              }
-              setIsCreating((prev) => !prev)
-              setFormError(null)
-            }}
-            className="border-white/20 text-white/80 hover:bg-white/10 w-full sm:w-auto"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            {isCreating ? 'Отменить' : 'Новая тема'}
-          </Button>
-        </div>
-
-        {isCreating && (
-          <form onSubmit={handleCreate} className="space-y-3 bg-white/5 rounded-2xl p-4 border border-white/10">
-            <Input
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder={`Заголовок обсуждения для «${mangaTitle}»`}
-              maxLength={200}
-              className="bg-black/40 text-white border-white/20 focus:border-primary"
-            />
-            <Textarea
-              value={content}
-              onChange={(event) => setContent(event.target.value)}
-              placeholder="Опишите тему обсуждения, задайте вопрос или поделитесь мнением"
-              className="min-h-[140px] bg-black/40 text-white border-white/20 focus:border-primary"
-              maxLength={10000}
-            />
-            {formError && <p className="text-sm text-red-400">{formError}</p>}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Button type="submit" disabled={createDiscussion.isPending} className="w-full sm:w-auto">
-                {createDiscussion.isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Сохраняем...
-                  </>
-                ) : (
-                  'Создать'
-                )}
-              </Button>
-              <p className="text-xs text-white/60 sm:max-w-[60%]">Категория создастся автоматически, если её ещё нет</p>
-            </div>
-          </form>
-        )}
-      </div>
+          <Input
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder={`Заголовок обсуждения для «${mangaTitle}»`}
+            maxLength={200}
+            className="bg-black/40 text-white border-white/20 focus:border-primary"
+          />
+          <Textarea
+            value={content}
+            onChange={(event) => setContent(event.target.value)}
+            placeholder="Опишите тему обсуждения, задайте вопрос или поделитесь мнением"
+            className="min-h-[140px] bg-black/40 text-white border-white/20 focus:border-primary"
+            maxLength={10000}
+          />
+          {formError && <p className="text-sm text-red-400">{formError}</p>}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Button type="submit" disabled={createDiscussion.isPending} className="w-full sm:w-auto">
+              {createDiscussion.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Сохраняем...
+                </>
+              ) : (
+                'Создать'
+              )}
+            </Button>
+            <p className="text-xs text-white/60 sm:max-w-[60%]">Категория создастся автоматически, если её ещё нет</p>
+          </div>
+        </form>
+      )}
 
       <div className="space-y-4">
         {isLoading ? (
