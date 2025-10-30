@@ -240,9 +240,24 @@ const ChapterBlock = ({
   onFocusChapter,
   isActive
 }: ChapterBlockProps) => {
+  const containerRef = useRef<HTMLDivElement | null>(null)
   const topSentinelRef = useRef<HTMLDivElement | null>(null)
   const bottomSentinelRef = useRef<HTMLDivElement | null>(null)
   const completionSentinelRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const node = containerRef.current
+    if (!node) return
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          onActivate()
+        }
+      })
+    }, { rootMargin: '-30% 0px -55% 0px', threshold: 0.1 })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [onActivate])
 
   useEffect(() => {
     const node = topSentinelRef.current
@@ -256,20 +271,6 @@ const ChapterBlock = ({
     observer.observe(node)
     return () => observer.disconnect()
   }, [onNearTop])
-
-  useEffect(() => {
-    const node = topSentinelRef.current
-    if (!node) return
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting && entry.boundingClientRect.top >= 0) {
-          onActivate()
-        }
-      })
-    }, { rootMargin: '0px 0px -75% 0px', threshold: 0 })
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [onActivate])
 
   useEffect(() => {
     const node = bottomSentinelRef.current
@@ -297,6 +298,7 @@ const ChapterBlock = ({
 
   return (
     <section
+      ref={containerRef}
       data-chapter-id={entry.chapter?.id}
       className={cn('relative transition-opacity duration-300', isActive ? 'opacity-100' : 'opacity-100')}
     >
@@ -909,7 +911,7 @@ export function ReaderPage() {
     const t = e.touches[0]
     const dx = t.clientX - touchStartRef.current.x
     const dy = t.clientY - touchStartRef.current.y
-    if (Math.abs(dx) > 6 || Math.abs(dy) > 6) {
+    if (Math.abs(dx) > 12 || Math.abs(dy) > 12) {
       touchMovedRef.current = true
       if (pendingUiToggleRef.current) {
         clearTimeout(pendingUiToggleRef.current)
@@ -928,6 +930,14 @@ export function ReaderPage() {
     const hadMovement = touchMovedRef.current
     touchStartRef.current = null
     touchMovedRef.current = false
+    if (hadMovement) {
+      setLastTap(0)
+    }
+
+    if (viewportWidth < 768) {
+      return
+    }
+
     if (!hadMovement) return
     const horizontalDistance = Math.abs(dx)
     const verticalDistance = Math.abs(dy)
