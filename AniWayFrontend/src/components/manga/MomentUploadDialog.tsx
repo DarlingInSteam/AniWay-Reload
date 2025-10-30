@@ -25,20 +25,12 @@ interface MomentUploadDialogProps {
   onCreated: (moment: MomentResponse) => void
 }
 
-interface UploadMetadata {
-  mangaId: number
-  chapterId?: number
-  pageNumber?: number
-}
-
 export function MomentUploadDialog({ mangaId, trigger, onCreated }: MomentUploadDialogProps) {
   const { isAuthenticated } = useAuth()
   const [open, setOpen] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [caption, setCaption] = useState('')
-  const [chapterId, setChapterId] = useState('')
-  const [pageNumber, setPageNumber] = useState('')
   const [spoiler, setSpoiler] = useState(false)
   const [nsfw, setNsfw] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -67,8 +59,6 @@ export function MomentUploadDialog({ mangaId, trigger, onCreated }: MomentUpload
       setPreviewUrl(null)
     }
     setCaption('')
-    setChapterId('')
-    setPageNumber('')
     setSpoiler(false)
     setNsfw(false)
     setError(null)
@@ -97,26 +87,6 @@ export function MomentUploadDialog({ mangaId, trigger, onCreated }: MomentUpload
     setError(null)
   }
 
-  const parseNumberField = (value: string) => {
-    const trimmed = value.trim()
-    if (!trimmed) return undefined
-    const parsed = Number(trimmed)
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
-  }
-
-  const buildMetadata = (): UploadMetadata => {
-    const metadata: UploadMetadata = { mangaId }
-    const parsedChapter = parseNumberField(chapterId)
-    const parsedPage = parseNumberField(pageNumber)
-    if (parsedChapter !== undefined) {
-      metadata.chapterId = parsedChapter
-    }
-    if (parsedPage !== undefined) {
-      metadata.pageNumber = parsedPage
-    }
-    return metadata
-  }
-
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!isAuthenticated) {
@@ -141,15 +111,15 @@ export function MomentUploadDialog({ mangaId, trigger, onCreated }: MomentUpload
     setError(null)
 
     try {
-      const imagePayload: MomentImagePayload = await apiClient.uploadMomentImage(file, buildMetadata())
+      const imagePayload: MomentImagePayload = await apiClient.uploadMomentImage(file, { mangaId })
       const payload: MomentCreateRequest = {
         mangaId,
         caption: trimmedCaption,
         spoiler,
         nsfw,
         image: imagePayload,
-        chapterId: parseNumberField(chapterId) ?? null,
-        pageNumber: parseNumberField(pageNumber) ?? null
+        chapterId: null,
+        pageNumber: null
       }
       const created = await apiClient.createMoment(payload)
       onCreated(created)
@@ -184,7 +154,7 @@ export function MomentUploadDialog({ mangaId, trigger, onCreated }: MomentUpload
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="bg-black/90 text-white border-white/10 sm:max-w-xl">
+  <DialogContent className="bg-black/90 text-white border-white/10 sm:max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Новый момент</DialogTitle>
           <DialogDescription className="text-white/60">
@@ -203,8 +173,12 @@ export function MomentUploadDialog({ mangaId, trigger, onCreated }: MomentUpload
             />
             <p className="text-sm text-white/50">{fileLabel}</p>
             {previewUrl && (
-              <div className="mt-2 overflow-hidden rounded-2xl border border-white/10">
-                <img src={previewUrl} alt="Предпросмотр момента" className="w-full object-cover" />
+              <div className="mt-2 overflow-hidden rounded-2xl border border-white/10 bg-black">
+                <img
+                  src={previewUrl}
+                  alt="Предпросмотр момента"
+                  className="block w-full max-h-80 object-contain"
+                />
               </div>
             )}
           </div>
@@ -221,31 +195,6 @@ export function MomentUploadDialog({ mangaId, trigger, onCreated }: MomentUpload
               className="min-h-[100px] bg-black/60 border-white/10"
             />
             <div className="text-xs text-white/40 text-right">{caption.length}/280</div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="moment-chapter">ID главы (опционально)</Label>
-              <Input
-                id="moment-chapter"
-                value={chapterId}
-                onChange={(event) => setChapterId(event.target.value)}
-                placeholder="Например, 1024"
-                disabled={isSubmitting}
-                inputMode="numeric"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="moment-page">Номер страницы (опционально)</Label>
-              <Input
-                id="moment-page"
-                value={pageNumber}
-                onChange={(event) => setPageNumber(event.target.value)}
-                placeholder="Например, 12"
-                disabled={isSubmitting}
-                inputMode="numeric"
-              />
-            </div>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-4">

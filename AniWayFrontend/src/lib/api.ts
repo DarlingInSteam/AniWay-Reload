@@ -1068,18 +1068,12 @@ class ApiClient {
 
   async uploadMomentImage(
     file: File,
-    metadata?: { mangaId?: number; chapterId?: number; pageNumber?: number }
+    metadata?: { mangaId?: number }
   ): Promise<MomentImagePayload> {
     const formData = new FormData();
     formData.append('file', file);
     if (metadata?.mangaId != null) {
       formData.append('mangaId', String(metadata.mangaId));
-    }
-    if (metadata?.chapterId != null) {
-      formData.append('chapterId', String(metadata.chapterId));
-    }
-    if (metadata?.pageNumber != null) {
-      formData.append('pageNumber', String(metadata.pageNumber));
     }
 
     let token = localStorage.getItem('authToken');

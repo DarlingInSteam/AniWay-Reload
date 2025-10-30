@@ -128,6 +128,14 @@ spring:
           order: 6
 
         # MomentService - Moments API
+        - id: moments-upload
+          uri: http://image-storage-service:8083
+          predicates:
+            - Path=/api/moments/upload
+          filters:
+            - RewritePath=/api/moments/upload, /api/images/moments
+          order: 5
+
         - id: moments-api
           uri: http://moment-service:8099
           predicates:

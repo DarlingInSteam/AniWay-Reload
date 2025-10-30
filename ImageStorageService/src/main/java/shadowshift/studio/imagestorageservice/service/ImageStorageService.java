@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import shadowshift.studio.imagestorageservice.config.YandexStorageProperties;
 import shadowshift.studio.imagestorageservice.dto.ChapterImageResponseDTO;
+import shadowshift.studio.imagestorageservice.dto.MomentImageUploadResponseDTO;
 import shadowshift.studio.imagestorageservice.dto.UserAvatarResponseDTO;
 import shadowshift.studio.imagestorageservice.entity.ChapterImage;
 import shadowshift.studio.imagestorageservice.entity.UserAvatar;
@@ -41,6 +42,8 @@ import java.util.stream.Collectors;
  */
 @Service
 public class ImageStorageService {
+
+    private static final long MAX_MOMENT_IMAGE_SIZE_BYTES = 8L * 1024 * 1024;
 
     @Autowired
     private ChapterImageRepository imageRepository;
@@ -438,6 +441,67 @@ public class ImageStorageService {
     }
 
     // === Post Images (generic storage) ===
+    public MomentImageUploadResponseDTO uploadMomentImage(MultipartFile file, Long mangaId, Long userId) {
+        try {
+            if (file == null || file.isEmpty()) {
+                throw new IllegalArgumentException("Image file is required");
+            }
+            if (file.getSize() > MAX_MOMENT_IMAGE_SIZE_BYTES) {
+                throw new IllegalArgumentException("Image exceeds max size of 8MB");
+            }
+            String contentType = file.getContentType();
+            if (contentType == null || !contentType.startsWith("image/")) {
+                throw new IllegalArgumentException("Only image uploads are supported");
+            }
+
+            createBucketIfNotExists();
+
+            byte[] bytes = file.getBytes();
+            Integer width = null;
+            Integer height = null;
+            try (ByteArrayInputStream metadataStream = new ByteArrayInputStream(bytes)) {
+                BufferedImage buffered = ImageIO.read(metadataStream);
+                if (buffered != null) {
+                    width = buffered.getWidth();
+                    height = buffered.getHeight();
+                }
+            }
+
+            String extension = resolveFileExtension(file);
+            StringBuilder objectKeyBuilder = new StringBuilder("moments/");
+            if (mangaId != null) {
+                objectKeyBuilder.append("m").append(mangaId).append('/');
+            }
+            if (userId != null) {
+                objectKeyBuilder.append("u").append(userId).append('/');
+            }
+            objectKeyBuilder.append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy/MM/dd/")));
+            objectKeyBuilder.append(UUID.randomUUID());
+            if (!extension.isBlank()) {
+                objectKeyBuilder.append('.').append(extension);
+            }
+            String objectKey = objectKeyBuilder.toString();
+
+            try (ByteArrayInputStream uploadStream = new ByteArrayInputStream(bytes)) {
+                minioClient.putObject(
+                        PutObjectArgs.builder()
+                                .bucket(yandexProperties.getBucketName())
+                                .object(objectKey)
+                                .stream(uploadStream, bytes.length, -1)
+                                .contentType(contentType)
+                                .build()
+                );
+            }
+
+            String url = generateImageUrl(objectKey);
+            return new MomentImageUploadResponseDTO(url, objectKey, width, height, file.getSize());
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to upload moment image", e);
+        }
+    }
+
     public List<Map<String, Object>> uploadPostImages(List<MultipartFile> files, Long userId) {
         try {
             createBucketIfNotExists();
@@ -741,6 +805,18 @@ public class ImageStorageService {
             return "";
         }
         return filename.substring(filename.lastIndexOf("."));
+    }
+
+    private String resolveFileExtension(MultipartFile file) {
+        String filename = file.getOriginalFilename();
+        if (filename != null && filename.contains(".")) {
+            return filename.substring(filename.lastIndexOf('.') + 1).toLowerCase();
+        }
+        String contentType = file.getContentType();
+        if (contentType != null && contentType.contains("/")) {
+            return contentType.substring(contentType.indexOf('/') + 1).toLowerCase();
+        }
+        return "";
     }
 
     /**
