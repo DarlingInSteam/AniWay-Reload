@@ -40,6 +40,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/forum/threads/author/*").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/forum/threads/*/posts").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/forum/threads/*/posts/tree").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/forum/manga/*/threads").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/forum/manga/*/threads/**").permitAll()
                 // Лидеры
                 .requestMatchers(HttpMethod.GET, "/api/forum/tops/threads").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/forum/tops/posts").permitAll()
@@ -63,6 +65,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/forum/threads/*/reactions").hasRole("USER")
                 .requestMatchers("/api/forum/posts/*/reactions").hasRole("USER")
                 .requestMatchers(HttpMethod.POST, "/api/forum/threads/**").hasRole("USER")
+                .requestMatchers(HttpMethod.POST, "/api/forum/manga/*/threads").hasRole("USER")
                 
                 // Actuator endpoint'ы
                 .requestMatchers("/actuator/health").permitAll()
