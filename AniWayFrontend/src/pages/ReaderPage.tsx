@@ -534,7 +534,7 @@ export function ReaderPage() {
 
   useEffect(() => {
     if (!chapterEntries.length) return
-    if (activeIndex == null || !chapterEntries.some(entry => entry.index === activeIndex)) {
+    if (activeIndex == null) {
       setActiveIndex(chapterEntries[0].index)
     }
   }, [chapterEntries, activeIndex])
