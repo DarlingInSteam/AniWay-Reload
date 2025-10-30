@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, type CSSProperties } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, type CSSProperties } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
@@ -37,14 +37,60 @@ function ChapterImageList({
   handleTouchStartSwipe,
   handleTouchMoveSwipe,
   handleTouchEndSwipe,
-  visibleIndexes,
-  setVisibleIndexes,
-  wrappersRef
+  onFocusChapter
 }: any) {
   const [intrinsicSizes, setIntrinsicSizes] = useState<Record<number, { width: number; height: number }>>({})
+  const [visibleIndexes, setVisibleIndexes] = useState<Set<number>>(() => new Set([0, 1, 2]))
+  const visibleIndexesRef = useRef<Set<number>>(new Set([0, 1, 2]))
+  const observerRef = useRef<IntersectionObserver | null>(null)
+  const wrappersRef = useRef<(HTMLDivElement | null)[]>([])
 
   useEffect(() => {
     setIntrinsicSizes({})
+    const initial = new Set<number>([0, 1, 2])
+    setVisibleIndexes(initial)
+    visibleIndexesRef.current = initial
+  }, [images])
+
+  useEffect(() => {
+    visibleIndexesRef.current = visibleIndexes
+  }, [visibleIndexes])
+
+  useEffect(() => {
+    if (!images || images.length === 0) return
+    observerRef.current?.disconnect()
+    const observer = new IntersectionObserver((entries) => {
+      let changed = false
+      const next = new Set(visibleIndexesRef.current)
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue
+        const idxAttr = entry.target.getAttribute('data-index')
+        if (!idxAttr) continue
+        const idx = Number(idxAttr)
+        if (!Number.isFinite(idx)) continue
+        if (!next.has(idx)) {
+          next.add(idx)
+          if (idx + 1 < images.length) next.add(idx + 1)
+          changed = true
+        }
+      }
+      if (changed) {
+        visibleIndexesRef.current = next
+        setVisibleIndexes(next)
+      }
+    }, { root: null, rootMargin: '800px 0px 800px 0px', threshold: 0.01 })
+    observerRef.current = observer
+
+    wrappersRef.current.forEach((el, idx) => {
+      if (!el) return
+      if (!visibleIndexesRef.current.has(idx)) {
+        observer.observe(el)
+      }
+    })
+
+    return () => {
+      observer.disconnect()
+    }
   }, [images])
 
   const getWidthClass = () => {
@@ -107,13 +153,10 @@ function ChapterImageList({
                       }
                     })
                   }
-                  if (!visibleIndexes.has(index + 1) && index + 1 < images.length) {
-                    setVisibleIndexes((prev: Set<number>) => new Set(prev).add(index + 1))
-                  }
                 }}
-                onClick={handleImageClick}
+                onClick={(event) => { onFocusChapter?.(); handleImageClick(event) }}
                 onDoubleClick={handleDoubleClickDesktop}
-                onTouchStart={(e) => { handleTouchStartSwipe(e); handleTapOrClick(e) }}
+                onTouchStart={(e) => { onFocusChapter?.(); handleTouchStartSwipe(e); handleTapOrClick(e) }}
                 onTouchMove={handleTouchMoveSwipe}
                 onTouchEnd={handleTouchEndSwipe}
               />
@@ -154,6 +197,129 @@ function ChapterImageList({
   )
 }
 
+type ChapterEntry = {
+  index: number
+  chapter: any
+  images: any[]
+}
+
+interface ChapterBlockProps {
+  entry: ChapterEntry
+  imageWidth: 'fit' | 'full' | 'wide'
+  showUI: boolean
+  previousChapter?: any
+  handleImageClick: any
+  handleTapOrClick: any
+  handleDoubleClickDesktop: any
+  handleTouchStartSwipe: any
+  handleTouchMoveSwipe: any
+  handleTouchEndSwipe: any
+  onActivate: () => void
+  onNearBottom: () => void
+  onNearTop: () => void
+  onCompleted: () => void
+  onFocusChapter: () => void
+  isActive: boolean
+}
+
+const ChapterBlock = ({
+  entry,
+  imageWidth,
+  showUI,
+  previousChapter,
+  handleImageClick,
+  handleTapOrClick,
+  handleDoubleClickDesktop,
+  handleTouchStartSwipe,
+  handleTouchMoveSwipe,
+  handleTouchEndSwipe,
+  onActivate,
+  onNearBottom,
+  onNearTop,
+  onCompleted,
+  onFocusChapter,
+  isActive
+}: ChapterBlockProps) => {
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const topSentinelRef = useRef<HTMLDivElement | null>(null)
+  const bottomSentinelRef = useRef<HTMLDivElement | null>(null)
+  const completionSentinelRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const node = containerRef.current
+    if (!node) return
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) onActivate()
+      })
+    }, { rootMargin: '-45% 0px -45% 0px', threshold: 0.25 })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [onActivate])
+
+  useEffect(() => {
+    const node = topSentinelRef.current
+    if (!node) return
+    if (!onNearTop) return
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) onNearTop()
+      })
+    }, { rootMargin: '300px 0px 0px 0px', threshold: 0 })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [onNearTop])
+
+  useEffect(() => {
+    const node = bottomSentinelRef.current
+    if (!node) return
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) onNearBottom()
+      })
+    }, { rootMargin: '0px 0px 600px 0px', threshold: 0 })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [onNearBottom])
+
+  useEffect(() => {
+    const node = completionSentinelRef.current
+    if (!node) return
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) onCompleted()
+      })
+    }, { rootMargin: '0px 0px -120px 0px', threshold: 0.75 })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [onCompleted])
+
+  return (
+    <section
+      ref={containerRef}
+      data-chapter-id={entry.chapter?.id}
+      className={cn('relative transition-opacity duration-300', isActive ? 'opacity-100' : 'opacity-100')}
+    >
+      <div ref={topSentinelRef} aria-hidden className="h-1 w-full" />
+      <ChapterImageList
+        images={entry.images}
+        imageWidth={imageWidth}
+        showUI={showUI}
+        previousChapter={previousChapter}
+        handleImageClick={handleImageClick}
+        handleTapOrClick={handleTapOrClick}
+        handleDoubleClickDesktop={handleDoubleClickDesktop}
+        handleTouchStartSwipe={handleTouchStartSwipe}
+        handleTouchMoveSwipe={handleTouchMoveSwipe}
+        handleTouchEndSwipe={handleTouchEndSwipe}
+        onFocusChapter={onFocusChapter}
+      />
+      <div ref={completionSentinelRef} aria-hidden className="h-1 w-full" />
+      <div ref={bottomSentinelRef} aria-hidden className="h-64 w-full" />
+    </section>
+  )
+}
+
 export function ReaderPage() {
   const { chapterId } = useParams<{ chapterId: string }>()
   const navigate = useNavigate()
@@ -162,28 +328,45 @@ export function ReaderPage() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [imageWidth, setImageWidth] = useState<'fit' | 'full' | 'wide'>('fit')
   const [readingMode, setReadingMode] = useState<'vertical' | 'horizontal'>('vertical')
-  const [isAutoCompleted, setIsAutoCompleted] = useState(false)
-  // showComments legacy removed; comments accessed via side panel
   const [showChapterList, setShowChapterList] = useState(false)
-  const [isLiked, setIsLiked] = useState(false)
-  const [liking, setLiking] = useState(false)
+  const [showSideComments, setShowSideComments] = useState(false)
+  const [viewportWidth, setViewportWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1024)
+  const titleContainerRef = useRef<HTMLButtonElement | null>(null)
+  const [titleVariantIndex, setTitleVariantIndex] = useState(0)
+  const [finalTitle, setFinalTitle] = useState<string>('')
+  const variantsRef = useRef<string[]>([])
+
   const [lastTap, setLastTap] = useState(0)
   const likeGestureCooldownRef = useRef<number>(0)
-  const gesturePosRef = useRef<{x:number,y:number}|null>(null)
-  const [gestureBursts, setGestureBursts] = useState<Array<{id:number,x:number,y:number}>>([])
-  const touchStartRef = useRef<{x:number,y:number,time:number}|null>(null)
+  const [gestureBursts, setGestureBursts] = useState<Array<{ id: number; x: number; y: number }>>([])
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null)
   const touchMovedRef = useRef<boolean>(false)
   const skipClickToggleRef = useRef(false)
   const skipClickResetRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const initialShowUIRef = useRef<boolean>(showUI)
   const pendingUiToggleRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [showSideComments, setShowSideComments] = useState(false)
-  const [viewportWidth, setViewportWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1024)
-  // Local adaptive title component state
-  const titleContainerRef = useRef<HTMLButtonElement|null>(null)
-  const [titleVariantIndex, setTitleVariantIndex] = useState(0) // 0=full,1=medium,2=short,3=minimal (fallback to getAdaptive based on viewport first)
-  const [finalTitle, setFinalTitle] = useState<string>('')
-  const variantsRef = useRef<string[]>([])
+
+  const [chapterEntries, setChapterEntries] = useState<ChapterEntry[]>([])
+  const chapterEntriesRef = useRef<ChapterEntry[]>([])
+  const [activeIndex, setActiveIndex] = useState<number | null>(null)
+  const prefetchNextRef = useRef<Set<number>>(new Set())
+  const prefetchPrevRef = useRef<Set<number>>(new Set())
+  const loadingIndicesRef = useRef<Set<number>>(new Set())
+  const viewedChaptersRef = useRef<Set<number>>(new Set())
+  const completedChaptersRef = useRef<Set<number>>(new Set())
+  const [autoCompletedMap, setAutoCompletedMap] = useState<Record<number, boolean>>({})
+  const [loadingForward, setLoadingForward] = useState(false)
+  const [loadingBackward, setLoadingBackward] = useState(false)
+  const [likedChapters, setLikedChapters] = useState<Record<number, boolean>>({})
+  const [likingChapters, setLikingChapters] = useState<Record<number, boolean>>({})
+
+  useEffect(() => {
+    chapterEntriesRef.current = chapterEntries
+  }, [chapterEntries])
+
+  useEffect(() => {
+    initialShowUIRef.current = showUI
+  }, [showUI])
 
   const { user } = useAuth()
   const queryClient = useQueryClient()
@@ -241,152 +424,371 @@ export function ReaderPage() {
   // Reading progress tracking
   const { trackChapterViewed, markChapterCompleted, isChapterCompleted, clearTrackedChapters } = useReadingProgress()
 
-  const { data: chapter } = useQuery({
-    queryKey: ['chapter', chapterId],
-    queryFn: () => apiClient.getChapterById(parseInt(chapterId!)),
-    enabled: !!chapterId,
+  const numericChapterId = chapterId ? Number.parseInt(chapterId, 10) : Number.NaN
+
+  const { data: initialChapter, isLoading: isInitialChapterLoading } = useQuery({
+    queryKey: ['chapter', numericChapterId],
+    queryFn: () => apiClient.getChapterById(numericChapterId),
+    enabled: Number.isFinite(numericChapterId),
   })
 
-  // Track viewport width for adaptive title
-  useEffect(() => {
-    function handleResize() {
-      setViewportWidth(window.innerWidth)
+  const { data: initialImages, isLoading: isInitialImagesLoading } = useQuery({
+    queryKey: ['chapter-images', numericChapterId],
+    queryFn: () => apiClient.getChapterImages(numericChapterId),
+    enabled: Number.isFinite(numericChapterId),
+  })
+
+  const activeChapterForQueries = useMemo(() => {
+    if (activeIndex != null) {
+      const entry = chapterEntries.find(item => item.index === activeIndex)
+      if (entry) return entry.chapter
     }
+    if (chapterEntries.length > 0) {
+      return chapterEntries[0].chapter
+    }
+    return initialChapter ?? null
+  }, [activeIndex, chapterEntries, initialChapter])
+
+  const mangaId = activeChapterForQueries?.mangaId
+
+  const { data: manga } = useQuery({
+    queryKey: ['manga', mangaId, user?.id],
+    queryFn: () => apiClient.getMangaById(mangaId!, user?.id),
+    enabled: !!mangaId,
+  })
+
+  const { data: allChapters } = useQuery({
+    queryKey: ['chapters', mangaId],
+    queryFn: () => apiClient.getChaptersByManga(mangaId!),
+    enabled: !!mangaId,
+  })
+
+  const sortedChapters = useMemo(() => {
+    if (!allChapters) return undefined
+    return [...allChapters].sort((a, b) => a.chapterNumber - b.chapterNumber)
+  }, [allChapters])
+
+  useEffect(() => {
+    setChapterEntries([])
+    setActiveIndex(null)
+    prefetchNextRef.current.clear()
+    prefetchPrevRef.current.clear()
+    loadingIndicesRef.current.clear()
+    viewedChaptersRef.current.clear()
+    completedChaptersRef.current.clear()
+    setAutoCompletedMap({})
+  }, [mangaId])
+
+  useEffect(() => {
+    if (!initialChapter || !initialImages || !sortedChapters) return
+    const index = sortedChapters.findIndex(ch => ch.id === initialChapter.id)
+    if (index === -1) return
+    setChapterEntries(prev => {
+      const existingIndex = prev.findIndex(entry => entry.chapter.id === initialChapter.id)
+      const nextEntry: ChapterEntry = { index, chapter: initialChapter, images: initialImages }
+      if (existingIndex !== -1) {
+        const copy = [...prev]
+        copy[existingIndex] = nextEntry
+        copy.sort((a, b) => a.index - b.index)
+        return copy
+      }
+      return [...prev, nextEntry].sort((a, b) => a.index - b.index)
+    })
+    setActiveIndex(prev => prev ?? index)
+  }, [initialChapter, initialImages, sortedChapters])
+
+  useEffect(() => {
+    if (!chapterEntries.length) return
+    if (activeIndex == null || !chapterEntries.some(entry => entry.index === activeIndex)) {
+      setActiveIndex(chapterEntries[0].index)
+    }
+  }, [chapterEntries, activeIndex])
+
+  const activeEntry = useMemo(() => {
+    if (activeIndex != null) {
+      const match = chapterEntries.find(entry => entry.index === activeIndex)
+      if (match) return match
+    }
+    return chapterEntries[0]
+  }, [activeIndex, chapterEntries])
+
+  const activeChapter = activeEntry?.chapter
+  const activeImages = activeEntry?.images ?? []
+  const activeChapterId = activeChapter?.id
+  const activeChapterIndex = activeEntry?.index ?? (sortedChapters ? sortedChapters.findIndex(ch => ch.id === activeChapterId) : -1)
+  const previousChapter = activeChapterIndex != null && activeChapterIndex > 0 ? sortedChapters?.[activeChapterIndex - 1] : undefined
+  const nextChapter = activeChapterIndex != null && sortedChapters ? sortedChapters[activeChapterIndex + 1] : undefined
+  const totalChapters = sortedChapters?.length ?? 0
+  const currentChapterOrdinal = activeChapterIndex != null && activeChapterIndex >= 0 ? activeChapterIndex + 1 : 0
+
+  const isActiveChapterLiked = activeChapterId ? likedChapters[activeChapterId] ?? false : false
+  const isActiveChapterLiking = activeChapterId ? likingChapters[activeChapterId] ?? false : false
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const handleResize = () => setViewportWidth(window.innerWidth)
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  // Prepare title variants when chapter or viewport changes
   useEffect(() => {
-    if (!chapter) return
-    const v = buildChapterTitleVariants(chapter)
-    const adaptive = getAdaptiveChapterTitle(chapter, viewportWidth)
-    variantsRef.current = [v.full, v.medium, v.short, v.minimal]
+    if (!activeChapter) return
+    const variants = buildChapterTitleVariants(activeChapter)
+    const adaptive = getAdaptiveChapterTitle(activeChapter, viewportWidth)
+    variantsRef.current = [variants.full, variants.medium, variants.short, variants.minimal]
     let startIndex = variantsRef.current.findIndex(x => x === adaptive)
     if (startIndex === -1) startIndex = 0
     setTitleVariantIndex(startIndex)
     setFinalTitle(adaptive)
-  }, [chapter, viewportWidth])
+  }, [activeChapter, viewportWidth])
 
-  // Measure and downgrade variant until fits
   useEffect(() => {
-    if (!titleContainerRef.current || !chapter) return
+    if (!titleContainerRef.current || !activeChapter) return
     const el = titleContainerRef.current
-    const fit = () => {
+    const adjust = () => {
       let idx = titleVariantIndex
       while (idx < variantsRef.current.length) {
         el.textContent = variantsRef.current[idx]
-        const overflown = el.scrollWidth > el.clientWidth
-        if (!overflown) {
+        if (el.scrollWidth <= el.clientWidth) {
           setFinalTitle(variantsRef.current[idx])
           if (idx !== titleVariantIndex) setTitleVariantIndex(idx)
-          break
+          return
         }
-        idx++
-        if (idx === variantsRef.current.length) {
-          setFinalTitle(variantsRef.current[variantsRef.current.length -1])
-          setTitleVariantIndex(variantsRef.current.length -1)
-        }
+        idx += 1
       }
+      const fallback = variantsRef.current[variantsRef.current.length - 1]
+      setFinalTitle(fallback)
+      setTitleVariantIndex(variantsRef.current.length - 1)
     }
-    const ro = new ResizeObserver(() => fit())
+    const ro = new ResizeObserver(() => adjust())
     ro.observe(el)
-    fit()
+    adjust()
     return () => ro.disconnect()
-  }, [titleVariantIndex, chapter])
-
-  const { data: images, isLoading } = useQuery({
-    queryKey: ['chapter-images', chapterId],
-    queryFn: () => apiClient.getChapterImages(parseInt(chapterId!)),
-    enabled: !!chapterId,
-  })
-
-  // Lazy visibility state for images (virtual-ish)
-  const [visibleIndexes, setVisibleIndexes] = useState<Set<number>>(() => new Set([0,1,2]))
-  const observerRef = useRef<IntersectionObserver | null>(null)
-  const wrappersRef = useRef<(HTMLDivElement | null)[]>([])
-
-  // Reset visibility when chapter changes
-  useEffect(() => {
-    setVisibleIndexes(new Set([0,1,2]))
-  }, [chapterId])
+  }, [titleVariantIndex, activeChapter])
 
   useEffect(() => {
-    if (!images || images.length === 0) return
-    if (observerRef.current) {
-      observerRef.current.disconnect()
+    if (sortedChapters && sortedChapters.length) {
+      clearTrackedChapters()
     }
-    observerRef.current = new IntersectionObserver((entries) => {
-      let changed = false
-      const next = new Set(visibleIndexes)
-      for (const entry of entries) {
-        if (entry.isIntersecting) {
-          const idxAttr = entry.target.getAttribute('data-index')
-            
-          if (idxAttr) {
-            const idx = parseInt(idxAttr)
-            if (!next.has(idx)) {
-              next.add(idx)
-              // Prefetch next immediate page for smoother scroll
-              if (idx + 1 < images.length) next.add(idx + 1)
-              changed = true
-            }
-          }
+  }, [sortedChapters, clearTrackedChapters])
+
+  useEffect(() => {
+    if (!activeChapterId) return
+    if (likedChapters[activeChapterId] !== undefined) return
+    let cancelled = false
+    const load = async () => {
+      try {
+        const response = await apiClient.isChapterLiked(activeChapterId)
+        if (!cancelled) {
+          setLikedChapters(prev => ({ ...prev, [activeChapterId]: response.liked }))
+        }
+      } catch (error) {
+        console.error('Failed to load chapter like status:', error)
+        if (!cancelled) {
+          setLikedChapters(prev => ({ ...prev, [activeChapterId]: false }))
         }
       }
-      if (changed) setVisibleIndexes(next)
-    }, { root: null, rootMargin: '800px 0px 800px 0px', threshold: 0.01 })
-
-    wrappersRef.current.forEach((el, idx) => {
-      if (el && !visibleIndexes.has(idx)) {
-        observerRef.current?.observe(el)
-      }
-    })
-
-    return () => {
-      observerRef.current?.disconnect()
     }
-  }, [images, visibleIndexes])
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [activeChapterId, likedChapters])
 
-  const { data: manga } = useQuery({
-    queryKey: ['manga', chapter?.mangaId, user?.id],
-    queryFn: () => apiClient.getMangaById(chapter!.mangaId, user?.id),
-    enabled: !!chapter?.mangaId,
-  })
+  const ensureChapterLoaded = useCallback(async (index: number, direction: 'append' | 'prepend' = 'append') => {
+    if (!sortedChapters) return
+    if (index < 0 || index >= sortedChapters.length) return
+    if (chapterEntriesRef.current.some(entry => entry.index === index)) return
+    if (loadingIndicesRef.current.has(index)) return
 
-  const { data: allChapters } = useQuery({
-    queryKey: ['chapters', chapter?.mangaId],
-    queryFn: () => apiClient.getChaptersByManga(chapter!.mangaId),
-    enabled: !!chapter?.mangaId,
-  })
+    loadingIndicesRef.current.add(index)
+    if (direction === 'append') {
+      setLoadingForward(true)
+    } else {
+      setLoadingBackward(true)
+    }
+
+    let anchorElement: HTMLElement | null = null
+    let anchorTop = 0
+    if (direction === 'prepend') {
+      const firstEntry = chapterEntriesRef.current[0]
+      if (firstEntry) {
+        anchorElement = document.querySelector<HTMLElement>(`[data-chapter-id="${firstEntry.chapter.id}"]`)
+        anchorTop = anchorElement?.getBoundingClientRect().top ?? 0
+      }
+    }
+
+    try {
+      const meta = sortedChapters[index]
+      const [chapterData, imagesData] = await Promise.all([
+        apiClient.getChapterById(meta.id),
+        apiClient.getChapterImages(meta.id)
+      ])
+      setChapterEntries(prev => {
+        if (prev.some(item => item.index === index)) return prev
+        const next = [...prev, { index, chapter: chapterData, images: imagesData }].sort((a, b) => a.index - b.index)
+        return next
+      })
+    } catch (error) {
+      console.error('Failed to load chapter data', error)
+    } finally {
+      loadingIndicesRef.current.delete(index)
+      if (direction === 'append') {
+        setLoadingForward(false)
+      } else {
+        setLoadingBackward(false)
+        if (anchorElement) {
+          requestAnimationFrame(() => {
+            const newTop = anchorElement!.getBoundingClientRect().top
+            window.scrollBy({ top: newTop - anchorTop })
+          })
+        }
+      }
+    }
+  }, [sortedChapters])
+
+  const scrollToChapterIndex = useCallback((index: number) => {
+    if (!sortedChapters) return
+    const chapter = sortedChapters[index]
+    if (!chapter) return
+    const element = document.querySelector<HTMLElement>(`[data-chapter-id="${chapter.id}"]`)
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' })
+    }
+  }, [sortedChapters])
+
+  const handleChapterActivated = useCallback((index: number) => {
+    if (!sortedChapters) return
+    const entry = chapterEntriesRef.current.find(item => item.index === index)
+    if (!entry) return
+    setActiveIndex(prev => prev === index ? prev : index)
+
+    const chapterDetail = entry.chapter
+    const chapterIdNumeric = chapterDetail?.id
+    if (chapterIdNumeric) {
+      if (!viewedChaptersRef.current.has(chapterIdNumeric)) {
+        const previousMeta = index > 0 ? sortedChapters[index - 1] : undefined
+        viewedChaptersRef.current.add(chapterIdNumeric)
+        trackChapterViewed(
+          chapterDetail.mangaId,
+          chapterIdNumeric,
+          chapterDetail.chapterNumber,
+          previousMeta ? { id: previousMeta.id, chapterNumber: previousMeta.chapterNumber } : undefined
+        ).catch(error => {
+          console.error('Failed to track chapter view', error)
+          viewedChaptersRef.current.delete(chapterIdNumeric)
+        })
+      }
+
+      if (String(chapterIdNumeric) !== chapterId) {
+        navigate(`/reader/${chapterIdNumeric}`, { replace: true })
+      }
+    }
+  }, [chapterId, navigate, sortedChapters, trackChapterViewed])
+
+  const handleChapterCompleted = useCallback((index: number) => {
+    const entry = chapterEntriesRef.current.find(item => item.index === index)
+    if (!entry) return
+    const chapterDetail = entry.chapter
+    const chapterIdNumeric = chapterDetail?.id
+    if (!chapterIdNumeric) return
+    if (completedChaptersRef.current.has(chapterIdNumeric) || isChapterCompleted(chapterIdNumeric)) return
+    completedChaptersRef.current.add(chapterIdNumeric)
+    setAutoCompletedMap(prev => ({ ...prev, [chapterIdNumeric]: true }))
+    markChapterCompleted(chapterDetail.mangaId, chapterIdNumeric, chapterDetail.chapterNumber)
+      .catch(error => {
+        console.error('Failed to mark chapter completed', error)
+        completedChaptersRef.current.delete(chapterIdNumeric)
+        setAutoCompletedMap(prev => {
+          const copy = { ...prev }
+          delete copy[chapterIdNumeric]
+          return copy
+        })
+      })
+  }, [markChapterCompleted, isChapterCompleted])
+
+  const handleNearBottom = useCallback((index: number) => {
+    if (!sortedChapters) return
+    const target = index + 1
+    if (target >= sortedChapters.length) return
+    if (prefetchNextRef.current.has(target)) return
+    prefetchNextRef.current.add(target)
+    ensureChapterLoaded(target, 'append').finally(() => {
+      prefetchNextRef.current.delete(target)
+    })
+  }, [ensureChapterLoaded, sortedChapters])
+
+  const handleNearTop = useCallback((index: number) => {
+    if (!sortedChapters) return
+    const target = index - 1
+    if (target < 0) return
+    if (prefetchPrevRef.current.has(target)) return
+    prefetchPrevRef.current.add(target)
+    ensureChapterLoaded(target, 'prepend').finally(() => {
+      prefetchPrevRef.current.delete(target)
+    })
+  }, [ensureChapterLoaded, sortedChapters])
+
+  const navigateToNextChapter = useCallback(async () => {
+    if (!sortedChapters) return
+    if (activeChapterIndex == null || activeChapterIndex === -1) return
+    const target = activeChapterIndex + 1
+    if (target >= sortedChapters.length) return
+    await ensureChapterLoaded(target, 'append')
+    scrollToChapterIndex(target)
+  }, [activeChapterIndex, ensureChapterLoaded, scrollToChapterIndex, sortedChapters])
+
+  const navigateToPreviousChapter = useCallback(async () => {
+    if (!sortedChapters) return
+    if (activeChapterIndex == null || activeChapterIndex === -1) return
+    const target = activeChapterIndex - 1
+    if (target < 0) return
+    await ensureChapterLoaded(target, 'prepend')
+    scrollToChapterIndex(target)
+  }, [activeChapterIndex, ensureChapterLoaded, scrollToChapterIndex, sortedChapters])
+
+  useEffect(() => {
+    if (!sortedChapters) return
+    if (activeChapterIndex == null || activeChapterIndex === -1) return
+    ensureChapterLoaded(activeChapterIndex + 1, 'append')
+    ensureChapterLoaded(activeChapterIndex - 1, 'prepend')
+  }, [activeChapterIndex, ensureChapterLoaded, sortedChapters])
+
+  const handleJumpToChapter = useCallback(async (targetId: number) => {
+    if (!sortedChapters) return
+    const targetIndex = sortedChapters.findIndex(ch => ch.id === targetId)
+    if (targetIndex === -1) return
+    const direction: 'append' | 'prepend' = activeChapterIndex != null && targetIndex < activeChapterIndex ? 'prepend' : 'append'
+    await ensureChapterLoaded(targetIndex, direction)
+    scrollToChapterIndex(targetIndex)
+    setShowChapterList(false)
+  }, [activeChapterIndex, ensureChapterLoaded, scrollToChapterIndex, setShowChapterList, sortedChapters])
+
 
   // Handle chapter like/unlike
-  const handleChapterLike = async () => {
-    // One-way like: do nothing if already liked
-    if (!chapter || liking || isLiked) return
-
-    setLiking(true)
+  const handleChapterLike = useCallback(async () => {
+    if (!activeChapter || !activeChapterId || isActiveChapterLiked || isActiveChapterLiking) return
+    setLikingChapters(prev => ({ ...prev, [activeChapterId]: true }))
     try {
-      const response = await apiClient.toggleChapterLike(chapter.id)
-      setIsLiked(response.liked)
-
-      // Invalidate chapter query to refresh like count from server
-      queryClient.invalidateQueries({ queryKey: ['chapter', chapterId] })
-
-      // Optimistically update the local chapter data to show immediate count changes
-      queryClient.setQueryData(['chapter', chapterId], (oldData: any) => {
-        if (!oldData) return oldData
-        return {
-          ...oldData,
-          likeCount: response.likeCount
-        }
-      })
+      const response = await apiClient.toggleChapterLike(activeChapterId)
+      const liked = response?.liked ?? true
+      setLikedChapters(prev => ({ ...prev, [activeChapterId]: liked }))
+      setChapterEntries(prev => prev.map(entry => entry.chapter.id === activeChapterId
+        ? {
+            ...entry,
+            chapter: {
+              ...entry.chapter,
+              likeCount: response?.likeCount ?? ((entry.chapter.likeCount ?? 0) + 1)
+            }
+          }
+        : entry
+      ))
+      queryClient.invalidateQueries({ queryKey: ['chapter', activeChapterId] })
     } catch (error) {
       console.error('Failed to toggle chapter like:', error)
     } finally {
-      setLiking(false)
+      setLikingChapters(prev => ({ ...prev, [activeChapterId]: false }))
     }
-  }
+  }, [activeChapter, activeChapterId, isActiveChapterLiked, isActiveChapterLiking, queryClient])
 
   const handleImageClick = useCallback(() => {
     if (skipClickToggleRef.current) {
@@ -513,27 +915,6 @@ export function ReaderPage() {
     }
   }
 
-  // Load chapter like status
-  useEffect(() => {
-    const loadLikeStatus = async () => {
-      if (!chapter) return
-
-      try {
-        const response = await apiClient.isChapterLiked(chapter.id)
-        setIsLiked(response.liked)
-      } catch (error) {
-        console.error('Failed to load chapter like status:', error)
-      }
-    }
-
-    loadLikeStatus()
-  }, [chapter])
-
-  // Scroll to top when chapter changes
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [chapterId])
-
   // UI visibility control - only on H key or scroll up
   useEffect(() => {
     let lastScrollY = window.scrollY
@@ -583,88 +964,6 @@ export function ReaderPage() {
     }
   }, [])
 
-  // Find current chapter index and navigation - ИСПРАВЛЕНО
-  // Сортируем главы по номеру для правильного порядка
-  const sortedChapters = allChapters?.sort((a, b) => a.chapterNumber - b.chapterNumber)
-  const currentChapterIndex = sortedChapters?.findIndex(ch => ch.id === parseInt(chapterId!)) ?? -1
-  // Предыдущая глава имеет МЕНЬШИЙ номер (индекс -1)
-  const previousChapter = sortedChapters?.[currentChapterIndex - 1]
-  // Следующая глава имеет БОЛЬШИЙ номер (индекс +1)
-  const nextChapter = sortedChapters?.[currentChapterIndex + 1]
-
-  // Track chapter view progress - выполняется только один раз при смене главы
-  useEffect(() => {
-    if (chapter && manga && sortedChapters) {
-      // Очищаем кэш отслеженных глав при смене главы
-      clearTrackedChapters()
-      
-      // Находим предыдущую главу для автоматического завершения
-      const currentIndex = sortedChapters.findIndex(ch => ch.id === chapter.id)
-      const prevChapter = currentIndex > 0 ? sortedChapters[currentIndex - 1] : undefined
-      
-      console.log('Tracking chapter view with auto-completion:', {
-        current: { id: chapter.id, chapterNumber: chapter.chapterNumber },
-        previous: prevChapter ? { id: prevChapter.id, chapterNumber: prevChapter.chapterNumber } : null
-      })
-      
-      // Отслеживаем просмотр главы при загрузке с автоматическим завершением предыдущей
-      trackChapterViewed(
-        manga.id, 
-        chapter.id, 
-        chapter.chapterNumber,
-        prevChapter ? { id: prevChapter.id, chapterNumber: prevChapter.chapterNumber } : undefined
-      ).catch(console.error)
-      
-      // Временное решение: если это последняя глава, автоматически помечаем как прочитанную
-      const isLastChapter = !nextChapter
-      if (isLastChapter) {
-        console.log('Auto-completing last chapter on view:', {
-          mangaId: manga.id,
-          chapterId: chapter.id,
-          chapterNumber: chapter.chapterNumber
-        })
-        
-        // Даем небольшую задержку, чтобы trackChapterViewed успел выполниться
-        setTimeout(() => {
-          markChapterCompleted(manga.id, chapter.id, chapter.chapterNumber)
-            .then(() => {
-              console.log('Last chapter auto-completed on view')
-            })
-            .catch(console.error)
-        }, 1000)
-      }
-    }
-  }, [chapter?.id, manga?.id]) // Только при смене главы или манги
-
-  // Navigation functions with progress tracking
-  const navigateToNextChapter = useCallback(async () => {
-    console.log('navigateToNextChapter called', { nextChapter, chapter, manga })
-    if (nextChapter && chapter && manga) {
-      try {
-        // Отмечаем текущую главу как прочитанную
-        console.log('Marking chapter as completed:', {
-          mangaId: manga.id,
-          chapterId: chapter.id,
-          chapterNumber: chapter.chapterNumber
-        })
-        await markChapterCompleted(manga.id, chapter.id, chapter.chapterNumber)
-        console.log('Chapter marked as completed successfully')
-        navigate(`/reader/${nextChapter.id}`)
-      } catch (error) {
-        console.error('Failed to mark chapter as completed:', error)
-        // Все равно переходим к следующей главе
-        navigate(`/reader/${nextChapter.id}`)
-      }
-    } else {
-      console.log('Cannot navigate to next chapter - missing data:', { nextChapter, chapter, manga })
-    }
-  }, [nextChapter, chapter, manga, markChapterCompleted, navigate])
-
-  const navigateToPreviousChapter = useCallback(() => {
-    if (previousChapter) {
-      navigate(`/reader/${previousChapter.id}`)
-    }
-  }, [previousChapter, navigate])
 
   // Click outside to close settings
   useEffect(() => {
@@ -704,59 +1003,9 @@ export function ReaderPage() {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [navigate, navigateToNextChapter, navigateToPreviousChapter, nextChapter, previousChapter])
 
-  // Auto-complete chapter when scrolled to bottom
-  useEffect(() => {
-    if (!chapter || !manga || !images || images.length === 0) return
-
-    // Reset auto-completion state when chapter changes
-    setIsAutoCompleted(false)
-
-    const handleScroll = () => {
-      // Skip if already auto-completed or manually completed
-      if (isAutoCompleted || isChapterCompleted(chapter.id)) return
-
-      const scrollTop = window.pageYOffset || document.documentElement.scrollTop
-      const windowHeight = window.innerHeight
-      const documentHeight = document.documentElement.scrollHeight
-      const scrollPercentage = (scrollTop + windowHeight) / documentHeight
-
-      // If user has scrolled to 90% of the page, mark chapter as completed
-      if (scrollPercentage >= 0.9) {
-        console.log('Auto-completing chapter due to scroll:', {
-          scrollPercentage,
-          mangaId: manga.id,
-          chapterId: chapter.id,
-          chapterNumber: chapter.chapterNumber
-        })
-        
-        setIsAutoCompleted(true) // Prevent multiple calls
-        
-        markChapterCompleted(manga.id, chapter.id, chapter.chapterNumber)
-          .then(() => {
-            console.log('Chapter auto-completed due to scroll')
-          })
-          .catch((error) => {
-            console.error('Failed to auto-complete chapter:', error)
-            setIsAutoCompleted(false) // Reset on error
-          })
-      }
-    }
-
-    // Throttle scroll events
-    let scrollTimeout: ReturnType<typeof setTimeout>
-    const throttledScroll = () => {
-      clearTimeout(scrollTimeout)
-      scrollTimeout = setTimeout(handleScroll, 500) // Check every 0.5 seconds max
-    }
-
-    window.addEventListener('scroll', throttledScroll)
-    return () => {
-      window.removeEventListener('scroll', throttledScroll)
-      clearTimeout(scrollTimeout)
-    }
-  }, [chapter, manga, images, markChapterCompleted, isAutoCompleted, isChapterCompleted])
-
   // Get image width class
+  const isInitialLoading = isInitialChapterLoading || isInitialImagesLoading || !sortedChapters || !activeEntry
+
   const getImageWidthClass = () => {
     switch (imageWidth) {
       case 'fit':
@@ -770,7 +1019,7 @@ export function ReaderPage() {
     }
   }
 
-  if (isLoading) {
+  if (isInitialLoading) {
     return (
       <div className="manga-reader flex items-center justify-center min-h-screen">
         <LoadingSpinner size="lg" />
@@ -778,7 +1027,7 @@ export function ReaderPage() {
     )
   }
 
-  if (!chapter || !images?.length) {
+  if (!activeChapter || activeImages.length === 0) {
     return (
       <div className="manga-reader flex items-center justify-center min-h-screen text-white">
         <div className="text-center">
@@ -884,18 +1133,18 @@ export function ReaderPage() {
                   onClick={() => setShowChapterList(true)}
                   className="font-semibold text-base hover:text-primary transition-colors w-full max-w-[64vw] sm:max-w-[460px] text-center truncate whitespace-nowrap"
                   style={{ minWidth: '40px' }}
-                  title={chapter ? formatChapterTitle(chapter) : ''}
+                  title={activeChapter ? formatChapterTitle(activeChapter) : ''}
                 >
-                  {finalTitle || (chapter ? formatChapterTitle(chapter) : '')}
+                  {finalTitle || (activeChapter ? formatChapterTitle(activeChapter) : '')}
                 </button>
                 <button
                   onClick={() => setShowChapterList(true)}
                   className="mt-1 inline-flex items-center gap-1 text-[10px] tracking-wide text-gray-300/80 hover:text-primary/80 transition px-2 py-0.5 rounded-full bg-white/5 border border-white/10"
                   title="Открыть список глав"
                 >
-                  <span className="font-medium">{currentChapterIndex + 1}</span>
+                  <span className="font-medium">{currentChapterOrdinal}</span>
                   <span className="opacity-60">/</span>
-                  <span>{sortedChapters?.length || 0}</span>
+                  <span>{totalChapters}</span>
                 </button>
               </div>
               <button
@@ -999,21 +1248,38 @@ export function ReaderPage() {
   {/* Main Content - Vertical Scroll */}
       <div className="pt-16">
         {/* Reading Area */}
-        <ChapterImageList
-          images={images}
-          imageWidth={imageWidth}
-          showUI={showUI}
-          previousChapter={previousChapter}
-          handleImageClick={handleImageClick}
-          handleTapOrClick={handleTapOrClick}
-          handleDoubleClickDesktop={handleDoubleClickDesktop}
-          handleTouchStartSwipe={handleTouchStartSwipe}
-          handleTouchMoveSwipe={handleTouchMoveSwipe}
-          handleTouchEndSwipe={handleTouchEndSwipe}
-          visibleIndexes={visibleIndexes}
-          setVisibleIndexes={setVisibleIndexes}
-          wrappersRef={wrappersRef}
-        />
+        <div className={cn("flex flex-col gap-12", readingMode === 'horizontal' ? 'md:px-8' : '')}>
+          {chapterEntries.map(entry => {
+            const prevMeta = sortedChapters?.[entry.index - 1]
+            return (
+              <ChapterBlock
+                key={entry.chapter?.id ?? entry.index}
+                entry={entry}
+                imageWidth={imageWidth}
+                showUI={showUI}
+                previousChapter={prevMeta}
+                handleImageClick={handleImageClick}
+                handleTapOrClick={handleTapOrClick}
+                handleDoubleClickDesktop={handleDoubleClickDesktop}
+                handleTouchStartSwipe={handleTouchStartSwipe}
+                handleTouchMoveSwipe={handleTouchMoveSwipe}
+                handleTouchEndSwipe={handleTouchEndSwipe}
+                onActivate={() => handleChapterActivated(entry.index)}
+                onNearBottom={() => handleNearBottom(entry.index)}
+                onNearTop={() => handleNearTop(entry.index)}
+                onCompleted={() => handleChapterCompleted(entry.index)}
+                onFocusChapter={() => handleChapterActivated(entry.index)}
+                isActive={entry.index === activeChapterIndex}
+              />
+            )
+          })}
+          {loadingForward && (
+            <div className="flex justify-center py-8 text-sm text-white/70">Загружаем следующую главу…</div>
+          )}
+          {loadingBackward && (
+            <div className="flex justify-center py-8 text-sm text-white/70">Загружаем предыдущую главу…</div>
+          )}
+        </div>
 
         {/* End-of-chapter action panel */}
         <div className="mt-12 mb-16">
@@ -1085,7 +1351,7 @@ export function ReaderPage() {
       </div>
 
       {/* Right vertical action bar */}
-      {chapter && (
+      {activeChapter && (
         <div className={cn(
           'fixed top-1/2 -translate-y-1/2 right-1.5 xs:right-2 sm:right-4 z-40 flex flex-col space-y-2 sm:space-y-3',
           showUI ? 'opacity-100' : 'opacity-0 pointer-events-none'
@@ -1106,12 +1372,12 @@ export function ReaderPage() {
           </button>
           <button
             onClick={handleChapterLike}
-            disabled={liking || isLiked}
-            className={cn('reader-fab', isLiked && 'text-red-400 opacity-80 cursor-default')}
-            title={isLiked ? 'Лайк уже поставлен' : 'Поставить лайк'}
-            aria-pressed={isLiked}
+            disabled={isActiveChapterLiking || isActiveChapterLiked}
+            className={cn('reader-fab', isActiveChapterLiked && 'text-red-400 opacity-80 cursor-default')}
+            title={isActiveChapterLiked ? 'Лайк уже поставлен' : 'Поставить лайк'}
+            aria-pressed={isActiveChapterLiked}
           >
-            <Heart className={cn('h-5 w-5', isLiked && 'fill-current')} />
+            <Heart className={cn('h-5 w-5', isActiveChapterLiked && 'fill-current')} />
           </button>
           <button
             onClick={() => setIsSettingsOpen(v=>!v)}
@@ -1143,11 +1409,11 @@ export function ReaderPage() {
             </div>
             <div className="flex-1 overflow-y-auto px-3 sm:px-4 pb-4 space-y-2" id="chapter-list-scroll">
               {sortedChapters?.map(ch => {
-                const active = ch.id === chapter.id
+                const active = ch.id === activeChapterId
                 return (
                   <button
                     key={ch.id}
-                    onClick={() => { navigate(`/reader/${ch.id}`); setShowChapterList(false) }}
+                    onClick={() => handleJumpToChapter(ch.id)}
                     className={cn('w-full text-left px-3 py-2 rounded-lg border text-sm flex items-center justify-between transition',
                       active ? 'bg-primary/20 border-primary/40 text-white' : 'bg-white/5 border-white/10 hover:bg-white/10 text-gray-300')}
                     data-active={active || undefined}
@@ -1163,7 +1429,7 @@ export function ReaderPage() {
       )}
 
       {/* Side comments panel */}
-      {showSideComments && chapter && (
+      {showSideComments && activeChapter && (
         <div className="fixed inset-0 z-50 flex">
           {/* Backdrop */}
           <div
@@ -1173,7 +1439,7 @@ export function ReaderPage() {
           {/* Panel */}
             <div className="relative ml-auto h-full w-full sm:w-[480px] md:w-[520px] bg-[#0f1115]/95 backdrop-blur-xl border-l border-white/10 flex flex-col animate-in slide-in-from-right">
               <div className="flex items-center justify-between p-4 border-b border-white/10">
-                <h3 className="text-white font-semibold text-sm sm:text-base">Комментарии к главе {getDisplayChapterNumber(chapter.chapterNumber)}</h3>
+                <h3 className="text-white font-semibold text-sm sm:text-base">Комментарии к главе {getDisplayChapterNumber(activeChapter.chapterNumber)}</h3>
                 <button
                   onClick={() => setShowSideComments(false)}
                   className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
@@ -1184,7 +1450,7 @@ export function ReaderPage() {
               </div>
               <div className="flex-1 overflow-y-auto px-3 sm:px-4 pb-4">
                 <CommentSection
-                  targetId={chapter.id}
+                  targetId={activeChapter.id}
                   type="CHAPTER"
                   title=""
                   maxLevel={3}
