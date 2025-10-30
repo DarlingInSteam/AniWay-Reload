@@ -706,6 +706,13 @@ export function ReaderPage() {
     if (!sortedChapters) return
     const entry = chapterEntriesRef.current.find(item => item.index === index)
     if (!entry) return
+    
+    // Only update if different and not currently pending a manual jump
+    if (pendingActiveIndexRef.current != null) {
+      // Manual navigation in progress, don't override
+      return
+    }
+    
     setActiveIndex(prev => prev === index ? prev : index)
 
     const chapterDetail = entry.chapter
