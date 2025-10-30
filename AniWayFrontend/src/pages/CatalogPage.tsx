@@ -1060,14 +1060,13 @@ export function CatalogPage() {
           <div className="hidden lg:block w-80 flex-shrink-0">
             <div className="sticky" style={{ top: filterOffset }}>
               <div
-                className="max-h-full overflow-y-auto pr-1"
-                style={filtersMaxHeight ? { maxHeight: `${filtersMaxHeight}px` } : undefined}
+                className="max-h-full overflow-y-auto"
+                style={filtersMaxHeight ? { maxHeight: `${filtersMaxHeight}px`, scrollbarWidth: 'thin' as React.CSSProperties['scrollbarWidth'] } : undefined}
               >
                 <MangaFilterPanel
                   initialFilters={memoizedFilterState}
                   onFiltersChange={handleFiltersChange}
                   appearance="desktop"
-                  className="h-full"
                 />
               </div>
             </div>
