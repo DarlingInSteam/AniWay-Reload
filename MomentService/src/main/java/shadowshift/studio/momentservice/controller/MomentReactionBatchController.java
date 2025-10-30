@@ -1,5 +1,6 @@
 package shadowshift.studio.momentservice.controller;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -25,12 +26,13 @@ public class MomentReactionBatchController {
 
     @GetMapping("/batch")
     public Map<Long, ReactionType> getUserReactions(@RequestHeader(value = "X-User-Id", required = false) String userHeader,
-                                                    @RequestParam(name = "ids", required = false) List<Long> ids) {
+                                                    @RequestParam(name = "ids", required = false) List<String> rawIds) {
         Long userId = parseUserIdAllowNull(userHeader);
         if (userId == null) {
             return Collections.emptyMap();
         }
-        if (ids == null || ids.isEmpty()) {
+        List<Long> ids = sanitizeIds(rawIds);
+        if (ids.isEmpty()) {
             return Collections.emptyMap();
         }
         return momentReactionService.findUserReactions(userId, ids);
@@ -45,6 +47,28 @@ public class MomentReactionBatchController {
         } catch (NumberFormatException ex) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid X-User-Id header");
         }
+    }
+
+    private List<Long> sanitizeIds(List<String> rawIds) {
+        if (rawIds == null || rawIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Long> sanitized = new ArrayList<>(rawIds.size());
+        for (String raw : rawIds) {
+            if (raw == null) {
+                continue;
+            }
+            String trimmed = raw.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            try {
+                sanitized.add(Long.parseLong(trimmed));
+            } catch (NumberFormatException ignored) {
+                // ignore malformed ids instead of failing the whole request
+            }
+        }
+        return sanitized;
     }
 
 }
