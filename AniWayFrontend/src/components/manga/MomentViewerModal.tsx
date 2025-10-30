@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { TouchEvent as ReactTouchEvent } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -44,6 +45,7 @@ export function MomentViewerModal({
   uploader
 }: MomentViewerModalProps) {
   const [revealed, setRevealed] = useState(false)
+  const touchStartYRef = useRef<number | null>(null)
 
   useEffect(() => {
     setRevealed(false)
@@ -96,10 +98,47 @@ export function MomentViewerModal({
     }
   }
 
+  const handleTouchStart = (event: ReactTouchEvent<HTMLDivElement>) => {
+    if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+      touchStartYRef.current = null
+      return
+    }
+    const touch = event.touches?.[0]
+    touchStartYRef.current = touch ? touch.clientY : null
+  }
+
+  const handleTouchEnd = (event: ReactTouchEvent<HTMLDivElement>) => {
+    if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+      touchStartYRef.current = null
+      return
+    }
+    const startY = touchStartYRef.current
+    const touch = event.changedTouches?.[0]
+    touchStartYRef.current = null
+    if (startY == null || !touch) {
+      return
+    }
+    const delta = startY - touch.clientY
+    if (Math.abs(delta) < 50) {
+      return
+    }
+    if (delta > 0) {
+      if (canNavigateNext) {
+        onNavigateNext()
+      }
+    } else if (canNavigatePrev) {
+      onNavigatePrev()
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next) { setRevealed(false); onClose() } }}>
-      <DialogContent className="max-w-5xl bg-black/95 border border-white/15 text-white">
-        <div className="pointer-events-none absolute right-4 top-1/2 flex -translate-y-1/2 flex-col gap-3">
+      <DialogContent
+        className="max-w-5xl bg-black/95 border border-white/15 text-white"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
+        <div className="pointer-events-none absolute inset-y-0 -right-16 hidden md:flex flex-col items-center justify-center gap-3">
           <Button
             type="button"
             size="icon"
