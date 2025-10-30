@@ -1066,6 +1066,58 @@ class ApiClient {
     });
   }
 
+  async getMomentUserReactions(momentIds: number[]): Promise<Record<number, MomentReactionType>> {
+    if (!momentIds || momentIds.length === 0) {
+      return {};
+    }
+    const params = new URLSearchParams();
+    momentIds.forEach((id) => {
+      if (id != null) {
+        params.append('ids', String(id));
+      }
+    });
+    if (!params.has('ids')) {
+      return {};
+    }
+    const query = params.toString();
+    const raw = await this.request<Record<string, MomentReactionType>>(`/moments/reactions/batch?${query}`);
+    const result: Record<number, MomentReactionType> = {};
+    if (raw) {
+      Object.entries(raw).forEach(([key, value]) => {
+        const id = Number(key);
+        if (!Number.isNaN(id) && value) {
+          result[id] = value;
+        }
+      });
+    }
+    return result;
+  }
+
+  async getMomentCommentsCount(momentIds: number[]): Promise<Record<number, number>> {
+    if (!momentIds || momentIds.length === 0) {
+      return {};
+    }
+    const params = new URLSearchParams();
+    params.set('type', 'MOMENT');
+    momentIds.forEach((id) => {
+      if (id != null) {
+        params.append('ids', String(id));
+      }
+    });
+    const query = params.toString();
+    const response = await this.request<{ counts?: Record<string, number> }>(`/comments/count/batch?${query}`);
+    const map: Record<number, number> = {};
+    if (response?.counts) {
+      Object.entries(response.counts).forEach(([key, value]) => {
+        const id = Number(key);
+        if (!Number.isNaN(id)) {
+          map[id] = typeof value === 'number' ? value : 0;
+        }
+      });
+    }
+    return map;
+  }
+
   async uploadMomentImage(
     file: File,
     metadata?: { mangaId?: number }

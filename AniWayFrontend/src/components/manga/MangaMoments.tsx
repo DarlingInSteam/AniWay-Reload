@@ -1,16 +1,21 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import { useInView } from 'react-intersection-observer'
 import { toast } from 'sonner'
 import { Flame, Heart, MessageCircle, Sparkles, ThumbsDown, Upload, Image as ImageIcon } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { apiClient } from '@/lib/api'
 import { cn, formatRelativeTime } from '@/lib/utils'
+import { buildProfileUrl } from '@/lib/profileUrl'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { MomentUploadDialog } from '@/components/manga/MomentUploadDialog'
 import { MomentViewerModal } from '@/components/manga/MomentViewerModal'
+import { useUserMiniBatch } from '@/hooks/useUserMiniBatch'
+import type { UserMini } from '@/hooks/useUserMiniBatch'
 import type { MomentPageResponse, MomentReactionType, MomentResponse, MomentSortOption } from '@/types/moments'
 
 interface MangaMomentsProps {
@@ -54,6 +59,38 @@ export function MangaMoments({ mangaId, mangaTitle }: MangaMomentsProps) {
 
   const pages = momentsQuery.data?.pages ?? []
   const moments = useMemo(() => pages.flatMap((page) => page.items), [pages])
+  const momentIds = useMemo(() => moments.map((item) => item.id), [moments])
+  const uploaderIds = useMemo(() => moments.map((item) => item.uploaderId), [moments])
+  const uploaderMap = useUserMiniBatch(uploaderIds)
+
+  const reactionsQuery = useQuery({
+    queryKey: ['moment-reactions', mangaId, sort, momentIds.join(',')],
+    queryFn: () => apiClient.getMomentUserReactions(momentIds),
+    enabled: isAuthenticated && momentIds.length > 0
+  })
+
+  const commentCountsQuery = useQuery({
+    queryKey: ['moment-comment-counts', mangaId, sort, momentIds.join(',')],
+    queryFn: () => apiClient.getMomentCommentsCount(momentIds),
+    enabled: momentIds.length > 0
+  })
+
+  const reactionMap = reactionsQuery.data ?? {}
+
+  const commentCountMap = useMemo(() => {
+    const base: Record<number, number> = {}
+    moments.forEach((moment) => {
+      base[moment.id] = moment.commentsCount
+    })
+    const extra = commentCountsQuery.data ?? {}
+    Object.entries(extra as Record<string, number>).forEach(([key, value]) => {
+      const id = Number(key)
+      if (!Number.isNaN(id)) {
+        base[id] = typeof value === 'number' ? value : 0
+      }
+    })
+    return base
+  }, [moments, commentCountsQuery.data])
 
   const { ref: sentinelRef, inView } = useInView({ threshold: 0.5 })
 
@@ -162,6 +199,15 @@ export function MangaMoments({ mangaId, mangaTitle }: MangaMomentsProps) {
   }, [injectCreatedMoment, sort])
 
   const activeMoment = useMemo(() => moments.find((item) => item.id === activeMomentId) ?? null, [moments, activeMomentId])
+  const enrichedActiveMoment = useMemo(() => {
+    if (!activeMoment) {
+      return null
+    }
+    const commentCount = commentCountMap[activeMoment.id] ?? activeMoment.commentsCount
+    const userReaction = reactionMap[activeMoment.id] ?? activeMoment.userReaction ?? null
+    return { ...activeMoment, commentsCount: commentCount, userReaction }
+  }, [activeMoment, commentCountMap, reactionMap])
+  const activeUploader = enrichedActiveMoment ? uploaderMap[enrichedActiveMoment.uploaderId] : undefined
   const currentMomentIndex = useMemo(() => {
     if (!activeMomentId) return -1
     return moments.findIndex((item) => item.id === activeMomentId)
@@ -314,6 +360,9 @@ export function MangaMoments({ mangaId, mangaTitle }: MangaMomentsProps) {
               onToggleReaction={handleToggleReaction}
               onClearReaction={handleClearReaction}
               disabled={isProcessing(moment.id)}
+              commentCount={commentCountMap[moment.id] ?? moment.commentsCount}
+              userReaction={reactionMap[moment.id] ?? moment.userReaction ?? null}
+              uploader={uploaderMap[moment.uploaderId]}
             />
           ))}
         </div>
@@ -326,8 +375,8 @@ export function MangaMoments({ mangaId, mangaTitle }: MangaMomentsProps) {
       )}
 
       <MomentViewerModal
-        moment={activeMoment}
-        open={viewerOpen && !!activeMoment}
+        moment={enrichedActiveMoment}
+        open={viewerOpen && !!enrichedActiveMoment}
         onClose={handleViewerClose}
         onToggleReaction={handleToggleReaction}
         onClearReaction={handleClearReaction}
@@ -338,6 +387,7 @@ export function MangaMoments({ mangaId, mangaTitle }: MangaMomentsProps) {
         canNavigatePrev={canNavigatePrev}
         canNavigateNext={canNavigateNext}
         isNextLoading={isNextLoading}
+        uploader={activeUploader}
       />
     </div>
   )
@@ -349,12 +399,19 @@ interface MomentCardProps {
   onToggleReaction: (moment: MomentResponse, reaction: MomentReactionType) => void
   onClearReaction: (moment: MomentResponse) => void
   disabled: boolean
+  commentCount: number
+  userReaction: MomentReactionType | null
+  uploader?: UserMini
 }
 
-function MomentCard({ moment, onOpen, onToggleReaction, onClearReaction, disabled }: MomentCardProps) {
-  const isLiked = moment.userReaction === 'LIKE'
-  const isDisliked = moment.userReaction === 'DISLIKE'
+function MomentCard({ moment, onOpen, onToggleReaction, onClearReaction, disabled, commentCount, userReaction, uploader }: MomentCardProps) {
+  const reaction = userReaction ?? moment.userReaction ?? null
+  const isLiked = reaction === 'LIKE'
+  const isDisliked = reaction === 'DISLIKE'
   const showWarning = moment.nsfw || moment.spoiler
+  const displayName = uploader?.displayName || uploader?.username || `Пользователь ${moment.uploaderId}`
+  const profileUrl = uploader ? buildProfileUrl(uploader.id, uploader.displayName, uploader.username) : undefined
+  const initials = displayName.slice(0, 2).toUpperCase()
 
   const handleLike = () => {
     if (isLiked) {
@@ -398,6 +455,36 @@ function MomentCard({ moment, onOpen, onToggleReaction, onClearReaction, disable
         )}
       </div>
       <div className="space-y-3 p-4">
+        <div className="flex items-center justify-between gap-3">
+          {profileUrl ? (
+            <Link
+              to={profileUrl}
+              onClick={(event) => event.stopPropagation()}
+              className="flex items-center gap-3 text-sm font-medium text-white/85 hover:text-white"
+            >
+              <Avatar className="h-10 w-10 border border-white/10 bg-white/10">
+                {uploader?.avatar ? (
+                  <AvatarImage src={uploader.avatar} alt={displayName} />
+                ) : (
+                  <AvatarFallback>{initials}</AvatarFallback>
+                )}
+              </Avatar>
+              {displayName}
+            </Link>
+          ) : (
+            <div className="flex items-center gap-3">
+              <Avatar className="h-10 w-10 border border-white/10 bg-white/10">
+                {uploader?.avatar ? (
+                  <AvatarImage src={uploader.avatar} alt={displayName} />
+                ) : (
+                  <AvatarFallback>{initials}</AvatarFallback>
+                )}
+              </Avatar>
+              <span className="text-sm font-medium text-white/80">{displayName}</span>
+            </div>
+          )}
+          <span className="text-xs text-white/50">{formatRelativeTime(moment.createdAt)}</span>
+        </div>
         <div className="flex items-center gap-2 text-xs text-white/50">
           <span>Обновлено {formatRelativeTime(moment.lastActivityAt)}</span>
           {moment.chapterId && (
@@ -441,7 +528,7 @@ function MomentCard({ moment, onOpen, onToggleReaction, onClearReaction, disable
           </div>
           <div className="flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs text-white/80">
             <MessageCircle className="h-4 w-4" />
-            {moment.commentsCount}
+            {commentCount}
           </div>
         </div>
       </div>

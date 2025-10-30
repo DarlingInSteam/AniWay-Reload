@@ -1,7 +1,9 @@
 package shadowshift.studio.momentservice.service;
 
 import java.time.Instant;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -144,5 +146,24 @@ public class MomentReactionService {
         } catch (Exception ex) {
             log.error("Failed to publish MOMENT_LIKE_RECEIVED event: {}", ex.getMessage());
         }
+    }
+
+    @Transactional(readOnly = true)
+    public Map<Long, ReactionType> findUserReactions(Long userId, List<Long> momentIds) {
+        if (userId == null || momentIds == null || momentIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<MomentReaction> reactions = momentReactionRepository.findByUserIdAndMomentIdIn(userId, momentIds);
+        if (reactions.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Long, ReactionType> map = new HashMap<>();
+        for (MomentReaction reaction : reactions) {
+            Moment moment = reaction.getMoment();
+            if (moment != null && moment.getId() != null) {
+                map.putIfAbsent(moment.getId(), reaction.getReaction());
+            }
+        }
+        return map;
     }
 }

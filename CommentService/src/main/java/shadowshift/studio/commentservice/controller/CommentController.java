@@ -18,6 +18,7 @@ import shadowshift.studio.commentservice.service.CommentService;
 
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Map;
 
 
 /**
@@ -241,6 +242,22 @@ public class CommentController {
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error getting comments count for target {} with type {}", targetId, type, e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+    }
+
+    @GetMapping("/count/batch")
+    public ResponseEntity<CommentCountBatchResponseDTO> getCommentsCountBatch(
+            @RequestParam CommentType type,
+            @RequestParam("ids") List<Long> targetIds) {
+        try {
+            Map<Long, Long> counts = commentService.getCommentsCountBatch(targetIds, type);
+            CommentCountBatchResponseDTO response = CommentCountBatchResponseDTO.builder()
+                    .counts(counts)
+                    .build();
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error getting batch comment counts for ids {} and type {}", targetIds, type, e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
     }

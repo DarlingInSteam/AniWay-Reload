@@ -7,6 +7,10 @@ import { cn, formatRelativeTime } from '@/lib/utils'
 import type { MomentReactionType, MomentResponse } from '@/types/moments'
 import { Heart, ThumbsDown, MessageCircle, ArrowUp, ArrowDown } from 'lucide-react'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
+import { buildProfileUrl } from '@/lib/profileUrl'
+import { Link } from 'react-router-dom'
+import type { UserMini } from '@/hooks/useUserMiniBatch'
 
 interface MomentViewerModalProps {
   moment: MomentResponse | null
@@ -21,6 +25,7 @@ interface MomentViewerModalProps {
   canNavigatePrev: boolean
   canNavigateNext: boolean
   isNextLoading?: boolean
+  uploader?: UserMini
 }
 
 export function MomentViewerModal({
@@ -35,7 +40,8 @@ export function MomentViewerModal({
   onNavigateNext,
   canNavigatePrev,
   canNavigateNext,
-  isNextLoading = false
+  isNextLoading = false,
+  uploader
 }: MomentViewerModalProps) {
   const [revealed, setRevealed] = useState(false)
 
@@ -70,6 +76,9 @@ export function MomentViewerModal({
 
   const { spoiler, nsfw, userReaction } = effectiveMoment
   const showWarning = (spoiler || nsfw) && !revealed
+  const displayName = uploader?.displayName || uploader?.username || `Пользователь ${effectiveMoment.uploaderId}`
+  const profileUrl = uploader ? buildProfileUrl(uploader.id, uploader.displayName, uploader.username) : undefined
+  const initials = displayName.slice(0, 2).toUpperCase()
 
   const handleLike = () => {
     if (userReaction === 'LIKE') {
@@ -119,6 +128,30 @@ export function MomentViewerModal({
             Момент #{effectiveMoment.id}
           </DialogTitle>
         </DialogHeader>
+        <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Avatar className="h-11 w-11 border border-white/10 bg-white/10">
+              {uploader?.avatar ? (
+                <AvatarImage src={uploader.avatar} alt={displayName} />
+              ) : (
+                <AvatarFallback>{initials}</AvatarFallback>
+              )}
+            </Avatar>
+            <div className="flex flex-col">
+              {profileUrl ? (
+                <Link to={profileUrl} className="text-base font-semibold text-white hover:text-primary" onClick={(event) => event.stopPropagation()}>
+                  {displayName}
+                </Link>
+              ) : (
+                <span className="text-base font-semibold text-white/85">{displayName}</span>
+              )}
+              <span className="text-xs text-white/50">Создано {formatRelativeTime(effectiveMoment.createdAt)}</span>
+            </div>
+          </div>
+          <div className="text-xs text-white/60">
+            Обновлено {formatRelativeTime(effectiveMoment.lastActivityAt)}
+          </div>
+        </div>
         <div className="grid gap-6 md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
           <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-black/60">
             <img
@@ -151,8 +184,6 @@ export function MomentViewerModal({
                 {effectiveMoment.caption || 'Без подписи'}
               </p>
               <div className="text-sm text-white/50 space-y-1">
-                <div>Обновлено: {formatRelativeTime(effectiveMoment.lastActivityAt)}</div>
-                <div>Создано: {formatRelativeTime(effectiveMoment.createdAt)}</div>
                 {effectiveMoment.chapterId && (
                   <div>Глава: {effectiveMoment.chapterId}{effectiveMoment.pageNumber ? `, страница ${effectiveMoment.pageNumber}` : ''}</div>
                 )}

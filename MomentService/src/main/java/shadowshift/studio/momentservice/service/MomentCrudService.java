@@ -1,7 +1,10 @@
 package shadowshift.studio.momentservice.service;
 
 import java.time.Instant;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -113,8 +116,18 @@ public class MomentCrudService {
         Page<Moment> result = includeHidden
             ? momentRepository.findByMangaId(mangaId, pageable)
             : momentRepository.findByMangaIdAndHiddenFalse(mangaId, pageable);
-        List<MomentDtos.MomentResponse> items = result.getContent().stream()
-            .map(moment -> mapMoment(moment, viewerId))
+        List<Moment> moments = result.getContent();
+        final Map<Long, ReactionType> viewerReactions;
+        if (viewerId != null && !moments.isEmpty()) {
+            List<Long> ids = moments.stream()
+                .map(Moment::getId)
+                .toList();
+            viewerReactions = loadViewerReactions(viewerId, ids);
+        } else {
+            viewerReactions = Collections.emptyMap();
+        }
+        List<MomentDtos.MomentResponse> items = moments.stream()
+            .map(moment -> mapMoment(moment, viewerId, viewerReactions))
             .toList();
         return new MomentDtos.MomentPageResponse(items, result.getNumber(), result.getSize(), result.getTotalElements(), result.hasNext());
     }
@@ -146,6 +159,10 @@ public class MomentCrudService {
     }
 
     MomentDtos.MomentResponse mapMoment(Moment entity, Long viewerId) {
+        return mapMoment(entity, viewerId, null);
+    }
+
+    MomentDtos.MomentResponse mapMoment(Moment entity, Long viewerId, Map<Long, ReactionType> preloadedReactions) {
         MomentDtos.ImagePayload image = new MomentDtos.ImagePayload(
             entity.getImageUrl(),
             entity.getImageKey(),
@@ -153,7 +170,7 @@ public class MomentCrudService {
             entity.getImageHeight(),
             entity.getFileSize()
         );
-        ReactionType viewerReaction = resolveViewerReaction(entity.getId(), viewerId);
+        ReactionType viewerReaction = resolveViewerReaction(entity.getId(), viewerId, preloadedReactions);
         return new MomentDtos.MomentResponse(
             entity.getId(),
             entity.getMangaId(),
@@ -206,13 +223,33 @@ public class MomentCrudService {
         );
     }
 
-    private ReactionType resolveViewerReaction(Long momentId, Long viewerId) {
+    private ReactionType resolveViewerReaction(Long momentId, Long viewerId, Map<Long, ReactionType> preloadedReactions) {
         if (viewerId == null) {
             return null;
+        }
+        if (preloadedReactions != null && preloadedReactions.containsKey(momentId)) {
+            return preloadedReactions.get(momentId);
         }
         return momentReactionRepository.findByMomentIdAndUserId(momentId, viewerId)
             .map(MomentReaction::getReaction)
             .orElse(null);
+    }
+
+    private Map<Long, ReactionType> loadViewerReactions(Long viewerId, List<Long> momentIds) {
+        if (momentIds == null || momentIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<MomentReaction> reactions = momentReactionRepository.findByUserIdAndMomentIdIn(viewerId, momentIds);
+        if (reactions.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Long, ReactionType> map = new HashMap<>();
+        for (MomentReaction reaction : reactions) {
+            if (reaction.getMoment() != null && reaction.getMoment().getId() != null) {
+                map.putIfAbsent(reaction.getMoment().getId(), reaction.getReaction());
+            }
+        }
+        return map;
     }
 
     private void validateCreateRequest(MomentDtos.CreateMomentRequest request) {

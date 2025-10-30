@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -342,6 +343,35 @@ public class CommentService {
         log.info("Getting comments count for target {} with type {}", targetId, type);
 
         return commentRepository.countByTargetIdAndCommentTypeAndIsDeleted(targetId, type, false);
+    }
+
+    public Map<Long, Long> getCommentsCountBatch(List<Long> targetIds, CommentType type) {
+        if (targetIds == null || targetIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Object[]> rows = commentRepository.countByTypeAndTargetIds(type, targetIds);
+        Map<Long, Long> result = new HashMap<>();
+        for (Long id : targetIds) {
+            if (id != null) {
+                result.put(id, 0L);
+            }
+        }
+        for (Object[] row : rows) {
+            if (row == null || row.length < 2) {
+                continue;
+            }
+            Object idObj = row[0];
+            Object countObj = row[1];
+            if (!(idObj instanceof Long id)) {
+                continue;
+            }
+            long count = 0L;
+            if (countObj instanceof Number number) {
+                count = number.longValue();
+            }
+            result.put(id, count);
+        }
+        return result;
     }
 
     /**
