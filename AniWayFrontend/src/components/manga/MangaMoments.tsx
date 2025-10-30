@@ -35,6 +35,7 @@ export function MangaMoments({ mangaId, mangaTitle }: MangaMomentsProps) {
   const [sort, setSort] = useState<MomentSortOption>('new')
   const [activeMomentId, setActiveMomentId] = useState<number | null>(null)
   const [viewerOpen, setViewerOpen] = useState(false)
+  const [pendingNavigation, setPendingNavigation] = useState<'next' | null>(null)
 
   const queryKey = useMemo(() => ['manga-moments', mangaId, sort] as const, [mangaId, sort])
 
@@ -157,16 +158,26 @@ export function MangaMoments({ mangaId, mangaTitle }: MangaMomentsProps) {
     if (sort !== 'new') {
       toast.info('Новый момент доступен во вкладке "Новые"')
     }
+    setPendingNavigation(null)
   }, [injectCreatedMoment, sort])
 
   const activeMoment = useMemo(() => moments.find((item) => item.id === activeMomentId) ?? null, [moments, activeMomentId])
+  const currentMomentIndex = useMemo(() => {
+    if (!activeMomentId) return -1
+    return moments.findIndex((item) => item.id === activeMomentId)
+  }, [moments, activeMomentId])
+  const canNavigatePrev = currentMomentIndex > 0
+  const canNavigateNext = currentMomentIndex >= 0 && (currentMomentIndex < moments.length - 1 || momentsQuery.hasNextPage)
+  const isNextLoading = currentMomentIndex >= 0 && currentMomentIndex === moments.length - 1 && momentsQuery.isFetchingNextPage
 
   const handleOpenMoment = (momentId: number) => {
     setActiveMomentId(momentId)
     setViewerOpen(true)
+    setPendingNavigation(null)
   }
 
   const handleViewerClose = () => {
+    setPendingNavigation(null)
     setViewerOpen(false)
   }
 
@@ -194,6 +205,50 @@ export function MangaMoments({ mangaId, mangaTitle }: MangaMomentsProps) {
       momentsQuery.fetchNextPage()
     }
   }, [momentsQuery.hasNextPage, momentsQuery.isFetchingNextPage, momentsQuery.fetchNextPage])
+
+  const handleNavigatePrev = useCallback(() => {
+    if (currentMomentIndex <= 0) return
+    setPendingNavigation(null)
+    const previous = moments[currentMomentIndex - 1]
+    if (previous) {
+      setActiveMomentId(previous.id)
+    }
+  }, [currentMomentIndex, moments])
+
+  const handleNavigateNext = useCallback(() => {
+    if (currentMomentIndex === -1) return
+    const nextIndex = currentMomentIndex + 1
+    const nextMoment = moments[nextIndex]
+    if (nextMoment) {
+      setPendingNavigation(null)
+      setActiveMomentId(nextMoment.id)
+      return
+    }
+    if (pendingNavigation === 'next') return
+    if (momentsQuery.hasNextPage) {
+      setPendingNavigation('next')
+      if (!momentsQuery.isFetchingNextPage) {
+        momentsQuery.fetchNextPage()
+      }
+    }
+  }, [currentMomentIndex, moments, momentsQuery.hasNextPage, momentsQuery.isFetchingNextPage, momentsQuery.fetchNextPage, pendingNavigation])
+
+  useEffect(() => {
+    if (pendingNavigation !== 'next') return
+    if (currentMomentIndex === -1) return
+    const nextIndex = currentMomentIndex + 1
+    if (nextIndex < moments.length) {
+      const nextMoment = moments[nextIndex]
+      if (nextMoment) {
+        setActiveMomentId(nextMoment.id)
+        setPendingNavigation(null)
+      }
+      return
+    }
+    if (!momentsQuery.hasNextPage || !momentsQuery.isFetchingNextPage) {
+      setPendingNavigation(null)
+    }
+  }, [pendingNavigation, currentMomentIndex, moments, momentsQuery.hasNextPage, momentsQuery.isFetchingNextPage])
 
   useEffect(() => {
     if (inView) {
@@ -278,6 +333,11 @@ export function MangaMoments({ mangaId, mangaTitle }: MangaMomentsProps) {
         onClearReaction={handleClearReaction}
         isProcessing={isProcessing}
         onCommentCountChange={handleCommentCountChange}
+        onNavigatePrev={handleNavigatePrev}
+        onNavigateNext={handleNavigateNext}
+        canNavigatePrev={canNavigatePrev}
+        canNavigateNext={canNavigateNext}
+        isNextLoading={isNextLoading}
       />
     </div>
   )

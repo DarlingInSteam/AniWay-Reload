@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button'
 import { CommentSection } from '@/components/comments/CommentSection'
 import { cn, formatRelativeTime } from '@/lib/utils'
 import type { MomentReactionType, MomentResponse } from '@/types/moments'
-import { Heart, ThumbsDown, MessageCircle } from 'lucide-react'
+import { Heart, ThumbsDown, MessageCircle, ArrowUp, ArrowDown } from 'lucide-react'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 
 interface MomentViewerModalProps {
   moment: MomentResponse | null
@@ -15,6 +16,11 @@ interface MomentViewerModalProps {
   onClearReaction: (moment: MomentResponse) => void
   isProcessing: (momentId: number) => boolean
   onCommentCountChange: (momentId: number, nextCount: number) => void
+  onNavigatePrev: () => void
+  onNavigateNext: () => void
+  canNavigatePrev: boolean
+  canNavigateNext: boolean
+  isNextLoading?: boolean
 }
 
 export function MomentViewerModal({
@@ -24,13 +30,37 @@ export function MomentViewerModal({
   onToggleReaction,
   onClearReaction,
   isProcessing,
-  onCommentCountChange
+  onCommentCountChange,
+  onNavigatePrev,
+  onNavigateNext,
+  canNavigatePrev,
+  canNavigateNext,
+  isNextLoading = false
 }: MomentViewerModalProps) {
   const [revealed, setRevealed] = useState(false)
 
   useEffect(() => {
     setRevealed(false)
   }, [moment?.id])
+
+  useEffect(() => {
+    if (!open) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        if (canNavigatePrev) {
+          onNavigatePrev()
+        }
+      } else if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        if (canNavigateNext) {
+          onNavigateNext()
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [open, canNavigatePrev, canNavigateNext, onNavigatePrev, onNavigateNext])
 
   const effectiveMoment = useMemo(() => moment, [moment])
 
@@ -59,7 +89,31 @@ export function MomentViewerModal({
 
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next) { setRevealed(false); onClose() } }}>
-      <DialogContent className="max-w-5xl bg-black/95 border border-white/15 text-white">
+      <DialogContent className="relative max-w-5xl bg-black/95 border border-white/15 text-white">
+        <div className="pointer-events-none absolute right-4 top-1/2 flex -translate-y-1/2 flex-col gap-3">
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            className="pointer-events-auto bg-white/10 text-white hover:bg-white/20"
+            onClick={onNavigatePrev}
+            disabled={!canNavigatePrev}
+            aria-label="Предыдущий момент"
+          >
+            <ArrowUp className="h-5 w-5" />
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            className="pointer-events-auto bg-white/10 text-white hover:bg-white/20"
+            onClick={onNavigateNext}
+            disabled={!canNavigateNext}
+            aria-label="Следующий момент"
+          >
+            {isNextLoading ? <LoadingSpinner size="sm" /> : <ArrowDown className="h-5 w-5" />}
+          </Button>
+        </div>
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">
             Момент #{effectiveMoment.id}
