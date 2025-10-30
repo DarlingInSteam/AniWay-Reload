@@ -45,11 +45,50 @@ export function MomentViewerModal({
   uploader
 }: MomentViewerModalProps) {
   const [revealed, setRevealed] = useState(false)
+  const [isDesktop, setIsDesktop] = useState<boolean>(() => {
+    if (typeof window === 'undefined') {
+      return true
+    }
+    return window.innerWidth >= 1024
+  })
+  const [showComments, setShowComments] = useState<boolean>(() => {
+    if (typeof window === 'undefined') {
+      return true
+    }
+    return window.innerWidth >= 1024
+  })
   const touchStartYRef = useRef<number | null>(null)
 
   useEffect(() => {
     setRevealed(false)
   }, [moment?.id])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    const handleResize = () => {
+      const nextIsDesktop = window.innerWidth >= 1024
+      setIsDesktop(nextIsDesktop)
+    }
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  useEffect(() => {
+    if (isDesktop) {
+      setShowComments(true)
+    } else {
+      setShowComments(false)
+    }
+  }, [isDesktop, moment?.id])
+
+  useEffect(() => {
+    if (!open && !isDesktop) {
+      setShowComments(false)
+    }
+  }, [open, isDesktop])
 
   useEffect(() => {
     if (!open) return
@@ -138,7 +177,7 @@ export function MomentViewerModal({
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        <div className="pointer-events-none absolute inset-y-0 -right-16 hidden md:flex flex-col items-center justify-center gap-3">
+  <div className="pointer-events-none absolute inset-y-0 -right-16 hidden lg:flex flex-col items-center justify-center gap-3">
           <Button
             type="button"
             size="icon"
@@ -191,12 +230,12 @@ export function MomentViewerModal({
             Обновлено {formatRelativeTime(effectiveMoment.lastActivityAt)}
           </div>
         </div>
-        <div className="grid gap-6 md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
-          <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-black/60">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+          <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-black/60 flex items-center justify-center max-h-[75vh]">
             <img
               src={effectiveMoment.image.url}
               alt={effectiveMoment.caption}
-              className={cn('w-full h-full object-contain transition-filter duration-300', showWarning ? 'blur-xl select-none' : '')}
+              className={cn('max-h-[75vh] w-full object-contain transition-filter duration-300', showWarning ? 'blur-xl select-none' : '')}
             />
             {showWarning && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black/80 text-center px-6">
@@ -256,16 +295,39 @@ export function MomentViewerModal({
               </div>
             </div>
 
-            <div className="h-px bg-white/10" />
-
-            <div className="max-h-[420px] overflow-y-auto pr-1">
-              <CommentSection
-                targetId={effectiveMoment.id}
-                type="MOMENT"
-                title="Комментарии"
-                onCountChange={(count) => onCommentCountChange(effectiveMoment.id, count)}
-              />
-            </div>
+            {isDesktop ? (
+              <>
+                <div className="h-px bg-white/10" />
+                <div className="max-h-[420px] overflow-y-auto pr-1">
+                  <CommentSection
+                    targetId={effectiveMoment.id}
+                    type="MOMENT"
+                    title="Комментарии"
+                    onCountChange={(count) => onCommentCountChange(effectiveMoment.id, count)}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="space-y-3">
+                <Button
+                  variant="outline"
+                  className="w-full border-white/20 text-white/80 hover:bg-white/10"
+                  onClick={() => setShowComments((prev) => !prev)}
+                >
+                  {showComments ? 'Скрыть комментарии' : `Показать комментарии (${effectiveMoment.commentsCount})`}
+                </Button>
+                {showComments && (
+                  <div className="max-h-[60vh] overflow-y-auto rounded-2xl border border-white/10 bg-white/5 pr-1">
+                    <CommentSection
+                      targetId={effectiveMoment.id}
+                      type="MOMENT"
+                      title="Комментарии"
+                      onCountChange={(count) => onCommentCountChange(effectiveMoment.id, count)}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </DialogContent>
