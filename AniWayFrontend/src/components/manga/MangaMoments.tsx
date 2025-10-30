@@ -63,19 +63,11 @@ export function MangaMoments({ mangaId, mangaTitle }: MangaMomentsProps) {
   const uploaderIds = useMemo(() => moments.map((item) => item.uploaderId), [moments])
   const uploaderMap = useUserMiniBatch(uploaderIds)
 
-  const reactionsQuery = useQuery({
-    queryKey: ['moment-reactions', mangaId, sort, momentIds.join(',')],
-    queryFn: () => apiClient.getMomentUserReactions(momentIds),
-    enabled: isAuthenticated && momentIds.length > 0
-  })
-
   const commentCountsQuery = useQuery({
     queryKey: ['moment-comment-counts', mangaId, sort, momentIds.join(',')],
     queryFn: () => apiClient.getMomentCommentsCount(momentIds),
     enabled: momentIds.length > 0
   })
-
-  const reactionMap = reactionsQuery.data ?? {}
 
   const commentCountMap = useMemo(() => {
     const base: Record<number, number> = {}
@@ -204,9 +196,8 @@ export function MangaMoments({ mangaId, mangaTitle }: MangaMomentsProps) {
       return null
     }
     const commentCount = commentCountMap[activeMoment.id] ?? activeMoment.commentsCount
-    const userReaction = reactionMap[activeMoment.id] ?? activeMoment.userReaction ?? null
-    return { ...activeMoment, commentsCount: commentCount, userReaction }
-  }, [activeMoment, commentCountMap, reactionMap])
+    return { ...activeMoment, commentsCount: commentCount }
+  }, [activeMoment, commentCountMap])
   const activeUploader = enrichedActiveMoment ? uploaderMap[enrichedActiveMoment.uploaderId] : undefined
   const currentMomentIndex = useMemo(() => {
     if (!activeMomentId) return -1
@@ -361,7 +352,6 @@ export function MangaMoments({ mangaId, mangaTitle }: MangaMomentsProps) {
               onClearReaction={handleClearReaction}
               disabled={isProcessing(moment.id)}
               commentCount={commentCountMap[moment.id] ?? moment.commentsCount}
-              userReaction={reactionMap[moment.id] ?? moment.userReaction ?? null}
               uploader={uploaderMap[moment.uploaderId]}
             />
           ))}
@@ -400,12 +390,11 @@ interface MomentCardProps {
   onClearReaction: (moment: MomentResponse) => void
   disabled: boolean
   commentCount: number
-  userReaction: MomentReactionType | null
   uploader?: UserMini
 }
 
-function MomentCard({ moment, onOpen, onToggleReaction, onClearReaction, disabled, commentCount, userReaction, uploader }: MomentCardProps) {
-  const reaction = userReaction ?? moment.userReaction ?? null
+function MomentCard({ moment, onOpen, onToggleReaction, onClearReaction, disabled, commentCount, uploader }: MomentCardProps) {
+  const reaction = moment.userReaction ?? null
   const isLiked = reaction === 'LIKE'
   const isDisliked = reaction === 'DISLIKE'
   const showWarning = moment.nsfw || moment.spoiler
