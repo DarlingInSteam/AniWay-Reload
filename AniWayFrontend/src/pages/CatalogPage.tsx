@@ -1060,7 +1060,7 @@ export function CatalogPage() {
           <div className="hidden lg:block w-80 flex-shrink-0">
             <div className="sticky" style={{ top: filterOffset }}>
               <div
-                className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md shadow-[0_24px_48px_-28px_rgba(0,0,0,0.6)]"
+                className="overflow-hidden"
                 style={filtersMaxHeight ? { maxHeight: `${filtersMaxHeight}px` } : undefined}
               >
                 <MangaFilterPanel
