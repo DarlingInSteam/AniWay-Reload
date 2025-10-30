@@ -240,22 +240,9 @@ const ChapterBlock = ({
   onFocusChapter,
   isActive
 }: ChapterBlockProps) => {
-  const containerRef = useRef<HTMLDivElement | null>(null)
   const topSentinelRef = useRef<HTMLDivElement | null>(null)
   const bottomSentinelRef = useRef<HTMLDivElement | null>(null)
   const completionSentinelRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    const node = containerRef.current
-    if (!node) return
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) onActivate()
-      })
-    }, { rootMargin: '-45% 0px -45% 0px', threshold: 0.25 })
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [onActivate])
 
   useEffect(() => {
     const node = topSentinelRef.current
@@ -269,6 +256,20 @@ const ChapterBlock = ({
     observer.observe(node)
     return () => observer.disconnect()
   }, [onNearTop])
+
+  useEffect(() => {
+    const node = topSentinelRef.current
+    if (!node) return
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting && entry.boundingClientRect.top >= 0) {
+          onActivate()
+        }
+      })
+    }, { rootMargin: '0px 0px -75% 0px', threshold: 0 })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [onActivate])
 
   useEffect(() => {
     const node = bottomSentinelRef.current
@@ -296,11 +297,26 @@ const ChapterBlock = ({
 
   return (
     <section
-      ref={containerRef}
       data-chapter-id={entry.chapter?.id}
       className={cn('relative transition-opacity duration-300', isActive ? 'opacity-100' : 'opacity-100')}
     >
       <div ref={topSentinelRef} aria-hidden className="h-1 w-full" />
+      {entry.chapter && (
+        <div className="relative py-10">
+          {entry.index !== 0 && (
+            <div className="text-center mb-3 text-[10px] uppercase tracking-[0.35em] text-white/40">
+              Следующая глава
+            </div>
+          )}
+          <div className="flex items-center gap-4">
+            <span className="flex-1 h-px bg-white/10" />
+            <div className="max-w-[80vw] sm:max-w-3xl px-4 py-2 rounded-full border border-white/15 bg-black/70 backdrop-blur text-xs sm:text-sm font-medium text-white/80 truncate">
+              {formatChapterTitle(entry.chapter)}
+            </div>
+            <span className="flex-1 h-px bg-white/10" />
+          </div>
+        </div>
+      )}
       <ChapterImageList
         images={entry.images}
         imageWidth={imageWidth}
@@ -833,42 +849,48 @@ export function ReaderPage() {
   }
 
   const handleTapOrClick = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!('touches' in e) && !('changedTouches' in (e as any))) {
-      return
-    }
-    let clientX: number
-    let clientY: number
+    let clientX: number | null = null
+    let clientY: number | null = null
+
     if ('touches' in e && e.touches.length > 0) {
       clientX = e.touches[0].clientX
       clientY = e.touches[0].clientY
     } else if ('changedTouches' in (e as any) && (e as any).changedTouches.length > 0) {
       clientX = (e as any).changedTouches[0].clientX
       clientY = (e as any).changedTouches[0].clientY
-    } else {
-      return
+    } else if ('clientX' in e && 'clientY' in e) {
+      // Desktop click path
+      clientX = (e as React.MouseEvent).clientX
+      clientY = (e as React.MouseEvent).clientY
     }
+
     const now = Date.now()
-    const delta = now - lastTap
-    if (delta > 0 && delta < 280 && !touchMovedRef.current) {
-      if (pendingUiToggleRef.current) {
-        clearTimeout(pendingUiToggleRef.current)
-        pendingUiToggleRef.current = null
+
+    if (clientX != null && clientY != null) {
+      const delta = now - lastTap
+      const isDoubleTap = delta > 0 && delta < 280 && !touchMovedRef.current
+
+      if (isDoubleTap) {
+        if (pendingUiToggleRef.current) {
+          clearTimeout(pendingUiToggleRef.current)
+          pendingUiToggleRef.current = null
+        }
+        setShowUI((prev) => (prev === initialShowUIRef.current ? prev : initialShowUIRef.current))
+        attemptLikeFromGesture(clientX, clientY)
+        setLastTap(0)
+        return
       }
-      // Restore UI state if the first tap toggled it already
-      setShowUI((prev) => (prev === initialShowUIRef.current ? prev : initialShowUIRef.current))
-      attemptLikeFromGesture(clientX, clientY)
-      setLastTap(0)
-    } else {
-      initialShowUIRef.current = showUI
-      if (pendingUiToggleRef.current) {
-        clearTimeout(pendingUiToggleRef.current)
-      }
-      pendingUiToggleRef.current = setTimeout(() => {
-        setShowUI((prev) => !prev)
-        pendingUiToggleRef.current = null
-      }, 260)
-      setLastTap(now)
     }
+
+    initialShowUIRef.current = showUI
+    if (pendingUiToggleRef.current) {
+      clearTimeout(pendingUiToggleRef.current)
+    }
+    pendingUiToggleRef.current = setTimeout(() => {
+      setShowUI((prev) => !prev)
+      pendingUiToggleRef.current = null
+    }, 260)
+    setLastTap(now)
   }
 
   const handleDoubleClickDesktop = (e: React.MouseEvent) => {
@@ -903,10 +925,15 @@ export function ReaderPage() {
     const touch = e.changedTouches[0]
     const dx = touch.clientX - start.x
     const dy = touch.clientY - start.y
+    const hadMovement = touchMovedRef.current
     touchStartRef.current = null
-    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.2) return // horizontal intent
-    if (dt > 800) return // too slow
-    if (Math.abs(dy) > 120) return // large vertical movement
+    touchMovedRef.current = false
+    if (!hadMovement) return
+    const horizontalDistance = Math.abs(dx)
+    const verticalDistance = Math.abs(dy)
+    if (horizontalDistance < 120 || horizontalDistance < verticalDistance * 1.5) return // stronger intent required
+    if (dt > 700) return // too slow
+    if (verticalDistance > 140) return // largely vertical gesture
     if (dx < 0) {
       // swipe left -> next chapter
       navigateToNextChapter()
