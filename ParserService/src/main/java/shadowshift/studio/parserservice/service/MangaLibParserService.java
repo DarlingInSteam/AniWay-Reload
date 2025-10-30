@@ -36,4 +36,8 @@ public class MangaLibParserService {
     public List<SlideInfo> fetchChapterSlides(String slug, String volume, String chapter) throws IOException {
         return delegate.fetchChapterSlides(slug, volume, chapter);
     }
+
+    public void registerAdultSlug(String slug) {
+        delegate.registerAdultSlug(slug);
+    }
 }

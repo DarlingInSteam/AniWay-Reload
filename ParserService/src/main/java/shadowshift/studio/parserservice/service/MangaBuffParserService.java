@@ -532,6 +532,7 @@ public class MangaBuffParserService {
         metadata.setAgeLimit(ageLimit);
         if (ageLimit != null && ageLimit >= 18) {
             registerAdultSlug(context.getPageSlug());
+            registerAdultSlug(context.getFileSlug());
         }
 
         Map<String, String> info = parseInfoList(document);

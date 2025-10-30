@@ -279,6 +279,15 @@ public class MangaBuildService {
             // Extract actual slug from JSON filename for consistent directory structure
             String jsonFileName = jsonPath.getFileName().toString();
             String actualSlug = jsonFileName.substring(0, jsonFileName.length() - 5); // Remove ".json"
+
+            int ageLimit = Math.max(
+                rootNode.path("age_limit").asInt(0),
+                rootNode.path("metadata").path("age_limit").asInt(0)
+            );
+            if (ageLimit >= 18) {
+                parserService.registerAdultSlug(actualSlug);
+                taskService.appendLog(task, "🔐 Marked slug as adult-only to enable auth fetch");
+            }
             
             // Create archives directory using the actual slug from JSON (like MelonService)
             Path archivesDir = Paths.get(properties.getOutputPath(), "archives", actualSlug);
