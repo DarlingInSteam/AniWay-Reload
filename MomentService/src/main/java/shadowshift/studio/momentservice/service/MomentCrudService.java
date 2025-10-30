@@ -6,14 +6,20 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.http.HttpStatus;
 import shadowshift.studio.momentservice.dto.MomentDtos;
 import shadowshift.studio.momentservice.entity.Moment;
+import shadowshift.studio.momentservice.dto.MomentDtos.CommentCountUpdateRequest;
+import shadowshift.studio.momentservice.dto.MomentDtos.InternalMomentResponse;
+import shadowshift.studio.momentservice.entity.MomentReaction;
+import shadowshift.studio.momentservice.entity.ReactionType;
+import shadowshift.studio.momentservice.metrics.MomentMetrics;
 import shadowshift.studio.momentservice.model.MomentSort;
+import shadowshift.studio.momentservice.repository.MomentReactionRepository;
 import shadowshift.studio.momentservice.repository.MomentRepository;
 
 @Service
@@ -24,9 +30,18 @@ public class MomentCrudService {
     private static final int MAX_PAGE_SIZE = 50;
 
     private final MomentRepository momentRepository;
+    private final MomentReactionRepository momentReactionRepository;
+    private final MomentRateLimiter momentRateLimiter;
+    private final MomentMetrics momentMetrics;
 
-    public MomentCrudService(MomentRepository momentRepository) {
+    public MomentCrudService(MomentRepository momentRepository,
+                             MomentReactionRepository momentReactionRepository,
+                             MomentRateLimiter momentRateLimiter,
+                             MomentMetrics momentMetrics) {
         this.momentRepository = momentRepository;
+        this.momentReactionRepository = momentReactionRepository;
+        this.momentRateLimiter = momentRateLimiter;
+        this.momentMetrics = momentMetrics;
     }
 
     public MomentDtos.MomentResponse create(Long uploaderId, MomentDtos.CreateMomentRequest request) {
@@ -34,6 +49,7 @@ public class MomentCrudService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthenticated");
         }
         validateCreateRequest(request);
+        momentRateLimiter.assertAllowed(uploaderId, request.image().sizeBytes());
         Moment moment = new Moment();
         Instant now = Instant.now();
         moment.setMangaId(request.mangaId());
@@ -58,9 +74,11 @@ public class MomentCrudService {
         moment.setImageWidth(request.image().width());
         moment.setImageHeight(request.image().height());
         moment.setFileSize(request.image().sizeBytes());
-
-        Moment saved = momentRepository.save(moment);
-        return map(saved);
+    long startNanos = System.nanoTime();
+    Moment saved = momentRepository.save(moment);
+    long duration = System.nanoTime() - startNanos;
+    momentMetrics.recordMomentCreated(saved, duration);
+    return mapMoment(saved, uploaderId);
     }
 
     @Transactional(readOnly = true)
@@ -70,11 +88,11 @@ public class MomentCrudService {
         if (moment.isHidden() && !isAdmin && (requesterId == null || !requesterId.equals(moment.getUploaderId()))) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Moment not found");
         }
-        return map(moment);
+        return mapMoment(moment, requesterId);
     }
 
     @Transactional(readOnly = true)
-    public MomentDtos.MomentPageResponse list(Long mangaId, String sortParam, int page, int size, boolean includeHidden) {
+    public MomentDtos.MomentPageResponse list(Long mangaId, String sortParam, int page, int size, boolean includeHidden, Long viewerId) {
         if (mangaId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "mangaId is required");
         }
@@ -95,7 +113,9 @@ public class MomentCrudService {
         Page<Moment> result = includeHidden
             ? momentRepository.findByMangaId(mangaId, pageable)
             : momentRepository.findByMangaIdAndHiddenFalse(mangaId, pageable);
-        List<MomentDtos.MomentResponse> items = result.getContent().stream().map(this::map).toList();
+        List<MomentDtos.MomentResponse> items = result.getContent().stream()
+            .map(moment -> mapMoment(moment, viewerId))
+            .toList();
         return new MomentDtos.MomentPageResponse(items, result.getNumber(), result.getSize(), result.getTotalElements(), result.hasNext());
     }
 
@@ -108,12 +128,105 @@ public class MomentCrudService {
         momentRepository.delete(moment);
     }
 
+    @Transactional(readOnly = true)
+    public InternalMomentResponse getInternal(Long id) {
+        Moment moment = momentRepository.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Moment not found"));
+        return buildInternalResponse(moment);
+    }
+
+    public void updateCommentStats(Long momentId, CommentCountUpdateRequest request) {
+        Moment moment = momentRepository.findById(momentId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Moment not found"));
+        moment.setCommentsCount(request.count());
+        moment.setCommentsCount7d(request.count());
+        if (request.lastActivityAt() != null) {
+            moment.setLastActivityAt(request.lastActivityAt());
+        }
+    }
+
+    MomentDtos.MomentResponse mapMoment(Moment entity, Long viewerId) {
+        MomentDtos.ImagePayload image = new MomentDtos.ImagePayload(
+            entity.getImageUrl(),
+            entity.getImageKey(),
+            entity.getImageWidth(),
+            entity.getImageHeight(),
+            entity.getFileSize()
+        );
+        ReactionType viewerReaction = resolveViewerReaction(entity.getId(), viewerId);
+        return new MomentDtos.MomentResponse(
+            entity.getId(),
+            entity.getMangaId(),
+            entity.getChapterId(),
+            entity.getPageNumber(),
+            entity.getUploaderId(),
+            entity.getCaption(),
+            entity.isSpoiler(),
+            entity.isNsfw(),
+            entity.isHidden(),
+            entity.isReported(),
+            entity.getLikesCount(),
+            entity.getLikesCount7d(),
+            entity.getDislikesCount(),
+            entity.getCommentsCount(),
+            entity.getCommentsCount7d(),
+            entity.getLastActivityAt(),
+            entity.getCreatedAt(),
+            entity.getUpdatedAt(),
+            image,
+            viewerReaction
+        );
+    }
+
+    private InternalMomentResponse buildInternalResponse(Moment moment) {
+        MomentDtos.ImagePayload image = new MomentDtos.ImagePayload(
+            moment.getImageUrl(),
+            moment.getImageKey(),
+            moment.getImageWidth(),
+            moment.getImageHeight(),
+            moment.getFileSize()
+        );
+        return new InternalMomentResponse(
+            moment.getId(),
+            moment.getMangaId(),
+            moment.getChapterId(),
+            moment.getPageNumber(),
+            moment.getUploaderId(),
+            moment.isHidden(),
+            moment.isSpoiler(),
+            moment.isNsfw(),
+            moment.isReported(),
+            moment.getLikesCount(),
+            moment.getDislikesCount(),
+            moment.getCommentsCount(),
+            moment.getLastActivityAt(),
+            moment.getCreatedAt(),
+            moment.getUpdatedAt(),
+            image
+        );
+    }
+
+    private ReactionType resolveViewerReaction(Long momentId, Long viewerId) {
+        if (viewerId == null) {
+            return null;
+        }
+        return momentReactionRepository.findByMomentIdAndUserId(momentId, viewerId)
+            .map(MomentReaction::getReaction)
+            .orElse(null);
+    }
+
     private void validateCreateRequest(MomentDtos.CreateMomentRequest request) {
         if (!StringUtils.hasText(request.caption())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "caption must not be blank");
         }
+        if (request.image() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Image payload is required");
+        }
         if (request.image().sizeBytes() > MAX_IMAGE_SIZE_BYTES) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Image exceeds max size of 8MB");
+        }
+        if (!StringUtils.hasText(request.image().url()) || !StringUtils.hasText(request.image().key())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Image metadata is incomplete");
         }
     }
 
@@ -156,7 +269,8 @@ public class MomentCrudService {
             entity.getLastActivityAt(),
             entity.getCreatedAt(),
             entity.getUpdatedAt(),
-            image
+            image,
+            null
         );
     }
 }

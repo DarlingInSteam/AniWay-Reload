@@ -33,6 +33,7 @@ services:
       - message-service
       - chapter-service
       - image-storage-service
+      - moment-service
       - forum-service
       - parser-service
       - post-service
@@ -189,6 +190,31 @@ services:
     networks:
       - aniway-network
 
+  # Moment Service
+  moment-service:
+    build:
+      context: ./MomentService
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://moment-postgres:5432/momentdb
+      - SPRING_DATASOURCE_USERNAME=momentuser
+      - SPRING_DATASOURCE_PASSWORD=momentpass123
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - SPRING_RABBITMQ_PORT=5672
+      - SPRING_RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-aniway}
+      - SPRING_RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-aniway_pass}
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8095
+      - XP_EVENTS_EXCHANGE=${XP_EVENTS_EXCHANGE:-xp.events.exchange}
+      - XP_EVENTS_MOMENT_LIKE_ROUTING_KEY=${XP_EVENTS_MOMENT_LIKE_ROUTING_KEY:-xp.events.moment-like}
+    restart: unless-stopped
+    depends_on:
+      - moment-postgres
+      - rabbitmq
+      - notification-service
+    networks:
+      - aniway-network
+
   # Forum Service
   forum-service:
     build:
@@ -325,6 +351,18 @@ services:
     networks:
       - aniway-network
 
+  moment-postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: momentdb
+      POSTGRES_USER: momentuser
+      POSTGRES_PASSWORD: momentpass123
+    volumes:
+      - moment_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - aniway-network
+
   forum-postgres:
     image: postgres:15
     environment:
@@ -455,6 +493,7 @@ volumes:
   friend_data:
   chapter_data:
   image_data:
+  moment_data:
   forum_data:
   parser_data:
   parser_temp:

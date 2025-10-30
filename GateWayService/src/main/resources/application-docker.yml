@@ -211,6 +211,14 @@ spring:
           filters:
             - StripPrefix=0
 
+        # MomentService - Moments API
+        - id: moments-api
+          uri: http://moment-service:8099
+          predicates:
+            - Path=/api/moments/**
+          filters:
+            - StripPrefix=0
+
         # FriendService - Friends API
         - id: friends-api
           uri: http://friend-service:8102

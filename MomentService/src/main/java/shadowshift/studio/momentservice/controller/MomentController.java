@@ -47,9 +47,11 @@ public class MomentController {
                                                      @RequestParam(name = "sort", defaultValue = "new") String sort,
                                                      @RequestParam(name = "page", defaultValue = "0") int page,
                                                      @RequestParam(name = "size", defaultValue = "12") int size,
-                                                     @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+                                                     @RequestHeader(value = "X-User-Role", required = false) String roleHeader,
+                                                     @RequestHeader(value = "X-User-Id", required = false) String userHeader) {
         boolean includeHidden = isAdmin(roleHeader);
-        return momentCrudService.list(mangaId, sort, page, size, includeHidden);
+        Long viewerId = parseUserIdAllowNull(userHeader);
+        return momentCrudService.list(mangaId, sort, page, size, includeHidden, viewerId);
     }
 
     @DeleteMapping("/{id}")

@@ -192,6 +192,20 @@ public class InternalEventController {
         return ResponseEntity.accepted().build();
     }
 
+    @PostMapping("/moment-liked")
+    public ResponseEntity<Void> momentLiked(@RequestBody MomentLikedEvent body) {
+        if (body.getUploaderId() == null || body.getActorUserId() == null || body.getUploaderId().equals(body.getActorUserId())) {
+            return ResponseEntity.accepted().build();
+        }
+        java.util.Map<String,Object> map = new java.util.LinkedHashMap<>();
+        map.put("momentId", body.getMomentId());
+        map.put("mangaId", body.getMangaId());
+        map.put("actorUserId", body.getActorUserId());
+        String dedupeKey = "moment_like:" + body.getUploaderId() + ":" + body.getMomentId();
+        facade.createBasic(body.getUploaderId(), NotificationType.MOMENT_LIKE, toJson(map), dedupeKey);
+        return ResponseEntity.accepted().build();
+    }
+
     private String truncate(String s, int max) {
         if (s == null) return null;
         if (s.length() <= max) return s;
@@ -355,6 +369,14 @@ public class InternalEventController {
         private Long postId;
         private String title;
         private String content;
+    }
+
+    @Data
+    public static class MomentLikedEvent {
+        private Long uploaderId;
+        private Long momentId;
+        private Long mangaId;
+        private Long actorUserId;
     }
 
     @Data

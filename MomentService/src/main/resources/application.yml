@@ -22,9 +22,34 @@ spring:
   jackson:
     time-zone: UTC
 server:
-  port: ${SERVER_PORT:8080}
+  port: ${SERVER_PORT:8099}
 logging:
   level:
     root: INFO
     org.hibernate.SQL: WARN
     shadowshift.studio.momentservice: INFO
+
+notification:
+  service:
+    base-url: ${NOTIFICATION_SERVICE_URL:http://notification-service:8095}
+
+xp:
+  events:
+    exchange: ${XP_EVENTS_EXCHANGE:xp.events.exchange}
+    moment-like-routing-key: ${XP_EVENTS_MOMENT_LIKE_ROUTING_KEY:xp.events.moment-like}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+moments:
+  rate-limit:
+    enabled: ${MOMENTS_RATE_LIMIT_ENABLED:true}
+    max-per-window: ${MOMENTS_RATE_LIMIT_MAX_PER_WINDOW:10}
+    window-hours: ${MOMENTS_RATE_LIMIT_WINDOW_HOURS:24}
+    max-bytes-per-window: ${MOMENTS_RATE_LIMIT_MAX_BYTES_PER_WINDOW:67108864}

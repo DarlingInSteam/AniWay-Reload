@@ -83,7 +83,7 @@ class CommentService {
    */
   async getComments(
     targetId: number,
-    type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST',
+    type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST' | 'MOMENT',
     page: number = 0,
     size: number = 20,
     sortBy: string = 'createdAt',
@@ -127,7 +127,7 @@ class CommentService {
    */
   async getCommentsCount(
     targetId: number,
-    type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST'
+    type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST' | 'MOMENT'
   ): Promise<number> {
     const params = new URLSearchParams({
       targetId: targetId.toString(),

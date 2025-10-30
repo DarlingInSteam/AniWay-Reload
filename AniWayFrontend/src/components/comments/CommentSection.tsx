@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 
 interface CommentSectionProps {
   targetId: number
-  type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST'
+  type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST' | 'MOMENT'
   title?: string
   maxLevel?: number
   onCountChange?: (count: number) => void

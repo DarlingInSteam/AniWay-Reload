@@ -29,6 +29,14 @@ import type {
   MessageView as MessageDto,
   UpdateCategoryPayload
 } from '@/types/social';
+import type {
+  MomentCreateRequest,
+  MomentImagePayload,
+  MomentPageResponse,
+  MomentReactionType,
+  MomentResponse,
+  MomentSortOption
+} from '@/types/moments';
 
 const API_BASE_URL = '/api';
 
@@ -72,6 +80,7 @@ class ApiClient {
       (/^\/posts\b/.test(endpoint) && ['POST','PUT','DELETE','GET'].includes(method)) ||
       (/^\/posts\/.*\/vote$/.test(endpoint)) ||
       (/^\/comments\b/.test(endpoint) && ['POST','PUT','DELETE','GET'].includes(method)) ||
+      (/^\/moments\b/.test(endpoint)) ||
       (/^\/messages\b/.test(endpoint)) ||
       (/^\/chapters\b/.test(endpoint)) ||
       (/^\/forum\/threads\b/.test(endpoint)) ||
@@ -1008,6 +1017,124 @@ class ApiClient {
     }
   }
 
+  // MomentService API
+  async listMangaMoments(
+    mangaId: number,
+    options?: { page?: number; size?: number; sort?: MomentSortOption }
+  ): Promise<MomentPageResponse> {
+    const params = new URLSearchParams();
+    const page = options?.page ?? 0;
+    const size = options?.size ?? 12;
+    params.set('page', String(page));
+    params.set('size', String(size));
+    if (options?.sort) {
+      params.set('sort', options.sort);
+    }
+    const query = params.toString();
+    return this.request<MomentPageResponse>(
+      `/moments/manga/${mangaId}${query ? `?${query}` : ''}`
+    );
+  }
+
+  async getMomentById(momentId: number): Promise<MomentResponse> {
+    return this.request<MomentResponse>(`/moments/${momentId}`);
+  }
+
+  async createMoment(payload: MomentCreateRequest): Promise<MomentResponse> {
+    return this.request<MomentResponse>('/moments', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  async deleteMoment(momentId: number): Promise<void> {
+    await this.request<void>(`/moments/${momentId}`, {
+      method: 'DELETE'
+    });
+  }
+
+  async setMomentReaction(momentId: number, reaction: MomentReactionType): Promise<MomentResponse> {
+    return this.request<MomentResponse>(`/moments/${momentId}/reactions`, {
+      method: 'POST',
+      body: JSON.stringify({ reaction })
+    });
+  }
+
+  async clearMomentReaction(momentId: number): Promise<MomentResponse> {
+    return this.request<MomentResponse>(`/moments/${momentId}/reactions`, {
+      method: 'DELETE'
+    });
+  }
+
+  async uploadMomentImage(
+    file: File,
+    metadata?: { mangaId?: number; chapterId?: number; pageNumber?: number }
+  ): Promise<MomentImagePayload> {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (metadata?.mangaId != null) {
+      formData.append('mangaId', String(metadata.mangaId));
+    }
+    if (metadata?.chapterId != null) {
+      formData.append('chapterId', String(metadata.chapterId));
+    }
+    if (metadata?.pageNumber != null) {
+      formData.append('pageNumber', String(metadata.pageNumber));
+    }
+
+    let token = localStorage.getItem('authToken');
+    let userId = localStorage.getItem('userId') || localStorage.getItem('userID') || localStorage.getItem('currentUserId') || undefined;
+    let userRole = localStorage.getItem('userRole') || localStorage.getItem('user_role') || undefined;
+
+    if ((!userId || !userRole) && token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1] || ''));
+        if (!userId) {
+          const extracted = payload.userId || payload.userID || payload.sub || payload.id;
+          if (extracted) {
+            userId = String(extracted);
+            localStorage.setItem('userId', userId);
+          }
+        }
+        if (!userRole) {
+          const roleValue = payload.role || (Array.isArray(payload.authorities) ? payload.authorities[0] : undefined);
+          if (roleValue) {
+            userRole = String(roleValue);
+            localStorage.setItem('userRole', userRole);
+          }
+        }
+      } catch {
+        // ignore decode errors
+      }
+    }
+
+    const normalizedRole = userRole ? userRole.toUpperCase().replace(/^ROLE_/, '') : undefined;
+
+    const response = await fetch(`${API_BASE_URL}/moments/upload`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        ...(userId ? { 'X-User-Id': userId } : {}),
+        ...(normalizedRole ? { 'X-User-Role': normalizedRole } : {}),
+      },
+      body: formData
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Upload failed: ${response.status} ${errorText}`);
+    }
+
+    const data = await response.json();
+    return {
+      url: data.url,
+      key: data.key,
+      width: data.width,
+      height: data.height,
+      sizeBytes: data.sizeBytes
+    } as MomentImagePayload;
+  }
+
   // Posts API (frontend scaffold – backend must implement corresponding endpoints)
   async getUserPosts(userId: number, page = 0, size = 10) {
     return this.request<any>(`/posts?userId=${userId}&page=${page}&size=${size}`);
@@ -1077,7 +1204,7 @@ class ApiClient {
 
   async createComment(data: {
     content: string;
-    commentType: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST';
+  commentType: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST' | 'MOMENT';
     targetId: number;
     parentCommentId?: number;
   }): Promise<any> {

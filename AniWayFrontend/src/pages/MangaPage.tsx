@@ -16,6 +16,7 @@ import { BookmarkControls } from '../components/bookmarks/BookmarkControls'
 import { ReadingProgressBar, LastReadChapter } from '../components/progress/ReadingProgress'
 import { ReadingButton } from '../components/reading/ReadingButton'
 import { MangaDiscussions } from '@/components/manga/MangaDiscussions'
+import { MangaMoments } from '@/components/manga/MangaMoments'
 import { useReadingProgress } from '@/hooks/useProgress'
 import { CommentSection } from '../components/comments/CommentSection'
 import MangaReviews from '../components/MangaReviews'
@@ -1003,7 +1004,21 @@ export function MangaPage() {
                 )}
 
                 {/* Other Tabs - In Development */}
-                {['moments', 'cards', 'characters', 'similar'].includes(activeTab) && (
+                {activeTab === 'moments' && (
+                  <div className="space-y-6">
+                    <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 md:p-6 backdrop-blur-sm">
+                      <div className="flex flex-col gap-1 text-white">
+                        <h2 className="text-xl font-semibold">Моменты читателей</h2>
+                        <p className="text-sm text-white/60">
+                          Делитесь любимыми кадрами из манги и обсуждайте их вместе с сообществом.
+                        </p>
+                      </div>
+                    </div>
+                    <MangaMoments mangaId={mangaId} mangaTitle={manga.title} />
+                  </div>
+                )}
+
+                {['cards', 'characters', 'similar'].includes(activeTab) && (
                   <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 text-center border border-white/10">
                     <div className="text-muted-foreground">Раздел в разработке</div>
                   </div>

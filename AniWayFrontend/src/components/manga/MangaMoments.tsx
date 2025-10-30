@@ -1,0 +1,390 @@
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query'
+import { useInView } from 'react-intersection-observer'
+import { toast } from 'sonner'
+import { Flame, Heart, MessageCircle, Sparkles, ThumbsDown, Upload, Image as ImageIcon } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
+import { apiClient } from '@/lib/api'
+import { cn, formatRelativeTime } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { MomentUploadDialog } from '@/components/manga/MomentUploadDialog'
+import { MomentViewerModal } from '@/components/manga/MomentViewerModal'
+import type { MomentPageResponse, MomentReactionType, MomentResponse, MomentSortOption } from '@/types/moments'
+
+interface MangaMomentsProps {
+  mangaId: number
+  mangaTitle: string
+}
+
+interface ReactionPayload {
+  momentId: number
+  reaction: MomentReactionType
+}
+
+const sortOptions: Array<{ key: MomentSortOption; label: string; icon: ReactNode }> = [
+  { key: 'new', label: 'Новые', icon: <Sparkles className="h-4 w-4" /> },
+  { key: 'popular', label: 'Популярные', icon: <Heart className="h-4 w-4" /> },
+  { key: 'active', label: 'Обсуждаемые', icon: <Flame className="h-4 w-4" /> }
+]
+
+export function MangaMoments({ mangaId, mangaTitle }: MangaMomentsProps) {
+  const { isAuthenticated } = useAuth()
+  const queryClient = useQueryClient()
+  const [sort, setSort] = useState<MomentSortOption>('new')
+  const [activeMomentId, setActiveMomentId] = useState<number | null>(null)
+  const [viewerOpen, setViewerOpen] = useState(false)
+
+  const queryKey = useMemo(() => ['manga-moments', mangaId, sort] as const, [mangaId, sort])
+
+  const momentsQuery = useInfiniteQuery<MomentPageResponse>({
+    queryKey,
+    queryFn: ({ pageParam = 0 }) => apiClient.listMangaMoments(mangaId, {
+      page: typeof pageParam === 'number' ? pageParam : 0,
+      size: 12,
+      sort
+    }),
+    getNextPageParam: (lastPage) => (lastPage.hasNext ? lastPage.page + 1 : undefined),
+    initialPageParam: 0,
+    staleTime: 15_000,
+    refetchOnWindowFocus: false
+  })
+
+  const pages = momentsQuery.data?.pages ?? []
+  const moments = useMemo(() => pages.flatMap((page) => page.items), [pages])
+
+  const { ref: sentinelRef, inView } = useInView({ threshold: 0.5 })
+
+  const updateCache = useCallback((updated: MomentResponse) => {
+    queryClient.setQueryData<InfiniteData<MomentPageResponse>>(queryKey, (current) => {
+      if (!current) return current
+      let found = false
+      const patchedPages = current.pages.map((page) => {
+        let pageChanged = false
+        const items = page.items.map((item) => {
+          if (item.id === updated.id) {
+            found = true
+            pageChanged = true
+            return { ...item, ...updated }
+          }
+          return item
+        })
+        return pageChanged ? { ...page, items } : page
+      })
+      if (!found) {
+        return current
+      }
+      return { ...current, pages: patchedPages }
+    })
+  }, [queryClient, queryKey])
+
+  const injectCreatedMoment = useCallback((created: MomentResponse) => {
+    queryClient.setQueryData<InfiniteData<MomentPageResponse>>(queryKey, (current) => {
+      if (!current) {
+        return {
+          pageParams: [0],
+          pages: [{
+            items: [created],
+            page: 0,
+            size: 12,
+            total: 1,
+            hasNext: false
+          }]
+        }
+      }
+      const [firstPage, ...rest] = current.pages
+      const capacity = firstPage?.size ?? 12
+      const updatedFirst: MomentPageResponse = {
+        ...firstPage,
+        items: [created, ...firstPage.items].slice(0, capacity),
+        total: firstPage.total + 1,
+        hasNext: firstPage.hasNext || firstPage.items.length >= capacity
+      }
+      return {
+        ...current,
+        pages: [updatedFirst, ...rest]
+      }
+    })
+    setActiveMomentId(created.id)
+    setViewerOpen(true)
+  }, [queryClient, queryKey])
+
+  const setReactionMutation = useMutation<MomentResponse, Error, ReactionPayload>({
+    mutationFn: ({ momentId, reaction }) => apiClient.setMomentReaction(momentId, reaction),
+    onSuccess: (data) => {
+      updateCache(data)
+    },
+    onError: () => {
+      toast.error('Не удалось сохранить реакцию')
+    }
+  })
+
+  const clearReactionMutation = useMutation<MomentResponse, Error, { momentId: number }>({
+    mutationFn: ({ momentId }) => apiClient.clearMomentReaction(momentId),
+    onSuccess: (data) => {
+      updateCache(data)
+    },
+    onError: () => {
+      toast.error('Не удалось обновить реакцию')
+    }
+  })
+
+  const isProcessing = useCallback((momentId: number) => {
+    return (
+      (setReactionMutation.isPending && setReactionMutation.variables?.momentId === momentId) ||
+      (clearReactionMutation.isPending && clearReactionMutation.variables?.momentId === momentId)
+    )
+  }, [setReactionMutation.isPending, setReactionMutation.variables, clearReactionMutation.isPending, clearReactionMutation.variables])
+
+  const handleToggleReaction = useCallback((moment: MomentResponse, reaction: MomentReactionType) => {
+    if (!isAuthenticated) {
+      toast.info('Войдите, чтобы реагировать на моменты')
+      return
+    }
+    setReactionMutation.mutate({ momentId: moment.id, reaction })
+  }, [isAuthenticated, setReactionMutation])
+
+  const handleClearReaction = useCallback((moment: MomentResponse) => {
+    if (!isAuthenticated) {
+      return
+    }
+    clearReactionMutation.mutate({ momentId: moment.id })
+  }, [isAuthenticated, clearReactionMutation])
+
+  const handleMomentCreated = useCallback((created: MomentResponse) => {
+    injectCreatedMoment(created)
+    if (sort !== 'new') {
+      toast.info('Новый момент доступен во вкладке "Новые"')
+    }
+  }, [injectCreatedMoment, sort])
+
+  const activeMoment = useMemo(() => moments.find((item) => item.id === activeMomentId) ?? null, [moments, activeMomentId])
+
+  const handleOpenMoment = (momentId: number) => {
+    setActiveMomentId(momentId)
+    setViewerOpen(true)
+  }
+
+  const handleViewerClose = () => {
+    setViewerOpen(false)
+  }
+
+  const handleCommentCountChange = useCallback((momentId: number, count: number) => {
+    queryClient.setQueryData<InfiniteData<MomentPageResponse>>(queryKey, (current) => {
+      if (!current) return current
+      let changed = false
+      const patchedPages = current.pages.map((page) => {
+        const items = page.items.map((item) => {
+          if (item.id === momentId) {
+            changed = true
+            return { ...item, commentsCount: count, commentsCount7d: count }
+          }
+          return item
+        })
+        return changed ? { ...page, items } : page
+      })
+      if (!changed) return current
+      return { ...current, pages: patchedPages }
+    })
+  }, [queryClient, queryKey])
+
+  const handleLoadMore = useCallback(() => {
+    if (momentsQuery.hasNextPage && !momentsQuery.isFetchingNextPage) {
+      momentsQuery.fetchNextPage()
+    }
+  }, [momentsQuery.hasNextPage, momentsQuery.isFetchingNextPage, momentsQuery.fetchNextPage])
+
+  useEffect(() => {
+    if (inView) {
+      handleLoadMore()
+    }
+  }, [inView, handleLoadMore])
+
+  const isEmpty = !momentsQuery.isLoading && moments.length === 0
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap gap-2">
+          {sortOptions.map((option) => (
+            <Button
+              key={option.key}
+              variant={option.key === sort ? 'default' : 'outline'}
+              onClick={() => setSort(option.key)}
+              className={cn(
+                'flex items-center gap-2 px-4 py-2 text-sm',
+                option.key === sort
+                  ? 'bg-primary text-black hover:bg-primary/90'
+                  : 'border-white/20 text-white/75 hover:bg-white/10'
+              )}
+            >
+              {option.icon}
+              <span>{option.label}</span>
+            </Button>
+          ))}
+        </div>
+        <MomentUploadDialog
+          mangaId={mangaId}
+          onCreated={handleMomentCreated}
+          trigger={(
+            <Button variant="outline" className="border-white/20 text-white/80 hover:bg-white/10">
+              <Upload className="h-4 w-4 mr-2" />
+              Поделиться моментом
+            </Button>
+          )}
+        />
+      </div>
+
+      {momentsQuery.isLoading ? (
+        <div className="flex justify-center py-12">
+          <LoadingSpinner size="lg" />
+        </div>
+      ) : isEmpty ? (
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-center text-white/70 space-y-4">
+          <ImageIcon className="h-10 w-10 mx-auto text-white/40" />
+          <div>
+            <p className="text-lg font-semibold">В этой манге пока нет моментов</p>
+            <p className="text-sm text-white/50">Будьте первым, поделитесь любимым кадром из «{mangaTitle}».</p>
+          </div>
+          <MomentUploadDialog mangaId={mangaId} onCreated={handleMomentCreated} />
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {moments.map((moment) => (
+            <MomentCard
+              key={moment.id}
+              moment={moment}
+              onOpen={handleOpenMoment}
+              onToggleReaction={handleToggleReaction}
+              onClearReaction={handleClearReaction}
+              disabled={isProcessing(moment.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      {momentsQuery.hasNextPage && (
+        <div ref={sentinelRef} className="flex justify-center py-4">
+          {momentsQuery.isFetchingNextPage ? <LoadingSpinner /> : <Button variant="outline" onClick={handleLoadMore}>Загрузить ещё</Button>}
+        </div>
+      )}
+
+      <MomentViewerModal
+        moment={activeMoment}
+        open={viewerOpen && !!activeMoment}
+        onClose={handleViewerClose}
+        onToggleReaction={handleToggleReaction}
+        onClearReaction={handleClearReaction}
+        isProcessing={isProcessing}
+        onCommentCountChange={handleCommentCountChange}
+      />
+    </div>
+  )
+}
+
+interface MomentCardProps {
+  moment: MomentResponse
+  onOpen: (momentId: number) => void
+  onToggleReaction: (moment: MomentResponse, reaction: MomentReactionType) => void
+  onClearReaction: (moment: MomentResponse) => void
+  disabled: boolean
+}
+
+function MomentCard({ moment, onOpen, onToggleReaction, onClearReaction, disabled }: MomentCardProps) {
+  const isLiked = moment.userReaction === 'LIKE'
+  const isDisliked = moment.userReaction === 'DISLIKE'
+  const showWarning = moment.nsfw || moment.spoiler
+
+  const handleLike = () => {
+    if (isLiked) {
+      onClearReaction(moment)
+    } else {
+      onToggleReaction(moment, 'LIKE')
+    }
+  }
+
+  const handleDislike = () => {
+    if (isDisliked) {
+      onClearReaction(moment)
+    } else {
+      onToggleReaction(moment, 'DISLIKE')
+    }
+  }
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpen(moment.id)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onOpen(moment.id)
+        }
+      }}
+      className="group relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] transition hover:border-primary/40 hover:bg-white/[0.08] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+    >
+      <div className="aspect-[4/5] overflow-hidden bg-black/60">
+        <img
+          src={moment.image.url}
+          alt={moment.caption}
+          className={cn('h-full w-full object-cover transition duration-500 group-hover:scale-105', showWarning ? 'blur-lg' : '')}
+        />
+        {showWarning && (
+          <div className="absolute inset-x-0 bottom-0 flex items-center justify-center bg-black/70 py-2 text-sm text-white/80">
+            {moment.spoiler ? 'Спойлер' : 'NSFW'} — откройте, чтобы увидеть
+          </div>
+        )}
+      </div>
+      <div className="space-y-3 p-4">
+        <div className="flex items-center gap-2 text-xs text-white/50">
+          <span>Обновлено {formatRelativeTime(moment.lastActivityAt)}</span>
+          {moment.chapterId && (
+            <span className="rounded-full bg-white/10 px-2 py-0.5 text-white/60">
+              Глава {moment.chapterId}
+            </span>
+          )}
+          {moment.pageNumber && (
+            <span className="rounded-full bg-white/10 px-2 py-0.5 text-white/60">
+              Стр. {moment.pageNumber}
+            </span>
+          )}
+        </div>
+        <p className="line-clamp-3 text-sm text-white/85 whitespace-pre-line">{moment.caption || 'Без подписи'}</p>
+        <div className="flex flex-wrap gap-2">
+          {moment.spoiler && <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-300">Спойлер</Badge>}
+          {moment.nsfw && <Badge variant="secondary" className="bg-red-500/20 text-red-300">NSFW</Badge>}
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(event) => { event.stopPropagation(); handleLike() }}
+              disabled={disabled}
+              className={cn('flex items-center gap-1 text-sm', isLiked ? 'text-emerald-400 hover:text-emerald-300' : 'text-white/70 hover:text-white')}
+            >
+              <Heart className={cn('h-4 w-4', isLiked ? 'fill-current' : '')} />
+              {moment.likesCount}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(event) => { event.stopPropagation(); handleDislike() }}
+              disabled={disabled}
+              className={cn('flex items-center gap-1 text-sm', isDisliked ? 'text-slate-300' : 'text-white/70 hover:text-white')}
+            >
+              <ThumbsDown className={cn('h-4 w-4', isDisliked ? 'fill-current' : '')} />
+              {moment.dislikesCount}
+            </Button>
+          </div>
+          <div className="flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs text-white/80">
+            <MessageCircle className="h-4 w-4" />
+            {moment.commentsCount}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

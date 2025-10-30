@@ -4,9 +4,11 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.util.List;
+import shadowshift.studio.momentservice.entity.ReactionType;
 
 public final class MomentDtos {
 
@@ -50,7 +52,8 @@ public final class MomentDtos {
         Instant lastActivityAt,
         Instant createdAt,
         Instant updatedAt,
-        ImagePayload image
+        ImagePayload image,
+        ReactionType userReaction
     ) { }
 
     public record MomentPageResponse(
@@ -59,5 +62,33 @@ public final class MomentDtos {
         int size,
         long total,
         boolean hasNext
+    ) { }
+
+    public record ReactionRequest(
+        @NotNull ReactionType reaction
+    ) { }
+
+    public record CommentCountUpdateRequest(
+        @PositiveOrZero int count,
+        Instant lastActivityAt
+    ) { }
+
+    public record InternalMomentResponse(
+        Long id,
+        Long mangaId,
+        Long chapterId,
+        Integer pageNumber,
+        Long uploaderId,
+        boolean hidden,
+        boolean spoiler,
+        boolean nsfw,
+        boolean reported,
+        int likesCount,
+        int dislikesCount,
+        int commentsCount,
+        Instant lastActivityAt,
+        Instant createdAt,
+        Instant updatedAt,
+        ImagePayload image
     ) { }
 }

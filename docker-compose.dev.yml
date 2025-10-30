@@ -93,6 +93,43 @@ services:
     networks:
       - aniway-network
 
+  # Moment Service - для разработки
+  moment-service:
+    build:
+      context: ./MomentService
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./MomentService/src:/app/src:ro
+      - ./MomentService/build.gradle.kts:/app/build.gradle.kts:ro
+      - gradle-cache-moment:/home/gradle/.gradle
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DEVTOOLS_RESTART_ENABLED=true
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://moment-postgres:5432/moment_db
+      - SPRING_DATASOURCE_USERNAME=moment_user
+      - SPRING_DATASOURCE_PASSWORD=moment_password
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - SPRING_RABBITMQ_PORT=5672
+      - SPRING_RABBITMQ_USERNAME=aniway
+      - SPRING_RABBITMQ_PASSWORD=aniway_pass
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8095
+      - XP_EVENTS_EXCHANGE=xp.events.exchange
+      - XP_EVENTS_MOMENT_LIKE_ROUTING_KEY=xp.events.moment-like
+      - MOMENTS_RATE_LIMIT_MAX_PER_WINDOW=10
+      - MOMENTS_RATE_LIMIT_WINDOW_HOURS=24
+      - MOMENTS_RATE_LIMIT_MAX_BYTES_PER_WINDOW=104857600
+    ports:
+      - "8099:8099"
+    depends_on:
+      moment-postgres:
+        condition: service_healthy
+      notification-service:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    networks:
+      - aniway-network
+
   # Gateway Service - для разработки
   gateway-service:
     build:
@@ -407,6 +444,26 @@ services:
       timeout: 5s
       retries: 5
 
+  moment-postgres:
+    image: postgres:16
+    container_name: moment-postgres-dev
+    environment:
+      POSTGRES_DB: moment_db
+      POSTGRES_USER: moment_user
+      POSTGRES_PASSWORD: moment_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5437:5432"
+    volumes:
+      - moment_postgres_data:/var/lib/postgresql/data
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U moment_user -d moment_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   auth-postgres:
     image: postgres:16
     container_name: auth-postgres-dev
@@ -640,6 +697,7 @@ volumes:
   gradle-cache-manga:
   gradle-cache-chapter:
   gradle-cache-image:
+  gradle-cache-moment:
   gradle-cache-gateway:
   gradle-cache-auth:
   gradle-cache-comment:
@@ -647,6 +705,7 @@ volumes:
   manga_postgres_data:
   chapter_postgres_data:
   image_storage_postgres_data:
+  moment_postgres_data:
   auth_postgres_data:
   comment_postgres_data:
   minio_data:
