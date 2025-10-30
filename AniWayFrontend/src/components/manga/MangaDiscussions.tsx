@@ -94,19 +94,15 @@ export function MangaDiscussions({ mangaId, mangaTitle }: MangaDiscussionsProps)
 
   return (
     <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-white/10 space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h3 className="text-lg md:text-xl font-semibold text-white">Обсуждения манги</h3>
-          <p className="text-sm text-white/60">Делитесь впечатлениями и находите собеседников</p>
-        </div>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex w-full flex-wrap gap-2 sm:justify-end">
           {sortOptions.map((option) => (
             <Button
               key={option.key}
               variant={option.key === sort ? 'default' : 'outline'}
               size="sm"
               onClick={() => setSort(option.key)}
-              className={option.key === sort ? 'bg-primary text-black hover:bg-primary/90' : 'border-white/20 text-white/80 hover:bg-white/10'}
+              className={`${option.key === sort ? 'bg-primary text-black hover:bg-primary/90' : 'border-white/20 text-white/80 hover:bg-white/10'} w-full sm:w-auto`}
             >
               {option.label}
             </Button>
@@ -115,7 +111,7 @@ export function MangaDiscussions({ mangaId, mangaTitle }: MangaDiscussionsProps)
       </div>
 
       <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h4 className="text-base font-medium text-white">Создать обсуждение</h4>
           <Button
             variant="outline"
@@ -128,7 +124,7 @@ export function MangaDiscussions({ mangaId, mangaTitle }: MangaDiscussionsProps)
               setIsCreating((prev) => !prev)
               setFormError(null)
             }}
-            className="border-white/20 text-white/80 hover:bg-white/10"
+            className="border-white/20 text-white/80 hover:bg-white/10 w-full sm:w-auto"
           >
             <Plus className="w-4 h-4 mr-2" />
             {isCreating ? 'Отменить' : 'Новая тема'}
@@ -152,8 +148,8 @@ export function MangaDiscussions({ mangaId, mangaTitle }: MangaDiscussionsProps)
               maxLength={10000}
             />
             {formError && <p className="text-sm text-red-400">{formError}</p>}
-            <div className="flex items-center gap-3">
-              <Button type="submit" disabled={createDiscussion.isPending}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <Button type="submit" disabled={createDiscussion.isPending} className="w-full sm:w-auto">
                 {createDiscussion.isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -163,7 +159,7 @@ export function MangaDiscussions({ mangaId, mangaTitle }: MangaDiscussionsProps)
                   'Создать'
                 )}
               </Button>
-              <p className="text-xs text-white/60">Категория создастся автоматически, если её ещё нет</p>
+              <p className="text-xs text-white/60 sm:max-w-[60%]">Категория создастся автоматически, если её ещё нет</p>
             </div>
           </form>
         )}
