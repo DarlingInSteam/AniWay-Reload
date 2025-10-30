@@ -98,7 +98,7 @@ export function MomentViewerModal({
 
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next) { setRevealed(false); onClose() } }}>
-      <DialogContent className="relative max-w-5xl bg-black/95 border border-white/15 text-white">
+      <DialogContent className="max-w-5xl bg-black/95 border border-white/15 text-white">
         <div className="pointer-events-none absolute right-4 top-1/2 flex -translate-y-1/2 flex-col gap-3">
           <Button
             type="button"
