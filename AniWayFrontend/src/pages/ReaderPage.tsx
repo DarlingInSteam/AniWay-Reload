@@ -757,13 +757,24 @@ export function ReaderPage() {
     if (pendingScrollIndexRef.current != null) return
     if (pendingActiveIndexRef.current != null) return
     const elapsed = Date.now() - manualNavigationLockRef.current
-    if (elapsed < 500) return
+    if (elapsed < 1200) return // Увеличено с 500 до 1200ms - даем больше времени на отрисовку
 
     const nodes = Array.from(chapterNodesRef.current.entries())
       .filter(([, node]) => node != null)
       .sort((a, b) => a[0] - b[0]) as Array<[number, HTMLDivElement]>
 
     if (nodes.length === 0) return
+
+    // КРИТИЧНО: если текущая активная глава еще не отрисована, НЕ переключаемся
+    const currentIndex = activeIndexRef.current
+    if (currentIndex != null) {
+      const currentNode = chapterNodesRef.current.get(currentIndex)
+      if (!currentNode) {
+        // Текущая глава не зарегистрирована, значит еще загружается
+        // НЕ ТРОГАЕМ activeIndex, ждем когда глава отрисуется
+        return
+      }
+    }
 
     const headerHeight = getVisibleHeaderHeight()
     const viewportHeight = typeof window !== 'undefined' && window.innerHeight ? window.innerHeight : 800
@@ -818,7 +829,6 @@ export function ReaderPage() {
       }
     }
 
-    const currentIndex = activeIndexRef.current
     if (candidate != null && currentIndex != null && candidate < currentIndex) {
       const candidateMetrics = measureNode(candidate)
       if (!candidateMetrics) return
@@ -871,7 +881,11 @@ export function ReaderPage() {
 
   useEffect(() => {
     if (contentVersion === 0) return
-    evaluateActiveChapter()
+    // Задержка перед оценкой - даем главам время отрисоваться
+    const timer = setTimeout(() => {
+      evaluateActiveChapter()
+    }, 300)
+    return () => clearTimeout(timer)
   }, [contentVersion, evaluateActiveChapter])
 
   useEffect(() => {
