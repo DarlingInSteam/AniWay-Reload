@@ -85,44 +85,75 @@ export function useReaderController() {
     const currentIndex = activeIndexRef.current
     const targetIndex = targetChapterIndexRef.current
 
-    const candidates = visibleChapterIndexesRef.current.size > 0
+    const candidateIndexes = visibleChapterIndexesRef.current.size > 0
       ? Array.from(visibleChapterIndexesRef.current)
       : Array.from(chapterNodesRef.current.keys())
-    if (candidates.length === 0 && targetIndex == null) return
+    if (candidateIndexes.length === 0 && targetIndex == null) return
 
     const headerHeight = getVisibleHeaderHeight()
     const margin = headerHeight > 0 ? 16 : 12
     const baseline = headerHeight + margin
+    const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 0
+    const viewportCenter = viewportHeight > 0 ? viewportHeight / 2 : baseline
 
-    let bestIndex: number | null = null
-    let bestDistance = Number.POSITIVE_INFINITY
+    type CandidateInfo = {
+      index: number
+      rect: DOMRect
+      distance: number
+      baselineCover: boolean
+      centerCover: boolean
+    }
+
+    const visited = new Set<number>()
+    const infos: CandidateInfo[] = []
+
+    const collectInfo = (idx: number | null | undefined) => {
+      if (idx == null) return
+      if (visited.has(idx)) return
+      const node = chapterNodesRef.current.get(idx)
+      if (!node) return
+      visited.add(idx)
+      const rect = node.getBoundingClientRect()
+      const distance = Math.abs(rect.top - baseline)
+      const baselineCover = rect.top <= baseline && rect.bottom > baseline
+      const centerCover = rect.top <= viewportCenter && rect.bottom >= viewportCenter
+      infos.push({ index: idx, rect, distance, baselineCover, centerCover })
+    }
+
+    collectInfo(targetIndex)
+    candidateIndexes.forEach(idx => collectInfo(idx))
+    collectInfo(currentIndex)
+
+    if (!infos.length) return
+
     let forceTarget = false
+    let bestIndex: number | null = null
 
     if (targetIndex != null) {
-      const targetNode = chapterNodesRef.current.get(targetIndex)
-      if (!targetNode) {
-        return
-      }
-      const targetOffset = targetNode.getBoundingClientRect().top - baseline
-      const targetDistance = Math.abs(targetOffset)
-      bestIndex = targetIndex
-      bestDistance = targetDistance
-      if (targetDistance > 36) {
-        forceTarget = true
+      const targetInfo = infos.find(info => info.index === targetIndex)
+      if (targetInfo) {
+        const targetOffset = targetInfo.rect.top - baseline
+        const targetDistance = Math.abs(targetOffset)
+        bestIndex = targetIndex
+        if (targetDistance > 36) {
+          forceTarget = true
+        } else {
+          targetChapterIndexRef.current = null
+        }
       } else {
-        targetChapterIndexRef.current = null
+        // Target not yet measurable; wait until node is registered
+        return
       }
     }
 
-    const evaluateIndex = (idx: number) => {
-      const node = chapterNodesRef.current.get(idx)
-      if (!node) return
-      const offset = node.getBoundingClientRect().top - baseline
-      const distance = Math.abs(offset)
-      if (distance + 0.25 < bestDistance || (Math.abs(distance - bestDistance) <= 0.25 && idx > (bestIndex ?? -Infinity))) {
-        bestIndex = idx
-        bestDistance = distance
-      }
+    const selectBest = (candidates: CandidateInfo[]): CandidateInfo | null => {
+      if (!candidates.length) return null
+      return candidates.reduce<CandidateInfo | null>((best, info) => {
+        if (!best) return info
+        if (info.distance < best.distance - 0.25) return info
+        if (Math.abs(info.distance - best.distance) <= 0.25 && info.index > best.index) return info
+        return best
+      }, null)
     }
 
     if (forceTarget) {
@@ -132,43 +163,32 @@ export function useReaderController() {
       return
     }
 
-    if (candidates.length) {
-      const orderedCandidates = [...candidates].sort((a, b) => a - b)
-      orderedCandidates.forEach(idx => evaluateIndex(idx))
+    const baselineMatches = infos.filter(info => info.baselineCover)
+    const centerMatches = baselineMatches.length ? baselineMatches : infos.filter(info => info.centerCover)
+    const prioritized = centerMatches.length ? centerMatches : infos
+    const chosen = selectBest(prioritized)
 
-      if (bestIndex == null && currentIndex != null) {
-        evaluateIndex(currentIndex)
-      }
+    if (!chosen) return
 
-      if (bestIndex != null && bestIndex !== currentIndex) {
-        setActiveIndex(bestIndex)
-        return
-      }
+    if (targetIndex != null && chosen.index === targetIndex) {
+      targetChapterIndexRef.current = null
+    }
 
-      if (!lockActive && currentIndex != null) {
-        const currentNode = chapterNodesRef.current.get(currentIndex)
-        if (!currentNode) return
-        const currentOffset = currentNode.getBoundingClientRect().top - baseline
-        if (Math.abs(currentOffset) <= 32) return
-        let fallbackIndex: number | null = null
-        let fallbackDistance = Number.POSITIVE_INFINITY
-        orderedCandidates.forEach(idx => {
-          if (idx === currentIndex) return
-          const node = chapterNodesRef.current.get(idx)
-          if (!node) return
-          const offset = node.getBoundingClientRect().top - baseline
-          const distance = Math.abs(offset)
-          if (distance < fallbackDistance - 0.25) {
-            fallbackIndex = idx
-            fallbackDistance = distance
-          }
-        })
-        if (fallbackIndex != null) {
-          setActiveIndex(fallbackIndex)
+    if (chosen.index !== currentIndex) {
+      setActiveIndex(chosen.index)
+      return
+    }
+
+    if (!lockActive && currentIndex != null) {
+      const currentInfo = infos.find(info => info.index === currentIndex)
+      if (currentInfo && Math.abs(currentInfo.rect.top - baseline) > 32) {
+        const fallback = selectBest(
+          infos.filter(info => info.index !== currentIndex)
+        )
+        if (fallback && fallback.index !== currentIndex) {
+          setActiveIndex(fallback.index)
         }
       }
-    } else if (bestIndex != null && bestIndex !== currentIndex) {
-      setActiveIndex(bestIndex)
     }
   }, [getVisibleHeaderHeight])
 
