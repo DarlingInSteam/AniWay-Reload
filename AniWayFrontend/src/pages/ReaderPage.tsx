@@ -411,6 +411,7 @@ export function ReaderPage() {
   const pendingScrollAttemptsRef = useRef<number>(0)
   const chapterNodesRef = useRef<Map<number, HTMLDivElement>>(new Map())
   const activeIndexRef = useRef<number | null>(null)
+  const targetChapterIndexRef = useRef<number | null>(null)
   const [contentVersion, setContentVersion] = useState(0)
   const [autoCompletedMap, setAutoCompletedMap] = useState<Record<number, boolean>>({})
   const [loadingForward, setLoadingForward] = useState(false)
@@ -421,24 +422,22 @@ export function ReaderPage() {
   const scrollRecalcFrameRef = useRef<number | null>(null)
 
   const getVisibleHeaderHeight = useCallback(() => {
-    if (typeof document === 'undefined') return 0
-    const topBar = document.querySelector('[data-reader-top-bar]') as HTMLElement | null
-    if (!topBar) return 0
-    const rect = topBar.getBoundingClientRect()
-    if (rect.bottom <= 0) return 0
-    return rect.height
-  }, [])
+    if (typeof window === 'undefined') return 0
+    if (!showUI) return 0
 
-  const computeChapterOffset = useCallback((index: number) => {
-    if (typeof window === 'undefined') return Number.POSITIVE_INFINITY
-    const node = chapterNodesRef.current.get(index)
-    if (!node) return Number.POSITIVE_INFINITY
-    const headerHeight = getVisibleHeaderHeight()
-    const margin = headerHeight > 0 ? 16 : 12
-    const baseline = headerHeight + margin
-    const rect = node.getBoundingClientRect()
-    return rect.top - baseline
-  }, [getVisibleHeaderHeight])
+    const topBar = document.querySelector<HTMLElement>('[data-reader-top-bar]')
+    if (!topBar) return 0
+
+    const rect = topBar.getBoundingClientRect()
+    const isVisible = rect.bottom > 0 && rect.top < window.innerHeight
+    if (!isVisible || rect.height <= 0) return 0
+
+    const computed = window.getComputedStyle(topBar)
+    const marginBottom = parseFloat(computed.marginBottom || '0')
+    const safeMargin = Number.isFinite(marginBottom) ? marginBottom : 0
+
+    return rect.height + safeMargin
+  }, [showUI])
 
   const updateActiveFromVisibility = useCallback(() => {
     if (pendingScrollIndexRef.current != null) return
@@ -446,11 +445,12 @@ export function ReaderPage() {
     const now = Date.now()
     const lockActive = lockUntil > now
     const currentIndex = activeIndexRef.current
+    const targetIndex = targetChapterIndexRef.current
 
     const candidates = visibleChapterIndexesRef.current.size > 0
       ? Array.from(visibleChapterIndexesRef.current)
       : Array.from(chapterNodesRef.current.keys())
-    if (candidates.length === 0) return
+    if (candidates.length === 0 && targetIndex == null) return
 
     const headerHeight = getVisibleHeaderHeight()
     const margin = headerHeight > 0 ? 16 : 12
@@ -458,6 +458,23 @@ export function ReaderPage() {
 
     let bestIndex: number | null = null
     let bestDistance = Number.POSITIVE_INFINITY
+    let forceTarget = false
+
+    if (targetIndex != null) {
+      const targetNode = chapterNodesRef.current.get(targetIndex)
+      if (!targetNode) {
+        return
+      }
+      const targetOffset = targetNode.getBoundingClientRect().top - baseline
+      const targetDistance = Math.abs(targetOffset)
+      bestIndex = targetIndex
+      bestDistance = targetDistance
+      if (targetDistance > 36) {
+        forceTarget = true
+      } else {
+        targetChapterIndexRef.current = null
+      }
+    }
 
     const evaluateIndex = (idx: number) => {
       const node = chapterNodesRef.current.get(idx)
@@ -470,41 +487,50 @@ export function ReaderPage() {
       }
     }
 
-    if (lockActive && currentIndex != null) {
-      evaluateIndex(currentIndex)
-    } else {
-      candidates.forEach(idx => evaluateIndex(idx))
-      if (bestIndex == null && currentIndex != null) {
-        evaluateIndex(currentIndex)
+    if (forceTarget) {
+      if (bestIndex != null && bestIndex !== currentIndex) {
+        setActiveIndex(bestIndex)
       }
-    }
-
-    if (bestIndex != null && bestIndex !== currentIndex) {
-      setActiveIndex(bestIndex)
       return
     }
 
-    if (!lockActive && currentIndex != null) {
-      const node = chapterNodesRef.current.get(currentIndex)
-      if (!node) return
-      const offset = node.getBoundingClientRect().top - baseline
-      if (Math.abs(offset) <= 32) return
-      let fallback: number | null = null
-      let fallbackDistance = Number.POSITIVE_INFINITY
-      candidates.forEach(idx => {
-        if (idx === currentIndex) return
-        const candidateNode = chapterNodesRef.current.get(idx)
-        if (!candidateNode) return
-        const candidateOffset = candidateNode.getBoundingClientRect().top - baseline
-        const candidateDistance = Math.abs(candidateOffset)
-        if (candidateDistance < fallbackDistance - 0.25) {
-          fallback = idx
-          fallbackDistance = candidateDistance
-        }
-      })
-      if (fallback != null) {
-        setActiveIndex(fallback)
+    if (candidates.length) {
+      const orderedCandidates = [...candidates].sort((a, b) => a - b)
+      orderedCandidates.forEach(idx => evaluateIndex(idx))
+
+      if (bestIndex == null && currentIndex != null) {
+        evaluateIndex(currentIndex)
       }
+
+      if (bestIndex != null && bestIndex !== currentIndex) {
+        setActiveIndex(bestIndex)
+        return
+      }
+
+      if (!lockActive && currentIndex != null) {
+        const currentNode = chapterNodesRef.current.get(currentIndex)
+        if (!currentNode) return
+        const currentOffset = currentNode.getBoundingClientRect().top - baseline
+        if (Math.abs(currentOffset) <= 32) return
+        let fallbackIndex: number | null = null
+        let fallbackDistance = Number.POSITIVE_INFINITY
+        orderedCandidates.forEach(idx => {
+          if (idx === currentIndex) return
+          const node = chapterNodesRef.current.get(idx)
+          if (!node) return
+          const offset = node.getBoundingClientRect().top - baseline
+          const distance = Math.abs(offset)
+          if (distance < fallbackDistance - 0.25) {
+            fallbackIndex = idx
+            fallbackDistance = distance
+          }
+        })
+        if (fallbackIndex != null) {
+          setActiveIndex(fallbackIndex)
+        }
+      }
+    } else if (bestIndex != null && bestIndex !== currentIndex) {
+      setActiveIndex(bestIndex)
     }
   }, [getVisibleHeaderHeight])
 
@@ -655,6 +681,7 @@ export function ReaderPage() {
     pendingScrollBehaviorRef.current = 'smooth'
     setAutoCompletedMap({})
     visibleChapterIndexesRef.current.clear()
+    targetChapterIndexRef.current = null
   }, [mangaId])
 
   useEffect(() => {
@@ -672,13 +699,21 @@ export function ReaderPage() {
       }
       return [...prev, nextEntry].sort((a, b) => a.index - b.index)
     })
-    setActiveIndex(prev => prev ?? index)
+    setActiveIndex(prev => {
+      if (prev == null) {
+        targetChapterIndexRef.current = index
+        return index
+      }
+      return prev
+    })
   }, [initialChapter, initialImages, sortedChapters])
 
   useEffect(() => {
     if (!chapterEntries.length) return
     if (activeIndex == null) {
-      setActiveIndex(chapterEntries[0].index)
+      const firstIndex = chapterEntries[0].index
+      targetChapterIndexRef.current = firstIndex
+      setActiveIndex(firstIndex)
     }
   }, [chapterEntries, activeIndex])
 
@@ -1041,6 +1076,7 @@ export function ReaderPage() {
     if (target >= sortedChapters.length) return
 
     manualNavigationLockRef.current = Date.now() + 900
+    targetChapterIndexRef.current = target
     pendingActiveIndexRef.current = null
     pendingScrollIndexRef.current = null
 
@@ -1079,6 +1115,7 @@ export function ReaderPage() {
     if (target < 0) return
 
     manualNavigationLockRef.current = Date.now() + 900
+    targetChapterIndexRef.current = target
     pendingActiveIndexRef.current = null
     pendingScrollIndexRef.current = null
 
@@ -1123,6 +1160,7 @@ export function ReaderPage() {
     if (targetIndex === -1) return
 
     manualNavigationLockRef.current = Date.now() + 900
+    targetChapterIndexRef.current = targetIndex
     pendingActiveIndexRef.current = targetIndex
     pendingScrollIndexRef.current = targetIndex
     pendingScrollBehaviorRef.current = 'auto'
