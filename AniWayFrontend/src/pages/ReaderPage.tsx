@@ -417,56 +417,74 @@ export function ReaderPage() {
   const [loadingBackward, setLoadingBackward] = useState(false)
   const [likedChapters, setLikedChapters] = useState<Record<number, boolean>>({})
   const [likingChapters, setLikingChapters] = useState<Record<number, boolean>>({})
-  const visibleChapterOffsetsRef = useRef<Map<number, number>>(new Map())
+  const visibleChapterIndexesRef = useRef<Set<number>>(new Set())
   const scrollRecalcFrameRef = useRef<number | null>(null)
+
+  const getVisibleHeaderHeight = useCallback(() => {
+    if (typeof document === 'undefined') return 0
+    const topBar = document.querySelector('[data-reader-top-bar]') as HTMLElement | null
+    if (!topBar) return 0
+    const rect = topBar.getBoundingClientRect()
+    if (rect.bottom <= 0) return 0
+    return rect.height
+  }, [])
+
+  const computeChapterOffset = useCallback((index: number) => {
+    if (typeof window === 'undefined') return Number.POSITIVE_INFINITY
+    const node = chapterNodesRef.current.get(index)
+    if (!node) return Number.POSITIVE_INFINITY
+    const headerHeight = getVisibleHeaderHeight()
+    const margin = headerHeight > 0 ? 16 : 12
+    const baseline = headerHeight + margin
+    const rect = node.getBoundingClientRect()
+    return rect.top - baseline
+  }, [getVisibleHeaderHeight])
 
   const updateActiveFromVisibility = useCallback(() => {
     if (pendingScrollIndexRef.current != null) return
     const lockUntil = manualNavigationLockRef.current
     if (lockUntil > Date.now()) return
-    const entries = visibleChapterOffsetsRef.current
-    if (!entries.size) return
+
+    const candidates = visibleChapterIndexesRef.current.size > 0
+      ? Array.from(visibleChapterIndexesRef.current)
+      : Array.from(chapterNodesRef.current.keys())
+    if (candidates.length === 0) return
+
     let bestIndex: number | null = null
     let bestOffset = Number.POSITIVE_INFINITY
     let bestDistance = Number.POSITIVE_INFINITY
-    entries.forEach((offset, idx) => {
+
+    candidates.forEach(idx => {
+      const offset = computeChapterOffset(idx)
+      if (!Number.isFinite(offset)) return
       const distance = Math.abs(offset)
-      if (distance < bestDistance - 0.5) {
+      if (distance + 0.25 < bestDistance) {
         bestDistance = distance
         bestOffset = offset
         bestIndex = idx
         return
       }
-      if (Math.abs(distance - bestDistance) <= 0.5) {
-        if (bestIndex == null) {
-          bestDistance = distance
-          bestOffset = offset
-          bestIndex = idx
-          return
-        }
+      if (Math.abs(distance - bestDistance) <= 0.25 && bestIndex != null) {
         const currentAhead = offset >= 0 && bestOffset < 0
-        const bothAhead = offset >= 0 && bestOffset >= 0 && offset < bestOffset - 0.5
-        const bothBehind = offset < 0 && bestOffset < 0 && offset > bestOffset + 0.5
+        const bothAhead = offset >= 0 && bestOffset >= 0 && offset < bestOffset - 0.25
+        const bothBehind = offset < 0 && bestOffset < 0 && offset > bestOffset + 0.25
         const preferHigherIndex = !currentAhead && !bothAhead && !bothBehind && idx > bestIndex
         if (currentAhead || bothAhead || bothBehind || preferHigherIndex) {
           bestDistance = distance
           bestOffset = offset
           bestIndex = idx
         }
+      } else if (bestIndex == null) {
+        bestDistance = distance
+        bestOffset = offset
+        bestIndex = idx
       }
     })
-    if (bestIndex != null) {
-      const currentIndex = activeIndexRef.current
-      const viewportHeight = typeof window !== 'undefined' ? window.innerHeight || 0 : 0
-      const maxAcceptableDistance = viewportHeight > 0 ? viewportHeight * 0.6 : Number.POSITIVE_INFINITY
-      if (currentIndex != null && Math.abs(bestOffset) > maxAcceptableDistance) {
-        return
-      }
-      if (currentIndex !== bestIndex) {
-        setActiveIndex(bestIndex)
-      }
+
+    if (bestIndex != null && activeIndexRef.current !== bestIndex) {
+      setActiveIndex(bestIndex)
     }
-  }, [])
+  }, [computeChapterOffset])
 
   const cancelPendingScroll = useCallback(() => {
     if (pendingScrollIndexRef.current == null && pendingActiveIndexRef.current == null) {
@@ -614,7 +632,7 @@ export function ReaderPage() {
     pendingActiveIndexRef.current = null
     pendingScrollBehaviorRef.current = 'smooth'
     setAutoCompletedMap({})
-    visibleChapterOffsetsRef.current.clear()
+    visibleChapterIndexesRef.current.clear()
   }, [mangaId])
 
   useEffect(() => {
@@ -790,65 +808,27 @@ export function ReaderPage() {
     }
   }, [sortedChapters])
 
-  const getVisibleHeaderHeight = useCallback(() => {
-    if (typeof document === 'undefined') return 0
-    const topBar = document.querySelector('[data-reader-top-bar]') as HTMLElement | null
-    if (!topBar) return 0
-    const rect = topBar.getBoundingClientRect()
-    if (rect.bottom <= 0) return 0
-    return rect.height
-  }, [])
-
-  const computeChapterOffset = useCallback((index: number) => {
-    if (typeof window === 'undefined') return Number.POSITIVE_INFINITY
-    const node = chapterNodesRef.current.get(index)
-    if (!node) return Number.POSITIVE_INFINITY
-    const headerHeight = getVisibleHeaderHeight()
-    const margin = headerHeight > 0 ? 16 : 12
-    const baseline = headerHeight + margin
-    const rect = node.getBoundingClientRect()
-    return rect.top - baseline
-  }, [getVisibleHeaderHeight])
-
   const handleChapterVisibility = useCallback((index: number, isVisible: boolean) => {
-    const map = visibleChapterOffsetsRef.current
+    const set = visibleChapterIndexesRef.current
     if (isVisible) {
-      const offset = computeChapterOffset(index)
-      if (Number.isFinite(offset)) {
-        map.set(index, offset)
-      } else {
-        map.delete(index)
-      }
+      set.add(index)
     } else {
-      map.delete(index)
+      set.delete(index)
     }
     updateActiveFromVisibility()
-  }, [computeChapterOffset, updateActiveFromVisibility])
+  }, [updateActiveFromVisibility])
 
-  const recomputeVisibleOffsets = useCallback(() => {
-    const map = visibleChapterOffsetsRef.current
-    if (!map.size) {
+  const scheduleActiveRecalculation = useCallback(() => {
+    if (typeof window === 'undefined') {
       updateActiveFromVisibility()
       return
     }
-    let changed = false
-    const nextEntries = new Map<number, number>()
-    map.forEach((_value, idx) => {
-      const offset = computeChapterOffset(idx)
-      if (Number.isFinite(offset)) {
-        nextEntries.set(idx, offset)
-        const previous = map.get(idx)
-        if (previous == null || Math.abs(previous - offset) > 0.5) {
-          changed = true
-        }
-      }
+    if (scrollRecalcFrameRef.current != null) return
+    scrollRecalcFrameRef.current = window.requestAnimationFrame(() => {
+      scrollRecalcFrameRef.current = null
+      updateActiveFromVisibility()
     })
-    if (changed || nextEntries.size !== map.size) {
-      map.clear()
-      nextEntries.forEach((val, idx) => map.set(idx, val))
-    }
-    updateActiveFromVisibility()
-  }, [computeChapterOffset, updateActiveFromVisibility])
+  }, [updateActiveFromVisibility])
 
   const scrollChapterIntoView = useCallback((index: number, behavior: ScrollBehavior = 'auto') => {
     if (typeof window === 'undefined') return false
@@ -898,31 +878,25 @@ export function ReaderPage() {
   useEffect(() => {
     if (contentVersion === 0) return
     const timer = window.setTimeout(() => {
-      recomputeVisibleOffsets()
+      updateActiveFromVisibility()
     }, 50)
     return () => window.clearTimeout(timer)
-  }, [contentVersion, recomputeVisibleOffsets])
+  }, [contentVersion, updateActiveFromVisibility])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const scheduleRecompute = () => {
-      if (scrollRecalcFrameRef.current != null) return
-      scrollRecalcFrameRef.current = window.requestAnimationFrame(() => {
-        scrollRecalcFrameRef.current = null
-        recomputeVisibleOffsets()
-      })
-    }
-    window.addEventListener('scroll', scheduleRecompute, { passive: true })
-    window.addEventListener('resize', scheduleRecompute)
+    const handler = () => scheduleActiveRecalculation()
+    window.addEventListener('scroll', handler, { passive: true })
+    window.addEventListener('resize', handler)
     return () => {
-      window.removeEventListener('scroll', scheduleRecompute)
-      window.removeEventListener('resize', scheduleRecompute)
+      window.removeEventListener('scroll', handler)
+      window.removeEventListener('resize', handler)
       if (scrollRecalcFrameRef.current != null) {
         window.cancelAnimationFrame(scrollRecalcFrameRef.current)
         scrollRecalcFrameRef.current = null
       }
     }
-  }, [recomputeVisibleOffsets])
+  }, [scheduleActiveRecalculation])
 
   useEffect(() => {
     const index = pendingScrollIndexRef.current
