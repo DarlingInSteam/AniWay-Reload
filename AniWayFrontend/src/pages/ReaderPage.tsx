@@ -219,6 +219,7 @@ interface ChapterBlockProps {
   registerNode: (index: number, node: HTMLDivElement | null) => void
   onContentResize: (index: number) => void
   isActive: boolean
+  onVisibilityChange: (index: number, isVisible: boolean) => void
 }
 
 const ChapterBlock = ({
@@ -237,7 +238,8 @@ const ChapterBlock = ({
   onCompleted,
   registerNode,
   onContentResize,
-  isActive
+  isActive,
+  onVisibilityChange
 }: ChapterBlockProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const topSentinelRef = useRef<HTMLDivElement | null>(null)
@@ -248,6 +250,27 @@ const ChapterBlock = ({
     registerNode(entry.index, containerRef.current)
     return () => registerNode(entry.index, null)
   }, [entry.index, registerNode])
+
+  useEffect(() => {
+    const node = containerRef.current
+    if (!node) return
+    if (typeof window === 'undefined') return
+    let didCancel = false
+    const observer = new IntersectionObserver((entries) => {
+      if (didCancel) return
+      entries.forEach(item => {
+        if (item.target === node) {
+          onVisibilityChange(entry.index, item.isIntersecting)
+        }
+      })
+    }, { threshold: [0, 0.1, 0.25, 0.5, 0.75, 0.95], rootMargin: '0px 0px 0px 0px' })
+    observer.observe(node)
+    return () => {
+      didCancel = true
+      observer.disconnect()
+      onVisibilityChange(entry.index, false)
+    }
+  }, [entry.index, onVisibilityChange])
 
   useEffect(() => {
     const node = containerRef.current
@@ -388,6 +411,7 @@ export function ReaderPage() {
   const [likedChapters, setLikedChapters] = useState<Record<number, boolean>>({})
   const [likingChapters, setLikingChapters] = useState<Record<number, boolean>>({})
   const visibleChapterOffsetsRef = useRef<Map<number, number>>(new Map())
+  const scrollRecalcFrameRef = useRef<number | null>(null)
 
   const updateActiveFromVisibility = useCallback(() => {
     if (pendingScrollIndexRef.current != null) return
@@ -419,16 +443,6 @@ export function ReaderPage() {
     pendingActiveIndexRef.current = null
     pendingScrollBehaviorRef.current = 'smooth'
     manualNavigationLockRef.current = 0
-    updateActiveFromVisibility()
-  }, [updateActiveFromVisibility])
-
-  const handleChapterVisibility = useCallback((index: number, isVisible: boolean, centerOffset?: number) => {
-    const map = visibleChapterOffsetsRef.current
-    if (isVisible) {
-      map.set(index, centerOffset ?? Number.POSITIVE_INFINITY)
-    } else {
-      map.delete(index)
-    }
     updateActiveFromVisibility()
   }, [updateActiveFromVisibility])
 
@@ -751,6 +765,57 @@ export function ReaderPage() {
     return rect.height
   }, [])
 
+  const computeChapterOffset = useCallback((index: number) => {
+    if (typeof window === 'undefined') return Number.POSITIVE_INFINITY
+    const node = chapterNodesRef.current.get(index)
+    if (!node) return Number.POSITIVE_INFINITY
+    const headerHeight = getVisibleHeaderHeight()
+    const margin = headerHeight > 0 ? 16 : 12
+    const baseline = headerHeight + margin
+    const rect = node.getBoundingClientRect()
+    return rect.top - baseline
+  }, [getVisibleHeaderHeight])
+
+  const handleChapterVisibility = useCallback((index: number, isVisible: boolean) => {
+    const map = visibleChapterOffsetsRef.current
+    if (isVisible) {
+      const offset = computeChapterOffset(index)
+      if (Number.isFinite(offset)) {
+        map.set(index, offset)
+      } else {
+        map.delete(index)
+      }
+    } else {
+      map.delete(index)
+    }
+    updateActiveFromVisibility()
+  }, [computeChapterOffset, updateActiveFromVisibility])
+
+  const recomputeVisibleOffsets = useCallback(() => {
+    const map = visibleChapterOffsetsRef.current
+    if (!map.size) {
+      updateActiveFromVisibility()
+      return
+    }
+    let changed = false
+    const nextEntries = new Map<number, number>()
+    map.forEach((_value, idx) => {
+      const offset = computeChapterOffset(idx)
+      if (Number.isFinite(offset)) {
+        nextEntries.set(idx, offset)
+        const previous = map.get(idx)
+        if (previous == null || Math.abs(previous - offset) > 0.5) {
+          changed = true
+        }
+      }
+    })
+    if (changed || nextEntries.size !== map.size) {
+      map.clear()
+      nextEntries.forEach((val, idx) => map.set(idx, val))
+    }
+    updateActiveFromVisibility()
+  }, [computeChapterOffset, updateActiveFromVisibility])
+
   const scrollChapterIntoView = useCallback((index: number, behavior: ScrollBehavior = 'auto') => {
     if (typeof window === 'undefined') return false
     const node = chapterNodesRef.current.get(index)
@@ -799,10 +864,31 @@ export function ReaderPage() {
   useEffect(() => {
     if (contentVersion === 0) return
     const timer = window.setTimeout(() => {
-      updateActiveFromVisibility()
+      recomputeVisibleOffsets()
     }, 50)
     return () => window.clearTimeout(timer)
-  }, [contentVersion, updateActiveFromVisibility])
+  }, [contentVersion, recomputeVisibleOffsets])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const scheduleRecompute = () => {
+      if (scrollRecalcFrameRef.current != null) return
+      scrollRecalcFrameRef.current = window.requestAnimationFrame(() => {
+        scrollRecalcFrameRef.current = null
+        recomputeVisibleOffsets()
+      })
+    }
+    window.addEventListener('scroll', scheduleRecompute, { passive: true })
+    window.addEventListener('resize', scheduleRecompute)
+    return () => {
+      window.removeEventListener('scroll', scheduleRecompute)
+      window.removeEventListener('resize', scheduleRecompute)
+      if (scrollRecalcFrameRef.current != null) {
+        window.cancelAnimationFrame(scrollRecalcFrameRef.current)
+        scrollRecalcFrameRef.current = null
+      }
+    }
+  }, [recomputeVisibleOffsets])
 
   useEffect(() => {
     const index = pendingScrollIndexRef.current
@@ -1573,6 +1659,7 @@ export function ReaderPage() {
                 registerNode={registerChapterNode}
                 onContentResize={handleChapterContentResize}
                 isActive={entry.index === activeChapterIndex}
+                onVisibilityChange={handleChapterVisibility}
               />
             )
           })}
