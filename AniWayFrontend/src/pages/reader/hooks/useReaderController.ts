@@ -75,11 +75,48 @@ export function useReaderController() {
   const manualNavigationLowerBoundRef = useRef<number | null>(null)
   const [manualNavigationLowerBound, setManualNavigationLowerBound] = useState<number | null>(null)
   const [transitionBridge, setTransitionBridge] = useState<{ anchorIndex: number; targetIndex: number; targetReady: boolean } | null>(null)
+  const pendingPruneIndexRef = useRef<number | null>(null)
+  const manualNavigationInitRef = useRef<boolean>(false)
+  const manualNavigationState = (location.state as { manualNavigation?: boolean } | null)?.manualNavigation ?? false
+
+  const pruneBeforeIndex = useCallback((lowerBound: number) => {
+    const hasEligibleEntry = chapterEntriesRef.current.some(entry => entry.index >= lowerBound)
+    if (!hasEligibleEntry) {
+      pendingPruneIndexRef.current = lowerBound
+      return
+    }
+    pendingPruneIndexRef.current = null
+    chapterNodesRef.current.forEach((_, index) => {
+      if (index < lowerBound) {
+        chapterNodesRef.current.delete(index)
+      }
+    })
+    visibleChapterIndexesRef.current.forEach(index => {
+      if (index < lowerBound) {
+        visibleChapterIndexesRef.current.delete(index)
+      }
+    })
+    prefetchPrevRef.current.forEach(index => {
+      if (index < lowerBound) {
+        prefetchPrevRef.current.delete(index)
+      }
+    })
+    loadingIndicesRef.current.forEach(index => {
+      if (index < lowerBound) {
+        loadingIndicesRef.current.delete(index)
+      }
+    })
+    setChapterEntries(prev => prev.filter(entry => entry.index >= lowerBound))
+  }, [])
 
   const updateManualNavigationLowerBound = useCallback((value: number | null) => {
+    const previous = manualNavigationLowerBoundRef.current
     manualNavigationLowerBoundRef.current = value
     setManualNavigationLowerBound(value)
-  }, [setManualNavigationLowerBound])
+    if (value != null && (previous == null || value > previous)) {
+      pruneBeforeIndex(value)
+    }
+  }, [pruneBeforeIndex])
 
   const getVisibleHeaderHeight = useCallback(() => {
     if (typeof window === 'undefined') return headerHeightCacheRef.current
@@ -334,7 +371,19 @@ export function useReaderController() {
 
   useEffect(() => {
     chapterEntriesRef.current = chapterEntries
-  }, [chapterEntries])
+    const pending = pendingPruneIndexRef.current
+    if (pending != null) {
+      pruneBeforeIndex(pending)
+    }
+  }, [chapterEntries, pruneBeforeIndex])
+
+  useEffect(() => {
+    if (!manualNavigationState) return
+    if (manualNavigationInitRef.current) return
+    if (activeIndex == null) return
+    manualNavigationInitRef.current = true
+    updateManualNavigationLowerBound(activeIndex)
+  }, [activeIndex, manualNavigationState, updateManualNavigationLowerBound])
 
   useEffect(() => {
     activeIndexRef.current = activeIndex
