@@ -80,12 +80,8 @@ export function useReaderController() {
   const manualNavigationState = (location.state as { manualNavigation?: boolean } | null)?.manualNavigation ?? false
 
   const pruneBeforeIndex = useCallback((lowerBound: number) => {
-    const hasEligibleEntry = chapterEntriesRef.current.some(entry => entry.index >= lowerBound)
-    if (!hasEligibleEntry) {
-      pendingPruneIndexRef.current = lowerBound
-      return
-    }
-    pendingPruneIndexRef.current = null
+    const shouldReapplyLater = !chapterEntriesRef.current.some(entry => entry.index >= lowerBound)
+    pendingPruneIndexRef.current = shouldReapplyLater ? lowerBound : null
     chapterNodesRef.current.forEach((_, index) => {
       if (index < lowerBound) {
         chapterNodesRef.current.delete(index)
@@ -653,6 +649,10 @@ export function useReaderController() {
   const ensureChapterLoaded = useCallback(async (index: number, direction: 'append' | 'prepend' = 'append') => {
     if (!sortedChapters) return
     if (index < 0 || index >= sortedChapters.length) return
+    const lowerBound = manualNavigationLowerBoundRef.current
+    if (lowerBound != null && index < lowerBound) {
+      return
+    }
     const replacement = replaceChapterEntriesRef.current
     if (!replacement && chapterEntriesRef.current.some(entry => entry.index === index)) return
     if (loadingIndicesRef.current.has(index)) return
