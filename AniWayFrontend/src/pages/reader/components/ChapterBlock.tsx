@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, type CSSProperties, type ReactNode, type M
 import { apiClient } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { formatChapterTitle } from '@/lib/chapterUtils'
+import { ChapterTransitionPreview } from './ChapterTransitionPreview'
 import type { ChapterEntry } from '../types'
 
 interface ChapterImageListProps {
@@ -216,6 +217,8 @@ export interface ChapterBlockProps {
   registerNode: (index: number, node: HTMLDivElement | null) => void
   onContentResize: (index: number) => void
   isActive: boolean
+  showTransitionPreview?: boolean
+  onShowAllComments?: () => void
   onVisibilityChange: (index: number, isVisible: boolean) => void
 }
 
@@ -236,7 +239,9 @@ export const ChapterBlock = ({
   registerNode,
   onContentResize,
   isActive,
-  onVisibilityChange
+  onVisibilityChange,
+  showTransitionPreview,
+  onShowAllComments
 }: ChapterBlockProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const topSentinelRef = useRef<HTMLDivElement | null>(null)
@@ -361,7 +366,17 @@ export const ChapterBlock = ({
         handleTouchEndSwipe={handleTouchEndSwipe}
       />
       <div ref={completionSentinelRef} aria-hidden className="h-1 w-full" />
-      <div ref={bottomSentinelRef} aria-hidden className="h-64 w-full" />
+      <div ref={bottomSentinelRef} aria-hidden className="w-full">
+        {showTransitionPreview && entry.chapter ? (
+          <ChapterTransitionPreview
+            chapterId={entry.chapter.id}
+            chapterNumber={entry.chapter.chapterNumber}
+            onShowAll={() => onShowAllComments?.()}
+          />
+        ) : (
+          <div className="h-64" />
+        )}
+      </div>
     </section>
   )
 }

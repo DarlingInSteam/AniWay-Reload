@@ -42,6 +42,7 @@ export const ReaderPage = () => {
   manga,
     chapterEntries,
     sortedChapters,
+    transitionBridge,
     activeChapter,
     activeImages,
     activeChapterId,
@@ -148,6 +149,8 @@ export const ReaderPage = () => {
                 imageWidth={imageWidth}
                 showUI={showUI}
                 previousChapter={prevMeta}
+                showTransitionPreview={transitionBridge?.anchorIndex === entry.index}
+                onShowAllComments={() => setShowSideComments(true)}
                 handleImageClick={handleImageClick}
                 handleTapOrClick={handleTapOrClick}
                 handleDoubleClickDesktop={handleDoubleClickDesktop}
