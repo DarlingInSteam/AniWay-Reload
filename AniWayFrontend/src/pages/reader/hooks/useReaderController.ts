@@ -462,6 +462,18 @@ export function useReaderController() {
       if (pendingScrollIndexRef.current != null && manualNavigationLockRef.current < Date.now()) {
         cancelPendingScroll()
       }
+      const now = Date.now()
+      if (manualNavigationLockRef.current < now) {
+        const guard = manualNavigationGuardRef.current
+        if (guard) {
+          if ((guard.direction === 'forward' && delta > 0) || (guard.direction === 'backward' && delta < 0)) {
+            manualNavigationGuardRef.current = null
+          }
+        }
+        if (targetChapterIndexRef.current != null) {
+          targetChapterIndexRef.current = null
+        }
+      }
       lastScrollDirectionRef.current = delta > 0 ? 1 : -1
       lastScrollDirectionAtRef.current = Date.now()
     }
