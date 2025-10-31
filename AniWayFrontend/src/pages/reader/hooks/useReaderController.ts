@@ -8,6 +8,12 @@ import { useReadingProgress } from '@/hooks/useProgress'
 import type { ChapterEntry } from '../types'
 
 const MAX_PENDING_SCROLL_ATTEMPTS = 480
+const SCROLL_DIRECTION_RESET_MS = 450
+
+type ManualNavigationGuard = {
+  direction: 'forward' | 'backward'
+  anchorIndex: number
+}
 
 export function useReaderController() {
   const { chapterId } = useParams<{ chapterId: string }>()
@@ -60,6 +66,9 @@ export function useReaderController() {
   const [likingChapters, setLikingChapters] = useState<Record<number, boolean>>({})
   const visibleChapterIndexesRef = useRef<Set<number>>(new Set())
   const scrollRecalcFrameRef = useRef<number | null>(null)
+  const manualNavigationGuardRef = useRef<ManualNavigationGuard | null>(null)
+  const lastScrollDirectionRef = useRef<-1 | 0 | 1>(0)
+  const lastScrollDirectionAtRef = useRef<number>(0)
   const headerHeightCacheRef = useRef<number>(0)
 
   const getVisibleHeaderHeight = useCallback(() => {
@@ -142,6 +151,16 @@ export function useReaderController() {
 
     if (!infos.length) return
 
+    const guard = manualNavigationGuardRef.current
+    let evaluationInfos = infos
+    if (guard) {
+      const filtered = infos.filter(info => guard.direction === 'forward' ? info.index >= guard.anchorIndex : info.index <= guard.anchorIndex)
+      if (!filtered.length) {
+        return
+      }
+      evaluationInfos = filtered
+    }
+
     let forceTarget = false
     let bestIndex: number | null = null
     let targetInfo: CandidateInfo | undefined
@@ -195,7 +214,7 @@ export function useReaderController() {
 
     let chosen: CandidateInfo | null = null
 
-    const focusMatches = infos.filter(info => info.focusCover)
+    const focusMatches = evaluationInfos.filter(info => info.focusCover)
     if (targetInfo && !forceTarget) {
       const shouldPreferTarget = targetInfo.focusCover || targetInfo.baselineCover || targetInfo.focusDistance <= 80
       if (shouldPreferTarget) {
@@ -208,19 +227,19 @@ export function useReaderController() {
     }
 
     if (!chosen) {
-      const baselineMatches = infos.filter(info => info.baselineCover)
+      const baselineMatches = evaluationInfos.filter(info => info.baselineCover)
       if (baselineMatches.length) {
         chosen = selectBest(baselineMatches, 'baseline')
       }
     }
 
     if (!chosen) {
-      chosen = selectBest(infos, 'focus') ?? selectBest(infos, 'baseline') ?? selectBest(infos, 'top')
+      chosen = selectBest(evaluationInfos, 'focus') ?? selectBest(evaluationInfos, 'baseline') ?? selectBest(evaluationInfos, 'top')
     }
 
     if (!chosen) return
 
-    const currentInfo = currentIndex != null ? infos.find(info => info.index === currentIndex) : undefined
+    const currentInfo = currentIndex != null ? evaluationInfos.find(info => info.index === currentIndex) : undefined
 
     if (!forceTarget && targetIndex == null && currentInfo && chosen.index !== currentIndex) {
       const currentCoversFocus = currentInfo.focusCover || currentInfo.baselineCover
@@ -249,6 +268,26 @@ export function useReaderController() {
       targetChapterIndexRef.current = null
     }
 
+    if (!guard && targetIndex == null && currentIndex != null && chosen.index < currentIndex) {
+      const lastDirection = lastScrollDirectionRef.current
+      const lastDirectionAge = Date.now() - lastScrollDirectionAtRef.current
+      if (lastDirection === 1 && lastDirectionAge <= SCROLL_DIRECTION_RESET_MS) {
+        return
+      }
+    }
+
+    if (guard) {
+      if (guard.direction === 'forward') {
+        if (chosen.index > guard.anchorIndex) {
+          manualNavigationGuardRef.current = null
+        }
+      } else if (guard.direction === 'backward') {
+        if (chosen.index < guard.anchorIndex) {
+          manualNavigationGuardRef.current = null
+        }
+      }
+    }
+
     if (lockActive && currentIndex != null && chosen.index !== currentIndex && targetIndex == null) {
       return
     }
@@ -261,7 +300,7 @@ export function useReaderController() {
     if (!lockActive && currentIndex != null) {
       if (currentInfo && Math.abs(currentInfo.rectTop - baseline) > 32) {
         const fallback = selectBest(
-          infos.filter(info => info.index !== currentIndex),
+          evaluationInfos.filter(info => info.index !== currentIndex),
           'focus'
         )
         if (fallback && fallback.index !== currentIndex) {
@@ -290,6 +329,21 @@ export function useReaderController() {
   useEffect(() => {
     activeIndexRef.current = activeIndex
   }, [activeIndex])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    let lastY = window.scrollY
+    const handle = () => {
+      const currentY = window.scrollY
+      const delta = currentY - lastY
+      lastY = currentY
+      if (Math.abs(delta) <= 1) return
+      lastScrollDirectionRef.current = delta > 0 ? 1 : -1
+      lastScrollDirectionAtRef.current = Date.now()
+    }
+    window.addEventListener('scroll', handle, { passive: true })
+    return () => window.removeEventListener('scroll', handle)
+  }, [])
 
   useEffect(() => {
     const pendingIndex = pendingActiveIndexRef.current
@@ -800,6 +854,10 @@ export function useReaderController() {
     pendingScrollBehaviorRef.current = 'smooth'
     pendingScrollAttemptsRef.current = 0
 
+    manualNavigationGuardRef.current = { direction: 'forward', anchorIndex: target }
+    lastScrollDirectionRef.current = 0
+    lastScrollDirectionAtRef.current = Date.now()
+
     await ensureChapterLoaded(target, 'append')
 
     if (chapterEntriesRef.current.some(entry => entry.index === target)) {
@@ -838,6 +896,10 @@ export function useReaderController() {
     pendingScrollIndexRef.current = target
     pendingScrollBehaviorRef.current = 'smooth'
     pendingScrollAttemptsRef.current = 0
+
+    manualNavigationGuardRef.current = { direction: 'backward', anchorIndex: target }
+    lastScrollDirectionRef.current = 0
+    lastScrollDirectionAtRef.current = Date.now()
 
     await ensureChapterLoaded(target, 'prepend')
 
@@ -880,6 +942,17 @@ export function useReaderController() {
     pendingScrollIndexRef.current = targetIndex
     pendingScrollBehaviorRef.current = 'auto'
     pendingScrollAttemptsRef.current = 0
+
+    if (activeChapterIndex != null && activeChapterIndex !== -1 && activeChapterIndex !== targetIndex) {
+      manualNavigationGuardRef.current = {
+        direction: targetIndex > activeChapterIndex ? 'forward' : 'backward',
+        anchorIndex: targetIndex
+      }
+    } else {
+      manualNavigationGuardRef.current = null
+    }
+    lastScrollDirectionRef.current = 0
+    lastScrollDirectionAtRef.current = Date.now()
 
     const direction: 'append' | 'prepend' = activeChapterIndex != null && targetIndex < activeChapterIndex ? 'prepend' : 'append'
     await ensureChapterLoaded(targetIndex, direction)
