@@ -136,6 +136,7 @@ export function useReaderController() {
     if (!topBar) return headerHeightCacheRef.current
 
     const rect = topBar.getBoundingClientRect()
+    const isVisible = rect.bottom > 0 && rect.top < window.innerHeight
     const computed = window.getComputedStyle(topBar)
     const marginBottom = parseFloat(computed.marginBottom || '0')
     const safeMargin = Number.isFinite(marginBottom) ? marginBottom : 0
@@ -143,6 +144,10 @@ export function useReaderController() {
 
     if (measured > 0) {
       headerHeightCacheRef.current = measured
+    }
+
+    if (!isVisible) {
+      return 0
     }
 
     return headerHeightCacheRef.current
@@ -1099,7 +1104,7 @@ export function useReaderController() {
     targetChapterIndexRef.current = targetIndex
     pendingActiveIndexRef.current = targetIndex
     pendingScrollIndexRef.current = targetIndex
-    pendingScrollBehaviorRef.current = 'auto'
+  pendingScrollBehaviorRef.current = 'smooth'
     pendingScrollAttemptsRef.current = 0
 
     setActiveIndex(prev => (prev === targetIndex ? prev : targetIndex))
