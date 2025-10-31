@@ -121,11 +121,12 @@ export function useReaderController() {
   }, [commitChapterEntries])
 
   const updateManualNavigationLowerBound = useCallback((value: number | null) => {
+    const sanitized = value == null ? null : Math.max(0, value - 1)
     const previous = manualNavigationLowerBoundRef.current
-    manualNavigationLowerBoundRef.current = value
-    setManualNavigationLowerBound(value)
-    if (value != null && (previous == null || value > previous)) {
-      pruneBeforeIndex(value)
+    manualNavigationLowerBoundRef.current = sanitized
+    setManualNavigationLowerBound(sanitized)
+    if (sanitized != null && (previous == null || sanitized > previous)) {
+      pruneBeforeIndex(sanitized)
     }
   }, [pruneBeforeIndex])
 
