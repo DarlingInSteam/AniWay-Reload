@@ -377,7 +377,7 @@ export function ReaderPage() {
   const pendingScrollBehaviorRef = useRef<ScrollBehavior>('smooth')
   const pendingActiveIndexRef = useRef<number | null>(null)
   const manualNavigationLockRef = useRef<number>(0)
-  const chapterLoadLockRef = useRef<number>(0) // НОВОЕ: блокировка во время загрузки глав
+  const activeChapterLoadsRef = useRef<number>(0) // Счетчик активных загрузок глав
   const pendingScrollAttemptsRef = useRef<number>(0)
   const chapterNodesRef = useRef<Map<number, HTMLDivElement>>(new Map())
   const scrollAnimationRef = useRef<number | null>(null)
@@ -655,7 +655,7 @@ export function ReaderPage() {
     if (loadingIndicesRef.current.has(index)) return
 
     loadingIndicesRef.current.add(index)
-    chapterLoadLockRef.current = Date.now() // БЛОКИРУЕМ evaluateActiveChapter
+    activeChapterLoadsRef.current += 1 // Увеличиваем счетчик активных загрузок
     
     if (direction === 'append') {
       setLoadingForward(true)
@@ -699,10 +699,10 @@ export function ReaderPage() {
           })
         }
       }
-      // Снимаем блокировку с задержкой, чтобы DOM успел стабилизироваться
+      // Уменьшаем счетчик с задержкой для стабилизации DOM
       setTimeout(() => {
-        chapterLoadLockRef.current = 0
-      }, direction === 'prepend' ? 800 : 300)
+        activeChapterLoadsRef.current = Math.max(0, activeChapterLoadsRef.current - 1)
+      }, direction === 'prepend' ? 1200 : 500)
     }
   }, [sortedChapters])
 
@@ -764,10 +764,9 @@ export function ReaderPage() {
     if (pendingScrollIndexRef.current != null) return
     if (pendingActiveIndexRef.current != null) return
     
-    // Проверяем блокировку от загрузки глав
-    const loadLockElapsed = Date.now() - chapterLoadLockRef.current
-    if (loadLockElapsed < 1500) {
-      console.log(`[evaluateActiveChapter] БЛОКИРОВАНО: идет загрузка глав (${loadLockElapsed}ms)`)
+    // Проверяем активные загрузки глав
+    if (activeChapterLoadsRef.current > 0) {
+      console.log(`[evaluateActiveChapter] БЛОКИРОВАНО: идет загрузка ${activeChapterLoadsRef.current} глав(ы)`)
       return
     }
     
