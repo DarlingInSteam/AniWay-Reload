@@ -98,7 +98,6 @@ export function useReaderController() {
   const pendingPruneIndexRef = useRef<number | null>(null)
   const manualNavigationInitRef = useRef<boolean>(false)
   const manualNavigationState = (location.state as { manualNavigation?: boolean } | null)?.manualNavigation ?? false
-  const manualNavigationTriggeredRef = useRef<boolean>(false)
 
   const pruneBeforeIndex = useCallback((lowerBound: number) => {
     const shouldReapplyLater = !chapterEntriesRef.current.some(entry => entry.index >= lowerBound)
@@ -132,7 +131,6 @@ export function useReaderController() {
     setManualNavigationLowerBound(value)
     if (value != null && (previous == null || value > previous)) {
       pruneBeforeIndex(value)
-      manualNavigationTriggeredRef.current = true
     }
   }, [pruneBeforeIndex])
 
@@ -474,10 +472,6 @@ export function useReaderController() {
         }
         if (targetChapterIndexRef.current != null) {
           targetChapterIndexRef.current = null
-        }
-        if (manualNavigationTriggeredRef.current && delta > 0) {
-          updateManualNavigationLowerBound(null)
-          manualNavigationTriggeredRef.current = false
         }
       }
       lastScrollDirectionRef.current = delta > 0 ? 1 : -1
