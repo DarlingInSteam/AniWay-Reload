@@ -381,6 +381,8 @@ export function ReaderPage() {
   const chapterNodesRef = useRef<Map<number, HTMLDivElement>>(new Map())
   const scrollAnimationRef = useRef<number | null>(null)
   const activeIndexRef = useRef<number | null>(null)
+  const lastScrollYRef = useRef<number>(typeof window !== 'undefined' ? window.scrollY : 0)
+  const scrollDirectionRef = useRef<'up' | 'down' | 'none'>('none')
   const [contentVersion, setContentVersion] = useState(0)
   const [autoCompletedMap, setAutoCompletedMap] = useState<Record<number, boolean>>({})
   const [loadingForward, setLoadingForward] = useState(false)
@@ -522,6 +524,12 @@ export function ReaderPage() {
     pendingActiveIndexRef.current = null
     pendingScrollBehaviorRef.current = 'smooth'
     setAutoCompletedMap({})
+    if (typeof window !== 'undefined') {
+      lastScrollYRef.current = window.scrollY
+    } else {
+      lastScrollYRef.current = 0
+    }
+    scrollDirectionRef.current = 'none'
   }, [mangaId])
 
   useEffect(() => {
@@ -764,6 +772,20 @@ export function ReaderPage() {
     const stickyThreshold = headerHeight + Math.min(260, viewportHeight * 0.3)
     const skipAboveThreshold = headerHeight + 24
 
+    const measureNode = (index: number) => {
+      const node = chapterNodesRef.current.get(index)
+      if (!node) return null
+      const rect = node.getBoundingClientRect()
+      const top = rect.top - headerHeight
+      const bottom = rect.bottom - headerHeight
+      const visibleTop = Math.max(top, 0)
+      const visibleBottom = Math.min(bottom, viewportHeight)
+      const visibleHeight = Math.max(visibleBottom - visibleTop, 0)
+      const limitedHeight = Math.max(Math.min(rect.height, viewportHeight), 1)
+      const coverage = visibleHeight / limitedHeight
+      return { rect, top, bottom, visibleTop, visibleBottom, visibleHeight, coverage }
+    }
+
     let candidate: number | null = null
 
     for (const [idx, node] of nodes) {
@@ -800,19 +822,21 @@ export function ReaderPage() {
 
     const currentIndex = activeIndexRef.current
     if (candidate != null && currentIndex != null && candidate < currentIndex) {
-      const node = chapterNodesRef.current.get(candidate)
-      if (node) {
-        const rect = node.getBoundingClientRect()
-        const top = rect.top - headerHeight
-        const bottom = rect.bottom - headerHeight
-        const visibleTop = Math.max(top, 0)
-        const visibleBottom = Math.min(bottom, viewportHeight)
-        const visibleHeight = Math.max(visibleBottom - visibleTop, 0)
-        const limitedHeight = Math.max(Math.min(rect.height, viewportHeight), 1)
-        const coverage = visibleHeight / limitedHeight
-        const minVisibleForRewind = Math.max(180, viewportHeight * 0.3)
-        if (visibleHeight < minVisibleForRewind || coverage < 0.55) {
+      const candidateMetrics = measureNode(candidate)
+      if (!candidateMetrics) return
+      const direction = scrollDirectionRef.current
+      const minVisibleForRewind = Math.max(200, viewportHeight * 0.35)
+      const minCoverageForRewind = 0.65
+      if (direction !== 'up') {
+        if (candidateMetrics.visibleHeight < minVisibleForRewind || candidateMetrics.coverage < minCoverageForRewind) {
           return
+        }
+        const currentMetrics = measureNode(currentIndex)
+        if (currentMetrics) {
+          const currentStillClearlyVisible = currentMetrics.visibleHeight >= candidateMetrics.visibleHeight * 0.75 && currentMetrics.coverage >= 0.3
+          if (currentStillClearlyVisible) {
+            return
+          }
         }
       }
     }
@@ -826,6 +850,14 @@ export function ReaderPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     const handle = () => {
+      const currentY = window.scrollY || 0
+      const delta = currentY - lastScrollYRef.current
+      if (Math.abs(delta) > 1) {
+        scrollDirectionRef.current = delta > 0 ? 'down' : 'up'
+        lastScrollYRef.current = currentY
+      } else if (scrollAnimationRef.current == null) {
+        scrollDirectionRef.current = 'none'
+      }
       if (scrollAnimationRef.current != null) return
       scrollAnimationRef.current = window.requestAnimationFrame(() => {
         scrollAnimationRef.current = null
@@ -974,6 +1006,7 @@ export function ReaderPage() {
     pendingActiveIndexRef.current = null
     pendingScrollIndexRef.current = null
 
+  scrollDirectionRef.current = 'down'
     pendingActiveIndexRef.current = target
     pendingScrollIndexRef.current = target
     pendingScrollBehaviorRef.current = 'auto'
@@ -1012,6 +1045,7 @@ export function ReaderPage() {
     pendingActiveIndexRef.current = null
     pendingScrollIndexRef.current = null
 
+  scrollDirectionRef.current = 'up'
     pendingActiveIndexRef.current = target
     pendingScrollIndexRef.current = target
     pendingScrollBehaviorRef.current = 'auto'
@@ -1057,6 +1091,13 @@ export function ReaderPage() {
     pendingActiveIndexRef.current = null
     pendingScrollIndexRef.current = null
     
+    if (activeChapterIndex != null && targetIndex > activeChapterIndex) {
+      scrollDirectionRef.current = 'down'
+    } else if (activeChapterIndex != null && targetIndex < activeChapterIndex) {
+      scrollDirectionRef.current = 'up'
+    } else {
+      scrollDirectionRef.current = 'none'
+    }
     // Set new target
     pendingActiveIndexRef.current = targetIndex
     pendingScrollIndexRef.current = targetIndex
