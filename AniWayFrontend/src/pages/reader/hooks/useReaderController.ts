@@ -901,7 +901,7 @@ export function useReaderController() {
       }
       pendingScrollIndexRef.current = null
       pendingScrollAttemptsRef.current = 0
-      manualNavigationLockRef.current = Date.now() + 400
+      manualNavigationLockRef.current = 0
       if (pendingActiveIndexRef.current === targetIndex) {
         pendingActiveIndexRef.current = null
       }
@@ -1017,13 +1017,12 @@ export function useReaderController() {
 
     setTransitionBridge(null)
 
-    manualNavigationLockRef.current = Date.now() + 900
+    manualNavigationLockRef.current = 0
     targetChapterIndexRef.current = target
     pendingActiveIndexRef.current = null
     pendingScrollIndexRef.current = null
 
     pendingActiveIndexRef.current = target
-    pendingScrollIndexRef.current = target
     pendingScrollBehaviorRef.current = 'smooth'
     pendingScrollAttemptsRef.current = 0
 
@@ -1032,7 +1031,7 @@ export function useReaderController() {
     loadEpochRef.current += 1
     manualNavigationGuardRef.current = { direction: 'forward', anchorIndex: target }
     replaceChapterEntriesRef.current = { index: target }
-  updateManualNavigationLowerBound(target)
+    updateManualNavigationLowerBound(target)
     lastScrollDirectionRef.current = 0
     lastScrollDirectionAtRef.current = Date.now()
     prefetchPrevRef.current.clear()
@@ -1045,22 +1044,11 @@ export function useReaderController() {
       setActiveIndex(prev => prev === target ? prev : target)
     }
 
-    const immediateScroll = scrollChapterIntoView(target, pendingScrollBehaviorRef.current)
-    if (immediateScroll && isChapterAligned(target)) {
-      pendingScrollIndexRef.current = null
-      pendingScrollAttemptsRef.current = 0
-      manualNavigationLockRef.current = Date.now() + 400
-      if (pendingActiveIndexRef.current === target) {
-        pendingActiveIndexRef.current = null
-      }
-      updateActiveFromVisibility()
-    }
-
     const targetChapter = sortedChapters[target]
     if (targetChapter && String(targetChapter.id) !== chapterId) {
       navigate(`/reader/${targetChapter.id}`, { replace: true, preventScrollReset: true })
     }
-  }, [activeChapterIndex, chapterId, ensureChapterLoaded, isChapterAligned, navigate, scrollChapterIntoView, setTransitionBridge, sortedChapters, updateActiveFromVisibility, updateManualNavigationLowerBound])
+  }, [activeChapterIndex, chapterId, ensureChapterLoaded, navigate, setTransitionBridge, sortedChapters, updateManualNavigationLowerBound])
 
   const navigateToPreviousChapter = useCallback(async () => {
     if (!sortedChapters) return
