@@ -821,6 +821,21 @@ export function ReaderPage() {
     }
 
     if (nextIndex != null && nextIndex !== currentIndex) {
+      if (currentMeasurement && currentIndex != null && nextIndex < currentIndex) {
+        const nextMeasurement = measurements.find(item => item.index === nextIndex)
+        if (nextMeasurement) {
+          const currentVisible = currentMeasurement.visibleHeight
+          const currentCoverage = currentMeasurement.coverage
+          const visibleGain = nextMeasurement.visibleHeight - currentVisible
+          const coverageGain = nextMeasurement.coverage - currentCoverage
+          const nextDominant = nextMeasurement.visibleHeight >= minVisiblePixels * 0.9 || nextMeasurement.coverage >= 0.55
+          const significantlyBetter = visibleGain >= 96 || coverageGain >= 0.25
+          const currentStillPresent = currentVisible >= 48 && currentCoverage >= 0.18
+          if (!nextDominant && !significantlyBetter && currentStillPresent) {
+            return
+          }
+        }
+      }
       pendingActiveIndexRef.current = null
       setActiveIndex(nextIndex)
     }
