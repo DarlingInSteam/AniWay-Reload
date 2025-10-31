@@ -74,6 +74,7 @@ export function useReaderController() {
   const loadEpochRef = useRef(0)
   const manualNavigationLowerBoundRef = useRef<number | null>(null)
   const [manualNavigationLowerBound, setManualNavigationLowerBound] = useState<number | null>(null)
+  const [transitionBridge, setTransitionBridge] = useState<{ anchorIndex: number; targetIndex: number; targetReady: boolean } | null>(null)
   const sanitizeChapterEntries = useCallback((entries: ChapterEntry[]) => {
     const lowerBound = manualNavigationLowerBoundRef.current
     if (lowerBound == null || entries.length === 0) {
@@ -87,9 +88,13 @@ export function useReaderController() {
   }, [])
 
   const commitChapterEntries = useCallback((updater: (prev: ChapterEntry[]) => ChapterEntry[]) => {
-    setChapterEntries(prev => sanitizeChapterEntries(updater(prev)))
+    setChapterEntries(prev => {
+      const next = sanitizeChapterEntries(updater(prev))
+      chapterEntriesRef.current = next
+      return next
+    })
   }, [sanitizeChapterEntries])
-  const [transitionBridge, setTransitionBridge] = useState<{ anchorIndex: number; targetIndex: number; targetReady: boolean } | null>(null)
+
   const pendingPruneIndexRef = useRef<number | null>(null)
   const manualNavigationInitRef = useRef<boolean>(false)
   const manualNavigationState = (location.state as { manualNavigation?: boolean } | null)?.manualNavigation ?? false
@@ -128,6 +133,39 @@ export function useReaderController() {
       pruneBeforeIndex(value)
     }
   }, [pruneBeforeIndex])
+
+  const resetChapterEnvironment = useCallback((lowerBound: number | null) => {
+    chapterEntriesRef.current = []
+    commitChapterEntries(() => [])
+    setActiveIndex(null)
+    activeIndexRef.current = null
+    prefetchNextRef.current.clear()
+    prefetchPrevRef.current.clear()
+    loadingIndicesRef.current.clear()
+    viewedChaptersRef.current.clear()
+    completedChaptersRef.current.clear()
+    pendingScrollIndexRef.current = null
+    pendingActiveIndexRef.current = null
+  pendingScrollBehaviorRef.current = 'auto'
+    pendingScrollAttemptsRef.current = 0
+    manualNavigationLockRef.current = 0
+    activeChapterLoadsRef.current = 0
+    chapterNodesRef.current.clear()
+    visibleChapterIndexesRef.current.clear()
+    if (scrollRecalcFrameRef.current != null && typeof window !== 'undefined') {
+      window.cancelAnimationFrame(scrollRecalcFrameRef.current)
+    }
+    scrollRecalcFrameRef.current = null
+    manualNavigationGuardRef.current = null
+    lastScrollDirectionRef.current = 0
+    replaceChapterEntriesRef.current = null
+    pendingPruneIndexRef.current = null
+    targetChapterIndexRef.current = null
+    setAutoCompletedMap({})
+    setTransitionBridge(null)
+    loadEpochRef.current += 1
+    updateManualNavigationLowerBound(lowerBound)
+  }, [commitChapterEntries, setTransitionBridge, updateManualNavigationLowerBound])
 
   const getVisibleHeaderHeight = useCallback(() => {
     if (typeof window === 'undefined') return headerHeightCacheRef.current
@@ -565,24 +603,8 @@ export function useReaderController() {
   }, [sortedChapters, clearTrackedChapters])
 
   useEffect(() => {
-    commitChapterEntries(() => [])
-    setActiveIndex(null)
-    prefetchNextRef.current.clear()
-    prefetchPrevRef.current.clear()
-    loadingIndicesRef.current.clear()
-    viewedChaptersRef.current.clear()
-    completedChaptersRef.current.clear()
-    pendingScrollIndexRef.current = null
-    pendingActiveIndexRef.current = null
-    pendingScrollBehaviorRef.current = 'smooth'
-    setAutoCompletedMap({})
-    visibleChapterIndexesRef.current.clear()
-    targetChapterIndexRef.current = null
-    manualNavigationGuardRef.current = null
-    loadEpochRef.current += 1
-    updateManualNavigationLowerBound(null)
-    setTransitionBridge(null)
-  }, [commitChapterEntries, initialChapter?.mangaId, setTransitionBridge, updateManualNavigationLowerBound])
+    resetChapterEnvironment(null)
+  }, [initialChapter?.mangaId, resetChapterEnvironment])
 
   useEffect(() => {
     if (!initialChapter || !initialImages || !sortedChapters) return
@@ -625,6 +647,9 @@ export function useReaderController() {
     if (activeIndex != null) {
       const match = chapterEntries.find(entry => entry.index === activeIndex)
       if (match) return match
+      if (manualNavigationLowerBoundRef.current != null) {
+        return undefined
+      }
     }
     return chapterEntries.length > 0 ? chapterEntries[0] : undefined
   }, [activeIndex, chapterEntries])
@@ -1098,39 +1123,32 @@ export function useReaderController() {
     const targetIndex = sortedChapters.findIndex(ch => ch.id === targetId)
     if (targetIndex === -1) return
 
-    setTransitionBridge(null)
+  resetChapterEnvironment(targetIndex)
+
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'auto' })
+    }
 
     manualNavigationLockRef.current = Date.now() + 900
     targetChapterIndexRef.current = targetIndex
     pendingActiveIndexRef.current = targetIndex
     pendingScrollIndexRef.current = targetIndex
-  pendingScrollBehaviorRef.current = 'smooth'
+    pendingScrollBehaviorRef.current = 'auto'
     pendingScrollAttemptsRef.current = 0
-
-    setActiveIndex(prev => (prev === targetIndex ? prev : targetIndex))
-
-    loadEpochRef.current += 1
-    if (activeChapterIndex != null && activeChapterIndex !== -1 && activeChapterIndex !== targetIndex) {
-      manualNavigationGuardRef.current = {
-        direction: targetIndex > activeChapterIndex ? 'forward' : 'backward',
-        anchorIndex: targetIndex
-      }
-    } else {
-      manualNavigationGuardRef.current = null
-    }
-    replaceChapterEntriesRef.current = { index: targetIndex }
-    updateManualNavigationLowerBound(targetIndex)
+    manualNavigationGuardRef.current = null
     lastScrollDirectionRef.current = 0
     lastScrollDirectionAtRef.current = Date.now()
-    prefetchPrevRef.current.clear()
-    prefetchNextRef.current.clear()
-    visibleChapterIndexesRef.current.clear()
 
-    const direction: 'append' | 'prepend' = activeChapterIndex != null && targetIndex < activeChapterIndex ? 'prepend' : 'append'
-    await ensureChapterLoaded(targetIndex, direction)
+    setActiveIndex(targetIndex)
+    activeIndexRef.current = targetIndex
+
+    replaceChapterEntriesRef.current = { index: targetIndex }
+
+  await ensureChapterLoaded(targetIndex, 'append')
 
     if (chapterEntriesRef.current.some(entry => entry.index === targetIndex)) {
       setActiveIndex(targetIndex)
+      activeIndexRef.current = targetIndex
     }
 
     const immediateScroll = scrollChapterIntoView(targetIndex, pendingScrollBehaviorRef.current)
@@ -1149,7 +1167,7 @@ export function useReaderController() {
       navigate(`/reader/${targetChapter.id}`, { replace: true, preventScrollReset: true })
     }
     setShowChapterList(false)
-  }, [activeChapterIndex, chapterId, ensureChapterLoaded, isChapterAligned, navigate, scrollChapterIntoView, setTransitionBridge, sortedChapters, updateActiveFromVisibility, updateManualNavigationLowerBound])
+  }, [chapterId, ensureChapterLoaded, isChapterAligned, navigate, resetChapterEnvironment, scrollChapterIntoView, sortedChapters, updateActiveFromVisibility])
 
   const handleChapterLike = useCallback(async () => {
     if (!activeChapter || !activeChapterId || (likedChapters[activeChapterId] ?? false) || (likingChapters[activeChapterId] ?? false)) return
