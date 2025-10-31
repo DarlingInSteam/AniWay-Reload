@@ -142,6 +142,7 @@ export const ReaderPage = () => {
         <div className={cn('flex flex-col gap-12', readingMode === 'horizontal' ? 'md:px-8' : '')}>
           {chapterEntries.map(entry => {
             const prevMeta = sortedChapters?.[entry.index - 1]
+            const bridgeForEntry = transitionBridge?.anchorIndex === entry.index ? transitionBridge : null
             return (
               <ChapterBlock
                 key={entry.chapter?.id ?? entry.index}
@@ -149,7 +150,8 @@ export const ReaderPage = () => {
                 imageWidth={imageWidth}
                 showUI={showUI}
                 previousChapter={prevMeta}
-                showTransitionPreview={transitionBridge?.anchorIndex === entry.index}
+                showTransitionPreview={!!bridgeForEntry}
+                transitionReady={bridgeForEntry?.targetReady}
                 onShowAllComments={() => setShowSideComments(true)}
                 handleImageClick={handleImageClick}
                 handleTapOrClick={handleTapOrClick}

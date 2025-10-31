@@ -218,6 +218,7 @@ export interface ChapterBlockProps {
   onContentResize: (index: number) => void
   isActive: boolean
   showTransitionPreview?: boolean
+  transitionReady?: boolean
   onShowAllComments?: () => void
   onVisibilityChange: (index: number, isVisible: boolean) => void
 }
@@ -241,6 +242,7 @@ export const ChapterBlock = ({
   isActive,
   onVisibilityChange,
   showTransitionPreview,
+  transitionReady,
   onShowAllComments
 }: ChapterBlockProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -371,6 +373,7 @@ export const ChapterBlock = ({
           <ChapterTransitionPreview
             chapterId={entry.chapter.id}
             chapterNumber={entry.chapter.chapterNumber}
+            isNextReady={transitionReady}
             onShowAll={() => onShowAllComments?.()}
           />
         ) : (

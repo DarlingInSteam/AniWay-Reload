@@ -74,7 +74,7 @@ export function useReaderController() {
   const loadEpochRef = useRef(0)
   const manualNavigationLowerBoundRef = useRef<number | null>(null)
   const [manualNavigationLowerBound, setManualNavigationLowerBound] = useState<number | null>(null)
-  const [transitionBridge, setTransitionBridge] = useState<{ anchorIndex: number; targetIndex: number } | null>(null)
+  const [transitionBridge, setTransitionBridge] = useState<{ anchorIndex: number; targetIndex: number; targetReady: boolean } | null>(null)
 
   const updateManualNavigationLowerBound = useCallback((value: number | null) => {
     manualNavigationLowerBoundRef.current = value
@@ -650,8 +650,14 @@ export function useReaderController() {
         const next = [...prev, entry].sort((a, b) => a.index - b.index)
         return next
       })
+      if (direction === 'append') {
+        setTransitionBridge(prev => (prev && prev.targetIndex === index ? { ...prev, targetReady: true } : prev))
+      }
     } catch (error) {
       console.error('Failed to load chapter data', error)
+      if (direction === 'append') {
+        setTransitionBridge(prev => (prev && prev.targetIndex === index ? null : prev))
+      }
     } finally {
       loadingIndicesRef.current.delete(index)
       if (direction === 'append') {
@@ -668,9 +674,6 @@ export function useReaderController() {
       setTimeout(() => {
         activeChapterLoadsRef.current = Math.max(0, activeChapterLoadsRef.current - 1)
       }, direction === 'prepend' ? 1200 : 500)
-      if (direction === 'append') {
-        setTransitionBridge(prev => (prev && prev.targetIndex === index ? null : prev))
-      }
     }
   }, [setTransitionBridge, sortedChapters])
 
@@ -834,6 +837,21 @@ export function useReaderController() {
     }
   }, [activeIndex, chapterId, navigate, sortedChapters, trackChapterViewed])
 
+  useEffect(() => {
+    if (!transitionBridge) return
+    if (activeIndex != null && activeIndex >= transitionBridge.targetIndex) {
+      setTransitionBridge(null)
+    }
+  }, [activeIndex, setTransitionBridge, transitionBridge])
+
+  useEffect(() => {
+    if (!transitionBridge) return
+    const anchorExists = chapterEntries.some(entry => entry.index === transitionBridge.anchorIndex)
+    if (!anchorExists) {
+      setTransitionBridge(null)
+    }
+  }, [chapterEntries, setTransitionBridge, transitionBridge])
+
   const handleChapterCompleted = useCallback((index: number) => {
     const entry = chapterEntriesRef.current.find(item => item.index === index)
     if (!entry) return
@@ -865,10 +883,10 @@ export function useReaderController() {
     if (!targetChapterMeta) return
 
     setTransitionBridge(prev => {
-      if (prev && prev.targetIndex === target) {
+      if (prev && prev.targetIndex === target && prev.anchorIndex === index) {
         return prev
       }
-      return { anchorIndex: index, targetIndex: target }
+      return { anchorIndex: index, targetIndex: target, targetReady: false }
     })
 
     if (prefetchNextRef.current.has(target)) return
@@ -880,6 +898,9 @@ export function useReaderController() {
 
   const handleNearTop = useCallback((index: number) => {
     if (!sortedChapters) return
+  const lastDirection = lastScrollDirectionRef.current
+  const lastDirectionAge = Date.now() - lastScrollDirectionAtRef.current
+  if (lastDirection !== -1 || lastDirectionAge > SCROLL_DIRECTION_RESET_MS * 3) return
     const target = index - 1
     if (target < 0) return
     const lowerBound = manualNavigationLowerBoundRef.current
@@ -1346,7 +1367,7 @@ export function useReaderController() {
     allChapters,
     chapterEntries: renderedChapterEntries,
     sortedChapters,
-  transitionBridge,
+    transitionBridge,
     activeChapter,
     activeImages,
     activeChapterId,

@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
@@ -9,10 +10,11 @@ import type { CommentResponseDTO } from '@/types/comments'
 interface ChapterTransitionPreviewProps {
   chapterId: number
   chapterNumber: number
+  isNextReady?: boolean
   onShowAll?: () => void
 }
 
-export const ChapterTransitionPreview = ({ chapterId, chapterNumber, onShowAll }: ChapterTransitionPreviewProps) => {
+export const ChapterTransitionPreview = ({ chapterId, chapterNumber, isNextReady, onShowAll }: ChapterTransitionPreviewProps) => {
   const { data, isLoading, isError } = useQuery<CommentResponseDTO[]>({
     queryKey: ['chapter-comments-preview', chapterId],
     queryFn: () => commentService.getComments(chapterId, 'CHAPTER', 0, 3, 'createdAt', 'desc'),
@@ -20,7 +22,17 @@ export const ChapterTransitionPreview = ({ chapterId, chapterNumber, onShowAll }
     enabled: chapterId > 0
   })
 
-  const comments = data ?? []
+  const comments = useMemo(() => {
+    if (!data) return []
+    if (Array.isArray(data)) return data.slice(0, 3)
+    const payload = data as unknown as { content?: CommentResponseDTO[] }
+    if (Array.isArray(payload?.content)) return payload.content.slice(0, 3)
+    return []
+  }, [data])
+
+  const statusLabel = isNextReady
+    ? 'Следующая глава загружена — листай, когда будешь готов.'
+    : 'Подгружаем следующую главу, почитай, что думают другие.'
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
@@ -38,6 +50,10 @@ export const ChapterTransitionPreview = ({ chapterId, chapterNumber, onShowAll }
             Показать все
           </Button>
         </div>
+
+        <p className="mt-3 text-xs font-medium uppercase tracking-[0.2em] text-white/50">
+          {statusLabel}
+        </p>
 
         <div className="mt-4 space-y-3">
           {isLoading ? (
