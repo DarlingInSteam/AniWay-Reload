@@ -444,6 +444,14 @@ export function useReaderController() {
   }, [activeIndex])
 
   useEffect(() => {
+    const pendingIndex = pendingActiveIndexRef.current
+    if (pendingIndex == null) return
+    if (pendingIndex === activeIndex) {
+      pendingActiveIndexRef.current = null
+    }
+  }, [activeIndex])
+
+  useEffect(() => {
     if (typeof window === 'undefined') return
     let lastY = window.scrollY
     const handle = () => {
@@ -1022,7 +1030,6 @@ export function useReaderController() {
     pendingActiveIndexRef.current = null
     pendingScrollIndexRef.current = null
 
-    pendingActiveIndexRef.current = target
     pendingScrollBehaviorRef.current = 'smooth'
     pendingScrollAttemptsRef.current = 0
 
@@ -1057,6 +1064,9 @@ export function useReaderController() {
     if (target < 0) return
     const lowerBound = manualNavigationLowerBoundRef.current
     if (lowerBound != null && target < lowerBound) {
+      return
+    }
+    if (lowerBound != null && !chapterEntriesRef.current.some(entry => entry.index === target)) {
       return
     }
 
