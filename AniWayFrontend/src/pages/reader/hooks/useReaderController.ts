@@ -451,12 +451,15 @@ export function useReaderController() {
       const delta = currentY - lastY
       lastY = currentY
       if (Math.abs(delta) <= 1) return
+      if (pendingScrollIndexRef.current != null && manualNavigationLockRef.current < Date.now()) {
+        cancelPendingScroll()
+      }
       lastScrollDirectionRef.current = delta > 0 ? 1 : -1
       lastScrollDirectionAtRef.current = Date.now()
     }
     window.addEventListener('scroll', handle, { passive: true })
     return () => window.removeEventListener('scroll', handle)
-  }, [])
+  }, [cancelPendingScroll])
 
   useEffect(() => {
     const pendingIndex = pendingActiveIndexRef.current
