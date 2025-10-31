@@ -71,8 +71,8 @@ export function useReaderController() {
   const lastScrollDirectionAtRef = useRef<number>(0)
   const headerHeightCacheRef = useRef<number>(0)
   const replaceChapterEntriesRef = useRef<{ index: number } | null>(null)
-  const allowBackwardPrefetchRef = useRef<boolean>(false)
   const loadEpochRef = useRef(0)
+  const manualNavigationLowerBoundRef = useRef<number | null>(null)
 
   const getVisibleHeaderHeight = useCallback(() => {
     if (typeof window === 'undefined') return headerHeightCacheRef.current
@@ -506,6 +506,9 @@ export function useReaderController() {
     setAutoCompletedMap({})
     visibleChapterIndexesRef.current.clear()
     targetChapterIndexRef.current = null
+    manualNavigationGuardRef.current = null
+    manualNavigationLowerBoundRef.current = null
+    loadEpochRef.current += 1
   }, [initialChapter?.mangaId])
 
   useEffect(() => {
@@ -845,9 +848,10 @@ export function useReaderController() {
 
   const handleNearTop = useCallback((index: number) => {
     if (!sortedChapters) return
-    if (!allowBackwardPrefetchRef.current) return
     const target = index - 1
     if (target < 0) return
+    const lowerBound = manualNavigationLowerBoundRef.current
+    if (lowerBound != null && target < lowerBound) return
     if (prefetchPrevRef.current.has(target)) return
     prefetchPrevRef.current.add(target)
     ensureChapterLoaded(target, 'prepend').finally(() => {
@@ -874,14 +878,12 @@ export function useReaderController() {
     loadEpochRef.current += 1
     manualNavigationGuardRef.current = { direction: 'forward', anchorIndex: target }
     replaceChapterEntriesRef.current = { index: target }
+    manualNavigationLowerBoundRef.current = target
     lastScrollDirectionRef.current = 0
     lastScrollDirectionAtRef.current = Date.now()
-    allowBackwardPrefetchRef.current = false
     prefetchPrevRef.current.clear()
     prefetchNextRef.current.clear()
     visibleChapterIndexesRef.current.clear()
-
-    setChapterEntries(prev => prev.map(item => (item.hidden ? item : { ...item, hidden: true })))
 
     await ensureChapterLoaded(target, 'append')
 
@@ -925,14 +927,12 @@ export function useReaderController() {
     loadEpochRef.current += 1
     manualNavigationGuardRef.current = { direction: 'backward', anchorIndex: target }
     replaceChapterEntriesRef.current = { index: target }
+    manualNavigationLowerBoundRef.current = target
     lastScrollDirectionRef.current = 0
     lastScrollDirectionAtRef.current = Date.now()
-    allowBackwardPrefetchRef.current = false
     prefetchPrevRef.current.clear()
     prefetchNextRef.current.clear()
     visibleChapterIndexesRef.current.clear()
-
-    setChapterEntries(prev => prev.map(item => (item.hidden ? item : { ...item, hidden: true })))
 
     await ensureChapterLoaded(target, 'prepend')
 
@@ -985,14 +985,12 @@ export function useReaderController() {
       manualNavigationGuardRef.current = null
     }
     replaceChapterEntriesRef.current = { index: targetIndex }
+    manualNavigationLowerBoundRef.current = targetIndex
     lastScrollDirectionRef.current = 0
     lastScrollDirectionAtRef.current = Date.now()
-    allowBackwardPrefetchRef.current = false
     prefetchPrevRef.current.clear()
     prefetchNextRef.current.clear()
     visibleChapterIndexesRef.current.clear()
-
-    setChapterEntries(prev => prev.map(item => (item.hidden ? item : { ...item, hidden: true })))
 
     const direction: 'append' | 'prepend' = activeChapterIndex != null && targetIndex < activeChapterIndex ? 'prepend' : 'append'
     await ensureChapterLoaded(targetIndex, direction)

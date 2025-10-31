@@ -140,7 +140,6 @@ export const ReaderPage = () => {
       <div className="pt-16">
         <div className={cn('flex flex-col gap-12', readingMode === 'horizontal' ? 'md:px-8' : '')}>
           {chapterEntries.map(entry => {
-            if (entry.hidden) return null
             const prevMeta = sortedChapters?.[entry.index - 1]
             return (
               <ChapterBlock
