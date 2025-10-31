@@ -380,16 +380,35 @@ export function ReaderPage() {
   const activeChapterLoadsRef = useRef<number>(0) // Счетчик активных загрузок глав
   const pendingScrollAttemptsRef = useRef<number>(0)
   const chapterNodesRef = useRef<Map<number, HTMLDivElement>>(new Map())
-  const scrollAnimationRef = useRef<number | null>(null)
   const activeIndexRef = useRef<number | null>(null)
-  const lastScrollYRef = useRef<number>(typeof window !== 'undefined' ? window.scrollY : 0)
-  const scrollDirectionRef = useRef<'up' | 'down' | 'none'>('none')
   const [contentVersion, setContentVersion] = useState(0)
   const [autoCompletedMap, setAutoCompletedMap] = useState<Record<number, boolean>>({})
   const [loadingForward, setLoadingForward] = useState(false)
   const [loadingBackward, setLoadingBackward] = useState(false)
   const [likedChapters, setLikedChapters] = useState<Record<number, boolean>>({})
   const [likingChapters, setLikingChapters] = useState<Record<number, boolean>>({})
+  const visibleChapterOffsetsRef = useRef<Map<number, number>>(new Map())
+
+  const updateActiveFromVisibility = useCallback(() => {
+    if (pendingScrollIndexRef.current != null) return
+    const lockUntil = manualNavigationLockRef.current
+    if (lockUntil > Date.now()) return
+    const entries = visibleChapterOffsetsRef.current
+    if (!entries.size) return
+    let bestIndex: number | null = null
+    let bestOffset = Number.POSITIVE_INFINITY
+    entries.forEach((offset, idx) => {
+      if (offset < bestOffset - 0.5) {
+        bestOffset = offset
+        bestIndex = idx
+      } else if (Math.abs(offset - bestOffset) <= 0.5 && bestIndex != null && idx > bestIndex) {
+        bestIndex = idx
+      }
+    })
+    if (bestIndex != null && activeIndexRef.current !== bestIndex) {
+      setActiveIndex(bestIndex)
+    }
+  }, [])
 
   const cancelPendingScroll = useCallback(() => {
     if (pendingScrollIndexRef.current == null && pendingActiveIndexRef.current == null) {
@@ -400,7 +419,18 @@ export function ReaderPage() {
     pendingActiveIndexRef.current = null
     pendingScrollBehaviorRef.current = 'smooth'
     manualNavigationLockRef.current = 0
-  }, [])
+    updateActiveFromVisibility()
+  }, [updateActiveFromVisibility])
+
+  const handleChapterVisibility = useCallback((index: number, isVisible: boolean, centerOffset?: number) => {
+    const map = visibleChapterOffsetsRef.current
+    if (isVisible) {
+      map.set(index, centerOffset ?? Number.POSITIVE_INFINITY)
+    } else {
+      map.delete(index)
+    }
+    updateActiveFromVisibility()
+  }, [updateActiveFromVisibility])
 
   useEffect(() => {
     chapterEntriesRef.current = chapterEntries
@@ -536,12 +566,7 @@ export function ReaderPage() {
     pendingActiveIndexRef.current = null
     pendingScrollBehaviorRef.current = 'smooth'
     setAutoCompletedMap({})
-    if (typeof window !== 'undefined') {
-      lastScrollYRef.current = window.scrollY
-    } else {
-      lastScrollYRef.current = 0
-    }
-    scrollDirectionRef.current = 'none'
+    visibleChapterOffsetsRef.current.clear()
   }, [mangaId])
 
   useEffect(() => {
@@ -770,156 +795,14 @@ export function ReaderPage() {
     return Math.abs(currentTop - expectedTop) <= 6
   }, [getVisibleHeaderHeight])
 
-  const evaluateActiveChapter = useCallback(() => {
-    if (!sortedChapters || sortedChapters.length === 0) return
-    if (pendingScrollIndexRef.current != null) return
-    if (pendingActiveIndexRef.current != null) return
-    
-    // Проверяем активные загрузки глав
-    if (activeChapterLoadsRef.current > 0) {
-      console.log(`[evaluateActiveChapter] БЛОКИРОВАНО: идет загрузка ${activeChapterLoadsRef.current} глав(ы)`)
-      return
-    }
-    
-    const elapsed = Date.now() - manualNavigationLockRef.current
-    if (elapsed < 1200) return // Увеличено с 500 до 1200ms - даем больше времени на отрисовку
-
-    const nodes = Array.from(chapterNodesRef.current.entries())
-      .filter(([, node]) => node != null)
-      .sort((a, b) => a[0] - b[0]) as Array<[number, HTMLDivElement]>
-
-    if (nodes.length === 0) return
-
-    // КРИТИЧНО: если текущая активная глава еще не отрисована, НЕ переключаемся
-    const currentIndex = activeIndexRef.current
-    if (currentIndex != null) {
-      const currentNode = chapterNodesRef.current.get(currentIndex)
-      if (!currentNode) {
-        // Текущая глава не зарегистрирована, значит еще загружается
-        // НЕ ТРОГАЕМ activeIndex, ждем когда глава отрисуется
-        console.log(`[evaluateActiveChapter] Пропускаем оценку: активная глава ${currentIndex} еще не отрисована`)
-        return
-      }
-    }
-
-    const headerHeight = getVisibleHeaderHeight()
-    const viewportHeight = typeof window !== 'undefined' && window.innerHeight ? window.innerHeight : 800
-    const stickyThreshold = headerHeight + Math.min(260, viewportHeight * 0.3)
-    const skipAboveThreshold = headerHeight + 24
-
-    const measureNode = (index: number) => {
-      const node = chapterNodesRef.current.get(index)
-      if (!node) return null
-      const rect = node.getBoundingClientRect()
-      const top = rect.top - headerHeight
-      const bottom = rect.bottom - headerHeight
-      const visibleTop = Math.max(top, 0)
-      const visibleBottom = Math.min(bottom, viewportHeight)
-      const visibleHeight = Math.max(visibleBottom - visibleTop, 0)
-      const limitedHeight = Math.max(Math.min(rect.height, viewportHeight), 1)
-      const coverage = visibleHeight / limitedHeight
-      return { rect, top, bottom, visibleTop, visibleBottom, visibleHeight, coverage }
-    }
-
-    let candidate: number | null = null
-
-    for (const [idx, node] of nodes) {
-      const rect = node.getBoundingClientRect()
-      const top = rect.top - headerHeight
-      const bottom = rect.bottom - headerHeight
-
-      if (bottom <= skipAboveThreshold) {
-        continue
-      }
-
-      if (top <= stickyThreshold) {
-        candidate = idx
-        continue
-      }
-
-      if (candidate == null) {
-        candidate = idx
-      }
-      break
-    }
-
-    if (candidate == null) {
-      candidate = nodes[nodes.length - 1][0]
-    }
-
-    if (typeof window !== 'undefined') {
-      const docHeight = document.documentElement?.scrollHeight ?? 0
-      const scrollBottom = window.scrollY + viewportHeight
-      if (docHeight > 0 && docHeight - scrollBottom < Math.max(320, viewportHeight * 0.25)) {
-        candidate = nodes[nodes.length - 1][0]
-      }
-    }
-
-    if (candidate != null && currentIndex != null && candidate < currentIndex) {
-      const candidateMetrics = measureNode(candidate)
-      if (!candidateMetrics) return
-      const minVisibleForRewind = Math.max(280, viewportHeight * 0.45)
-      const minCoverageForRewind = 0.75
-      if (candidateMetrics.visibleHeight < minVisibleForRewind || candidateMetrics.coverage < minCoverageForRewind) {
-        return
-      }
-      const currentMetrics = measureNode(currentIndex)
-      if (currentMetrics && currentMetrics.visibleHeight > 48) {
-        return
-      }
-    }
-
-    if (candidate != null && candidate !== currentIndex) {
-      pendingActiveIndexRef.current = null
-      console.log(`[evaluateActiveChapter] Переключение главы: ${currentIndex} → ${candidate}`)
-      const currentChapter = sortedChapters[currentIndex ?? -1]
-      const candidateChapter = sortedChapters[candidate]
-      console.log(`  Текущая: #${currentChapter?.chapterNumber ?? '?'} | Новая: #${candidateChapter?.chapterNumber ?? '?'}`)
-      setActiveIndex(candidate)
-    }
-  }, [getVisibleHeaderHeight, sortedChapters])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const handle = () => {
-      const currentY = window.scrollY || 0
-      const delta = currentY - lastScrollYRef.current
-      if (Math.abs(delta) > 1) {
-        scrollDirectionRef.current = delta > 0 ? 'down' : 'up'
-        lastScrollYRef.current = currentY
-        if (Math.abs(delta) > 6 && pendingScrollIndexRef.current != null) {
-          cancelPendingScroll()
-        }
-      } else if (scrollAnimationRef.current == null) {
-        scrollDirectionRef.current = 'none'
-      }
-      if (scrollAnimationRef.current != null) return
-      scrollAnimationRef.current = window.requestAnimationFrame(() => {
-        scrollAnimationRef.current = null
-        evaluateActiveChapter()
-      })
-    }
-    window.addEventListener('scroll', handle, { passive: true })
-    window.addEventListener('resize', handle)
-    handle()
-    return () => {
-      window.removeEventListener('scroll', handle)
-      window.removeEventListener('resize', handle)
-      if (scrollAnimationRef.current != null) {
-        cancelAnimationFrame(scrollAnimationRef.current)
-        scrollAnimationRef.current = null
-      }
-    }
-  }, [cancelPendingScroll, evaluateActiveChapter])
 
   useEffect(() => {
     if (contentVersion === 0) return
-    // Задержка перед оценкой - даем главам время отрисоваться
-    const timer = setTimeout(() => {
-      evaluateActiveChapter()
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [contentVersion, evaluateActiveChapter])
+    const timer = window.setTimeout(() => {
+      updateActiveFromVisibility()
+    }, 50)
+    return () => window.clearTimeout(timer)
+  }, [contentVersion, updateActiveFromVisibility])
 
   useEffect(() => {
     const index = pendingScrollIndexRef.current
@@ -952,18 +835,18 @@ export function ReaderPage() {
       }
       pendingScrollIndexRef.current = null
       pendingScrollAttemptsRef.current = 0
-      manualNavigationLockRef.current = Date.now()
+      manualNavigationLockRef.current = Date.now() + 400
       if (pendingActiveIndexRef.current === targetIndex) {
         pendingActiveIndexRef.current = null
       }
-      evaluateActiveChapter()
+      updateActiveFromVisibility()
     }
     frameId = requestAnimationFrame(attempt)
     return () => {
       cancelled = true
       if (frameId != null) cancelAnimationFrame(frameId)
     }
-  }, [chapterEntries, contentVersion, evaluateActiveChapter, isChapterAligned, scrollChapterIntoView, showUI])
+  }, [chapterEntries, contentVersion, isChapterAligned, scrollChapterIntoView, showUI, updateActiveFromVisibility])
 
   useEffect(() => {
     if (activeIndex == null) return
@@ -1041,14 +924,13 @@ export function ReaderPage() {
     const target = activeChapterIndex + 1
     if (target >= sortedChapters.length) return
 
-    manualNavigationLockRef.current = Date.now()
+    manualNavigationLockRef.current = Date.now() + 900
     pendingActiveIndexRef.current = null
     pendingScrollIndexRef.current = null
 
-    scrollDirectionRef.current = 'down'
-  pendingActiveIndexRef.current = target
-  pendingScrollIndexRef.current = target
-  pendingScrollBehaviorRef.current = 'smooth'
+    pendingActiveIndexRef.current = target
+    pendingScrollIndexRef.current = target
+    pendingScrollBehaviorRef.current = 'smooth'
     pendingScrollAttemptsRef.current = 0
 
     await ensureChapterLoaded(target, 'append')
@@ -1061,18 +943,18 @@ export function ReaderPage() {
     if (immediateScroll && isChapterAligned(target)) {
       pendingScrollIndexRef.current = null
       pendingScrollAttemptsRef.current = 0
-      manualNavigationLockRef.current = Date.now()
+      manualNavigationLockRef.current = Date.now() + 400
       if (pendingActiveIndexRef.current === target) {
         pendingActiveIndexRef.current = null
       }
-      evaluateActiveChapter()
+      updateActiveFromVisibility()
     }
 
     const targetChapter = sortedChapters[target]
     if (targetChapter && String(targetChapter.id) !== chapterId) {
       navigate(`/reader/${targetChapter.id}`, { replace: true, preventScrollReset: true })
     }
-  }, [activeChapterIndex, chapterId, ensureChapterLoaded, evaluateActiveChapter, isChapterAligned, navigate, scrollChapterIntoView, sortedChapters])
+  }, [activeChapterIndex, chapterId, ensureChapterLoaded, isChapterAligned, navigate, scrollChapterIntoView, sortedChapters, updateActiveFromVisibility])
 
   const navigateToPreviousChapter = useCallback(async () => {
     if (!sortedChapters) return
@@ -1080,14 +962,13 @@ export function ReaderPage() {
     const target = activeChapterIndex - 1
     if (target < 0) return
 
-    manualNavigationLockRef.current = Date.now()
+    manualNavigationLockRef.current = Date.now() + 900
     pendingActiveIndexRef.current = null
     pendingScrollIndexRef.current = null
 
-    scrollDirectionRef.current = 'up'
-  pendingActiveIndexRef.current = target
-  pendingScrollIndexRef.current = target
-  pendingScrollBehaviorRef.current = 'smooth'
+    pendingActiveIndexRef.current = target
+    pendingScrollIndexRef.current = target
+    pendingScrollBehaviorRef.current = 'smooth'
     pendingScrollAttemptsRef.current = 0
 
     await ensureChapterLoaded(target, 'prepend')
@@ -1100,18 +981,18 @@ export function ReaderPage() {
     if (immediateScroll && isChapterAligned(target)) {
       pendingScrollIndexRef.current = null
       pendingScrollAttemptsRef.current = 0
-      manualNavigationLockRef.current = Date.now()
+      manualNavigationLockRef.current = Date.now() + 400
       if (pendingActiveIndexRef.current === target) {
         pendingActiveIndexRef.current = null
       }
-      evaluateActiveChapter()
+      updateActiveFromVisibility()
     }
 
     const targetChapter = sortedChapters[target]
     if (targetChapter && String(targetChapter.id) !== chapterId) {
       navigate(`/reader/${targetChapter.id}`, { replace: true, preventScrollReset: true })
     }
-  }, [activeChapterIndex, chapterId, ensureChapterLoaded, evaluateActiveChapter, isChapterAligned, navigate, scrollChapterIntoView, sortedChapters])
+  }, [activeChapterIndex, chapterId, ensureChapterLoaded, isChapterAligned, navigate, scrollChapterIntoView, sortedChapters, updateActiveFromVisibility])
 
   useEffect(() => {
     if (!sortedChapters) return
@@ -1125,22 +1006,10 @@ export function ReaderPage() {
     const targetIndex = sortedChapters.findIndex(ch => ch.id === targetId)
     if (targetIndex === -1) return
 
-    // Lock observer and clear any existing pending operations
-    manualNavigationLockRef.current = Date.now() + 1000 // Lock for 1 second
-    pendingActiveIndexRef.current = null
-    pendingScrollIndexRef.current = null
-
-    if (activeChapterIndex != null && targetIndex > activeChapterIndex) {
-      scrollDirectionRef.current = 'down'
-    } else if (activeChapterIndex != null && targetIndex < activeChapterIndex) {
-      scrollDirectionRef.current = 'up'
-    } else {
-      scrollDirectionRef.current = 'none'
-    }
-    // Set new target
-  pendingActiveIndexRef.current = targetIndex
-  pendingScrollIndexRef.current = targetIndex
-  pendingScrollBehaviorRef.current = 'smooth'
+    manualNavigationLockRef.current = Date.now() + 900
+    pendingActiveIndexRef.current = targetIndex
+    pendingScrollIndexRef.current = targetIndex
+    pendingScrollBehaviorRef.current = 'auto'
     pendingScrollAttemptsRef.current = 0
 
     const direction: 'append' | 'prepend' = activeChapterIndex != null && targetIndex < activeChapterIndex ? 'prepend' : 'append'
@@ -1155,11 +1024,11 @@ export function ReaderPage() {
     if (immediateScroll && isChapterAligned(targetIndex)) {
       pendingScrollIndexRef.current = null
       pendingScrollAttemptsRef.current = 0
-      manualNavigationLockRef.current = Date.now()
+      manualNavigationLockRef.current = Date.now() + 400
       if (pendingActiveIndexRef.current === targetIndex) {
         pendingActiveIndexRef.current = null
       }
-      evaluateActiveChapter()
+      updateActiveFromVisibility()
     }
 
     const targetChapter = sortedChapters[targetIndex]
@@ -1167,7 +1036,7 @@ export function ReaderPage() {
       navigate(`/reader/${targetChapter.id}`, { replace: true, preventScrollReset: true })
     }
     setShowChapterList(false)
-  }, [activeChapterIndex, chapterId, ensureChapterLoaded, evaluateActiveChapter, isChapterAligned, navigate, scrollChapterIntoView, setShowChapterList, sortedChapters])
+  }, [activeChapterIndex, chapterId, ensureChapterLoaded, isChapterAligned, navigate, scrollChapterIntoView, setShowChapterList, sortedChapters, updateActiveFromVisibility])
 
   // Handle chapter like/unlike
   const handleChapterLike = useCallback(async () => {
