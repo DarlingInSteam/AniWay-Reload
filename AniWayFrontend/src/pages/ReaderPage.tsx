@@ -401,11 +401,9 @@ export function ReaderPage() {
     if (pendingIndex == null) return
     const hasEntry = chapterEntriesRef.current.some(entry => entry.index === pendingIndex)
     if (!hasEntry) return
-    setActiveIndex(prev => {
-      if (prev === pendingIndex) return prev
-      return pendingIndex
-    })
-    pendingActiveIndexRef.current = null
+    if (activeIndexRef.current !== pendingIndex) {
+      setActiveIndex(pendingIndex)
+    }
   }, [chapterEntries])
 
   useEffect(() => {
@@ -865,6 +863,9 @@ export function ReaderPage() {
       pendingScrollIndexRef.current = null
       pendingScrollAttemptsRef.current = 0
       manualNavigationLockRef.current = Date.now()
+      if (pendingActiveIndexRef.current === targetIndex) {
+        pendingActiveIndexRef.current = null
+      }
       evaluateActiveChapter(true)
     }
     frameId = requestAnimationFrame(attempt)
@@ -963,7 +964,6 @@ export function ReaderPage() {
 
     if (chapterEntriesRef.current.some(entry => entry.index === target)) {
       setActiveIndex(prev => prev === target ? prev : target)
-      pendingActiveIndexRef.current = null
     }
 
     const immediateScroll = scrollChapterIntoView(target, pendingScrollBehaviorRef.current)
@@ -971,6 +971,9 @@ export function ReaderPage() {
       pendingScrollIndexRef.current = null
       pendingScrollAttemptsRef.current = 0
       manualNavigationLockRef.current = Date.now()
+      if (pendingActiveIndexRef.current === target) {
+        pendingActiveIndexRef.current = null
+      }
       evaluateActiveChapter(true)
     }
 
@@ -999,7 +1002,6 @@ export function ReaderPage() {
 
     if (chapterEntriesRef.current.some(entry => entry.index === target)) {
       setActiveIndex(prev => prev === target ? prev : target)
-      pendingActiveIndexRef.current = null
     }
 
     const immediateScroll = scrollChapterIntoView(target, pendingScrollBehaviorRef.current)
@@ -1007,6 +1009,9 @@ export function ReaderPage() {
       pendingScrollIndexRef.current = null
       pendingScrollAttemptsRef.current = 0
       manualNavigationLockRef.current = Date.now()
+      if (pendingActiveIndexRef.current === target) {
+        pendingActiveIndexRef.current = null
+      }
       evaluateActiveChapter(true)
     }
 
@@ -1045,7 +1050,6 @@ export function ReaderPage() {
     // Force set active index if entry exists
     if (chapterEntriesRef.current.some(entry => entry.index === targetIndex)) {
       setActiveIndex(targetIndex)
-      pendingActiveIndexRef.current = null
     }
     
     const immediateScroll = scrollChapterIntoView(targetIndex, pendingScrollBehaviorRef.current)
@@ -1053,6 +1057,9 @@ export function ReaderPage() {
       pendingScrollIndexRef.current = null
       pendingScrollAttemptsRef.current = 0
       manualNavigationLockRef.current = Date.now()
+      if (pendingActiveIndexRef.current === targetIndex) {
+        pendingActiveIndexRef.current = null
+      }
       evaluateActiveChapter(true)
     }
     
