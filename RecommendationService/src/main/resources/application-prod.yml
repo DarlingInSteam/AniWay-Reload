@@ -1,0 +1,126 @@
+spring:
+  application:
+    name: recommendation-service
+
+  profiles:
+    active: prod
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:recommendation-postgres}:${DB_PORT:5432}/${DB_NAME:recommendations}
+    username: ${DB_USERNAME:recommendations_user}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 30
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      leak-detection-threshold: 60000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 25
+        order_inserts: true
+        order_updates: true
+        generate_statistics: false
+        cache:
+          use_second_level_cache: false
+          use_query_cache: false
+        connection:
+          provider_disables_autocommit: true
+        temp:
+          use_jdbc_metadata_defaults: false
+
+  # Redis конфигурация для production
+  data:
+    redis:
+      host: ${REDIS_HOST:recommendation-redis}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 2
+          max-wait: -1ms
+
+server:
+  port: ${SERVER_PORT:8085}
+  servlet:
+    context-path: /recommendation-service
+  error:
+    include-stacktrace: never
+    include-message: never
+  tomcat:
+    threads:
+      max: 200
+      min-spare: 10
+    connection-timeout: 20000
+    max-connections: 8192
+    accept-count: 100
+
+# Security настройки для production
+security:
+  require-ssl: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
+      cache:
+        time-to-live: 10s
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+        step: 30s
+  server:
+    port: 9090
+
+# Production logging конфигурация
+logging:
+  level:
+    com.example.recommendationservice: INFO
+    org.springframework.web: WARN
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+    org.springframework.transaction: WARN
+    org.springframework.data.redis: WARN
+    root: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: /var/log/recommendation-service/recommendation-service.log
+    max-size: 100MB
+    max-history: 30
+    total-size-cap: 3GB
+
+# Конфигурация обновления данных для production
+app:
+  cache:
+    ttl:
+      manga: 7200  # 2 часа
+      preferences: 3600  # 1 час
+  sync:
+    manga:
+      enabled: true
+      cron: "0 0 3 * * *"  # 3:00 ночи
+      batch-size: 500
+    preferences:
+      enabled: true
+      cron: "0 0 * * * *"  # Каждый час
+      batch-size: 200

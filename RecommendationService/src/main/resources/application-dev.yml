@@ -1,0 +1,98 @@
+spring:
+  application:
+    name: recommendation-service
+
+  profiles:
+    active: dev
+
+  datasource:
+    url: jdbc:postgresql://recommendation-postgres:5432/recommendations
+    username: recommendations_user
+    password: recommendations_pass
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 20000
+      idle-timeout: 300000
+      max-lifetime: 900000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate  # Изменено с update для контроля миграций
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+
+  # Redis конфигурация для кэширования
+  data:
+    redis:
+      host: recommendation-redis
+      port: 6379
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+
+server:
+  port: 8085
+  servlet:
+    context-path: /recommendation-service
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# Logging конфигурация для разработки
+logging:
+  level:
+    com.example.recommendationservice: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.springframework.transaction: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/recommendation-service-dev.log
+
+# Планировщик обновлений для dev
+scheduling:
+  pool:
+    size: 2
+  thread-name-prefix: recommendation-scheduler-
+
+# Конфигурация обновления данных для dev
+app:
+  cache:
+    ttl:
+      manga: 3600  # 1 час в секундах
+      preferences: 1800  # 30 минут
+  sync:
+    manga:
+      enabled: true
+      cron: "0 0 2 * * *"  # Каждый день в 2:00
+      batch-size: 100
+    preferences:
+      enabled: true
+      cron: "0 */30 * * * *"  # Каждые 30 минут
+      batch-size: 50
