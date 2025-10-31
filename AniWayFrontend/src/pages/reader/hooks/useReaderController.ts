@@ -1064,6 +1064,10 @@ export function useReaderController() {
     if (activeChapterIndex == null || activeChapterIndex === -1) return
     const target = activeChapterIndex - 1
     if (target < 0) return
+    const lowerBound = manualNavigationLowerBoundRef.current
+    if (lowerBound != null && target < lowerBound) {
+      return
+    }
 
     setTransitionBridge(null)
 
