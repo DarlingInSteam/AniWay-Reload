@@ -761,83 +761,65 @@ export function ReaderPage() {
 
     const headerHeight = getVisibleHeaderHeight()
     const viewportHeight = typeof window !== 'undefined' && window.innerHeight ? window.innerHeight : 800
-    const viewportCenter = viewportHeight / 2
-    const minVisiblePixels = Math.max(96, Math.min(viewportHeight * 0.18, 220))
+    const stickyThreshold = headerHeight + Math.min(260, viewportHeight * 0.3)
+    const skipAboveThreshold = headerHeight + 24
 
-    const measurements = nodes.map(([idx, node]) => {
+    let candidate: number | null = null
+
+    for (const [idx, node] of nodes) {
       const rect = node.getBoundingClientRect()
-      const adjustedTop = rect.top - headerHeight
-      const adjustedBottom = rect.bottom - headerHeight
-      const visibleTop = Math.max(adjustedTop, 0)
-      const visibleBottom = Math.min(adjustedBottom, viewportHeight)
-      const visibleHeight = Math.max(visibleBottom - visibleTop, 0)
-      const limitedHeight = Math.max(Math.min(rect.height, viewportHeight), 1)
-      const coverage = visibleHeight / limitedHeight
-      const centerRelative = adjustedTop + rect.height / 2
-      const centerDistance = Math.abs(centerRelative - viewportCenter)
-      return {
-        index: idx,
-        rect,
-        adjustedTop,
-        adjustedBottom,
-        visibleHeight,
-        coverage,
-        centerDistance,
+      const top = rect.top - headerHeight
+      const bottom = rect.bottom - headerHeight
+
+      if (bottom <= skipAboveThreshold) {
+        continue
       }
-    })
 
-    const bestCandidate = measurements.reduce<typeof measurements[number] | null>((best, current) => {
-      if (!best) return current
-      if (current.visibleHeight > best.visibleHeight + 2) return current
-      if (Math.abs(current.visibleHeight - best.visibleHeight) <= 2 && current.centerDistance < best.centerDistance) return current
-      return best
-    }, null)
-
-    const fallbackCandidate = (() => {
-      const belowOrIntersecting = measurements.filter(item => item.adjustedBottom > 0)
-      if (belowOrIntersecting.length > 0) {
-        return belowOrIntersecting.reduce((best, current) => (current.centerDistance < best.centerDistance ? current : best))
+      if (top <= stickyThreshold) {
+        candidate = idx
+        continue
       }
-      return measurements[measurements.length - 1]
-    })()
 
-    const currentIndex = activeIndexRef.current
-    const currentMeasurement = currentIndex != null ? measurements.find(item => item.index === currentIndex) : undefined
-
-    let nextIndex = currentIndex ?? measurements[0].index
-
-    if (bestCandidate) {
-      const meetsCoverage = bestCandidate.visibleHeight >= minVisiblePixels || bestCandidate.coverage >= 0.35
-      if (meetsCoverage) {
-        nextIndex = bestCandidate.index
-      } else {
-        const currentStillGood = currentMeasurement && (currentMeasurement.visibleHeight >= minVisiblePixels * 0.66 || currentMeasurement.coverage >= 0.25)
-        if (!currentStillGood && fallbackCandidate) {
-          nextIndex = fallbackCandidate.index
-        }
+      if (candidate == null) {
+        candidate = idx
       }
-    } else if (fallbackCandidate) {
-      nextIndex = fallbackCandidate.index
+      break
     }
 
-    if (nextIndex != null && nextIndex !== currentIndex) {
-      if (currentMeasurement && currentIndex != null && nextIndex < currentIndex) {
-        const nextMeasurement = measurements.find(item => item.index === nextIndex)
-        if (nextMeasurement) {
-          const currentVisible = currentMeasurement.visibleHeight
-          const currentCoverage = currentMeasurement.coverage
-          const visibleGain = nextMeasurement.visibleHeight - currentVisible
-          const coverageGain = nextMeasurement.coverage - currentCoverage
-          const nextDominant = nextMeasurement.visibleHeight >= minVisiblePixels * 0.9 || nextMeasurement.coverage >= 0.55
-          const significantlyBetter = visibleGain >= 96 || coverageGain >= 0.25
-          const currentStillPresent = currentVisible >= 48 && currentCoverage >= 0.18
-          if (!nextDominant && !significantlyBetter && currentStillPresent) {
-            return
-          }
+    if (candidate == null) {
+      candidate = nodes[nodes.length - 1][0]
+    }
+
+    if (typeof window !== 'undefined') {
+      const docHeight = document.documentElement?.scrollHeight ?? 0
+      const scrollBottom = window.scrollY + viewportHeight
+      if (docHeight > 0 && docHeight - scrollBottom < Math.max(320, viewportHeight * 0.25)) {
+        candidate = nodes[nodes.length - 1][0]
+      }
+    }
+
+    const currentIndex = activeIndexRef.current
+    if (candidate != null && currentIndex != null && candidate < currentIndex) {
+      const node = chapterNodesRef.current.get(candidate)
+      if (node) {
+        const rect = node.getBoundingClientRect()
+        const top = rect.top - headerHeight
+        const bottom = rect.bottom - headerHeight
+        const visibleTop = Math.max(top, 0)
+        const visibleBottom = Math.min(bottom, viewportHeight)
+        const visibleHeight = Math.max(visibleBottom - visibleTop, 0)
+        const limitedHeight = Math.max(Math.min(rect.height, viewportHeight), 1)
+        const coverage = visibleHeight / limitedHeight
+        const minVisibleForRewind = Math.max(180, viewportHeight * 0.3)
+        if (visibleHeight < minVisibleForRewind || coverage < 0.55) {
+          return
         }
       }
+    }
+
+    if (candidate != null && candidate !== currentIndex) {
       pendingActiveIndexRef.current = null
-      setActiveIndex(nextIndex)
+      setActiveIndex(candidate)
     }
   }, [getVisibleHeaderHeight, sortedChapters])
 
