@@ -752,14 +752,8 @@ export function ReaderPage() {
     return Math.abs(currentTop - expectedTop) <= 6
   }, [getVisibleHeaderHeight])
 
-  const evaluateActiveChapter = useCallback((force = false) => {
+  const evaluateActiveChapter = useCallback(() => {
     if (!sortedChapters || sortedChapters.length === 0) return
-    if (!force) {
-      if (pendingScrollIndexRef.current != null) return
-      if (pendingActiveIndexRef.current != null) return
-      const elapsed = Date.now() - manualNavigationLockRef.current
-      if (elapsed < 350) return
-    }
 
     const nodes = Array.from(chapterNodesRef.current.entries())
       .filter(([, node]) => node != null)
@@ -771,20 +765,6 @@ export function ReaderPage() {
     const viewportHeight = typeof window !== 'undefined' && window.innerHeight ? window.innerHeight : 800
     const stickyThreshold = headerHeight + Math.min(260, viewportHeight * 0.3)
     const skipAboveThreshold = headerHeight + 24
-
-    const measureNode = (index: number) => {
-      const node = chapterNodesRef.current.get(index)
-      if (!node) return null
-      const rect = node.getBoundingClientRect()
-      const top = rect.top - headerHeight
-      const bottom = rect.bottom - headerHeight
-      const visibleTop = Math.max(top, 0)
-      const visibleBottom = Math.min(bottom, viewportHeight)
-      const visibleHeight = Math.max(visibleBottom - visibleTop, 0)
-      const limitedHeight = Math.max(Math.min(rect.height, viewportHeight), 1)
-      const coverage = visibleHeight / limitedHeight
-      return { rect, top, bottom, visibleTop, visibleBottom, visibleHeight, coverage }
-    }
 
     let candidate: number | null = null
 
@@ -856,7 +836,7 @@ export function ReaderPage() {
       if (scrollAnimationRef.current != null) return
       scrollAnimationRef.current = window.requestAnimationFrame(() => {
         scrollAnimationRef.current = null
-        evaluateActiveChapter(false)
+        evaluateActiveChapter()
       })
     }
     window.addEventListener('scroll', handle, { passive: true })
@@ -1001,7 +981,7 @@ export function ReaderPage() {
     pendingActiveIndexRef.current = null
     pendingScrollIndexRef.current = null
 
-  scrollDirectionRef.current = 'down'
+    scrollDirectionRef.current = 'down'
     pendingActiveIndexRef.current = target
     pendingScrollIndexRef.current = target
     pendingScrollBehaviorRef.current = 'auto'
@@ -1040,7 +1020,7 @@ export function ReaderPage() {
     pendingActiveIndexRef.current = null
     pendingScrollIndexRef.current = null
 
-  scrollDirectionRef.current = 'up'
+    scrollDirectionRef.current = 'up'
     pendingActiveIndexRef.current = target
     pendingScrollIndexRef.current = target
     pendingScrollBehaviorRef.current = 'auto'
@@ -1080,12 +1060,12 @@ export function ReaderPage() {
     if (!sortedChapters) return
     const targetIndex = sortedChapters.findIndex(ch => ch.id === targetId)
     if (targetIndex === -1) return
-    
+
     // Lock observer and clear any existing pending operations
-    manualNavigationLockRef.current = Date.now()
+    manualNavigationLockRef.current = Date.now() + 1000 // Lock for 1 second
     pendingActiveIndexRef.current = null
     pendingScrollIndexRef.current = null
-    
+
     if (activeChapterIndex != null && targetIndex > activeChapterIndex) {
       scrollDirectionRef.current = 'down'
     } else if (activeChapterIndex != null && targetIndex < activeChapterIndex) {
@@ -1098,15 +1078,15 @@ export function ReaderPage() {
     pendingScrollIndexRef.current = targetIndex
     pendingScrollBehaviorRef.current = 'auto'
     pendingScrollAttemptsRef.current = 0
-    
+
     const direction: 'append' | 'prepend' = activeChapterIndex != null && targetIndex < activeChapterIndex ? 'prepend' : 'append'
     await ensureChapterLoaded(targetIndex, direction)
-    
+
     // Force set active index if entry exists
     if (chapterEntriesRef.current.some(entry => entry.index === targetIndex)) {
       setActiveIndex(targetIndex)
     }
-    
+
     const immediateScroll = scrollChapterIntoView(targetIndex, pendingScrollBehaviorRef.current)
     if (immediateScroll && isChapterAligned(targetIndex)) {
       pendingScrollIndexRef.current = null
@@ -1117,7 +1097,7 @@ export function ReaderPage() {
       }
       evaluateActiveChapter(true)
     }
-    
+
     const targetChapter = sortedChapters[targetIndex]
     if (targetChapter && String(targetChapter.id) !== chapterId) {
       navigate(`/reader/${targetChapter.id}`, { replace: true })
@@ -1736,6 +1716,26 @@ export function ReaderPage() {
 
       {/* Right vertical action bar */}
       {activeChapter && (
+        <div className={cn(
+          'fixed top-1/2 -translate-y-1/2 right-1.5 xs:right-2 sm:right-4 z-40 flex flex-col space-y-2 sm:space-y-3',
+          showUI ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        )}>
+          <button
+            onClick={() => setShowChapterList(true)}
+            className="reader-fab"
+            title="Список глав" aria-label="Список глав"
+          >
+            <BookOpen className="h-5 w-5 group-hover:text-primary transition-colors" />
+          </button>
+          <button
+            onClick={() => setShowSideComments(true)}
+            className="reader-fab"
+            title="Комментарии" aria-label="Комментарии"
+          >
+            <MessageCircle className="h-5 w-5 group-hover:text-blue-400 transition-colors" />
+          </button>
+          <button
+            onClick={handleChapterLike}
         <div className={cn(
           'fixed top-1/2 -translate-y-1/2 right-1.5 xs:right-2 sm:right-4 z-40 flex flex-col space-y-2 sm:space-y-3',
           showUI ? 'opacity-100' : 'opacity-0 pointer-events-none'
