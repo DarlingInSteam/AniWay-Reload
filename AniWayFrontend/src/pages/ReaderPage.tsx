@@ -455,8 +455,16 @@ export function ReaderPage() {
         }
       }
     })
-    if (bestIndex != null && activeIndexRef.current !== bestIndex) {
-      setActiveIndex(bestIndex)
+    if (bestIndex != null) {
+      const currentIndex = activeIndexRef.current
+      const viewportHeight = typeof window !== 'undefined' ? window.innerHeight || 0 : 0
+      const maxAcceptableDistance = viewportHeight > 0 ? viewportHeight * 0.6 : Number.POSITIVE_INFINITY
+      if (currentIndex != null && Math.abs(bestOffset) > maxAcceptableDistance) {
+        return
+      }
+      if (currentIndex !== bestIndex) {
+        setActiveIndex(bestIndex)
+      }
     }
   }, [])
 
