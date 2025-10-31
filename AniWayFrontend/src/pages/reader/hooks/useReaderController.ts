@@ -917,7 +917,10 @@ export function useReaderController() {
           pendingScrollIndexRef.current = null
           return
         }
-        frameId = requestAnimationFrame(attempt)
+        frameId = requestAnimationFrame(() => {
+          pendingScrollBehaviorRef.current = 'auto'
+          attempt()
+        })
         return
       }
       pendingScrollIndexRef.current = null
@@ -1000,9 +1003,15 @@ export function useReaderController() {
     const targetChapterMeta = sortedChapters[target]
     if (!targetChapterMeta) return
 
+    const manualForwardGuardActive = manualNavigationGuardRef.current?.direction === 'forward'
+      && manualNavigationGuardRef.current.anchorIndex === index
+
     setTransitionBridge(prev => {
       if (prev && prev.targetIndex === target && prev.anchorIndex === index) {
         return prev
+      }
+      if (manualForwardGuardActive) {
+        return null
       }
       return { anchorIndex: index, targetIndex: target, targetReady: false }
     })
