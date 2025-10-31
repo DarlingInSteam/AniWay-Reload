@@ -70,6 +70,9 @@ export function useReaderController() {
   const lastScrollDirectionRef = useRef<-1 | 0 | 1>(0)
   const lastScrollDirectionAtRef = useRef<number>(0)
   const headerHeightCacheRef = useRef<number>(0)
+  const replaceChapterEntriesRef = useRef<{ index: number } | null>(null)
+  const allowBackwardPrefetchRef = useRef<boolean>(false)
+  const loadEpochRef = useRef(0)
 
   const getVisibleHeaderHeight = useCallback(() => {
     if (typeof window === 'undefined') return headerHeightCacheRef.current
@@ -581,8 +584,11 @@ export function useReaderController() {
   const ensureChapterLoaded = useCallback(async (index: number, direction: 'append' | 'prepend' = 'append') => {
     if (!sortedChapters) return
     if (index < 0 || index >= sortedChapters.length) return
-    if (chapterEntriesRef.current.some(entry => entry.index === index)) return
+    const replacement = replaceChapterEntriesRef.current
+    if (!replacement && chapterEntriesRef.current.some(entry => entry.index === index)) return
     if (loadingIndicesRef.current.has(index)) return
+
+    const epochAtStart = loadEpochRef.current
 
     loadingIndicesRef.current.add(index)
     activeChapterLoadsRef.current += 1
@@ -609,9 +615,19 @@ export function useReaderController() {
         apiClient.getChapterById(meta.id),
         apiClient.getChapterImages(meta.id)
       ])
+      if (epochAtStart !== loadEpochRef.current) {
+        return
+      }
       setChapterEntries(prev => {
-        if (prev.some(item => item.index === index)) return prev
-        const next = [...prev, { index, chapter: chapterData, images: imagesData }].sort((a, b) => a.index - b.index)
+        const entry: ChapterEntry = { index, chapter: chapterData, images: imagesData }
+        if (replacement && replacement.index === index) {
+          replaceChapterEntriesRef.current = null
+          return [entry]
+        }
+        if (prev.some(item => item.index === index)) {
+          return prev.map(item => item.index === index ? entry : item)
+        }
+        const next = [...prev, entry].sort((a, b) => a.index - b.index)
         return next
       })
     } catch (error) {
@@ -829,6 +845,7 @@ export function useReaderController() {
 
   const handleNearTop = useCallback((index: number) => {
     if (!sortedChapters) return
+    if (!allowBackwardPrefetchRef.current) return
     const target = index - 1
     if (target < 0) return
     if (prefetchPrevRef.current.has(target)) return
@@ -854,9 +871,17 @@ export function useReaderController() {
     pendingScrollBehaviorRef.current = 'smooth'
     pendingScrollAttemptsRef.current = 0
 
+    loadEpochRef.current += 1
     manualNavigationGuardRef.current = { direction: 'forward', anchorIndex: target }
+    replaceChapterEntriesRef.current = { index: target }
     lastScrollDirectionRef.current = 0
     lastScrollDirectionAtRef.current = Date.now()
+    allowBackwardPrefetchRef.current = false
+    prefetchPrevRef.current.clear()
+    prefetchNextRef.current.clear()
+    visibleChapterIndexesRef.current.clear()
+
+    setChapterEntries(prev => prev.map(item => (item.hidden ? item : { ...item, hidden: true })))
 
     await ensureChapterLoaded(target, 'append')
 
@@ -897,9 +922,17 @@ export function useReaderController() {
     pendingScrollBehaviorRef.current = 'smooth'
     pendingScrollAttemptsRef.current = 0
 
+    loadEpochRef.current += 1
     manualNavigationGuardRef.current = { direction: 'backward', anchorIndex: target }
+    replaceChapterEntriesRef.current = { index: target }
     lastScrollDirectionRef.current = 0
     lastScrollDirectionAtRef.current = Date.now()
+    allowBackwardPrefetchRef.current = false
+    prefetchPrevRef.current.clear()
+    prefetchNextRef.current.clear()
+    visibleChapterIndexesRef.current.clear()
+
+    setChapterEntries(prev => prev.map(item => (item.hidden ? item : { ...item, hidden: true })))
 
     await ensureChapterLoaded(target, 'prepend')
 
@@ -928,7 +961,6 @@ export function useReaderController() {
     if (!sortedChapters) return
     if (activeChapterIndex == null || activeChapterIndex === -1) return
     ensureChapterLoaded(activeChapterIndex + 1, 'append')
-    ensureChapterLoaded(activeChapterIndex - 1, 'prepend')
   }, [activeChapterIndex, ensureChapterLoaded, sortedChapters])
 
   const handleJumpToChapter = useCallback(async (targetId: number) => {
@@ -943,6 +975,7 @@ export function useReaderController() {
     pendingScrollBehaviorRef.current = 'auto'
     pendingScrollAttemptsRef.current = 0
 
+    loadEpochRef.current += 1
     if (activeChapterIndex != null && activeChapterIndex !== -1 && activeChapterIndex !== targetIndex) {
       manualNavigationGuardRef.current = {
         direction: targetIndex > activeChapterIndex ? 'forward' : 'backward',
@@ -951,8 +984,15 @@ export function useReaderController() {
     } else {
       manualNavigationGuardRef.current = null
     }
+    replaceChapterEntriesRef.current = { index: targetIndex }
     lastScrollDirectionRef.current = 0
     lastScrollDirectionAtRef.current = Date.now()
+    allowBackwardPrefetchRef.current = false
+    prefetchPrevRef.current.clear()
+    prefetchNextRef.current.clear()
+    visibleChapterIndexesRef.current.clear()
+
+    setChapterEntries(prev => prev.map(item => (item.hidden ? item : { ...item, hidden: true })))
 
     const direction: 'append' | 'prepend' = activeChapterIndex != null && targetIndex < activeChapterIndex ? 'prepend' : 'append'
     await ensureChapterLoaded(targetIndex, direction)
