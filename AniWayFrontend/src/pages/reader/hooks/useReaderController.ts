@@ -1051,9 +1051,8 @@ export function useReaderController() {
     naturalScrollNavigationRef.current = false
     setActiveIndex(prev => (prev === target ? prev : target))
 
-    loadEpochRef.current += 1
-    replaceChapterEntriesRef.current = { index: target }
-    updateManualNavigationLowerBound(target)
+  loadEpochRef.current += 1
+  replaceChapterEntriesRef.current = { index: target }
     lastScrollDirectionRef.current = 0
     lastScrollDirectionAtRef.current = Date.now()
     prefetchPrevRef.current.clear()
@@ -1101,9 +1100,8 @@ export function useReaderController() {
     naturalScrollNavigationRef.current = false
     setActiveIndex(prev => (prev === target ? prev : target))
 
-    loadEpochRef.current += 1
-    replaceChapterEntriesRef.current = { index: target }
-    updateManualNavigationLowerBound(target)
+  loadEpochRef.current += 1
+  replaceChapterEntriesRef.current = { index: target }
     lastScrollDirectionRef.current = 0
     lastScrollDirectionAtRef.current = Date.now()
     prefetchPrevRef.current.clear()
