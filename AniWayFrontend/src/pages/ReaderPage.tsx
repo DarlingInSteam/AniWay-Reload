@@ -213,7 +213,6 @@ interface ChapterBlockProps {
   handleTouchStartSwipe: any
   handleTouchMoveSwipe: any
   handleTouchEndSwipe: any
-  onActivate: (index: number) => void
   onNearBottom: () => void
   onNearTop: () => void
   onCompleted: () => void
@@ -233,7 +232,6 @@ const ChapterBlock = ({
   handleTouchStartSwipe,
   handleTouchMoveSwipe,
   handleTouchEndSwipe,
-  onActivate,
   onNearBottom,
   onNearTop,
   onCompleted,
@@ -245,20 +243,6 @@ const ChapterBlock = ({
   const topSentinelRef = useRef<HTMLDivElement | null>(null)
   const bottomSentinelRef = useRef<HTMLDivElement | null>(null)
   const completionSentinelRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    const node = containerRef.current
-    if (!node) return
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entryObs => {
-        if (entryObs.isIntersecting) {
-          onActivate(entry.index)
-        }
-      })
-    }, { rootMargin: '-40% 0px -45% 0px', threshold: 0.05 })
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [entry.index, onActivate])
 
   useEffect(() => {
     registerNode(entry.index, containerRef.current)
@@ -395,6 +379,7 @@ export function ReaderPage() {
   const manualNavigationLockRef = useRef<number>(0)
   const pendingScrollAttemptsRef = useRef<number>(0)
   const chapterNodesRef = useRef<Map<number, HTMLDivElement>>(new Map())
+  const scrollAnimationRef = useRef<number | null>(null)
   const activeIndexRef = useRef<number | null>(null)
   const [contentVersion, setContentVersion] = useState(0)
   const [autoCompletedMap, setAutoCompletedMap] = useState<Record<number, boolean>>({})
@@ -761,6 +746,93 @@ export function ReaderPage() {
     return Math.abs(currentTop - expectedTop) <= 6
   }, [getVisibleHeaderHeight])
 
+  const evaluateActiveChapter = useCallback((force = false) => {
+    if (!sortedChapters || sortedChapters.length === 0) return
+    if (!force) {
+      if (pendingScrollIndexRef.current != null) return
+      if (pendingActiveIndexRef.current != null) return
+      const elapsed = Date.now() - manualNavigationLockRef.current
+      if (elapsed < 350) return
+    }
+
+    const nodes = Array.from(chapterNodesRef.current.entries())
+      .filter(([, node]) => node != null)
+      .sort((a, b) => a[0] - b[0]) as Array<[number, HTMLDivElement]>
+
+    if (nodes.length === 0) return
+
+    const headerHeight = getVisibleHeaderHeight()
+    const viewportHeight = typeof window !== 'undefined' && window.innerHeight ? window.innerHeight : 800
+    const topThreshold = headerHeight + Math.min(160, viewportHeight * 0.2)
+    const minVisibleBottom = headerHeight + 24
+
+    let candidate: number | null = null
+
+    for (const [idx, node] of nodes) {
+      const rect = node.getBoundingClientRect()
+      const top = rect.top - headerHeight
+      const bottom = rect.bottom - headerHeight
+
+      if (bottom <= minVisibleBottom) {
+        continue
+      }
+
+      if (candidate == null) {
+        candidate = idx
+      }
+
+      if (top <= topThreshold) {
+        candidate = idx
+      } else {
+        break
+      }
+    }
+
+    if (candidate == null) {
+      candidate = nodes[nodes.length - 1][0]
+    }
+
+    if (typeof window !== 'undefined') {
+      const docHeight = document.documentElement?.scrollHeight ?? 0
+      const scrollBottom = window.scrollY + viewportHeight
+      if (docHeight > 0 && docHeight - scrollBottom < Math.max(320, viewportHeight * 0.25)) {
+        candidate = nodes[nodes.length - 1][0]
+      }
+    }
+
+    if (candidate != null && candidate !== activeIndexRef.current) {
+      pendingActiveIndexRef.current = null
+      setActiveIndex(candidate)
+    }
+  }, [getVisibleHeaderHeight, sortedChapters])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const handle = () => {
+      if (scrollAnimationRef.current != null) return
+      scrollAnimationRef.current = window.requestAnimationFrame(() => {
+        scrollAnimationRef.current = null
+        evaluateActiveChapter(false)
+      })
+    }
+    window.addEventListener('scroll', handle, { passive: true })
+    window.addEventListener('resize', handle)
+    handle()
+    return () => {
+      window.removeEventListener('scroll', handle)
+      window.removeEventListener('resize', handle)
+      if (scrollAnimationRef.current != null) {
+        cancelAnimationFrame(scrollAnimationRef.current)
+        scrollAnimationRef.current = null
+      }
+    }
+  }, [evaluateActiveChapter])
+
+  useEffect(() => {
+    if (contentVersion === 0) return
+    evaluateActiveChapter(true)
+  }, [contentVersion, evaluateActiveChapter])
+
   useEffect(() => {
     const index = pendingScrollIndexRef.current
     if (index == null) return
@@ -793,13 +865,14 @@ export function ReaderPage() {
       pendingScrollIndexRef.current = null
       pendingScrollAttemptsRef.current = 0
       manualNavigationLockRef.current = Date.now()
+      evaluateActiveChapter(true)
     }
     frameId = requestAnimationFrame(attempt)
     return () => {
       cancelled = true
       if (frameId != null) cancelAnimationFrame(frameId)
     }
-  }, [chapterEntries, contentVersion, isChapterAligned, scrollChapterIntoView, showUI])
+  }, [chapterEntries, contentVersion, evaluateActiveChapter, isChapterAligned, scrollChapterIntoView, showUI])
 
   useEffect(() => {
     if (activeIndex == null) return
@@ -898,13 +971,14 @@ export function ReaderPage() {
       pendingScrollIndexRef.current = null
       pendingScrollAttemptsRef.current = 0
       manualNavigationLockRef.current = Date.now()
+      evaluateActiveChapter(true)
     }
 
     const targetChapter = sortedChapters[target]
     if (targetChapter && String(targetChapter.id) !== chapterId) {
       navigate(`/reader/${targetChapter.id}`, { replace: true })
     }
-  }, [activeChapterIndex, chapterId, ensureChapterLoaded, isChapterAligned, navigate, scrollChapterIntoView, sortedChapters])
+  }, [activeChapterIndex, chapterId, ensureChapterLoaded, evaluateActiveChapter, isChapterAligned, navigate, scrollChapterIntoView, sortedChapters])
 
   const navigateToPreviousChapter = useCallback(async () => {
     if (!sortedChapters) return
@@ -933,13 +1007,14 @@ export function ReaderPage() {
       pendingScrollIndexRef.current = null
       pendingScrollAttemptsRef.current = 0
       manualNavigationLockRef.current = Date.now()
+      evaluateActiveChapter(true)
     }
 
     const targetChapter = sortedChapters[target]
     if (targetChapter && String(targetChapter.id) !== chapterId) {
       navigate(`/reader/${targetChapter.id}`, { replace: true })
     }
-  }, [activeChapterIndex, chapterId, ensureChapterLoaded, isChapterAligned, navigate, scrollChapterIntoView, sortedChapters])
+  }, [activeChapterIndex, chapterId, ensureChapterLoaded, evaluateActiveChapter, isChapterAligned, navigate, scrollChapterIntoView, sortedChapters])
 
   useEffect(() => {
     if (!sortedChapters) return
@@ -978,6 +1053,7 @@ export function ReaderPage() {
       pendingScrollIndexRef.current = null
       pendingScrollAttemptsRef.current = 0
       manualNavigationLockRef.current = Date.now()
+      evaluateActiveChapter(true)
     }
     
     const targetChapter = sortedChapters[targetIndex]
@@ -985,47 +1061,7 @@ export function ReaderPage() {
       navigate(`/reader/${targetChapter.id}`, { replace: true })
     }
     setShowChapterList(false)
-  }, [activeChapterIndex, chapterId, ensureChapterLoaded, isChapterAligned, navigate, scrollChapterIntoView, setShowChapterList, sortedChapters])
-
-  const handleChapterActivated = useCallback((index: number) => {
-    if (!sortedChapters) return
-    if (index < 0 || index >= sortedChapters.length) return
-
-    const node = chapterNodesRef.current.get(index)
-    if (!node) return
-
-    const headerHeight = getVisibleHeaderHeight()
-    const rect = node.getBoundingClientRect()
-    const viewportHeight = typeof window !== 'undefined' && window.innerHeight ? window.innerHeight : 800
-
-    const adjustedTop = rect.top - headerHeight
-    const adjustedBottom = rect.bottom - headerHeight
-    const visibleTop = Math.max(adjustedTop, 0)
-    const visibleBottom = Math.min(adjustedBottom, viewportHeight)
-    const visibleHeight = Math.max(visibleBottom - visibleTop, 0)
-    const coverage = rect.height > 0 ? visibleHeight / Math.min(rect.height, viewportHeight) : 0
-    if (coverage < 0.25) return
-
-    if (pendingScrollIndexRef.current != null && pendingScrollIndexRef.current !== index) return
-    if (pendingActiveIndexRef.current != null && pendingActiveIndexRef.current !== index) return
-
-    if (pendingScrollIndexRef.current == null) {
-      const elapsed = Date.now() - manualNavigationLockRef.current
-      if (elapsed < 250) return
-    }
-
-    if (pendingScrollIndexRef.current === index && isChapterAligned(index)) {
-      pendingScrollIndexRef.current = null
-      pendingScrollAttemptsRef.current = 0
-      manualNavigationLockRef.current = Date.now()
-    }
-
-    if (activeIndexRef.current !== index) {
-      pendingActiveIndexRef.current = null
-      setActiveIndex(prev => (prev === index ? prev : index))
-    }
-  }, [getVisibleHeaderHeight, isChapterAligned, sortedChapters])
-
+  }, [activeChapterIndex, chapterId, ensureChapterLoaded, evaluateActiveChapter, isChapterAligned, navigate, scrollChapterIntoView, setShowChapterList, sortedChapters])
 
   // Handle chapter like/unlike
   const handleChapterLike = useCallback(async () => {
@@ -1550,7 +1586,6 @@ export function ReaderPage() {
                 handleTouchStartSwipe={handleTouchStartSwipe}
                 handleTouchMoveSwipe={handleTouchMoveSwipe}
                 handleTouchEndSwipe={handleTouchEndSwipe}
-                onActivate={handleChapterActivated}
                 onNearBottom={() => handleNearBottom(entry.index)}
                 onNearTop={() => handleNearTop(entry.index)}
                 onCompleted={() => handleChapterCompleted(entry.index)}
