@@ -838,21 +838,6 @@ export function useReaderController() {
   }, [activeIndex, chapterId, navigate, sortedChapters, trackChapterViewed])
 
   useEffect(() => {
-    const lowerBound = manualNavigationLowerBoundRef.current
-    if (lowerBound == null) return
-    if (activeIndex == null) return
-    if (activeIndex <= lowerBound) return
-    updateManualNavigationLowerBound(activeIndex)
-  }, [activeIndex, updateManualNavigationLowerBound])
-
-  useEffect(() => {
-    if (!transitionBridge) return
-    if (activeIndex != null && activeIndex >= transitionBridge.targetIndex) {
-      setTransitionBridge(null)
-    }
-  }, [activeIndex, setTransitionBridge, transitionBridge])
-
-  useEffect(() => {
     if (!transitionBridge) return
     const anchorExists = chapterEntries.some(entry => entry.index === transitionBridge.anchorIndex)
     if (!anchorExists) {
@@ -943,6 +928,7 @@ export function useReaderController() {
     loadEpochRef.current += 1
     manualNavigationGuardRef.current = { direction: 'forward', anchorIndex: target }
     replaceChapterEntriesRef.current = { index: target }
+  updateManualNavigationLowerBound(target)
     lastScrollDirectionRef.current = 0
     lastScrollDirectionAtRef.current = Date.now()
     prefetchPrevRef.current.clear()
@@ -995,9 +981,7 @@ export function useReaderController() {
     loadEpochRef.current += 1
     manualNavigationGuardRef.current = { direction: 'backward', anchorIndex: target }
     replaceChapterEntriesRef.current = { index: target }
-    if (manualNavigationLowerBoundRef.current != null) {
-      updateManualNavigationLowerBound(target)
-    }
+    updateManualNavigationLowerBound(target)
     lastScrollDirectionRef.current = 0
     lastScrollDirectionAtRef.current = Date.now()
     prefetchPrevRef.current.clear()
