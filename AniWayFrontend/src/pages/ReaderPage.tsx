@@ -772,6 +772,7 @@ export function ReaderPage() {
       if (!currentNode) {
         // Текущая глава не зарегистрирована, значит еще загружается
         // НЕ ТРОГАЕМ activeIndex, ждем когда глава отрисуется
+        console.log(`[evaluateActiveChapter] Пропускаем оценку: активная глава ${currentIndex} еще не отрисована`)
         return
       }
     }
@@ -845,6 +846,10 @@ export function ReaderPage() {
 
     if (candidate != null && candidate !== currentIndex) {
       pendingActiveIndexRef.current = null
+      console.log(`[evaluateActiveChapter] Переключение главы: ${currentIndex} → ${candidate}`)
+      const currentChapter = sortedChapters[currentIndex ?? -1]
+      const candidateChapter = sortedChapters[candidate]
+      console.log(`  Текущая: #${currentChapter?.chapterNumber ?? '?'} | Новая: #${candidateChapter?.chapterNumber ?? '?'}`)
       setActiveIndex(candidate)
     }
   }, [getVisibleHeaderHeight, sortedChapters])
