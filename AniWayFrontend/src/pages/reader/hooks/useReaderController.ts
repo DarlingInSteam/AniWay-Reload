@@ -838,6 +838,14 @@ export function useReaderController() {
   }, [activeIndex, chapterId, navigate, sortedChapters, trackChapterViewed])
 
   useEffect(() => {
+    const lowerBound = manualNavigationLowerBoundRef.current
+    if (lowerBound == null) return
+    if (activeIndex == null) return
+    if (activeIndex <= lowerBound) return
+    updateManualNavigationLowerBound(activeIndex)
+  }, [activeIndex, updateManualNavigationLowerBound])
+
+  useEffect(() => {
     if (!transitionBridge) return
     if (activeIndex != null && activeIndex >= transitionBridge.targetIndex) {
       setTransitionBridge(null)
