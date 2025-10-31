@@ -7,6 +7,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useReadingProgress } from '@/hooks/useProgress'
 import type { ChapterEntry } from '../types'
 
+const MAX_PENDING_SCROLL_ATTEMPTS = 480
+
 export function useReaderController() {
   const { chapterId } = useParams<{ chapterId: string }>()
   const navigate = useNavigate()
@@ -58,24 +60,26 @@ export function useReaderController() {
   const [likingChapters, setLikingChapters] = useState<Record<number, boolean>>({})
   const visibleChapterIndexesRef = useRef<Set<number>>(new Set())
   const scrollRecalcFrameRef = useRef<number | null>(null)
+  const headerHeightCacheRef = useRef<number>(0)
 
   const getVisibleHeaderHeight = useCallback(() => {
-    if (typeof window === 'undefined') return 0
-    if (!showUI) return 0
+    if (typeof window === 'undefined') return headerHeightCacheRef.current
 
     const topBar = document.querySelector<HTMLElement>('[data-reader-top-bar]')
-    if (!topBar) return 0
+    if (!topBar) return headerHeightCacheRef.current
 
     const rect = topBar.getBoundingClientRect()
-    const isVisible = rect.bottom > 0 && rect.top < window.innerHeight
-    if (!isVisible || rect.height <= 0) return 0
-
     const computed = window.getComputedStyle(topBar)
     const marginBottom = parseFloat(computed.marginBottom || '0')
     const safeMargin = Number.isFinite(marginBottom) ? marginBottom : 0
+    const measured = Math.max(0, rect.height) + safeMargin
 
-    return rect.height + safeMargin
-  }, [showUI])
+    if (measured > 0) {
+      headerHeightCacheRef.current = measured
+    }
+
+    return headerHeightCacheRef.current
+  }, [])
 
   const updateActiveFromVisibility = useCallback(() => {
     if (pendingScrollIndexRef.current != null) return
@@ -216,6 +220,31 @@ export function useReaderController() {
 
     if (!chosen) return
 
+    const currentInfo = currentIndex != null ? infos.find(info => info.index === currentIndex) : undefined
+
+    if (!forceTarget && targetIndex == null && currentInfo && chosen.index !== currentIndex) {
+      const currentCoversFocus = currentInfo.focusCover || currentInfo.baselineCover
+      const chosenCoversFocus = chosen.focusCover || chosen.baselineCover
+
+      if (currentCoversFocus && !chosenCoversFocus) {
+        return
+      }
+
+      if (currentCoversFocus && chosenCoversFocus) {
+        const hasMeaningfulImprovement = chosen.focusDistance + 12 < currentInfo.focusDistance
+        if (!hasMeaningfulImprovement) {
+          return
+        }
+      }
+
+      if (!currentCoversFocus && !chosenCoversFocus) {
+        const baselineImproved = chosen.baselineDistance + 20 < currentInfo.baselineDistance
+        if (!baselineImproved) {
+          return
+        }
+      }
+    }
+
     if (targetIndex != null && chosen.index === targetIndex) {
       targetChapterIndexRef.current = null
     }
@@ -230,7 +259,6 @@ export function useReaderController() {
     }
 
     if (!lockActive && currentIndex != null) {
-      const currentInfo = infos.find(info => info.index === currentIndex)
       if (currentInfo && Math.abs(currentInfo.rectTop - baseline) > 32) {
         const fallback = selectBest(
           infos.filter(info => info.index !== currentIndex),
@@ -655,7 +683,7 @@ export function useReaderController() {
       const scrolled = scrollChapterIntoView(targetIndex, behavior)
       if (!scrolled) {
         pendingScrollAttemptsRef.current += 1
-        if (pendingScrollAttemptsRef.current > 120) {
+        if (pendingScrollAttemptsRef.current > MAX_PENDING_SCROLL_ATTEMPTS) {
           pendingScrollIndexRef.current = null
         } else {
           frameId = requestAnimationFrame(attempt)
@@ -664,7 +692,7 @@ export function useReaderController() {
       }
       if (!isChapterAligned(targetIndex)) {
         pendingScrollAttemptsRef.current += 1
-        if (pendingScrollAttemptsRef.current > 120) {
+        if (pendingScrollAttemptsRef.current > MAX_PENDING_SCROLL_ATTEMPTS) {
           pendingScrollIndexRef.current = null
           return
         }
@@ -684,7 +712,7 @@ export function useReaderController() {
       cancelled = true
       if (frameId != null) cancelAnimationFrame(frameId)
     }
-  }, [chapterEntries, contentVersion, isChapterAligned, scrollChapterIntoView, showUI, updateActiveFromVisibility])
+  }, [chapterEntries, contentVersion, isChapterAligned, scrollChapterIntoView, updateActiveFromVisibility])
 
   useEffect(() => {
     if (activeIndex == null) return
