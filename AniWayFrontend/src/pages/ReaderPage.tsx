@@ -761,46 +761,68 @@ export function ReaderPage() {
 
     const headerHeight = getVisibleHeaderHeight()
     const viewportHeight = typeof window !== 'undefined' && window.innerHeight ? window.innerHeight : 800
-    const topThreshold = headerHeight + Math.min(160, viewportHeight * 0.2)
-    const minVisibleBottom = headerHeight + 24
+    const viewportCenter = viewportHeight / 2
+    const minVisiblePixels = Math.max(96, Math.min(viewportHeight * 0.18, 220))
 
-    let candidate: number | null = null
-
-    for (const [idx, node] of nodes) {
+    const measurements = nodes.map(([idx, node]) => {
       const rect = node.getBoundingClientRect()
-      const top = rect.top - headerHeight
-      const bottom = rect.bottom - headerHeight
-
-      if (bottom <= minVisibleBottom) {
-        continue
+      const adjustedTop = rect.top - headerHeight
+      const adjustedBottom = rect.bottom - headerHeight
+      const visibleTop = Math.max(adjustedTop, 0)
+      const visibleBottom = Math.min(adjustedBottom, viewportHeight)
+      const visibleHeight = Math.max(visibleBottom - visibleTop, 0)
+      const limitedHeight = Math.max(Math.min(rect.height, viewportHeight), 1)
+      const coverage = visibleHeight / limitedHeight
+      const centerRelative = adjustedTop + rect.height / 2
+      const centerDistance = Math.abs(centerRelative - viewportCenter)
+      return {
+        index: idx,
+        rect,
+        adjustedTop,
+        adjustedBottom,
+        visibleHeight,
+        coverage,
+        centerDistance,
       }
+    })
 
-      if (candidate == null) {
-        candidate = idx
+    const bestCandidate = measurements.reduce<typeof measurements[number] | null>((best, current) => {
+      if (!best) return current
+      if (current.visibleHeight > best.visibleHeight + 2) return current
+      if (Math.abs(current.visibleHeight - best.visibleHeight) <= 2 && current.centerDistance < best.centerDistance) return current
+      return best
+    }, null)
+
+    const fallbackCandidate = (() => {
+      const belowOrIntersecting = measurements.filter(item => item.adjustedBottom > 0)
+      if (belowOrIntersecting.length > 0) {
+        return belowOrIntersecting.reduce((best, current) => (current.centerDistance < best.centerDistance ? current : best))
       }
+      return measurements[measurements.length - 1]
+    })()
 
-      if (top <= topThreshold) {
-        candidate = idx
+    const currentIndex = activeIndexRef.current
+    const currentMeasurement = currentIndex != null ? measurements.find(item => item.index === currentIndex) : undefined
+
+    let nextIndex = currentIndex ?? measurements[0].index
+
+    if (bestCandidate) {
+      const meetsCoverage = bestCandidate.visibleHeight >= minVisiblePixels || bestCandidate.coverage >= 0.35
+      if (meetsCoverage) {
+        nextIndex = bestCandidate.index
       } else {
-        break
+        const currentStillGood = currentMeasurement && (currentMeasurement.visibleHeight >= minVisiblePixels * 0.66 || currentMeasurement.coverage >= 0.25)
+        if (!currentStillGood && fallbackCandidate) {
+          nextIndex = fallbackCandidate.index
+        }
       }
+    } else if (fallbackCandidate) {
+      nextIndex = fallbackCandidate.index
     }
 
-    if (candidate == null) {
-      candidate = nodes[nodes.length - 1][0]
-    }
-
-    if (typeof window !== 'undefined') {
-      const docHeight = document.documentElement?.scrollHeight ?? 0
-      const scrollBottom = window.scrollY + viewportHeight
-      if (docHeight > 0 && docHeight - scrollBottom < Math.max(320, viewportHeight * 0.25)) {
-        candidate = nodes[nodes.length - 1][0]
-      }
-    }
-
-    if (candidate != null && candidate !== activeIndexRef.current) {
+    if (nextIndex != null && nextIndex !== currentIndex) {
       pendingActiveIndexRef.current = null
-      setActiveIndex(candidate)
+      setActiveIndex(nextIndex)
     }
   }, [getVisibleHeaderHeight, sortedChapters])
 
