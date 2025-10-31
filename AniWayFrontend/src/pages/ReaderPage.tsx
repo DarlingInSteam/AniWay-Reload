@@ -391,6 +391,17 @@ export function ReaderPage() {
   const [likedChapters, setLikedChapters] = useState<Record<number, boolean>>({})
   const [likingChapters, setLikingChapters] = useState<Record<number, boolean>>({})
 
+  const cancelPendingScroll = useCallback(() => {
+    if (pendingScrollIndexRef.current == null && pendingActiveIndexRef.current == null) {
+      return
+    }
+    pendingScrollIndexRef.current = null
+    pendingScrollAttemptsRef.current = 0
+    pendingActiveIndexRef.current = null
+    pendingScrollBehaviorRef.current = 'smooth'
+    manualNavigationLockRef.current = 0
+  }, [])
+
   useEffect(() => {
     chapterEntriesRef.current = chapterEntries
   }, [chapterEntries])
@@ -876,6 +887,9 @@ export function ReaderPage() {
       if (Math.abs(delta) > 1) {
         scrollDirectionRef.current = delta > 0 ? 'down' : 'up'
         lastScrollYRef.current = currentY
+        if (Math.abs(delta) > 6 && pendingScrollIndexRef.current != null) {
+          cancelPendingScroll()
+        }
       } else if (scrollAnimationRef.current == null) {
         scrollDirectionRef.current = 'none'
       }
@@ -896,7 +910,7 @@ export function ReaderPage() {
         scrollAnimationRef.current = null
       }
     }
-  }, [evaluateActiveChapter])
+  }, [cancelPendingScroll, evaluateActiveChapter])
 
   useEffect(() => {
     if (contentVersion === 0) return
@@ -1032,9 +1046,9 @@ export function ReaderPage() {
     pendingScrollIndexRef.current = null
 
     scrollDirectionRef.current = 'down'
-    pendingActiveIndexRef.current = target
-    pendingScrollIndexRef.current = target
-    pendingScrollBehaviorRef.current = 'auto'
+  pendingActiveIndexRef.current = target
+  pendingScrollIndexRef.current = target
+  pendingScrollBehaviorRef.current = 'smooth'
     pendingScrollAttemptsRef.current = 0
 
     await ensureChapterLoaded(target, 'append')
@@ -1071,9 +1085,9 @@ export function ReaderPage() {
     pendingScrollIndexRef.current = null
 
     scrollDirectionRef.current = 'up'
-    pendingActiveIndexRef.current = target
-    pendingScrollIndexRef.current = target
-    pendingScrollBehaviorRef.current = 'auto'
+  pendingActiveIndexRef.current = target
+  pendingScrollIndexRef.current = target
+  pendingScrollBehaviorRef.current = 'smooth'
     pendingScrollAttemptsRef.current = 0
 
     await ensureChapterLoaded(target, 'prepend')
@@ -1124,9 +1138,9 @@ export function ReaderPage() {
       scrollDirectionRef.current = 'none'
     }
     // Set new target
-    pendingActiveIndexRef.current = targetIndex
-    pendingScrollIndexRef.current = targetIndex
-    pendingScrollBehaviorRef.current = 'auto'
+  pendingActiveIndexRef.current = targetIndex
+  pendingScrollIndexRef.current = targetIndex
+  pendingScrollBehaviorRef.current = 'smooth'
     pendingScrollAttemptsRef.current = 0
 
     const direction: 'append' | 'prepend' = activeChapterIndex != null && targetIndex < activeChapterIndex ? 'prepend' : 'append'
@@ -1291,6 +1305,9 @@ export function ReaderPage() {
         clearTimeout(pendingUiToggleRef.current)
         pendingUiToggleRef.current = null
       }
+      if (pendingScrollIndexRef.current != null) {
+        cancelPendingScroll()
+      }
     }
   }
   const handleTouchEndSwipe = (e: React.TouchEvent) => {
@@ -1306,6 +1323,9 @@ export function ReaderPage() {
     touchMovedRef.current = false
     if (hadMovement) {
       setLastTap(0)
+      if (pendingScrollIndexRef.current != null) {
+        cancelPendingScroll()
+      }
     }
 
     if (viewportWidth < 768) {
