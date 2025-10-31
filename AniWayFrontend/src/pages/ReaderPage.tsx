@@ -443,48 +443,70 @@ export function ReaderPage() {
   const updateActiveFromVisibility = useCallback(() => {
     if (pendingScrollIndexRef.current != null) return
     const lockUntil = manualNavigationLockRef.current
-    if (lockUntil > Date.now()) return
+    const now = Date.now()
+    const lockActive = lockUntil > now
+    const currentIndex = activeIndexRef.current
 
     const candidates = visibleChapterIndexesRef.current.size > 0
       ? Array.from(visibleChapterIndexesRef.current)
       : Array.from(chapterNodesRef.current.keys())
     if (candidates.length === 0) return
 
+    const headerHeight = getVisibleHeaderHeight()
+    const margin = headerHeight > 0 ? 16 : 12
+    const baseline = headerHeight + margin
+
     let bestIndex: number | null = null
-    let bestOffset = Number.POSITIVE_INFINITY
     let bestDistance = Number.POSITIVE_INFINITY
 
-    candidates.forEach(idx => {
-      const offset = computeChapterOffset(idx)
-      if (!Number.isFinite(offset)) return
+    const evaluateIndex = (idx: number) => {
+      const node = chapterNodesRef.current.get(idx)
+      if (!node) return
+      const offset = node.getBoundingClientRect().top - baseline
       const distance = Math.abs(offset)
-      if (distance + 0.25 < bestDistance) {
-        bestDistance = distance
-        bestOffset = offset
+      if (distance + 0.25 < bestDistance || (Math.abs(distance - bestDistance) <= 0.25 && idx > (bestIndex ?? -Infinity))) {
         bestIndex = idx
-        return
-      }
-      if (Math.abs(distance - bestDistance) <= 0.25 && bestIndex != null) {
-        const currentAhead = offset >= 0 && bestOffset < 0
-        const bothAhead = offset >= 0 && bestOffset >= 0 && offset < bestOffset - 0.25
-        const bothBehind = offset < 0 && bestOffset < 0 && offset > bestOffset + 0.25
-        const preferHigherIndex = !currentAhead && !bothAhead && !bothBehind && idx > bestIndex
-        if (currentAhead || bothAhead || bothBehind || preferHigherIndex) {
-          bestDistance = distance
-          bestOffset = offset
-          bestIndex = idx
-        }
-      } else if (bestIndex == null) {
         bestDistance = distance
-        bestOffset = offset
-        bestIndex = idx
       }
-    })
-
-    if (bestIndex != null && activeIndexRef.current !== bestIndex) {
-      setActiveIndex(bestIndex)
     }
-  }, [computeChapterOffset])
+
+    if (lockActive && currentIndex != null) {
+      evaluateIndex(currentIndex)
+    } else {
+      candidates.forEach(idx => evaluateIndex(idx))
+      if (bestIndex == null && currentIndex != null) {
+        evaluateIndex(currentIndex)
+      }
+    }
+
+    if (bestIndex != null && bestIndex !== currentIndex) {
+      setActiveIndex(bestIndex)
+      return
+    }
+
+    if (!lockActive && currentIndex != null) {
+      const node = chapterNodesRef.current.get(currentIndex)
+      if (!node) return
+      const offset = node.getBoundingClientRect().top - baseline
+      if (Math.abs(offset) <= 32) return
+      let fallback: number | null = null
+      let fallbackDistance = Number.POSITIVE_INFINITY
+      candidates.forEach(idx => {
+        if (idx === currentIndex) return
+        const candidateNode = chapterNodesRef.current.get(idx)
+        if (!candidateNode) return
+        const candidateOffset = candidateNode.getBoundingClientRect().top - baseline
+        const candidateDistance = Math.abs(candidateOffset)
+        if (candidateDistance < fallbackDistance - 0.25) {
+          fallback = idx
+          fallbackDistance = candidateDistance
+        }
+      })
+      if (fallback != null) {
+        setActiveIndex(fallback)
+      }
+    }
+  }, [getVisibleHeaderHeight])
 
   const cancelPendingScroll = useCallback(() => {
     if (pendingScrollIndexRef.current == null && pendingActiveIndexRef.current == null) {
