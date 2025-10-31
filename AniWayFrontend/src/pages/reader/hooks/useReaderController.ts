@@ -10,11 +10,6 @@ import type { ChapterEntry } from '../types'
 const MAX_PENDING_SCROLL_ATTEMPTS = 480
 const SCROLL_DIRECTION_RESET_MS = 450
 
-type ManualNavigationGuard = {
-  direction: 'forward' | 'backward'
-  anchorIndex: number
-}
-
 export function useReaderController() {
   const { chapterId } = useParams<{ chapterId: string }>()
   const navigate = useNavigate()
@@ -66,7 +61,6 @@ export function useReaderController() {
   const [likingChapters, setLikingChapters] = useState<Record<number, boolean>>({})
   const visibleChapterIndexesRef = useRef<Set<number>>(new Set())
   const scrollRecalcFrameRef = useRef<number | null>(null)
-  const manualNavigationGuardRef = useRef<ManualNavigationGuard | null>(null)
   const lastScrollDirectionRef = useRef<-1 | 0 | 1>(0)
   const lastScrollDirectionAtRef = useRef<number>(0)
   const headerHeightCacheRef = useRef<number>(0)
@@ -156,7 +150,6 @@ export function useReaderController() {
       window.cancelAnimationFrame(scrollRecalcFrameRef.current)
     }
     scrollRecalcFrameRef.current = null
-    manualNavigationGuardRef.current = null
     lastScrollDirectionRef.current = 0
     replaceChapterEntriesRef.current = null
     pendingPruneIndexRef.current = null
@@ -252,15 +245,7 @@ export function useReaderController() {
 
     if (!infos.length) return
 
-    const guard = manualNavigationGuardRef.current
-    let evaluationInfos = infos
-    if (guard) {
-      const filtered = infos.filter(info => guard.direction === 'forward' ? info.index >= guard.anchorIndex : info.index <= guard.anchorIndex)
-      if (!filtered.length) {
-        return
-      }
-      evaluationInfos = filtered
-    }
+    const evaluationInfos = infos
 
     let forceTarget = false
     let bestIndex: number | null = null
@@ -369,23 +354,11 @@ export function useReaderController() {
       targetChapterIndexRef.current = null
     }
 
-    if (!guard && targetIndex == null && currentIndex != null && chosen.index < currentIndex) {
+    if (targetIndex == null && currentIndex != null && chosen.index < currentIndex) {
       const lastDirection = lastScrollDirectionRef.current
       const lastDirectionAge = Date.now() - lastScrollDirectionAtRef.current
       if (lastDirection === 1 && lastDirectionAge <= SCROLL_DIRECTION_RESET_MS) {
         return
-      }
-    }
-
-    if (guard) {
-      if (guard.direction === 'forward') {
-        if (chosen.index > guard.anchorIndex) {
-          manualNavigationGuardRef.current = null
-        }
-      } else if (guard.direction === 'backward') {
-        if (chosen.index < guard.anchorIndex) {
-          manualNavigationGuardRef.current = null
-        }
       }
     }
 
@@ -464,12 +437,6 @@ export function useReaderController() {
       }
       const now = Date.now()
       if (manualNavigationLockRef.current < now) {
-        const guard = manualNavigationGuardRef.current
-        if (guard) {
-          if ((guard.direction === 'forward' && delta > 0) || (guard.direction === 'backward' && delta < 0)) {
-            manualNavigationGuardRef.current = null
-          }
-        }
         if (targetChapterIndexRef.current != null) {
           targetChapterIndexRef.current = null
         }
@@ -1015,15 +982,9 @@ export function useReaderController() {
     const targetChapterMeta = sortedChapters[target]
     if (!targetChapterMeta) return
 
-    const manualForwardGuardActive = manualNavigationGuardRef.current?.direction === 'forward'
-      && manualNavigationGuardRef.current.anchorIndex === index
-
     setTransitionBridge(prev => {
       if (prev && prev.targetIndex === target && prev.anchorIndex === index) {
         return prev
-      }
-      if (manualForwardGuardActive) {
-        return null
       }
       return { anchorIndex: index, targetIndex: target, targetReady: false }
     })
@@ -1037,13 +998,9 @@ export function useReaderController() {
 
   const handleNearTop = useCallback((index: number) => {
     if (!sortedChapters) return
-  const lastDirection = lastScrollDirectionRef.current
-  const lastDirectionAge = Date.now() - lastScrollDirectionAtRef.current
-  if (lastDirection !== -1 || lastDirectionAge > SCROLL_DIRECTION_RESET_MS * 3) return
-    const manualGuard = manualNavigationGuardRef.current
-    if (manualGuard && manualGuard.direction === 'forward' && index <= manualGuard.anchorIndex) {
-      return
-    }
+    const lastDirection = lastScrollDirectionRef.current
+    const lastDirectionAge = Date.now() - lastScrollDirectionAtRef.current
+    if (lastDirection !== -1 || lastDirectionAge > SCROLL_DIRECTION_RESET_MS * 3) return
     const target = index - 1
     if (target < 0) return
     const lowerBound = manualNavigationLowerBoundRef.current
@@ -1074,7 +1031,6 @@ export function useReaderController() {
     setActiveIndex(prev => (prev === target ? prev : target))
 
     loadEpochRef.current += 1
-  manualNavigationGuardRef.current = { direction: 'forward', anchorIndex: target }
   replaceChapterEntriesRef.current = { index: target }
   updateManualNavigationLowerBound(target)
     lastScrollDirectionRef.current = 0
@@ -1123,7 +1079,6 @@ export function useReaderController() {
     setActiveIndex(prev => (prev === target ? prev : target))
 
     loadEpochRef.current += 1
-    manualNavigationGuardRef.current = { direction: 'backward', anchorIndex: target }
     replaceChapterEntriesRef.current = { index: target }
     updateManualNavigationLowerBound(target)
     lastScrollDirectionRef.current = 0
@@ -1178,7 +1133,6 @@ export function useReaderController() {
     pendingScrollIndexRef.current = targetIndex
     pendingScrollBehaviorRef.current = 'auto'
     pendingScrollAttemptsRef.current = 0
-    manualNavigationGuardRef.current = null
     lastScrollDirectionRef.current = 0
     lastScrollDirectionAtRef.current = Date.now()
 
