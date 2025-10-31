@@ -265,6 +265,13 @@ const ChapterBlock = ({
       })
     }, { threshold: [0, 0.1, 0.25, 0.5, 0.75, 0.95], rootMargin: '0px 0px 0px 0px' })
     observer.observe(node)
+    const immediateCheck = () => {
+      if (didCancel) return
+      const rect = node.getBoundingClientRect()
+      const isVisible = rect.bottom > 0 && rect.top < window.innerHeight
+      onVisibilityChange(entry.index, isVisible)
+    }
+    immediateCheck()
     return () => {
       didCancel = true
       observer.disconnect()
@@ -421,12 +428,31 @@ export function ReaderPage() {
     if (!entries.size) return
     let bestIndex: number | null = null
     let bestOffset = Number.POSITIVE_INFINITY
+    let bestDistance = Number.POSITIVE_INFINITY
     entries.forEach((offset, idx) => {
-      if (offset < bestOffset - 0.5) {
+      const distance = Math.abs(offset)
+      if (distance < bestDistance - 0.5) {
+        bestDistance = distance
         bestOffset = offset
         bestIndex = idx
-      } else if (Math.abs(offset - bestOffset) <= 0.5 && bestIndex != null && idx > bestIndex) {
-        bestIndex = idx
+        return
+      }
+      if (Math.abs(distance - bestDistance) <= 0.5) {
+        if (bestIndex == null) {
+          bestDistance = distance
+          bestOffset = offset
+          bestIndex = idx
+          return
+        }
+        const currentAhead = offset >= 0 && bestOffset < 0
+        const bothAhead = offset >= 0 && bestOffset >= 0 && offset < bestOffset - 0.5
+        const bothBehind = offset < 0 && bestOffset < 0 && offset > bestOffset + 0.5
+        const preferHigherIndex = !currentAhead && !bothAhead && !bothBehind && idx > bestIndex
+        if (currentAhead || bothAhead || bothBehind || preferHigherIndex) {
+          bestDistance = distance
+          bestOffset = offset
+          bestIndex = idx
+        }
       }
     })
     if (bestIndex != null && activeIndexRef.current !== bestIndex) {
