@@ -74,6 +74,21 @@ export function useReaderController() {
   const loadEpochRef = useRef(0)
   const manualNavigationLowerBoundRef = useRef<number | null>(null)
   const [manualNavigationLowerBound, setManualNavigationLowerBound] = useState<number | null>(null)
+  const sanitizeChapterEntries = useCallback((entries: ChapterEntry[]) => {
+    const lowerBound = manualNavigationLowerBoundRef.current
+    if (lowerBound == null || entries.length === 0) {
+      return entries
+    }
+    const hasOutOfBounds = entries.some(entry => entry.index < lowerBound)
+    if (!hasOutOfBounds) {
+      return entries
+    }
+    return entries.filter(entry => entry.index >= lowerBound)
+  }, [])
+
+  const commitChapterEntries = useCallback((updater: (prev: ChapterEntry[]) => ChapterEntry[]) => {
+    setChapterEntries(prev => sanitizeChapterEntries(updater(prev)))
+  }, [sanitizeChapterEntries])
   const [transitionBridge, setTransitionBridge] = useState<{ anchorIndex: number; targetIndex: number; targetReady: boolean } | null>(null)
   const pendingPruneIndexRef = useRef<number | null>(null)
   const manualNavigationInitRef = useRef<boolean>(false)
@@ -102,8 +117,8 @@ export function useReaderController() {
         loadingIndicesRef.current.delete(index)
       }
     })
-    setChapterEntries(prev => prev.filter(entry => entry.index >= lowerBound))
-  }, [])
+    commitChapterEntries(prev => prev.filter(entry => entry.index >= lowerBound))
+  }, [commitChapterEntries])
 
   const updateManualNavigationLowerBound = useCallback((value: number | null) => {
     const previous = manualNavigationLowerBoundRef.current
@@ -545,7 +560,7 @@ export function useReaderController() {
   }, [sortedChapters, clearTrackedChapters])
 
   useEffect(() => {
-    setChapterEntries([])
+    commitChapterEntries(() => [])
     setActiveIndex(null)
     prefetchNextRef.current.clear()
     prefetchPrevRef.current.clear()
@@ -562,13 +577,13 @@ export function useReaderController() {
     loadEpochRef.current += 1
     updateManualNavigationLowerBound(null)
     setTransitionBridge(null)
-  }, [initialChapter?.mangaId, setTransitionBridge, updateManualNavigationLowerBound])
+  }, [commitChapterEntries, initialChapter?.mangaId, setTransitionBridge, updateManualNavigationLowerBound])
 
   useEffect(() => {
     if (!initialChapter || !initialImages || !sortedChapters) return
     const index = sortedChapters.findIndex(ch => ch.id === initialChapter.id)
     if (index === -1) return
-    setChapterEntries(prev => {
+    commitChapterEntries(prev => {
       const existingIndex = prev.findIndex(entry => entry.chapter.id === initialChapter.id)
       const nextEntry: ChapterEntry = { index, chapter: initialChapter, images: initialImages }
       if (existingIndex !== -1) {
@@ -586,7 +601,7 @@ export function useReaderController() {
       }
       return prev
     })
-  }, [initialChapter, initialImages, sortedChapters])
+  }, [commitChapterEntries, initialChapter, initialImages, sortedChapters])
 
   useEffect(() => {
     if (!chapterEntries.length) return
@@ -687,7 +702,14 @@ export function useReaderController() {
       if (epochAtStart !== loadEpochRef.current) {
         return
       }
-      setChapterEntries(prev => {
+      const lowerBoundAtResolve = manualNavigationLowerBoundRef.current
+      if (lowerBoundAtResolve != null && index < lowerBoundAtResolve) {
+        if (replacement && replaceChapterEntriesRef.current === replacement) {
+          replaceChapterEntriesRef.current = null
+        }
+        return
+      }
+      commitChapterEntries(prev => {
         const entry: ChapterEntry = { index, chapter: chapterData, images: imagesData }
         if (replacement && replacement.index === index) {
           replaceChapterEntriesRef.current = null
@@ -724,7 +746,7 @@ export function useReaderController() {
         activeChapterLoadsRef.current = Math.max(0, activeChapterLoadsRef.current - 1)
       }, direction === 'prepend' ? 1200 : 500)
     }
-  }, [setTransitionBridge, sortedChapters])
+  }, [commitChapterEntries, setTransitionBridge, sortedChapters])
 
   const handleChapterVisibility = useCallback((index: number, isVisible: boolean) => {
     const set = visibleChapterIndexesRef.current
@@ -1131,7 +1153,7 @@ export function useReaderController() {
       const response = await apiClient.toggleChapterLike(activeChapterId)
       const liked = response?.liked ?? true
       setLikedChapters(prev => ({ ...prev, [activeChapterId]: liked }))
-      setChapterEntries(prev => prev.map(entry => entry.chapter.id === activeChapterId
+      commitChapterEntries(prev => prev.map(entry => entry.chapter.id === activeChapterId
         ? {
             ...entry,
             chapter: {
@@ -1147,7 +1169,7 @@ export function useReaderController() {
     } finally {
       setLikingChapters(prev => ({ ...prev, [activeChapterId]: false }))
     }
-  }, [activeChapter, activeChapterId, likedChapters, likingChapters, queryClient])
+  }, [activeChapter, activeChapterId, commitChapterEntries, likedChapters, likingChapters, queryClient])
 
   const triggerHeartBurst = (clientX: number, clientY: number) => {
     setGestureBursts(prev => [...prev, { id: Date.now() + Math.random(), x: clientX, y: clientY }])
