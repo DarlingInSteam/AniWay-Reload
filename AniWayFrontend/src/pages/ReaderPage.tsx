@@ -825,19 +825,14 @@ export function ReaderPage() {
       const candidateMetrics = measureNode(candidate)
       if (!candidateMetrics) return
       const direction = scrollDirectionRef.current
-      const minVisibleForRewind = Math.max(200, viewportHeight * 0.35)
-      const minCoverageForRewind = 0.65
-      if (direction !== 'up') {
-        if (candidateMetrics.visibleHeight < minVisibleForRewind || candidateMetrics.coverage < minCoverageForRewind) {
-          return
-        }
-        const currentMetrics = measureNode(currentIndex)
-        if (currentMetrics) {
-          const currentStillClearlyVisible = currentMetrics.visibleHeight >= candidateMetrics.visibleHeight * 0.75 && currentMetrics.coverage >= 0.3
-          if (currentStillClearlyVisible) {
-            return
-          }
-        }
+      const minVisibleForRewind = Math.max(280, viewportHeight * 0.45)
+      const minCoverageForRewind = 0.75
+      if (candidateMetrics.visibleHeight < minVisibleForRewind || candidateMetrics.coverage < minCoverageForRewind) {
+        return
+      }
+      const currentMetrics = measureNode(currentIndex)
+      if (currentMetrics && currentMetrics.visibleHeight > 48) {
+        return
       }
     }
 
