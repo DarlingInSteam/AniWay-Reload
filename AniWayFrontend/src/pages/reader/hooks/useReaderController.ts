@@ -613,8 +613,21 @@ export function useReaderController() {
     }
   }, [sortedChapters, clearTrackedChapters])
 
+  const currentMangaIdRef = useRef<number | null>(null)
+
   useEffect(() => {
-    resetChapterEnvironment(null)
+    const currentMangaId = initialChapter?.mangaId ?? null
+    if (currentMangaId == null) {
+      return
+    }
+
+    if (currentMangaIdRef.current === currentMangaId) {
+      return
+    }
+
+    const hadPrevious = currentMangaIdRef.current != null
+    currentMangaIdRef.current = currentMangaId
+    resetChapterEnvironment(hadPrevious ? null : manualNavigationLowerBoundRef.current)
   }, [initialChapter?.mangaId, resetChapterEnvironment])
 
   useEffect(() => {
@@ -1006,6 +1019,10 @@ export function useReaderController() {
   const lastDirection = lastScrollDirectionRef.current
   const lastDirectionAge = Date.now() - lastScrollDirectionAtRef.current
   if (lastDirection !== -1 || lastDirectionAge > SCROLL_DIRECTION_RESET_MS * 3) return
+    const manualGuard = manualNavigationGuardRef.current
+    if (manualGuard && manualGuard.direction === 'forward' && index <= manualGuard.anchorIndex) {
+      return
+    }
     const target = index - 1
     if (target < 0) return
     const lowerBound = manualNavigationLowerBoundRef.current
