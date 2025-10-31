@@ -94,14 +94,18 @@ export function useReaderController() {
     const margin = headerHeight > 0 ? 16 : 12
     const baseline = headerHeight + margin
     const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 0
-    const viewportCenter = viewportHeight > 0 ? viewportHeight / 2 : baseline
+    const focusLine = viewportHeight > 0
+      ? Math.min(Math.max(baseline + 120, viewportHeight * 0.45), Math.max(baseline + 160, viewportHeight - 140))
+      : baseline + 160
 
     type CandidateInfo = {
       index: number
-      rect: DOMRect
-      distance: number
+      rectTop: number
+      rectBottom: number
       baselineCover: boolean
-      centerCover: boolean
+      focusCover: boolean
+      baselineDistance: number
+      focusDistance: number
     }
 
     const visited = new Set<number>()
@@ -114,10 +118,18 @@ export function useReaderController() {
       if (!node) return
       visited.add(idx)
       const rect = node.getBoundingClientRect()
-      const distance = Math.abs(rect.top - baseline)
-      const baselineCover = rect.top <= baseline && rect.bottom > baseline
-      const centerCover = rect.top <= viewportCenter && rect.bottom >= viewportCenter
-      infos.push({ index: idx, rect, distance, baselineCover, centerCover })
+      const top = rect.top
+      const bottom = rect.bottom
+      const center = top + (rect.height / 2)
+      infos.push({
+        index: idx,
+        rectTop: top,
+        rectBottom: bottom,
+        baselineCover: top <= baseline && bottom > baseline,
+        focusCover: top <= focusLine && bottom >= focusLine,
+        baselineDistance: Math.abs(top - baseline),
+        focusDistance: Math.abs(center - focusLine)
+      })
     }
 
     collectInfo(targetIndex)
@@ -128,14 +140,15 @@ export function useReaderController() {
 
     let forceTarget = false
     let bestIndex: number | null = null
+    let targetInfo: CandidateInfo | undefined
 
     if (targetIndex != null) {
-      const targetInfo = infos.find(info => info.index === targetIndex)
+      targetInfo = infos.find(info => info.index === targetIndex)
       if (targetInfo) {
-        const targetOffset = targetInfo.rect.top - baseline
+        const targetOffset = targetInfo.rectTop - baseline
         const targetDistance = Math.abs(targetOffset)
         bestIndex = targetIndex
-        if (targetDistance > 36) {
+        if (targetDistance > 36 && !targetInfo.focusCover) {
           forceTarget = true
         } else {
           targetChapterIndexRef.current = null
@@ -146,12 +159,25 @@ export function useReaderController() {
       }
     }
 
-    const selectBest = (candidates: CandidateInfo[]): CandidateInfo | null => {
+    const metricValue = (info: CandidateInfo, metric: 'focus' | 'baseline' | 'top') => {
+      switch (metric) {
+        case 'focus':
+          return info.focusDistance
+        case 'baseline':
+          return info.baselineDistance
+        default:
+          return Math.abs(info.rectTop - baseline)
+      }
+    }
+
+    const selectBest = (candidates: CandidateInfo[], metric: 'focus' | 'baseline' | 'top'): CandidateInfo | null => {
       if (!candidates.length) return null
       return candidates.reduce<CandidateInfo | null>((best, info) => {
         if (!best) return info
-        if (info.distance < best.distance - 0.25) return info
-        if (Math.abs(info.distance - best.distance) <= 0.25 && info.index > best.index) return info
+        const bestValue = metricValue(best, metric)
+        const infoValue = metricValue(info, metric)
+        if (infoValue < bestValue - 0.25) return info
+        if (Math.abs(infoValue - bestValue) <= 0.25 && info.index > best.index) return info
         return best
       }, null)
     }
@@ -163,15 +189,39 @@ export function useReaderController() {
       return
     }
 
-    const baselineMatches = infos.filter(info => info.baselineCover)
-    const centerMatches = baselineMatches.length ? baselineMatches : infos.filter(info => info.centerCover)
-    const prioritized = centerMatches.length ? centerMatches : infos
-    const chosen = selectBest(prioritized)
+    let chosen: CandidateInfo | null = null
+
+    const focusMatches = infos.filter(info => info.focusCover)
+    if (targetInfo && !forceTarget) {
+      const shouldPreferTarget = targetInfo.focusCover || targetInfo.baselineCover || targetInfo.focusDistance <= 80
+      if (shouldPreferTarget) {
+        chosen = targetInfo
+      }
+    }
+
+    if (!chosen && focusMatches.length) {
+      chosen = selectBest(focusMatches, 'focus')
+    }
+
+    if (!chosen) {
+      const baselineMatches = infos.filter(info => info.baselineCover)
+      if (baselineMatches.length) {
+        chosen = selectBest(baselineMatches, 'baseline')
+      }
+    }
+
+    if (!chosen) {
+      chosen = selectBest(infos, 'focus') ?? selectBest(infos, 'baseline') ?? selectBest(infos, 'top')
+    }
 
     if (!chosen) return
 
     if (targetIndex != null && chosen.index === targetIndex) {
       targetChapterIndexRef.current = null
+    }
+
+    if (lockActive && currentIndex != null && chosen.index !== currentIndex && targetIndex == null) {
+      return
     }
 
     if (chosen.index !== currentIndex) {
@@ -181,9 +231,10 @@ export function useReaderController() {
 
     if (!lockActive && currentIndex != null) {
       const currentInfo = infos.find(info => info.index === currentIndex)
-      if (currentInfo && Math.abs(currentInfo.rect.top - baseline) > 32) {
+      if (currentInfo && Math.abs(currentInfo.rectTop - baseline) > 32) {
         const fallback = selectBest(
-          infos.filter(info => info.index !== currentIndex)
+          infos.filter(info => info.index !== currentIndex),
+          'focus'
         )
         if (fallback && fallback.index !== currentIndex) {
           setActiveIndex(fallback.index)
