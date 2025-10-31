@@ -1053,6 +1053,7 @@ export function useReaderController() {
 
   loadEpochRef.current += 1
   replaceChapterEntriesRef.current = { index: target }
+  updateManualNavigationLowerBound(target)
     lastScrollDirectionRef.current = 0
     lastScrollDirectionAtRef.current = Date.now()
     prefetchPrevRef.current.clear()
@@ -1102,6 +1103,7 @@ export function useReaderController() {
 
   loadEpochRef.current += 1
   replaceChapterEntriesRef.current = { index: target }
+  updateManualNavigationLowerBound(target)
     lastScrollDirectionRef.current = 0
     lastScrollDirectionAtRef.current = Date.now()
     prefetchPrevRef.current.clear()
