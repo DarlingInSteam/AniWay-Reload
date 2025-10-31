@@ -974,7 +974,7 @@ export function ReaderPage() {
     }
 
     if (String(chapterIdNumeric) !== chapterId) {
-      navigate(`/reader/${chapterIdNumeric}`, { replace: true })
+      navigate(`/reader/${chapterIdNumeric}`, { replace: true, preventScrollReset: true })
     }
   }, [activeIndex, chapterId, navigate, sortedChapters, trackChapterViewed])
 
@@ -1056,7 +1056,7 @@ export function ReaderPage() {
 
     const targetChapter = sortedChapters[target]
     if (targetChapter && String(targetChapter.id) !== chapterId) {
-      navigate(`/reader/${targetChapter.id}`, { replace: true })
+      navigate(`/reader/${targetChapter.id}`, { replace: true, preventScrollReset: true })
     }
   }, [activeChapterIndex, chapterId, ensureChapterLoaded, evaluateActiveChapter, isChapterAligned, navigate, scrollChapterIntoView, sortedChapters])
 
@@ -1095,7 +1095,7 @@ export function ReaderPage() {
 
     const targetChapter = sortedChapters[target]
     if (targetChapter && String(targetChapter.id) !== chapterId) {
-      navigate(`/reader/${targetChapter.id}`, { replace: true })
+      navigate(`/reader/${targetChapter.id}`, { replace: true, preventScrollReset: true })
     }
   }, [activeChapterIndex, chapterId, ensureChapterLoaded, evaluateActiveChapter, isChapterAligned, navigate, scrollChapterIntoView, sortedChapters])
 
@@ -1150,7 +1150,7 @@ export function ReaderPage() {
 
     const targetChapter = sortedChapters[targetIndex]
     if (targetChapter && String(targetChapter.id) !== chapterId) {
-      navigate(`/reader/${targetChapter.id}`, { replace: true })
+      navigate(`/reader/${targetChapter.id}`, { replace: true, preventScrollReset: true })
     }
     setShowChapterList(false)
   }, [activeChapterIndex, chapterId, ensureChapterLoaded, evaluateActiveChapter, isChapterAligned, navigate, scrollChapterIntoView, setShowChapterList, sortedChapters])
