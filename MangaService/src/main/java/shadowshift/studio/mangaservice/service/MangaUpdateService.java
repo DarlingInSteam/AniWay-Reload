@@ -831,28 +831,46 @@ public class MangaUpdateService {
             // ТОЛЬКО если есть новые главы - запускаем полный парсинг
             // Это даст нам информацию о страницах для новых глав
             Map<String, Object> parseResult = melonService.startParsing(slugForApi);
-            
+
             if (parseResult == null || !parseResult.containsKey("task_id")) {
                 logger.error("Не удалось запустить парсинг для slug: {} (API '{}')", storedSlug, slugForApi);
                 return null;
             }
-            
+
             String parseTaskId = (String) parseResult.get("task_id");
-            
-            // НЕМЕДЛЕННО связываем parseTaskId с updateTaskId ДО того как придут первые логи!
+
             if (updateTaskId != null) {
                 linkParseTaskToUpdate(parseTaskId, updateTaskId);
             } else {
                 logger.warn("⚠️ updateTaskId is NULL! Логи парсинга не будут связаны с задачей обновления");
             }
-            
-            // Ждем завершения парсинга
+
             if (!waitForTaskCompletion(parseTaskId, normalizedSlug)) {
                 logger.error("Парсинг не завершен для slug: {} (API '{}')", storedSlug, slugForApi);
                 return null;
             }
-            
-            // Получаем полную информацию о манге после парсинга
+
+            logger.info("Парсинг завершен для slug {}. Запускаем скачивание изображений перед импортом.", storedSlug);
+
+            Map<String, Object> buildResult = melonService.buildManga(normalizedSlug, null, false);
+            if (buildResult == null || !buildResult.containsKey("task_id")) {
+                logger.error("Не удалось запустить скачивание изображений для slug: {}", storedSlug);
+                return null;
+            }
+
+            String buildTaskId = (String) buildResult.get("task_id");
+            if (updateTaskId != null) {
+                linkParseTaskToUpdate(buildTaskId, updateTaskId);
+            }
+
+            if (!waitForTaskCompletion(buildTaskId, normalizedSlug)) {
+                logger.error("Скачивание изображений не завершено для slug: {}", storedSlug);
+                return null;
+            }
+
+            logger.info("Скачивание изображений завершено для slug {}. Получаем обновленную информацию о манге.", storedSlug);
+
+            // Получаем полную информацию о манге после парсинга и скачивания изображений
             Map<String, Object> mangaInfo = melonService.getMangaInfo(normalizedSlug);
 
             if ((mangaInfo == null || !mangaInfo.containsKey("content"))
@@ -1522,14 +1540,14 @@ public class MangaUpdateService {
      * Ждет завершения задачи
      */
     private boolean waitForTaskCompletion(String taskId, String normalizedSlug) throws InterruptedException {
-        final int maxAttempts = 120;
-        final int pollIntervalMs = 2000;
+    final int pollIntervalMs = 2000;
+    final int maxMissingStatusAttempts = 120;
 
         int attempts = 0;
-    int missingStatusStreak = 0;
+        int missingStatusStreak = 0;
         Map<String, Object> lastStatus = null;
 
-        while (attempts < maxAttempts) {
+        while (true) {
             Thread.sleep(pollIntervalMs);
             attempts++;
 
@@ -1567,13 +1585,19 @@ public class MangaUpdateService {
                     logger.debug("Задача {} пока не предоставляет статус, данные для '{}' недоступны или неполные (ключи: {})",
                         taskId, normalizedSlug, debugInfo);
                 }
+
+                if (missingStatusStreak >= maxMissingStatusAttempts) {
+                    logger.error("Статус задачи {} недоступен после {} попыток. Последний ответ: {}", taskId, missingStatusStreak, lastStatus);
+                    return false;
+                }
             } else {
                 missingStatusStreak = 0;
             }
-        }
 
-        logger.error("Превышено время ожидания завершения задачи {}. Последний статус: {}", taskId, lastStatus);
-        return false;
+            if (attempts % 150 == 0) {
+                logger.info("Ожидание завершения задачи {} продолжается: {} попыток, текущий статус='{}'", taskId, attempts, statusValue);
+            }
+        }
     }
 
     private boolean hasUsableContent(Map<String, Object> mangaInfo) {
