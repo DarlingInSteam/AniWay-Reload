@@ -308,15 +308,18 @@ public class MangaInfoController {
             for (Map<String, Object> chMap : chapterMaps) {
                 ChapterInfo chapter = new ChapterInfo();
                 chapter.setChapterId(String.valueOf(chMap.get("id")));
-                chapter.setNumber(((Number) chMap.getOrDefault("number", 0)).doubleValue());
-                chapter.setVolume(chMap.get("volume") != null ? ((Number) chMap.get("volume")).intValue() : null);
+                Double chapterNumber = parseDouble(chMap.get("number"));
+                chapter.setNumber(chapterNumber != null ? chapterNumber : 0d);
+                Integer volumeNumber = parseInteger(chMap.get("volume"));
+                chapter.setVolume(volumeNumber);
                 chapter.setTitle((String) chMap.get("title"));
-                chapter.setIsPaid((Boolean) chMap.getOrDefault("is_paid", false));
+                chapter.setIsPaid(parseBoolean(chMap.get("is_paid")));
                 
                 // Добавляем чтение pages_count из кэша для поддержки slides_count
                 Object pagesCountObj = chMap.get("pages_count");
-                if (pagesCountObj != null && pagesCountObj instanceof Number) {
-                    chapter.setPagesCount(((Number) pagesCountObj).intValue());
+                Integer pagesCount = parseInteger(pagesCountObj);
+                if (pagesCount != null) {
+                    chapter.setPagesCount(pagesCount);
                 }
                 
                 chapters.add(chapter);
@@ -324,5 +327,71 @@ public class MangaInfoController {
         }
         
         return chapters;
+    }
+
+    private Double parseDouble(Object value) {
+        if (value == null) {
+            return null;
+        }
+
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+
+        if (value instanceof String text) {
+            String normalized = text.trim().replace(',', '.');
+            if (normalized.isEmpty()) {
+                return null;
+            }
+            try {
+                return Double.parseDouble(normalized);
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    private Integer parseInteger(Object value) {
+        if (value == null) {
+            return null;
+        }
+
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+
+        if (value instanceof String text) {
+            String normalized = text.trim();
+            if (normalized.isEmpty()) {
+                return null;
+            }
+            try {
+                return Integer.parseInt(normalized);
+            } catch (NumberFormatException ignored) {
+                Double doubleValue = parseDouble(normalized);
+                return doubleValue != null ? doubleValue.intValue() : null;
+            }
+        }
+
+        return null;
+    }
+
+    private boolean parseBoolean(Object value) {
+        if (value == null) {
+            return false;
+        }
+
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+
+        if (value instanceof Number number) {
+            return number.intValue() != 0;
+        }
+
+        String text = value.toString().trim().toLowerCase(Locale.ROOT);
+        return text.equals("true") || text.equals("1") || text.equals("yes") || text.equals("paid");
     }
 }
