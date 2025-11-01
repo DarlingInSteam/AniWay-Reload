@@ -15,6 +15,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import shadowshift.studio.mangaservice.dto.MelonChapterImagesResponse;
 import shadowshift.studio.mangaservice.dto.MelonImageData;
+import shadowshift.studio.mangaservice.dto.PartialBuildChapterNumber;
 import shadowshift.studio.mangaservice.entity.Manga;
 import shadowshift.studio.mangaservice.entity.Genre;
 import shadowshift.studio.mangaservice.entity.Tag;
@@ -497,7 +498,7 @@ public class MelonIntegrationService {
             
             updateFullParsingTask(fullTaskId, "running", 50, "Парсинг JSON завершен, запускаем скачивание изображений...", null);
             // ВАЖНО: НЕ включаем autoImport в ParserService, т.к. MangaService сам управляет импортом!
-            Map<String, Object> buildResult = buildManga(normalizedSlug, null, false);
+            Map<String, Object> buildResult = buildManga(normalizedSlug, null, false, null, null);
             if (buildResult == null || !buildResult.containsKey("task_id")) {
                 updateFullParsingTask(fullTaskId, "failed", 100,
                     "Не удалось запустить скачивание изображений", buildResult);
@@ -1022,13 +1023,26 @@ public class MelonIntegrationService {
      * Запускает построение архива манги
      */
     public Map<String, Object> buildManga(String filename, String branchId) {
-        return buildManga(filename, branchId, false); // По умолчанию ВЫКЛЮЧАЕМ auto-import (MangaService сам управляет импортом)
+        return buildManga(filename, branchId, false, null, null); // По умолчанию ВЫКЛЮЧАЕМ auto-import (MangaService сам управляет импортом)
     }
     
     /**
      * Запускает построение архива манги с возможностью включения/выключения автоимпорта
      */
     public Map<String, Object> buildManga(String filename, String branchId, boolean autoImport) {
+        return buildManga(filename, branchId, autoImport, null, null);
+    }
+
+    /**
+     * Запускает построение архива манги с возможностью частичного выбора глав.
+     */
+    public Map<String, Object> buildManga(
+        String filename,
+        String branchId,
+        boolean autoImport,
+        Collection<String> chapterIds,
+        Collection<PartialBuildChapterNumber> chapterNumbers
+    ) {
         if (importQueueService.isLocked()) {
             ImportQueueService.ImportQueueItem active = importQueueService.getCurrentImport();
             String activeSlug = active != null ? active.getSlug() : "unknown";
@@ -1056,6 +1070,38 @@ public class MelonIntegrationService {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
+        if (chapterIds != null) {
+            List<String> cleanedIds = chapterIds.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .distinct()
+                .collect(Collectors.toList());
+            if (!cleanedIds.isEmpty()) {
+                request.put("chapterIds", cleanedIds);
+                logger.info("Запущен частичный билд для '{}' с {} chapterIds", filename, cleanedIds.size());
+            }
+        }
+
+        if (chapterNumbers != null) {
+            List<Map<String, Object>> cleanedNumbers = chapterNumbers.stream()
+                .filter(Objects::nonNull)
+                .map(selection -> PartialBuildChapterNumber.of(selection.volume(), selection.number()))
+                .filter(Objects::nonNull)
+                .map(selection -> {
+                    Map<String, Object> item = new HashMap<>();
+                    item.put("volume", selection.volume());
+                    item.put("number", selection.number());
+                    return item;
+                })
+                .distinct()
+                .collect(Collectors.toList());
+            if (!cleanedNumbers.isEmpty()) {
+                request.put("chapterNumbers", cleanedNumbers);
+                logger.info("Запущен частичный билд для '{}' с {} chapterNumbers", filename, cleanedNumbers.size());
+            }
+        }
+
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(request, headers);
 
         ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);

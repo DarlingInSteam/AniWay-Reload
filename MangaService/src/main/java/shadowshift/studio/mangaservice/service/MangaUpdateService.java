@@ -17,6 +17,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import shadowshift.studio.mangaservice.entity.Manga;
 import shadowshift.studio.mangaservice.dto.MelonChapterImagesResponse;
 import shadowshift.studio.mangaservice.dto.MelonImageData;
+import shadowshift.studio.mangaservice.dto.PartialBuildChapterNumber;
 import shadowshift.studio.mangaservice.repository.MangaRepository;
 
 import java.math.BigDecimal;
@@ -734,6 +735,7 @@ public class MangaUpdateService {
             // Фильтруем ТОЛЬКО новые главы по метаданным С ПРОВЕРКОЙ slides_count
             List<Map<String, Object>> newChaptersMetadata = new ArrayList<>();
             Set<Double> candidateChapterKeys = new LinkedHashSet<>();
+            Set<PartialBuildChapterNumber> candidateChapterNumbers = new LinkedHashSet<>();
             Set<String> candidateMelonChapterIds = new LinkedHashSet<>();
             int skippedByPaid = 0;
             int skippedByExists = 0;
@@ -798,6 +800,10 @@ public class MangaUpdateService {
                     }
 
                     if (added) {
+                        PartialBuildChapterNumber selection = PartialBuildChapterNumber.of(numeric.volume(), numeric.originalNumber());
+                        if (selection != null) {
+                            candidateChapterNumbers.add(selection);
+                        }
                         newChaptersMetadata.add(chapterMeta);
                     }
                 } catch (Exception e) {
@@ -852,7 +858,20 @@ public class MangaUpdateService {
 
             logger.info("Парсинг завершен для slug {}. Запускаем скачивание изображений перед импортом.", storedSlug);
 
-            Map<String, Object> buildResult = melonService.buildManga(normalizedSlug, null, false);
+            logger.info(
+                "Запуск partial build для slug {}: chapterIds={}, chapterNumbers={}",
+                storedSlug,
+                candidateMelonChapterIds.size(),
+                candidateChapterNumbers.size()
+            );
+
+            Map<String, Object> buildResult = melonService.buildManga(
+                normalizedSlug,
+                null,
+                false,
+                candidateMelonChapterIds,
+                candidateChapterNumbers
+            );
             if (buildResult == null || !buildResult.containsKey("task_id")) {
                 logger.error("Не удалось запустить скачивание изображений для slug: {}", storedSlug);
                 return null;
@@ -943,6 +962,9 @@ public class MangaUpdateService {
                         }
 
                         Map<String, Object> chapterCopy = new LinkedHashMap<>(chapter);
+                        if (melonChapterId != null) {
+                            chapterCopy.put("melonChapterId", melonChapterId);
+                        }
                         chapterCopy.put("slides", slides);
                         newChaptersWithSlides.add(chapterCopy);
                         if (matchesByExternalId) {
