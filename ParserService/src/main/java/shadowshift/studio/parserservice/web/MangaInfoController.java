@@ -350,6 +350,17 @@ public class MangaInfoController {
             }
         }
 
+        if (value instanceof Map<?, ?> map) {
+            Object nested = map.get("$numberDouble");
+            if (nested == null) {
+                nested = map.get("$numberDecimal");
+            }
+            if (nested == null) {
+                nested = map.get("value");
+            }
+            return parseDouble(nested);
+        }
+
         return null;
     }
 
@@ -375,6 +386,10 @@ public class MangaInfoController {
             }
         }
 
+        if (value instanceof Map<?, ?> map) {
+            return parseInteger(map.get("$numberInt"));
+        }
+
         return null;
     }
 
@@ -389,6 +404,10 @@ public class MangaInfoController {
 
         if (value instanceof Number number) {
             return number.intValue() != 0;
+        }
+
+        if (value instanceof Map<?, ?> map) {
+            return parseBoolean(map.get("value"));
         }
 
         String text = value.toString().trim().toLowerCase(Locale.ROOT);
