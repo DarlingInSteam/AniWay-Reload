@@ -6,17 +6,19 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
-import org.springframework.web.util.UriUtils;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriUtils;
 import org.springframework.web.util.UriComponentsBuilder;
 import shadowshift.studio.mangaservice.entity.Manga;
 import shadowshift.studio.mangaservice.dto.MelonChapterImagesResponse;
 import shadowshift.studio.mangaservice.dto.MelonImageData;
+import shadowshift.studio.mangaservice.config.ServiceUrlProperties;
 import shadowshift.studio.mangaservice.dto.PartialBuildChapterNumber;
 import shadowshift.studio.mangaservice.repository.MangaRepository;
 
@@ -30,7 +32,6 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
-
 /**
  * Сервис для автоматического обновления манги.
  * Проверяет наличие новых глав у существующих манг и импортирует их.
@@ -77,6 +78,9 @@ public class MangaUpdateService {
 
     @Autowired
     private ApplicationContext applicationContext;
+
+    @Autowired
+    private ServiceUrlProperties serviceUrlProperties;
 
     @Value("${melon.service.url:http://melon-service:8084}")
     private String melonServiceUrl;
@@ -1348,7 +1352,12 @@ public class MangaUpdateService {
     private int getChapterPageCount(Long chapterId) {
         try {
             String url = chapterServiceUrl + "/api/chapters/" + chapterId;
-            ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                url,
+                HttpMethod.GET,
+                null,
+                new ParameterizedTypeReference<Map<String, Object>>() {}
+            );
             
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 Object pageCountObj = response.getBody().get("pageCount");
@@ -1495,7 +1504,7 @@ public class MangaUpdateService {
 
             int uploaded = 0;
             int fallbackPage = 0;
-            String uploadUrl = "http://image-storage-service:8086/api/storage/upload-page";
+            String uploadUrl = buildImageStorageUrl("/api/storage/upload-page");
 
             for (MelonImageData imageData : images) {
                 Integer pageNumber = imageData.getPage() != null ? imageData.getPage() : fallbackPage++;
@@ -1722,7 +1731,7 @@ public class MangaUpdateService {
 
     private void updateChapterPageCount(Long chapterId) {
         try {
-            String countUrl = "http://image-storage-service:8083/api/images/chapter/" + chapterId + "/count";
+            String countUrl = buildImageStorageUrl("/api/images/chapter/" + chapterId + "/count");
             ResponseEntity<Integer> pageCountResponse = restTemplate.getForEntity(countUrl, Integer.class);
 
             if (pageCountResponse.getStatusCode().is2xxSuccessful() && pageCountResponse.getBody() != null) {
@@ -1745,6 +1754,18 @@ public class MangaUpdateService {
         } catch (Exception e) {
             logger.error("Не удалось обновить количество страниц для главы {}: {}", chapterId, e.getMessage());
         }
+    }
+
+    private String buildImageStorageUrl(String relativePath) {
+        String base = Optional.ofNullable(serviceUrlProperties)
+            .map(ServiceUrlProperties::getImageStorageServiceUrl)
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .orElse("http://image-storage-service:8083");
+
+        String normalizedBase = base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
+        String normalizedPath = relativePath.startsWith("/") ? relativePath : "/" + relativePath;
+        return normalizedBase + normalizedPath;
     }
 
     private void deleteChapterSilently(Long chapterId) {
