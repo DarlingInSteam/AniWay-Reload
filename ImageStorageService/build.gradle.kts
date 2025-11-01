@@ -1,3 +1,6 @@
+import org.gradle.jvm.tasks.Jar
+import org.springframework.boot.gradle.tasks.bundling.BootJar
+
 plugins {
     java
     id("org.springframework.boot") version "3.4.0"
@@ -32,4 +35,12 @@ dependencies {
 tasks.withType<Test> {
     useJUnitPlatform()
     enabled = false
+}
+
+tasks.named<Jar>("jar") {
+    enabled = false
+}
+
+tasks.named<BootJar>("bootJar") {
+    archiveFileName.set("ImageStorageService.jar")
 }

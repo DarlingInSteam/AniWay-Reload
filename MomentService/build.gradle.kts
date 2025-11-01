@@ -1,3 +1,6 @@
+import org.gradle.jvm.tasks.Jar
+import org.springframework.boot.gradle.tasks.bundling.BootJar
+
 plugins {
     java
     id("org.springframework.boot") version "3.5.7"
@@ -40,4 +43,12 @@ tasks.withType<Test> {
     useJUnitPlatform()
     // disable until dedicated test fixtures added
     enabled = false
+}
+
+tasks.named<Jar>("jar") {
+    enabled = false
+}
+
+tasks.named<BootJar>("bootJar") {
+    archiveFileName.set("MomentService.jar")
 }
