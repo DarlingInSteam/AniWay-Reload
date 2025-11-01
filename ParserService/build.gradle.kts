@@ -1,3 +1,6 @@
+import org.gradle.jvm.tasks.Jar
+import org.springframework.boot.gradle.tasks.bundling.BootJar
+
 plugins {
     java
     id("org.springframework.boot") version "3.5.6"
@@ -45,4 +48,14 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+tasks.named<Jar>("jar") {
+    // Disable the plain jar to avoid duplicate artifacts in Docker builds
+    enabled = false
+}
+
+tasks.named<BootJar>("bootJar") {
+    // Produce a stable artifact name for the container image
+    archiveFileName.set("ParserService.jar")
 }
