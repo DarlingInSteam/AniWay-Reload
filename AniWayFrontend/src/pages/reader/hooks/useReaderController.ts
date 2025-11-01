@@ -121,11 +121,14 @@ export function useReaderController() {
   }, [commitChapterEntries])
 
   const updateManualNavigationLowerBound = useCallback((value: number | null) => {
-    const sanitized = value == null ? null : Math.max(0, value - 1)
+    const sanitized = value == null ? null : Math.max(0, value)
     const previous = manualNavigationLowerBoundRef.current
+    if (previous === sanitized) {
+      return
+    }
     manualNavigationLowerBoundRef.current = sanitized
     setManualNavigationLowerBound(sanitized)
-    if (sanitized != null && (previous == null || sanitized > previous)) {
+    if (sanitized != null) {
       pruneBeforeIndex(sanitized)
     }
   }, [pruneBeforeIndex])
@@ -444,6 +447,7 @@ export function useReaderController() {
         cancelPendingScroll()
       }
       const now = Date.now()
+      naturalScrollNavigationRef.current = false
       if (manualNavigationLockRef.current < now) {
         if (targetChapterIndexRef.current != null) {
           targetChapterIndexRef.current = null
@@ -950,16 +954,13 @@ export function useReaderController() {
       })
     }
 
-    const shouldRestoreScroll = naturalScrollNavigationRef.current && typeof window !== 'undefined'
-    const preservedScroll = shouldRestoreScroll ? window.scrollY : 0
+    const shouldRestoreScroll = naturalScrollNavigationRef.current
 
     if (String(chapterIdNumeric) !== chapterId) {
-      navigate(`/reader/${chapterIdNumeric}`, { replace: true, preventScrollReset: true })
-      if (shouldRestoreScroll) {
-        requestAnimationFrame(() => {
-          window.scrollTo({ top: preservedScroll, behavior: 'auto' })
-        })
-      }
+      navigate(`/reader/${chapterIdNumeric}`, {
+        replace: true,
+        preventScrollReset: shouldRestoreScroll
+      })
     }
 
     naturalScrollNavigationRef.current = false
@@ -1041,12 +1042,12 @@ export function useReaderController() {
 
     setTransitionBridge(null)
 
-    manualNavigationLockRef.current = 0
-    targetChapterIndexRef.current = target
-    pendingActiveIndexRef.current = null
-    pendingScrollIndexRef.current = null
+  manualNavigationLockRef.current = 0
+  targetChapterIndexRef.current = target
+  pendingActiveIndexRef.current = target
+  pendingScrollIndexRef.current = target
 
-    pendingScrollBehaviorRef.current = 'smooth'
+  pendingScrollBehaviorRef.current = 'auto'
     pendingScrollAttemptsRef.current = 0
 
     naturalScrollNavigationRef.current = false
@@ -1068,11 +1069,22 @@ export function useReaderController() {
       setActiveIndex(prev => prev === target ? prev : target)
     }
 
+    const immediateScroll = scrollChapterIntoView(target, pendingScrollBehaviorRef.current)
+    if (immediateScroll && isChapterAligned(target)) {
+      pendingScrollIndexRef.current = null
+      pendingScrollAttemptsRef.current = 0
+      manualNavigationLockRef.current = Date.now() + 400
+      if (pendingActiveIndexRef.current === target) {
+        pendingActiveIndexRef.current = null
+      }
+      updateActiveFromVisibility()
+    }
+
     const targetChapter = sortedChapters[target]
     if (targetChapter && String(targetChapter.id) !== chapterId) {
-      navigate(`/reader/${targetChapter.id}`, { replace: true, preventScrollReset: true })
+      navigate(`/reader/${targetChapter.id}`, { replace: true, preventScrollReset: false })
     }
-  }, [activeChapterIndex, chapterId, ensureChapterLoaded, navigate, setTransitionBridge, sortedChapters, updateManualNavigationLowerBound])
+  }, [activeChapterIndex, chapterId, ensureChapterLoaded, isChapterAligned, navigate, scrollChapterIntoView, setTransitionBridge, sortedChapters, updateActiveFromVisibility, updateManualNavigationLowerBound])
 
   const navigateToPreviousChapter = useCallback(async () => {
     if (!sortedChapters) return
@@ -1131,7 +1143,7 @@ export function useReaderController() {
 
     const targetChapter = sortedChapters[target]
     if (targetChapter && String(targetChapter.id) !== chapterId) {
-      navigate(`/reader/${targetChapter.id}`, { replace: true, preventScrollReset: true })
+      navigate(`/reader/${targetChapter.id}`, { replace: true, preventScrollReset: false })
     }
   }, [activeChapterIndex, chapterId, ensureChapterLoaded, isChapterAligned, navigate, scrollChapterIntoView, setTransitionBridge, sortedChapters, updateActiveFromVisibility, updateManualNavigationLowerBound])
 
@@ -1188,7 +1200,7 @@ export function useReaderController() {
 
     const targetChapter = sortedChapters[targetIndex]
     if (targetChapter && String(targetChapter.id) !== chapterId) {
-      navigate(`/reader/${targetChapter.id}`, { replace: true, preventScrollReset: true })
+      navigate(`/reader/${targetChapter.id}`, { replace: true, preventScrollReset: false })
     }
     setShowChapterList(false)
   }, [chapterId, ensureChapterLoaded, isChapterAligned, navigate, resetChapterEnvironment, scrollChapterIntoView, sortedChapters, updateActiveFromVisibility])
