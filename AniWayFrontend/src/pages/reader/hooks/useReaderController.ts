@@ -619,7 +619,13 @@ export function useReaderController() {
     const hadPrevious = currentMangaIdRef.current != null
     currentMangaIdRef.current = currentMangaId
     resetChapterEnvironment(hadPrevious ? null : manualNavigationLowerBoundRef.current)
-  }, [initialChapter?.mangaId, resetChapterEnvironment])
+    if (!hadPrevious && sortedChapters) {
+      const initialIndex = sortedChapters.findIndex(ch => ch.id === initialChapter?.id)
+      if (initialIndex >= 0) {
+        updateManualNavigationLowerBound(initialIndex)
+      }
+    }
+  }, [initialChapter?.id, initialChapter?.mangaId, resetChapterEnvironment, sortedChapters, updateManualNavigationLowerBound])
 
   useEffect(() => {
     if (!initialChapter || !initialImages || !sortedChapters) return
@@ -672,9 +678,12 @@ export function useReaderController() {
   }, [activeIndex, chapterEntries])
 
   const renderedChapterEntries = useMemo(() => {
-    if (manualNavigationLowerBound == null) return chapterEntries
-    return chapterEntries.filter(entry => entry.index >= manualNavigationLowerBound)
-  }, [chapterEntries, manualNavigationLowerBound])
+    const lowerBound = manualNavigationLowerBound
+    if (lowerBound == null || manualNavigationState) {
+      return chapterEntries
+    }
+    return chapterEntries.filter(entry => entry.index >= lowerBound)
+  }, [chapterEntries, manualNavigationLowerBound, manualNavigationState])
 
   const activeChapter = activeEntry?.chapter
   const activeImages = activeEntry?.images ?? []
