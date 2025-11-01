@@ -447,7 +447,6 @@ export function useReaderController() {
         cancelPendingScroll()
       }
       const now = Date.now()
-      naturalScrollNavigationRef.current = false
       if (manualNavigationLockRef.current < now) {
         if (targetChapterIndexRef.current != null) {
           targetChapterIndexRef.current = null
@@ -999,17 +998,25 @@ export function useReaderController() {
     if (!sortedChapters) return
     const target = index + 1
     if (target >= sortedChapters.length) return
-    if (chapterEntriesRef.current.some(entry => entry.index === target)) return
+    const alreadyLoaded = chapterEntriesRef.current.some(entry => entry.index === target)
 
     const targetChapterMeta = sortedChapters[target]
     if (!targetChapterMeta) return
 
     setTransitionBridge(prev => {
-      if (prev && prev.targetIndex === target && prev.anchorIndex === index) {
+      const nextState = { anchorIndex: index, targetIndex: target, targetReady: alreadyLoaded }
+      if (prev && prev.anchorIndex === index && prev.targetIndex === target) {
+        if (alreadyLoaded && !prev.targetReady) {
+          return { ...prev, targetReady: true }
+        }
         return prev
       }
-      return { anchorIndex: index, targetIndex: target, targetReady: false }
+      return nextState
     })
+
+    if (alreadyLoaded) {
+      return
+    }
 
     if (prefetchNextRef.current.has(target)) return
     prefetchNextRef.current.add(target)
@@ -1042,20 +1049,20 @@ export function useReaderController() {
 
     setTransitionBridge(null)
 
-  manualNavigationLockRef.current = 0
-  targetChapterIndexRef.current = target
-  pendingActiveIndexRef.current = target
-  pendingScrollIndexRef.current = target
+    manualNavigationLockRef.current = 0
+    targetChapterIndexRef.current = target
+    pendingActiveIndexRef.current = target
+    pendingScrollIndexRef.current = target
 
-  pendingScrollBehaviorRef.current = 'auto'
+    pendingScrollBehaviorRef.current = 'auto'
     pendingScrollAttemptsRef.current = 0
 
     naturalScrollNavigationRef.current = false
     setActiveIndex(prev => (prev === target ? prev : target))
 
-  loadEpochRef.current += 1
-  replaceChapterEntriesRef.current = { index: target }
-  updateManualNavigationLowerBound(target)
+    loadEpochRef.current += 1
+    replaceChapterEntriesRef.current = { index: target }
+    updateManualNavigationLowerBound(target)
     lastScrollDirectionRef.current = 0
     lastScrollDirectionAtRef.current = Date.now()
     prefetchPrevRef.current.clear()
@@ -1114,9 +1121,9 @@ export function useReaderController() {
     naturalScrollNavigationRef.current = false
     setActiveIndex(prev => (prev === target ? prev : target))
 
-  loadEpochRef.current += 1
-  replaceChapterEntriesRef.current = { index: target }
-  updateManualNavigationLowerBound(target)
+    loadEpochRef.current += 1
+    replaceChapterEntriesRef.current = { index: target }
+    updateManualNavigationLowerBound(target)
     lastScrollDirectionRef.current = 0
     lastScrollDirectionAtRef.current = Date.now()
     prefetchPrevRef.current.clear()
