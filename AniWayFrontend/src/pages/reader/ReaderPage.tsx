@@ -28,10 +28,13 @@ export const ReaderPage = () => {
     setImageWidth,
     readingMode,
     setReadingMode,
-    showChapterList,
-    setShowChapterList,
-    showSideComments,
-    setShowSideComments,
+  showChapterList,
+  setShowChapterList,
+  showSideComments,
+  openSideComments,
+  openSideCommentsForChapter,
+  closeSideComments,
+  sideCommentsChapter,
     gestureBursts,
     finalTitle,
     titleContainerRef,
@@ -39,7 +42,7 @@ export const ReaderPage = () => {
     totalChapters,
     previousChapter,
     nextChapter,
-  manga,
+    manga,
     chapterEntries,
     sortedChapters,
     transitionBridge,
@@ -152,7 +155,7 @@ export const ReaderPage = () => {
                 previousChapter={prevMeta}
                 showTransitionPreview={!!bridgeForEntry}
                 transitionReady={bridgeForEntry?.targetReady}
-                onShowAllComments={() => setShowSideComments(true)}
+                onShowAllComments={openSideCommentsForChapter}
                 handleImageClick={handleImageClick}
                 handleTapOrClick={handleTapOrClick}
                 handleDoubleClickDesktop={handleDoubleClickDesktop}
@@ -183,7 +186,7 @@ export const ReaderPage = () => {
           onNavigatePrevious={navigateToPreviousChapter}
           onNavigateNext={navigateToNextChapter}
           onOpenChapterList={() => setShowChapterList(true)}
-          onOpenComments={() => setShowSideComments(true)}
+          onOpenComments={openSideComments}
           manga={manga}
         />
       </div>
@@ -195,7 +198,7 @@ export const ReaderPage = () => {
         visible={showUI}
         hasActiveChapter={!!activeChapter}
         onOpenChapterList={() => setShowChapterList(true)}
-        onOpenComments={() => setShowSideComments(true)}
+  onOpenComments={openSideComments}
         onLike={handleChapterLike}
         onToggleSettings={() => setIsSettingsOpen(value => !value)}
         onBack={navigateBack}
@@ -214,8 +217,8 @@ export const ReaderPage = () => {
 
       <SideCommentsPanel
         isOpen={showSideComments}
-        chapter={activeChapter}
-        onClose={() => setShowSideComments(false)}
+        chapter={sideCommentsChapter ?? activeChapter}
+        onClose={closeSideComments}
       />
     </div>
   )

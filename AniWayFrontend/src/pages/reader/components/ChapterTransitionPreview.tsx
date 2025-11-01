@@ -11,7 +11,7 @@ interface ChapterTransitionPreviewProps {
   chapterId: number
   chapterNumber: number
   isNextReady?: boolean
-  onShowAll?: () => void
+  onShowAll?: (chapterId: number) => void
 }
 
 export const ChapterTransitionPreview = ({ chapterId, chapterNumber, isNextReady, onShowAll }: ChapterTransitionPreviewProps) => {
@@ -45,7 +45,7 @@ export const ChapterTransitionPreview = ({ chapterId, chapterNumber, isNextReady
             variant="ghost"
             size="sm"
             className="text-white/70 hover:text-white"
-            onClick={() => onShowAll?.()}
+            onClick={() => onShowAll?.(chapterId)}
           >
             Показать все
           </Button>

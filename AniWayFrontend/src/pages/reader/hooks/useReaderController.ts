@@ -20,6 +20,7 @@ export function useReaderController() {
   const [readingMode, setReadingMode] = useState<'vertical' | 'horizontal'>('vertical')
   const [showChapterList, setShowChapterList] = useState(false)
   const [showSideComments, setShowSideComments] = useState(false)
+  const [sideCommentsChapterId, setSideCommentsChapterId] = useState<number | null>(null)
   const [viewportWidth, setViewportWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1024)
   const titleContainerRef = useRef<HTMLButtonElement | null>(null)
   const [titleVariantIndex, setTitleVariantIndex] = useState(0)
@@ -493,13 +494,6 @@ export function useReaderController() {
   }, [])
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    if (window.location.hash.startsWith('#comment-')) {
-      setShowSideComments(true)
-    }
-  }, [location?.hash])
-
-  useEffect(() => {
     try {
       localStorage.setItem('reader.mode', readingMode)
       localStorage.setItem('reader.imageWidth', imageWidth)
@@ -693,6 +687,35 @@ export function useReaderController() {
   const nextChapter = activeChapterIndex != null && sortedChapters ? sortedChapters[activeChapterIndex + 1] : undefined
   const totalChapters = sortedChapters?.length ?? 0
   const currentChapterOrdinal = activeChapterIndex != null && activeChapterIndex >= 0 ? activeChapterIndex + 1 : 0
+
+  const sideCommentsChapter = useMemo(() => {
+    if (sideCommentsChapterId == null) return undefined
+    const entryMatch = chapterEntries.find(entry => entry.chapter?.id === sideCommentsChapterId)
+    if (entryMatch) return entryMatch.chapter
+    return sortedChapters?.find(ch => ch.id === sideCommentsChapterId)
+  }, [chapterEntries, sideCommentsChapterId, sortedChapters])
+
+  const openSideCommentsForChapter = useCallback((targetId: number) => {
+    if (!Number.isFinite(targetId)) return
+    setSideCommentsChapterId(targetId)
+    setShowSideComments(true)
+  }, [])
+
+  const openSideComments = useCallback(() => {
+    const resolvedId = activeChapterId ?? initialChapter?.id ?? null
+    if (resolvedId == null) return
+    openSideCommentsForChapter(resolvedId)
+  }, [activeChapterId, initialChapter?.id, openSideCommentsForChapter])
+
+  const closeSideComments = useCallback(() => {
+    setShowSideComments(false)
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (!window.location.hash.startsWith('#comment-')) return
+    openSideComments()
+  }, [location?.hash, openSideComments])
 
   useEffect(() => {
     if (!activeChapterId) return
@@ -1496,10 +1519,13 @@ export function useReaderController() {
     setImageWidth,
     readingMode,
     setReadingMode,
-    showChapterList,
-    setShowChapterList,
-    showSideComments,
-    setShowSideComments,
+  showChapterList,
+  setShowChapterList,
+  showSideComments,
+  openSideComments,
+  openSideCommentsForChapter,
+  closeSideComments,
+  sideCommentsChapter,
     gestureBursts,
     finalTitle,
     titleContainerRef,

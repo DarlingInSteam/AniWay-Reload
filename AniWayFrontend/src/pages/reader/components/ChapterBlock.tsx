@@ -219,7 +219,7 @@ export interface ChapterBlockProps {
   isActive: boolean
   showTransitionPreview?: boolean
   transitionReady?: boolean
-  onShowAllComments?: () => void
+  onShowAllComments?: (chapterId: number) => void
   onVisibilityChange: (index: number, isVisible: boolean) => void
 }
 
@@ -374,7 +374,7 @@ export const ChapterBlock = ({
             chapterId={entry.chapter.id}
             chapterNumber={entry.chapter.chapterNumber}
             isNextReady={transitionReady}
-            onShowAll={() => onShowAllComments?.()}
+            onShowAll={onShowAllComments}
           />
         ) : (
           <div className="h-64" />
