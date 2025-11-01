@@ -1447,7 +1447,13 @@ export function useReaderController() {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [navigate, navigateToNextChapter, navigateToPreviousChapter, nextChapter, previousChapter])
 
-  const isInitialLoading = isInitialChapterLoading || isInitialImagesLoading || !sortedChapters || !activeEntry
+  const hasActiveEntryData = activeIndex != null
+    ? chapterEntries.some(entry => entry.index === activeIndex)
+    : false
+  const hasRenderableActiveEntry = hasActiveEntryData && !!activeEntry
+  const isBootstrapping = !hasRenderableActiveEntry
+    && (chapterEntries.length === 0 || isInitialChapterLoading || isInitialImagesLoading || !sortedChapters)
+  const isInitialLoading = isBootstrapping
   const isActiveChapterLiked = activeChapterId ? likedChapters[activeChapterId] ?? false : false
   const isActiveChapterLiking = activeChapterId ? likingChapters[activeChapterId] ?? false : false
 
