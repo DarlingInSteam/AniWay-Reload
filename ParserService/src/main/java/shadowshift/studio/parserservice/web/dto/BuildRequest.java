@@ -2,6 +2,8 @@ package shadowshift.studio.parserservice.web.dto;
 
 import jakarta.validation.constraints.NotBlank;
 
+import java.util.List;
+
 public class BuildRequest {
 
     @NotBlank
@@ -15,6 +17,10 @@ public class BuildRequest {
     private String branchId;
     
     private boolean autoImport = false;
+
+    private List<String> chapterIds;
+
+    private List<ChapterNumberRequest> chapterNumbers;
 
     public String getSlug() {
         return slug;
@@ -54,5 +60,21 @@ public class BuildRequest {
     
     public void setAutoImport(boolean autoImport) {
         this.autoImport = autoImport;
+    }
+
+    public List<String> getChapterIds() {
+        return chapterIds;
+    }
+
+    public void setChapterIds(List<String> chapterIds) {
+        this.chapterIds = chapterIds;
+    }
+
+    public List<ChapterNumberRequest> getChapterNumbers() {
+        return chapterNumbers;
+    }
+
+    public void setChapterNumbers(List<ChapterNumberRequest> chapterNumbers) {
+        this.chapterNumbers = chapterNumbers;
     }
 }

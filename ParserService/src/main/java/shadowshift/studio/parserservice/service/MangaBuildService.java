@@ -12,6 +12,7 @@ import shadowshift.studio.parserservice.config.ParserProperties;
 import shadowshift.studio.parserservice.domain.task.ParserTask;
 import shadowshift.studio.parserservice.domain.task.TaskStatus;
 import shadowshift.studio.parserservice.dto.*;
+import shadowshift.studio.parserservice.util.ChapterKeyUtil;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -200,17 +201,17 @@ public class MangaBuildService {
             // 2. Если titleId известен — берём дефолтную ветку (titleId * 10)
             // 3. Если дефолтная ветка пуста — берём первую непустую ветку
             // 4. Если веток нет вообще — берём все главы (маловероятно)
-            final List<ChapterInfo> chapters;  // ⚡ КРИТИЧНО: final для использования в lambda
+            List<ChapterInfo> chaptersToProcess;  // может быть ограничен для частичного билда
             String branchIdParam = task.getBranchId();
             
             if (branchIdParam != null && !branchIdParam.isBlank()) {
                 // Ручное указание ветки (админский кейс)
                 Integer targetBranch = parseIntegerSafe(branchIdParam);
-                chapters = allChapters.stream()
+                chaptersToProcess = allChapters.stream()
                     .filter(ch -> ch.getBranchId() != null && ch.getBranchId().equals(targetBranch))
                     .collect(Collectors.toList());
                 taskService.appendLog(task, String.format("🔀 Manual branch %s: %d/%d chapters", 
-                    branchIdParam, chapters.size(), allChapters.size()));
+                    branchIdParam, chaptersToProcess.size(), allChapters.size()));
             } else if (titleId != null && titleId > 0) {
                 // Автоматика: пробуем дефолтную ветку
                 List<ChapterInfo> defaultBranchChapters = allChapters.stream()
@@ -218,9 +219,9 @@ public class MangaBuildService {
                     .collect(Collectors.toList());
                 
                 if (!defaultBranchChapters.isEmpty()) {
-                    chapters = defaultBranchChapters;
+                    chaptersToProcess = defaultBranchChapters;
                     taskService.appendLog(task, String.format("🔀 Auto: default branch %d → %d/%d chapters", 
-                        defaultBranchId, chapters.size(), allChapters.size()));
+                        defaultBranchId, chaptersToProcess.size(), allChapters.size()));
                 } else {
                     // Дефолтная ветка пуста → ищем первую непустую
                     Map<Integer, Long> branchCounts = allChapters.stream()
@@ -234,14 +235,14 @@ public class MangaBuildService {
                         .orElse(null);
                     
                     if (firstNonEmptyBranch != null) {
-                        chapters = allChapters.stream()
+                        chaptersToProcess = allChapters.stream()
                             .filter(ch -> ch.getBranchId() != null && ch.getBranchId().equals(firstNonEmptyBranch))
                             .collect(Collectors.toList());
                         taskService.appendLog(task, String.format("🔀 Auto: default branch %d empty, using branch %d → %d/%d chapters", 
-                            defaultBranchId, firstNonEmptyBranch, chapters.size(), allChapters.size()));
+                            defaultBranchId, firstNonEmptyBranch, chaptersToProcess.size(), allChapters.size()));
                     } else {
                         // Fallback: нет веток с главами (маловероятно)
-                        chapters = allChapters;
+                        chaptersToProcess = allChapters;
                         taskService.appendLog(task, String.format("⚠️ Auto: no branches found, using all %d chapters", 
                             allChapters.size()));
                     }
@@ -259,18 +260,60 @@ public class MangaBuildService {
                     .orElse(null);
                 
                 if (firstNonEmptyBranch != null) {
-                    chapters = allChapters.stream()
+                    chaptersToProcess = allChapters.stream()
                         .filter(ch -> ch.getBranchId() != null && ch.getBranchId().equals(firstNonEmptyBranch))
                         .collect(Collectors.toList());
                     taskService.appendLog(task, String.format("🔀 Auto: no titleId, using first branch %d → %d/%d chapters", 
-                        firstNonEmptyBranch, chapters.size(), allChapters.size()));
+                        firstNonEmptyBranch, chaptersToProcess.size(), allChapters.size()));
                 } else {
                     // Fallback: нет веток вообще
-                    chapters = allChapters;
+                    chaptersToProcess = allChapters;
                     taskService.appendLog(task, String.format("📋 Auto: no branches detected, using all %d chapters", 
                         allChapters.size()));
                 }
             }
+
+            List<String> idFilters = task.getTargetChapterIds();
+            List<String> numberFilters = task.getTargetChapterCompositeKeys();
+            boolean partialRequested = (task.getBuildType() != null && task.getBuildType().equalsIgnoreCase("partial"))
+                || !idFilters.isEmpty() || !numberFilters.isEmpty();
+
+            if (partialRequested) {
+                Set<String> idSet = idFilters.stream()
+                    .filter(Objects::nonNull)
+                    .map(String::trim)
+                    .filter(value -> !value.isEmpty())
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+
+                Set<String> keySet = numberFilters.stream()
+                    .filter(Objects::nonNull)
+                    .map(String::trim)
+                    .filter(value -> !value.isEmpty())
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+
+                List<ChapterInfo> filtered = chaptersToProcess.stream()
+                    .filter(chapter -> {
+                        String chapterId = chapter.getChapterId();
+                        if (!idSet.isEmpty() && chapterId != null && idSet.contains(chapterId.trim())) {
+                            return true;
+                        }
+                        if (keySet.isEmpty()) {
+                            return false;
+                        }
+                        String key = ChapterKeyUtil.encode(chapter.getVolume(), chapter.getNumber());
+                        return key != null && keySet.contains(key);
+                    })
+                    .collect(Collectors.toList());
+
+                if (!filtered.isEmpty()) {
+                    taskService.appendLog(task, String.format("🎯 Partial build: %d/%d chapters selected", filtered.size(), chaptersToProcess.size()));
+                    chaptersToProcess = filtered;
+                } else {
+                    taskService.appendLog(task, String.format("⚠️ Partial build filters matched no chapters, fallback to full build of %d chapters", chaptersToProcess.size()));
+                }
+            }
+
+            final List<ChapterInfo> chapters = chaptersToProcess;
             
             task.setMessage(String.format("Found %d chapters to download", chapters.size()));
             task.setProgress(10);
