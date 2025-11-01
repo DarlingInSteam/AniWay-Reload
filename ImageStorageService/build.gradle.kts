@@ -42,5 +42,7 @@ tasks.named<Jar>("jar") {
 }
 
 tasks.named<BootJar>("bootJar") {
-    archiveFileName.set("ImageStorageService.jar")
+    archiveBaseName.set("ImageStorageService")
+    archiveVersion.set("")
+    archiveClassifier.set("")
 }

@@ -64,5 +64,7 @@ tasks.named<Jar>("jar") {
 }
 
 tasks.named<BootJar>("bootJar") {
-    archiveFileName.set("CommentService.jar")
+    archiveBaseName.set("CommentService")
+    archiveVersion.set("")
+    archiveClassifier.set("")
 }

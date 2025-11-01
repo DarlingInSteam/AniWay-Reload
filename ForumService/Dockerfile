@@ -37,7 +37,7 @@ RUN addgroup --system spring && adduser --system spring --ingroup spring
 WORKDIR /app
 
 # Копирование JAR файла из builder стадии
-COPY --from=builder /app/build/libs/*.jar app.jar
+COPY --from=builder /app/build/libs/ForumService.jar app.jar
 
 # Изменение владельца файлов
 RUN chown spring:spring app.jar

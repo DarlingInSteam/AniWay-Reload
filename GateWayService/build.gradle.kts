@@ -67,5 +67,7 @@ tasks.named<Jar>("jar") {
 }
 
 tasks.named<BootJar>("bootJar") {
-    archiveFileName.set("GateWayService.jar")
+    archiveBaseName.set("GateWayService")
+    archiveVersion.set("")
+    archiveClassifier.set("")
 }

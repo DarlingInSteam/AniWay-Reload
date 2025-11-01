@@ -14,7 +14,7 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-COPY --from=build /app/build/libs/*.jar app.jar
+COPY --from=build /app/build/libs/MomentService.jar app.jar
 
 EXPOSE 8099
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \

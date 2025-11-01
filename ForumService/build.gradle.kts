@@ -68,5 +68,7 @@ tasks.named<Jar>("jar") {
 }
 
 tasks.named<BootJar>("bootJar") {
-    archiveFileName.set("ForumService.jar")
+    archiveBaseName.set("ForumService")
+    archiveVersion.set("")
+    archiveClassifier.set("")
 }

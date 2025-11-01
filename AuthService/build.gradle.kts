@@ -66,5 +66,7 @@ tasks.named<Jar>("jar") {
 
 tasks.named<BootJar>("bootJar") {
     // Give the bootable jar a stable name for container builds
-    archiveFileName.set("AuthService.jar")
+    archiveBaseName.set("AuthService")
+    archiveVersion.set("")
+    archiveClassifier.set("")
 }

@@ -57,5 +57,7 @@ tasks.named<Jar>("jar") {
 
 tasks.named<BootJar>("bootJar") {
     // Produce a stable artifact name for the container image
-    archiveFileName.set("ParserService.jar")
+    archiveBaseName.set("ParserService")
+    archiveVersion.set("")
+    archiveClassifier.set("")
 }

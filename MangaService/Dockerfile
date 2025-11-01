@@ -21,6 +21,6 @@ WORKDIR /app
 # Установим curl для healthcheck
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-COPY --from=build /app/build/libs/*.jar app.jar
+COPY --from=build /app/build/libs/MangaService.jar app.jar
 EXPOSE 8081
 ENTRYPOINT ["java", "-jar", "app.jar"]

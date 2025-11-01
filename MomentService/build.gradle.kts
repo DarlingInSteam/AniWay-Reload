@@ -50,5 +50,7 @@ tasks.named<Jar>("jar") {
 }
 
 tasks.named<BootJar>("bootJar") {
-    archiveFileName.set("MomentService.jar")
+    archiveBaseName.set("MomentService")
+    archiveVersion.set("")
+    archiveClassifier.set("")
 }

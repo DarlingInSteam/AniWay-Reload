@@ -20,7 +20,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 # Копируем собранный JAR
-COPY --from=build /app/build/libs/*.jar app.jar
+COPY --from=build /app/build/libs/FriendService.jar app.jar
 
 EXPOSE 8102
 ENTRYPOINT ["java", "-jar", "app.jar"]

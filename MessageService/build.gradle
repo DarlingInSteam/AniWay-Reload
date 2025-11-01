@@ -46,5 +46,7 @@ tasks.named('jar') {
 }
 
 tasks.named('bootJar') {
-    archiveFileName = 'MessageService.jar'
+    archiveBaseName.set('MessageService')
+    archiveVersion.set('')
+    archiveClassifier.set('')
 }

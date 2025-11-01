@@ -48,5 +48,7 @@ tasks.named<Jar>("jar") {
 }
 
 tasks.named<BootJar>("bootJar") {
-    archiveFileName.set("MangaService.jar")
+    archiveBaseName.set("MangaService")
+    archiveVersion.set("")
+    archiveClassifier.set("")
 }

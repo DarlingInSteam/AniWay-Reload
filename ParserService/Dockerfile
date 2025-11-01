@@ -23,7 +23,7 @@ RUN mkdir -p /app/output /app/temp && \
     chown -R spring:spring /app
 
 # Копируем JAR из builder stage
-COPY --from=builder /app/build/libs/*.jar app.jar
+COPY --from=builder /app/build/libs/ParserService.jar app.jar
 
 # Переключаемся на непривилегированного пользователя
 USER spring:spring
