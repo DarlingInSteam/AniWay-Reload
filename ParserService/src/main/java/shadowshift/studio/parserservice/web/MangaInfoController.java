@@ -15,6 +15,7 @@ import shadowshift.studio.parserservice.dto.ChapterInfo;
 import shadowshift.studio.parserservice.service.MangaLibParserService;
 
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -306,111 +307,222 @@ public class MangaInfoController {
         if (chaptersObj instanceof List) {
             List<Map<String, Object>> chapterMaps = (List<Map<String, Object>>) chaptersObj;
             for (Map<String, Object> chMap : chapterMaps) {
-                ChapterInfo chapter = new ChapterInfo();
-                chapter.setChapterId(String.valueOf(chMap.get("id")));
-                Double chapterNumber = parseDouble(chMap.get("number"));
-                chapter.setNumber(chapterNumber != null ? chapterNumber : 0d);
-                Integer volumeNumber = parseInteger(chMap.get("volume"));
-                chapter.setVolume(volumeNumber);
-                chapter.setTitle((String) chMap.get("title"));
-                chapter.setIsPaid(parseBoolean(chMap.get("is_paid")));
-                
-                // Добавляем чтение pages_count из кэша для поддержки slides_count
-                Object pagesCountObj = chMap.get("pages_count");
-                Integer pagesCount = parseInteger(pagesCountObj);
-                if (pagesCount != null) {
-                    chapter.setPagesCount(pagesCount);
+                try {
+                    ChapterInfo chapter = new ChapterInfo();
+                    chapter.setChapterId(String.valueOf(chMap.get("id")));
+
+                    Double chapterNumber = parseDouble(chMap.get("number"));
+                    chapter.setNumber(chapterNumber != null ? chapterNumber : 0d);
+
+                    Integer volumeNumber = parseInteger(chMap.get("volume"));
+                    chapter.setVolume(volumeNumber);
+
+                    chapter.setTitle((String) chMap.get("title"));
+                    chapter.setIsPaid(parseBoolean(chMap.get("is_paid")));
+
+                    // Добавляем чтение pages_count из кэша для поддержки slides_count
+                    Object pagesCountObj = chMap.get("pages_count");
+                    Integer pagesCount = parseInteger(pagesCountObj);
+                    if (pagesCount != null) {
+                        chapter.setPagesCount(pagesCount);
+                    }
+
+                    chapters.add(chapter);
+                } catch (ClassCastException ex) {
+                    logger.warn("Skipping cached chapter due to type mismatch: {}", ex.getMessage());
                 }
-                
-                chapters.add(chapter);
             }
         }
         
         return chapters;
     }
 
-    private Double parseDouble(Object value) {
+    private Object unwrapExtendedValue(Object value) {
         if (value == null) {
             return null;
         }
 
-        if (value instanceof Number number) {
+        if (value instanceof Map<?, ?> map) {
+            String[] preferredKeys = {
+                "$numberDouble",
+                "$numberDecimal",
+                "$numberLong",
+                "$numberInt",
+                "$number",
+                "$numberFloat",
+                "value",
+                "$value"
+            };
+
+            for (String key : preferredKeys) {
+                if (map.containsKey(key)) {
+                    Object nested = map.get(key);
+                    Object unwrapped = unwrapExtendedValue(nested);
+                    if (unwrapped != null) {
+                        return unwrapped;
+                    }
+                }
+            }
+
+            if (map.size() == 1) {
+                Object single = map.values().iterator().next();
+                return unwrapExtendedValue(single);
+            }
+
+            return map;
+        }
+
+        if (value instanceof Collection<?> collection) {
+            for (Object element : collection) {
+                Object unwrapped = unwrapExtendedValue(element);
+                if (unwrapped != null) {
+                    return unwrapped;
+                }
+            }
+            return null;
+        }
+
+        if (value.getClass().isArray()) {
+            int length = Array.getLength(value);
+            for (int i = 0; i < length; i++) {
+                Object unwrapped = unwrapExtendedValue(Array.get(value, i));
+                if (unwrapped != null) {
+                    return unwrapped;
+                }
+            }
+            return null;
+        }
+
+        return value;
+    }
+
+    private Double parseDouble(Object value) {
+        Object normalized = unwrapExtendedValue(value);
+
+        if (normalized == null) {
+            return null;
+        }
+
+        if (normalized instanceof Number number) {
             return number.doubleValue();
         }
 
-        if (value instanceof String text) {
-            String normalized = text.trim().replace(',', '.');
-            if (normalized.isEmpty()) {
+        if (normalized instanceof String text) {
+            String sanitized = text.trim().replace(',', '.');
+            if (sanitized.isEmpty()) {
                 return null;
             }
             try {
-                return Double.parseDouble(normalized);
+                return Double.parseDouble(sanitized);
             } catch (NumberFormatException ignored) {
                 return null;
             }
         }
 
-        if (value instanceof Map<?, ?> map) {
-            Object nested = map.get("$numberDouble");
-            if (nested == null) {
-                nested = map.get("$numberDecimal");
+        if (normalized instanceof Map<?, ?> map) {
+            for (Object nested : map.values()) {
+                Double candidate = parseDouble(nested);
+                if (candidate != null) {
+                    return candidate;
+                }
             }
-            if (nested == null) {
-                nested = map.get("value");
+            return null;
+        }
+
+        if (normalized instanceof Collection<?> collection) {
+            for (Object nested : collection) {
+                Double candidate = parseDouble(nested);
+                if (candidate != null) {
+                    return candidate;
+                }
             }
-            return parseDouble(nested);
+            return null;
         }
 
         return null;
     }
 
     private Integer parseInteger(Object value) {
-        if (value == null) {
+        Object normalized = unwrapExtendedValue(value);
+
+        if (normalized == null) {
             return null;
         }
 
-        if (value instanceof Number number) {
+        if (normalized instanceof Number number) {
             return number.intValue();
         }
 
-        if (value instanceof String text) {
-            String normalized = text.trim();
-            if (normalized.isEmpty()) {
+        if (normalized instanceof String text) {
+            String sanitized = text.trim();
+            if (sanitized.isEmpty()) {
                 return null;
             }
             try {
-                return Integer.parseInt(normalized);
+                return Integer.parseInt(sanitized);
             } catch (NumberFormatException ignored) {
-                Double doubleValue = parseDouble(normalized);
+                Double doubleValue = parseDouble(sanitized);
                 return doubleValue != null ? doubleValue.intValue() : null;
             }
         }
 
-        if (value instanceof Map<?, ?> map) {
-            return parseInteger(map.get("$numberInt"));
+        if (normalized instanceof Map<?, ?> map) {
+            for (Object nested : map.values()) {
+                Integer candidate = parseInteger(nested);
+                if (candidate != null) {
+                    return candidate;
+                }
+            }
+            return null;
+        }
+
+        if (normalized instanceof Collection<?> collection) {
+            for (Object nested : collection) {
+                Integer candidate = parseInteger(nested);
+                if (candidate != null) {
+                    return candidate;
+                }
+            }
+            return null;
         }
 
         return null;
     }
 
     private boolean parseBoolean(Object value) {
-        if (value == null) {
+        Object normalized = unwrapExtendedValue(value);
+
+        if (normalized == null) {
             return false;
         }
 
-        if (value instanceof Boolean bool) {
+        if (normalized instanceof Boolean bool) {
             return bool;
         }
 
-        if (value instanceof Number number) {
+        if (normalized instanceof Number number) {
             return number.intValue() != 0;
         }
 
-        if (value instanceof Map<?, ?> map) {
-            return parseBoolean(map.get("value"));
+        if (normalized instanceof Map<?, ?> map) {
+            for (Object nested : map.values()) {
+                if (parseBoolean(nested)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
-        String text = value.toString().trim().toLowerCase(Locale.ROOT);
+        if (normalized instanceof Collection<?> collection) {
+            for (Object nested : collection) {
+                if (parseBoolean(nested)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        String text = normalized.toString().trim().toLowerCase(Locale.ROOT);
         return text.equals("true") || text.equals("1") || text.equals("yes") || text.equals("paid");
     }
 }
