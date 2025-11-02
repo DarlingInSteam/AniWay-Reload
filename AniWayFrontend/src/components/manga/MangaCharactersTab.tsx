@@ -145,6 +145,116 @@ interface ModerationState {
 
 interface CharacterCardProps {
   character: MangaCharacterDTO
+  onOpenDetails: (character: MangaCharacterDTO) => void
+}
+
+function CharacterImage({
+  imageUrl,
+  name,
+  className,
+  imageClassName,
+}: {
+  imageUrl?: string | null
+  name: string
+  className?: string
+  imageClassName?: string
+}) {
+  const [failed, setFailed] = useState(false)
+
+  const containerClasses = cn(
+    'flex h-28 w-28 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/5 text-white/40 md:h-32 md:w-32',
+    className
+  )
+
+  return (
+    <div className={containerClasses}>
+      {!imageUrl || failed ? (
+        <>
+          <ImageOff className="h-7 w-7" aria-hidden="true" />
+          <span className="sr-only">Нет изображения для {name}</span>
+        </>
+      ) : (
+        <img
+          src={imageUrl}
+          alt={name}
+          className={cn('h-full w-full object-cover', imageClassName)}
+          onError={() => setFailed(true)}
+        />
+      )}
+    </div>
+  )
+}
+
+function CharacterCard({ character, onOpenDetails }: CharacterCardProps) {
+  const { label: statusLabel, className: statusClassName, Icon } =
+    statusMeta[character.status]
+
+  const description = (character.description ?? '').trim()
+  const statusTimestamp =
+    character.statusUpdatedAt ?? character.updatedAt ?? character.createdAt
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpenDetails(character)}
+      className="group flex w-full items-start gap-4 rounded-3xl border border-white/10 bg-white/5 p-4 text-left backdrop-blur-sm transition hover:border-white/20 hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 md:p-5"
+    >
+      <CharacterImage
+        imageUrl={character.imageUrl}
+        name={character.namePrimary}
+        className="h-24 w-24 shrink-0 border-white/15 bg-white/10 md:h-28 md:w-28"
+        imageClassName="rounded-2xl"
+      />
+      <div className="flex min-w-0 flex-1 flex-col gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <h3 className="truncate text-lg font-semibold text-white">
+              {character.namePrimary}
+            </h3>
+            {character.nameSecondary && (
+              <p className="truncate text-sm text-white/60">
+                {character.nameSecondary}
+              </p>
+            )}
+          </div>
+          <Badge
+            variant="outline"
+            className={cn(
+              'flex items-center gap-1 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-white/80 backdrop-blur-sm',
+              statusClassName
+            )}
+          >
+            <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+            {statusLabel}
+          </Badge>
+        </div>
+
+        <p
+          className={cn(
+            'text-sm leading-relaxed text-white/70',
+            description ? 'line-clamp-4' : 'italic text-white/40'
+          )}
+        >
+          {description || 'Описание пока не добавлено.'}
+        </p>
+
+        <div className="flex flex-wrap items-center gap-3 text-xs text-white/50">
+          <span>Обновлено {formatRelativeTime(statusTimestamp)}</span>
+          {character.rejectionReason && (
+            <span className="flex items-center gap-1 text-red-300">
+              <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
+              Есть комментарий модератора
+            </span>
+          )}
+        </div>
+      </div>
+    </button>
+  )
+}
+
+interface CharacterDetailsDialogProps {
+  character: MangaCharacterDTO
+  open: boolean
   canModerate: boolean
   isOwner: boolean
   isModerationLoading: boolean
@@ -155,38 +265,12 @@ interface CharacterCardProps {
     character: MangaCharacterDTO,
     target: MangaCharacterModerationRequest['status']
   ) => void
+  onClose: () => void
 }
 
-function CharacterImage({
-  imageUrl,
-  name,
-}: {
-  imageUrl?: string | null
-  name: string
-}) {
-  const [failed, setFailed] = useState(false)
-
-  if (!imageUrl || failed) {
-    return (
-      <div className="flex h-28 w-28 items-center justify-center rounded-2xl border border-dashed border-white/20 bg-white/5 text-white/40 md:h-32 md:w-32">
-        <ImageOff className="h-7 w-7" aria-hidden="true" />
-        <span className="sr-only">Нет изображения для {name}</span>
-      </div>
-    )
-  }
-
-  return (
-    <img
-      src={imageUrl}
-      alt={name}
-      className="h-28 w-28 rounded-2xl border border-white/10 object-cover md:h-32 md:w-32"
-      onError={() => setFailed(true)}
-    />
-  )
-}
-
-function CharacterCard({
+function CharacterDetailsDialog({
   character,
+  open,
   canModerate,
   isOwner,
   isModerationLoading,
@@ -194,7 +278,8 @@ function CharacterCard({
   onEdit,
   onDelete,
   onModerate,
-}: CharacterCardProps) {
+  onClose,
+}: CharacterDetailsDialogProps) {
   const { label: statusLabel, className: statusClassName, Icon } =
     statusMeta[character.status]
 
@@ -208,27 +293,34 @@ function CharacterCard({
     { label: 'Класс', value: character.classification },
   ].filter((item) => !!item.value && item.value.trim() !== '')
 
+  const imageSizeLabel = formatFileSize(character.imageSizeBytes)
+  const hasImageDimensions =
+    character.imageWidth != null && character.imageHeight != null
+
   const statusTimestamp =
     character.statusUpdatedAt ?? character.updatedAt ?? character.createdAt
 
   const isBusy = isModerationLoading || isDeleteLoading
 
+  const canEdit = canModerate || (isOwner && character.status === 'PENDING')
+  const canDelete = canModerate || (isOwner && character.status === 'PENDING')
+
   return (
-    <div className="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm md:p-6">
-      <div className="flex flex-col gap-4 md:flex-row">
-        <CharacterImage imageUrl={character.imageUrl} name={character.namePrimary} />
-        <div className="flex min-w-0 flex-1 flex-col gap-3">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0 space-y-1">
-              <h3 className="truncate text-lg font-semibold text-white">
-                {character.namePrimary}
-              </h3>
-              {character.nameSecondary && (
-                <p className="truncate text-sm text-white/60">
-                  {character.nameSecondary}
-                </p>
-              )}
-            </div>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          if (isBusy) {
+            return
+          }
+          onClose()
+        }
+      }}
+    >
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle className="flex flex-wrap items-center gap-3 text-lg md:text-xl">
+            <span>{character.namePrimary}</span>
             <Badge
               variant="outline"
               className={cn(
@@ -239,76 +331,123 @@ function CharacterCard({
               <Icon className="h-3.5 w-3.5" aria-hidden="true" />
               {statusLabel}
             </Badge>
-          </div>
-
-          <p className="whitespace-pre-line text-sm leading-relaxed text-white/70">
-            {description || 'Описание пока не добавлено.'}
-          </p>
-
-          {traits.length > 0 && (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {traits.map((item) => (
-                <div
-                  key={item.label}
-                  className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white/80 backdrop-blur-sm"
-                >
-                  <div className="text-xs uppercase tracking-wide text-white/40">
-                    {item.label}
-                  </div>
-                  <div className="mt-1 text-sm font-medium text-white/90">
-                    {item.value}
-                  </div>
-                </div>
-              ))}
-            </div>
+          </DialogTitle>
+          {character.nameSecondary && (
+            <DialogDescription className="text-sm text-white/60">
+              {character.nameSecondary}
+            </DialogDescription>
           )}
+          <DialogDescription className="text-xs text-white/40">
+            Обновлено {formatRelativeTime(statusTimestamp)} • Добавлено{' '}
+            {formatRelativeTime(character.createdAt)}
+          </DialogDescription>
+        </DialogHeader>
 
-          {skills && (
-            <div className="rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-3 text-sm text-indigo-100 backdrop-blur-sm">
-              <div className="text-xs font-semibold uppercase tracking-wide text-indigo-200/80">
-                Навыки
+        <div className="grid gap-6 md:grid-cols-[220px,1fr]">
+          <div className="flex flex-col items-center gap-4">
+            <CharacterImage
+              imageUrl={character.imageUrl}
+              name={character.namePrimary}
+              className="h-44 w-44 border-white/15 bg-white/10 md:h-56 md:w-56"
+              imageClassName="rounded-3xl"
+            />
+            {(hasImageDimensions || imageSizeLabel) && (
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-xs text-white/60">
+                {hasImageDimensions && (
+                  <div>
+                    Разрешение: {character.imageWidth}x{character.imageHeight} px
+                  </div>
+                )}
+                {imageSizeLabel && <div>Размер файла: {imageSizeLabel}</div>}
               </div>
-              <p className="mt-1 whitespace-pre-line leading-relaxed">
-                {skills}
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
+            )}
+            {character.imageKey && (
+              <div className="text-center text-xs text-white/40">
+                Хранилище: {character.imageKey}
+              </div>
+            )}
+          </div>
 
-      {character.rejectionReason && (
-        <div className="flex items-start gap-2 rounded-2xl border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-100 backdrop-blur-sm">
-          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-200" aria-hidden="true" />
-          <div>
-            <div className="font-semibold text-red-100/90">Комментарий модератора</div>
-            <p className="mt-1 whitespace-pre-line leading-relaxed">
-              {character.rejectionReason}
-            </p>
+          <div className="space-y-4">
+            <section className="space-y-2">
+              <h4 className="text-sm font-semibold uppercase tracking-wide text-white/60">
+                Описание
+              </h4>
+              <p className="whitespace-pre-line text-sm leading-relaxed text-white/80">
+                {description || 'Описание пока не добавлено.'}
+              </p>
+            </section>
+
+            {traits.length > 0 && (
+              <section className="space-y-3">
+                <h4 className="text-sm font-semibold uppercase tracking-wide text-white/60">
+                  Основные сведения
+                </h4>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {traits.map((item) => (
+                    <div
+                      key={item.label}
+                      className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white/80 backdrop-blur-sm"
+                    >
+                      <div className="text-xs uppercase tracking-wide text-white/40">
+                        {item.label}
+                      </div>
+                      <div className="mt-1 text-sm font-medium text-white/90">
+                        {item.value}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {skills && (
+              <section className="space-y-2">
+                <h4 className="text-sm font-semibold uppercase tracking-wide text-indigo-200/80">
+                  Навыки
+                </h4>
+                <div className="rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-3 text-sm text-indigo-100 backdrop-blur-sm">
+                  <p className="whitespace-pre-line leading-relaxed">{skills}</p>
+                </div>
+              </section>
+            )}
+
+            {character.rejectionReason && (
+              <section className="space-y-2">
+                <h4 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-red-200">
+                  <AlertCircle className="h-4 w-4" aria-hidden="true" />
+                  Комментарий модератора
+                </h4>
+                <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-100 backdrop-blur-sm">
+                  <p className="whitespace-pre-line leading-relaxed">
+                    {character.rejectionReason}
+                  </p>
+                </div>
+              </section>
+            )}
           </div>
         </div>
-      )}
 
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-wrap items-center gap-2 text-xs text-white/60">
-          <span>Обновлено {formatRelativeTime(statusTimestamp)}</span>
-          <span>• Добавлено {formatRelativeTime(character.createdAt)}</span>
-          {character.createdBy != null && (
-            <span>• Автор ID: {character.createdBy}</span>
-          )}
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-white/40">
+          {character.createdBy != null && <span>Автор ID: {character.createdBy}</span>}
           {canModerate && character.status === 'APPROVED' && character.approvedBy != null && (
-            <span>• Одобрил ID: {character.approvedBy}</span>
+            <span>Одобрил ID: {character.approvedBy}</span>
           )}
           {canModerate && character.status === 'REJECTED' && character.rejectedBy != null && (
-            <span>• Отклонил ID: {character.rejectedBy}</span>
+            <span>Отклонил ID: {character.rejectedBy}</span>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {(canModerate || (isOwner && character.status === 'PENDING')) && (
+
+        <div className="mt-6 flex flex-wrap justify-end gap-2">
+          {canEdit && (
             <Button
               variant="outline"
               size="sm"
               disabled={isBusy}
-              onClick={() => onEdit(character)}
+              onClick={() => {
+                onEdit(character)
+                onClose()
+              }}
               className="border-white/20 bg-white/10 text-white hover:bg-white/20"
             >
               <PencilLine className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -350,12 +489,15 @@ function CharacterCard({
               На модерацию
             </Button>
           )}
-          {(canModerate || (isOwner && character.status === 'PENDING')) && (
+          {canDelete && (
             <Button
               variant="ghost"
               size="sm"
               disabled={isBusy}
-              onClick={() => onDelete(character)}
+              onClick={() => {
+                onDelete(character)
+                onClose()
+              }}
               className="text-red-300 hover:bg-red-500/10"
             >
               <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -363,8 +505,8 @@ function CharacterCard({
             </Button>
           )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -380,6 +522,7 @@ export function MangaCharactersTab({ mangaId, mangaTitle }: MangaCharactersTabPr
   const [moderationState, setModerationState] = useState<ModerationState | null>(null)
   const [moderationReason, setModerationReason] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<MangaCharacterDTO | null>(null)
+  const [detailsCharacter, setDetailsCharacter] = useState<MangaCharacterDTO | null>(null)
   const imageInputRef = useRef<HTMLInputElement | null>(null)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null)
@@ -506,6 +649,7 @@ export function MangaCharactersTab({ mangaId, mangaTitle }: MangaCharactersTabPr
       toast.success(message)
       queryClient.invalidateQueries({ queryKey: ['manga-characters', mangaId] })
       resetImageState()
+      setDetailsCharacter(null)
       setFormOpen(false)
       setEditingCharacter(null)
       setFormState(emptyForm)
@@ -535,6 +679,9 @@ export function MangaCharactersTab({ mangaId, mangaTitle }: MangaCharactersTabPr
       }
       toast.success(statusMessages[variables.status])
       queryClient.invalidateQueries({ queryKey: ['manga-characters', mangaId] })
+      setDetailsCharacter((prev) =>
+        prev && prev.id === variables.characterId ? null : prev
+      )
       setModerationState(null)
       setModerationReason('')
     },
@@ -549,9 +696,12 @@ export function MangaCharactersTab({ mangaId, mangaTitle }: MangaCharactersTabPr
 
   const deleteMutation = useMutation({
     mutationFn: (characterId: number) => apiClient.deleteMangaCharacter(characterId),
-    onSuccess: () => {
+    onSuccess: (_, characterId) => {
       toast.success('Персонаж удалён')
       queryClient.invalidateQueries({ queryKey: ['manga-characters', mangaId] })
+      setDetailsCharacter((prev) =>
+        prev && prev.id === characterId ? null : prev
+      )
       setDeleteTarget(null)
     },
     onError: (error) => {
@@ -567,6 +717,7 @@ export function MangaCharactersTab({ mangaId, mangaTitle }: MangaCharactersTabPr
       return
     }
     setEditingCharacter(null)
+    setDetailsCharacter(null)
     resetImageState()
     setFormState(emptyForm)
     setFormOpen(true)
@@ -578,6 +729,7 @@ export function MangaCharactersTab({ mangaId, mangaTitle }: MangaCharactersTabPr
       return
     }
     setEditingCharacter(character)
+    setDetailsCharacter(null)
     resetImageState()
     setFormState(hydrateFormFromCharacter(character))
     setFormOpen(true)
@@ -676,6 +828,16 @@ export function MangaCharactersTab({ mangaId, mangaTitle }: MangaCharactersTabPr
     existingImageMeta?.width != null && existingImageMeta?.height != null
   const existingImageSizeLabel =
     existingImageMeta?.size != null ? formatFileSize(existingImageMeta.size) : null
+  const detailsIsOwner =
+    detailsCharacter != null && userId != null && detailsCharacter.createdBy === userId
+  const isDetailsModerationLoading =
+    detailsCharacter != null &&
+    moderationMutation.isPending &&
+    moderatingId === detailsCharacter.id
+  const isDetailsDeleteLoading =
+    detailsCharacter != null &&
+    deleteMutation.isPending &&
+    deletingId === detailsCharacter?.id
 
   return (
     <div className="space-y-6">
@@ -778,17 +940,7 @@ export function MangaCharactersTab({ mangaId, mangaTitle }: MangaCharactersTabPr
                   <CharacterCard
                     key={character.id}
                     character={character}
-                    canModerate={canModerate}
-                    isOwner={userId != null && character.createdBy === userId}
-                    isModerationLoading={
-                      moderationMutation.isPending && moderatingId === character.id
-                    }
-                    isDeleteLoading={
-                      deleteMutation.isPending && deletingId === character.id
-                    }
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                    onModerate={handleModerationRequest}
+                    onOpenDetails={(item) => setDetailsCharacter(item)}
                   />
                 ))}
               </div>
@@ -810,17 +962,7 @@ export function MangaCharactersTab({ mangaId, mangaTitle }: MangaCharactersTabPr
                   <CharacterCard
                     key={character.id}
                     character={character}
-                    canModerate={canModerate}
-                    isOwner={userId != null && character.createdBy === userId}
-                    isModerationLoading={
-                      moderationMutation.isPending && moderatingId === character.id
-                    }
-                    isDeleteLoading={
-                      deleteMutation.isPending && deletingId === character.id
-                    }
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                    onModerate={handleModerationRequest}
+                    onOpenDetails={(item) => setDetailsCharacter(item)}
                   />
                 ))}
               </div>
@@ -842,17 +984,7 @@ export function MangaCharactersTab({ mangaId, mangaTitle }: MangaCharactersTabPr
                   <CharacterCard
                     key={character.id}
                     character={character}
-                    canModerate={canModerate}
-                    isOwner={userId != null && character.createdBy === userId}
-                    isModerationLoading={
-                      moderationMutation.isPending && moderatingId === character.id
-                    }
-                    isDeleteLoading={
-                      deleteMutation.isPending && deletingId === character.id
-                    }
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                    onModerate={handleModerationRequest}
+                    onOpenDetails={(item) => setDetailsCharacter(item)}
                   />
                 ))}
               </div>
@@ -874,6 +1006,21 @@ export function MangaCharactersTab({ mangaId, mangaTitle }: MangaCharactersTabPr
             Добавить персонажа
           </Button>
         </div>
+      )}
+
+      {detailsCharacter && (
+        <CharacterDetailsDialog
+          character={detailsCharacter}
+          open
+          canModerate={canModerate}
+          isOwner={detailsIsOwner}
+          isModerationLoading={isDetailsModerationLoading}
+          isDeleteLoading={isDetailsDeleteLoading}
+          onEdit={(character) => handleEdit(character)}
+          onDelete={(character) => handleDelete(character)}
+          onModerate={handleModerationRequest}
+          onClose={() => setDetailsCharacter(null)}
+        />
       )}
 
       <Dialog
