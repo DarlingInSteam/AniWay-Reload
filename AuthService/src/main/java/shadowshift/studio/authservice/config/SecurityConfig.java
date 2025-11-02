@@ -63,6 +63,7 @@ public class SecurityConfig {
                         .requestMatchers("/internal/bookmarks/manga/*/subscribers").permitAll()
                         .requestMatchers("/api/admin/bookmarks/cleanup-orphaned").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/reviews/manga/*/rating").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/reviews/manga/ratings/batch").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/reviews/manga/*").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/reviews/user/*/count").permitAll()
                         // Public leaderboards
