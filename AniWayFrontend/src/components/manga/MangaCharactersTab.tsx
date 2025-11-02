@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
 import {
@@ -18,6 +18,7 @@ import { cn, formatRelativeTime } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
@@ -51,26 +52,26 @@ type FormState = {
   namePrimary: string
   nameSecondary: string
   description: string
-  imageUrl: string
   strength: string
   affiliation: string
   gender: string
   age: string
   classification: string
   skills: string
+  removeImage: boolean
 }
 
 const emptyForm: FormState = {
   namePrimary: '',
   nameSecondary: '',
   description: '',
-  imageUrl: '',
   strength: '',
   affiliation: '',
   gender: '',
   age: '',
   classification: '',
   skills: '',
+  removeImage: false,
 }
 
 type StatusMeta = {
@@ -100,6 +101,33 @@ const statusMeta: Record<MangaCharacterStatus, StatusMeta> = {
 const optionalField = (value: string) => {
   const trimmed = value.trim()
   return trimmed.length > 0 ? trimmed : undefined
+}
+
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024 // 5MB limit for character images
+const ACCEPTED_IMAGE_TYPES: string[] = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/avif',
+  'image/gif',
+]
+
+const formatFileSize = (bytes?: number | null): string | null => {
+  if (bytes == null || Number.isNaN(bytes) || bytes <= 0) {
+    return null
+  }
+
+  const units = ['B', 'KB', 'MB', 'GB']
+  let value = bytes
+  let unitIndex = 0
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024
+    unitIndex += 1
+  }
+
+  const formatted = value < 10 ? value.toFixed(1) : value.toFixed(0)
+  return `${formatted} ${units[unitIndex]}`
 }
 
 const sortByName = (a: MangaCharacterDTO, b: MangaCharacterDTO) =>
@@ -352,6 +380,18 @@ export function MangaCharactersTab({ mangaId, mangaTitle }: MangaCharactersTabPr
   const [moderationState, setModerationState] = useState<ModerationState | null>(null)
   const [moderationReason, setModerationReason] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<MangaCharacterDTO | null>(null)
+  const imageInputRef = useRef<HTMLInputElement | null>(null)
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null)
+  const [imageError, setImageError] = useState<string | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (imagePreviewUrl) {
+        URL.revokeObjectURL(imagePreviewUrl)
+      }
+    }
+  }, [imagePreviewUrl])
 
   const charactersQuery = useQuery({
     queryKey: ['manga-characters', mangaId, userId],
@@ -387,26 +427,75 @@ export function MangaCharactersTab({ mangaId, mangaTitle }: MangaCharactersTabPr
     namePrimary: character.namePrimary ?? '',
     nameSecondary: character.nameSecondary ?? '',
     description: character.description ?? '',
-    imageUrl: character.imageUrl ?? '',
     strength: character.strength ?? '',
     affiliation: character.affiliation ?? '',
     gender: character.gender ?? '',
     age: character.age ?? '',
     classification: character.classification ?? '',
     skills: character.skills ?? '',
+    removeImage: false,
   })
+
+  const resetImageState = () => {
+    setImageError(null)
+    setImageFile(null)
+    setImagePreviewUrl(null)
+    if (imageInputRef.current) {
+      imageInputRef.current.value = ''
+    }
+  }
+
+  const handleImageFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null
+
+    if (!file) {
+      resetImageState()
+      return
+    }
+
+  if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+      setImageError('Поддерживаются только изображения JPG, PNG, WEBP, AVIF или GIF')
+      if (imageInputRef.current) {
+        imageInputRef.current.value = ''
+      }
+      return
+    }
+
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      setImageError('Файл слишком большой. Максимальный размер — 5 MB')
+      if (imageInputRef.current) {
+        imageInputRef.current.value = ''
+      }
+      return
+    }
+
+    setImageError(null)
+    setImageFile(file)
+    const blobUrl = URL.createObjectURL(file)
+    setImagePreviewUrl(blobUrl)
+    setFormState((prev) => ({
+      ...prev,
+      removeImage: false,
+    }))
+  }
+
+  const clearImageFile = () => {
+    resetImageState()
+  }
 
   const upsertMutation = useMutation({
     mutationFn: ({
       payload,
       characterId,
+      imageFile: selectedImage,
     }: {
       payload: MangaCharacterRequest
       characterId?: number
+      imageFile?: File | null
     }) =>
       characterId
-        ? apiClient.updateMangaCharacter(characterId, payload)
-        : apiClient.createMangaCharacter(mangaId, payload),
+        ? apiClient.updateMangaCharacter(characterId, payload, selectedImage)
+        : apiClient.createMangaCharacter(mangaId, payload, selectedImage),
     onSuccess: (data, variables) => {
       const message = variables.characterId
         ? 'Персонаж обновлён'
@@ -416,6 +505,7 @@ export function MangaCharactersTab({ mangaId, mangaTitle }: MangaCharactersTabPr
 
       toast.success(message)
       queryClient.invalidateQueries({ queryKey: ['manga-characters', mangaId] })
+      resetImageState()
       setFormOpen(false)
       setEditingCharacter(null)
       setFormState(emptyForm)
@@ -477,6 +567,7 @@ export function MangaCharactersTab({ mangaId, mangaTitle }: MangaCharactersTabPr
       return
     }
     setEditingCharacter(null)
+    resetImageState()
     setFormState(emptyForm)
     setFormOpen(true)
   }
@@ -487,6 +578,7 @@ export function MangaCharactersTab({ mangaId, mangaTitle }: MangaCharactersTabPr
       return
     }
     setEditingCharacter(character)
+    resetImageState()
     setFormState(hydrateFormFromCharacter(character))
     setFormOpen(true)
   }
@@ -527,18 +619,19 @@ export function MangaCharactersTab({ mangaId, mangaTitle }: MangaCharactersTabPr
       namePrimary,
       description,
       nameSecondary: optionalField(formState.nameSecondary),
-      imageUrl: optionalField(formState.imageUrl),
       strength: optionalField(formState.strength),
       affiliation: optionalField(formState.affiliation),
       gender: optionalField(formState.gender),
       age: optionalField(formState.age),
       classification: optionalField(formState.classification),
       skills: optionalField(formState.skills),
+      removeImage: formState.removeImage ? true : undefined,
     }
 
     upsertMutation.mutate({
       payload,
       characterId: editingCharacter?.id,
+      imageFile,
     })
   }
 
@@ -570,6 +663,19 @@ export function MangaCharactersTab({ mangaId, mangaTitle }: MangaCharactersTabPr
   const deletingId = deleteMutation.variables
 
   const hasAnyCharacters = summary.total > 0
+  const existingImageUrl = editingCharacter?.imageUrl ?? null
+  const previewImageSrc = imagePreviewUrl ?? (formState.removeImage ? null : existingImageUrl)
+  const existingImageMeta = existingImageUrl
+    ? {
+        width: editingCharacter?.imageWidth ?? null,
+        height: editingCharacter?.imageHeight ?? null,
+        size: editingCharacter?.imageSizeBytes ?? null,
+      }
+    : null
+  const hasExistingDimensions =
+    existingImageMeta?.width != null && existingImageMeta?.height != null
+  const existingImageSizeLabel =
+    existingImageMeta?.size != null ? formatFileSize(existingImageMeta.size) : null
 
   return (
     <div className="space-y-6">
@@ -780,6 +886,7 @@ export function MangaCharactersTab({ mangaId, mangaTitle }: MangaCharactersTabPr
           if (!open) {
             setEditingCharacter(null)
             setFormState(emptyForm)
+            resetImageState()
           }
         }}
       >
@@ -840,19 +947,100 @@ export function MangaCharactersTab({ mangaId, mangaTitle }: MangaCharactersTabPr
                   rows={5}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="character-image">Ссылка на изображение</Label>
-                <Input
-                  id="character-image"
-                  value={formState.imageUrl}
-                  onChange={(event) =>
-                    setFormState((prev) => ({
-                      ...prev,
-                      imageUrl: event.target.value,
-                    }))
-                  }
-                  placeholder="https://"
-                />
+              <div className="space-y-3 md:col-span-2">
+                <Label htmlFor="character-image">Изображение персонажа</Label>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                  <div className="flex h-32 w-full max-w-[8rem] items-center justify-center overflow-hidden rounded-2xl border border-dashed border-white/15 bg-white/5 sm:h-36 sm:w-36">
+                    {previewImageSrc ? (
+                      <img
+                        src={previewImageSrc}
+                        alt={formState.namePrimary || 'Предпросмотр изображения персонажа'}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 text-xs text-white/40">
+                        <ImageOff className="h-5 w-5" aria-hidden="true" />
+                        <span>Нет изображения</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-1 flex-col gap-2">
+                    <Input
+                      ref={imageInputRef}
+                      id="character-image"
+                      type="file"
+                      accept={ACCEPTED_IMAGE_TYPES.join(',')}
+                      onChange={handleImageFileChange}
+                    />
+                    <p className="text-xs text-white/50">
+                      Загрузите JPG, PNG, WEBP, AVIF или GIF до 5 MB. Файл сохранится в медиатеке AniWay.
+                    </p>
+                    {imageFile && (
+                      <p className="text-xs text-white/60">
+                        {imageFile.name} • {formatFileSize(imageFile.size) ?? '—'}
+                      </p>
+                    )}
+                    {imageError && (
+                      <p className="text-xs text-red-300">{imageError}</p>
+                    )}
+                    {imageFile && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={clearImageFile}
+                        className="w-fit border-white/20 bg-white/5 text-white hover:bg-white/10"
+                      >
+                        Очистить выбранный файл
+                      </Button>
+                    )}
+                    {existingImageUrl && !imageFile && !formState.removeImage && (
+                      <div className="space-y-1 text-xs text-white/60">
+                        <p>
+                          Текущее изображение сохранится, если не загружать новое и не отмечать удаление.
+                        </p>
+                        {(hasExistingDimensions || existingImageSizeLabel) && (
+                          <p>
+                            Размер:
+                            {hasExistingDimensions
+                              ? ` ${existingImageMeta?.width}x${existingImageMeta?.height} px`
+                              : ' —'}
+                            {existingImageSizeLabel ? ` • ${existingImageSizeLabel}` : ''}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {existingImageUrl && (
+                      <div className="flex items-center gap-2 pt-1">
+                        <Checkbox
+                          id="character-remove-image"
+                          checked={formState.removeImage}
+                          onCheckedChange={(checked) =>
+                            setFormState((prev) => ({
+                              ...prev,
+                              removeImage: checked === true,
+                            }))
+                          }
+                          disabled={!!imageFile}
+                        />
+                        <Label
+                          htmlFor="character-remove-image"
+                          className={cn(
+                            'text-xs text-white/70',
+                            imageFile ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                          )}
+                        >
+                          Удалить текущее изображение
+                        </Label>
+                      </div>
+                    )}
+                    {formState.removeImage && (
+                      <p className="text-xs text-amber-200">
+                        При сохранении изображение будет удалено из карточки.
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="character-strength">Сила / способности</Label>

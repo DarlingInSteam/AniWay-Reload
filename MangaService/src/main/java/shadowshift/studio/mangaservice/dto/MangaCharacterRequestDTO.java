@@ -21,6 +21,8 @@ public class MangaCharacterRequestDTO {
     @Size(max = 512, message = "URL изображения не должен превышать 512 символов")
     private String imageUrl;
 
+    private Boolean removeImage;
+
     @Size(max = 255)
     private String strength;
 
@@ -68,6 +70,14 @@ public class MangaCharacterRequestDTO {
 
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
+    }
+
+    public Boolean getRemoveImage() {
+        return removeImage;
+    }
+
+    public void setRemoveImage(Boolean removeImage) {
+        this.removeImage = removeImage;
     }
 
     public String getStrength() {

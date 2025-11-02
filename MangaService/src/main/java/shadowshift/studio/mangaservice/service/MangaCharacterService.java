@@ -6,7 +6,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
+import shadowshift.studio.mangaservice.dto.CharacterImageUploadResult;
 import shadowshift.studio.mangaservice.dto.MangaCharacterDTO;
 import shadowshift.studio.mangaservice.dto.MangaCharacterModerationDTO;
 import shadowshift.studio.mangaservice.dto.MangaCharacterRequestDTO;
@@ -15,6 +17,7 @@ import shadowshift.studio.mangaservice.entity.MangaCharacter;
 import shadowshift.studio.mangaservice.mapper.MangaCharacterMapper;
 import shadowshift.studio.mangaservice.repository.MangaCharacterRepository;
 import shadowshift.studio.mangaservice.repository.MangaRepository;
+import shadowshift.studio.mangaservice.service.external.CharacterImageStorageClient;
 
 import java.time.LocalDateTime;
 import java.util.Comparator;
@@ -32,13 +35,16 @@ public class MangaCharacterService {
     private final MangaRepository mangaRepository;
     private final MangaCharacterRepository mangaCharacterRepository;
     private final MangaCharacterMapper mangaCharacterMapper;
+    private final CharacterImageStorageClient characterImageStorageClient;
 
     public MangaCharacterService(MangaRepository mangaRepository,
                                  MangaCharacterRepository mangaCharacterRepository,
-                                 MangaCharacterMapper mangaCharacterMapper) {
+                                 MangaCharacterMapper mangaCharacterMapper,
+                                 CharacterImageStorageClient characterImageStorageClient) {
         this.mangaRepository = mangaRepository;
         this.mangaCharacterRepository = mangaCharacterRepository;
         this.mangaCharacterMapper = mangaCharacterMapper;
+        this.characterImageStorageClient = characterImageStorageClient;
     }
 
     @Transactional(readOnly = true)
@@ -62,7 +68,8 @@ public class MangaCharacterService {
     public MangaCharacterDTO createCharacter(Long mangaId,
                                              MangaCharacterRequestDTO request,
                                              Long creatorId,
-                                             String roleHeader) {
+                                             String roleHeader,
+                                             MultipartFile imageFile) {
         if (creatorId == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Требуется авторизация");
         }
@@ -73,6 +80,13 @@ public class MangaCharacterService {
         MangaCharacter character = new MangaCharacter();
         character.setManga(manga);
         applyRequest(character, request);
+
+        if (imageFile != null && !imageFile.isEmpty()) {
+            CharacterImageUploadResult uploadedImage = uploadCharacterImage(imageFile, mangaId, null, creatorId);
+            applyUploadedImage(character, uploadedImage);
+        } else {
+            applyExternalImageIfProvided(character, request);
+        }
         character.setCreatedBy(creatorId);
 
         boolean privileged = hasModerationRights(roleHeader);
@@ -95,7 +109,8 @@ public class MangaCharacterService {
     public MangaCharacterDTO updateCharacter(Long characterId,
                                              MangaCharacterRequestDTO request,
                                              Long requesterId,
-                                             String roleHeader) {
+                                             String roleHeader,
+                                             MultipartFile imageFile) {
         MangaCharacter character = mangaCharacterRepository.findById(characterId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Персонаж не найден"));
 
@@ -111,6 +126,19 @@ public class MangaCharacterService {
         }
 
         applyRequest(character, request);
+
+        boolean removeRequested = Boolean.TRUE.equals(request.getRemoveImage());
+        if (imageFile != null && !imageFile.isEmpty()) {
+            Long mangaId = character.getManga() != null ? character.getManga().getId() : null;
+            CharacterImageUploadResult uploadedImage = uploadCharacterImage(imageFile, mangaId, character.getId(), requesterId);
+            deleteStoredImageIfPresent(character);
+            applyUploadedImage(character, uploadedImage);
+        } else if (removeRequested) {
+            deleteStoredImageIfPresent(character);
+            clearImageMetadata(character);
+        } else {
+            applyExternalImageIfProvided(character, request);
+        }
 
         if (!privileged) {
             character.setStatus(MangaCharacter.Status.PENDING);
@@ -185,6 +213,7 @@ public class MangaCharacterService {
             }
         }
 
+        deleteStoredImageIfPresent(character);
         mangaCharacterRepository.delete(character);
         log.info("Character {} removed by user {}", characterId, requesterId);
     }
@@ -195,11 +224,67 @@ public class MangaCharacterService {
         }
     }
 
+    private CharacterImageUploadResult uploadCharacterImage(MultipartFile file,
+                                                            Long mangaId,
+                                                            Long characterId,
+                                                            Long userId) {
+        if (file == null || file.isEmpty()) {
+            return null;
+        }
+        if (mangaId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Не удалось определить мангу для загрузки изображения");
+        }
+        try {
+            return characterImageStorageClient.uploadCharacterImage(file, mangaId, characterId, userId);
+        } catch (IllegalStateException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, ex.getMessage(), ex);
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Не удалось загрузить изображение персонажа", ex);
+        }
+    }
+
+    private void applyUploadedImage(MangaCharacter character, CharacterImageUploadResult uploadedImage) {
+        if (uploadedImage == null) {
+            return;
+        }
+        character.setImageUrl(normalize(uploadedImage.getUrl()));
+        character.setImageObjectKey(normalize(uploadedImage.getKey()));
+        character.setImageWidth(uploadedImage.getWidth());
+        character.setImageHeight(uploadedImage.getHeight());
+        character.setImageSizeBytes(uploadedImage.getSizeBytes());
+    }
+
+    private void applyExternalImageIfProvided(MangaCharacter character, MangaCharacterRequestDTO request) {
+        String manualUrl = normalize(request.getImageUrl());
+        if (StringUtils.hasText(manualUrl)) {
+            deleteStoredImageIfPresent(character);
+            character.setImageUrl(manualUrl);
+            character.setImageObjectKey(null);
+            character.setImageWidth(null);
+            character.setImageHeight(null);
+            character.setImageSizeBytes(null);
+        }
+    }
+
+    private void deleteStoredImageIfPresent(MangaCharacter character) {
+        String key = character.getImageObjectKey();
+        if (StringUtils.hasText(key)) {
+            characterImageStorageClient.deleteCharacterImage(key);
+        }
+    }
+
+    private void clearImageMetadata(MangaCharacter character) {
+        character.setImageUrl(null);
+        character.setImageObjectKey(null);
+        character.setImageWidth(null);
+        character.setImageHeight(null);
+        character.setImageSizeBytes(null);
+    }
+
     private void applyRequest(MangaCharacter character, MangaCharacterRequestDTO request) {
         character.setNamePrimary(normalize(request.getNamePrimary()));
         character.setNameSecondary(normalize(request.getNameSecondary()));
         character.setDescription(normalizeMultiline(request.getDescription()));
-        character.setImageUrl(normalize(request.getImageUrl()));
         character.setStrength(normalize(request.getStrength()));
         character.setAffiliation(normalize(request.getAffiliation()));
         character.setGender(normalize(request.getGender()));

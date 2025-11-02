@@ -21,6 +21,10 @@ public class MangaCharacterMapper {
         dto.setNameSecondary(character.getNameSecondary());
         dto.setDescription(character.getDescription());
         dto.setImageUrl(character.getImageUrl());
+    dto.setImageKey(character.getImageObjectKey());
+    dto.setImageWidth(character.getImageWidth());
+    dto.setImageHeight(character.getImageHeight());
+    dto.setImageSizeBytes(character.getImageSizeBytes());
         dto.setStrength(character.getStrength());
         dto.setAffiliation(character.getAffiliation());
         dto.setGender(character.getGender());

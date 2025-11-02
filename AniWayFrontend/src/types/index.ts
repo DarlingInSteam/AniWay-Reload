@@ -38,6 +38,10 @@ export interface MangaCharacterDTO {
   nameSecondary?: string | null
   description?: string | null
   imageUrl?: string | null
+  imageKey?: string | null
+  imageWidth?: number | null
+  imageHeight?: number | null
+  imageSizeBytes?: number | null
   strength?: string | null
   affiliation?: string | null
   gender?: string | null
@@ -65,6 +69,7 @@ export interface MangaCharacterRequest {
   age?: string
   classification?: string
   skills?: string
+  removeImage?: boolean
 }
 
 export interface MangaCharacterModerationRequest {

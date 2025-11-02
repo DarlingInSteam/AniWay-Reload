@@ -173,10 +173,15 @@ class ApiClient {
     );
   const headerUserRole = userRole || (token ? 'USER' : undefined);
 
+    const isFormData = options?.body instanceof FormData;
+    const baseHeaders: Record<string, string> = {
+      ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
+      ...this.getAuthHeaders(),
+    };
+
     const response = await fetch(url, {
       headers: {
-        'Content-Type': 'application/json',
-        ...this.getAuthHeaders(),
+        ...baseHeaders,
         ...(needsUserHeader ? {
           'X-User-Id': userId!,
           ...(headerUserRole ? { 'X-User-Role': headerUserRole } : {})
@@ -330,17 +335,27 @@ class ApiClient {
     return this.request<MangaCharacterDTO[]>(`/manga/${mangaId}/characters`);
   }
 
-  async createMangaCharacter(mangaId: number, payload: MangaCharacterRequest): Promise<MangaCharacterDTO> {
+  async createMangaCharacter(mangaId: number, payload: MangaCharacterRequest, imageFile?: File | null): Promise<MangaCharacterDTO> {
+    const formData = new FormData();
+    formData.append('payload', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+    if (imageFile) {
+      formData.append('image', imageFile);
+    }
     return this.request<MangaCharacterDTO>(`/manga/${mangaId}/characters`, {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: formData,
     });
   }
 
-  async updateMangaCharacter(characterId: number, payload: MangaCharacterRequest): Promise<MangaCharacterDTO> {
+  async updateMangaCharacter(characterId: number, payload: MangaCharacterRequest, imageFile?: File | null): Promise<MangaCharacterDTO> {
+    const formData = new FormData();
+    formData.append('payload', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+    if (imageFile) {
+      formData.append('image', imageFile);
+    }
     return this.request<MangaCharacterDTO>(`/manga/characters/${characterId}`, {
       method: 'PUT',
-      body: JSON.stringify(payload),
+      body: formData,
     });
   }
 

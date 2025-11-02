@@ -6,9 +6,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.multipart.MultipartFile;
 import shadowshift.studio.mangaservice.dto.ChapterDTO;
 import shadowshift.studio.mangaservice.dto.ChapterImageDTO;
 import shadowshift.studio.mangaservice.dto.MangaCharacterDTO;
@@ -283,17 +285,18 @@ public class MangaRestController {
      * @param requestPayload данные персонажа для создания
      * @return ResponseEntity с созданным персонажем
      */
-    @PostMapping("/{id}/characters")
+    @PostMapping(value = "/{id}/characters", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<MangaCharacterDTO> createCharacter(
             @PathVariable("id") Long mangaId,
             @RequestHeader("X-User-Id") String userHeader,
             @RequestHeader(value = "X-User-Role", required = false) String roleHeader,
-            @Valid @RequestBody MangaCharacterRequestDTO requestPayload) {
+            @RequestPart("payload") @Valid MangaCharacterRequestDTO requestPayload,
+            @RequestPart(value = "image", required = false) MultipartFile imageFile) {
 
         Long creatorId = parseUserId(userHeader);
         logger.info("API запрос: создание персонажа для манги {} пользователем {}", mangaId, creatorId);
 
-        MangaCharacterDTO created = mangaCharacterService.createCharacter(mangaId, requestPayload, creatorId, roleHeader);
+        MangaCharacterDTO created = mangaCharacterService.createCharacter(mangaId, requestPayload, creatorId, roleHeader, imageFile);
 
         logger.info("API ответ: персонаж {} создан для манги {}", created.getId(), mangaId);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
@@ -307,17 +310,18 @@ public class MangaRestController {
      * @param requestPayload новые данные персонажа
      * @return ResponseEntity с обновленным персонажем
      */
-    @PutMapping("/characters/{characterId}")
+    @PutMapping(value = "/characters/{characterId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<MangaCharacterDTO> updateCharacter(
             @PathVariable Long characterId,
             @RequestHeader("X-User-Id") String userHeader,
             @RequestHeader(value = "X-User-Role", required = false) String roleHeader,
-            @Valid @RequestBody MangaCharacterRequestDTO requestPayload) {
+            @RequestPart("payload") @Valid MangaCharacterRequestDTO requestPayload,
+            @RequestPart(value = "image", required = false) MultipartFile imageFile) {
 
         Long requesterId = parseUserId(userHeader);
         logger.info("API запрос: обновление персонажа {} пользователем {}", characterId, requesterId);
 
-        MangaCharacterDTO updated = mangaCharacterService.updateCharacter(characterId, requestPayload, requesterId, roleHeader);
+        MangaCharacterDTO updated = mangaCharacterService.updateCharacter(characterId, requestPayload, requesterId, roleHeader, imageFile);
         return ResponseEntity.ok(updated);
     }
 

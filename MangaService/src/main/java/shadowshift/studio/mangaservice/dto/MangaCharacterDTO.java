@@ -15,6 +15,10 @@ public class MangaCharacterDTO {
     private String nameSecondary;
     private String description;
     private String imageUrl;
+    private String imageKey;
+    private Integer imageWidth;
+    private Integer imageHeight;
+    private Long imageSizeBytes;
     private String strength;
     private String affiliation;
     private String gender;
@@ -76,6 +80,38 @@ public class MangaCharacterDTO {
 
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
+    }
+
+    public String getImageKey() {
+        return imageKey;
+    }
+
+    public void setImageKey(String imageKey) {
+        this.imageKey = imageKey;
+    }
+
+    public Integer getImageWidth() {
+        return imageWidth;
+    }
+
+    public void setImageWidth(Integer imageWidth) {
+        this.imageWidth = imageWidth;
+    }
+
+    public Integer getImageHeight() {
+        return imageHeight;
+    }
+
+    public void setImageHeight(Integer imageHeight) {
+        this.imageHeight = imageHeight;
+    }
+
+    public Long getImageSizeBytes() {
+        return imageSizeBytes;
+    }
+
+    public void setImageSizeBytes(Long imageSizeBytes) {
+        this.imageSizeBytes = imageSizeBytes;
     }
 
     public String getStrength() {

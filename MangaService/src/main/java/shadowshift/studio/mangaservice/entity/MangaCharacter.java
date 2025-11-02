@@ -44,6 +44,19 @@ public class MangaCharacter {
     @Column(name = "image_url", length = 512)
     private String imageUrl;
 
+    @Size(max = 512)
+    @Column(name = "image_object_key", length = 512)
+    private String imageObjectKey;
+
+    @Column(name = "image_width")
+    private Integer imageWidth;
+
+    @Column(name = "image_height")
+    private Integer imageHeight;
+
+    @Column(name = "image_size_bytes")
+    private Long imageSizeBytes;
+
     @Size(max = 255)
     @Column(length = 255)
     private String strength;
@@ -157,6 +170,38 @@ public class MangaCharacter {
 
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
+    }
+
+    public String getImageObjectKey() {
+        return imageObjectKey;
+    }
+
+    public void setImageObjectKey(String imageObjectKey) {
+        this.imageObjectKey = imageObjectKey;
+    }
+
+    public Integer getImageWidth() {
+        return imageWidth;
+    }
+
+    public void setImageWidth(Integer imageWidth) {
+        this.imageWidth = imageWidth;
+    }
+
+    public Integer getImageHeight() {
+        return imageHeight;
+    }
+
+    public void setImageHeight(Integer imageHeight) {
+        this.imageHeight = imageHeight;
+    }
+
+    public Long getImageSizeBytes() {
+        return imageSizeBytes;
+    }
+
+    public void setImageSizeBytes(Long imageSizeBytes) {
+        this.imageSizeBytes = imageSizeBytes;
     }
 
     public String getStrength() {

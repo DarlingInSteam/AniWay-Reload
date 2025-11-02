@@ -4,9 +4,11 @@ import io.minio.*;
 import io.minio.errors.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 import shadowshift.studio.imagestorageservice.config.YandexStorageProperties;
 import shadowshift.studio.imagestorageservice.dto.ChapterImageResponseDTO;
+import shadowshift.studio.imagestorageservice.dto.CharacterImageUploadResponseDTO;
 import shadowshift.studio.imagestorageservice.dto.MomentImageUploadResponseDTO;
 import shadowshift.studio.imagestorageservice.dto.UserAvatarResponseDTO;
 import shadowshift.studio.imagestorageservice.entity.ChapterImage;
@@ -44,6 +46,7 @@ import java.util.stream.Collectors;
 public class ImageStorageService {
 
     private static final long MAX_MOMENT_IMAGE_SIZE_BYTES = 8L * 1024 * 1024;
+    private static final long MAX_CHARACTER_IMAGE_SIZE_BYTES = 8L * 1024 * 1024;
 
     @Autowired
     private ChapterImageRepository imageRepository;
@@ -499,6 +502,98 @@ public class ImageStorageService {
             throw e;
         } catch (Exception e) {
             throw new RuntimeException("Failed to upload moment image", e);
+        }
+    }
+
+    public CharacterImageUploadResponseDTO uploadCharacterImage(MultipartFile file,
+                                                                 Long mangaId,
+                                                                 Long characterId,
+                                                                 Long userId) {
+        try {
+            if (file == null || file.isEmpty()) {
+                throw new IllegalArgumentException("Image file is required");
+            }
+            if (file.getSize() > MAX_CHARACTER_IMAGE_SIZE_BYTES) {
+                throw new IllegalArgumentException("Image exceeds max size of 8MB");
+            }
+            String contentType = file.getContentType();
+            if (contentType == null || !contentType.startsWith("image/")) {
+                throw new IllegalArgumentException("Only image uploads are supported");
+            }
+
+            createBucketIfNotExists();
+
+            byte[] bytes = file.getBytes();
+            Integer width = null;
+            Integer height = null;
+            try (ByteArrayInputStream metadataStream = new ByteArrayInputStream(bytes)) {
+                BufferedImage buffered = ImageIO.read(metadataStream);
+                if (buffered != null) {
+                    width = buffered.getWidth();
+                    height = buffered.getHeight();
+                }
+            }
+
+            String extension = resolveFileExtension(file);
+            StringBuilder objectKeyBuilder = new StringBuilder("characters/");
+            if (mangaId != null) {
+                objectKeyBuilder.append("m").append(mangaId).append('/');
+            }
+            if (characterId != null) {
+                objectKeyBuilder.append("c").append(characterId).append('/');
+            }
+            if (userId != null) {
+                objectKeyBuilder.append("u").append(userId).append('/');
+            }
+            objectKeyBuilder.append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy/MM/dd/")));
+            objectKeyBuilder.append(UUID.randomUUID());
+            if (!extension.isBlank()) {
+                objectKeyBuilder.append('.').append(extension);
+            }
+            String objectKey = objectKeyBuilder.toString();
+
+            try (ByteArrayInputStream uploadStream = new ByteArrayInputStream(bytes)) {
+                minioClient.putObject(
+                        PutObjectArgs.builder()
+                                .bucket(yandexProperties.getBucketName())
+                                .object(objectKey)
+                                .stream(uploadStream, bytes.length, -1)
+                                .contentType(contentType)
+                                .build()
+                );
+            }
+
+            String url = generateImageUrl(objectKey);
+            return new CharacterImageUploadResponseDTO(url, objectKey, width, height, file.getSize(), mangaId, characterId, userId);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to upload character image", e);
+        }
+    }
+
+    public void deleteObjectByKey(String objectKey) {
+        if (!StringUtils.hasText(objectKey)) {
+            return;
+        }
+        if (!objectKey.startsWith("characters/")) {
+            throw new IllegalArgumentException("Refusing to delete non-character image key");
+        }
+        try {
+            createBucketIfNotExists();
+            minioClient.removeObject(
+                    RemoveObjectArgs.builder()
+                            .bucket(yandexProperties.getBucketName())
+                            .object(objectKey)
+                            .build()
+            );
+        } catch (ErrorResponseException e) {
+            if ("NoSuchKey".equalsIgnoreCase(e.errorResponse().code())) {
+                return;
+            }
+            throw new RuntimeException("Failed to delete character image", e);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to delete character image", e);
         }
     }
 
