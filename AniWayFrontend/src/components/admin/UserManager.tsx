@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { Badge, type BadgeProps } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
@@ -155,21 +155,26 @@ function UserRow({
   const [roleReasonCode, setRoleReasonCode] = useState('OTHER')
   const [cooldownUntil, setCooldownUntil] = useState<number>(0)
   const [confirmElevate, setConfirmElevate] = useState('')
-  const [selectedRole, setSelectedRole] = useState<"USER" | "ADMIN" | "TRANSLATOR">(user.role as any)
+  const [selectedRole, setSelectedRole] = useState<'USER' | 'ADMIN' | 'MODERATOR' | 'TRANSLATOR'>(user.role as any)
   const remaining = useRemainingTime((user as any).banExpiresAt)
   
   const getRoleBadge = (role: string) => {
-    const variants = {
-      USER: 'secondary',
-      ADMIN: 'destructive',
-      TRANSLATOR: 'default'
-    } as const
-    
+    const meta = {
+      USER: { variant: 'secondary', label: 'Пользователь', className: '' },
+      ADMIN: { variant: 'destructive', label: 'Администратор', className: '' },
+      MODERATOR: {
+        variant: 'outline' as BadgeProps['variant'],
+        label: 'Модератор',
+        className: 'border-sky-500/40 bg-sky-500/15 text-sky-200',
+      },
+      TRANSLATOR: { variant: 'default', label: 'Переводчик', className: '' },
+    } satisfies Record<string, { variant: BadgeProps['variant']; label: string; className: string }>
+
+    const picked = meta[role as keyof typeof meta] ?? meta.USER
+
     return (
-      <Badge variant={variants[role as keyof typeof variants] || 'secondary'}>
-        {role === 'USER' ? 'Пользователь' : 
-         role === 'ADMIN' ? 'Администратор' : 
-         'Переводчик'}
+      <Badge variant={picked.variant} className={picked.className}>
+        {picked.label}
       </Badge>
     )
   }
@@ -477,17 +482,30 @@ function UserRow({
                   )}
                 </div>
                 <div className="grid grid-cols-1 gap-2">
-                  {(['USER', 'TRANSLATOR', 'ADMIN'] as const).map((role) => (
+                  {(
+                    [
+                      { key: 'USER', label: 'Пользователь' },
+                      { key: 'MODERATOR', label: 'Модератор' },
+                      { key: 'TRANSLATOR', label: 'Переводчик' },
+                      { key: 'ADMIN', label: 'Администратор' },
+                    ] as const
+                  ).map((option) => (
                     <Button
-                      key={role}
-                      variant={selectedRole === role ? "default" : "outline"}
-                      disabled={user.role === role || mutationBusy || (role !== 'ADMIN' && currentAdminUsername === user.username && user.role === 'ADMIN' && selectedRole !== 'ADMIN' && !roleChangeReason)}
-                      onClick={() => setSelectedRole(role)}
+                      key={option.key}
+                      variant={selectedRole === option.key ? 'default' : 'outline'}
+                      disabled={
+                        user.role === option.key ||
+                        mutationBusy ||
+                        (option.key !== 'ADMIN' &&
+                          currentAdminUsername === user.username &&
+                          user.role === 'ADMIN' &&
+                          selectedRole !== 'ADMIN' &&
+                          !roleChangeReason)
+                      }
+                      onClick={() => setSelectedRole(option.key)}
                       className="justify-start"
                     >
-                      {role === 'USER' ? 'Пользователь' : 
-                       role === 'ADMIN' ? 'Администратор' : 
-                       'Переводчик'}
+                      {option.label}
                     </Button>
                   ))}
                 </div>

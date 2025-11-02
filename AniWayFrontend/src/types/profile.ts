@@ -42,7 +42,7 @@ export interface UserProfile {
   displayName?: string;
   avatar?: string;
   bio?: string;
-  role: 'USER' | 'ADMIN' | 'TRANSLATOR';
+  role: 'USER' | 'ADMIN' | 'MODERATOR' | 'TRANSLATOR';
   isOnline: boolean;
   lastSeen?: Date;
   backgroundImage?: string;

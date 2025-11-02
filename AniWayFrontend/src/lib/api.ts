@@ -2,6 +2,9 @@ import {
   AdminActionLogDTO,
   AdminUsersPageResponse,
   AdminUsersParams,
+  MangaCharacterDTO,
+  MangaCharacterModerationRequest,
+  MangaCharacterRequest,
   ChapterDTO,
   ChapterCreateRequest,
   ChapterImageDTO,
@@ -164,7 +167,9 @@ class ApiClient {
       (/^\/messages\b/.test(endpoint)) ||
       (/^\/chapters\b/.test(endpoint)) ||
       (/^\/forum\/threads\b/.test(endpoint)) ||
-      (/^\/forum\/manga\b/.test(endpoint))
+      (/^\/forum\/manga\b/.test(endpoint)) ||
+      (/^\/manga\/[\w-]+\/characters\b/.test(endpoint)) ||
+      (/^\/manga\/characters\b/.test(endpoint))
     );
   const headerUserRole = userRole || (token ? 'USER' : undefined);
 
@@ -319,6 +324,37 @@ class ApiClient {
       // Fallback to MangaService proxy
       return await this.request<ChapterDTO[]>(`/manga/${mangaId}/chapters`);
     }
+  }
+
+  async getMangaCharacters(mangaId: number): Promise<MangaCharacterDTO[]> {
+    return this.request<MangaCharacterDTO[]>(`/manga/${mangaId}/characters`);
+  }
+
+  async createMangaCharacter(mangaId: number, payload: MangaCharacterRequest): Promise<MangaCharacterDTO> {
+    return this.request<MangaCharacterDTO>(`/manga/${mangaId}/characters`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateMangaCharacter(characterId: number, payload: MangaCharacterRequest): Promise<MangaCharacterDTO> {
+    return this.request<MangaCharacterDTO>(`/manga/characters/${characterId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async moderateMangaCharacter(characterId: number, payload: MangaCharacterModerationRequest): Promise<MangaCharacterDTO> {
+    return this.request<MangaCharacterDTO>(`/manga/characters/${characterId}/moderate`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteMangaCharacter(characterId: number): Promise<void> {
+    await this.request<void>(`/manga/characters/${characterId}`, {
+      method: 'DELETE',
+    });
   }
 
   // Chapter API

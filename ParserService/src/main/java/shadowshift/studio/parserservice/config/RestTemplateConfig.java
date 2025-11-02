@@ -4,13 +4,16 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
+import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.util.Timeout;
+import org.apache.hc.core5.util.TimeValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +31,13 @@ public class RestTemplateConfig {
     
     private static final Logger logger = LoggerFactory.getLogger(RestTemplateConfig.class);
 
+    private static final Timeout CONNECT_TIMEOUT = Timeout.ofSeconds(2);
+    private static final Timeout RESPONSE_TIMEOUT = Timeout.ofSeconds(8);
+    private static final Timeout SOCKET_TIMEOUT = Timeout.ofSeconds(12);
+    private static final Timeout CONNECTION_REQUEST_TIMEOUT = Timeout.ofMilliseconds(500);
+    private static final TimeValue VALIDATE_AFTER_INACTIVITY = TimeValue.ofSeconds(5);
+    private static final TimeValue EVICT_IDLE_AFTER = TimeValue.ofSeconds(30);
+
     @Autowired
     private ProxyManagerService proxyManager;
     
@@ -35,14 +45,25 @@ public class RestTemplateConfig {
     private PoolingHttpClientConnectionManager sharedConnectionManager;
     
     @PostConstruct
+    @SuppressWarnings("deprecation")
     public void initConnectionPool() {
         logger.info("🚀 Инициализация общего Connection Pool для всех прокси...");
-        
+
     sharedConnectionManager = new PoolingHttpClientConnectionManager();
+    sharedConnectionManager.setDefaultSocketConfig(SocketConfig.custom()
+        .setSoKeepAlive(true)
+        .setTcpNoDelay(true)
+        .setSoTimeout(SOCKET_TIMEOUT)
+        .build());
+    sharedConnectionManager.setDefaultConnectionConfig(ConnectionConfig.custom()
+        .setConnectTimeout(CONNECT_TIMEOUT)
+        .setSocketTimeout(RESPONSE_TIMEOUT)
+        .build());
     sharedConnectionManager.setMaxTotal(200);          // 10 прокси × 20 соединений (запас под ~1 Gbit/s)
     sharedConnectionManager.setDefaultMaxPerRoute(20); // 20 соединений на прокси для 100 Mbit/s каналов
-        
-    logger.info("✅ Connection Pool создан: MaxTotal=200, MaxPerRoute=20 (под 10 быстрых прокси и 2 главы параллельно)");
+    sharedConnectionManager.setValidateAfterInactivity(VALIDATE_AFTER_INACTIVITY);
+
+    logger.info("✅ Connection Pool создан: MaxTotal=200, MaxPerRoute=20, validateAfter={} (под 10 быстрых прокси и 2 главы параллельно)", VALIDATE_AFTER_INACTIVITY);
     }
     
     @PreDestroy
@@ -121,6 +142,7 @@ public class RestTemplateConfig {
     /**
      * ⚡ ОПТИМИЗАЦИЯ: Создаёт HTTP клиент с общим Connection Pool
      */
+    @SuppressWarnings("deprecation")
     private CloseableHttpClient createHttpClientWithSharedPool(ProxyServer proxy) {
         if (proxy == null || proxy.getHost() == null) {
             logger.debug("Thread {}: No proxy, using direct connection with shared pool", 
@@ -148,15 +170,19 @@ public class RestTemplateConfig {
         
         // ⚡ ОПТИМИЗАЦИЯ: Агрессивные таймауты для быстрой загрузки изображений (как в Python)
         RequestConfig config = RequestConfig.custom()
-                .setConnectTimeout(Timeout.ofSeconds(2))    // 5s → 2s: прокси должны отвечать быстро
-                .setResponseTimeout(Timeout.ofSeconds(8))   // 15s → 8s: изображения небольшие
+        .setConnectTimeout(CONNECT_TIMEOUT)         // 5s → 2s: прокси должны отвечать быстро
+        .setResponseTimeout(RESPONSE_TIMEOUT)       // 15s → 8s: изображения небольшие
+        .setConnectionRequestTimeout(CONNECTION_REQUEST_TIMEOUT)
                 .setProxy(proxyHost)
                 .build();
         
         // ⚡ КРИТИЧНО: Используем ОБЩИЙ Connection Manager для всех прокси
         var httpClientBuilder = HttpClients.custom()
                 .setDefaultRequestConfig(config)
-                .setConnectionManager(sharedConnectionManager);  // ← ОБЩИЙ ПУЛ!
+        .setConnectionManager(sharedConnectionManager)   // ← ОБЩИЙ ПУЛ!
+        .setConnectionManagerShared(true)
+        .evictExpiredConnections()
+        .evictIdleConnections(EVICT_IDLE_AFTER);
         
         if (credentialsProvider != null) {
             httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
@@ -165,17 +191,22 @@ public class RestTemplateConfig {
         return httpClientBuilder.build();
     }
     
+    @SuppressWarnings("deprecation")
     private CloseableHttpClient createDirectHttpClientWithSharedPool() {
         // ⚡ ОПТИМИЗАЦИЯ: Агрессивные таймауты для быстрой загрузки (как в Python)
         RequestConfig config = RequestConfig.custom()
-                .setConnectTimeout(Timeout.ofSeconds(2))    // 5s → 2s
-                .setResponseTimeout(Timeout.ofSeconds(8))   // 15s → 8s
+        .setConnectTimeout(CONNECT_TIMEOUT)         // 5s → 2s
+        .setResponseTimeout(RESPONSE_TIMEOUT)       // 15s → 8s
+        .setConnectionRequestTimeout(CONNECTION_REQUEST_TIMEOUT)
                 .build();
         
         // ⚡ КРИТИЧНО: Используем ОБЩИЙ Connection Manager
         return HttpClients.custom()
                 .setDefaultRequestConfig(config)
-                .setConnectionManager(sharedConnectionManager)  // ← ОБЩИЙ ПУЛ!
+        .setConnectionManager(sharedConnectionManager)  // ← ОБЩИЙ ПУЛ!
+        .setConnectionManagerShared(true)
+        .evictExpiredConnections()
+        .evictIdleConnections(EVICT_IDLE_AFTER)
                 .build();
     }
 

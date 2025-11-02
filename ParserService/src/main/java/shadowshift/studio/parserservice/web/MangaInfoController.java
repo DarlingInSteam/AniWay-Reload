@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -40,12 +41,16 @@ public class MangaInfoController {
     
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private ObjectProvider<RestTemplate> restTemplateProvider;
     
     /**
      * Get chapters only (legacy endpoint for MangaService)
      * GET /manga-info/{slug}/chapters-only?parser=mangalib&include_slides_count=true
      */
     @GetMapping("/{slug}/chapters-only")
+    @SuppressWarnings("unchecked")
     public ResponseEntity<Map<String, Object>> getChaptersOnly(
             @PathVariable String slug,
             @RequestParam(required = false, defaultValue = "mangalib") String parser,
@@ -129,6 +134,7 @@ public class MangaInfoController {
      * GET /manga-info/{slug}
      */
     @GetMapping("/{slug}")
+    @SuppressWarnings("unchecked")
     public ResponseEntity<Map<String, Object>> getMangaInfo(@PathVariable String slug) {
         try {
             logger.info("Manga-info request: slug={}", slug);
@@ -177,6 +183,7 @@ public class MangaInfoController {
      * 2. Downloads from cover_url in metadata JSON (if cached not found)
      */
     @GetMapping("/cover/{slug}")
+    @SuppressWarnings("unchecked")
     public ResponseEntity<byte[]> getCover(@PathVariable String slug) {
         try {
             logger.info("Cover request: slug={}", slug);
@@ -230,7 +237,7 @@ public class MangaInfoController {
                 logger.info("Скачивание обложки с URL: {}", coverUrl);
                 
                 // Скачиваем обложку с правильными заголовками для обхода 403
-                RestTemplate restTemplate = new RestTemplate();
+                RestTemplate restTemplate = restTemplateProvider.getObject();
                 HttpHeaders requestHeaders = new HttpHeaders();
                 requestHeaders.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
                 requestHeaders.set("Referer", "https://mangalib.me/");

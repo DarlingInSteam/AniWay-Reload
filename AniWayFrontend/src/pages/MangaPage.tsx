@@ -17,6 +17,7 @@ import { ReadingProgressBar, LastReadChapter } from '../components/progress/Read
 import { ReadingButton } from '../components/reading/ReadingButton'
 import { MangaDiscussions } from '@/components/manga/MangaDiscussions'
 import { MangaMoments } from '@/components/manga/MangaMoments'
+import { MangaCharactersTab } from '@/components/manga/MangaCharactersTab'
 import { useReadingProgress } from '@/hooks/useProgress'
 import { CommentSection } from '../components/comments/CommentSection'
 import MangaReviews from '../components/MangaReviews'
@@ -1018,7 +1019,11 @@ export function MangaPage() {
                   </div>
                 )}
 
-                {['cards', 'characters', 'similar'].includes(activeTab) && (
+                {activeTab === 'characters' && (
+                  <MangaCharactersTab mangaId={mangaId} mangaTitle={manga.title} />
+                )}
+
+                {['cards', 'similar'].includes(activeTab) && (
                   <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 md:p-6 text-center border border-white/10">
                     <div className="text-muted-foreground">Раздел в разработке</div>
                   </div>

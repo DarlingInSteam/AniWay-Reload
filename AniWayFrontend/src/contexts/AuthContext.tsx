@@ -12,6 +12,7 @@ interface AuthContextType {
   setUserAvatarLocal: (avatarUrl: string) => void
   isAuthenticated: boolean
   isAdmin: boolean
+  isModerator: boolean
   isTranslator: boolean
 }
 
@@ -86,6 +87,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(prev => prev ? { ...prev, avatar: avatarUrl } : prev)
   }
 
+  const resolvedRole = (() => {
+    const role = user?.role || authService.getUserRole()
+    if (!role) return null
+    return role.toString().toUpperCase().replace(/^ROLE_/, '')
+  })()
+
+  const isAdmin = resolvedRole === 'ADMIN'
+  const isModerator = resolvedRole === 'ADMIN' || resolvedRole === 'MODERATOR'
+  const isTranslator = resolvedRole === 'TRANSLATOR' || isAdmin
+
   const value: AuthContextType = {
     user,
     loading,
@@ -95,19 +106,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     updateProfile,
     setUserAvatarLocal,
     isAuthenticated: !!user,
-    // Определяем роль сперва из загруженного пользователя, затем из токена
-    isAdmin: (() => {
-      const role = user?.role || authService.getUserRole()
-      if (!role) return false
-      const norm = role.toString().toUpperCase().replace(/^ROLE_/, '')
-      return norm === 'ADMIN'
-    })(),
-    isTranslator: (() => {
-      const role = user?.role || authService.getUserRole()
-      if (!role) return false
-      const norm = role.toString().toUpperCase().replace(/^ROLE_/, '')
-      return norm === 'TRANSLATOR' || norm === 'ADMIN'
-    })()
+    isAdmin,
+    isModerator,
+    isTranslator
   }
 
   return (

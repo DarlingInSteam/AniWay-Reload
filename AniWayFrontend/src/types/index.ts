@@ -29,6 +29,49 @@ export interface MangaRatingStats {
   ratingDistribution: number[]
 }
 
+export type MangaCharacterStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+
+export interface MangaCharacterDTO {
+  id: number
+  mangaId: number
+  namePrimary: string
+  nameSecondary?: string | null
+  description?: string | null
+  imageUrl?: string | null
+  strength?: string | null
+  affiliation?: string | null
+  gender?: string | null
+  age?: string | null
+  classification?: string | null
+  skills?: string | null
+  status: MangaCharacterStatus
+  createdBy?: number | null
+  approvedBy?: number | null
+  rejectedBy?: number | null
+  rejectionReason?: string | null
+  createdAt: string
+  updatedAt: string
+  statusUpdatedAt?: string | null
+}
+
+export interface MangaCharacterRequest {
+  namePrimary: string
+  nameSecondary?: string
+  description: string
+  imageUrl?: string
+  strength?: string
+  affiliation?: string
+  gender?: string
+  age?: string
+  classification?: string
+  skills?: string
+}
+
+export interface MangaCharacterModerationRequest {
+  status: MangaCharacterStatus
+  reason?: string
+}
+
 // Типы для глав
 export interface ChapterDTO {
   id: number
@@ -178,7 +221,7 @@ export interface User {
   displayName?: string
   avatar?: string
   bio?: string
-  role: 'USER' | 'ADMIN' | 'TRANSLATOR'
+  role: 'USER' | 'ADMIN' | 'MODERATOR' | 'TRANSLATOR'
   isEnabled: boolean
   createdAt: string
   lastLogin?: string
@@ -295,7 +338,7 @@ export interface ReadingStats {
 // Типы для поиска пользователей (админ функции)
 export interface UserSearchParams {
   query?: string
-  role?: 'USER' | 'ADMIN' | 'TRANSLATOR'
+  role?: 'USER' | 'ADMIN' | 'MODERATOR' | 'TRANSLATOR'
   page?: number
   limit?: number
   sortBy?: 'username' | 'email' | 'registrationDate' | 'lastLoginDate'
@@ -317,7 +360,7 @@ export interface AdminUserData {
   displayName: string
   avatar: string
   bio: string
-  role: 'USER' | 'ADMIN' | 'TRANSLATOR'
+  role: 'USER' | 'ADMIN' | 'MODERATOR' | 'TRANSLATOR'
   isEnabled: boolean
   createdAt: string
   lastLogin: string
@@ -336,7 +379,7 @@ export interface AdminUserData {
 
 export interface AdminUserFilter {
   status: 'all' | 'active' | 'banned'
-  role: 'all' | 'USER' | 'ADMIN' | 'TRANSLATOR'
+  role: 'all' | 'USER' | 'ADMIN' | 'MODERATOR' | 'TRANSLATOR'
   search: string
   sortBy: string
   sortOrder: 'asc' | 'desc'
