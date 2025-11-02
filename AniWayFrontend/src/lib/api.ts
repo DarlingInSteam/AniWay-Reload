@@ -1107,13 +1107,47 @@ class ApiClient {
 
   // Получить метаданные аватара пользователя (imageUrl) если есть
   async getUserAvatar(userId: number): Promise<string | null> {
-    try {
-      const res = await this.request<any>(`/images/avatars/${userId}`)
-      const url = res?.imageUrl || res?.url || res?.avatarUrl
-      return url || null
-    } catch (e) {
+    if (!Number.isFinite(userId) || userId <= 0) {
       return null
     }
+
+    const globalAny = globalThis as any
+    if (!globalAny.__avatarUrlCache) {
+      globalAny.__avatarUrlCache = new Map<number, { url: string | null; fetchedAt: number }>()
+    }
+    if (!globalAny.__avatarPromiseCache) {
+      globalAny.__avatarPromiseCache = new Map<number, Promise<string | null>>()
+    }
+
+    const cache: Map<number, { url: string | null; fetchedAt: number }> = globalAny.__avatarUrlCache
+    const inflight: Map<number, Promise<string | null>> = globalAny.__avatarPromiseCache
+    const ttlMs = 5 * 60 * 1000
+    const now = Date.now()
+    const cached = cache.get(userId)
+    if (cached && now - cached.fetchedAt < ttlMs) {
+      return cached.url
+    }
+
+    const pending = inflight.get(userId)
+    if (pending) {
+      return pending
+    }
+
+    const promise = (async (): Promise<string | null> => {
+      try {
+        const res = await this.request<any>(`/images/avatars/${userId}`)
+        const url: string | null = res?.imageUrl || res?.url || res?.avatarUrl || null
+        cache.set(userId, { url, fetchedAt: Date.now() })
+        return url
+      } catch (e) {
+        return null
+      } finally {
+        inflight.delete(userId)
+      }
+    })()
+
+    inflight.set(userId, promise)
+    return promise
   }
 
   // 7. Статистика чтения (используем существующий API)

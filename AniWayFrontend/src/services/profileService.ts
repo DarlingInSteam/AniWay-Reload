@@ -23,20 +23,22 @@ class ProfileService {
   // Получить данные профиля пользователя
   async getProfileData(userId: string): Promise<ProfileDataResponse> {
     try {
-      // Получаем данные пользователя
-      const user = await this.getUserById(userId);
+  // Получаем данные текущего пользователя (если авторизован)
+  const currentUser = await authService.getCurrentUser().catch(() => null);
 
-      // Проверяем, это собственный профиль или чужой
-      const currentUser = await authService.getCurrentUser().catch(() => null);
-      const isOwnProfile = currentUser && currentUser.id.toString() === userId;
+  // Получаем данные пользователя профиля, стараясь переиспользовать данные текущего пользователя
+  const user = await this.getUserById(userId, currentUser);
+
+  // Проверяем, это собственный профиль или чужой
+  const isOwnProfile = currentUser?.id != null && currentUser.id.toString() === userId;
 
       let bookmarks: Bookmark[] = [];
       let readingProgress: ReadingProgress[] = [];
       let readingStats: any;
 
       // Получаем данные для профиля (и своего, и чужого)
-      bookmarks = await this.getUserBookmarks(userId);
-      readingProgress = await this.getUserReadingProgress(userId);
+  bookmarks = await this.getUserBookmarks(userId, { isOwnProfile, targetUser: user });
+  readingProgress = await this.getUserReadingProgress(userId, { isOwnProfile });
       // Если публичный прогресс недоступен (401) мы получим пустой массив.
       // В этом случае используем chaptersReadCount из публичного профиля, если он есть.
       readingStats = this.calculateReadingStats(bookmarks, readingProgress, user as any);
@@ -57,19 +59,18 @@ class ProfileService {
   }
 
   // Получить пользователя по ID (исправлен под реальный API)
-  private async getUserById(userId: string): Promise<User> {
+  private async getUserById(userId: string, currentUser: User | null): Promise<User> {
     try {
-      const userIdNumber = parseInt(userId);
+      const userIdNumber = Number.parseInt(userId, 10);
+
+      if (Number.isNaN(userIdNumber)) {
+        throw new Error(`ProfileService: invalid user id ${userId}`);
+      }
 
       // Сначала проверяем, не запрашиваем ли мы текущего пользователя
-      try {
-        const currentUser = await authService.getCurrentUser();
-        if (currentUser.id.toString() === userId) {
-          console.log('ProfileService: Returning current authenticated user');
-          return currentUser;
-        }
-      } catch (currentUserError) {
-        console.log('ProfileService: Not authenticated, will try public profile');
+      if (currentUser && currentUser.id != null && currentUser.id.toString() === userId) {
+        console.log('ProfileService: Returning current authenticated user');
+        return currentUser;
       }
 
       // Для другого пользователя используем публичный API
@@ -82,26 +83,22 @@ class ProfileService {
   }
 
   // Получить закладки пользователя
-  private async getUserBookmarks(userId: string): Promise<Bookmark[]> {
+  private async getUserBookmarks(userId: string, options: { isOwnProfile: boolean; targetUser?: User | null }): Promise<Bookmark[]> {
     try {
-      // Проверяем, это собственный профиль или чужой
-      let isOwnProfile = false;
-      try {
-        const currentUser = await authService.getCurrentUser();
-        isOwnProfile = currentUser.id.toString() === userId;
-      } catch (error) {
-        // Пользователь не авторизован, используем публичные методы
-        isOwnProfile = false;
-      }
-
-      if (isOwnProfile) {
+      if (options.isOwnProfile) {
         // Для собственного профиля используем приватный API
         return await bookmarkService.getUserBookmarks();
       } else {
         // Для чужого профиля используем публичные закладки
-        const userIdNumber = parseInt(userId);
-        const user = await apiClient.getUserPublicProfile(userIdNumber);
-        return await apiClient.getUserPublicBookmarks(user.username);
+        const userIdNumber = Number.parseInt(userId, 10);
+        if (Number.isNaN(userIdNumber)) {
+          return [];
+        }
+        const targetUser = options.targetUser ?? await apiClient.getUserPublicProfile(userIdNumber);
+        if (!targetUser?.username) {
+          return [];
+        }
+        return await apiClient.getUserPublicBookmarks(targetUser.username);
       }
 
     } catch (error) {
@@ -111,24 +108,17 @@ class ProfileService {
   }
 
   // Получить прогресс чтения пользователя
-  private async getUserReadingProgress(userId: string): Promise<ReadingProgress[]> {
+  private async getUserReadingProgress(userId: string, options: { isOwnProfile: boolean }): Promise<ReadingProgress[]> {
     try {
-      // Проверяем, это собственный профиль или чужой
-      let isOwnProfile = false;
-      try {
-        const currentUser = await authService.getCurrentUser();
-        isOwnProfile = currentUser.id.toString() === userId;
-      } catch (error) {
-        // Пользователь не авторизован, используем публичные методы
-        isOwnProfile = false;
-      }
-
-      if (isOwnProfile) {
+      if (options.isOwnProfile) {
         // Для собственного профиля используем приватный API
         return await getUserProgress();
       } else {
         // Для чужого профиля используем публичный прогресс
-        const userIdNumber = parseInt(userId);
+        const userIdNumber = Number.parseInt(userId, 10);
+        if (Number.isNaN(userIdNumber)) {
+          return [];
+        }
         return await apiClient.getUserPublicProgress(userIdNumber);
       }
       

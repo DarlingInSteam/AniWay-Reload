@@ -50,27 +50,9 @@ export function MangaPage() {
   const [likedChapters, setLikedChapters] = useState<Set<number>>(new Set())
   const [likingChapters, setLikingChapters] = useState<Set<number>>(new Set())
 
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
-
-  // Удалили избыточную инвалидацию кэша при входе на страницу
-  // Это было причиной постоянных перезапросов
-
-  // Инвалидируем кэш списка манг при входе на страницу манги
-  useEffect(() => {
-    console.log('MangaPage: Invalidating manga list cache on mount')
-    queryClient.invalidateQueries({ queryKey: ['manga'] })
-    queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
-    queryClient.invalidateQueries({ queryKey: ['popular-manga'] })
-    queryClient.invalidateQueries({ queryKey: ['recent-manga'] })
-
-    // Принудительно обновляем все запросы
-    queryClient.refetchQueries({ queryKey: ['manga'] })
-    queryClient.refetchQueries({ queryKey: ['manga-catalog'] })
-    queryClient.refetchQueries({ queryKey: ['popular-manga'] })
-    queryClient.refetchQueries({ queryKey: ['recent-manga'] })
-  }, [queryClient])
 
   // Track screen size
   useEffect(() => {
@@ -91,6 +73,7 @@ export function MangaPage() {
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
+    enabled: !!mangaId && !authLoading,
   })
 
   const descriptionText = useMemo(() => (manga?.description || '').trim(), [manga?.description])
@@ -476,7 +459,7 @@ export function MangaPage() {
     return details
   }, [manga?.author, manga?.artist, manga?.releaseDate, manga?.isLicensed, manga?.engName, manga])
 
-  if (mangaLoading) {
+  if (authLoading || mangaLoading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <LoadingSpinner size="lg" />

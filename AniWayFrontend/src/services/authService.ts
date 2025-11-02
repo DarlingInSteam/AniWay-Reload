@@ -7,6 +7,23 @@ class AuthService {
   private legacyUserIdKeys = ['userID', 'currentUserId']
   private userRoleKey = 'userRole'
   private legacyUserRoleKeys = ['user_role']
+  // Cache /auth/me responses briefly to avoid spamming the gateway
+  private readonly currentUserTtlMs = 30_000
+  private currentUserCache: { user: User; expiresAt: number } | null = null
+  private currentUserPromise: Promise<User> | null = null
+
+  private invalidateCurrentUserCache(): void {
+    this.currentUserCache = null
+    this.currentUserPromise = null
+  }
+
+  private setCurrentUserCache(user: User | null, ttlMs: number = this.currentUserTtlMs): void {
+    if (user) {
+      this.currentUserCache = { user, expiresAt: Date.now() + ttlMs }
+    } else {
+      this.currentUserCache = null
+    }
+  }
 
   private normalizeUserId(value: unknown): string | null {
     if (value == null) return null
@@ -94,12 +111,14 @@ class AuthService {
 
   // Сохранить токен в localStorage
   setToken(token: string): void {
+    this.invalidateCurrentUserCache()
     localStorage.setItem(this.tokenKey, token)
     this.backfillCacheFromToken(token)
   }
 
   // Удалить токен из localStorage
   removeToken(): void {
+    this.invalidateCurrentUserCache()
     localStorage.removeItem(this.tokenKey)
     this.clearCachedUser()
   }
@@ -144,6 +163,7 @@ class AuthService {
     const authResponse: AuthResponse = await response.json()
     this.setToken(authResponse.token)
     this.cacheUser(authResponse.user)
+    this.setCurrentUserCache(authResponse.user)
     return authResponse
   }
 
@@ -216,6 +236,7 @@ class AuthService {
     if (body?.token) {
       this.setToken(body.token);
         this.cacheUser(body.user);
+      this.setCurrentUserCache(body.user)
       return { token: body.token, user: body.user } as AuthResponse;
     }
     throw new Error('Malformed response from reset perform');
@@ -290,6 +311,7 @@ class AuthService {
     const authResponse: AuthResponse = await response.json()
     this.setToken(authResponse.token)
     this.cacheUser(authResponse.user)
+    this.setCurrentUserCache(authResponse.user)
     return authResponse
   }
 
@@ -321,6 +343,7 @@ class AuthService {
     if (body?.token) {
       this.setToken(body.token)
         this.cacheUser(body.user)
+      this.setCurrentUserCache(body.user)
       return { token: body.token, user: body.user }
     }
     throw new Error('Malformed login verify response')
@@ -333,17 +356,53 @@ class AuthService {
   }
 
   // Получить текущего пользователя
-  async getCurrentUser(): Promise<User> {
-    const response = await fetch(`${this.baseUrl}/auth/me`, {
-      headers: this.getAuthHeaders()
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch user data')
+  async getCurrentUser(forceRefresh = false): Promise<User> {
+    const now = Date.now()
+    if (!forceRefresh) {
+      if (this.currentUserCache && this.currentUserCache.expiresAt > now) {
+        return this.currentUserCache.user
+      }
+      if (this.currentUserPromise) {
+        return this.currentUserPromise
+      }
+    } else {
+      this.currentUserCache = null
     }
-    const user = await response.json()
-    this.cacheUser(user)
-    return user
+
+    const fetchPromise = (async (): Promise<User> => {
+      const response = await fetch(`${this.baseUrl}/auth/me`, {
+        headers: this.getAuthHeaders()
+      })
+
+      if (!response.ok) {
+        const status = response.status
+        let details = ''
+        try {
+          details = await response.text()
+        } catch {
+          details = ''
+        }
+        this.currentUserCache = null
+        if (status === 401 || status === 403) {
+          this.clearCachedUser()
+        }
+        const suffix = details ? ` - ${details}` : ''
+        throw new Error(`Failed to fetch user data (${status})${suffix}`)
+      }
+
+      const user = await response.json()
+      this.cacheUser(user)
+      this.setCurrentUserCache(user)
+      return user
+    })()
+
+    this.currentUserPromise = fetchPromise
+
+    try {
+      return await fetchPromise
+    } finally {
+      this.currentUserPromise = null
+    }
   }
 
   // Обновить профиль пользователя
@@ -359,6 +418,7 @@ class AuthService {
     }
     const updated = await response.json()
     this.cacheUser(updated)
+    this.setCurrentUserCache(updated)
     return updated
   }
 

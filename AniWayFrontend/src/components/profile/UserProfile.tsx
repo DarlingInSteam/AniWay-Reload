@@ -111,12 +111,8 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
     visibleFriends.forEach(friend => ids.add(friend.friendUserId));
     incomingRequests.forEach(request => ids.add(request.requesterId));
     outgoingRequests.forEach(request => ids.add(request.receiverId));
-    ids.add(targetUserId);
-    if (currentUser?.id) {
-      ids.add(currentUser.id);
-    }
     return Array.from(ids);
-  }, [visibleFriends, incomingRequests, outgoingRequests, targetUserId, currentUser?.id]);
+  }, [visibleFriends, incomingRequests, outgoingRequests, targetUserId]);
 
   const miniUsers = useUserMiniBatch(userMiniIds);
 
