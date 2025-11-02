@@ -701,7 +701,8 @@ public class MangaUpdateService {
 
             logger.info("Получение метаданных глав с проверкой slides_count для slug (API формат): {}", slugForApi);
             // ✅ ИСПРАВЛЕНИЕ: Используем новый метод с проверкой slides_count
-            Map<String, Object> metadata = melonService.getChaptersMetadataWithSlidesCount(slugForApi);
+            // Force refresh so we do not rely on stale cached chapter lists on ParserService side
+            Map<String, Object> metadata = melonService.getChaptersMetadataWithSlidesCount(slugForApi, true, true);
 
             if (metadata == null || !Boolean.TRUE.equals(metadata.get("success"))) {
                 logger.warn("Первичная попытка получения метаданных для '{}' не удалась: {}",
@@ -713,7 +714,7 @@ public class MangaUpdateService {
                         slugId = resolvedId;
                         slugForApi = melonService.buildSlugForMangaLibApi(normalizedSlug, slugId);
                         logger.info("Повторно запрашиваем метаданные для '{}' с ID {}", storedSlug, slugId);
-                        metadata = melonService.getChaptersMetadataWithSlidesCount(slugForApi);
+                        metadata = melonService.getChaptersMetadataWithSlidesCount(slugForApi, true, true);
                     }
                 }
 

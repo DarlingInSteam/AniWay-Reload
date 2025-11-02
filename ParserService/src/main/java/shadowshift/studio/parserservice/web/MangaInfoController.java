@@ -52,40 +52,50 @@ public class MangaInfoController {
     @GetMapping("/{slug}/chapters-only")
     @SuppressWarnings("unchecked")
     public ResponseEntity<Map<String, Object>> getChaptersOnly(
-            @PathVariable String slug,
-            @RequestParam(required = false, defaultValue = "mangalib") String parser,
-            @RequestParam(required = false, defaultValue = "false") boolean include_slides_count) {
+        @PathVariable String slug,
+        @RequestParam(required = false, defaultValue = "mangalib") String parser,
+        @RequestParam(name = "include_slides_count", required = false, defaultValue = "false") boolean includeSlidesCount,
+        @RequestParam(name = "force_refresh", required = false, defaultValue = "false") boolean forceRefresh) {
         
         try {
-            logger.info("Chapters-only request: slug={}, parser={}, includeSlidesCount={}", 
-                slug, parser, include_slides_count);
+            logger.info("Chapters-only request: slug={}, parser={}, includeSlidesCount={}, forceRefresh={}",
+                slug, parser, includeSlidesCount, forceRefresh);
             
             // Normalize slug
             String normalizedSlug = parserService.normalizeSlug(slug);
             
             // Try to read from cached JSON first (в директории titles/)
             Path jsonPath = Paths.get(properties.getOutputPath(), "titles", normalizedSlug + ".json");
-            
+
             List<ChapterInfo> chapters;
-            
+
+            Map<String, Object> cachedPayload = null;
             if (Files.exists(jsonPath)) {
-                logger.debug("Reading chapters from cached file: {}", jsonPath);
-                Map<String, Object> cached = objectMapper.readValue(jsonPath.toFile(), Map.class);
-                chapters = parseChaptersFromCache(cached);
-            } else {
-                logger.debug("Fetching fresh chapters for slug: {}", normalizedSlug);
-                
-                // Parse manga to get chapters
-                CompletableFuture<shadowshift.studio.parserservice.dto.ParseResult> parseFuture = 
+                logger.debug("Cached JSON detected for slug {}: {}", normalizedSlug, jsonPath);
+                cachedPayload = objectMapper.readValue(jsonPath.toFile(), Map.class);
+            }
+
+            boolean mustParse = forceRefresh || cachedPayload == null;
+            if (mustParse) {
+                if (forceRefresh) {
+                    logger.debug("Force refresh enabled, requesting fresh parse for slug: {}", normalizedSlug);
+                } else {
+                    logger.debug("Cached data missing, requesting fresh parse for slug: {}", normalizedSlug);
+                }
+
+                CompletableFuture<shadowshift.studio.parserservice.dto.ParseResult> parseFuture =
                     parserService.parseManga(normalizedSlug, "mangalib");
                 shadowshift.studio.parserservice.dto.ParseResult parseResult = parseFuture.join();
-                
-                if (parseResult != null && parseResult.getChapters() != null) {
+
+                if (parseResult != null && parseResult.getChapters() != null && !parseResult.getChapters().isEmpty()) {
                     chapters = parseResult.getChapters();
                 } else {
-                    logger.warn("No chapters found for slug: {}", normalizedSlug);
-                    chapters = Collections.emptyList();
+                    logger.warn("Fresh parse did not return chapters for slug: {}, falling back to cache", normalizedSlug);
+                    chapters = cachedPayload != null ? parseChaptersFromCache(cachedPayload) : Collections.emptyList();
                 }
+            } else {
+                logger.debug("Using cached chapters for slug: {}", normalizedSlug);
+                chapters = parseChaptersFromCache(cachedPayload);
             }
             
             // Convert to legacy format
@@ -101,7 +111,7 @@ public class MangaInfoController {
                 chapterMap.put("is_paid", chapter.getIsPaid());
                 
                 // Include slides_count if requested
-                if (include_slides_count) {
+                if (includeSlidesCount) {
                     // Используем pagesCount из ChapterInfo (получено при парсинге из MangaLib)
                     Integer slidesCount = chapter.getPagesCount();
                     chapterMap.put("slides_count", slidesCount != null ? slidesCount : 0);

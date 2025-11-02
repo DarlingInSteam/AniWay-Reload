@@ -1241,11 +1241,15 @@ public class MelonIntegrationService {
      * @param includeSlidesCount Если true, включает информацию о количестве страниц
      * @return Map с метаданными глав (success, total_chapters, chapters, includes_slides_count)
      */
-    public Map<String, Object> getChaptersMetadataWithSlidesCount(String slug, boolean includeSlidesCount) {
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public Map<String, Object> getChaptersMetadataWithSlidesCount(String slug, boolean includeSlidesCount, boolean forceRefresh) {
         try {
             String url = melonServiceUrl + "/manga-info/" + slug + "/chapters-only?parser=mangalib&include_slides_count=" + includeSlidesCount;
-            
-            logger.info("Получение метаданных глав для slug: {} (include_slides_count={})", slug, includeSlidesCount);
+            if (forceRefresh) {
+                url += "&force_refresh=true";
+            }
+
+            logger.info("Получение метаданных глав для slug: {} (include_slides_count={}, force_refresh={})", slug, includeSlidesCount, forceRefresh);
             ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
             Map<String, Object> result = response.getBody();
             
@@ -1274,7 +1278,7 @@ public class MelonIntegrationService {
      * @return Map с метаданными глав включая slides_count
      */
     public Map<String, Object> getChaptersMetadataWithSlidesCount(String slug) {
-        return getChaptersMetadataWithSlidesCount(slug, true);
+        return getChaptersMetadataWithSlidesCount(slug, true, false);
     }
 
     /**
