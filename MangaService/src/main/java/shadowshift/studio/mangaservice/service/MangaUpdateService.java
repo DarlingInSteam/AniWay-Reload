@@ -1503,11 +1503,17 @@ public class MangaUpdateService {
             }
 
             int uploaded = 0;
-            int fallbackPage = 0;
-            String uploadUrl = buildImageStorageUrl("/api/storage/upload-page");
+            int fallbackPage = 1;
+            final String uploadUrlBase = buildImageStorageUrl("/api/images/chapter/" + chapterId + "/page/");
 
             for (MelonImageData imageData : images) {
-                Integer pageNumber = imageData.getPage() != null ? imageData.getPage() : fallbackPage++;
+                Integer pageNumber;
+                if (imageData.getPage() != null) {
+                    pageNumber = imageData.getPage();
+                    fallbackPage = pageNumber + 1;
+                } else {
+                    pageNumber = fallbackPage++;
+                }
                 String format = imageData.getFormat();
                 if (format == null || format.isBlank()) {
                     format = "jpg";
@@ -1528,16 +1534,14 @@ public class MangaUpdateService {
                             return filename;
                         }
                     });
-                    body.add("pageNumber", pageNumber);
-                    body.add("chapterId", chapterId);
 
                     HttpHeaders uploadHeaders = new HttpHeaders();
                     uploadHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
 
                     HttpEntity<MultiValueMap<String, Object>> uploadEntity = new HttpEntity<>(body, uploadHeaders);
 
-                    @SuppressWarnings("rawtypes")
-                    ResponseEntity<Map> uploadResponse = restTemplate.postForEntity(uploadUrl, uploadEntity, Map.class);
+                    String uploadUrl = uploadUrlBase + pageNumber;
+                    ResponseEntity<?> uploadResponse = restTemplate.postForEntity(uploadUrl, uploadEntity, Map.class);
 
                     if (uploadResponse.getStatusCode().is2xxSuccessful()) {
                         uploaded++;
