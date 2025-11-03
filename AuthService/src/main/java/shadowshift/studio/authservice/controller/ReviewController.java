@@ -13,6 +13,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 import java.util.Optional;
 
@@ -192,6 +193,14 @@ public class ReviewController {
         return ResponseEntity.ok(rating);
     }
 
+    @PostMapping("/manga/ratings/batch")
+    public ResponseEntity<List<MangaRatingDTO>> getMangaRatingsBatch(
+            @RequestBody @Valid MangaRatingsBatchRequest request
+    ) {
+        List<MangaRatingDTO> ratings = reviewService.getMangaRatings(request.getMangaIds());
+        return ResponseEntity.ok(ratings);
+    }
+
     /**
      * Получает все отзывы пользователя для профиля.
      *
@@ -288,5 +297,19 @@ public class ReviewController {
         public void setRating(Integer rating) { this.rating = rating; }
         public String getComment() { return comment; }
         public void setComment(String comment) { this.comment = comment; }
+    }
+
+    public static class MangaRatingsBatchRequest {
+        @NotNull
+        @Size(min = 1, max = 200)
+        private List<@NotNull Long> mangaIds;
+
+        public List<Long> getMangaIds() {
+            return mangaIds;
+        }
+
+        public void setMangaIds(List<Long> mangaIds) {
+            this.mangaIds = mangaIds;
+        }
     }
 }

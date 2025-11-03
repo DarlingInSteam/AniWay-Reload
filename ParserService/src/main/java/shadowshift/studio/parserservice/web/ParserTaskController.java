@@ -30,11 +30,17 @@ import shadowshift.studio.parserservice.web.dto.TaskResultDto;
 import shadowshift.studio.parserservice.web.dto.TaskStatusResponse;
 import shadowshift.studio.parserservice.web.dto.TaskSummaryResponse;
 
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
+
+import shadowshift.studio.parserservice.util.ChapterKeyUtil;
 
 @RestController
 @Validated
@@ -73,6 +79,29 @@ public class ParserTaskController {
         ParserTask task = taskService.createBuildTask(slug);
         task.setBranchId(request.getBranchId());
         task.setAutoImport(request.isAutoImport());
+        task.setBuildType(request.getType());
+
+        var chapterIdSet = Optional.ofNullable(request.getChapterIds())
+            .orElse(List.of())
+            .stream()
+            .filter(Objects::nonNull)
+            .map(String::trim)
+            .filter(value -> !value.isEmpty())
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        task.setTargetChapterIds(new ArrayList<>(chapterIdSet));
+
+        var chapterKeySet = Optional.ofNullable(request.getChapterNumbers())
+            .orElse(List.of())
+            .stream()
+            .map(entry -> ChapterKeyUtil.encode(entry.getVolume(), entry.getNumber()))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        task.setTargetChapterCompositeKeys(new ArrayList<>(chapterKeySet));
+
+        if (!chapterIdSet.isEmpty() || !chapterKeySet.isEmpty()) {
+            taskService.appendLog(task, "Partial build configured: ids=%d, numbers=%d".formatted(chapterIdSet.size(), chapterKeySet.size()));
+        }
+
         task.setMessage("Build queued (%s)".formatted(request.getType()));
         
         // Запускаем задачу асинхронно

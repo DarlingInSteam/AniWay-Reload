@@ -1,3 +1,6 @@
+import org.gradle.jvm.tasks.Jar
+import org.springframework.boot.gradle.tasks.bundling.BootJar
+
 plugins {
     java
     id("org.springframework.boot") version "3.4.0"
@@ -54,4 +57,16 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+tasks.named<Jar>("jar") {
+    // Disable plain jar to ensure Docker copy finds a single artifact
+    enabled = false
+}
+
+tasks.named<BootJar>("bootJar") {
+    // Give the bootable jar a stable name for container builds
+    archiveBaseName.set("AuthService")
+    archiveVersion.set("")
+    archiveClassifier.set("")
 }

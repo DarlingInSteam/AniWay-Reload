@@ -1,3 +1,6 @@
+import org.gradle.jvm.tasks.Jar
+import org.springframework.boot.gradle.tasks.bundling.BootJar
+
 plugins {
     java
     id("org.springframework.boot") version "3.4.0"
@@ -57,4 +60,14 @@ dependencyManagement {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+tasks.named<Jar>("jar") {
+    enabled = false
+}
+
+tasks.named<BootJar>("bootJar") {
+    archiveBaseName.set("GateWayService")
+    archiveVersion.set("")
+    archiveClassifier.set("")
 }

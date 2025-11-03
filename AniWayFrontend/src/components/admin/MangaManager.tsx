@@ -567,12 +567,12 @@ export function MangaManager() {
       {/* Список манги */}
       <Card className="glass-panel border border-white/5 shadow-xl">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle>
               Манга в системе ({mangaList.length})
             </CardTitle>
             {selectedMangaIds.size > 0 && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                 <span className="text-sm text-muted-foreground">
                   Выбрано: {selectedMangaIds.size}
                 </span>
@@ -595,7 +595,7 @@ export function MangaManager() {
             )}
           </div>
           {mangaList.length > 0 && (
-            <div className="flex items-center gap-2 pt-2">
+            <div className="flex flex-wrap items-center gap-2 pt-2">
               <Checkbox
                 id="select-all"
                 checked={selectedMangaIds.size === mangaList.length && mangaList.length > 0}
@@ -619,15 +619,7 @@ export function MangaManager() {
               <p className="text-sm">Попробуйте изменить параметры поиска</p>
             </div>
           ) : (
-            <div className="relative grid
-              grid-cols-2
-              [grid-auto-rows:auto]
-              gap-2 xs:gap-2.5 sm:gap-3 lg:gap-4 xl:gap-4.5
-              sm:[grid-template-columns:repeat(auto-fill,minmax(165px,1fr))]
-              md:[grid-template-columns:repeat(auto-fill,minmax(170px,1fr))]
-              lg:[grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]
-              xl:[grid-template-columns:repeat(auto-fill,minmax(190px,1fr))]
-              items-start justify-items-start">
+            <div className="relative grid grid-cols-3 gap-2 items-stretch md:grid-cols-4 md:gap-2.5 lg:grid-cols-5 lg:gap-3 xl:grid-cols-6 xl:gap-3.5 2xl:grid-cols-6">
               {mangaList.map((manga) => {
                 const releaseYear = manga.releaseDate ? new Date(manga.releaseDate).getFullYear() : '—'
                 const resolvedChapterCount = typeof manga.chapterCount === 'number'
@@ -645,7 +637,7 @@ export function MangaManager() {
                 ].filter(Boolean).join(' · ')
 
                 return (
-                  <div key={manga.id} className="flex w-full max-w-[190px] flex-col gap-1.5">
+                  <div key={manga.id} className="flex min-w-0 flex-col gap-1.5 h-full">
                       <div 
                         className="group relative overflow-hidden rounded-lg border border-white/10 bg-white/[0.03] shadow-lg transition-all duration-300 hover:border-primary/40 hover:shadow-primary/20 focus-within:border-primary/40 focus-within:shadow-primary/20 cursor-pointer"
                         onClick={() => toggleMangaSelection(manga.id)}
@@ -913,7 +905,7 @@ export function MangaManager() {
                   <span>Выберите мангу, чтобы управлять её главами.</span>
                 )}
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <Button
                   variant="outline"
                   size="sm"
@@ -938,12 +930,12 @@ export function MangaManager() {
 
             <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
               <GlassPanel className="border border-white/10 space-y-4 max-h-[55vh] overflow-hidden">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <h3 className="text-sm font-semibold text-white uppercase tracking-wide">Список глав</h3>
                   {isLoadingChapters ? <Loader2 className="h-4 w-4 animate-spin text-white/60" /> : null}
                 </div>
 
-                <div className="overflow-y-auto pr-1" style={{ maxHeight: '45vh' }}>
+                <div className="overflow-y-auto overflow-x-auto pr-1" style={{ maxHeight: '45vh' }}>
                   {isLoadingChapters ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 className="h-5 w-5 animate-spin text-blue-400" />
@@ -1039,7 +1031,7 @@ export function MangaManager() {
               </GlassPanel>
 
               <GlassPanel className="border border-white/10 space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h3 className="text-sm font-semibold text-white uppercase tracking-wide">
                       {chapterMode === 'create' ? 'Новая глава' : 'Редактирование главы'}

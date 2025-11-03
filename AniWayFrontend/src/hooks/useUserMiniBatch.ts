@@ -12,26 +12,27 @@ async function fetchUserMini(id: number): Promise<UserMini | null> {
   const now = Date.now()
   if (cached && now - cached.ts < TTL) return cached.data
   try {
-    // Try richer profile first
-    const profile = await apiClient.getUserProfile(id)
-    let avatar = profile.avatar
+    const pub = await apiClient.getUserPublicProfile(id)
+    let avatar = pub.avatar
     if (!avatar) {
       try { avatar = await apiClient.getUserAvatar(id) || undefined } catch { /* ignore */ }
     }
-    const u: UserMini = { id: profile.id, username: profile.username, displayName: profile.displayName || profile.username, avatar }
+    const u: UserMini = { id: pub.id, username: pub.username, displayName: pub.displayName || pub.username, avatar }
     cache.set(id, { data: u, ts: now })
     return u
   } catch {
     try {
-      const pub = await apiClient.getUserPublicProfile(id)
-      let avatar = pub.avatar
+      const profile = await apiClient.getUserProfile(id)
+      let avatar = profile.avatar
       if (!avatar) {
         try { avatar = await apiClient.getUserAvatar(id) || undefined } catch { /* ignore */ }
       }
-      const u: UserMini = { id: pub.id, username: pub.username, displayName: pub.displayName || pub.username, avatar }
+      const u: UserMini = { id: profile.id, username: profile.username, displayName: profile.displayName || profile.username, avatar }
       cache.set(id, { data: u, ts: now })
       return u
-    } catch { return null }
+    } catch {
+      return null
+    }
   }
 }
 

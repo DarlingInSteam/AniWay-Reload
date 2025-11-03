@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { Filter, ArrowUpDown, ArrowUp, ArrowDown, X, ChevronLeft, ChevronRight, Check, RotateCcw } from 'lucide-react'
+import { Filter, ArrowUpDown, ArrowUp, ArrowDown, X, Check, RotateCcw } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { MangaCardWithTooltip } from '@/components/manga'
 import { MangaCardSkeleton } from '@/components/manga/MangaCardSkeleton'
@@ -46,9 +46,9 @@ const DEFAULT_CHAPTER_RANGE: [number, number] = [0, 1000]
 const DEFAULT_RELEASE_YEAR_RANGE: [number, number] = [1990, new Date().getFullYear()]
 
 const CHIP_TONE_CLASSES: Record<'default' | 'primary' | 'warm', string> = {
-  default: 'border-white/15 bg-white/8 text-white/80 hover:bg-white/12 hover:text-white',
-  primary: 'border-primary/40 bg-primary/20 text-primary hover:bg-primary/30',
-  warm: 'border-amber-300/35 bg-amber-400/20 text-amber-200 hover:bg-amber-400/30'
+  default: 'bg-[#1c2331] text-white/80 hover:text-white hover:bg-[#232d3e]',
+  primary: 'bg-primary/18 text-primary hover:bg-primary/28 hover:text-white',
+  warm: 'bg-amber-400/15 text-amber-200 hover:bg-amber-400/25'
 }
 
 const rangesEqual = (a?: [number, number], b?: [number, number]) => {
@@ -74,6 +74,93 @@ const normalizeRange = (value: unknown): [number, number] | undefined => {
   return [first, second]
 }
 
+type RangeTuple = [number, number]
+
+interface NormalizedFilterState {
+  selectedGenres: string[]
+  selectedTags: string[]
+  mangaType: string
+  status: string
+  ageRating: RangeTuple
+  rating: RangeTuple
+  releaseYear: RangeTuple
+  chapterRange: RangeTuple
+  strictMatch: boolean
+}
+
+const arrayShallowEqual = <T,>(a: readonly T[], b: readonly T[]) => {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false
+  }
+  return true
+}
+
+const ensureRange = (value: unknown, fallback: RangeTuple): RangeTuple => {
+  const normalized = normalizeRange(value)
+  return normalized ? [...normalized] as RangeTuple : [...fallback] as RangeTuple
+}
+
+const coerceStringArray = (value?: unknown): string[] => {
+  if (!Array.isArray(value)) return []
+  return (value as unknown[]).filter((item): item is string => typeof item === 'string' && item.length > 0)
+}
+
+const normalizeFilterState = (filters?: Partial<NormalizedFilterState>): NormalizedFilterState => ({
+  selectedGenres: coerceStringArray(filters?.selectedGenres),
+  selectedTags: coerceStringArray(filters?.selectedTags),
+  mangaType: filters?.mangaType ?? '',
+  status: filters?.status ?? '',
+  ageRating: ensureRange(filters?.ageRating, DEFAULT_AGE_RATING),
+  rating: ensureRange(filters?.rating, DEFAULT_RATING_RANGE),
+  releaseYear: ensureRange(filters?.releaseYear, DEFAULT_RELEASE_YEAR_RANGE),
+  chapterRange: ensureRange(filters?.chapterRange, DEFAULT_CHAPTER_RANGE),
+  strictMatch: Boolean(filters?.strictMatch)
+})
+
+const areDraftFilterStatesEqual = (a: NormalizedFilterState, b: NormalizedFilterState) => (
+  arrayShallowEqual(a.selectedGenres, b.selectedGenres) &&
+  arrayShallowEqual(a.selectedTags, b.selectedTags) &&
+  a.mangaType === b.mangaType &&
+  a.status === b.status &&
+  rangesEqual(a.ageRating, b.ageRating) &&
+  rangesEqual(a.rating, b.rating) &&
+  rangesEqual(a.releaseYear, b.releaseYear) &&
+  rangesEqual(a.chapterRange, b.chapterRange) &&
+  a.strictMatch === b.strictMatch
+)
+
+const buildActiveFilterParams = (filters: NormalizedFilterState) => {
+  const params: Record<string, any> = {}
+  if (filters.selectedGenres.length) params.genres = [...filters.selectedGenres]
+  if (filters.selectedTags.length) params.tags = [...filters.selectedTags]
+  if (filters.mangaType) params.type = filters.mangaType
+  if (filters.status) params.status = filters.status
+  if (!rangesEqual(filters.ageRating, DEFAULT_AGE_RATING)) params.ageRating = [...filters.ageRating]
+  if (!rangesEqual(filters.rating, DEFAULT_RATING_RANGE)) params.rating = [...filters.rating]
+  if (!rangesEqual(filters.releaseYear, DEFAULT_RELEASE_YEAR_RANGE)) params.releaseYear = [...filters.releaseYear]
+  if (!rangesEqual(filters.chapterRange, DEFAULT_CHAPTER_RANGE)) params.chapterRange = [...filters.chapterRange]
+  if (filters.strictMatch) params.strictMatch = true
+  return params
+}
+
+const areActiveFilterParamsEqual = (a: Record<string, any>, b: Record<string, any>) => {
+  const keysA = Object.keys(a)
+  const keysB = Object.keys(b)
+  if (keysA.length !== keysB.length) return false
+  for (const key of keysA) {
+    if (!Object.prototype.hasOwnProperty.call(b, key)) return false
+    const valA = a[key]
+    const valB = b[key]
+    if (Array.isArray(valA) && Array.isArray(valB)) {
+      if (!arrayShallowEqual(valA, valB)) return false
+    } else if (valA !== valB) {
+      return false
+    }
+  }
+  return true
+}
+
 export function CatalogPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [showFilters, setShowFilters] = useState(false)
@@ -82,15 +169,20 @@ export function CatalogPage() {
   const initialQuery = searchParams.get('query') || ''
   const [searchInput, setSearchInput] = useState(initialQuery)
   const [searchQuery, setSearchQuery] = useState(initialQuery)
+  const resetScrollToTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [])
   // Debounce фактического применения поиска (отдельно от ввода)
   useEffect(() => {
     const h = setTimeout(() => {
       const trimmed = searchInput.trim()
       setSearchQuery(trimmed)
-      setCurrentPage(0)
+      if (trimmed !== searchQuery) {
+        resetScrollToTop()
+      }
     }, 450)
     return () => clearTimeout(h)
-  }, [searchInput])
+  }, [resetScrollToTop, searchInput, searchQuery])
 
   // Mapping сортировок поле<->лейбл
   const SORT_LABEL_BY_FIELD: Record<string,string> = {
@@ -116,18 +208,24 @@ export function CatalogPage() {
   }
   const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>(searchParams.get('dir') === 'asc' ? 'asc' : 'desc')
   const [showSortDropdown, setShowSortDropdown] = useState(false)
-  const initialPage = parseInt(searchParams.get('page') || '1', 10)
-  const [currentPage, setCurrentPage] = useState(isNaN(initialPage) || initialPage < 1 ? 0 : initialPage - 1)
-  const [pageSize] = useState(20) // Фиксированный размер страницы - 20 тайтлов на страницу
+  const PAGE_SIZE = 60
   const [sortNonce, setSortNonce] = useState(0)
   // Динамический отступ для sticky панели фильтров (чтобы не пряталась под глобальным хедером)
   const [filterOffset, setFilterOffset] = useState<number>(80) // fallback 80px
+  const [filtersMaxHeight, setFiltersMaxHeight] = useState<number>(0)
   useEffect(() => {
     const measure = () => {
       const headerEl = document.querySelector('header') as HTMLElement | null
-      const h = headerEl ? headerEl.getBoundingClientRect().height : 0
-      // Добавляем небольшой зазор (16px)
-      setFilterOffset(h + 16)
+      const headerHeight = headerEl ? headerEl.getBoundingClientRect().height : 0
+      const newOffset = headerHeight + 8
+      setFilterOffset(newOffset)
+      if (typeof window !== 'undefined') {
+        const viewportHeight = window.innerHeight || 0
+        const availableSpace = viewportHeight - newOffset - 24
+        // Keep the desktop filter panel visible while allowing its content to scroll when it overflows.
+        const cappedSpace = Math.min(Math.max(availableSpace, 320), Math.max(viewportHeight - 24, 320))
+        setFiltersMaxHeight(cappedSpace)
+      }
     }
     measure()
     window.addEventListener('resize', measure)
@@ -194,21 +292,21 @@ export function CatalogPage() {
   if (initialActiveFilters.chapterRange && rangesEqual(initialActiveFilters.chapterRange, DEFAULT_CHAPTER_RANGE)) {
     delete initialActiveFilters.chapterRange
   }
-  const [activeFilters, setActiveFilters] = useState<any>(initialActiveFilters) // Применённые фильтры (для API)
-  const [draftFilters, setDraftFilters] = useState<any>(() => ({
-    selectedGenres: initialActiveFilters.genres || [],
-    selectedTags: initialActiveFilters.tags || [],
-    mangaType: initialActiveFilters.type || '',
-    status: initialActiveFilters.status || '',
-    ageRating: initialActiveFilters.ageRating || DEFAULT_AGE_RATING,
-    rating: initialActiveFilters.rating || DEFAULT_RATING_RANGE,
-    releaseYear: initialActiveFilters.releaseYear || DEFAULT_RELEASE_YEAR_RANGE,
-    chapterRange: initialActiveFilters.chapterRange || DEFAULT_CHAPTER_RANGE,
-    strictMatch: initialActiveFilters.strictMatch || false
-  })) // Предварительные фильтры (для UI)
+  const [activeFilters, setActiveFilters] = useState<Record<string, any>>(initialActiveFilters)
+  const [draftFilters, setDraftFilters] = useState<NormalizedFilterState>(() => normalizeFilterState({
+    selectedGenres: initialActiveFilters.genres,
+    selectedTags: initialActiveFilters.tags,
+    mangaType: initialActiveFilters.type,
+    status: initialActiveFilters.status,
+    ageRating: initialActiveFilters.ageRating,
+    rating: initialActiveFilters.rating,
+    releaseYear: initialActiveFilters.releaseYear,
+    chapterRange: initialActiveFilters.chapterRange,
+    strictMatch: initialActiveFilters.strictMatch
+  }))
   // Refs & QueryClient
-  const sortDropdownRef = useRef<HTMLDivElement>(null)
   const desktopSortRef = useRef<HTMLDivElement>(null)
+  const loadMoreRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
   const genre = searchParams.get('genre') // legacy single genre (still supported)
 
@@ -216,12 +314,11 @@ export function CatalogPage() {
     genre: genre || null,
     sortField,
     sortDirection,
-    currentPage,
     activeType,
     sortNonce,
     activeFilters: JSON.stringify(activeFilters),
     searchQuery
-  }), [genre, sortField, sortDirection, currentPage, activeType, activeFilters, sortNonce, searchQuery])
+  }), [genre, sortField, sortDirection, activeType, activeFilters, sortNonce, searchQuery])
 
   const normalizeSortField = (field: string) => {
     if (!field) return 'createdat'
@@ -234,54 +331,81 @@ export function CatalogPage() {
     return map[field] || field.toLowerCase()
   }
 
-  const { data: mangaPage, isLoading, isError, refetch } = useQuery<PageResponse<MangaResponseDTO>>({
-    queryKey: ['manga-catalog', queryKeyParams],
-    queryFn: () => {
-      const sortBy = normalizeSortField(sortField)
-      const filterParams: any = { ...activeFilters }
-      if (activeType !== 'все') {
-        const typeMapping: Record<string, string> = {
-          'манга': 'MANGA',
-          'манхва': 'MANHWA',
-          'маньхуа': 'MANHUA',
-          'западный комикс': 'WESTERN_COMIC',
-          'рукомикс': 'RUSSIAN_COMIC',
-          'другое': 'OTHER'
-        }
-        filterParams.type = typeMapping[activeType] || 'MANGA'
-      } else {
-        delete filterParams.type
+  const buildFilterParams = useCallback(() => {
+    const filterParams: Record<string, any> = { ...activeFilters }
+    if (activeType !== 'все') {
+      const typeMapping: Record<string, string> = {
+        'манга': 'MANGA',
+        'манхва': 'MANHWA',
+        'маньхуа': 'MANHUA',
+        'западный комикс': 'WESTERN_COMIC',
+        'рукомикс': 'RUSSIAN_COMIC',
+        'другое': 'OTHER'
       }
-      if (genre) {
-        return apiClient.searchMangaPaged({
-          genre,
-          page: currentPage,
-          limit: pageSize,
-            sortBy,
-            sortOrder: sortDirection,
-          ...filterParams
-        })
-      }
-      if (searchQuery) {
-        return apiClient.searchMangaPaged({
-          query: searchQuery,
-          page: currentPage,
-          limit: pageSize,
-          sortBy,
-          sortOrder: sortDirection,
-          ...filterParams
-        })
-      }
-      return apiClient.getAllMangaPaged(currentPage, pageSize, sortBy, sortDirection, filterParams)
-    },
+      filterParams.type = typeMapping[activeType] || 'MANGA'
+    } else {
+      delete filterParams.type
+    }
+    return filterParams
+  }, [activeFilters, activeType])
 
+  const fetchPage = useCallback((pageParam: number) => {
+    const sortBy = normalizeSortField(sortField)
+    const filterParams = buildFilterParams()
+
+    if (genre) {
+      return apiClient.searchMangaPaged({
+        genre,
+        page: pageParam,
+        limit: PAGE_SIZE,
+        sortBy,
+        sortOrder: sortDirection,
+        ...filterParams
+      })
+    }
+
+    if (searchQuery) {
+      return apiClient.searchMangaPaged({
+        query: searchQuery,
+        page: pageParam,
+        limit: PAGE_SIZE,
+        sortBy,
+        sortOrder: sortDirection,
+        ...filterParams
+      })
+    }
+
+    return apiClient.getAllMangaPaged(pageParam, PAGE_SIZE, sortBy, sortDirection, filterParams)
+  }, [PAGE_SIZE, buildFilterParams, genre, searchQuery, sortDirection, sortField])
+
+  const {
+    data: mangaPages,
+    isLoading,
+    isError,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage
+  } = useInfiniteQuery<PageResponse<MangaResponseDTO>>({
+    queryKey: ['manga-catalog', queryKeyParams],
+  queryFn: ({ pageParam = 0 }) => fetchPage(pageParam as number),
+    getNextPageParam: (lastPage) => {
+      if (!lastPage || lastPage.last) {
+        return undefined
+      }
+      const nextPage = typeof lastPage.page === 'number' ? lastPage.page + 1 : undefined
+      if (nextPage !== undefined && nextPage < (lastPage.totalPages ?? Number.MAX_SAFE_INTEGER)) {
+        return nextPage
+      }
+      return undefined
+    },
+    initialPageParam: 0,
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
     refetchOnMount: false
   })
 
-  // Данные
-  let manga = mangaPage?.content ?? []
+  const allPages = mangaPages?.pages ?? []
   const getComparable = (obj: any, field: string) => {
     if (!obj) return 0
     switch(field) {
@@ -308,33 +432,66 @@ export function CatalogPage() {
         return typeof obj[field] === 'number' ? obj[field] : 0
     }
   }
-  try {
-    if (manga.length > 1 && sortField) {
+
+  const combinedManga = useMemo(() => {
+    if (!allPages.length) {
+      return [] as MangaResponseDTO[]
+    }
+    const items = allPages.flatMap(page => page?.content ?? []) as MangaResponseDTO[]
+    if (items.length <= 1 || !sortField) {
+      return items
+    }
+    try {
       const primaryField = sortField
       const direction = sortDirection === 'desc' ? -1 : 1
-      const needTieBreak = manga.some((m,i,arr) => i>0 && getComparable(arr[i-1], primaryField) === getComparable(m, primaryField))
-      if (needTieBreak) {
-        manga = [...manga].sort((a,b) => {
-          const av = getComparable(a, primaryField)
-          const bv = getComparable(b, primaryField)
-          if (av < bv) return -1 * direction
-          if (av > bv) return 1 * direction
-          const ac = a.createdAt ? new Date(a.createdAt).getTime() : 0
-          const bc = b.createdAt ? new Date(b.createdAt).getTime() : 0
-          if (ac !== bc) return bc - ac
-          if (a.id < b.id) return 1
-          if (a.id > b.id) return -1
-          return 0
-        })
+      const needTieBreak = items.some((m: MangaResponseDTO, index: number, arr: MangaResponseDTO[]) =>
+        index > 0 && getComparable(arr[index - 1], primaryField) === getComparable(m, primaryField)
+      )
+      if (!needTieBreak) {
+        return items
       }
+      return [...items].sort((a, b) => {
+        const av = getComparable(a, primaryField)
+        const bv = getComparable(b, primaryField)
+        if (av < bv) return -1 * direction
+        if (av > bv) return 1 * direction
+        const ac = a.createdAt ? new Date(a.createdAt).getTime() : 0
+        const bc = b.createdAt ? new Date(b.createdAt).getTime() : 0
+        if (ac !== bc) return bc - ac
+        if (a.id < b.id) return 1
+        if (a.id > b.id) return -1
+        return 0
+      })
+    } catch (error) {
+      console.warn('Frontend tie-break sort failed:', error)
+      return items
     }
-  } catch (e) {
-    console.warn('Frontend tie-break sort failed:', e)
-  }
-  const totalElements = mangaPage?.totalElements ?? 0
-  const totalPages = mangaPage?.totalPages ?? 1
-  const isFirst = mangaPage?.first ?? true
-  const isLast = mangaPage?.last ?? true
+  }, [allPages, sortField, sortDirection])
+
+  const manga = combinedManga
+  const totalElements = allPages.length > 0
+    ? allPages[0]?.totalElements ?? manga.length
+    : manga.length
+  const isInitialLoading = isLoading && allPages.length === 0
+
+  useEffect(() => {
+    const node = loadMoreRef.current
+    if (!node) {
+      return
+    }
+    const observer = new IntersectionObserver((entries) => {
+      const entry = entries[0]
+      if (entry?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+        fetchNextPage()
+      }
+    }, { rootMargin: '300px 0px' })
+
+    observer.observe(node)
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage])
 
   // getSortByField не требуется — используем непосредственный sortField
 
@@ -375,16 +532,15 @@ export function CatalogPage() {
       }
       setDraftFilters(nextDraft)
       setActiveFilters(nextActive)
-      setCurrentPage(0)
+      resetScrollToTop()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams])
+  }, [resetScrollToTop, searchParams])
 
   // Синхронизация состояния с URL (без циклических обновлений) – WRITER effect (runs after state changes)
   useEffect(() => {
     const params: Record<string,string> = {}
     if (genre) params.genre = genre
-    params.page = String(currentPage + 1)
   params.sortField = sortField
     if (sortDirection !== 'desc') params.dir = sortDirection
     if (activeType && activeType !== 'все') params.activeType = activeType
@@ -419,128 +575,49 @@ export function CatalogPage() {
       }
     })
     if (changed) setSearchParams(current, { replace: true })
-  }, [currentPage, sortField, sortDirection, activeType, activeFilters, genre, sortNonce, searchQuery, setSearchParams])
+  }, [sortField, sortDirection, activeType, activeFilters, genre, sortNonce, searchQuery, setSearchParams])
 
   // Обработчики фильтров
-  const memoizedFilterState = useMemo(() => {
-    const filterState = {
-      selectedGenres: draftFilters.selectedGenres || [],
-      selectedTags: draftFilters.selectedTags || [],
-      mangaType: draftFilters.mangaType || '',
-      status: draftFilters.status || '',
-      ageRating: draftFilters.ageRating || [0, 21],
-      rating: draftFilters.rating || [0, 10],
-      releaseYear: draftFilters.releaseYear || [1990, new Date().getFullYear()],
-      chapterRange: draftFilters.chapterRange || [0, 1000],
-      strictMatch: draftFilters.strictMatch || false
-    }
-    return filterState
-  }, [
-    JSON.stringify(draftFilters.selectedGenres || []),
-    JSON.stringify(draftFilters.selectedTags || []),
-    draftFilters.mangaType,
-    draftFilters.status,
-    JSON.stringify(draftFilters.ageRating || [0, 21]),
-    JSON.stringify(draftFilters.rating || [0, 10]),
-    JSON.stringify(draftFilters.releaseYear || [1990, new Date().getFullYear()]),
-    JSON.stringify(draftFilters.chapterRange || [0, 1000]),
-    draftFilters.strictMatch
-  ])
+  const memoizedFilterState = useMemo(() => ({
+    selectedGenres: [...draftFilters.selectedGenres],
+    selectedTags: [...draftFilters.selectedTags],
+    mangaType: draftFilters.mangaType,
+    status: draftFilters.status,
+    ageRating: [...draftFilters.ageRating] as RangeTuple,
+    rating: [...draftFilters.rating] as RangeTuple,
+    releaseYear: [...draftFilters.releaseYear] as RangeTuple,
+    chapterRange: [...draftFilters.chapterRange] as RangeTuple,
+    strictMatch: draftFilters.strictMatch
+  }), [draftFilters])
 
-  const convertActiveFiltersToFilterState = (activeFilters: any) => {
-    const filterState = {
-      selectedGenres: activeFilters.genres || [],
-      selectedTags: activeFilters.tags || [],
-      mangaType: activeFilters.type || '',
-      status: activeFilters.status || '',
-      ageRating: activeFilters.ageRating || [0, 21],
-      rating: activeFilters.rating || [0, 10],
-      releaseYear: activeFilters.releaseYear || [1990, new Date().getFullYear()],
-      chapterRange: activeFilters.chapterRange || [0, 1000],
-      strictMatch: activeFilters.strictMatch || false
-    }
-    // Debug removed
-    return filterState
-  }
+  const applyFilterState = useCallback((nextFilters: Partial<NormalizedFilterState>) => {
+    const normalized = normalizeFilterState(nextFilters)
+    const draftChanged = !areDraftFilterStatesEqual(draftFilters, normalized)
+    const nextActive = buildActiveFilterParams(normalized)
+    const activeChanged = !areActiveFilterParamsEqual(activeFilters, nextActive)
 
-  // Обработка изменений в предварительных фильтрах (не применяем сразу)
-  const handleFiltersChange = (filters: any) => {
-  // Debug removed
-    setDraftFilters(filters)
-  }
-
-  // Функция применения фильтров (вызывается кнопкой "Применить")
-  const applyFilters = () => {
-  // Debug removed
-    
-    // Преобразуем FilterState в SearchParams формат
-    const searchParams: any = {}
-    
-    if (draftFilters.selectedGenres?.length > 0) {
-  // Debug removed
-      searchParams.genres = draftFilters.selectedGenres
-    }
-    
-    if (draftFilters.selectedTags?.length > 0) {
-  // Debug removed
-      searchParams.tags = draftFilters.selectedTags
-    }
-    
-    if (draftFilters.mangaType && draftFilters.mangaType !== '') {
-      searchParams.type = draftFilters.mangaType
-    }
-    
-    if (draftFilters.status && draftFilters.status !== '') {
-      searchParams.status = draftFilters.status
-    }
-    
-    if (draftFilters.ageRating && !rangesEqual(draftFilters.ageRating, DEFAULT_AGE_RATING)) {
-      searchParams.ageRating = draftFilters.ageRating
-    }
-    
-    if (draftFilters.rating && !rangesEqual(draftFilters.rating, DEFAULT_RATING_RANGE)) {
-      searchParams.rating = draftFilters.rating
-    }
-    
-    if (draftFilters.releaseYear && !rangesEqual(draftFilters.releaseYear, DEFAULT_RELEASE_YEAR_RANGE)) {
-      searchParams.releaseYear = draftFilters.releaseYear
-    }
-    
-    if (draftFilters.chapterRange && !rangesEqual(draftFilters.chapterRange, DEFAULT_CHAPTER_RANGE)) {
-      searchParams.chapterRange = draftFilters.chapterRange
-    }
-    if (draftFilters.strictMatch) {
-      searchParams.strictMatch = true
+    if (draftChanged) {
+      setDraftFilters(normalized)
     }
 
-  // Debug removed
-    setActiveFilters(searchParams)
-    setCurrentPage(0) // Сбрасываем на первую страницу при изменении фильтров
-  }
+    if (activeChanged) {
+      setActiveFilters(nextActive)
+    }
 
-  // Функция сброса фильтров
-  const resetFilters = () => {
-  // Debug removed
-    setDraftFilters({
-      selectedGenres: [],
-      selectedTags: [],
-      mangaType: '',
-      status: '',
-      ageRating: DEFAULT_AGE_RATING,
-      rating: DEFAULT_RATING_RANGE,
-      releaseYear: DEFAULT_RELEASE_YEAR_RANGE,
-      chapterRange: DEFAULT_CHAPTER_RANGE,
-      strictMatch: false
-    })
-    setActiveFilters({})
-    setCurrentPage(0)
-  }
+    if (draftChanged || activeChanged) {
+      resetScrollToTop()
+    }
+  }, [activeFilters, draftFilters, resetScrollToTop, setActiveFilters, setDraftFilters])
+
+  const handleFiltersChange = useCallback((filters: Partial<NormalizedFilterState>) => {
+    applyFilterState(filters)
+  }, [applyFilterState])
 
   // Обработчик быстрых фильтров
   const handleActiveTypeChange = (type: string) => {
   // Debug removed
     setActiveType(type)
-    setCurrentPage(0) // Сбрасываем на первую страницу при изменении типа
+    resetScrollToTop()
   }
 
   // Функция для отладки изменений activeFilters
@@ -559,7 +636,7 @@ export function CatalogPage() {
       setSortField(newField)
     }
     setShowSortDropdown(false)
-    setCurrentPage(0) // Сбрасываем на первую страницу при изменении сортировки
+    resetScrollToTop()
     queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
   }
 
@@ -573,7 +650,7 @@ export function CatalogPage() {
       setSortDirection(direction)
     }
     setShowSortDropdown(false)
-    setCurrentPage(0) // Сбрасываем на первую страницу при изменении направления
+    resetScrollToTop()
     queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
   }
 
@@ -582,38 +659,11 @@ export function CatalogPage() {
     setSortField(defaultSortField)
     setSortDirection('desc')
     setSortNonce(n=>n+1)
-    setCurrentPage(0)
+    resetScrollToTop()
     queryClient.invalidateQueries({ queryKey: ['manga-catalog'] })
   }
 
   // Функции навигации по страницам
-  const goToPage = (page: number) => {
-    setCurrentPage(page)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-
-  const goToNextPage = () => {
-    if (!isLast) {
-      goToPage(currentPage + 1)
-    }
-  }
-
-  const goToPreviousPage = () => {
-    if (!isFirst) {
-      goToPage(currentPage - 1)
-    }
-  }
-
-  const goToFirstPage = () => {
-    goToPage(0)
-  }
-
-  const goToLastPage = () => {
-    if (totalPages > 0) {
-      goToPage(totalPages - 1)
-    }
-  }
-
   const pageTitle = genre ? `Жанр: ${genre}` : 'Каталог'
 
   // Removed active sorting diagnostic effect
@@ -639,180 +689,74 @@ export function CatalogPage() {
   }, [showSortDropdown])
 
   const clearAllFilters = () => {
-    setActiveFilters({})
-    setDraftFilters({
-      selectedGenres: [],
-      selectedTags: [],
-      mangaType: '',
-      status: '',
-      ageRating: DEFAULT_AGE_RATING,
-      rating: DEFAULT_RATING_RANGE,
-      releaseYear: DEFAULT_RELEASE_YEAR_RANGE,
-      chapterRange: DEFAULT_CHAPTER_RANGE,
-      strictMatch: false
-    })
+    applyFilterState({})
     setActiveType('все')
     setSearchInput('')
     setSearchQuery('')
-    setCurrentPage(0)
+    resetScrollToTop()
   }
 
   const removeFilterChip = useCallback((category: ChipCategory, value?: string) => {
     if (category === 'search') {
       setSearchInput('')
       setSearchQuery('')
-      setCurrentPage(0)
+      resetScrollToTop()
       return
     }
 
-  setActiveFilters((prev: any) => {
-      const next: any = { ...prev }
-      let changed = false
-
-      const removeArrayValue = (key: 'genres' | 'tags', target?: string) => {
-        if (!target) return
-        const current = Array.isArray(next[key]) ? (next[key] as string[]).filter(item => item !== target) : []
-        if (current.length > 0) {
-          next[key] = current
-        } else {
-          delete next[key]
-        }
-        changed = true
-      }
-
-      switch (category) {
-        case 'genre':
-          removeArrayValue('genres', value)
-          break
-        case 'tag':
-          removeArrayValue('tags', value)
-          break
-        case 'type':
-          if (next.type) {
-            delete next.type
-            changed = true
-          }
-          break
-        case 'activeType':
-          break
-        case 'status':
-          if (next.status) {
-            delete next.status
-            changed = true
-          }
-          break
-        case 'ageRating':
-          if (next.ageRating) {
-            delete next.ageRating
-            changed = true
-          }
-          break
-        case 'rating':
-          if (next.rating) {
-            delete next.rating
-            changed = true
-          }
-          break
-        case 'releaseYear':
-          if (next.releaseYear) {
-            delete next.releaseYear
-            changed = true
-          }
-          break
-        case 'chapterRange':
-          if (next.chapterRange) {
-            delete next.chapterRange
-            changed = true
-          }
-          break
-        case 'strict':
-          if (next.strictMatch) {
-            delete next.strictMatch
-            changed = true
-          }
-          break
-      }
-
-      return changed ? next : prev
-    })
-
-  setDraftFilters((prev: any) => {
-      const next: any = { ...prev }
-      let changed = false
-
-      const removeDraftArrayValue = (key: 'selectedGenres' | 'selectedTags', target?: string) => {
-        if (!target) return
-        const current = Array.isArray(next[key]) ? (next[key] as string[]).filter(item => item !== target) : []
-        if (current.length > 0) {
-          next[key] = current
-        } else {
-          delete next[key]
-        }
-        changed = true
-      }
-
-      switch (category) {
-        case 'genre':
-          removeDraftArrayValue('selectedGenres', value)
-          break
-        case 'tag':
-          removeDraftArrayValue('selectedTags', value)
-          break
-        case 'type':
-          if (next.mangaType) {
-            next.mangaType = ''
-            changed = true
-          }
-          break
-        case 'activeType':
-          break
-        case 'status':
-          if (next.status) {
-            next.status = ''
-            changed = true
-          }
-          break
-        case 'ageRating':
-          if (next.ageRating) {
-            next.ageRating = DEFAULT_AGE_RATING
-            changed = true
-          }
-          break
-        case 'rating':
-          if (next.rating) {
-            next.rating = DEFAULT_RATING_RANGE
-            changed = true
-          }
-          break
-        case 'releaseYear':
-          if (next.releaseYear) {
-            next.releaseYear = DEFAULT_RELEASE_YEAR_RANGE
-            changed = true
-          }
-          break
-        case 'chapterRange':
-          if (next.chapterRange) {
-            next.chapterRange = DEFAULT_CHAPTER_RANGE
-            changed = true
-          }
-          break
-        case 'strict':
-          if (next.strictMatch) {
-            next.strictMatch = false
-            changed = true
-          }
-          break
-      }
-
-      return changed ? next : prev
-    })
-
     if (category === 'activeType') {
       setActiveType('все')
+      resetScrollToTop()
+      return
     }
 
-    setCurrentPage(0)
-  }, [setActiveFilters, setDraftFilters, setActiveType, setSearchInput, setSearchQuery])
+    const nextDraft: NormalizedFilterState = {
+      ...draftFilters,
+      selectedGenres: [...draftFilters.selectedGenres],
+      selectedTags: [...draftFilters.selectedTags],
+      ageRating: [...draftFilters.ageRating] as RangeTuple,
+      rating: [...draftFilters.rating] as RangeTuple,
+      releaseYear: [...draftFilters.releaseYear] as RangeTuple,
+      chapterRange: [...draftFilters.chapterRange] as RangeTuple
+    }
+
+    switch (category) {
+      case 'genre':
+        if (value) {
+          nextDraft.selectedGenres = nextDraft.selectedGenres.filter(item => item !== value)
+        }
+        break
+      case 'tag':
+        if (value) {
+          nextDraft.selectedTags = nextDraft.selectedTags.filter(item => item !== value)
+        }
+        break
+      case 'type':
+        nextDraft.mangaType = ''
+        break
+      case 'status':
+        nextDraft.status = ''
+        break
+      case 'ageRating':
+        nextDraft.ageRating = [...DEFAULT_AGE_RATING] as RangeTuple
+        break
+      case 'rating':
+        nextDraft.rating = [...DEFAULT_RATING_RANGE] as RangeTuple
+        break
+      case 'releaseYear':
+        nextDraft.releaseYear = [...DEFAULT_RELEASE_YEAR_RANGE] as RangeTuple
+        break
+      case 'chapterRange':
+        nextDraft.chapterRange = [...DEFAULT_CHAPTER_RANGE] as RangeTuple
+        break
+      case 'strict':
+        nextDraft.strictMatch = false
+        break
+    }
+
+    applyFilterState(nextDraft)
+    resetScrollToTop()
+  }, [applyFilterState, draftFilters, resetScrollToTop, setActiveType, setSearchInput, setSearchQuery])
 
   const activeChips = useMemo<ActiveChip[]>(() => {
     const chips: ActiveChip[] = []
@@ -953,8 +897,6 @@ export function CatalogPage() {
             <MangaFilterPanel
               initialFilters={memoizedFilterState}
               onFiltersChange={handleFiltersChange}
-              onReset={resetFilters}
-              onApply={() => { applyFilters(); setShowFilters(false) }}
               className="h-full"
               appearance="mobile"
             />
@@ -974,7 +916,7 @@ export function CatalogPage() {
         <div className="flex gap-8">
           {/* Левая колонка: каталог */}
             <div className="flex-1 min-w-0">
-              <div className="glass-panel space-y-5 p-4 lg:p-5">
+              <div className="space-y-4 px-0 md:pl-8">
                 {/* Заголовок + поиск + сортировка */}
                 <div className="flex flex-col gap-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -986,7 +928,7 @@ export function CatalogPage() {
                         </div>
                         <input value={searchInput} onChange={e=>setSearchInput(e.target.value)} placeholder="Поиск по названию" className="w-full h-10 pl-10 pr-10 rounded-xl bg-white/5 border border-white/10 focus:border-primary/40 focus:ring-2 focus:ring-primary/30 outline-none text-sm text-foreground placeholder:text-muted-foreground/60 transition antialiased" />
                         {searchInput && (
-                          <button onClick={()=>{setSearchInput('');setSearchQuery('');setCurrentPage(0)}} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-white/10" aria-label="Очистить поиск">
+                          <button onClick={()=>{setSearchInput('');setSearchQuery('');resetScrollToTop()}} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-white/10" aria-label="Очистить поиск">
                             <X className="h-4 w-4" />
                           </button>
                         )}
@@ -1021,7 +963,7 @@ export function CatalogPage() {
                 </div>
 
                 {activeChips.length > 0 && (
-                  <div className="glass-inline flex flex-wrap items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-3 py-3">
+                  <div className="flex flex-wrap items-center gap-2 px-1 py-2">
                     {activeChips.map(chip => (
                       <button
                         key={chip.key}
@@ -1039,15 +981,13 @@ export function CatalogPage() {
                     ))}
                     <button
                       onClick={clearAllFilters}
-                      className="inline-flex items-center gap-2 rounded-full border border-white/15 px-3 py-1.5 text-[11px] text-muted-foreground transition hover:bg-white/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 antialiased"
+                      className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 antialiased"
                     >
                       <RotateCcw className="h-3 w-3" />
                       Сбросить все
                     </button>
                   </div>
                 )}
-
-                <div className="border-t border-white/10 pt-4" />
 
                 {/* Сетка карточек */}
                 <ErrorBoundary fallback={
@@ -1066,19 +1006,18 @@ export function CatalogPage() {
                     <ErrorState onRetry={() => refetch()} />
                   ) : (
                     <div className="relative grid
-                      grid-cols-2
+                      grid-cols-3
                       [grid-auto-rows:auto]
-                      gap-2.5 xs:gap-3 sm:gap-4 lg:gap-5 xl:gap-6
-                      sm:[grid-template-columns:repeat(auto-fill,minmax(170px,1fr))]
-                      md:[grid-template-columns:repeat(auto-fill,minmax(175px,1fr))]
-                      lg:[grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]
-                      xl:[grid-template-columns:repeat(auto-fill,minmax(185px,1fr))]
-                      2xl:[grid-template-columns:repeat(auto-fill,minmax(190px,1fr))]
-                      items-start place-content-start justify-items-start animate-fade-in max-w-[1400px]">
-                      {isLoading && manga.length === 0 && Array.from({ length: pageSize }).map((_, i) => (
+                      gap-2 sm:gap-2.5 md:gap-3 lg:gap-3.5 xl:gap-4
+                      md:grid-cols-4
+                      lg:grid-cols-5
+                      xl:grid-cols-6
+                      2xl:grid-cols-6
+                      items-start place-content-start justify-items-stretch animate-fade-in max-w-[1400px] w-full">
+                      {isInitialLoading && manga.length === 0 && Array.from({ length: PAGE_SIZE }).map((_, i) => (
                         <MangaCardSkeleton key={i} />
                       ))}
-                      {!isLoading && manga.length === 0 && (
+                      {!isInitialLoading && manga.length === 0 && (
                         <div className="col-span-full">
                           <EmptyState onReset={clearAllFilters} />
                         </div>
@@ -1086,110 +1025,50 @@ export function CatalogPage() {
                       {manga.length > 0 && manga.map((item: MangaResponseDTO) => (
                         <MangaCardWithTooltip key={item.id} manga={item} />
                       ))}
-                      {isLoading && manga.length > 0 && (
-                        <div className="absolute inset-0 bg-background/40 backdrop-blur-[2px] pointer-events-none" aria-hidden />
-                      )}
+                      {isFetchingNextPage && hasNextPage && Array.from({ length: Math.min(12, PAGE_SIZE) }).map((_, index) => (
+                        <MangaCardSkeleton key={`next-skeleton-${index}`} />
+                      ))}
                     </div>
                   )}
                 </ErrorBoundary>
 
-                {/* Пагинация */}
-                {totalPages > 1 && (
-                  <div className="flex flex-col items-center gap-4 mt-8 mb-2">
-                    <div className="text-sm text-muted-foreground">
-                      Показано {manga?.length || 0} из {totalElements} произведений
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap justify-center">
-                      <button
-                        onClick={goToFirstPage}
-                        disabled={currentPage === 0}
-                        className={cn(
-                          'hidden sm:flex items-center gap-1 px-3 py-2 min-h-[44px] min-w-[44px] rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-                          currentPage === 0
-                            ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
-                            : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
-                        )}
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                        <ChevronLeft className="h-4 w-4 -ml-2" />
-                      </button>
-                      <button
-                        onClick={goToPreviousPage}
-                        disabled={currentPage === 0}
-                        className={cn(
-                          'flex items-center gap-1 px-3 py-2 min-h-[44px] min-w-[44px] rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-                          currentPage === 0
-                            ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
-                            : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
-                        )}
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                        Предыдущая
-                      </button>
-                      <div className="flex items-center gap-1">
-                        {totalPages > 0 && Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                          const pageNum = Math.max(0, Math.min(totalPages - 5, currentPage - 2)) + i
-                          if (pageNum >= totalPages) return null
-                          return (
-                            <button
-                              key={pageNum}
-                              onClick={() => goToPage(pageNum)}
-                              className={cn(
-                                  'px-3 py-2 min-h-[44px] min-w-[44px] rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-                                currentPage === pageNum
-                                  ? 'bg-primary/20 text-primary border-primary/30 shadow-lg shadow-primary/20'
-                                  : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
-                              )}
-                            >
-                              {pageNum + 1}
-                            </button>
-                          )
-                        })}
-                      </div>
-                      <button
-                        onClick={goToNextPage}
-                        disabled={!totalPages || currentPage >= totalPages - 1}
-                        className={cn(
-                          'flex items-center gap-1 px-3 py-2 min-h-[44px] min-w-[44px] rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-                          !totalPages || currentPage >= totalPages - 1
-                            ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
-                            : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
-                        )}
-                      >
-                        Следующая
-                        <ChevronRight className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={goToLastPage}
-                        disabled={!totalPages || currentPage >= totalPages - 1}
-                        className={cn(
-                          'hidden sm:flex items-center gap-1 px-3 py-2 min-h-[44px] min-w-[44px] rounded-lg text-sm font-medium transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-                          !totalPages || currentPage >= totalPages - 1
-                            ? 'bg-white/5 text-muted-foreground border-white/10 cursor-not-allowed'
-                            : 'bg-white/10 text-white border-white/20 hover:bg-white/15 hover:border-white/30'
-                        )}
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                        <ChevronRight className="h-4 w-4 -ml-2" />
-                      </button>
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      Страница {currentPage + 1} из {totalPages}
+                <div className="flex flex-col items-center gap-4 mt-8 mb-6">
+                  <div className="text-sm text-muted-foreground">
+                    Показано {manga.length} из {totalElements} произведений
+                  </div>
+                  <div className="w-full flex justify-center">
+                    <div
+                      ref={loadMoreRef}
+                      className="flex h-16 items-center justify-center px-4 text-sm text-muted-foreground"
+                    >
+                      {isFetchingNextPage ? (
+                        <div className="flex items-center gap-2 text-foreground">
+                          <LoadingSpinner className="h-4 w-4" />
+                          <span>Загрузка ещё...</span>
+                        </div>
+                      ) : hasNextPage ? (
+                        <span>Прокрутите ниже, чтобы загрузить больше</span>
+                      ) : (
+                        <span>Вы увидели все результаты</span>
+                      )}
                     </div>
                   </div>
-                )}
+                </div>
               </div>
             </div>
           {/* Правая колонка: фильтры */}
           <div className="hidden lg:block w-80 flex-shrink-0">
             <div className="sticky" style={{ top: filterOffset }}>
-              <MangaFilterPanel
-                initialFilters={memoizedFilterState}
-                onFiltersChange={handleFiltersChange}
-                onReset={resetFilters}
-                onApply={applyFilters}
-                appearance="desktop"
-              />
+              <div
+                className="max-h-full overflow-y-auto"
+                style={filtersMaxHeight ? { maxHeight: `${filtersMaxHeight}px`, scrollbarWidth: 'thin' as React.CSSProperties['scrollbarWidth'] } : undefined}
+              >
+                <MangaFilterPanel
+                  initialFilters={memoizedFilterState}
+                  onFiltersChange={handleFiltersChange}
+                  appearance="desktop"
+                />
+              </div>
             </div>
           </div>
         </div>

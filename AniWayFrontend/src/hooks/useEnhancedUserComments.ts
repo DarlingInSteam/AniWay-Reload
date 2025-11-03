@@ -135,6 +135,21 @@ export function useEnhancedUserComments(userId: number, limit = 5) {
                         };
                       }
                       break;
+
+                    case 'MOMENT':
+                      try {
+                        const moment = await apiClient.getMomentById(comment.targetId);
+                        targetInfo = {
+                          title: moment.caption || `Момент #${comment.targetId}`,
+                          subtitle: moment.mangaId ? `Манга #${moment.mangaId}` : undefined
+                        };
+                      } catch (error) {
+                        console.warn(`Failed to fetch moment ${comment.targetId}:`, error);
+                        targetInfo = {
+                          title: `Момент #${comment.targetId}`
+                        };
+                      }
+                      break;
                       
                     default:
                       targetInfo = {

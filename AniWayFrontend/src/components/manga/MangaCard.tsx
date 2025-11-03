@@ -99,7 +99,7 @@ const MangaCardComponent = ({ manga, size = 'default', showMetadata = true }: Ma
   }, [bookmarkInfo])
 
   return (
-    <div className="group flex flex-col space-y-2 md:space-y-3 w-full transition-transform duration-300 will-change-transform hover:md:-translate-y-1 hover:lg:-translate-y-1 motion-reduce:transform-none">
+    <div className="group flex flex-col space-y-1.5 md:space-y-2.5 w-full transition-transform duration-300 will-change-transform hover:md:-translate-y-1 hover:lg:-translate-y-1 motion-reduce:transform-none">
       {/* Cover Image Card */}
       <Link
         to={`/manga/${manga.id}`}
@@ -121,7 +121,7 @@ const MangaCardComponent = ({ manga, size = 'default', showMetadata = true }: Ma
             loading="lazy"
             decoding="async"
             style={{ imageRendering: 'crisp-edges' }}
-            sizes="(max-width: 480px) 45vw, (max-width: 768px) 25vw, (max-width: 1280px) 18vw, 180px"
+            sizes="(max-width: 640px) 30vw, (max-width: 1024px) 22vw, (max-width: 1536px) 15vw, 12vw"
             srcSet={[
               `${manga.coverImageUrl}?w=180 180w`,
               `${manga.coverImageUrl}?w=240 240w`,
@@ -170,12 +170,12 @@ const MangaCardComponent = ({ manga, size = 'default', showMetadata = true }: Ma
 
       {/* Metadata */}
       {showMetadata && (
-        <div className="flex flex-col gap-1.5 px-1 pb-1 select-none antialiased">
+  <div className="flex flex-col gap-1 px-0.5 pb-1 select-none antialiased">
           <Link
             to={`/manga/${manga.id}`}
             className="block"
           >
-            <h3 className="text-xs md:text-sm font-semibold text-foreground line-clamp-2 hover:text-primary transition-colors duration-200 leading-tight tracking-tight antialiased" style={{ WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' }}>
+            <h3 className="text-[11px] sm:text-xs md:text-sm font-semibold text-foreground line-clamp-2 hover:text-primary transition-colors duration-200 leading-tight tracking-tight antialiased" style={{ WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' }}>
               {manga.title}
             </h3>
           </Link>

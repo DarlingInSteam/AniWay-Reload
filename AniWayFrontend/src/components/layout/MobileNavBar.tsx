@@ -13,6 +13,12 @@ export function MobileNavBar() {
   const { unread } = useNotifications()
   const [hasScrolled, setHasScrolled] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [hiddenByMomentViewer, setHiddenByMomentViewer] = useState<boolean>(() => {
+    if (typeof document === 'undefined') {
+      return false
+    }
+    return document.body.classList.contains('moment-viewer-active')
+  })
   const sheetRef = useRef<HTMLDivElement|null>(null)
   const navRef = useRef<HTMLElement|null>(null)
 
@@ -21,6 +27,35 @@ export function MobileNavBar() {
     window.addEventListener('scroll', onScroll)
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const handleVisibility = (event: Event) => {
+      const { detail } = event as CustomEvent<boolean>
+      const nextHidden = Boolean(detail)
+      setHiddenByMomentViewer(nextHidden)
+      if (!nextHidden) {
+        setMoreOpen(false)
+      }
+    }
+
+    window.addEventListener('moment-viewer-visibility', handleVisibility as EventListener)
+    return () => window.removeEventListener('moment-viewer-visibility', handleVisibility as EventListener)
+  }, [])
+
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      return
+    }
+    const nextHidden = document.body.classList.contains('moment-viewer-active')
+    setHiddenByMomentViewer(nextHidden)
+    if (nextHidden) {
+      setMoreOpen(false)
+    }
+  }, [location.pathname])
 
   // Primary bar: Home | Bookmarks? | Search (center large) | Notifications | Profile/Login | More
   // Forum & Tops moved into expandable sheet
@@ -33,9 +68,6 @@ export function MobileNavBar() {
   }
 
   const primaryRight: any[] = []
-  if (isAuthenticated && isAdmin) {
-    primaryRight.push({ to: '/admin', icon: Settings, label: 'Админ', match: (p: string) => p.startsWith('/admin') })
-  }
   primaryRight.push({ to: '/notifications', icon: Bell, label: 'Уведомл.', match: (p:string)=> p.startsWith('/notifications') })
   if(isAuthenticated){
     primaryRight.push({ to: `/profile/${user?.id ?? ''}`, icon: User, label: 'Профиль', match:(p:string)=> p.startsWith('/profile') })
@@ -82,8 +114,9 @@ export function MobileNavBar() {
     <nav
       ref={navRef}
       className={cn(
-        'md:hidden fixed bottom-0 inset-x-0 z-[60] backdrop-blur-xl border-t border-white/20 bg-[#0b0d11]/90 supports-[backdrop-filter]:bg-[#0b0d11]/80 transition-shadow',
-        hasScrolled && 'shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.75)]'
+        'md:hidden fixed bottom-0 inset-x-0 z-[60] backdrop-blur-xl border-t border-white/20 bg-[#0b0d11]/90 supports-[backdrop-filter]:bg-[#0b0d11]/80 transition-all duration-300 ease-in-out',
+        hasScrolled && 'shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.75)]',
+        hiddenByMomentViewer && 'translate-y-full opacity-0 pointer-events-none'
       )}
       style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 4px)' }}
     >

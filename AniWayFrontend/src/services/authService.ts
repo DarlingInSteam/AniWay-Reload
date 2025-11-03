@@ -3,6 +3,106 @@ import { AuthResponse, LoginRequest, RegisterRequest, User } from '../types'
 class AuthService {
   private baseUrl = '/api'
   private tokenKey = 'authToken'
+  private userIdKey = 'userId'
+  private legacyUserIdKeys = ['userID', 'currentUserId']
+  private userRoleKey = 'userRole'
+  private legacyUserRoleKeys = ['user_role']
+  // Cache /auth/me responses briefly to avoid spamming the gateway
+  private readonly currentUserTtlMs = 30_000
+  private currentUserCache: { user: User; expiresAt: number } | null = null
+  private currentUserPromise: Promise<User> | null = null
+
+  private invalidateCurrentUserCache(): void {
+    this.currentUserCache = null
+    this.currentUserPromise = null
+  }
+
+  private setCurrentUserCache(user: User | null, ttlMs: number = this.currentUserTtlMs): void {
+    if (user) {
+      this.currentUserCache = { user, expiresAt: Date.now() + ttlMs }
+    } else {
+      this.currentUserCache = null
+    }
+  }
+
+  private normalizeUserId(value: unknown): string | null {
+    if (value == null) return null
+    const raw = String(value).trim()
+    if (!raw) return null
+    const lowered = raw.toLowerCase()
+    if (lowered === 'null' || lowered === 'undefined' || lowered === 'nan') return null
+    if (!/^\d+$/.test(raw)) return null
+    const parsed = Number.parseInt(raw, 10)
+    if (!Number.isFinite(parsed) || parsed <= 0) return null
+    return String(parsed)
+  }
+
+  private normalizeUserRole(value: unknown): string | null {
+    if (value == null) return null
+    const raw = String(value).trim()
+    if (!raw) return null
+    const lowered = raw.toLowerCase()
+    if (lowered === 'null' || lowered === 'undefined') return null
+    return raw.toUpperCase().replace(/^ROLE_/, '')
+  }
+
+  private cacheUser(user: User | null | undefined): void {
+    if (user && user.id) {
+      const normalizedId = this.normalizeUserId(user.id)
+      if (normalizedId) {
+        localStorage.setItem(this.userIdKey, normalizedId)
+      } else {
+        this.clearCachedUserIds()
+      }
+    } else {
+      this.clearCachedUserIds()
+    }
+
+    if (user && user.role) {
+      const normalizedRole = this.normalizeUserRole(user.role)
+      if (normalizedRole) {
+        localStorage.setItem(this.userRoleKey, normalizedRole)
+      } else {
+        this.clearCachedRoles()
+      }
+    } else {
+      this.clearCachedRoles()
+    }
+  }
+
+  private clearCachedUserIds(): void {
+    localStorage.removeItem(this.userIdKey)
+    this.legacyUserIdKeys.forEach((key) => localStorage.removeItem(key))
+  }
+
+  private clearCachedRoles(): void {
+    localStorage.removeItem(this.userRoleKey)
+    this.legacyUserRoleKeys.forEach((key) => localStorage.removeItem(key))
+  }
+
+  private clearCachedUser(): void {
+    this.clearCachedUserIds()
+    this.clearCachedRoles()
+  }
+
+  private backfillCacheFromToken(token: string | null): void {
+    if (!token) return
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1] || ''))
+      if (payload) {
+        const normalizedId = this.normalizeUserId(payload.userId ?? payload.userID ?? payload.sub ?? payload.id)
+        if (normalizedId) {
+          localStorage.setItem(this.userIdKey, normalizedId)
+        }
+        const normalizedRole = this.normalizeUserRole(payload.role ?? (Array.isArray(payload.authorities) ? payload.authorities[0] : undefined))
+        if (normalizedRole) {
+          localStorage.setItem(this.userRoleKey, normalizedRole)
+        }
+      }
+    } catch {
+      // ignore invalid tokens
+    }
+  }
 
   // Получить токен из localStorage
   getToken(): string | null {
@@ -11,12 +111,16 @@ class AuthService {
 
   // Сохранить токен в localStorage
   setToken(token: string): void {
+    this.invalidateCurrentUserCache()
     localStorage.setItem(this.tokenKey, token)
+    this.backfillCacheFromToken(token)
   }
 
   // Удалить токен из localStorage
   removeToken(): void {
+    this.invalidateCurrentUserCache()
     localStorage.removeItem(this.tokenKey)
+    this.clearCachedUser()
   }
 
   // Проверка аутентификации
@@ -27,6 +131,7 @@ class AuthService {
     try {
       // Декодируем JWT токен для проверки срока действия
       const payload = JSON.parse(atob(token.split('.')[1]))
+      this.backfillCacheFromToken(token)
       return payload.exp * 1000 > Date.now()
     } catch {
       return false
@@ -57,6 +162,8 @@ class AuthService {
 
     const authResponse: AuthResponse = await response.json()
     this.setToken(authResponse.token)
+    this.cacheUser(authResponse.user)
+    this.setCurrentUserCache(authResponse.user)
     return authResponse
   }
 
@@ -128,6 +235,8 @@ class AuthService {
     const body = await res.json() as any;
     if (body?.token) {
       this.setToken(body.token);
+        this.cacheUser(body.user);
+      this.setCurrentUserCache(body.user)
       return { token: body.token, user: body.user } as AuthResponse;
     }
     throw new Error('Malformed response from reset perform');
@@ -201,6 +310,8 @@ class AuthService {
 
     const authResponse: AuthResponse = await response.json()
     this.setToken(authResponse.token)
+    this.cacheUser(authResponse.user)
+    this.setCurrentUserCache(authResponse.user)
     return authResponse
   }
 
@@ -231,6 +342,8 @@ class AuthService {
     const body = await res.json()
     if (body?.token) {
       this.setToken(body.token)
+        this.cacheUser(body.user)
+      this.setCurrentUserCache(body.user)
       return { token: body.token, user: body.user }
     }
     throw new Error('Malformed login verify response')
@@ -243,16 +356,53 @@ class AuthService {
   }
 
   // Получить текущего пользователя
-  async getCurrentUser(): Promise<User> {
-    const response = await fetch(`${this.baseUrl}/auth/me`, {
-      headers: this.getAuthHeaders()
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch user data')
+  async getCurrentUser(forceRefresh = false): Promise<User> {
+    const now = Date.now()
+    if (!forceRefresh) {
+      if (this.currentUserCache && this.currentUserCache.expiresAt > now) {
+        return this.currentUserCache.user
+      }
+      if (this.currentUserPromise) {
+        return this.currentUserPromise
+      }
+    } else {
+      this.currentUserCache = null
     }
 
-    return response.json()
+    const fetchPromise = (async (): Promise<User> => {
+      const response = await fetch(`${this.baseUrl}/auth/me`, {
+        headers: this.getAuthHeaders()
+      })
+
+      if (!response.ok) {
+        const status = response.status
+        let details = ''
+        try {
+          details = await response.text()
+        } catch {
+          details = ''
+        }
+        this.currentUserCache = null
+        if (status === 401 || status === 403) {
+          this.clearCachedUser()
+        }
+        const suffix = details ? ` - ${details}` : ''
+        throw new Error(`Failed to fetch user data (${status})${suffix}`)
+      }
+
+      const user = await response.json()
+      this.cacheUser(user)
+      this.setCurrentUserCache(user)
+      return user
+    })()
+
+    this.currentUserPromise = fetchPromise
+
+    try {
+      return await fetchPromise
+    } finally {
+      this.currentUserPromise = null
+    }
   }
 
   // Обновить профиль пользователя
@@ -266,8 +416,10 @@ class AuthService {
     if (!response.ok) {
       throw new Error('Failed to update profile')
     }
-
-    return response.json()
+    const updated = await response.json()
+    this.cacheUser(updated)
+    this.setCurrentUserCache(updated)
+    return updated
   }
 
   // Получить пользователя по ID
@@ -279,20 +431,33 @@ class AuthService {
     if (!response.ok) {
       throw new Error('Failed to fetch user')
     }
-
-    return response.json()
+    const user = await response.json()
+    this.cacheUser(user)
+    return user
   }
 
   // Получить роль пользователя из токена
   getUserRole(): string | null {
+    const cached = this.normalizeUserRole(localStorage.getItem(this.userRoleKey))
+    if (cached) {
+      return cached
+    }
     const token = this.getToken()
     if (!token) return null
-    
+    this.backfillCacheFromToken(token)
+    const hydrated = this.normalizeUserRole(localStorage.getItem(this.userRoleKey))
+    if (hydrated) {
+      return hydrated
+    }
     try {
       const payload = JSON.parse(atob(token.split('.')[1]))
       const raw = payload.role || payload.authorities?.[0] || null
       if (!raw) return null
-      return String(raw).toUpperCase().replace(/^ROLE_/, '')
+      const normalized = this.normalizeUserRole(raw)
+      if (normalized) {
+        localStorage.setItem(this.userRoleKey, normalized)
+      }
+      return normalized
     } catch {
       return null
     }
@@ -300,22 +465,37 @@ class AuthService {
 
   // Получить ID пользователя из токена или загрузить с сервера
   async getCurrentUserId(): Promise<number | null> {
+    const cached = this.normalizeUserId(localStorage.getItem(this.userIdKey))
+    if (cached) {
+      return Number.parseInt(cached, 10)
+    }
     const token = this.getToken()
     if (!token) return null
-    
+
     try {
-      // Сначала пробуем получить ID из токена (если он там есть)
-      const payload = JSON.parse(atob(token.split('.')[1]))
-      
-      if (payload.userId || payload.id) {
-        const userId = payload.userId || payload.id
-        return userId
+      this.backfillCacheFromToken(token)
+      const hydrated = this.normalizeUserId(localStorage.getItem(this.userIdKey))
+      if (hydrated) {
+        return Number.parseInt(hydrated, 10)
       }
-      
-      // Если ID нет в токене, получаем данные пользователя с сервера
+
+      const payload = JSON.parse(atob(token.split('.')[1]))
+
+      if (payload.userId || payload.id) {
+        const normalized = this.normalizeUserId(payload.userId ?? payload.id)
+        if (normalized) {
+          localStorage.setItem(this.userIdKey, normalized)
+          return Number.parseInt(normalized, 10)
+        }
+      }
+
       const currentUser = await this.getCurrentUser()
-      const userId = currentUser.id || null
-      return userId
+      const normalized = this.normalizeUserId(currentUser?.id)
+      if (normalized) {
+        localStorage.setItem(this.userIdKey, normalized)
+        return Number.parseInt(normalized, 10)
+      }
+      return null
     } catch (error) {
       console.error('Error getting current user ID:', error)
       return null

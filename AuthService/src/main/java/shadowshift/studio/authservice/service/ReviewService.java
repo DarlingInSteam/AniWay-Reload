@@ -17,7 +17,10 @@ import shadowshift.studio.authservice.repository.ReviewRepository;
 import shadowshift.studio.authservice.repository.UserRepository;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -275,6 +278,53 @@ public class ReviewService {
                 .totalReviews(totalReviews)
                 .ratingDistribution(ratingCounts)
                 .build();
+    }
+
+    public List<MangaRatingDTO> getMangaRatings(List<Long> mangaIds) {
+        if (mangaIds == null || mangaIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> distinctIds = mangaIds.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        if (distinctIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<Object[]> rows = reviewRepository.getAggregatedRatingsByMangaIds(distinctIds);
+        Map<Long, MangaRatingDTO> aggregated = new HashMap<>();
+
+        for (Object[] row : rows) {
+            if (row == null || row.length < 3) {
+                continue;
+            }
+            Long mangaId = row[0] instanceof Number ? ((Number) row[0]).longValue() : null;
+            if (mangaId == null) {
+                continue;
+            }
+            Double average = row[1] instanceof Number ? ((Number) row[1]).doubleValue() : null;
+            Long total = row[2] instanceof Number ? ((Number) row[2]).longValue() : 0L;
+
+            aggregated.put(mangaId, MangaRatingDTO.builder()
+                    .mangaId(mangaId)
+                    .averageRating(average)
+                    .totalReviews(total)
+                    .ratingDistribution(null)
+                    .build());
+        }
+
+        return distinctIds.stream()
+                .map(id -> aggregated.getOrDefault(id,
+                        MangaRatingDTO.builder()
+                                .mangaId(id)
+                                .averageRating(null)
+                                .totalReviews(0L)
+                                .ratingDistribution(null)
+                                .build()))
+                .toList();
     }
 
     /**

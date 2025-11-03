@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 
 interface CommentSectionProps {
   targetId: number
-  type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST'
+  type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST' | 'MOMENT'
   title?: string
   maxLevel?: number
   onCountChange?: (count: number) => void
@@ -46,35 +46,48 @@ export function CommentSection({
 
   // Загружаем общее количество комментариев
   useEffect(() => {
+    let cancelled = false
+
     const loadCommentsCount = async () => {
       try {
         const count = await commentService.getCommentsCount(targetId, type)
+        if (cancelled) return
         setTotalCommentsCount(count)
         onCountChange?.(count)
       } catch (error) {
-        console.error('Failed to load comments count:', error)
+        if (!cancelled) {
+          console.error('Failed to load comments count:', error)
+        }
       }
     }
 
     loadCommentsCount()
+
+    return () => {
+      cancelled = true
+    }
   }, [targetId, type, onCountChange])
 
-  // Обновляем счётчик при изменении комментариев
   useEffect(() => {
-    const loadCommentsCount = async () => {
-      try {
-        const count = await commentService.getCommentsCount(targetId, type)
-        setTotalCommentsCount(count)
-        onCountChange?.(count)
-      } catch (error) {
-        console.error('Failed to load comments count:', error)
-      }
+    const handleCountDelta = (event: Event) => {
+      const customEvent = event as CustomEvent<{ targetId: number; type: CommentSectionProps['type']; delta: number }>
+      const detail = customEvent.detail
+      if (!detail) return
+      if (detail.targetId !== targetId || detail.type !== type) return
+
+      setTotalCommentsCount(prev => {
+        const next = Math.max(0, prev + (detail.delta ?? 0))
+        onCountChange?.(next)
+        return next
+      })
     }
 
-    if (comments.length > 0) {
-      loadCommentsCount()
+    document.addEventListener('comment-count-delta', handleCountDelta as EventListener)
+
+    return () => {
+      document.removeEventListener('comment-count-delta', handleCountDelta as EventListener)
     }
-  }, [comments, targetId, type, onCountChange])
+  }, [targetId, type, onCountChange])
 
   const handleCreateComment = (content: string) => {
     createComment({

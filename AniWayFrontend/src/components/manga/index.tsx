@@ -34,3 +34,4 @@ export function MangaCardWithTooltip({
 // Экспортируем оба компонента для гибкости использования
 export { MangaCard } from './MangaCard'
 export { MangaTooltip } from './MangaTooltip'
+export { MangaDiscussions } from './MangaDiscussions'

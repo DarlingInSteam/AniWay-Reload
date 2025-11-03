@@ -49,6 +49,7 @@ export const ReadingButton: React.FC<ReadingButtonProps> = ({
     return (
       <Link
         to={`/reader/${firstChapterId}`}
+        state={{ manualNavigation: true }}
         className={`inline-flex items-center justify-center space-x-2 px-6 py-3 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 transition-colors ${className}`}
       >
         <Play className="w-5 h-5" />
@@ -107,6 +108,7 @@ export const ReadingButton: React.FC<ReadingButtonProps> = ({
   return (
     <Link
       to={`/reader/${targetChapterId}`}
+      state={{ manualNavigation: true }}
       className={`inline-flex items-center justify-center space-x-2 px-6 py-3 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 transition-colors ${className}`}
     >
       <BookOpen className="w-5 h-5" />
@@ -139,6 +141,7 @@ export const QuickReadingButton: React.FC<QuickReadingButtonProps> = ({
   return (
     <Link
       to={`/reader/${targetChapterId}`}
+      state={{ manualNavigation: true }}
       className={`inline-flex items-center justify-center px-3 py-1.5 bg-primary text-white text-sm font-medium rounded-md hover:bg-primary/90 transition-colors ${className}`}
     >
       <Play className="w-4 h-4 mr-1" />

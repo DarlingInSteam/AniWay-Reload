@@ -9,6 +9,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.Collections;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Сервис для управления задачами импорта манги.
@@ -60,6 +62,8 @@ public class ImportTaskService {
      * Класс, представляющий задачу импорта.
      */
     public static class ImportTask {
+        private static final int MAX_LOG_ENTRIES = 200;
+
         private String taskId;
         private TaskStatus status;
         private int progress;
@@ -74,6 +78,7 @@ public class ImportTaskService {
         private int importedPages;
         private String errorMessage;
     private Map<String, Object> metrics;
+        private final List<LogEntry> logs = Collections.synchronizedList(new ArrayList<>());
 
         /**
          * Конструктор для создания задачи импорта.
@@ -311,11 +316,47 @@ public class ImportTaskService {
             result.put("importedPages", importedPages);
             result.put("errorMessage", errorMessage != null ? errorMessage : "");
             result.put("metrics", getMetrics());
+            result.put("logs", getLogPayload());
             return result;
+        }
+
+        public void addLog(String level, String message) {
+            if (level == null || level.isBlank()) {
+                level = "INFO";
+            }
+            String sanitized = message != null ? message : "";
+            LogEntry entry = new LogEntry(System.currentTimeMillis(), level.toUpperCase(), sanitized);
+            synchronized (logs) {
+                logs.add(entry);
+                if (logs.size() > MAX_LOG_ENTRIES) {
+                    logs.subList(0, logs.size() - MAX_LOG_ENTRIES).clear();
+                }
+            }
+        }
+
+        public List<LogEntry> getLogs() {
+            synchronized (logs) {
+                return new ArrayList<>(logs);
+            }
+        }
+
+        private List<Map<String, Object>> getLogPayload() {
+            List<LogEntry> snapshot = getLogs();
+            List<Map<String, Object>> payload = new ArrayList<>(snapshot.size());
+            for (LogEntry entry : snapshot) {
+                Map<String, Object> item = new HashMap<>();
+                item.put("timestamp", entry.timestamp());
+                item.put("level", entry.level());
+                item.put("message", entry.message());
+                payload.add(item);
+            }
+            return payload;
         }
     }
 
     private final Map<String, ImportTask> tasks = new ConcurrentHashMap<>();
+
+    private record LogEntry(long timestamp, String level, String message) {}
 
     /**
      * Создает новую задачу импорта.
@@ -467,6 +508,23 @@ public class ImportTaskService {
     }
 
     /**
+     * Добавляет лог к задаче и отправляет его подписчикам.
+     *
+     * @param taskId идентификатор задачи
+     * @param level уровень логирования (INFO, WARN, ERROR)
+     * @param message текст сообщения
+     */
+    public void appendLog(String taskId, String level, String message) {
+        ImportTask task = tasks.get(taskId);
+        if (task != null) {
+            task.addLog(level, message);
+            if (webSocketHandler != null) {
+                webSocketHandler.sendLogMessage(taskId, level != null ? level : "INFO", message != null ? message : "");
+            }
+        }
+    }
+
+    /**
      * Отправляет обновление прогресса через WebSocket
      */
     private void sendWebSocketUpdate(String taskId, ImportTask task) {
@@ -483,9 +541,9 @@ public class ImportTaskService {
             webSocketHandler.sendProgressUpdate(taskId, progressData);
             // Можно добавить лог-сообщение при завершении или ошибке
             if (task.getStatus() == TaskStatus.COMPLETED) {
-                webSocketHandler.sendLogMessage(taskId, "INFO", "Импорт завершён успешно");
+                appendLog(taskId, "INFO", "Импорт завершён успешно");
             } else if (task.getStatus() == TaskStatus.FAILED) {
-                webSocketHandler.sendLogMessage(taskId, "ERROR", task.getErrorMessage());
+                appendLog(taskId, "ERROR", task.getErrorMessage());
             }
         }
     }

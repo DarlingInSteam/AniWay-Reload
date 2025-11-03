@@ -34,7 +34,7 @@ export interface CreateCommentRequest {
 export interface CommentCreateDTO {
   content: string
   targetId: number
-  commentType: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST'
+  commentType: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST' | 'MOMENT'
   parentCommentId?: number
 }
 
@@ -49,8 +49,8 @@ export interface CommentResponseDTO {
   username: string
   userAvatar?: string
   targetId: number
-  type?: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST' // Опциональное для обратной совместимости
-  commentType?: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST' // Реальное поле с бэкенда
+  type?: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST' | 'MOMENT' // Опциональное для обратной совместимости
+  commentType?: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST' | 'MOMENT' // Реальное поле с бэкенда
   parentCommentId?: number
   createdAt: string
   updatedAt: string

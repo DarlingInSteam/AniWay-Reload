@@ -228,8 +228,8 @@ export function MangaImporter() {
             <div className="space-y-4">
               {parsedManga.map((manga) => (
                 <div key={manga.filename} className="border border-border rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex-1">
+                  <div className="flex flex-col gap-3 mb-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex-1 min-w-0 space-y-1">
                       <h4 className="font-medium text-white">{manga.title}</h4>
                       <p className="text-sm text-muted-foreground">
                         {manga.author} • {manga.chaptersCount} глав • {manga.size}
@@ -239,7 +239,7 @@ export function MangaImporter() {
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                       <Button
                         onClick={() => deleteManga(manga.filename)}
                         variant="outline"
@@ -307,8 +307,8 @@ export function MangaImporter() {
           <CardContent className="space-y-4">
             {importTasks.map((task) => (
               <div key={task.taskId} className="border border-border rounded-lg p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                     {getStatusIcon(task.status)}
                     <div>
                       <h4 className="font-medium text-white">{task.filename}</h4>
@@ -322,7 +322,7 @@ export function MangaImporter() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                     <Badge className={task.status === 'completed' ? 'bg-green-500' :
                                    task.status === 'failed' ? 'bg-red-500' :
                                    task.status === 'running' ? 'bg-blue-500' : 'bg-yellow-500'}>

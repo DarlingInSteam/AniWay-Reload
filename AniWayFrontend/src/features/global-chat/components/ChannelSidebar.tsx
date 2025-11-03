@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArchiveRestore,
   Loader2,
@@ -15,6 +15,71 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { CategoryView } from '@/types/social';
+
+interface ChannelTabProps {
+  category: CategoryView;
+  isActive: boolean;
+  onSelect: (categoryId: number) => void;
+}
+
+function ChannelTab({ category, isActive, onSelect }: ChannelTabProps) {
+  const unread = category.unreadCount ?? 0;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(category.id)}
+      title={category.description ? `${category.title} - ${category.description}` : category.title}
+      role="tab"
+      aria-selected={isActive}
+      className={cn(
+        'group relative inline-flex min-w-[140px] max-w-[220px] items-center gap-3 rounded-xl px-3 py-2 text-left text-sm transition-colors duration-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-white/40',
+        isActive
+          ? 'bg-white/12 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)]'
+          : 'text-white/65 hover:bg-white/5 hover:text-white'
+      )}
+    >
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="truncate font-medium leading-tight">{category.title}</span>
+        {category.description && (
+          <span className="truncate text-[11px] font-medium text-white/40">{category.description}</span>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2">
+        {category.isDefault && (
+          <Badge
+            variant="secondary"
+            className="hidden rounded-full border border-white/20 bg-transparent px-2 py-0 text-[10px] text-white/70 md:inline-flex"
+          >
+            По умолчанию
+          </Badge>
+        )}
+        {unread > 0 && (
+          <span className="flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-primary/70 px-1 text-[11px] font-semibold text-white">
+            {unread > 99 ? '99+' : unread}
+          </span>
+        )}
+      </div>
+      <span
+        aria-hidden="true"
+        className={cn(
+          'pointer-events-none absolute inset-y-1 left-1.5 w-[3px] rounded-full bg-white/20 opacity-0 transition-opacity duration-200',
+          isActive && 'opacity-100'
+        )}
+      />
+    </button>
+  );
+}
+
+function ChannelTabSkeleton() {
+  return (
+    <div className="inline-flex min-w-[140px] max-w-[220px] flex-col rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/40">
+      <div className="h-3 w-24 animate-pulse rounded-full bg-white/15" />
+      <div className="mt-2 h-2.5 w-32 animate-pulse rounded-full bg-white/10" />
+    </div>
+  );
+}
 
 interface ChannelSidebarProps {
   categories: CategoryView[];
@@ -64,6 +129,34 @@ export function ChannelSidebar({
     return query ? filteredCategories : categories;
   }, [categories, filteredCategories, categoryQuery]);
 
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const [scrollShadows, setScrollShadows] = useState({ left: false, right: false });
+
+  useEffect(() => {
+    const node = scrollContainerRef.current;
+    if (!node) {
+      return;
+    }
+
+    const updateShadows = () => {
+      const { scrollLeft, scrollWidth, clientWidth } = node;
+      const maxScrollLeft = scrollWidth - clientWidth;
+      setScrollShadows({
+        left: scrollLeft > 4,
+        right: maxScrollLeft > 4 && scrollLeft < maxScrollLeft - 4,
+      });
+    };
+
+    updateShadows();
+    node.addEventListener('scroll', updateShadows, { passive: true });
+    window.addEventListener('resize', updateShadows);
+
+    return () => {
+      node.removeEventListener('scroll', updateShadows);
+      window.removeEventListener('resize', updateShadows);
+    };
+  }, [visibleCategories.length]);
+
   return (
     <div className="sticky top-0.5 z-30 flex h-14 min-h-[56px] items-center gap-3 border-b border-white/12 bg-transparent px-3 backdrop-blur-sm sm:top-1 sm:px-4 !overflow-visible">
       <div className="hidden items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-white/40 lg:flex">
@@ -72,50 +165,50 @@ export function ChannelSidebar({
         <span>{categories.length}</span>
       </div>
 
-      <div className="flex flex-1 items-center gap-2 overflow-x-auto scrollbar-thin">
-        {loading && categories.length === 0 ? (
-          <div className="flex items-center gap-2 text-xs text-white/60">
-            <Loader2 className="h-4 w-4 animate-spin text-white/40" />
-            Загрузка каналов…
-          </div>
-        ) : visibleCategories.length === 0 ? (
-          <div className="flex items-center gap-2 text-xs text-white/50">
-            <span>Нет каналов</span>
-          </div>
-        ) : (
-          visibleCategories.map(category => {
-            const isActive = selectedCategoryId === category.id;
-            const unread = category.unreadCount ?? 0;
-            return (
-              <button
-                key={category.id}
-                type="button"
-                onClick={() => onSelectCategory(category.id)}
-                className={cn(
-                  'relative inline-flex min-w-[120px] max-w-[200px] items-center gap-2 rounded-xl px-3 py-2 text-sm transition-colors duration-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-white/40',
-                  isActive
-                    ? 'bg-white/12 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)]'
-                    : 'text-white/65 hover:bg-white/5 hover:text-white'
-                )}
-              >
-                <span className="truncate">{category.title}</span>
-                {category.isDefault && !isActive && (
-                  <Badge
-                    variant="secondary"
-                    className="hidden rounded-full border border-white/20 bg-transparent px-2 py-0 text-[10px] text-white/70 md:inline-flex"
-                  >
-                    По умолчанию
-                  </Badge>
-                )}
-                {unread > 0 && (
-                  <span className="flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-primary/70 px-1 text-[11px] font-semibold text-white">
-                    {unread > 99 ? '99+' : unread}
-                  </span>
-                )}
-              </button>
-            );
-          })
-        )}
+      <div className="relative flex flex-1 items-center">
+        <div
+          ref={scrollContainerRef}
+          role="tablist"
+          aria-label="Список каналов"
+          className="flex w-full items-center gap-2 overflow-x-auto scroll-smooth scrollbar-thin"
+        >
+          {loading && categories.length === 0 ? (
+            <div className="flex items-center gap-3 text-xs text-white/60">
+              <Loader2 className="h-4 w-4 animate-spin text-white/40" />
+              Загрузка каналов…
+            </div>
+          ) : visibleCategories.length === 0 ? (
+            <div className="flex items-center gap-2 text-xs text-white/50">
+              <span>Нет каналов</span>
+            </div>
+          ) : (
+            visibleCategories.map(category => (
+              <ChannelTab key={category.id} category={category} isActive={selectedCategoryId === category.id} onSelect={onSelectCategory} />
+            ))
+          )}
+
+          {loading && categories.length > 0 && (
+            <div className="flex items-center gap-2">
+              <ChannelTabSkeleton />
+              <ChannelTabSkeleton />
+            </div>
+          )}
+        </div>
+
+        <div
+          className={cn(
+            'pointer-events-none absolute inset-y-1 left-0 w-8 bg-gradient-to-r from-[#101014] via-[#101014]/60 to-transparent transition-opacity duration-200',
+            scrollShadows.left ? 'opacity-100' : 'opacity-0'
+          )}
+          aria-hidden="true"
+        />
+        <div
+          className={cn(
+            'pointer-events-none absolute inset-y-1 right-0 w-8 bg-gradient-to-l from-[#101014] via-[#101014]/60 to-transparent transition-opacity duration-200',
+            scrollShadows.right ? 'opacity-100' : 'opacity-0'
+          )}
+          aria-hidden="true"
+        />
       </div>
 
       <div className="flex items-center gap-2">

@@ -2,6 +2,9 @@ import {
   AdminActionLogDTO,
   AdminUsersPageResponse,
   AdminUsersParams,
+  MangaCharacterDTO,
+  MangaCharacterModerationRequest,
+  MangaCharacterRequest,
   ChapterDTO,
   ChapterCreateRequest,
   ChapterImageDTO,
@@ -15,6 +18,7 @@ import {
   UserSearchResult,
   EmptyChaptersCleanupResult
 } from '@/types';
+import type { PaginatedResponse, ForumThread } from '@/types/forum';
 import type {
   CategoryUnreadMap,
   CategoryView,
@@ -28,10 +32,118 @@ import type {
   MessageView as MessageDto,
   UpdateCategoryPayload
 } from '@/types/social';
+import type {
+  MomentCreateRequest,
+  MomentImagePayload,
+  MomentPageResponse,
+  MomentReactionType,
+  MomentResponse,
+  MomentSortOption
+} from '@/types/moments';
 
 const API_BASE_URL = '/api';
 
 class ApiClient {
+  private normalizeUserId(candidate?: string | null): string | null {
+    if (!candidate) {
+      return null;
+    }
+    const trimmed = candidate.trim();
+    if (!trimmed) {
+      return null;
+    }
+    const lowered = trimmed.toLowerCase();
+    if (lowered === 'null' || lowered === 'undefined' || lowered === 'nan') {
+      return null;
+    }
+    if (!/^\d+$/.test(trimmed)) {
+      return null;
+    }
+    const parsed = Number.parseInt(trimmed, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return null;
+    }
+    return String(parsed);
+  }
+
+  private normalizeUserRole(candidate?: string | null): string | null {
+    if (!candidate) {
+      return null;
+    }
+    const trimmed = candidate.trim();
+    if (!trimmed) {
+      return null;
+    }
+    const lowered = trimmed.toLowerCase();
+    if (lowered === 'null' || lowered === 'undefined') {
+      return null;
+    }
+    return trimmed.toUpperCase().replace(/^ROLE_/, '');
+  }
+
+  private resolveUserContext(token: string | null): { userId?: string; userRole?: string } {
+    const idKeys: Array<'userId' | 'userID' | 'currentUserId'> = ['userId', 'userID', 'currentUserId'];
+    let userId: string | null = null;
+    for (const key of idKeys) {
+      const value = this.normalizeUserId(localStorage.getItem(key));
+      if (value) {
+        userId = value;
+        if (key !== 'userId') {
+          localStorage.setItem('userId', value);
+        }
+        break;
+      }
+    }
+    if (!userId) {
+      localStorage.removeItem('userId');
+    }
+
+    const roleKeys: Array<'userRole' | 'user_role'> = ['userRole', 'user_role'];
+    let userRole: string | null = null;
+    for (const key of roleKeys) {
+      const value = this.normalizeUserRole(localStorage.getItem(key));
+      if (value) {
+        userRole = value;
+        if (key !== 'userRole') {
+          localStorage.setItem('userRole', value);
+        }
+        break;
+      }
+    }
+    if (!userRole) {
+      localStorage.removeItem('userRole');
+    }
+
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1] || ''));
+        if (!userId) {
+          const extracted = payload.userId ?? payload.userID ?? payload.sub ?? payload.id;
+          const normalized = this.normalizeUserId(extracted != null ? String(extracted) : null);
+          if (normalized) {
+            userId = normalized;
+            localStorage.setItem('userId', normalized);
+          }
+        }
+        if (!userRole) {
+          const rawRole = payload.role || (Array.isArray(payload.authorities) ? payload.authorities[0] : undefined);
+          const normalizedRole = this.normalizeUserRole(rawRole != null ? String(rawRole) : null);
+          if (normalizedRole) {
+            userRole = normalizedRole;
+            localStorage.setItem('userRole', normalizedRole);
+          }
+        }
+      } catch {
+        // ignore malformed or non-JWT payloads
+      }
+    }
+
+    return {
+      userId: userId ?? undefined,
+      userRole: userRole ?? undefined,
+    };
+  }
+
   private getAuthHeaders(): Record<string, string> {
     const token = localStorage.getItem('authToken');
     return token ? { 'Authorization': `Bearer ${token}` } : {};
@@ -39,28 +151,8 @@ class ApiClient {
 
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
-  const token = localStorage.getItem('authToken');
-  let userId = localStorage.getItem('userId') || localStorage.getItem('userID') || localStorage.getItem('currentUserId');
-    let userRole = localStorage.getItem('userRole') || localStorage.getItem('user_role');
-    if (userRole === 'null' || userRole === 'undefined' || userRole === '') {
-      userRole = null;
-    }
-    // Fallback: try decode JWT payload (assuming standard 'sub' or 'userId' claim) if userId absent
-    if(!userId && token){
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1] || ''));
-        const extracted = payload.userId || payload.userID || payload.sub || payload.id;
-        if (extracted) {
-          userId = String(extracted);
-          localStorage.setItem('userId', userId);
-        }
-        const roleValue = payload.role || (Array.isArray(payload.authorities) ? payload.authorities[0] : undefined);
-        if (roleValue && !userRole) {
-          userRole = String(roleValue).toUpperCase().replace(/^ROLE_/, '');
-          localStorage.setItem('userRole', userRole);
-        }
-      } catch { /* silent */ }
-    }
+    const token = localStorage.getItem('authToken');
+    const { userId, userRole } = this.resolveUserContext(token);
 
     console.log(`API Request: ${options?.method || 'GET'} ${url}`);
     console.log(`Auth token present: ${!!token}`);
@@ -71,16 +163,25 @@ class ApiClient {
       (/^\/posts\b/.test(endpoint) && ['POST','PUT','DELETE','GET'].includes(method)) ||
       (/^\/posts\/.*\/vote$/.test(endpoint)) ||
       (/^\/comments\b/.test(endpoint) && ['POST','PUT','DELETE','GET'].includes(method)) ||
+      (/^\/moments\b/.test(endpoint)) ||
       (/^\/messages\b/.test(endpoint)) ||
-      (/^\/chapters\b/.test(endpoint))
+      (/^\/chapters\b/.test(endpoint)) ||
+      (/^\/forum\/threads\b/.test(endpoint)) ||
+      (/^\/forum\/manga\b/.test(endpoint)) ||
+      (/^\/manga\/[\w-]+\/characters\b/.test(endpoint)) ||
+      (/^\/manga\/characters\b/.test(endpoint))
     );
-    const normalizedUserRole = userRole ? userRole.toUpperCase().replace(/^ROLE_/, '') : undefined;
-    const headerUserRole = normalizedUserRole || (token ? 'USER' : undefined);
+  const headerUserRole = userRole || (token ? 'USER' : undefined);
+
+    const isFormData = options?.body instanceof FormData;
+    const baseHeaders: Record<string, string> = {
+      ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
+      ...this.getAuthHeaders(),
+    };
 
     const response = await fetch(url, {
       headers: {
-        'Content-Type': 'application/json',
-        ...this.getAuthHeaders(),
+        ...baseHeaders,
         ...(needsUserHeader ? {
           'X-User-Id': userId!,
           ...(headerUserRole ? { 'X-User-Role': headerUserRole } : {})
@@ -228,6 +329,47 @@ class ApiClient {
       // Fallback to MangaService proxy
       return await this.request<ChapterDTO[]>(`/manga/${mangaId}/chapters`);
     }
+  }
+
+  async getMangaCharacters(mangaId: number): Promise<MangaCharacterDTO[]> {
+    return this.request<MangaCharacterDTO[]>(`/manga/${mangaId}/characters`);
+  }
+
+  async createMangaCharacter(mangaId: number, payload: MangaCharacterRequest, imageFile?: File | null): Promise<MangaCharacterDTO> {
+    const formData = new FormData();
+    formData.append('payload', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+    if (imageFile) {
+      formData.append('image', imageFile);
+    }
+    return this.request<MangaCharacterDTO>(`/manga/${mangaId}/characters`, {
+      method: 'POST',
+      body: formData,
+    });
+  }
+
+  async updateMangaCharacter(characterId: number, payload: MangaCharacterRequest, imageFile?: File | null): Promise<MangaCharacterDTO> {
+    const formData = new FormData();
+    formData.append('payload', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+    if (imageFile) {
+      formData.append('image', imageFile);
+    }
+    return this.request<MangaCharacterDTO>(`/manga/characters/${characterId}`, {
+      method: 'PUT',
+      body: formData,
+    });
+  }
+
+  async moderateMangaCharacter(characterId: number, payload: MangaCharacterModerationRequest): Promise<MangaCharacterDTO> {
+    return this.request<MangaCharacterDTO>(`/manga/characters/${characterId}/moderate`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteMangaCharacter(characterId: number): Promise<void> {
+    await this.request<void>(`/manga/characters/${characterId}`, {
+      method: 'DELETE',
+    });
   }
 
   // Chapter API
@@ -406,6 +548,29 @@ class ApiClient {
       console.error(`Ошибка при загрузке публичных закладок для пользователя ${username}:`, error);
       return [];
     }
+  }
+
+  // Manga discussions API
+  async getMangaDiscussions(
+    mangaId: number,
+    params: { page?: number; size?: number; sort?: 'popular' | 'active' | 'new' } = {}
+  ): Promise<PaginatedResponse<ForumThread>> {
+    const searchParams = new URLSearchParams();
+    if (params.page != null) searchParams.append('page', params.page.toString());
+    if (params.size != null) searchParams.append('size', params.size.toString());
+    if (params.sort) searchParams.append('sort', params.sort);
+    const query = searchParams.toString();
+    return this.request<PaginatedResponse<ForumThread>>(`/forum/manga/${mangaId}/threads${query ? `?${query}` : ''}`);
+  }
+
+  async createMangaDiscussion(
+    mangaId: number,
+    payload: { categoryName: string; title: string; content: string }
+  ): Promise<ForumThread> {
+    return this.request<ForumThread>(`/forum/manga/${mangaId}/threads`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   }
 
   // =============================
@@ -942,13 +1107,47 @@ class ApiClient {
 
   // Получить метаданные аватара пользователя (imageUrl) если есть
   async getUserAvatar(userId: number): Promise<string | null> {
-    try {
-      const res = await this.request<any>(`/images/avatars/${userId}`)
-      const url = res?.imageUrl || res?.url || res?.avatarUrl
-      return url || null
-    } catch (e) {
+    if (!Number.isFinite(userId) || userId <= 0) {
       return null
     }
+
+    const globalAny = globalThis as any
+    if (!globalAny.__avatarUrlCache) {
+      globalAny.__avatarUrlCache = new Map<number, { url: string | null; fetchedAt: number }>()
+    }
+    if (!globalAny.__avatarPromiseCache) {
+      globalAny.__avatarPromiseCache = new Map<number, Promise<string | null>>()
+    }
+
+    const cache: Map<number, { url: string | null; fetchedAt: number }> = globalAny.__avatarUrlCache
+    const inflight: Map<number, Promise<string | null>> = globalAny.__avatarPromiseCache
+    const ttlMs = 5 * 60 * 1000
+    const now = Date.now()
+    const cached = cache.get(userId)
+    if (cached && now - cached.fetchedAt < ttlMs) {
+      return cached.url
+    }
+
+    const pending = inflight.get(userId)
+    if (pending) {
+      return pending
+    }
+
+    const promise = (async (): Promise<string | null> => {
+      try {
+        const res = await this.request<any>(`/images/avatars/${userId}`)
+        const url: string | null = res?.imageUrl || res?.url || res?.avatarUrl || null
+        cache.set(userId, { url, fetchedAt: Date.now() })
+        return url
+      } catch (e) {
+        return null
+      } finally {
+        inflight.delete(userId)
+      }
+    })()
+
+    inflight.set(userId, promise)
+    return promise
   }
 
   // 7. Статистика чтения (используем существующий API)
@@ -980,6 +1179,146 @@ class ApiClient {
         averageRating: 0
       };
     }
+  }
+
+  // MomentService API
+  async listMangaMoments(
+    mangaId: number,
+    options?: { page?: number; size?: number; sort?: MomentSortOption }
+  ): Promise<MomentPageResponse> {
+    const params = new URLSearchParams();
+    const page = options?.page ?? 0;
+    const size = options?.size ?? 12;
+    params.set('page', String(page));
+    params.set('size', String(size));
+    if (options?.sort) {
+      params.set('sort', options.sort);
+    }
+    const query = params.toString();
+    return this.request<MomentPageResponse>(
+      `/moments/manga/${mangaId}${query ? `?${query}` : ''}`
+    );
+  }
+
+  async getMomentById(momentId: number): Promise<MomentResponse> {
+    return this.request<MomentResponse>(`/moments/${momentId}`);
+  }
+
+  async createMoment(payload: MomentCreateRequest): Promise<MomentResponse> {
+    return this.request<MomentResponse>('/moments', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  async deleteMoment(momentId: number): Promise<void> {
+    await this.request<void>(`/moments/${momentId}`, {
+      method: 'DELETE'
+    });
+  }
+
+  async setMomentReaction(momentId: number, reaction: MomentReactionType): Promise<MomentResponse> {
+    return this.request<MomentResponse>(`/moments/${momentId}/reactions`, {
+      method: 'POST',
+      body: JSON.stringify({ reaction })
+    });
+  }
+
+  async clearMomentReaction(momentId: number): Promise<MomentResponse> {
+    return this.request<MomentResponse>(`/moments/${momentId}/reactions`, {
+      method: 'DELETE'
+    });
+  }
+
+  async getMomentUserReactions(momentIds: number[]): Promise<Record<number, MomentReactionType>> {
+    if (!momentIds || momentIds.length === 0) {
+      return {};
+    }
+    const params = new URLSearchParams();
+    momentIds.forEach((id) => {
+      if (id != null) {
+        params.append('ids', String(id));
+      }
+    });
+    if (!params.has('ids')) {
+      return {};
+    }
+    const query = params.toString();
+    const raw = await this.request<Record<string, MomentReactionType>>(`/moments/reactions/batch?${query}`);
+    const result: Record<number, MomentReactionType> = {};
+    if (raw) {
+      Object.entries(raw).forEach(([key, value]) => {
+        const id = Number(key);
+        if (!Number.isNaN(id) && value) {
+          result[id] = value;
+        }
+      });
+    }
+    return result;
+  }
+
+  async getMomentCommentsCount(momentIds: number[]): Promise<Record<number, number>> {
+    if (!momentIds || momentIds.length === 0) {
+      return {};
+    }
+    const params = new URLSearchParams();
+    params.set('type', 'MOMENT');
+    momentIds.forEach((id) => {
+      if (id != null) {
+        params.append('ids', String(id));
+      }
+    });
+    const query = params.toString();
+    const response = await this.request<{ counts?: Record<string, number> }>(`/comments/count/batch?${query}`);
+    const map: Record<number, number> = {};
+    if (response?.counts) {
+      Object.entries(response.counts).forEach(([key, value]) => {
+        const id = Number(key);
+        if (!Number.isNaN(id)) {
+          map[id] = typeof value === 'number' ? value : 0;
+        }
+      });
+    }
+    return map;
+  }
+
+  async uploadMomentImage(
+    file: File,
+    metadata?: { mangaId?: number }
+  ): Promise<MomentImagePayload> {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (metadata?.mangaId != null) {
+      formData.append('mangaId', String(metadata.mangaId));
+    }
+
+    const token = localStorage.getItem('authToken');
+    const { userId, userRole } = this.resolveUserContext(token);
+    const headerRole = userRole || (token ? 'USER' : undefined);
+
+    const response = await fetch(`${API_BASE_URL}/moments/upload`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        ...(userId ? { 'X-User-Id': userId } : {}),
+        ...(headerRole ? { 'X-User-Role': headerRole } : {}),
+      },
+      body: formData
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Upload failed: ${response.status} ${errorText}`);
+    }
+
+    const data = await response.json();
+    return {
+      url: data.url,
+      key: data.key,
+      width: data.width,
+      height: data.height,
+      sizeBytes: data.sizeBytes
+    } as MomentImagePayload;
   }
 
   // Posts API (frontend scaffold – backend must implement corresponding endpoints)
@@ -1051,7 +1390,7 @@ class ApiClient {
 
   async createComment(data: {
     content: string;
-    commentType: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST';
+  commentType: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST' | 'MOMENT';
     targetId: number;
     parentCommentId?: number;
   }): Promise<any> {

@@ -6,17 +6,20 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
-import org.springframework.web.util.UriUtils;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriUtils;
 import org.springframework.web.util.UriComponentsBuilder;
 import shadowshift.studio.mangaservice.entity.Manga;
 import shadowshift.studio.mangaservice.dto.MelonChapterImagesResponse;
 import shadowshift.studio.mangaservice.dto.MelonImageData;
+import shadowshift.studio.mangaservice.config.ServiceUrlProperties;
+import shadowshift.studio.mangaservice.dto.PartialBuildChapterNumber;
 import shadowshift.studio.mangaservice.repository.MangaRepository;
 
 import java.math.BigDecimal;
@@ -29,7 +32,6 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
-
 /**
  * Сервис для автоматического обновления манги.
  * Проверяет наличие новых глав у существующих манг и импортирует их.
@@ -76,6 +78,9 @@ public class MangaUpdateService {
 
     @Autowired
     private ApplicationContext applicationContext;
+
+    @Autowired
+    private ServiceUrlProperties serviceUrlProperties;
 
     @Value("${melon.service.url:http://melon-service:8084}")
     private String melonServiceUrl;
@@ -696,7 +701,8 @@ public class MangaUpdateService {
 
             logger.info("Получение метаданных глав с проверкой slides_count для slug (API формат): {}", slugForApi);
             // ✅ ИСПРАВЛЕНИЕ: Используем новый метод с проверкой slides_count
-            Map<String, Object> metadata = melonService.getChaptersMetadataWithSlidesCount(slugForApi);
+            // Force refresh so we do not rely on stale cached chapter lists on ParserService side
+            Map<String, Object> metadata = melonService.getChaptersMetadataWithSlidesCount(slugForApi, true, true);
 
             if (metadata == null || !Boolean.TRUE.equals(metadata.get("success"))) {
                 logger.warn("Первичная попытка получения метаданных для '{}' не удалась: {}",
@@ -708,7 +714,7 @@ public class MangaUpdateService {
                         slugId = resolvedId;
                         slugForApi = melonService.buildSlugForMangaLibApi(normalizedSlug, slugId);
                         logger.info("Повторно запрашиваем метаданные для '{}' с ID {}", storedSlug, slugId);
-                        metadata = melonService.getChaptersMetadataWithSlidesCount(slugForApi);
+                        metadata = melonService.getChaptersMetadataWithSlidesCount(slugForApi, true, true);
                     }
                 }
 
@@ -734,6 +740,7 @@ public class MangaUpdateService {
             // Фильтруем ТОЛЬКО новые главы по метаданным С ПРОВЕРКОЙ slides_count
             List<Map<String, Object>> newChaptersMetadata = new ArrayList<>();
             Set<Double> candidateChapterKeys = new LinkedHashSet<>();
+            Set<PartialBuildChapterNumber> candidateChapterNumbers = new LinkedHashSet<>();
             Set<String> candidateMelonChapterIds = new LinkedHashSet<>();
             int skippedByPaid = 0;
             int skippedByExists = 0;
@@ -798,6 +805,10 @@ public class MangaUpdateService {
                     }
 
                     if (added) {
+                        PartialBuildChapterNumber selection = PartialBuildChapterNumber.of(numeric.volume(), numeric.originalNumber());
+                        if (selection != null) {
+                            candidateChapterNumbers.add(selection);
+                        }
                         newChaptersMetadata.add(chapterMeta);
                     }
                 } catch (Exception e) {
@@ -831,28 +842,59 @@ public class MangaUpdateService {
             // ТОЛЬКО если есть новые главы - запускаем полный парсинг
             // Это даст нам информацию о страницах для новых глав
             Map<String, Object> parseResult = melonService.startParsing(slugForApi);
-            
+
             if (parseResult == null || !parseResult.containsKey("task_id")) {
                 logger.error("Не удалось запустить парсинг для slug: {} (API '{}')", storedSlug, slugForApi);
                 return null;
             }
-            
+
             String parseTaskId = (String) parseResult.get("task_id");
-            
-            // НЕМЕДЛЕННО связываем parseTaskId с updateTaskId ДО того как придут первые логи!
+
             if (updateTaskId != null) {
                 linkParseTaskToUpdate(parseTaskId, updateTaskId);
             } else {
                 logger.warn("⚠️ updateTaskId is NULL! Логи парсинга не будут связаны с задачей обновления");
             }
-            
-            // Ждем завершения парсинга
+
             if (!waitForTaskCompletion(parseTaskId, normalizedSlug)) {
                 logger.error("Парсинг не завершен для slug: {} (API '{}')", storedSlug, slugForApi);
                 return null;
             }
-            
-            // Получаем полную информацию о манге после парсинга
+
+            logger.info("Парсинг завершен для slug {}. Запускаем скачивание изображений перед импортом.", storedSlug);
+
+            logger.info(
+                "Запуск partial build для slug {}: chapterIds={}, chapterNumbers={}",
+                storedSlug,
+                candidateMelonChapterIds.size(),
+                candidateChapterNumbers.size()
+            );
+
+            Map<String, Object> buildResult = melonService.buildManga(
+                normalizedSlug,
+                null,
+                false,
+                candidateMelonChapterIds,
+                candidateChapterNumbers
+            );
+            if (buildResult == null || !buildResult.containsKey("task_id")) {
+                logger.error("Не удалось запустить скачивание изображений для slug: {}", storedSlug);
+                return null;
+            }
+
+            String buildTaskId = (String) buildResult.get("task_id");
+            if (updateTaskId != null) {
+                linkParseTaskToUpdate(buildTaskId, updateTaskId);
+            }
+
+            if (!waitForTaskCompletion(buildTaskId, normalizedSlug)) {
+                logger.error("Скачивание изображений не завершено для slug: {}", storedSlug);
+                return null;
+            }
+
+            logger.info("Скачивание изображений завершено для slug {}. Получаем обновленную информацию о манге.", storedSlug);
+
+            // Получаем полную информацию о манге после парсинга и скачивания изображений
             Map<String, Object> mangaInfo = melonService.getMangaInfo(normalizedSlug);
 
             if ((mangaInfo == null || !mangaInfo.containsKey("content"))
@@ -925,6 +967,9 @@ public class MangaUpdateService {
                         }
 
                         Map<String, Object> chapterCopy = new LinkedHashMap<>(chapter);
+                        if (melonChapterId != null) {
+                            chapterCopy.put("melonChapterId", melonChapterId);
+                        }
                         chapterCopy.put("slides", slides);
                         newChaptersWithSlides.add(chapterCopy);
                         if (matchesByExternalId) {
@@ -1308,7 +1353,12 @@ public class MangaUpdateService {
     private int getChapterPageCount(Long chapterId) {
         try {
             String url = chapterServiceUrl + "/api/chapters/" + chapterId;
-            ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                url,
+                HttpMethod.GET,
+                null,
+                new ParameterizedTypeReference<Map<String, Object>>() {}
+            );
             
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 Object pageCountObj = response.getBody().get("pageCount");
@@ -1454,11 +1504,17 @@ public class MangaUpdateService {
             }
 
             int uploaded = 0;
-            int fallbackPage = 0;
-            String uploadUrl = "http://image-storage-service:8086/api/storage/upload-page";
+            int fallbackPage = 1;
+            final String uploadUrlBase = buildImageStorageUrl("/api/images/chapter/" + chapterId + "/page/");
 
             for (MelonImageData imageData : images) {
-                Integer pageNumber = imageData.getPage() != null ? imageData.getPage() : fallbackPage++;
+                Integer pageNumber;
+                if (imageData.getPage() != null) {
+                    pageNumber = imageData.getPage();
+                    fallbackPage = pageNumber + 1;
+                } else {
+                    pageNumber = fallbackPage++;
+                }
                 String format = imageData.getFormat();
                 if (format == null || format.isBlank()) {
                     format = "jpg";
@@ -1479,16 +1535,14 @@ public class MangaUpdateService {
                             return filename;
                         }
                     });
-                    body.add("pageNumber", pageNumber);
-                    body.add("chapterId", chapterId);
 
                     HttpHeaders uploadHeaders = new HttpHeaders();
                     uploadHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
 
                     HttpEntity<MultiValueMap<String, Object>> uploadEntity = new HttpEntity<>(body, uploadHeaders);
 
-                    @SuppressWarnings("rawtypes")
-                    ResponseEntity<Map> uploadResponse = restTemplate.postForEntity(uploadUrl, uploadEntity, Map.class);
+                    String uploadUrl = uploadUrlBase + pageNumber;
+                    ResponseEntity<?> uploadResponse = restTemplate.postForEntity(uploadUrl, uploadEntity, Map.class);
 
                     if (uploadResponse.getStatusCode().is2xxSuccessful()) {
                         uploaded++;
@@ -1522,14 +1576,14 @@ public class MangaUpdateService {
      * Ждет завершения задачи
      */
     private boolean waitForTaskCompletion(String taskId, String normalizedSlug) throws InterruptedException {
-        final int maxAttempts = 120;
-        final int pollIntervalMs = 2000;
+    final int pollIntervalMs = 2000;
+    final int maxMissingStatusAttempts = 120;
 
         int attempts = 0;
-    int missingStatusStreak = 0;
+        int missingStatusStreak = 0;
         Map<String, Object> lastStatus = null;
 
-        while (attempts < maxAttempts) {
+        while (true) {
             Thread.sleep(pollIntervalMs);
             attempts++;
 
@@ -1567,13 +1621,19 @@ public class MangaUpdateService {
                     logger.debug("Задача {} пока не предоставляет статус, данные для '{}' недоступны или неполные (ключи: {})",
                         taskId, normalizedSlug, debugInfo);
                 }
+
+                if (missingStatusStreak >= maxMissingStatusAttempts) {
+                    logger.error("Статус задачи {} недоступен после {} попыток. Последний ответ: {}", taskId, missingStatusStreak, lastStatus);
+                    return false;
+                }
             } else {
                 missingStatusStreak = 0;
             }
-        }
 
-        logger.error("Превышено время ожидания завершения задачи {}. Последний статус: {}", taskId, lastStatus);
-        return false;
+            if (attempts % 150 == 0) {
+                logger.info("Ожидание завершения задачи {} продолжается: {} попыток, текущий статус='{}'", taskId, attempts, statusValue);
+            }
+        }
     }
 
     private boolean hasUsableContent(Map<String, Object> mangaInfo) {
@@ -1676,7 +1736,7 @@ public class MangaUpdateService {
 
     private void updateChapterPageCount(Long chapterId) {
         try {
-            String countUrl = "http://image-storage-service:8083/api/images/chapter/" + chapterId + "/count";
+            String countUrl = buildImageStorageUrl("/api/images/chapter/" + chapterId + "/count");
             ResponseEntity<Integer> pageCountResponse = restTemplate.getForEntity(countUrl, Integer.class);
 
             if (pageCountResponse.getStatusCode().is2xxSuccessful() && pageCountResponse.getBody() != null) {
@@ -1699,6 +1759,18 @@ public class MangaUpdateService {
         } catch (Exception e) {
             logger.error("Не удалось обновить количество страниц для главы {}: {}", chapterId, e.getMessage());
         }
+    }
+
+    private String buildImageStorageUrl(String relativePath) {
+        String base = Optional.ofNullable(serviceUrlProperties)
+            .map(ServiceUrlProperties::getImageStorageServiceUrl)
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .orElse("http://image-storage-service:8083");
+
+        String normalizedBase = base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
+        String normalizedPath = relativePath.startsWith("/") ? relativePath : "/" + relativePath;
+        return normalizedBase + normalizedPath;
     }
 
     private void deleteChapterSilently(Long chapterId) {

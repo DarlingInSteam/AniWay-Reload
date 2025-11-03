@@ -3,12 +3,15 @@ package shadowshift.studio.forumservice.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import shadowshift.studio.forumservice.dto.request.CreateThreadRequest;
 import shadowshift.studio.forumservice.dto.request.UpdateThreadRequest;
 import shadowshift.studio.forumservice.dto.response.ForumThreadResponse;
+import shadowshift.studio.forumservice.entity.ForumCategory;
 import shadowshift.studio.forumservice.entity.ForumReaction;
 import shadowshift.studio.forumservice.entity.ForumThread;
 import shadowshift.studio.forumservice.entity.ForumThreadView;
@@ -17,8 +20,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-import java.time.LocalDateTime;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -33,6 +36,10 @@ public class ForumThreadService {
     private final ForumThreadViewRepository viewRepository;
     private final ForumSubscriptionRepository subscriptionRepository;
 
+    private static final String SORT_POPULAR = "popular";
+    private static final String SORT_ACTIVE = "active";
+    private static final String SORT_NEW = "new";
+
     /**
      * Получить темы в категории с пагинацией
      */
@@ -42,6 +49,20 @@ public class ForumThreadService {
         
         Page<ForumThread> threadsPage = threadRepository.findByCategoryIdAndNotDeleted(categoryId, pageable);
         
+        return threadsPage.map(thread -> mapToResponse(thread, currentUserId));
+    }
+
+    /**
+     * Получить темы, связанные с конкретной мангой, с учетом сортировки
+     */
+    @Transactional(readOnly = true)
+    public Page<ForumThreadResponse> getThreadsForManga(Long mangaId, Pageable pageable, Long currentUserId, String sort) {
+        log.debug("Получение тем манги: {}, страница: {}, сортировка: {}", mangaId, pageable.getPageNumber(), sort);
+
+    Sort effectiveSort = buildMangaSort(sort);
+        Pageable effectivePageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), effectiveSort);
+
+        Page<ForumThread> threadsPage = threadRepository.findByMangaIdAndIsDeletedFalse(mangaId, effectivePageable);
         return threadsPage.map(thread -> mapToResponse(thread, currentUserId));
     }
 
@@ -96,6 +117,24 @@ public class ForumThreadService {
         log.info("Тема создана с ID: {}", savedThread.getId());
         
         return mapToResponse(savedThread, authorId);
+    }
+
+    /**
+     * Создать обсуждение для манги с автоматическим созданием категории
+     */
+    @Transactional
+    public ForumThreadResponse createMangaDiscussion(Long mangaId, String categoryName, String title, String content, Long authorId) {
+        log.info("Создание обсуждения для манги {} пользователем {}", mangaId, authorId);
+
+        ForumCategory category = resolveOrCreateMangaCategory(categoryName);
+
+        CreateThreadRequest request = new CreateThreadRequest();
+        request.setTitle(title);
+        request.setContent(content);
+        request.setCategoryId(category.getId());
+        request.setMangaId(mangaId);
+
+        return createThread(request, authorId);
     }
 
     /**
@@ -264,9 +303,9 @@ public class ForumThreadService {
         }
         
         // Получаем информацию о категории
-        String categoryName = categoryRepository.findById(thread.getCategoryId())
-                .map(category -> category.getName())
-                .orElse("Неизвестная категория");
+    String categoryName = categoryRepository.findById(thread.getCategoryId())
+        .map(ForumCategory::getName)
+        .orElse("Неизвестная категория");
         
     // Автор: имя формируется простым placeholder. Аватар и финальное отображаемое имя подгружает фронтенд через AuthService.
     String authorName = "Пользователь " + thread.getAuthorId();
@@ -292,7 +331,7 @@ public class ForumThreadService {
                 .isDeleted(thread.getIsDeleted())
                 .isEdited(thread.getIsEdited())
                 .mangaId(thread.getMangaId())
-                // TODO: получить информацию о манге из MangaService
+                .mangaTitle(categoryName)
                 .createdAt(thread.getCreatedAt())
                 .updatedAt(thread.getUpdatedAt())
                 .lastActivityAt(thread.getLastActivityAt())
@@ -304,6 +343,58 @@ public class ForumThreadService {
         .canEdit(isAuthor && withinEditWindow)
         .canDelete(isAuthor || isModerator)
                 .build();
+    }
+
+    private Sort buildMangaSort(String sort) {
+        String normalized = Optional.ofNullable(sort)
+                .map(s -> s.toLowerCase(Locale.ROOT))
+                .orElse(SORT_POPULAR);
+
+        Sort base = Sort.by(Sort.Order.desc("isPinned"));
+
+        Sort ranking;
+        switch (normalized) {
+            case SORT_ACTIVE -> ranking = Sort.by(Sort.Order.desc("lastActivityAt"), Sort.Order.desc("repliesCount"));
+            case SORT_NEW -> ranking = Sort.by(Sort.Order.desc("createdAt"));
+            case SORT_POPULAR -> ranking = Sort.by(
+                    Sort.Order.desc("repliesCount"),
+                    Sort.Order.desc("likesCount"),
+                    Sort.Order.desc("viewsCount"),
+                    Sort.Order.desc("lastActivityAt"));
+            default -> {
+                log.warn("Неизвестная сортировка '{}', используется по умолчанию", sort);
+                ranking = Sort.by(
+                        Sort.Order.desc("repliesCount"),
+                        Sort.Order.desc("likesCount"),
+                        Sort.Order.desc("viewsCount"),
+                        Sort.Order.desc("lastActivityAt"));
+            }
+        }
+
+        return base.and(ranking).and(Sort.by(Sort.Order.desc("id")));
+    }
+
+    private ForumCategory resolveOrCreateMangaCategory(String categoryName) {
+        String trimmedName = Optional.ofNullable(categoryName).map(String::trim).filter(s -> !s.isEmpty())
+                .orElseThrow(() -> new IllegalArgumentException("Название категории не может быть пустым"));
+
+        return categoryRepository.findByNameIgnoreCase(trimmedName)
+                .map(existing -> {
+                    if (!Boolean.TRUE.equals(existing.getIsActive())) {
+                        existing.setIsActive(true);
+                        return categoryRepository.save(existing);
+                    }
+                    return existing;
+                })
+                .orElseGet(() -> {
+                    ForumCategory category = ForumCategory.builder()
+                            .name(trimmedName)
+                            .description("Обсуждения манги \"" + trimmedName + "\"")
+                            .displayOrder(9000)
+                            .isActive(true)
+                            .build();
+                    return categoryRepository.save(category);
+                });
     }
 
     private boolean hasModRights() {

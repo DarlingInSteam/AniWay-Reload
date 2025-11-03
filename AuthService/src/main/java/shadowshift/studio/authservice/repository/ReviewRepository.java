@@ -70,6 +70,9 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
      */
     @Query("SELECT r.rating, COUNT(r) FROM Review r WHERE r.mangaId = :mangaId GROUP BY r.rating ORDER BY r.rating")
     List<Object[]> getRatingDistributionByMangaId(@Param("mangaId") Long mangaId);
+
+    @Query("SELECT r.mangaId, AVG(r.rating), COUNT(r) FROM Review r WHERE r.mangaId IN :mangaIds GROUP BY r.mangaId")
+    List<Object[]> getAggregatedRatingsByMangaIds(@Param("mangaIds") List<Long> mangaIds);
     
     /**
      * Находит отзывы для манги, отсортированные по фактору доверия.

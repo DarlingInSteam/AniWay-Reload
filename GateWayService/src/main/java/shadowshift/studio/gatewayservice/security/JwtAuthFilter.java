@@ -3,6 +3,7 @@ package shadowshift.studio.gatewayservice.security;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -43,6 +44,14 @@ public class JwtAuthFilter implements WebFilter {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         String path = exchange.getRequest().getURI().getPath();
+
+        HttpMethod method = exchange.getRequest().getMethod();
+        if (path.startsWith("/api/moments")) {
+            if (method == null || HttpMethod.GET.equals(method) || HttpMethod.HEAD.equals(method) || HttpMethod.OPTIONS.equals(method)) {
+                logger.debug("Allowing unauthenticated {} request for {}", method != null ? method.name() : "GET", path);
+                return chain.filter(exchange);
+            }
+        }
 
         // check public paths (fix handling of patterns ending with /** so /api/auth/** matches /api/auth/...)
         for (String p : authProperties.getPublicPaths()) {

@@ -4,19 +4,25 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.multipart.MultipartFile;
 import shadowshift.studio.mangaservice.dto.ChapterDTO;
 import shadowshift.studio.mangaservice.dto.ChapterImageDTO;
+import shadowshift.studio.mangaservice.dto.MangaCharacterDTO;
+import shadowshift.studio.mangaservice.dto.MangaCharacterModerationDTO;
+import shadowshift.studio.mangaservice.dto.MangaCharacterRequestDTO;
 import shadowshift.studio.mangaservice.dto.MangaCreateDTO;
 import shadowshift.studio.mangaservice.dto.MangaResponseDTO;
 import shadowshift.studio.mangaservice.dto.PageResponseDTO;
 import shadowshift.studio.mangaservice.service.MangaService;
+import shadowshift.studio.mangaservice.service.MangaCharacterService;
 import shadowshift.studio.mangaservice.service.external.ChapterServiceClient;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -50,6 +56,7 @@ public class MangaRestController {
     private static final Logger logger = LoggerFactory.getLogger(MangaRestController.class);
 
     private final MangaService mangaService;
+    private final MangaCharacterService mangaCharacterService;
     private final ChapterServiceClient chapterServiceClient;
 
     /**
@@ -58,9 +65,11 @@ public class MangaRestController {
      * @param mangaService сервис для работы с мангой
      * @param chapterServiceClient клиент для работы с сервисом глав
      */
-    @Autowired
-    public MangaRestController(MangaService mangaService, ChapterServiceClient chapterServiceClient) {
+    public MangaRestController(MangaService mangaService,
+                               MangaCharacterService mangaCharacterService,
+                               ChapterServiceClient chapterServiceClient) {
         this.mangaService = mangaService;
+        this.mangaCharacterService = mangaCharacterService;
         this.chapterServiceClient = chapterServiceClient;
         logger.info("Инициализирован MangaRestController");
     }
@@ -243,6 +252,122 @@ public class MangaRestController {
     }
 
     /**
+     * Возвращает список персонажей для указанной манги.
+     *
+     * @param mangaId идентификатор манги
+     * @param userHeader заголовок с идентификатором пользователя (опционально)
+     * @param roleHeader заголовок с ролью пользователя (опционально)
+     * @return ResponseEntity со списком персонажей
+     */
+    @GetMapping("/{id}/characters")
+    public ResponseEntity<List<MangaCharacterDTO>> getMangaCharacters(
+            @PathVariable("id") Long mangaId,
+            @RequestHeader(value = "X-User-Id", required = false) String userHeader,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+
+        Long requesterId = parseUserIdAllowNull(userHeader);
+        boolean includeAll = hasModerationRights(roleHeader);
+
+        logger.debug("API запрос: получение персонажей для манги {} (requester={}, includeAll={})",
+                mangaId, requesterId, includeAll);
+
+        List<MangaCharacterDTO> characters = mangaCharacterService.getCharacters(mangaId, requesterId, includeAll);
+
+        logger.debug("API ответ: найдено {} персонажей для манги {}", characters.size(), mangaId);
+        return ResponseEntity.ok(characters);
+    }
+
+    /**
+     * Создает нового персонажа в рамках указанной манги.
+     *
+     * @param mangaId идентификатор манги
+     * @param roleHeader заголовок с ролью пользователя (опционально)
+     * @param requestPayload данные персонажа для создания
+     * @return ResponseEntity с созданным персонажем
+     */
+    @PostMapping(value = "/{id}/characters", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<MangaCharacterDTO> createCharacter(
+            @PathVariable("id") Long mangaId,
+            @RequestHeader("X-User-Id") String userHeader,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader,
+            @RequestPart("payload") @Valid MangaCharacterRequestDTO requestPayload,
+            @RequestPart(value = "image", required = false) MultipartFile imageFile) {
+
+        Long creatorId = parseUserId(userHeader);
+        logger.info("API запрос: создание персонажа для манги {} пользователем {}", mangaId, creatorId);
+
+        MangaCharacterDTO created = mangaCharacterService.createCharacter(mangaId, requestPayload, creatorId, roleHeader, imageFile);
+
+        logger.info("API ответ: персонаж {} создан для манги {}", created.getId(), mangaId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
+    /**
+     * Обновляет данные персонажа.
+     *
+     * @param characterId идентификатор персонажа
+     * @param roleHeader заголовок с ролью пользователя (опционально)
+     * @param requestPayload новые данные персонажа
+     * @return ResponseEntity с обновленным персонажем
+     */
+    @PutMapping(value = "/characters/{characterId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<MangaCharacterDTO> updateCharacter(
+            @PathVariable Long characterId,
+            @RequestHeader("X-User-Id") String userHeader,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader,
+            @RequestPart("payload") @Valid MangaCharacterRequestDTO requestPayload,
+            @RequestPart(value = "image", required = false) MultipartFile imageFile) {
+
+        Long requesterId = parseUserId(userHeader);
+        logger.info("API запрос: обновление персонажа {} пользователем {}", characterId, requesterId);
+
+        MangaCharacterDTO updated = mangaCharacterService.updateCharacter(characterId, requestPayload, requesterId, roleHeader, imageFile);
+        return ResponseEntity.ok(updated);
+    }
+
+    /**
+     * Модерирует предложенного персонажа.
+     *
+     * @param characterId идентификатор персонажа
+     * @param roleHeader заголовок с ролью пользователя
+     * @param requestPayload данные модерации
+     * @return ResponseEntity с обновленным персонажем
+     */
+    @PostMapping("/characters/{characterId}/moderate")
+    public ResponseEntity<MangaCharacterDTO> moderateCharacter(
+            @PathVariable Long characterId,
+            @RequestHeader("X-User-Id") String userHeader,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader,
+            @Valid @RequestBody MangaCharacterModerationDTO requestPayload) {
+
+        Long moderatorId = parseUserId(userHeader);
+        logger.info("API запрос: модерация персонажа {} модератором {}", characterId, moderatorId);
+
+        MangaCharacterDTO moderated = mangaCharacterService.moderateCharacter(characterId, requestPayload, moderatorId, roleHeader);
+        return ResponseEntity.ok(moderated);
+    }
+
+    /**
+     * Удаляет персонажа.
+     *
+     * @param characterId идентификатор персонажа
+     * @param roleHeader заголовок с ролью пользователя (опционально)
+     * @return ResponseEntity без содержимого
+     */
+    @DeleteMapping("/characters/{characterId}")
+    public ResponseEntity<Void> deleteCharacter(
+            @PathVariable Long characterId,
+            @RequestHeader("X-User-Id") String userHeader,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+
+        Long requesterId = parseUserId(userHeader);
+        logger.info("API запрос: удаление персонажа {} пользователем {}", characterId, requesterId);
+
+        mangaCharacterService.deleteCharacter(characterId, requesterId, roleHeader);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
      * Создает новую мангу в системе.
      *
      * @param createDTO валидированные данные для создания манги
@@ -404,6 +529,37 @@ public class MangaRestController {
 
         logger.info("API ответ: синхронизация MangaLib ID завершена. Обновлено {} записей.", updated.size());
         return ResponseEntity.ok(updated);
+    }
+
+    private Long parseUserId(String header) {
+        Long id = parseUserIdAllowNull(header);
+        if (id == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Требуется авторизация");
+        }
+        return id;
+    }
+
+    private Long parseUserIdAllowNull(String header) {
+        if (header == null || header.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(header.trim());
+        } catch (NumberFormatException ex) {
+            logger.warn("Невалидный заголовок X-User-Id: '{}'", header);
+            return null;
+        }
+    }
+
+    private boolean hasModerationRights(String roleHeader) {
+        if (roleHeader == null || roleHeader.isBlank()) {
+            return false;
+        }
+        String normalized = roleHeader.trim().toUpperCase();
+        if (normalized.startsWith("ROLE_")) {
+            normalized = normalized.substring(5);
+        }
+        return "ADMIN".equals(normalized) || "MODERATOR".equals(normalized);
     }
 }
 

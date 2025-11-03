@@ -3,7 +3,6 @@ package shadowshift.studio.parserservice.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jsoup.Connection;
-import org.jsoup.Connection.Response;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -61,6 +60,7 @@ public class MangaBuffParserService {
     // Кеш cookies для избежания повторных запросов к главной странице манги
     // Key: slug, Value: Response с cookies от DDoS-Guard
     private final Map<String, Connection.Response> cookieCache = new ConcurrentHashMap<>();
+    private final Set<String> adultContentSlugs = ConcurrentHashMap.newKeySet();
 
     public MangaBuffParserService(ParserProperties properties,
                                   ObjectMapper objectMapper,
@@ -89,7 +89,6 @@ public class MangaBuffParserService {
 
     public CompletableFuture<CatalogResult> fetchCatalog(int page, Integer minChapters, Integer maxChapters) {
         return CompletableFuture.supplyAsync(() -> {
-            SlugContext context = new SlugContext("catalog");
             try {
                 String url = MangaBuffApiHelper.buildCatalogUrl(page);
                 logger.info("📄 [CATALOG] GET {}", url);
@@ -178,12 +177,9 @@ public class MangaBuffParserService {
     private List<SlideInfo> fetchChapterSlidesWithRetry(String slug, String volume, String chapter, boolean isRetry) throws IOException {
         final int maxAttempts = 3;
         int attempt = 0;
+        boolean adultAuthAttempted = false;
         while (true) {
-            boolean forceCookieRefresh = attempt > 0;
-            if (isRetry) {
-                forceCookieRefresh = true;
-            }
-
+            boolean forceCookieRefresh = attempt > 0 || isRetry;
             if (forceCookieRefresh) {
                 Connection.Response refreshed = fetchAndCacheCookies(slug, true);
                 if (refreshed == null) {
@@ -208,13 +204,7 @@ public class MangaBuffParserService {
             }
             String xsrf = mangaResponse.cookie("XSRF-TOKEN");
             if (xsrf != null && !xsrf.isBlank()) {
-                String decoded = xsrf;
-                try {
-                    decoded = URLDecoder.decode(xsrf, StandardCharsets.UTF_8);
-                } catch (IllegalArgumentException ignored) {
-                    // если не удалось декодировать, используем исходное значение
-                }
-                connection.header("X-XSRF-TOKEN", decoded);
+                connection.header("X-XSRF-TOKEN", decodeXsrf(xsrf));
             }
             connection.header("Sec-Fetch-Site", "same-origin");
             connection.header("Sec-Fetch-Mode", "navigate");
@@ -227,15 +217,24 @@ public class MangaBuffParserService {
             connection.ignoreHttpErrors(true);
 
             Connection.Response response = connection.execute();
+            int statusCode = response.statusCode();
 
-            if (!response.cookies().isEmpty() && response.statusCode() < 400) {
+            if (!response.cookies().isEmpty() && statusCode < 400) {
                 logger.info("🔄 [COOKIES] Server sent {} cookies (status {}), updating cache for {}",
-                        response.cookies().size(), response.statusCode(), slug);
+                        response.cookies().size(), statusCode, slug);
                 cookieCache.put(slug, response);
             }
 
-            if (response.statusCode() == 401) {
+            if (statusCode == 401) {
                 logUnauthorizedBody(response);
+                boolean slugMarkedAdult = isAdultSlug(slug);
+                if ((slugMarkedAdult || attempt + 1 >= maxAttempts) && !adultAuthAttempted) {
+                    adultAuthAttempted = true;
+                    List<SlideInfo> authorized = attemptAdultChapterFetch(slug, volume, chapter, url, mangaResponse, response);
+                    if (authorized != null) {
+                        return authorized;
+                    }
+                }
                 if (++attempt < maxAttempts) {
                     int retryNumber = attempt + 1;
                     long backoffMs = 600L * retryNumber;
@@ -248,60 +247,41 @@ public class MangaBuffParserService {
                     }
                     continue;
                 }
-                // После всех обычных попыток, попробуем с auth cookies для 18+ контента
-                if (properties.getMangabuffAuth().isEnabled()) {
-                    logger.warn("🔐 [AUTH] Attempting auth for 18+ content {}/{}", volume, chapter);
-                    try {
-                        Map<String, String> authCookies = authService.getAuthCookies();
-                        if (authCookies != null && !authCookies.isEmpty()) {
-                            Connection authConnection = MangaBuffApiHelper.cloneConnection(url, mangaResponse, getProxyConfig());
-                            if (slug != null && !slug.isBlank()) {
-                                authConnection.referrer(MangaBuffApiHelper.buildMangaUrl(slug));
-                            }
-                            // Добавляем auth cookies
-                            for (Map.Entry<String, String> cookie : authCookies.entrySet()) {
-                                authConnection.cookie(cookie.getKey(), cookie.getValue());
-                            }
-                            String authXsrf = mangaResponse.cookie("XSRF-TOKEN");
-                            if (authXsrf != null && !authXsrf.isBlank()) {
-                                String decoded = authXsrf;
-                                try {
-                                    decoded = URLDecoder.decode(authXsrf, StandardCharsets.UTF_8);
-                                } catch (IllegalArgumentException ignored) {
-                                    // если не удалось декодировать, используем исходное значение
-                                }
-                                authConnection.header("X-XSRF-TOKEN", decoded);
-                            }
-                            authConnection.header("Sec-Fetch-Site", "same-origin");
-                            authConnection.header("Sec-Fetch-Mode", "navigate");
-                            authConnection.header("Sec-Fetch-Dest", "document");
-                            authConnection.header("Sec-Fetch-User", "?1");
-                            authConnection.header("Pragma", "no-cache");
-                            authConnection.header("Cache-Control", "no-cache");
-                            authConnection.header("Upgrade-Insecure-Requests", "1");
-                            authConnection.header("Accept-Encoding", "gzip, deflate, br, zstd");
-                            authConnection.ignoreHttpErrors(true);
-
-                            Connection.Response authResponse = authConnection.execute();
-                            if (authResponse.statusCode() == 200) {
-                                logger.info("✅ [AUTH] Successfully accessed 18+ content with auth cookies");
-                                Document document = authResponse.parse();
-                                return parseSlides(document);
-                            } else {
-                                logger.warn("❌ [AUTH] Auth attempt failed with status {}", authResponse.statusCode());
-                            }
-                        } else {
-                            logger.warn("❌ [AUTH] No auth cookies available");
-                        }
-                    } catch (Exception ex) {
-                        logger.warn("❌ [AUTH] Auth attempt failed: {}", ex.getMessage());
-                    }
-                }
                 throw new IOException("401 Unauthorized for chapter " + slug + " " + volume + "/" + chapter);
             }
 
-            if (response.statusCode() >= 400) {
-                throw new IOException("HTTP " + response.statusCode() + " for " + url);
+            if (statusCode == 403 || statusCode == 404) {
+                logUnauthorizedBody(response);
+                boolean slugMarkedAdult = isAdultSlug(slug);
+                boolean looksAdultRestricted = shouldAttemptAdultAuth(response);
+                if (!looksAdultRestricted && slugMarkedAdult) {
+                    logger.debug("🔐 [AUTH] Slug {} marked as adult, forcing auth attempt", slug);
+                    looksAdultRestricted = true;
+                }
+                if (looksAdultRestricted && !adultAuthAttempted) {
+                    adultAuthAttempted = true;
+                    List<SlideInfo> authorized = attemptAdultChapterFetch(slug, volume, chapter, url, mangaResponse, response);
+                    if (authorized != null) {
+                        return authorized;
+                    }
+                }
+                if (++attempt < maxAttempts) {
+                    int retryNumber = attempt + 1;
+                    long backoffMs = 600L * retryNumber;
+                    logger.warn("🔄 [RETRY] {} from {}, retry {}/{} for {}/{} (sleep {}ms)",
+                            statusCode, url, retryNumber, maxAttempts, volume, chapter, backoffMs);
+                    try {
+                        Thread.sleep(backoffMs);
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                    }
+                    continue;
+                }
+                throw new IOException("HTTP " + statusCode + " for " + url);
+            }
+
+            if (statusCode >= 400) {
+                throw new IOException("HTTP " + statusCode + " for " + url);
             }
 
             Document document = response.parse();
@@ -309,16 +289,146 @@ public class MangaBuffParserService {
         }
     }
 
+    private String decodeXsrf(String token) {
+        if (token == null || token.isBlank()) {
+            return token;
+        }
+        String decoded = token;
+        try {
+            decoded = URLDecoder.decode(token, StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException ignored) {
+            // Используем исходное значение, если декодирование не удалось
+        }
+        return decoded;
+    }
+
+    private boolean shouldAttemptAdultAuth(Connection.Response response) {
+        if (response == null) {
+            return false;
+        }
+        int status = response.statusCode();
+        if (status == 401 || status == 403) {
+            return true;
+        }
+        if (status == 404) {
+            String body = response.body();
+            if (body == null) {
+                return false;
+            }
+            String normalized = body.toLowerCase(Locale.ROOT);
+            return normalized.contains("18+")
+                    || normalized.contains("18 +")
+                    || normalized.contains("для взрослых")
+                    || normalized.contains("взросл")
+                    || normalized.contains("необходимо авторизоваться")
+                    || normalized.contains("авторизуйтесь")
+                    || normalized.contains("только для зарегистрированных")
+                    || normalized.contains("только авторизованным")
+                    || normalized.contains("restricted")
+                    || normalized.contains("adult");
+        }
+        return false;
+    }
+
+    private List<SlideInfo> attemptAdultChapterFetch(String slug,
+                                                     String volume,
+                                                     String chapter,
+                                                     String url,
+                                                     Connection.Response mangaResponse,
+                                                     Connection.Response lastResponse) {
+        if (!properties.getMangabuffAuth().isEnabled()) {
+            logger.warn("❌ [AUTH] MangaBuff auth disabled, cannot access adult chapter {}/{} (slug: {})",
+                    volume, chapter, slug);
+            return null;
+        }
+
+        logger.warn("🔐 [AUTH] Attempting auth for adult content {}/{}", volume, chapter);
+
+        try {
+            Map<String, String> authCookies = authService.getAuthCookies();
+            if (authCookies == null || authCookies.isEmpty()) {
+                logger.warn("❌ [AUTH] No auth cookies available");
+                return null;
+            }
+
+            Connection.Response seedResponse = mangaResponse != null ? mangaResponse : lastResponse;
+            if (seedResponse == null) {
+                seedResponse = fetchAndCacheCookies(slug, true);
+            }
+            if (seedResponse == null) {
+                logger.warn("❌ [AUTH] Unable to obtain base cookies for {}", slug);
+                return null;
+            }
+
+            Connection authConnection = MangaBuffApiHelper.cloneConnection(url, seedResponse, getProxyConfig());
+            if (slug != null && !slug.isBlank()) {
+                authConnection.referrer(MangaBuffApiHelper.buildMangaUrl(slug));
+            }
+            for (Map.Entry<String, String> cookie : authCookies.entrySet()) {
+                authConnection.cookie(cookie.getKey(), cookie.getValue());
+            }
+
+            String authXsrf = seedResponse.cookie("XSRF-TOKEN");
+            if ((authXsrf == null || authXsrf.isBlank()) && authCookies.containsKey("XSRF-TOKEN")) {
+                authXsrf = authCookies.get("XSRF-TOKEN");
+            }
+            if (authXsrf != null && !authXsrf.isBlank()) {
+                authConnection.header("X-XSRF-TOKEN", decodeXsrf(authXsrf));
+            }
+
+            authConnection.header("Sec-Fetch-Site", "same-origin");
+            authConnection.header("Sec-Fetch-Mode", "navigate");
+            authConnection.header("Sec-Fetch-Dest", "document");
+            authConnection.header("Sec-Fetch-User", "?1");
+            authConnection.header("Pragma", "no-cache");
+            authConnection.header("Cache-Control", "no-cache");
+            authConnection.header("Upgrade-Insecure-Requests", "1");
+            authConnection.header("Accept-Encoding", "gzip, deflate, br, zstd");
+            authConnection.ignoreHttpErrors(true);
+
+            Connection.Response authResponse = authConnection.execute();
+            int status = authResponse.statusCode();
+
+            if (!authResponse.cookies().isEmpty() && status < 400) {
+                cookieCache.put(slug, authResponse);
+            }
+
+            if (status == 200) {
+                logger.info("✅ [AUTH] Successfully accessed adult content with auth cookies");
+                Document document = authResponse.parse();
+                return parseSlides(document);
+            }
+
+            logger.warn("❌ [AUTH] Auth attempt failed with status {}", status);
+        } catch (Exception ex) {
+            logger.warn("❌ [AUTH] Auth attempt failed: {}", ex.getMessage());
+        }
+
+        return null;
+    }
+
     private void logUnauthorizedBody(Connection.Response response) {
+        if (response == null) {
+            return;
+        }
         String body = response.body();
         if (body != null && !body.isBlank()) {
             String preview = body.length() > 300 ? body.substring(0, 300) + "…" : body;
-            logger.warn("🚫 [401 BODY] {}", preview.replaceAll("\n", " "));
+            logger.warn("🚫 [HTTP {} BODY] {}", response.statusCode(), preview.replaceAll("\n", " "));
         }
     }
 
     public String normalizeSlug(String slug) {
         return new SlugContext(slug).getFileSlug();
+    }
+
+    public void registerAdultSlug(String slug) {
+        if (slug == null || slug.isBlank()) {
+            return;
+        }
+        String normalized = slug.trim();
+        adultContentSlugs.add(normalized);
+        adultContentSlugs.add(normalized.replace('/', '-'));
     }
 
     private Connection.Response fetchMangaPage(SlugContext context) throws IOException {
@@ -418,7 +528,12 @@ public class MangaBuffParserService {
         metadata.setTags(extractTexts(document.select(".tags a[href*='?tags']")));
 
         Element adultTag = document.selectFirst(".tags__item--warning");
-        metadata.setAgeLimit(adultTag != null ? 18 : null);
+        Integer ageLimit = adultTag != null ? 18 : null;
+        metadata.setAgeLimit(ageLimit);
+        if (ageLimit != null && ageLimit >= 18) {
+            registerAdultSlug(context.getPageSlug());
+            registerAdultSlug(context.getFileSlug());
+        }
 
         Map<String, String> info = parseInfoList(document);
 
@@ -571,7 +686,6 @@ public class MangaBuffParserService {
             logger.debug("🔄 [LOAD] {}: load response body length: {}", context.getFileSlug(), responseBody != null ? responseBody.length() : 0);
             
             Document parsedResponse = null;
-            boolean parsedFromJson = false;
             boolean jsonSuggestsMore = false;
 
             if (responseBody != null) {
@@ -585,7 +699,6 @@ public class MangaBuffParserService {
                         JsonNode json = objectMapper.readTree(trimmedBody);
                         String htmlFragment = json.path("content").asText("");
                         parsedResponse = Jsoup.parseBodyFragment(htmlFragment != null ? htmlFragment : "");
-                        parsedFromJson = true;
 
                         jsonSuggestsMore = nodeTruthy(json.path("load_more"))
                             || nodeTruthy(json.path("hasMore"))
@@ -713,6 +826,18 @@ public class MangaBuffParserService {
             throw new IOException("Invalid chapter path: " + relativePath);
         }
         return fetchChapterSlidesWithRetry(chapterPath.getSlug(), chapterPath.getVolume(), chapterPath.getChapter(), false);
+    }
+
+    private boolean isAdultSlug(String slug) {
+        if (slug == null || slug.isBlank()) {
+            return false;
+        }
+        String normalized = slug.trim();
+        if (adultContentSlugs.contains(normalized)) {
+            return true;
+        }
+        String alt = normalized.replace('/', '-');
+        return adultContentSlugs.contains(alt);
     }
 
     private Connection.Response fetchAndCacheCookies(String slug, boolean forceLog) {
@@ -1138,13 +1263,37 @@ public class MangaBuffParserService {
         if (value == null) {
             return null;
         }
-        return switch (value.trim().toLowerCase(Locale.ROOT)) {
-            case "продолжается", "ongoing" -> "ongoing";
-            case "завершено", "completed" -> "completed";
-            case "заморожено", "приостановлено" -> "dropped";
-            case "анонс", "анонсировано" -> "announced";
-            default -> null;
-        };
+
+        String normalized = value.trim().toLowerCase(Locale.ROOT)
+            .replace('ё', 'е');
+
+        if (normalized.isEmpty()) {
+            return null;
+        }
+
+        if (normalized.equals("ongoing") || normalized.contains("продолж")) {
+            return "ongoing";
+        }
+
+        if (normalized.equals("completed") || normalized.contains("заверш")) {
+            return "completed";
+        }
+
+        if (normalized.equals("hiatus") || normalized.contains("заморож") || normalized.contains("приостанов")) {
+            return "hiatus";
+        }
+
+        if (normalized.contains("заброш") || normalized.contains("отмен")
+            || normalized.contains("cancel") || normalized.contains("dropped")
+            || normalized.contains("прекращ")) {
+            return "cancelled";
+        }
+
+        if (normalized.equals("announced") || normalized.contains("анонс")) {
+            return "announced";
+        }
+
+        return null;
     }
 
     private String formatNumber(Double value) {
@@ -1166,7 +1315,8 @@ public class MangaBuffParserService {
      * Контекст slug для совместимости со старыми id--slug форматами.
      */
     private static final class SlugContext {
-        private final String rawSlug;
+    @SuppressWarnings("unused")
+    private final String rawSlug;
         private final String pageSlug;
         private final String fileSlug;
 

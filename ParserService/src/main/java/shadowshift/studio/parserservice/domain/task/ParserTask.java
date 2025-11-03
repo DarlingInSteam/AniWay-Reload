@@ -37,6 +37,9 @@ public class ParserTask {
 
     private volatile String branchId;
     private volatile boolean autoImport = false;
+    private volatile String buildType;
+    private final List<String> targetChapterIds = new CopyOnWriteArrayList<>();
+    private final List<String> targetChapterCompositeKeys = new CopyOnWriteArrayList<>();
 
     public ParserTask(UUID id, TaskType type, List<String> slugs) {
         this.id = Objects.requireNonNull(id, "id");
@@ -199,6 +202,47 @@ public class ParserTask {
 
     public void setAutoImport(boolean autoImport) {
         this.autoImport = autoImport;
+        touch();
+    }
+
+    public String getBuildType() {
+        return buildType;
+    }
+
+    public void setBuildType(String buildType) {
+        this.buildType = buildType;
+        touch();
+    }
+
+    public List<String> getTargetChapterIds() {
+        return Collections.unmodifiableList(targetChapterIds);
+    }
+
+    public void setTargetChapterIds(List<String> chapterIds) {
+        targetChapterIds.clear();
+        if (chapterIds != null) {
+            chapterIds.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .forEach(targetChapterIds::add);
+        }
+        touch();
+    }
+
+    public List<String> getTargetChapterCompositeKeys() {
+        return Collections.unmodifiableList(targetChapterCompositeKeys);
+    }
+
+    public void setTargetChapterCompositeKeys(List<String> compositeKeys) {
+        targetChapterCompositeKeys.clear();
+        if (compositeKeys != null) {
+            compositeKeys.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .forEach(targetChapterCompositeKeys::add);
+        }
         touch();
     }
 

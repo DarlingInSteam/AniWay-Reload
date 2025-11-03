@@ -6,6 +6,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import shadowshift.studio.imagestorageservice.dto.ChapterImageResponseDTO;
+import shadowshift.studio.imagestorageservice.dto.CharacterImageUploadResponseDTO;
+import shadowshift.studio.imagestorageservice.dto.MomentImageUploadResponseDTO;
 import shadowshift.studio.imagestorageservice.dto.UserAvatarResponseDTO;
 import shadowshift.studio.imagestorageservice.service.ImageStorageService;
 
@@ -356,6 +358,47 @@ public class ImageStorageController {
         return imageStorageService.getUserAvatar(userId)
                 .map(a -> ResponseEntity.ok(new UserAvatarResponseDTO(a)))
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping(value = "/moments", consumes = {"multipart/form-data"})
+    public ResponseEntity<?> uploadMomentImage(@RequestParam("file") MultipartFile file,
+                                               @RequestParam(value = "mangaId", required = false) Long mangaId,
+                                               @RequestHeader(value = "X-User-Id", required = false) Long userId) {
+        try {
+            MomentImageUploadResponseDTO response = imageStorageService.uploadMomentImage(file, mangaId, userId);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", "Upload failed: " + e.getMessage()));
+        }
+    }
+
+    @PostMapping(value = "/characters", consumes = {"multipart/form-data"})
+    public ResponseEntity<?> uploadCharacterImage(@RequestParam("file") MultipartFile file,
+                                                  @RequestParam("mangaId") Long mangaId,
+                                                  @RequestParam(value = "characterId", required = false) Long characterId,
+                                                  @RequestHeader(value = "X-User-Id", required = false) Long userId) {
+        try {
+            CharacterImageUploadResponseDTO response = imageStorageService.uploadCharacterImage(file, mangaId, characterId, userId);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", "Upload failed: " + e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/characters")
+    public ResponseEntity<?> deleteCharacterImage(@RequestParam("key") String objectKey) {
+        try {
+            imageStorageService.deleteObjectByKey(objectKey);
+            return ResponseEntity.noContent().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", "Delete failed: " + e.getMessage()));
+        }
     }
 
     // === Post Images Upload ===

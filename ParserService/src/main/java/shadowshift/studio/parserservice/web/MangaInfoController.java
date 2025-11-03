@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -15,6 +16,7 @@ import shadowshift.studio.parserservice.dto.ChapterInfo;
 import shadowshift.studio.parserservice.service.MangaLibParserService;
 
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -39,47 +41,61 @@ public class MangaInfoController {
     
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private ObjectProvider<RestTemplate> restTemplateProvider;
     
     /**
      * Get chapters only (legacy endpoint for MangaService)
      * GET /manga-info/{slug}/chapters-only?parser=mangalib&include_slides_count=true
      */
     @GetMapping("/{slug}/chapters-only")
+    @SuppressWarnings("unchecked")
     public ResponseEntity<Map<String, Object>> getChaptersOnly(
-            @PathVariable String slug,
-            @RequestParam(required = false, defaultValue = "mangalib") String parser,
-            @RequestParam(required = false, defaultValue = "false") boolean include_slides_count) {
+        @PathVariable String slug,
+        @RequestParam(required = false, defaultValue = "mangalib") String parser,
+        @RequestParam(name = "include_slides_count", required = false, defaultValue = "false") boolean includeSlidesCount,
+        @RequestParam(name = "force_refresh", required = false, defaultValue = "false") boolean forceRefresh) {
         
         try {
-            logger.info("Chapters-only request: slug={}, parser={}, includeSlidesCount={}", 
-                slug, parser, include_slides_count);
+            logger.info("Chapters-only request: slug={}, parser={}, includeSlidesCount={}, forceRefresh={}",
+                slug, parser, includeSlidesCount, forceRefresh);
             
             // Normalize slug
             String normalizedSlug = parserService.normalizeSlug(slug);
             
             // Try to read from cached JSON first (в директории titles/)
             Path jsonPath = Paths.get(properties.getOutputPath(), "titles", normalizedSlug + ".json");
-            
+
             List<ChapterInfo> chapters;
-            
+
+            Map<String, Object> cachedPayload = null;
             if (Files.exists(jsonPath)) {
-                logger.debug("Reading chapters from cached file: {}", jsonPath);
-                Map<String, Object> cached = objectMapper.readValue(jsonPath.toFile(), Map.class);
-                chapters = parseChaptersFromCache(cached);
-            } else {
-                logger.debug("Fetching fresh chapters for slug: {}", normalizedSlug);
-                
-                // Parse manga to get chapters
-                CompletableFuture<shadowshift.studio.parserservice.dto.ParseResult> parseFuture = 
+                logger.debug("Cached JSON detected for slug {}: {}", normalizedSlug, jsonPath);
+                cachedPayload = objectMapper.readValue(jsonPath.toFile(), Map.class);
+            }
+
+            boolean mustParse = forceRefresh || cachedPayload == null;
+            if (mustParse) {
+                if (forceRefresh) {
+                    logger.debug("Force refresh enabled, requesting fresh parse for slug: {}", normalizedSlug);
+                } else {
+                    logger.debug("Cached data missing, requesting fresh parse for slug: {}", normalizedSlug);
+                }
+
+                CompletableFuture<shadowshift.studio.parserservice.dto.ParseResult> parseFuture =
                     parserService.parseManga(normalizedSlug, "mangalib");
                 shadowshift.studio.parserservice.dto.ParseResult parseResult = parseFuture.join();
-                
-                if (parseResult != null && parseResult.getChapters() != null) {
+
+                if (parseResult != null && parseResult.getChapters() != null && !parseResult.getChapters().isEmpty()) {
                     chapters = parseResult.getChapters();
                 } else {
-                    logger.warn("No chapters found for slug: {}", normalizedSlug);
-                    chapters = Collections.emptyList();
+                    logger.warn("Fresh parse did not return chapters for slug: {}, falling back to cache", normalizedSlug);
+                    chapters = cachedPayload != null ? parseChaptersFromCache(cachedPayload) : Collections.emptyList();
                 }
+            } else {
+                logger.debug("Using cached chapters for slug: {}", normalizedSlug);
+                chapters = parseChaptersFromCache(cachedPayload);
             }
             
             // Convert to legacy format
@@ -95,7 +111,7 @@ public class MangaInfoController {
                 chapterMap.put("is_paid", chapter.getIsPaid());
                 
                 // Include slides_count if requested
-                if (include_slides_count) {
+                if (includeSlidesCount) {
                     // Используем pagesCount из ChapterInfo (получено при парсинге из MangaLib)
                     Integer slidesCount = chapter.getPagesCount();
                     chapterMap.put("slides_count", slidesCount != null ? slidesCount : 0);
@@ -128,6 +144,7 @@ public class MangaInfoController {
      * GET /manga-info/{slug}
      */
     @GetMapping("/{slug}")
+    @SuppressWarnings("unchecked")
     public ResponseEntity<Map<String, Object>> getMangaInfo(@PathVariable String slug) {
         try {
             logger.info("Manga-info request: slug={}", slug);
@@ -176,6 +193,7 @@ public class MangaInfoController {
      * 2. Downloads from cover_url in metadata JSON (if cached not found)
      */
     @GetMapping("/cover/{slug}")
+    @SuppressWarnings("unchecked")
     public ResponseEntity<byte[]> getCover(@PathVariable String slug) {
         try {
             logger.info("Cover request: slug={}", slug);
@@ -229,7 +247,7 @@ public class MangaInfoController {
                 logger.info("Скачивание обложки с URL: {}", coverUrl);
                 
                 // Скачиваем обложку с правильными заголовками для обхода 403
-                RestTemplate restTemplate = new RestTemplate();
+                RestTemplate restTemplate = restTemplateProvider.getObject();
                 HttpHeaders requestHeaders = new HttpHeaders();
                 requestHeaders.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
                 requestHeaders.set("Referer", "https://mangalib.me/");
@@ -306,23 +324,222 @@ public class MangaInfoController {
         if (chaptersObj instanceof List) {
             List<Map<String, Object>> chapterMaps = (List<Map<String, Object>>) chaptersObj;
             for (Map<String, Object> chMap : chapterMaps) {
-                ChapterInfo chapter = new ChapterInfo();
-                chapter.setChapterId(String.valueOf(chMap.get("id")));
-                chapter.setNumber(((Number) chMap.getOrDefault("number", 0)).doubleValue());
-                chapter.setVolume(chMap.get("volume") != null ? ((Number) chMap.get("volume")).intValue() : null);
-                chapter.setTitle((String) chMap.get("title"));
-                chapter.setIsPaid((Boolean) chMap.getOrDefault("is_paid", false));
-                
-                // Добавляем чтение pages_count из кэша для поддержки slides_count
-                Object pagesCountObj = chMap.get("pages_count");
-                if (pagesCountObj != null && pagesCountObj instanceof Number) {
-                    chapter.setPagesCount(((Number) pagesCountObj).intValue());
+                try {
+                    ChapterInfo chapter = new ChapterInfo();
+                    chapter.setChapterId(String.valueOf(chMap.get("id")));
+
+                    Double chapterNumber = parseDouble(chMap.get("number"));
+                    chapter.setNumber(chapterNumber != null ? chapterNumber : 0d);
+
+                    Integer volumeNumber = parseInteger(chMap.get("volume"));
+                    chapter.setVolume(volumeNumber);
+
+                    chapter.setTitle((String) chMap.get("title"));
+                    chapter.setIsPaid(parseBoolean(chMap.get("is_paid")));
+
+                    // Добавляем чтение pages_count из кэша для поддержки slides_count
+                    Object pagesCountObj = chMap.get("pages_count");
+                    Integer pagesCount = parseInteger(pagesCountObj);
+                    if (pagesCount != null) {
+                        chapter.setPagesCount(pagesCount);
+                    }
+
+                    chapters.add(chapter);
+                } catch (ClassCastException ex) {
+                    logger.warn("Skipping cached chapter due to type mismatch: {}", ex.getMessage());
                 }
-                
-                chapters.add(chapter);
             }
         }
         
         return chapters;
+    }
+
+    private Object unwrapExtendedValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+
+        if (value instanceof Map<?, ?> map) {
+            String[] preferredKeys = {
+                "$numberDouble",
+                "$numberDecimal",
+                "$numberLong",
+                "$numberInt",
+                "$number",
+                "$numberFloat",
+                "value",
+                "$value"
+            };
+
+            for (String key : preferredKeys) {
+                if (map.containsKey(key)) {
+                    Object nested = map.get(key);
+                    Object unwrapped = unwrapExtendedValue(nested);
+                    if (unwrapped != null) {
+                        return unwrapped;
+                    }
+                }
+            }
+
+            if (map.size() == 1) {
+                Object single = map.values().iterator().next();
+                return unwrapExtendedValue(single);
+            }
+
+            return map;
+        }
+
+        if (value instanceof Collection<?> collection) {
+            for (Object element : collection) {
+                Object unwrapped = unwrapExtendedValue(element);
+                if (unwrapped != null) {
+                    return unwrapped;
+                }
+            }
+            return null;
+        }
+
+        if (value.getClass().isArray()) {
+            int length = Array.getLength(value);
+            for (int i = 0; i < length; i++) {
+                Object unwrapped = unwrapExtendedValue(Array.get(value, i));
+                if (unwrapped != null) {
+                    return unwrapped;
+                }
+            }
+            return null;
+        }
+
+        return value;
+    }
+
+    private Double parseDouble(Object value) {
+        Object normalized = unwrapExtendedValue(value);
+
+        if (normalized == null) {
+            return null;
+        }
+
+        if (normalized instanceof Number number) {
+            return number.doubleValue();
+        }
+
+        if (normalized instanceof String text) {
+            String sanitized = text.trim().replace(',', '.');
+            if (sanitized.isEmpty()) {
+                return null;
+            }
+            try {
+                return Double.parseDouble(sanitized);
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+
+        if (normalized instanceof Map<?, ?> map) {
+            for (Object nested : map.values()) {
+                Double candidate = parseDouble(nested);
+                if (candidate != null) {
+                    return candidate;
+                }
+            }
+            return null;
+        }
+
+        if (normalized instanceof Collection<?> collection) {
+            for (Object nested : collection) {
+                Double candidate = parseDouble(nested);
+                if (candidate != null) {
+                    return candidate;
+                }
+            }
+            return null;
+        }
+
+        return null;
+    }
+
+    private Integer parseInteger(Object value) {
+        Object normalized = unwrapExtendedValue(value);
+
+        if (normalized == null) {
+            return null;
+        }
+
+        if (normalized instanceof Number number) {
+            return number.intValue();
+        }
+
+        if (normalized instanceof String text) {
+            String sanitized = text.trim();
+            if (sanitized.isEmpty()) {
+                return null;
+            }
+            try {
+                return Integer.parseInt(sanitized);
+            } catch (NumberFormatException ignored) {
+                Double doubleValue = parseDouble(sanitized);
+                return doubleValue != null ? doubleValue.intValue() : null;
+            }
+        }
+
+        if (normalized instanceof Map<?, ?> map) {
+            for (Object nested : map.values()) {
+                Integer candidate = parseInteger(nested);
+                if (candidate != null) {
+                    return candidate;
+                }
+            }
+            return null;
+        }
+
+        if (normalized instanceof Collection<?> collection) {
+            for (Object nested : collection) {
+                Integer candidate = parseInteger(nested);
+                if (candidate != null) {
+                    return candidate;
+                }
+            }
+            return null;
+        }
+
+        return null;
+    }
+
+    private boolean parseBoolean(Object value) {
+        Object normalized = unwrapExtendedValue(value);
+
+        if (normalized == null) {
+            return false;
+        }
+
+        if (normalized instanceof Boolean bool) {
+            return bool;
+        }
+
+        if (normalized instanceof Number number) {
+            return number.intValue() != 0;
+        }
+
+        if (normalized instanceof Map<?, ?> map) {
+            for (Object nested : map.values()) {
+                if (parseBoolean(nested)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        if (normalized instanceof Collection<?> collection) {
+            for (Object nested : collection) {
+                if (parseBoolean(nested)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        String text = normalized.toString().trim().toLowerCase(Locale.ROOT);
+        return text.equals("true") || text.equals("1") || text.equals("yes") || text.equals("paid");
     }
 }

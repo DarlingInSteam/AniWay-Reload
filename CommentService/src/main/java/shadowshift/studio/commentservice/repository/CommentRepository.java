@@ -211,6 +211,12 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
      */
     long countByTargetIdAndCommentTypeAndIsDeleted(Long targetId, CommentType commentType, boolean isDeleted);
 
+       @Query("SELECT c.targetId, COUNT(c) FROM Comment c WHERE c.commentType = :commentType AND c.targetId IN :targetIds AND c.isDeleted = false GROUP BY c.targetId")
+       List<Object[]> countByTypeAndTargetIds(
+              @Param("commentType") CommentType commentType,
+              @Param("targetIds") List<Long> targetIds
+       );
+
        /**
         * Топ комментариев (all-time) по (likesCount - dislikesCount) затем likesCount.
         */

@@ -44,3 +44,13 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
 }
+
+tasks.named('jar') {
+    enabled = false
+}
+
+tasks.named('bootJar') {
+    archiveBaseName.set('CommentService')
+    archiveVersion.set('')
+    archiveClassifier.set('')
+}

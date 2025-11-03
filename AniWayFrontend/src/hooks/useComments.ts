@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 
 export function useComments(
   targetId: number,
-  type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST',
+  type: 'MANGA' | 'CHAPTER' | 'PROFILE' | 'REVIEW' | 'POST' | 'MOMENT',
   sortBy: 'createdAt' | 'likesCount' = 'createdAt',
   sortDir: 'asc' | 'desc' = 'desc'
 ) {

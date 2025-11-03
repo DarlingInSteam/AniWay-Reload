@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type CSSProperties } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
@@ -86,6 +86,9 @@ export function RealTimeProgress({
   const [isMinimized, setIsMinimized] = useState(false)
   const [showLogs, setShowLogs] = useState(false)
   const storageKey = `parser-progress:${taskId}`
+  const floatingStyle: CSSProperties = {
+    bottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)'
+  }
 
   const { isConnected, subscribeToTask, unsubscribeFromTask } = useProgressWebSocket({
     onProgress: (data) => {
@@ -275,7 +278,10 @@ export function RealTimeProgress({
 
   if (isMinimized) {
     return (
-      <div className={`fixed bottom-4 left-4 right-4 z-50 sm:left-auto sm:right-4 ${className}`}>
+      <div
+        className={`fixed left-3 right-3 z-50 sm:left-auto sm:right-4 ${className}`}
+        style={floatingStyle}
+      >
         <Button
           onClick={() => setIsMinimized(false)}
           variant="outline"
@@ -294,7 +300,10 @@ export function RealTimeProgress({
   }
 
   return (
-    <Card className={`fixed bottom-4 left-4 right-4 z-50 max-h-96 w-auto max-w-md bg-background/95 backdrop-blur-sm border-border sm:left-auto sm:right-4 sm:w-96 sm:max-w-none ${className}`}>
+    <Card
+      className={`fixed left-3 right-3 z-50 max-h-[80vh] w-auto max-w-lg bg-background/95 backdrop-blur-sm border-border sm:left-auto sm:right-4 sm:w-[24rem] ${className}`}
+      style={floatingStyle}
+    >
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -358,7 +367,7 @@ export function RealTimeProgress({
                 Очистить
               </Button>
             </div>
-            <div className="h-24 w-full rounded border bg-black/20 p-2 overflow-auto">
+            <div className="h-32 w-full rounded border bg-black/20 p-2 overflow-auto sm:h-40">
               <div className="space-y-1 font-mono text-xs">
                 {logs.slice(-20).map((log, index) => (
                   <div key={index} className="flex gap-2">
