@@ -2,10 +2,12 @@ package shadowshift.studio.notificationservice.service.telegram;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.util.UriComponentsBuilder;
 import shadowshift.studio.notificationservice.domain.Notification;
 import shadowshift.studio.notificationservice.domain.NotificationType;
 import shadowshift.studio.notificationservice.domain.TelegramDeliveryStatus;
@@ -13,10 +15,7 @@ import shadowshift.studio.notificationservice.domain.TelegramNotificationLog;
 import shadowshift.studio.notificationservice.domain.TelegramNotificationLogRepository;
 import shadowshift.studio.notificationservice.dto.TelegramRecipient;
 
-import jakarta.annotation.PreDestroy;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -28,13 +27,14 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Handles Telegram notifications delivery, including optional aggregation windows,
+ * per-chapter deduplication, and retry/backoff logic.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class TelegramNotificationService {
-
-    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")
-            .withZone(ZoneId.systemDefault());
 
     private final TelegramNotificationProperties properties;
     private final AuthServiceTelegramClient authServiceTelegramClient;
@@ -63,10 +63,12 @@ public class TelegramNotificationService {
         if (notification.getType() != NotificationType.BOOKMARK_NEW_CHAPTER) {
             return;
         }
+
         ChapterPayload payload = parsePayload(notification.getPayloadJson());
         if (payload == null) {
             return;
         }
+
         if (properties.getAggregateWindowSeconds() <= 0) {
             deliverImmediate(notification, payload);
         } else {
@@ -106,7 +108,11 @@ public class TelegramNotificationService {
         deliverAggregated(bucket.userId(), null, bucket.mangaId(), bucket.mangaTitle(), chapters);
     }
 
-    private void deliverAggregated(Long userId, Long notificationId, Long mangaId, String mangaTitle, List<ChapterPayload> chapters) {
+    private void deliverAggregated(Long userId,
+                                   Long notificationId,
+                                   Long mangaId,
+                                   String mangaTitle,
+                                   List<ChapterPayload> chapters) {
         try {
             List<ChapterPayload> uniqueChapters = filterAlreadyDelivered(userId, chapters);
             if (uniqueChapters.isEmpty()) {
@@ -116,50 +122,54 @@ public class TelegramNotificationService {
             Optional<TelegramRecipient> recipientOpt = authServiceTelegramClient.getRecipientForUser(userId);
             if (recipientOpt.isEmpty()) {
                 log.debug("Telegram skip: user {} has no linked account", userId);
-                logSkipped(userId, notificationId, mangaId, chapters, "NO_RECIPIENT");
+                logSkipped(userId, notificationId, mangaId, uniqueChapters, "NO_RECIPIENT");
                 return;
             }
             TelegramRecipient recipient = recipientOpt.get();
             if (!recipient.notificationsEnabled() || recipient.chatId() == null) {
                 log.debug("Telegram skip: notifications disabled for user {}", userId);
-                logSkipped(userId, notificationId, mangaId, chapters, "DISABLED");
+                logSkipped(userId, notificationId, mangaId, uniqueChapters, "DISABLED");
                 return;
             }
 
-            String message = composeMessage(mangaTitle, uniqueChapters);
-            SendOutcome outcome = sendWithRetry(recipient.chatId(), message);
-            TelegramSendResult result = outcome.result();
-            if (result.success()) {
-                uniqueChapters.forEach(chapter -> logRepository.save(
-                        TelegramNotificationLog.builder()
-                                .notificationId(notificationId)
-                                .userId(userId)
-                                .chatId(recipient.chatId())
-                                .mangaId(mangaId)
-                                .chapterId(chapter.chapterId())
-                                .status(TelegramDeliveryStatus.SUCCESS)
-                                .retryCount(outcome.attempts())
-                                .payload(message)
-                                .build()
-                ));
-            } else {
-                if ("403".equals(result.errorCode())) {
-                    authServiceTelegramClient.unlinkByChat(recipient.chatId(), "FORBIDDEN");
+            for (ChapterPayload chapter : uniqueChapters) {
+                String effectiveTitle = resolveMangaTitle(mangaTitle, chapter);
+                String message = composeSingleMessage(effectiveTitle, chapter);
+                SendOutcome outcome = sendWithRetry(recipient.chatId(), message);
+                TelegramSendResult result = outcome.result();
+
+                if (result.success()) {
+                    logRepository.save(
+                            TelegramNotificationLog.builder()
+                                    .notificationId(notificationId)
+                                    .userId(userId)
+                                    .chatId(recipient.chatId())
+                                    .mangaId(mangaId != null ? mangaId : chapter.mangaId())
+                                    .chapterId(chapter.chapterId())
+                                    .status(TelegramDeliveryStatus.SUCCESS)
+                                    .retryCount(outcome.attempts())
+                                    .payload(message)
+                                    .build()
+                    );
+                } else {
+                    if ("403".equals(result.errorCode())) {
+                        authServiceTelegramClient.unlinkByChat(recipient.chatId(), "FORBIDDEN");
+                    }
+                    logRepository.save(
+                            TelegramNotificationLog.builder()
+                                    .notificationId(notificationId)
+                                    .userId(userId)
+                                    .chatId(recipient.chatId())
+                                    .mangaId(mangaId != null ? mangaId : chapter.mangaId())
+                                    .chapterId(chapter.chapterId())
+                                    .status(TelegramDeliveryStatus.FAILED)
+                                    .errorCode(result.errorCode())
+                                    .errorMessage(result.description())
+                                    .retryCount(outcome.attempts())
+                                    .payload(message)
+                                    .build()
+                    );
                 }
-                uniqueChapters.forEach(chapter -> logRepository.save(
-                        TelegramNotificationLog.builder()
-                                .notificationId(notificationId)
-                                .userId(userId)
-                                .chatId(recipient.chatId())
-                                .mangaId(mangaId)
-                                .chapterId(chapter.chapterId())
-                                .status(TelegramDeliveryStatus.FAILED)
-                                .errorCode(result.errorCode())
-                                .errorMessage(result.description())
-                                .retryCount(outcome.attempts())
-                                .payload(message)
-                                .build()
-                ));
             }
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
@@ -192,7 +202,8 @@ public class TelegramNotificationService {
     private List<ChapterPayload> filterAlreadyDelivered(Long userId, List<ChapterPayload> chapters) {
         List<ChapterPayload> filtered = new ArrayList<>();
         for (ChapterPayload chapter : chapters) {
-            if (chapter.chapterId() != null && logRepository.existsByUserIdAndChapterIdAndStatus(userId, chapter.chapterId(), TelegramDeliveryStatus.SUCCESS)) {
+            if (chapter.chapterId() != null
+                    && logRepository.existsByUserIdAndChapterIdAndStatus(userId, chapter.chapterId(), TelegramDeliveryStatus.SUCCESS)) {
                 continue;
             }
             filtered.add(chapter);
@@ -200,45 +211,69 @@ public class TelegramNotificationService {
         return filtered;
     }
 
-    private String composeMessage(String mangaTitle, List<ChapterPayload> chapters) {
-        String effectiveTitle = (mangaTitle != null && !mangaTitle.isBlank()) ? mangaTitle : "Новая глава";
+    private String composeSingleMessage(String mangaTitle, ChapterPayload chapter) {
         StringBuilder sb = new StringBuilder();
-        sb.append(properties.getTitleEmoji()).append(' ').append(effectiveTitle).append('\n');
-        if (chapters.size() == 1) {
-            ChapterPayload chapter = chapters.getFirst();
-            String chapterLabel = chapter.chapterNumber() != null ? chapter.chapterNumber() : String.valueOf(chapter.chapterId());
-            sb.append("Глава ").append(chapterLabel).append(" уже доступна!\n");
-            String link = renderLink(chapter);
-            if (link != null) {
-                sb.append(link).append('\n');
-            }
-        } else {
-            sb.append("Новые главы:\n");
-            for (ChapterPayload chapter : chapters) {
-                String chapterLabel = chapter.chapterNumber() != null ? chapter.chapterNumber() : String.valueOf(chapter.chapterId());
-                sb.append(" • ").append(chapterLabel);
-                String link = renderLink(chapter);
-                if (link != null) {
-                    sb.append(" — ").append(link);
-                }
-                sb.append('\n');
-            }
+        String emoji = StringUtils.hasText(properties.getTitleEmoji())
+                ? properties.getTitleEmoji()
+                : "\uD83D\uDCE2"; // 📢 fallback
+
+        String chapterLabel = formatChapterNumber(chapter);
+        sb.append(emoji).append(' ').append("Добавлена новая");
+        if (chapterLabel != null) {
+            sb.append(' ').append(chapterLabel);
         }
-        sb.append("Время: ").append(DATE_TIME_FORMATTER.format(Instant.now()));
+        sb.append(" глава");
+        if (StringUtils.hasText(mangaTitle)) {
+            sb.append(' ').append("манги ").append(mangaTitle);
+        }
+
+        String promoLine = properties.getPromoLine();
+        if (StringUtils.hasText(promoLine)) {
+            sb.append("\n\n").append(promoLine);
+        }
+
+        String shareLine = properties.getShareLine();
+        if (StringUtils.hasText(shareLine)) {
+            sb.append("\n\n").append(shareLine);
+        }
+
+        String link = renderLink(chapter);
+        if (link != null) {
+            sb.append("\n\n").append(link);
+        }
+
         return sb.toString();
     }
 
     private String renderLink(ChapterPayload chapter) {
-        if (chapter.chapterId() == null || chapter.mangaId() == null) {
-            return properties.getSiteBaseUrl();
+        UriComponentsBuilder builder;
+        if (chapter.chapterId() != null && chapter.mangaId() != null) {
+            String template = properties.getChapterLinkTemplate();
+            if (!StringUtils.hasText(template)) {
+                template = properties.getSiteBaseUrl() + "/manga/{mangaId}/chapter/{chapterId}";
+            }
+            String expanded = template
+                    .replace("{mangaId}", String.valueOf(chapter.mangaId()))
+                    .replace("{chapterId}", String.valueOf(chapter.chapterId()));
+            builder = UriComponentsBuilder.fromUriString(expanded);
+        } else {
+            String fallback = StringUtils.hasText(properties.getSiteBaseUrl())
+                    ? properties.getSiteBaseUrl()
+                    : "https://aniway.space";
+            builder = UriComponentsBuilder.fromUriString(fallback);
         }
-        String template = properties.getChapterLinkTemplate();
-        if (!StringUtils.hasText(template)) {
-            template = properties.getSiteBaseUrl() + "/manga/{mangaId}/chapter/{chapterId}";
+
+        if (StringUtils.hasText(properties.getUtmSource())) {
+            builder.queryParam("utm_source", properties.getUtmSource());
         }
-        return template
-                .replace("{mangaId}", String.valueOf(chapter.mangaId()))
-                .replace("{chapterId}", String.valueOf(chapter.chapterId()));
+        if (StringUtils.hasText(properties.getUtmMedium())) {
+            builder.queryParam("utm_medium", properties.getUtmMedium());
+        }
+        if (StringUtils.hasText(properties.getUtmCampaign())) {
+            builder.queryParam("utm_campaign", properties.getUtmCampaign());
+        }
+
+        return builder.build(true).toUriString();
     }
 
     private ChapterPayload parsePayload(String payloadJson) {
@@ -250,26 +285,56 @@ public class TelegramNotificationService {
             Long mangaId = node.path("mangaId").isNumber() ? node.path("mangaId").asLong() : null;
             Long chapterId = node.path("chapterId").isNumber() ? node.path("chapterId").asLong() : null;
             String chapterNumber = node.path("chapterNumber").isMissingNode() ? null : node.path("chapterNumber").asText(null);
-            String mangaTitle = node.path("mangaTitle").isMissingNode() ? null : node.path("mangaTitle").asText(null);
-            return new ChapterPayload(mangaId, chapterId, chapterNumber, mangaTitle);
+            String title = node.path("mangaTitle").isMissingNode() ? null : node.path("mangaTitle").asText(null);
+            return new ChapterPayload(mangaId, chapterId, chapterNumber, title);
         } catch (Exception ex) {
             log.warn("Failed to parse chapter payload: {}", ex.getMessage());
             return null;
         }
     }
 
-    private void logSkipped(Long userId, Long notificationId, Long mangaId, List<ChapterPayload> chapters, String reason) {
+    private void logSkipped(Long userId,
+                             Long notificationId,
+                             Long fallbackMangaId,
+                             List<ChapterPayload> chapters,
+                             String reason) {
         chapters.forEach(chapter -> logRepository.save(
                 TelegramNotificationLog.builder()
                         .notificationId(notificationId)
                         .userId(userId)
-                        .mangaId(mangaId)
+                        .mangaId(fallbackMangaId != null ? fallbackMangaId : chapter.mangaId())
                         .chapterId(chapter.chapterId())
                         .status(TelegramDeliveryStatus.SKIPPED)
                         .errorCode(reason)
                         .retryCount(0)
                         .build()
         ));
+    }
+
+    private String resolveMangaTitle(String aggregatedTitle, ChapterPayload chapter) {
+        if (StringUtils.hasText(chapter.mangaTitle())) {
+            return chapter.mangaTitle();
+        }
+        if (StringUtils.hasText(aggregatedTitle)) {
+            return aggregatedTitle;
+        }
+        return null;
+    }
+
+    private String formatChapterNumber(ChapterPayload chapter) {
+        String number = chapter.chapterNumber();
+        if (StringUtils.hasText(number)) {
+            try {
+                BigDecimal decimal = new BigDecimal(number.trim());
+                return decimal.stripTrailingZeros().toPlainString();
+            } catch (NumberFormatException ex) {
+                return number.trim();
+            }
+        }
+        if (chapter.chapterId() != null) {
+            return String.valueOf(chapter.chapterId());
+        }
+        return null;
     }
 
     private String key(Long userId, Long mangaId) {

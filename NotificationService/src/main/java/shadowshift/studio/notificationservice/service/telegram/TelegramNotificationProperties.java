@@ -13,7 +13,7 @@ public class TelegramNotificationProperties {
     private boolean enabled = true;
 
     /** Окно агрегации в секундах (0 или меньше — мгновенная отправка). */
-    private int aggregateWindowSeconds = 60;
+    private int aggregateWindowSeconds = 0;
 
     /** Максимальное количество попыток отправки сообщения. */
     private int maxRetries = 3;
@@ -29,4 +29,19 @@ public class TelegramNotificationProperties {
 
     /** Эмодзи перед названием тайтла (визуальный маркер). */
     private String titleEmoji = "\uD83D\uDCD6";
+
+    /** Промо-строка, подчеркивающая преимущества. */
+    private String promoLine = "Всегда бесплатно и быстрее всех \uD83D\uDE80";
+
+    /** Строка-призыв поделиться сервисом. */
+    private String shareLine = "Расскажи о нас друзьям \uD83D\uDC49";
+
+    /** Значение UTM-параметра utm_source. */
+    private String utmSource = "telegram";
+
+    /** Значение UTM-параметра utm_medium. */
+    private String utmMedium = "messenger";
+
+    /** Значение UTM-параметра utm_campaign. */
+    private String utmCampaign = "bookmark_new_chapter";
 }
