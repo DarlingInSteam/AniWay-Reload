@@ -263,6 +263,10 @@ public class ChapterService {
                 if (savedChapter.getTitle() != null && !savedChapter.getTitle().isBlank()) {
                     payload.put("chapterTitle", savedChapter.getTitle());
                 }
+                String chapterUrlSegment = resolveChapterUrlSegment(savedChapter);
+                if (chapterUrlSegment != null && !chapterUrlSegment.isBlank()) {
+                    payload.put("chapterUrlSegment", chapterUrlSegment);
+                }
         String notifyUrl = notificationServiceBaseUrl + "/internal/events/chapter-published-batch";
         try {
             var responseEntity = client.post()
@@ -887,6 +891,22 @@ public class ChapterService {
     }
 
     private record MangaMeta(String title, String slug) {
+    }
+
+    private String resolveChapterUrlSegment(Chapter chapter) {
+        if (chapter == null) {
+            return null;
+        }
+        if (chapter.getId() != null) {
+            return String.valueOf(chapter.getId());
+        }
+        if (chapter.getChapterNumber() != null) {
+            return formatDecimal(chapter.getChapterNumber());
+        }
+        if (chapter.getOriginalChapterNumber() != null) {
+            return formatDecimal(chapter.getOriginalChapterNumber());
+        }
+        return null;
     }
 
     private void deleteChapterImagesWithFallback(Long chapterId) {

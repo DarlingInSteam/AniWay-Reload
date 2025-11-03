@@ -111,6 +111,9 @@ public class InternalEventController {
         if (body.getChapterTitle() != null && !body.getChapterTitle().isBlank()) {
             payloadMap.put("chapterTitle", body.getChapterTitle());
         }
+        if (body.getChapterUrlSegment() != null && !body.getChapterUrlSegment().isBlank()) {
+            payloadMap.put("chapterUrlSegment", body.getChapterUrlSegment());
+        }
         String payload = toJson(payloadMap);
         facade.createBasic(body.getTargetUserId(), NotificationType.BOOKMARK_NEW_CHAPTER, payload, dedupeKey);
         return ResponseEntity.accepted().build();
@@ -188,6 +191,9 @@ public class InternalEventController {
         }
         if (body.getChapterTitle() != null && !body.getChapterTitle().isBlank()) {
             payloadMap.put("chapterTitle", body.getChapterTitle());
+        }
+        if (body.getChapterUrlSegment() != null && !body.getChapterUrlSegment().isBlank()) {
+            payloadMap.put("chapterUrlSegment", body.getChapterUrlSegment());
         }
         String basePayload = toJson(payloadMap);
         if (body.getTargetUserIds() != null) {
@@ -383,6 +389,7 @@ public class InternalEventController {
         private String chapterLabel;
         private String mangaSlug;
         private String chapterTitle;
+        private String chapterUrlSegment;
     }
 
     @Data
@@ -398,6 +405,7 @@ public class InternalEventController {
         private String chapterLabel;
         private String mangaSlug;
         private String chapterTitle;
+        private String chapterUrlSegment;
     }
 
     @Data

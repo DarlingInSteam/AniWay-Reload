@@ -136,7 +136,8 @@ export function getNavigationTarget(type: string, payload: NotificationPayload):
       return '/forum';
     }
     case 'BOOKMARK_NEW_CHAPTER': {
-      if (payload.chapterId) return buildReaderPath(payload.chapterId, payload.mangaSlug);
+      const segment = payload.chapterUrlSegment ?? payload.chapterId;
+      if (segment) return buildReaderPath(segment, payload.mangaSlug);
       if (payload.mangaId) return `/manga/${payload.mangaId}`;
       return '/';
     }

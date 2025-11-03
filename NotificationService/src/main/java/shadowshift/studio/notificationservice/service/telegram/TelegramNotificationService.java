@@ -252,7 +252,7 @@ public class TelegramNotificationService {
     private String renderChapterLink(ChapterPayload chapter) {
         String template = properties.getChapterLinkTemplate();
         if (!StringUtils.hasText(template)) {
-            template = defaultBaseUrl() + "/reader/{mangaSlug}/{chapterNumberNormalized}";
+            template = defaultBaseUrl() + "/reader/{mangaSlug}/{chapterUrlSegment}";
         }
 
         String expanded = expandTemplate(template, chapter, true);
@@ -301,6 +301,17 @@ public class TelegramNotificationService {
                 return null;
             }
             result = result.replace("{mangaId}", String.valueOf(chapter.mangaId()));
+        }
+        if (result.contains("{chapterUrlSegment}")) {
+            String segment = chapter.chapterUrlSegment();
+            if (!StringUtils.hasText(segment)) {
+                if (expectChapter) {
+                    return null;
+                }
+                result = result.replace("{chapterUrlSegment}", "");
+            } else {
+                result = result.replace("{chapterUrlSegment}", segment.trim());
+            }
         }
         if (result.contains("{chapterNumberNormalized}")) {
             String normalized = normalizedChapterNumber(chapter);
@@ -387,7 +398,8 @@ public class TelegramNotificationService {
             Double originalChapterNumber = node.path("originalChapterNumber").isNumber() ? node.path("originalChapterNumber").asDouble() : null;
             Double chapterNumeric = node.path("chapterNumeric").isNumber() ? node.path("chapterNumeric").asDouble() : null;
             String chapterTitle = textOrNull(node, "chapterTitle");
-            return new ChapterPayload(mangaId, chapterId, chapterNumber, title, slug, chapterLabel, volumeNumber, originalChapterNumber, chapterNumeric, chapterTitle);
+            String chapterUrlSegment = textOrNull(node, "chapterUrlSegment");
+            return new ChapterPayload(mangaId, chapterId, chapterNumber, title, slug, chapterLabel, volumeNumber, originalChapterNumber, chapterNumeric, chapterTitle, chapterUrlSegment);
         } catch (Exception ex) {
             log.warn("Failed to parse chapter payload: {}", ex.getMessage());
             return null;
@@ -535,12 +547,15 @@ public class TelegramNotificationService {
     }
 
     private String chapterPathSegment(ChapterPayload chapter) {
-        String normalized = normalizedChapterNumber(chapter);
-        if (StringUtils.hasText(normalized)) {
-            return normalized;
+        if (StringUtils.hasText(chapter.chapterUrlSegment())) {
+            return chapter.chapterUrlSegment().trim();
         }
         if (chapter.chapterId() != null) {
             return String.valueOf(chapter.chapterId());
+        }
+        String normalized = normalizedChapterNumber(chapter);
+        if (StringUtils.hasText(normalized)) {
+            return normalized;
         }
         return null;
     }
@@ -561,10 +576,18 @@ public class TelegramNotificationService {
     }
 
     private String fallbackReaderLink(ChapterPayload chapter) {
+        String base = defaultBaseUrl();
+        String segment = chapterPathSegment(chapter);
+        if (StringUtils.hasText(segment)) {
+            String slug = StringUtils.hasText(chapter.mangaSlug()) ? chapter.mangaSlug().trim() : null;
+            if (StringUtils.hasText(slug)) {
+                return base + "/reader/" + slug + "/" + segment;
+            }
+            return base + "/reader/" + segment;
+        }
         if (chapter.chapterId() == null) {
             return null;
         }
-        String base = defaultBaseUrl();
         if (StringUtils.hasText(chapter.mangaSlug())) {
             String slug = chapter.mangaSlug().trim();
             if (StringUtils.hasText(slug)) {
@@ -578,20 +601,25 @@ public class TelegramNotificationService {
         if (!StringUtils.hasText(url)) {
             return true;
         }
-        if (url.contains("/manga/") && !url.contains("/reader/")) {
+        String normalizedUrl = url;
+        int queryIndex = url.indexOf('?');
+        if (queryIndex >= 0) {
+            normalizedUrl = url.substring(0, queryIndex);
+        }
+        if (normalizedUrl.contains("/manga/") && !normalizedUrl.contains("/reader/")) {
             return true;
         }
         if (StringUtils.hasText(chapter.mangaSlug())) {
             String slug = chapter.mangaSlug().trim();
             if (StringUtils.hasText(slug)) {
-                if (!url.toLowerCase().contains(slug.toLowerCase())) {
+                if (!normalizedUrl.toLowerCase().contains(slug.toLowerCase())) {
                     return true;
                 }
             }
         }
         String canonicalSegment = chapterPathSegment(chapter);
-        if (StringUtils.hasText(canonicalSegment) && chapter.chapterId() != null) {
-            if (url.endsWith("/" + chapter.chapterId()) && !url.endsWith("/" + canonicalSegment)) {
+        if (StringUtils.hasText(canonicalSegment)) {
+            if (!normalizedUrl.endsWith("/" + canonicalSegment)) {
                 return true;
             }
         }
@@ -607,7 +635,8 @@ public class TelegramNotificationService {
                                   Integer volumeNumber,
                                   Double originalChapterNumber,
                                   Double chapterNumeric,
-                                  String chapterTitle) {
+                                  String chapterTitle,
+                                  String chapterUrlSegment) {
     }
 
     private record SendOutcome(TelegramSendResult result, int attempts) {
