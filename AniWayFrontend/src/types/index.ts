@@ -230,6 +230,9 @@ export interface User {
   isEnabled: boolean
   createdAt: string
   lastLogin?: string
+  telegramConnected?: boolean
+  telegramNotificationsEnabled?: boolean
+  telegramLinkedAt?: string | null
   
   // Statistics
   chaptersReadCount?: number

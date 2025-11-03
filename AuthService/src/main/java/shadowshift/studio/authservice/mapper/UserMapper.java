@@ -32,13 +32,16 @@ public class UserMapper {
                 .lastLoginDate(user.getLastLogin())
                 .createdAt(user.getCreatedAt())
                 .lastLogin(user.getLastLogin())
-        // Добавляем публично отображаемые счетчики активности
-        .chaptersReadCount(user.getChaptersReadCount())
-        .likesGivenCount(user.getLikesGivenCount())
-        .commentsCount(user.getCommentsCount())
-    // Временная логика уровня/XP (упрощённо): 50 глав = +1 уровень, XP = прочитанные главы * 10
-    .level(calculateLevel(user.getChaptersReadCount()))
-    .xp(user.getChaptersReadCount() != null ? user.getChaptersReadCount() * 10 : 0)
+                // Добавляем публично отображаемые счетчики активности
+                .chaptersReadCount(user.getChaptersReadCount())
+                .likesGivenCount(user.getLikesGivenCount())
+                .commentsCount(user.getCommentsCount())
+                // Временная логика уровня/XP (упрощённо): 50 глав = +1 уровень, XP = прочитанные главы * 10
+                .level(calculateLevel(user.getChaptersReadCount()))
+                .xp(user.getChaptersReadCount() != null ? user.getChaptersReadCount() * 10 : 0)
+                .telegramConnected(user.getTelegramChatId() != null)
+                .telegramNotificationsEnabled(user.getTelegramNotificationsEnabled())
+                .telegramLinkedAt(user.getTelegramLinkedAt())
                 .build();
     }
 
@@ -59,10 +62,13 @@ public class UserMapper {
                 .chaptersReadCount(user.getChaptersReadCount())
                 .likesGivenCount(user.getLikesGivenCount())
                 .commentsCount(user.getCommentsCount())
-        .banType(user.getBanType())
-        .banExpiresAt(user.getBanExpiresAt())
-    .level(calculateLevel(user.getChaptersReadCount()))
-    .xp(user.getChaptersReadCount() != null ? user.getChaptersReadCount() * 10 : 0)
+                .banType(user.getBanType())
+                .banExpiresAt(user.getBanExpiresAt())
+                .level(calculateLevel(user.getChaptersReadCount()))
+                .xp(user.getChaptersReadCount() != null ? user.getChaptersReadCount() * 10 : 0)
+                .telegramConnected(user.getTelegramChatId() != null)
+                .telegramNotificationsEnabled(user.getTelegramNotificationsEnabled())
+                .telegramLinkedAt(user.getTelegramLinkedAt())
                 .build();
     }
 

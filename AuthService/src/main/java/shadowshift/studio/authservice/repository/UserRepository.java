@@ -48,6 +48,8 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
      */
     Optional<User> findByUsernameOrEmail(String username, String email);
 
+    Optional<User> findByTelegramChatId(Long telegramChatId);
+
     // Aggregation helpers
     long countByRole(Role role);
     long countByBanTypeNot(BanType banType);

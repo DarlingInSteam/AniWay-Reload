@@ -10,6 +10,7 @@ interface AuthContextType {
   logout: () => Promise<void>
   updateProfile: (data: Partial<User>) => Promise<void>
   setUserAvatarLocal: (avatarUrl: string) => void
+  refreshUser: (forceRefresh?: boolean) => Promise<void>
   isAuthenticated: boolean
   isAdmin: boolean
   isModerator: boolean
@@ -87,6 +88,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(prev => prev ? { ...prev, avatar: avatarUrl } : prev)
   }
 
+  const refreshUser = async (forceRefresh: boolean = true): Promise<void> => {
+    try {
+      const userData = await authService.getCurrentUser(forceRefresh)
+      setUser(userData)
+    } catch (error) {
+      console.error('Failed to refresh user:', error)
+      if (forceRefresh) {
+        const message = error instanceof Error ? error.message : String(error)
+        if (message.includes('(401)') || message.includes('403')) {
+          authService.removeToken()
+          setUser(null)
+        }
+      }
+      throw error
+    }
+  }
+
   const resolvedRole = (() => {
     const role = user?.role || authService.getUserRole()
     if (!role) return null
@@ -105,6 +123,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     logout,
     updateProfile,
     setUserAvatarLocal,
+  refreshUser,
     isAuthenticated: !!user,
     isAdmin,
     isModerator,

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { authService } from '@/services/authService';
 import { useAuth } from '@/contexts/AuthContext';
+import TelegramSection from './TelegramSection';
 
 interface AsyncState { loading: boolean; error: string | null; success: string | null }
 const initialState: AsyncState = { loading: false, error: null, success: null };
@@ -137,6 +138,8 @@ export const SecuritySection: React.FC = () => {
           {changeState.success && <span className="text-green-400 text-sm">{changeState.success}</span>}
         </div>
       </section>
+
+      <TelegramSection />
 
       <section className="bg-card/40 border border-border/40 rounded-lg p-6">
         <h2 className="text-lg font-semibold mb-4">Сброс пароля (если забыли)</h2>
