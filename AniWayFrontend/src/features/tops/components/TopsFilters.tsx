@@ -11,20 +11,21 @@ export type UsersMetricFilterProps = {
 
 export function UsersMetricFilter({ value, onChange }: UsersMetricFilterProps) {
   return (
-    <GlassPanel className="space-y-4 border-white/12 bg-background/70 p-5">
+    <GlassPanel className="space-y-3 p-4">
       <div className="flex items-start gap-3">
-        <div className="rounded-full bg-white/10 p-2 text-white/70">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-white/65">
           <Users className="h-4 w-4" />
         </div>
-        <div className="space-y-1">
-          <div className="text-sm font-semibold text-white">Настроить метрику</div>
-          <p className="text-xs text-white/60">Выберите способ оценки пользователей.</p>
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-white">Метрика пользователей</div>
+          <p className="text-[11px] text-white/55">Выберите способ оценки активности.</p>
         </div>
       </div>
       <SegmentedControl
         value={value}
         onChange={(metric) => onChange(metric as UserMetric)}
         options={USER_METRIC_OPTIONS}
+        className="mt-1"
       />
     </GlassPanel>
   )
@@ -37,20 +38,21 @@ export type ReviewsFilterProps = {
 
 export function ReviewsFilter({ value, onChange }: ReviewsFilterProps) {
   return (
-    <GlassPanel className="space-y-4 border-white/12 bg-background/70 p-5">
+    <GlassPanel className="space-y-3 p-4">
       <div className="flex items-start gap-3">
-        <div className="rounded-full bg-white/10 p-2 text-white/70">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-white/65">
           <BookOpen className="h-4 w-4" />
         </div>
-        <div className="space-y-1">
+        <div className="min-w-0">
           <div className="text-sm font-semibold text-white">Период обзоров</div>
-          <p className="text-xs text-white/60">Сколько дней попадает в выборку рейтинга.</p>
+          <p className="text-[11px] text-white/55">Дней для расчёта реакции.</p>
         </div>
       </div>
       <SegmentedControl
         value={String(value)}
         onChange={(days) => onChange(Number(days))}
         options={REVIEW_RANGE_OPTIONS}
+        className="mt-1"
       />
     </GlassPanel>
   )
@@ -66,20 +68,21 @@ export type RangeFilterProps = {
 
 export function RangeFilter({ value, onChange, icon: Icon, title, description }: RangeFilterProps) {
   return (
-    <GlassPanel className="space-y-4 border-white/12 bg-background/70 p-5">
+    <GlassPanel className="space-y-3 p-4">
       <div className="flex items-start gap-3">
-        <div className="rounded-full bg-white/10 p-2 text-white/70">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-white/65">
           <Icon className="h-4 w-4" />
         </div>
-        <div className="space-y-1">
+        <div className="min-w-0">
           <div className="text-sm font-semibold text-white">{title}</div>
-          <p className="text-xs text-white/60">{description}</p>
+          <p className="text-[11px] text-white/55">{description}</p>
         </div>
       </div>
       <SegmentedControl
         value={value}
         onChange={(next) => onChange(next as RangeOptionValue)}
         options={RANGE_OPTIONS}
+        className="mt-1"
       />
     </GlassPanel>
   )
@@ -92,20 +95,21 @@ export type WallRangeFilterProps = {
 
 export function WallRangeFilter({ value, onChange }: WallRangeFilterProps) {
   return (
-    <GlassPanel className="space-y-4 border-white/12 bg-background/70 p-5">
+    <GlassPanel className="space-y-3 p-4">
       <div className="flex items-start gap-3">
-        <div className="rounded-full bg-white/10 p-2 text-white/70">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-white/65">
           <Sparkles className="h-4 w-4" />
         </div>
-        <div className="space-y-1">
+        <div className="min-w-0">
           <div className="text-sm font-semibold text-white">Период постов</div>
-          <p className="text-xs text-white/60">Подборка рекомендаций и постов за выбранное время.</p>
+          <p className="text-[11px] text-white/55">Отбор активности стены.</p>
         </div>
       </div>
       <SegmentedControl
         value={value}
         onChange={(next) => onChange(next as WallRangeOptionValue)}
         options={WALL_RANGE_OPTIONS}
+        className="mt-1"
       />
     </GlassPanel>
   )
