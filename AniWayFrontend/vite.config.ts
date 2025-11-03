@@ -4,6 +4,16 @@ import { defineConfig } from 'vite'
       // https://vitejs.dev/config/
       export default defineConfig({
         plugins: [react()],
+        build: {
+          rollupOptions: {
+            output: {
+              // Принудительное изменение хэша для борьбы с кэшем
+              entryFileNames: `assets/[name]-[hash]-v2.js`,
+              chunkFileNames: `assets/[name]-[hash]-v2.js`,
+              assetFileNames: `assets/[name]-[hash]-v2.[ext]`
+            }
+          }
+        },
         resolve: {
           alias: {
             "@": new URL('./src', import.meta.url).pathname,
