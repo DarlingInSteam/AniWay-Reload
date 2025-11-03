@@ -317,194 +317,200 @@ function CharacterDetailsDialog({
         }
       }}
     >
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle className="flex flex-wrap items-center gap-3 text-lg md:text-xl">
-            <span>{character.namePrimary}</span>
-            <Badge
-              variant="outline"
-              className={cn(
-                'flex items-center gap-1 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide',
-                statusClassName
-              )}
-            >
-              <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-              {statusLabel}
-            </Badge>
-          </DialogTitle>
-          {character.nameSecondary && (
-            <DialogDescription className="text-sm text-white/60">
-              {character.nameSecondary}
+      <DialogContent className="w-[min(100vw-1rem,720px)] max-w-3xl overflow-hidden border border-white/10 bg-[#0f1116]/95 p-0 text-white">
+        <div className="flex max-h-[calc(100vh-3rem)] flex-col">
+          <DialogHeader className="space-y-3 border-b border-white/10 px-5 pb-4 pt-5">
+            <DialogTitle className="flex flex-wrap items-center gap-3 text-lg sm:text-xl">
+              <span className="truncate">{character.namePrimary}</span>
+              <Badge
+                variant="outline"
+                className={cn(
+                  'flex items-center gap-1 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide backdrop-blur-sm',
+                  statusClassName
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                {statusLabel}
+              </Badge>
+            </DialogTitle>
+            {character.nameSecondary && (
+              <DialogDescription className="text-sm text-white/60">
+                {character.nameSecondary}
+              </DialogDescription>
+            )}
+            <DialogDescription className="text-xs text-white/40">
+              Обновлено {formatRelativeTime(statusTimestamp)} • Добавлено{' '}
+              {formatRelativeTime(character.createdAt)}
             </DialogDescription>
-          )}
-          <DialogDescription className="text-xs text-white/40">
-            Обновлено {formatRelativeTime(statusTimestamp)} • Добавлено{' '}
-            {formatRelativeTime(character.createdAt)}
-          </DialogDescription>
-        </DialogHeader>
+          </DialogHeader>
 
-        <div className="grid gap-6 md:grid-cols-[220px,1fr]">
-          <div className="flex flex-col items-center gap-4">
-            <CharacterImage
-              imageUrl={character.imageUrl}
-              name={character.namePrimary}
-              className="h-44 w-44 border-white/15 bg-white/10 md:h-56 md:w-56"
-              imageClassName="rounded-3xl"
-            />
-            {(hasImageDimensions || imageSizeLabel) && (
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-xs text-white/60">
-                {hasImageDimensions && (
-                  <div>
-                    Разрешение: {character.imageWidth}x{character.imageHeight} px
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+            <div className="grid gap-6 sm:grid-cols-[208px,1fr] lg:grid-cols-[220px,1fr]">
+              <div className="flex flex-col items-center gap-4">
+                <CharacterImage
+                  imageUrl={character.imageUrl}
+                  name={character.namePrimary}
+                  className="h-40 w-40 border-white/15 bg-white/10 sm:h-48 sm:w-full sm:max-w-[208px] lg:h-56 lg:max-w-[220px]"
+                  imageClassName="rounded-3xl"
+                />
+                {(hasImageDimensions || imageSizeLabel) && (
+                  <div className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-xs text-white/60">
+                    {hasImageDimensions && (
+                      <div>
+                        Разрешение: {character.imageWidth}x{character.imageHeight} px
+                      </div>
+                    )}
+                    {imageSizeLabel && <div>Размер файла: {imageSizeLabel}</div>}
                   </div>
                 )}
-                {imageSizeLabel && <div>Размер файла: {imageSizeLabel}</div>}
+                {character.imageKey && (
+                  <div className="w-full text-center text-xs text-white/40">
+                    Хранилище: {character.imageKey}
+                  </div>
+                )}
               </div>
-            )}
-            {character.imageKey && (
-              <div className="text-center text-xs text-white/40">
-                Хранилище: {character.imageKey}
-              </div>
-            )}
-          </div>
 
-          <div className="space-y-4">
-            <section className="space-y-2">
-              <h4 className="text-sm font-semibold uppercase tracking-wide text-white/60">
-                Описание
-              </h4>
-              <p className="whitespace-pre-line text-sm leading-relaxed text-white/80">
-                {description || 'Описание пока не добавлено.'}
-              </p>
-            </section>
-
-            {traits.length > 0 && (
-              <section className="space-y-3">
-                <h4 className="text-sm font-semibold uppercase tracking-wide text-white/60">
-                  Основные сведения
-                </h4>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {traits.map((item) => (
-                    <div
-                      key={item.label}
-                      className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white/80 backdrop-blur-sm"
-                    >
-                      <div className="text-xs uppercase tracking-wide text-white/40">
-                        {item.label}
-                      </div>
-                      <div className="mt-1 text-sm font-medium text-white/90">
-                        {item.value}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {skills && (
-              <section className="space-y-2">
-                <h4 className="text-sm font-semibold uppercase tracking-wide text-indigo-200/80">
-                  Навыки
-                </h4>
-                <div className="rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-3 text-sm text-indigo-100 backdrop-blur-sm">
-                  <p className="whitespace-pre-line leading-relaxed">{skills}</p>
-                </div>
-              </section>
-            )}
-
-            {character.rejectionReason && (
-              <section className="space-y-2">
-                <h4 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-red-200">
-                  <AlertCircle className="h-4 w-4" aria-hidden="true" />
-                  Комментарий модератора
-                </h4>
-                <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-100 backdrop-blur-sm">
-                  <p className="whitespace-pre-line leading-relaxed">
-                    {character.rejectionReason}
+              <div className="space-y-5">
+                <section className="space-y-2">
+                  <h4 className="text-sm font-semibold uppercase tracking-wide text-white/60">
+                    Описание
+                  </h4>
+                  <p className="whitespace-pre-line text-sm leading-relaxed text-white/80">
+                    {description || 'Описание пока не добавлено.'}
                   </p>
-                </div>
-              </section>
-            )}
+                </section>
+
+                {traits.length > 0 && (
+                  <section className="space-y-3">
+                    <h4 className="text-sm font-semibold uppercase tracking-wide text-white/60">
+                      Основные сведения
+                    </h4>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {traits.map((item) => (
+                        <div
+                          key={item.label}
+                          className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white/80 backdrop-blur-sm"
+                        >
+                          <div className="text-xs uppercase tracking-wide text-white/40">
+                            {item.label}
+                          </div>
+                          <div className="mt-1 text-sm font-medium text-white/90">
+                            {item.value}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {skills && (
+                  <section className="space-y-2">
+                    <h4 className="text-sm font-semibold uppercase tracking-wide text-indigo-200/80">
+                      Навыки
+                    </h4>
+                    <div className="rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-3 text-sm text-indigo-100 backdrop-blur-sm">
+                      <p className="whitespace-pre-line leading-relaxed">{skills}</p>
+                    </div>
+                  </section>
+                )}
+
+                {character.rejectionReason && (
+                  <section className="space-y-2">
+                    <h4 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-red-200">
+                      <AlertCircle className="h-4 w-4" aria-hidden="true" />
+                      Комментарий модератора
+                    </h4>
+                    <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-100 backdrop-blur-sm">
+                      <p className="whitespace-pre-line leading-relaxed">
+                        {character.rejectionReason}
+                      </p>
+                    </div>
+                  </section>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-wrap items-center gap-2 text-xs text-white/40">
+              {character.createdBy != null && <span>Автор ID: {character.createdBy}</span>}
+              {canModerate && character.status === 'APPROVED' && character.approvedBy != null && (
+                <span>Одобрил ID: {character.approvedBy}</span>
+              )}
+              {canModerate && character.status === 'REJECTED' && character.rejectedBy != null && (
+                <span>Отклонил ID: {character.rejectedBy}</span>
+              )}
+            </div>
           </div>
-        </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-white/40">
-          {character.createdBy != null && <span>Автор ID: {character.createdBy}</span>}
-          {canModerate && character.status === 'APPROVED' && character.approvedBy != null && (
-            <span>Одобрил ID: {character.approvedBy}</span>
-          )}
-          {canModerate && character.status === 'REJECTED' && character.rejectedBy != null && (
-            <span>Отклонил ID: {character.rejectedBy}</span>
-          )}
-        </div>
-
-        <div className="mt-6 flex flex-wrap justify-end gap-2">
-          {canEdit && (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={isBusy}
-              onClick={() => {
-                onEdit(character)
-                onClose()
-              }}
-              className="border-white/20 bg-white/10 text-white hover:bg-white/20"
-            >
-              <PencilLine className="mr-2 h-4 w-4" aria-hidden="true" />
-              Редактировать
-            </Button>
-          )}
-          {canModerate && character.status !== 'APPROVED' && (
-            <Button
-              size="sm"
-              disabled={isBusy}
-              onClick={() => onModerate(character, 'APPROVED')}
-              className="bg-emerald-500/25 text-emerald-200 hover:bg-emerald-500/35"
-            >
-              <ShieldCheck className="mr-2 h-4 w-4" aria-hidden="true" />
-              Одобрить
-            </Button>
-          )}
-          {canModerate && character.status !== 'REJECTED' && (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={isBusy}
-              onClick={() => onModerate(character, 'REJECTED')}
-              className="border-red-400/40 text-red-200 hover:bg-red-500/20"
-            >
-              <X className="mr-2 h-4 w-4" aria-hidden="true" />
-              Отклонить
-            </Button>
-          )}
-          {canModerate && character.status !== 'PENDING' && (
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={isBusy}
-              onClick={() => onModerate(character, 'PENDING')}
-              className="text-amber-200 hover:bg-amber-500/20"
-            >
-              <Hourglass className="mr-2 h-4 w-4" aria-hidden="true" />
-              На модерацию
-            </Button>
-          )}
-          {canDelete && (
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={isBusy}
-              onClick={() => {
-                onDelete(character)
-                onClose()
-              }}
-              className="text-red-300 hover:bg-red-500/10"
-            >
-              <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
-              Удалить
-            </Button>
-          )}
-        </div>
+          <div className="border-t border-white/10 px-5 py-4">
+            <div className="flex flex-wrap justify-end gap-2">
+              {canEdit && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isBusy}
+                  onClick={() => {
+                    onEdit(character)
+                    onClose()
+                  }}
+                  className="border-white/20 bg-white/10 text-white hover:bg-white/20"
+                >
+                  <PencilLine className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Редактировать
+                </Button>
+              )}
+              {canModerate && character.status !== 'APPROVED' && (
+                <Button
+                  size="sm"
+                  disabled={isBusy}
+                  onClick={() => onModerate(character, 'APPROVED')}
+                  className="bg-emerald-500/25 text-emerald-200 hover:bg-emerald-500/35"
+                >
+                  <ShieldCheck className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Одобрить
+                </Button>
+              )}
+              {canModerate && character.status !== 'REJECTED' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isBusy}
+                  onClick={() => onModerate(character, 'REJECTED')}
+                  className="border-red-400/40 text-red-200 hover:bg-red-500/20"
+                >
+                  <X className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Отклонить
+                </Button>
+              )}
+              {canModerate && character.status !== 'PENDING' && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={isBusy}
+                  onClick={() => onModerate(character, 'PENDING')}
+                  className="text-amber-200 hover:bg-amber-500/20"
+                >
+                  <Hourglass className="mr-2 h-4 w-4" aria-hidden="true" />
+                  На модерацию
+                </Button>
+              )}
+              {canDelete && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={isBusy}
+                  onClick={() => {
+                    onDelete(character)
+                    onClose()
+                  }}
+                  className="text-red-300 hover:bg-red-500/10"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Удалить
+                </Button>
+              )}
+            </div>
+          </div>
+            </div>
       </DialogContent>
     </Dialog>
   )
