@@ -15,17 +15,37 @@ https://aniway.space {
         file_server
     }
 
+    # Server-Sent Events (SSE) for notifications
+    @sse {
+        path /api/notifications/stream*
+    }
+    handle @sse {
+        reverse_proxy gateway-service:8080 {
+            flush_interval -1
+            header_up Connection "keep-alive"
+            header_up Cache-Control "no-cache"
+        }
+    }
+
+    # WebSocket connections
+    @websockets {
+        path /api/ws/* /ws/*
+    }
+    handle @websockets {
+        reverse_proxy gateway-service:8080 {
+            header_up Connection "Upgrade"
+            header_up Upgrade "websocket"
+        }
+    }
+
     # API requests to Gateway Service
     handle /api/* {
         reverse_proxy gateway-service:8080
     }
 
-    # WebSocket connections
-    handle /ws/* {
-        reverse_proxy gateway-service:8080 {
-            header_up Connection "Upgrade"
-            header_up Upgrade "websocket"
-        }
+    # Telegram webhooks
+    handle /telegram/* {
+        reverse_proxy gateway-service:8080
     }
 
     # All other requests to frontend
