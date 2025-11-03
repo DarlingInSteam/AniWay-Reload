@@ -23,6 +23,7 @@ services:
       - ACME_EMAIL=${ACME_EMAIL:-rombk2711@gmail.com}
     volumes:
       - ./deployment/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deployment/site-verifications:/srv/verifications:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
