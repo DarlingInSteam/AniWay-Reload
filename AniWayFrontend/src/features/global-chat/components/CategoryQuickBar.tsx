@@ -13,7 +13,7 @@ export function CategoryQuickBar({ categories, selectedCategoryId, onSelectCateg
   }
 
   return (
-    <div className="glass-panel flex items-center gap-2 overflow-x-auto px-4 py-3 scrollbar-hide">
+    <div className="flex items-center gap-2 overflow-x-auto rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 scrollbar-hide">
       {categories.map(category => {
         const isActive = category.id === selectedCategoryId;
         return (
@@ -24,8 +24,8 @@ export function CategoryQuickBar({ categories, selectedCategoryId, onSelectCateg
             className={cn(
               'group relative flex h-12 shrink-0 items-center gap-2 rounded-2xl border px-4 text-sm transition-colors',
               isActive
-                ? 'border-primary/40 bg-primary/15 text-white shadow-[0_0_0_1px_rgba(59,130,246,0.25)]'
-                : 'border-white/10 bg-white/5 text-white/70 hover:border-white/20 hover:bg-white/10 hover:text-white'
+                ? 'border-primary/50 bg-primary/20 text-white'
+                : 'border-white/10 bg-transparent text-white/70 hover:border-white/20 hover:bg-white/5 hover:text-white'
             )}
             aria-pressed={isActive}
             title={category.description || category.title}

@@ -131,7 +131,7 @@ export function MessageComposer({
     <div className="w-full border-t border-white/12 pt-3">
       <div className="space-y-3">
         {replyTo && (
-          <div className="flex items-start gap-3 rounded-xl bg-white/5 px-3 py-2 text-xs text-white/70">
+          <div className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70">
             <span className="mt-[2px] text-white/50">↩</span>
             <div className="flex-1">
               <div className="flex items-start justify-between gap-2 text-[11px] uppercase tracking-[0.25em] text-white/40">
@@ -144,7 +144,7 @@ export function MessageComposer({
                   Очистить
                 </button>
               </div>
-              <div className="mt-1 max-h-28 overflow-y-auto rounded-lg bg-white/5 px-3 py-2 text-left text-sm text-white/70">
+              <div className="mt-1 max-h-28 overflow-y-auto rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-sm text-white/70">
                 <div className="prose prose-invert max-w-none text-sm leading-relaxed markdown-body line-clamp-3">
                   <MarkdownRenderer value={replyTo.content} />
                 </div>
@@ -162,7 +162,7 @@ export function MessageComposer({
         <MarkdownMiniToolbar onCommand={applyMarkdownCommand} className="text-white/80" />
 
         <div className="flex items-end gap-2">
-          <div className="flex-1 rounded-xl bg-white/5 px-2 py-1.5">
+          <div className="flex-1 rounded-xl border border-white/10 bg-white/5 px-2 py-1.5">
             <Textarea
               ref={textareaRef}
               value={messageText}

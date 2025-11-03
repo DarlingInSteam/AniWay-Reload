@@ -185,9 +185,9 @@ export function MessageFeed({
 
                   <div
                     className={cn(
-                      'glass-panel w-full px-4 py-3 text-sm leading-relaxed text-white/85 transition',
-                      isOwn ? 'border-primary/30 bg-primary/20 text-white' : 'border-white/15 bg-white/10 text-white/90',
-                      isHighlighted && 'ring-2 ring-primary/60'
+                      'w-full rounded-xl border px-4 py-3 text-sm leading-relaxed transition',
+                      isOwn ? 'border-primary/50 bg-primary/25 text-white' : 'border-white/10 bg-white/5 text-white/90',
+                      isHighlighted && 'outline outline-2 outline-primary/60'
                     )}
                   >
                     <div className="prose prose-invert max-w-none text-sm leading-relaxed markdown-body">
