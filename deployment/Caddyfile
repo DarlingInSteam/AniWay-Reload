@@ -1,0 +1,4 @@
+aniway.space, www.aniway.space {
+    encode zstd gzip
+    reverse_proxy aniway-frontend:80
+}

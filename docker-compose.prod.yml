@@ -4,11 +4,25 @@ services:
     build:
       context: ./AniWayFrontend
       dockerfile: Dockerfile
-    ports:
-      - "80:80"
     environment:
       - NODE_ENV=production
     restart: unless-stopped
+    networks:
+      - aniway-network
+
+  # TLS reverse proxy
+  reverse-proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deployment/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - aniway-frontend
     networks:
       - aniway-network
 
@@ -499,6 +513,8 @@ services:
       - aniway-network
 
 volumes:
+  caddy_data:
+  caddy_config:
   auth_data:
   manga_data:
   comment_data:
