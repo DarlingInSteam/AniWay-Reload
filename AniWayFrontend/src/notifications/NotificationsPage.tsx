@@ -285,12 +285,17 @@ const NotificationCard: React.FC<{
     (rawChapterNumber && rawChapterNumber >= 10000 ? Math.floor(rawChapterNumber / 10000) : null);
   const chapterName =
     parsed?.chapterName || parsed?.chapterTitle || (parsed as any)?.chapter?.title || parsed?.titleSecondary || null;
+  const chapterLabelRaw = typeof parsed?.chapterLabel === 'string' ? parsed.chapterLabel.trim() : null;
+  const fallbackChapterLabelRaw = [
+    volumeNumber ? `Том ${volumeNumber}` : null,
+    displayChapterNumber != null ? `Глава ${displayChapterNumber}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const fallbackChapterLabel = fallbackChapterLabelRaw.length > 0 ? fallbackChapterLabelRaw : null;
+  const chapterLabel = chapterLabelRaw && chapterLabelRaw.length > 0 ? chapterLabelRaw : fallbackChapterLabel;
   const seriesInfo = isMangaUpdate
-    ? [
-        volumeNumber ? `Том ${volumeNumber}` : null,
-        displayChapterNumber != null ? `Глава ${displayChapterNumber}` : null,
-        chapterName,
-      ].filter(Boolean).join(' · ')
+    ? [chapterLabel, chapterName].filter(Boolean).join(' · ')
     : '';
   const cardTitle = isMangaUpdate && mangaTitle ? mangaTitle : title;
   const shouldShowDescription = desc && (!isMangaUpdate || desc !== mangaTitle);

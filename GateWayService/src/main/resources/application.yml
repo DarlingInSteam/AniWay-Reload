@@ -4,7 +4,7 @@ server:
 auth:
   introspect-url: "http://auth-service:8085/api/auth/validate"
   # Added explicit base paths /parser and /manga so that base URLs without trailing slash are public
-  public-paths: "/api/auth/**,/auth/**,/api/health/**,/api/public/**,/parser,/parser/**,/api/parser/**,/api/parser/progress/**,/manga,/manga/**,/api/genres/**,/api/tags/**,/api/notifications/stream,/api/levels/**,/api/import-queue/**"
+  public-paths: "/api/auth/**,/auth/**,/api/health/**,/api/public/**,/parser,/parser/**,/api/parser/**,/api/parser/progress/**,/manga,/manga/**,/api/genres/**,/api/tags/**,/api/notifications/stream,/api/levels/**,/api/import-queue/**,/telegram/**"
   cache-ttl-seconds: 300
 
 spring:
@@ -279,6 +279,14 @@ spring:
           uri: http://notification-service:8095
           predicates:
             - Path=/api/notifications/**
+          filters:
+            - StripPrefix=0
+
+        # NotificationService - Telegram webhook endpoint
+        - id: notification-telegram-webhook
+          uri: http://notification-service:8095
+          predicates:
+            - Path=/telegram/**
           filters:
             - StripPrefix=0
 

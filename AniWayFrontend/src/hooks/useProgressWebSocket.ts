@@ -37,8 +37,8 @@ export function useProgressWebSocket(options: UseProgressWebSocketOptions = {}) 
         // Vite проксирует /ws к manga-service:8081
         wsUrl = `${protocol}//${window.location.host}/ws/progress`
       } else {
-        // Для production режима - прямое подключение к проброшенному порту
-        wsUrl = `${protocol}//${window.location.hostname}:8081/ws/progress`
+        // Для production режима - через API Gateway (nginx + caddy)
+        wsUrl = `${protocol}//${window.location.host}/api/ws/progress`
       }
 
       console.log('Connecting to WebSocket:', wsUrl, {

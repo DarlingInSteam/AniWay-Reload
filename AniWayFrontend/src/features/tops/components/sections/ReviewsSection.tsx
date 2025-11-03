@@ -39,7 +39,7 @@ export function ReviewsSection({ query, formatter, reviewUserMap, reviewMangaMap
         return (
           <GlassPanel
             key={review.id || index}
-            className="relative overflow-hidden border-white/10 bg-background/75 p-5 transition-colors hover:border-white/20 hover:bg-white/10 active:bg-white/12"
+            className="relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-colors hover:border-white/25 hover:bg-white/[0.06] active:bg-white/[0.08]"
           >
             <div className="relative z-10 space-y-4">
               <div className="flex items-start gap-3">
@@ -88,7 +88,7 @@ export function ReviewsSection({ query, formatter, reviewUserMap, reviewMangaMap
                 <button
                   type="button"
                   onClick={() => onNavigate(`/manga/${review.mangaId}#review-${review.id}`)}
-                  className="glass-panel group flex items-center gap-3 rounded-2xl border-white/15 bg-background/70 p-3 text-left transition-colors hover:border-white/20 hover:bg-white/10 active:bg-white/12"
+                  className="group flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-left transition-colors hover:border-white/25 hover:bg-white/[0.06] active:bg-white/[0.08]"
                 >
                   <div className="flex h-16 w-12 items-center justify-center overflow-hidden rounded-xl bg-white/10 text-[10px] text-white/40">
                     {manga.cover ? <img src={manga.cover} alt={manga.title} className="h-full w-full object-cover" /> : '—'}

@@ -4,22 +4,27 @@ import { Play, BookOpen } from 'lucide-react'
 import { useReadingProgress } from '../../hooks/useProgress'
 import { useAuth } from '../../contexts/AuthContext'
 import { getDisplayChapterNumber } from '../../lib/chapterUtils'
+import { buildReaderPath } from '@/lib/slugUtils'
 
 interface ReadingButtonProps {
   mangaId: number
   firstChapterId?: number
   allChapters?: any[] // Добавляем список всех глав для правильной логики
   className?: string
+  mangaSlug?: string | null
 }
 
 export const ReadingButton: React.FC<ReadingButtonProps> = ({
   mangaId,
   firstChapterId,
   allChapters = [],
-  className = ''
+  className = '',
+  mangaSlug = null
 }) => {
   const { isAuthenticated } = useAuth()
   const { getLastReadChapter, isChapterCompleted } = useReadingProgress()
+
+  const readerPath = (chapterId: number) => buildReaderPath(chapterId, mangaSlug ?? undefined)
 
   if (!isAuthenticated) {
     return (
@@ -48,7 +53,7 @@ export const ReadingButton: React.FC<ReadingButtonProps> = ({
     // Пользователь еще не читал эту мангу - показываем "Начать читать"
     return (
       <Link
-        to={`/reader/${firstChapterId}`}
+        to={readerPath(firstChapterId)}
         state={{ manualNavigation: true }}
         className={`inline-flex items-center justify-center space-x-2 px-6 py-3 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 transition-colors ${className}`}
       >
@@ -107,7 +112,7 @@ export const ReadingButton: React.FC<ReadingButtonProps> = ({
 
   return (
     <Link
-      to={`/reader/${targetChapterId}`}
+      to={readerPath(targetChapterId)}
       state={{ manualNavigation: true }}
       className={`inline-flex items-center justify-center space-x-2 px-6 py-3 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 transition-colors ${className}`}
     >
@@ -121,12 +126,14 @@ interface QuickReadingButtonProps {
   mangaId: number
   firstChapterId?: number
   className?: string
+  mangaSlug?: string | null
 }
 
 export const QuickReadingButton: React.FC<QuickReadingButtonProps> = ({
   mangaId,
   firstChapterId,
-  className = ''
+  className = '',
+  mangaSlug = null
 }) => {
   const { isAuthenticated } = useAuth()
   const { getLastReadChapter } = useReadingProgress()
@@ -137,10 +144,11 @@ export const QuickReadingButton: React.FC<QuickReadingButtonProps> = ({
 
   const lastRead = getLastReadChapter(mangaId)
   const targetChapterId = lastRead ? lastRead.chapterId : firstChapterId
+  const readerTarget = buildReaderPath(targetChapterId, mangaSlug ?? undefined)
 
   return (
     <Link
-      to={`/reader/${targetChapterId}`}
+      to={readerTarget}
       state={{ manualNavigation: true }}
       className={`inline-flex items-center justify-center px-3 py-1.5 bg-primary text-white text-sm font-medium rounded-md hover:bg-primary/90 transition-colors ${className}`}
     >

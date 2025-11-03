@@ -4,11 +4,30 @@ services:
     build:
       context: ./AniWayFrontend
       dockerfile: Dockerfile
-    ports:
-      - "80:80"
     environment:
       - NODE_ENV=production
+    expose:
+      - "80"
     restart: unless-stopped
+    networks:
+      - aniway-network
+
+  # TLS reverse proxy
+  reverse-proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - ACME_EMAIL=${ACME_EMAIL:-rombk2711@gmail.com}
+    volumes:
+      - ./deployment/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deployment/site-verifications:/srv/verifications:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - aniway-frontend
     networks:
       - aniway-network
 
@@ -52,6 +71,11 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://auth-postgres:5432/authdb
       - SPRING_DATASOURCE_USERNAME=authuser
       - SPRING_DATASOURCE_PASSWORD=authpass123
+      - TELEGRAM_BOT_USERNAME=${TELEGRAM_BOT_USERNAME:-aniwaynotify_bot}
+      - TELEGRAM_DEEP_LINK_BASE=${TELEGRAM_DEEP_LINK_BASE:-https://t.me}
+      - TELEGRAM_LINK_TTL_MINUTES=${TELEGRAM_LINK_TTL_MINUTES:-15}
+      - TELEGRAM_LINK_MAX_ACTIVE_TOKENS=${TELEGRAM_LINK_MAX_ACTIVE_TOKENS:-5}
+      - TELEGRAM_NOTIFICATIONS_DEFAULT_ENABLED=${TELEGRAM_NOTIFICATIONS_DEFAULT_ENABLED:-true}
       # --- Resend SMTP Configuration ---
       - MAIL_HOST=smtp.resend.com
       - MAIL_PORT=587
@@ -386,6 +410,14 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://notification-postgres:5432/notificationdb
       - SPRING_DATASOURCE_USERNAME=notificationuser
       - SPRING_DATASOURCE_PASSWORD=notificationpass123
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:?set-your-token}
+      - TELEGRAM_NOTIFICATIONS_ENABLED=${TELEGRAM_NOTIFICATIONS_ENABLED:-true}
+      - TELEGRAM_NOTIFICATIONS_AGGREGATE_WINDOW_SECONDS=${TELEGRAM_NOTIFICATIONS_AGGREGATE_WINDOW_SECONDS:-60}
+      - TELEGRAM_NOTIFICATIONS_MAX_RETRIES=${TELEGRAM_NOTIFICATIONS_MAX_RETRIES:-3}
+      - TELEGRAM_NOTIFICATIONS_RETRY_BACKOFF_MILLIS=${TELEGRAM_NOTIFICATIONS_RETRY_BACKOFF_MILLIS:-1000}
+      - TELEGRAM_NOTIFICATIONS_CHAPTER_LINK_TEMPLATE=${TELEGRAM_NOTIFICATIONS_CHAPTER_LINK_TEMPLATE:-https://aniway.space/reader/{mangaSlug}/{chapterUrlSegment}}
+      - TELEGRAM_NOTIFICATIONS_MANGA_LINK_TEMPLATE=${TELEGRAM_NOTIFICATIONS_MANGA_LINK_TEMPLATE:-https://aniway.space/manga/{mangaSlug}}
+      - TELEGRAM_NOTIFICATIONS_SITE_BASE_URL=${TELEGRAM_NOTIFICATIONS_SITE_BASE_URL:-https://aniway.space}
     restart: unless-stopped
     depends_on:
       - notification-postgres
@@ -487,6 +519,8 @@ services:
       - aniway-network
 
 volumes:
+  caddy_data:
+  caddy_config:
   auth_data:
   manga_data:
   comment_data:

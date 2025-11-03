@@ -12,6 +12,7 @@ export interface ProcessedActivityDTO {
   timestamp: string;
   mangaId?: number;
   mangaTitle?: string;
+  mangaSlug?: string | null;
   chapterId?: number;
   chapterNumber?: number;
   chapterTitle?: string;
@@ -123,8 +124,10 @@ export interface UserActivity {
   timestamp: Date;
   relatedMangaId?: number;
   mangaTitle?: string; // добавлено для отображения названия
+  mangaSlug?: string | null;
   chapterNumber?: number; // сырое числовое значение главы
   chapterId?: number; // идентификатор главы
+  chapterSlug?: string | null;
 }
 
 export interface Friend {

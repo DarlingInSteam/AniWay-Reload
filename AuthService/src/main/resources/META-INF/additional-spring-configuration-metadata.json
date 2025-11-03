@@ -1,0 +1,29 @@
+{
+  "properties": [
+    {
+      "name": "telegram.bot.username",
+      "type": "java.lang.String",
+      "description": "Telegram bot username used for deep links"
+    },
+    {
+      "name": "telegram.deep-link-base",
+      "type": "java.lang.String",
+      "description": "Base URL for Telegram deep links"
+    },
+    {
+      "name": "telegram.link.ttl-minutes",
+      "type": "java.lang.Long",
+      "description": "Lifetime in minutes for Telegram link tokens"
+    },
+    {
+      "name": "telegram.link.max-active-tokens",
+      "type": "java.lang.Integer",
+      "description": "Maximum number of active Telegram link tokens per user"
+    },
+    {
+      "name": "telegram.notifications.default-enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether Telegram notifications are enabled immediately after linking"
+    }
+  ]
+}

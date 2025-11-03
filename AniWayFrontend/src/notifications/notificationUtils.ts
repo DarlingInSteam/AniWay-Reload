@@ -1,3 +1,5 @@
+import { buildReaderPath } from '@/lib/slugUtils'
+
 export type NotificationPayload = Record<string, any> | null;
 
 export function parsePayload(raw: string | null): NotificationPayload {
@@ -43,8 +45,10 @@ export function formatTitle(type: string, payload: NotificationPayload): string 
       return 'Ответ в отслеживаемой теме';
     case 'BOOKMARK_NEW_CHAPTER': {
       const t = payload?.mangaTitle || 'манга';
-      const ch = payload?.chapterNumber ? ` глава ${payload.chapterNumber}` : ' новая глава';
-      return `Новая глава в закладке: ${t}${ch}`;
+      const label = typeof payload?.chapterLabel === 'string' && payload.chapterLabel.trim().length > 0 ? payload.chapterLabel.trim() : null;
+      const fallback = payload?.chapterNumber ? ` глава ${payload.chapterNumber}` : ' новая глава';
+      const suffix = label ? ` ${label}` : fallback;
+      return `Новая глава в закладке: ${t}${suffix}`;
     }
     case 'FRIEND_REQUEST_RECEIVED':
       return 'Новая заявка в друзья';
@@ -132,7 +136,8 @@ export function getNavigationTarget(type: string, payload: NotificationPayload):
       return '/forum';
     }
     case 'BOOKMARK_NEW_CHAPTER': {
-      if (payload.chapterId) return `/reader/${payload.chapterId}`;
+      const segment = payload.chapterUrlSegment ?? payload.chapterId;
+      if (segment) return buildReaderPath(segment, payload.mangaSlug);
       if (payload.mangaId) return `/manga/${payload.mangaId}`;
       return '/';
     }

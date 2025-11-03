@@ -110,6 +110,19 @@ public class User implements UserDetails {
     @Builder.Default
     private Integer commentsCount = 0;
 
+    /** Telegram chat id, если пользователь привязал бота. */
+    @Column(name = "telegram_chat_id", unique = true)
+    private Long telegramChatId;
+
+    /** Дата последней успешной привязки Telegram. */
+    @Column(name = "telegram_linked_at")
+    private LocalDateTime telegramLinkedAt;
+
+    /** Флаг включённых Telegram-уведомлений. */
+    @Column(name = "telegram_notifications_enabled", nullable = false)
+    @Builder.Default
+    private Boolean telegramNotificationsEnabled = false;
+
     /** Тип бана. */
     @Enumerated(EnumType.STRING)
     @Column(name = "ban_type", nullable = false)

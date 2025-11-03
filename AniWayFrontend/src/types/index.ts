@@ -4,6 +4,9 @@ export interface MangaResponseDTO {
   title: string
   author: string
   artist?: string
+  slug?: string | null
+  melonSlug?: string | null
+  mangaSlug?: string | null
   genre: string
   tags?: string
   engName?: string
@@ -90,6 +93,8 @@ export interface ChapterDTO {
   publishedDate: string
   createdAt: string
   updatedAt: string
+  slug?: string | null
+  mangaSlug?: string | null
 }
 
 export interface ChapterCreateRequest {
@@ -230,6 +235,9 @@ export interface User {
   isEnabled: boolean
   createdAt: string
   lastLogin?: string
+  telegramConnected?: boolean
+  telegramNotificationsEnabled?: boolean
+  telegramLinkedAt?: string | null
   
   // Statistics
   chaptersReadCount?: number
@@ -501,6 +509,9 @@ export interface TopCommentDTO {
   trustFactor?: number
   commentType?: string
   targetId?: number
+  targetSlug?: string | null
+  mangaSlug?: string | null
+  mangaTitle?: string | null
   createdAt?: string
 }
 

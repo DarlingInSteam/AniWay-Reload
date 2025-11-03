@@ -79,4 +79,13 @@ public class UserDTO {
 
     /** Дата истечения временного бана. */
     private LocalDateTime banExpiresAt;
+    
+    /** Признак привязки Telegram. */
+    private Boolean telegramConnected;
+    
+    /** Флаг включённых Telegram-уведомлений. */
+    private Boolean telegramNotificationsEnabled;
+    
+    /** Дата последней привязки Telegram. */
+    private LocalDateTime telegramLinkedAt;
 }

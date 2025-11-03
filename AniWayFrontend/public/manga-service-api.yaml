@@ -39,7 +39,7 @@ info:
     email: support@aniway.com
 
 servers:
-  - url: http://localhost:8080
+  - url: https://localhost:8080
     description: Gateway Service (Локальная разработка)
   - url: https://your-domain.com:8080
     description: Gateway Service (Production)

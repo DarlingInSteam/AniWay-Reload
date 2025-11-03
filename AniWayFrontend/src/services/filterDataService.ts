@@ -30,10 +30,23 @@ export interface TagStats {
 }
 
 // API service для жанров и тегов
+type EnvWithOptionalBaseUrl = ImportMeta & {
+  env?: {
+    VITE_API_BASE_URL?: string;
+  };
+};
+
 export class FilterDataService {
-  private static readonly API_BASE_URL = process.env.NODE_ENV === 'development' 
-    ? 'http://localhost:8080' 
-    : window.location.origin;
+  private static readonly API_BASE_URL = (() => {
+    const configured = (import.meta as EnvWithOptionalBaseUrl).env?.VITE_API_BASE_URL;
+    if (configured) {
+      return configured;
+    }
+    if (typeof window !== 'undefined') {
+      return window.location.origin;
+    }
+    return '';
+  })();
 
   /**
    * Получение активных жанров

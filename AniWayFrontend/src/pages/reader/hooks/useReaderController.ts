@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as R
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api'
+import { buildReaderPath, resolveMangaSlug } from '@/lib/slugUtils'
 import { buildChapterTitleVariants, formatChapterTitle, getAdaptiveChapterTitle } from '@/lib/chapterUtils'
 import { useAuth } from '@/contexts/AuthContext'
 import { useReadingProgress } from '@/hooks/useProgress'
@@ -11,7 +12,7 @@ const MAX_PENDING_SCROLL_ATTEMPTS = 480
 const SCROLL_DIRECTION_RESET_MS = 450
 
 export function useReaderController() {
-  const { chapterId } = useParams<{ chapterId: string }>()
+  const { chapterId, mangaSlug: routeSlug } = useParams<{ chapterId: string; mangaSlug?: string }>()
   const navigate = useNavigate()
   const location = useLocation()
   const [showUI, setShowUI] = useState(true)
@@ -581,6 +582,13 @@ export function useReaderController() {
     enabled: !!initialChapter?.mangaId
   })
 
+  const resolvedMangaSlug = useMemo(() => {
+    if (!manga) return null
+    return resolveMangaSlug(manga as unknown as Record<string, unknown>)
+  }, [manga])
+
+  const effectiveMangaSlug = resolvedMangaSlug ?? routeSlug ?? null
+
   const { data: allChapters } = useQuery({
     queryKey: ['chapters', initialChapter?.mangaId],
     queryFn: () => apiClient.getChaptersByManga(initialChapter!.mangaId),
@@ -987,15 +995,17 @@ export function useReaderController() {
 
     const shouldRestoreScroll = naturalScrollNavigationRef.current
 
-    if (String(chapterIdNumeric) !== chapterId) {
-      navigate(`/reader/${chapterIdNumeric}`, {
+    const expectedChapterId = String(chapterIdNumeric)
+    const requiresRedirect = expectedChapterId !== chapterId || (effectiveMangaSlug != null && effectiveMangaSlug !== routeSlug)
+    if (requiresRedirect) {
+      navigate(buildReaderPath(chapterIdNumeric, effectiveMangaSlug ?? undefined), {
         replace: true,
         preventScrollReset: shouldRestoreScroll
       })
     }
 
     naturalScrollNavigationRef.current = false
-  }, [activeIndex, chapterId, navigate, sortedChapters, trackChapterViewed])
+  }, [activeIndex, chapterId, effectiveMangaSlug, navigate, routeSlug, sortedChapters, trackChapterViewed])
 
   useEffect(() => {
     if (!transitionBridge) return
@@ -1121,9 +1131,12 @@ export function useReaderController() {
 
     const targetChapter = sortedChapters[target]
     if (targetChapter && String(targetChapter.id) !== chapterId) {
-      navigate(`/reader/${targetChapter.id}`, { replace: true, preventScrollReset: false })
+      navigate(buildReaderPath(targetChapter.id, effectiveMangaSlug ?? undefined), {
+        replace: true,
+        preventScrollReset: false
+      })
     }
-  }, [activeChapterIndex, chapterId, ensureChapterLoaded, isChapterAligned, navigate, scrollChapterIntoView, setTransitionBridge, sortedChapters, updateActiveFromVisibility, updateManualNavigationLowerBound])
+  }, [activeChapterIndex, chapterId, effectiveMangaSlug, ensureChapterLoaded, isChapterAligned, navigate, scrollChapterIntoView, setTransitionBridge, sortedChapters, updateActiveFromVisibility, updateManualNavigationLowerBound])
 
   const navigateToPreviousChapter = useCallback(async () => {
     if (!sortedChapters) return
@@ -1182,9 +1195,12 @@ export function useReaderController() {
 
     const targetChapter = sortedChapters[target]
     if (targetChapter && String(targetChapter.id) !== chapterId) {
-      navigate(`/reader/${targetChapter.id}`, { replace: true, preventScrollReset: false })
+      navigate(buildReaderPath(targetChapter.id, effectiveMangaSlug ?? undefined), {
+        replace: true,
+        preventScrollReset: false
+      })
     }
-  }, [activeChapterIndex, chapterId, ensureChapterLoaded, isChapterAligned, navigate, scrollChapterIntoView, setTransitionBridge, sortedChapters, updateActiveFromVisibility, updateManualNavigationLowerBound])
+  }, [activeChapterIndex, chapterId, effectiveMangaSlug, ensureChapterLoaded, isChapterAligned, navigate, scrollChapterIntoView, setTransitionBridge, sortedChapters, updateActiveFromVisibility, updateManualNavigationLowerBound])
 
   useEffect(() => {
     if (!sortedChapters) return
@@ -1239,10 +1255,13 @@ export function useReaderController() {
 
     const targetChapter = sortedChapters[targetIndex]
     if (targetChapter && String(targetChapter.id) !== chapterId) {
-      navigate(`/reader/${targetChapter.id}`, { replace: true, preventScrollReset: false })
+      navigate(buildReaderPath(targetChapter.id, effectiveMangaSlug ?? undefined), {
+        replace: true,
+        preventScrollReset: false
+      })
     }
     setShowChapterList(false)
-  }, [chapterId, ensureChapterLoaded, isChapterAligned, navigate, resetChapterEnvironment, scrollChapterIntoView, sortedChapters, updateActiveFromVisibility])
+  }, [chapterId, effectiveMangaSlug, ensureChapterLoaded, isChapterAligned, navigate, resetChapterEnvironment, scrollChapterIntoView, sortedChapters, updateActiveFromVisibility])
 
   const handleChapterLike = useCallback(async () => {
     if (!activeChapter || !activeChapterId || (likedChapters[activeChapterId] ?? false) || (likingChapters[activeChapterId] ?? false)) return

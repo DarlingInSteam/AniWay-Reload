@@ -57,14 +57,14 @@ export function UsersSection({ query, userMetric, userLevelMap, formatter, onNav
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-3 md:gap-4 md:grid-cols-2 xl:grid-cols-3">
         {highlights.map((user, index) => {
           const level = userLevelMap[user.id]?.level ?? user.level ?? undefined
           const xpTotal = userLevelMap[user.id]?.totalXp ?? user.xp ?? undefined
           return (
             <GlassPanel
               key={user.id || index}
-              className="group relative cursor-pointer overflow-hidden border-white/10 bg-background/75 p-5 text-left transition-colors hover:border-white/20 hover:bg-white/10 active:bg-white/12"
+              className="group relative cursor-pointer overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] p-4 text-left transition-colors hover:border-white/25 hover:bg-white/[0.06] active:bg-white/[0.08]"
               onClick={() => user.id && onNavigateToProfile(user.id)}
             >
               <div className="absolute inset-0 bg-white/12 opacity-0 transition-opacity duration-200 group-hover:opacity-100" aria-hidden />
@@ -102,7 +102,7 @@ export function UsersSection({ query, userMetric, userLevelMap, formatter, onNav
       </div>
 
       {others.length > 0 && (
-        <div className="divide-y divide-white/5 overflow-hidden rounded-2xl border border-white/10 bg-background/65">
+  <div className="divide-y divide-white/5 overflow-hidden rounded-xl border border-white/10 bg-white/[0.02]">
           {others.map((user, index) => {
             const rank = index + highlights.length + 1
             const level = userLevelMap[user.id]?.level ?? user.level ?? undefined

@@ -2,18 +2,38 @@ import type { HTMLAttributes, ReactNode } from 'react'
 
 import { cn } from '@/lib/utils'
 
+// Унифицированная плоская панель без старого glass эффекта.
+// Базовые классы подобраны в стиле каталога/форума: легкий прозрачный фон, тонкий бордер.
 export function GlassPanel({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('glass-panel border-white/12 bg-background/60', className)} {...props} />
+  return (
+    <div
+      className={cn(
+        'border border-white/10 bg-white/[0.03] shadow-none backdrop-blur-none rounded-xl transition-colors',
+        className
+      )}
+      {...props}
+    />
+  )
 }
 
+// Чип без glass: используем мягкий фон и hover подцветку.
 export function InlineChip({ className, children }: { className?: string; children: ReactNode }) {
-  return <span className={cn('glass-inline px-2 py-1 text-xs text-white/80', className)}>{children}</span>
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-1 text-[11px] font-medium text-white/75 transition-colors hover:bg-white/10 hover:text-white',
+        className
+      )}
+    >
+      {children}
+    </span>
+  )
 }
 
 export function EmptyState({ message, action }: { message: string; action?: ReactNode }) {
   return (
-    <div className="glass-panel flex flex-col items-center justify-center gap-3 border-dashed border-white/15 bg-background/50 px-6 py-10 text-center">
-      <span className="text-sm text-white/65">{message}</span>
+    <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-white/12 bg-white/[0.02] px-6 py-10 text-center">
+      <span className="text-sm text-white/60">{message}</span>
       {action}
     </div>
   )
@@ -36,7 +56,7 @@ export function SegmentedControl({ value, options, onChange, className }: Segmen
   return (
     <div
       className={cn(
-        'glass-panel grid grid-cols-2 gap-1 rounded-2xl border-white/15 bg-background/60 p-1 sm:flex sm:flex-wrap',
+        'grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-white/[0.03] p-1 sm:flex sm:flex-wrap',
         className
       )}
     >
@@ -48,10 +68,10 @@ export function SegmentedControl({ value, options, onChange, className }: Segmen
             type="button"
             onClick={() => onChange(option.value)}
             className={cn(
-              'relative w-full min-h-[40px] rounded-2xl border border-transparent px-3 py-1.5 text-xs font-medium leading-tight text-center transition-colors break-words whitespace-normal md:text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/15 sm:flex-1 sm:min-w-[110px]',
+              'relative w-full min-h-[40px] rounded-2xl px-3 py-1.5 text-xs font-medium leading-tight text-center transition-colors break-words whitespace-normal md:text-sm focus-visible:outline-none sm:flex-1 sm:min-w-[110px]',
               isActive
-                ? 'border-white/25 bg-white/12 text-white shadow-inner shadow-black/20'
-                : 'text-white/70 hover:border-white/20 hover:bg-white/10 hover:text-white active:bg-white/12'
+                ? 'border border-primary/50 bg-primary/20 text-white shadow-sm'
+                : 'border border-transparent text-white/70 hover:border-primary/40 hover:bg-primary/10 hover:text-white'
             )}
           >
             {option.label}

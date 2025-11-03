@@ -107,18 +107,15 @@ export function TopsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto space-y-8 px-4 py-8">
-        <TopsTabNav
-          activeTab={activeTab}
-          onChange={(tab) => setActiveTab(tab)}
-        />
+      <div className="container mx-auto space-y-6 px-4 py-6 lg:px-8">
+        <TopsTabNav activeTab={activeTab} onChange={(tab) => setActiveTab(tab)} />
 
-        <div className="grid gap-6 lg:grid-cols-[320px,minmax(0,1fr)] xl:grid-cols-[360px,minmax(0,1fr)]">
+        <div className="grid gap-10 lg:grid-cols-[280px,minmax(0,1fr)] xl:grid-cols-[300px,minmax(0,1fr)]">
           <TopsSidebar meta={activeMeta} filterCard={filterCard} />
 
-          <div className="space-y-6">
+          <div className="space-y-10">
             {activeTab === 'users' && (
-              <GlassPanel className="border-white/12 bg-background/70 p-6">
+              <div className="space-y-6">
                 <UsersSection
                   query={topsData.usersQuery}
                   userMetric={userMetric}
@@ -126,11 +123,11 @@ export function TopsPage() {
                   formatter={formatter}
                   onNavigateToProfile={navigateToProfile}
                 />
-              </GlassPanel>
+              </div>
             )}
 
             {activeTab === 'reviews' && (
-              <GlassPanel className="border-white/12 bg-background/70 p-6">
+              <div className="space-y-6">
                 <ReviewsSection
                   query={topsData.reviewsQuery}
                   formatter={formatter}
@@ -138,33 +135,33 @@ export function TopsPage() {
                   reviewMangaMap={topsData.reviewMangaMap}
                   onNavigate={navigateTo}
                 />
-              </GlassPanel>
+              </div>
             )}
 
             {activeTab === 'threads' && (
-              <GlassPanel className="border-white/12 bg-background/70 p-6">
+              <div className="space-y-6">
                 <ThreadsSection
                   query={topsData.threadsQuery}
                   formatter={formatter}
                   threadAuthorMap={topsData.threadAuthorMap}
                   onNavigate={navigateTo}
                 />
-              </GlassPanel>
+              </div>
             )}
 
             {activeTab === 'comments' && (
-              <GlassPanel className="border-white/12 bg-background/70 p-6">
+              <div className="space-y-6">
                 <CommentsSection
                   query={topsData.commentsQuery}
                   formatter={formatter}
                   commentAuthorMap={topsData.commentAuthorMap}
                   onNavigate={navigateTo}
                 />
-              </GlassPanel>
+              </div>
             )}
 
             {activeTab === 'wall' && (
-              <GlassPanel className="border-white/12 bg-background/70 p-6">
+              <div className="space-y-6">
                 <WallSection
                   query={topsData.wallPostsQuery}
                   formatter={formatter}
@@ -172,7 +169,7 @@ export function TopsPage() {
                   wallMangaMap={topsData.wallMangaMap}
                   onNavigate={navigateTo}
                 />
-              </GlassPanel>
+              </div>
             )}
           </div>
         </div>

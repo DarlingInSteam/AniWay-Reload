@@ -61,6 +61,7 @@ public class SecurityConfig {
                         // Internal metrics endpoints (should be restricted by network or gateway rules)
                         .requestMatchers("/internal/metrics/users/**").permitAll()
                         .requestMatchers("/internal/bookmarks/manga/*/subscribers").permitAll()
+                        .requestMatchers("/internal/telegram/**").permitAll()
                         .requestMatchers("/api/admin/bookmarks/cleanup-orphaned").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/reviews/manga/*/rating").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/reviews/manga/ratings/batch").permitAll()
