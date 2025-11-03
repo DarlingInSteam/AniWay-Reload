@@ -7,6 +7,13 @@ import { MessageFeed } from './MessageFeed';
 import { MessageComposer } from './MessageComposer';
 import { NoCategorySelected } from './NoCategorySelected';
 import { ArrowDown } from 'lucide-react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+
+type ScrollAlignment = 'start' | 'center' | 'end' | 'auto';
+
+export interface SelectedCategoryScrollHelpers {
+  scrollToIndex: (index: number, align?: ScrollAlignment) => void;
+}
 
 interface SelectedCategoryPanelProps {
   category: CategoryView | null;
@@ -27,6 +34,7 @@ interface SelectedCategoryPanelProps {
   onReplyToMessage: (message: MessageDto | null) => void;
   onSendMessage: (content: string) => Promise<void>;
   onCancelReply: () => void;
+  onScrollHelpersChange?: (helpers: SelectedCategoryScrollHelpers | null) => void;
   className?: string;
 }
 
@@ -49,6 +57,7 @@ export function SelectedCategoryPanel({
   onReplyToMessage,
   onSendMessage,
   onCancelReply,
+  onScrollHelpersChange,
   className,
 }: SelectedCategoryPanelProps) {
   const hasCategory = Boolean(category);
@@ -57,6 +66,33 @@ export function SelectedCategoryPanel({
   const motionControls = useAnimation();
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const shouldStickToBottomRef = useRef(true);
+
+  const virtualizer = useVirtualizer({
+    count: messages.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => 160,
+    overscan: 8,
+  });
+
+  const handleRegisterMessageNode = useCallback((messageId: string, node: HTMLDivElement | null) => {
+    registerMessageNode(messageId, node);
+    if (node) {
+      virtualizer.measureElement(node);
+    }
+  }, [registerMessageNode, virtualizer]);
+
+  const scrollToIndex = useCallback((index: number, align: ScrollAlignment = 'auto') => {
+    if (messages.length === 0) return;
+    const clamped = Math.min(Math.max(index, 0), messages.length - 1);
+    virtualizer.scrollToIndex(clamped, { align });
+  }, [messages.length, virtualizer]);
+
+  useEffect(() => {
+    onScrollHelpersChange?.({ scrollToIndex });
+    return () => {
+      onScrollHelpersChange?.(null);
+    };
+  }, [onScrollHelpersChange, scrollToIndex]);
 
   const evaluateScrollPosition = useCallback(() => {
     const node = scrollContainerRef.current;
@@ -74,12 +110,11 @@ export function SelectedCategoryPanel({
   }, []);
 
   const scrollToLatest = useCallback(() => {
-    const node = scrollContainerRef.current;
-    if (!node) return;
+    if (messages.length === 0) return;
     shouldStickToBottomRef.current = true;
-    node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' });
+    scrollToIndex(messages.length - 1, 'end');
     requestAnimationFrame(evaluateScrollPosition);
-  }, [evaluateScrollPosition]);
+  }, [evaluateScrollPosition, messages.length, scrollToIndex]);
 
   useEffect(() => {
     if (!category) return;
@@ -113,17 +148,19 @@ export function SelectedCategoryPanel({
       node.scrollTop = 0;
       shouldStickToBottomRef.current = true;
       setShowScrollToBottom(false);
+      virtualizer.scrollToOffset(0, { align: 'start' });
       return;
     }
 
     const stored = scrollPositionsRef.current[category.id];
     if (typeof stored === 'number') {
       node.scrollTop = stored;
+      virtualizer.scrollToOffset(stored, { align: 'start' });
     } else {
-      node.scrollTop = node.scrollHeight;
+      scrollToIndex(messages.length - 1, 'end');
     }
     requestAnimationFrame(evaluateScrollPosition);
-  }, [category?.id, evaluateScrollPosition]);
+  }, [category?.id, evaluateScrollPosition, messages.length, scrollToIndex, virtualizer]);
 
   useEffect(() => {
     if (!category?.id) {
@@ -138,15 +175,14 @@ export function SelectedCategoryPanel({
     const shouldAutoStick = shouldStickToBottomRef.current || last.senderId === currentUserId;
     if (shouldAutoStick) {
       requestAnimationFrame(() => {
-        const node = scrollContainerRef.current;
-        if (!node) return;
-        node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' });
+        if (messages.length === 0) return;
+        scrollToIndex(messages.length - 1, 'end');
         evaluateScrollPosition();
       });
     } else {
       setShowScrollToBottom(prev => (prev ? prev : true));
     }
-  }, [messages, currentUserId, category?.id, evaluateScrollPosition]);
+  }, [messages, currentUserId, category?.id, evaluateScrollPosition, scrollToIndex]);
 
   return (
     <div className={cn('flex min-h-0 flex-1 flex-col gap-2', className)}>
@@ -168,7 +204,9 @@ export function SelectedCategoryPanel({
                 loadingMessages={loadingMessages}
                 dayFormatter={dayFormatter}
                 timeFormatter={timeFormatter}
-                registerMessageNode={registerMessageNode}
+                virtualItems={virtualizer.getVirtualItems()}
+                totalSize={virtualizer.getTotalSize()}
+                registerMessageNode={handleRegisterMessageNode}
                 onLoadOlderMessages={onLoadOlderMessages}
                 onJumpToMessage={onJumpToMessage}
                 onReply={message => onReplyToMessage(message)}

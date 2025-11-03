@@ -7,7 +7,7 @@ import useUserMiniBatch from '@/hooks/useUserMiniBatch';
 import type { MessageView as MessageDto } from '@/types/social';
 import { cn } from '@/lib/utils';
 import { ChannelSidebar } from '@/features/global-chat/components/ChannelSidebar';
-import { SelectedCategoryPanel } from '@/features/global-chat/components/SelectedCategoryPanel';
+import { SelectedCategoryPanel, SelectedCategoryScrollHelpers } from '@/features/global-chat/components/SelectedCategoryPanel';
 import { CategoryCreateDialog, CategoryCreatePayload } from '@/features/global-chat/components/CategoryCreateDialog';
 import { CategoryEditDialog, CategoryEditPayload } from '@/features/global-chat/components/CategoryEditDialog';
 import { useChatMessageNavigation } from '@/features/global-chat/hooks/useChatMessageNavigation';
@@ -81,12 +81,26 @@ export const GlobalChatPage: React.FC = () => {
 
   const users = useUserMiniBatch(participants);
 
+  const scrollHelpersRef = useRef<SelectedCategoryScrollHelpers | null>(null);
+
   const { registerMessageNode, handleJumpToMessage } = useChatMessageNavigation({
     messages,
     hasMore,
     loadOlderMessages,
     highlightedMessageId,
     setHighlightedMessageId,
+    ensureMessageVisible: async messageId => {
+      const helpers = scrollHelpersRef.current;
+      if (!helpers) {
+        return false;
+      }
+      const index = messages.findIndex(message => message.id === messageId);
+      if (index === -1) {
+        return false;
+      }
+      helpers.scrollToIndex(index, 'center');
+      return true;
+    },
     onMissingMessage: () => toast.info('Сообщение находится вне текущей истории. Загрузите ранние сообщения.'),
   });
 
@@ -184,6 +198,10 @@ export const GlobalChatPage: React.FC = () => {
     manualMobileToggleRef.current = true;
   }, [hasSelectedCategory]);
 
+  const handleScrollHelpersChange = useCallback((helpers: SelectedCategoryScrollHelpers | null) => {
+    scrollHelpersRef.current = helpers;
+  }, []);
+
   const showChannelSidebar = mobileView === 'channels';
   const showChatPanel = mobileView === 'chat';
 
@@ -251,6 +269,7 @@ export const GlobalChatPage: React.FC = () => {
               onReplyToMessage={handleReplyToMessage}
               onSendMessage={handleSendMessage}
               onCancelReply={handleCancelReply}
+              onScrollHelpersChange={handleScrollHelpersChange}
               className="flex-1 min-h-0"
             />
           </div>

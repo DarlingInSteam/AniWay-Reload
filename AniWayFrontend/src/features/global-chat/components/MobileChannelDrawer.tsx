@@ -111,7 +111,7 @@ export function MobileChannelDrawer({
       />
 
       <motion.aside
-        className="relative z-10 flex h-full w-[min(85vw,360px)] flex-col border-r border-white/10 bg-[#121215] shadow-2xl"
+        className="relative z-10 flex h-full w-[min(85vw,360px)] flex-col border-r border-white/12 bg-[#101014]"
         initial={{ x: '-100%' }}
         animate={{ x: 0 }}
         exit={{ x: '-100%' }}
@@ -175,16 +175,16 @@ export function MobileChannelDrawer({
                     type="button"
                     onClick={() => handleSelect(category.id)}
                     className={cn(
-                      'w-full rounded-xl border border-transparent bg-white/[0.03] px-3 py-3 text-left transition-all duration-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-white/50',
+                      'w-full rounded-xl border px-3 py-3 text-left transition-colors duration-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-white/40',
                       isActive
-                        ? 'border-primary/40 bg-primary/15 shadow-[0_0_0_1px_rgba(120,141,255,0.25)] text-white'
-                        : 'text-white/70 hover:border-white/20 hover:bg-white/10 hover:text-white'
+                        ? 'border-primary/50 bg-primary/20 text-white'
+                        : 'border-white/10 text-white/65 hover:border-white/20 hover:bg-white/5 hover:text-white'
                     )}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="truncate text-sm font-medium">{category.title}</span>
                       {unread > 0 && (
-                        <span className="ml-2 inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-primary/80 px-2 text-[11px] font-semibold text-white">
+                        <span className="ml-2 inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-primary/70 px-2 text-[11px] font-semibold text-white">
                           {unread > 99 ? '99+' : unread}
                         </span>
                       )}
@@ -196,7 +196,7 @@ export function MobileChannelDrawer({
                       <div className="mt-2 inline-flex items-center gap-1">
                         <Badge
                           variant="secondary"
-                          className="rounded-full border border-white/20 bg-transparent px-2 py-0 text-[10px] text-white/65"
+                          className="rounded-full border border-white/20 bg-transparent px-2 py-0 text-[10px] text-white/70"
                         >
                           По умолчанию
                         </Badge>

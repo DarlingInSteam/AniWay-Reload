@@ -7,6 +7,7 @@ interface UseChatMessageNavigationOptions {
   loadOlderMessages: () => Promise<void>;
   highlightedMessageId: string | null;
   setHighlightedMessageId: (messageId: string | null) => void;
+  ensureMessageVisible?: (messageId: string) => boolean | Promise<boolean>;
   onMissingMessage?: (messageId: string) => void;
 }
 
@@ -22,6 +23,7 @@ export function useChatMessageNavigation(options: UseChatMessageNavigationOption
     loadOlderMessages,
     highlightedMessageId,
     setHighlightedMessageId,
+    ensureMessageVisible,
     onMissingMessage,
   } = options;
 
@@ -45,6 +47,14 @@ export function useChatMessageNavigation(options: UseChatMessageNavigationOption
       return;
     }
 
+    if (ensureMessageVisible) {
+      const revealed = await ensureMessageVisible(messageId);
+      if (revealed) {
+        pendingScrollTargetRef.current = messageId;
+        return;
+      }
+    }
+
     if (hasMore) {
       pendingScrollTargetRef.current = messageId;
       await loadOlderMessages();
@@ -52,7 +62,7 @@ export function useChatMessageNavigation(options: UseChatMessageNavigationOption
     }
 
     onMissingMessage?.(messageId);
-  }, [hasMore, loadOlderMessages, onMissingMessage, setHighlightedMessageId]);
+  }, [ensureMessageVisible, hasMore, loadOlderMessages, onMissingMessage, setHighlightedMessageId]);
 
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
