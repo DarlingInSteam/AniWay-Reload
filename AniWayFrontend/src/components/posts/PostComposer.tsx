@@ -59,12 +59,12 @@ export const PostComposer: React.FC<PostComposerProps> = ({ userId, onCreated })
     finally { setSubmitting(false); }
   }
   return (
-    <form onSubmit={handleSubmit} className="relative p-4 rounded-2xl glass-panel space-y-3 shadow-lg border border-white/10">
+    <form onSubmit={handleSubmit} className="relative p-4 rounded-2xl border border-white/12 bg-white/[0.04] space-y-3 shadow-sm">
       <MarkdownMiniToolbar onCommand={applyFormat} />
       <div className="relative">
         <textarea
           ref={textareaRef}
-          className="w-full resize-y min-h-[160px] leading-relaxed p-3 bg-white/5 focus:bg-white/7 transition border border-white/10 focus:border-purple-500/60 rounded-xl text-sm font-mono relative z-10 outline-none placeholder:text-slate-500"
+          className="w-full resize-y min-h-[160px] leading-relaxed p-3 bg-white/[0.02] focus:bg-white/[0.05] transition border border-white/12 focus:border-purple-500/50 rounded-xl text-sm font-mono relative z-10 outline-none placeholder:text-slate-500"
           placeholder="Напишите пост... Поддерживается markdown. Ссылки на мангу: [[manga:123]]"
           value={content}
           onChange={e=>setContent(e.target.value)}
@@ -82,7 +82,7 @@ export const PostComposer: React.FC<PostComposerProps> = ({ userId, onCreated })
       </div>
       {refs.length>0 && (
         <div className="flex flex-wrap gap-1.5 text-[10px] font-medium text-purple-200/90">
-          {refs.map(r=> <span key={r} className="px-2 py-0.5 rounded-full bg-purple-500/15 border border-purple-400/30 backdrop-blur-sm">manga:{r}</span>)}
+          {refs.map(r=> <span key={r} className="px-2 py-0.5 rounded-full border border-purple-400/30 bg-purple-500/10">manga:{r}</span>)}
         </div>
       )}
       {error && <div className="text-xs text-red-400">{error}</div>}
@@ -93,13 +93,13 @@ export const PostComposer: React.FC<PostComposerProps> = ({ userId, onCreated })
             type="button"
             onClick={handleImagePick}
             disabled={uploading||submitting}
-            className="px-3 py-1.5 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-medium text-slate-200 disabled:opacity-50 transition"
+            className="px-3 py-1.5 rounded-md border border-white/12 bg-white/[0.03] hover:bg-white/[0.08] text-[11px] font-medium text-slate-200 disabled:opacity-50 transition"
           >{uploading? 'Загрузка...' : 'Изображения'}</button>
           <button
             type="button"
             onClick={()=>setPickerOpen(true)}
             disabled={submitting}
-            className="px-3 py-1.5 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-medium text-slate-200 disabled:opacity-50 transition"
+            className="px-3 py-1.5 rounded-md border border-white/12 bg-white/[0.03] hover:bg-white/[0.08] text-[11px] font-medium text-slate-200 disabled:opacity-50 transition"
           >Манга</button>
           {attachments.length>0 && <span className="text-[11px] text-slate-400">Изображений: {attachments.length}</span>}
         </div>

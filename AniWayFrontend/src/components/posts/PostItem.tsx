@@ -177,9 +177,9 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
 
   return (
   <>
-  <div className="p-4 rounded-xl glass-panel space-y-3 relative">
+  <div className="p-4 rounded-2xl border border-white/12 bg-white/[0.03] space-y-3 relative shadow-sm">
       <div className="flex items-start gap-3">
-        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-purple-600/40 to-fuchsia-600/40 border border-white/15 overflow-hidden flex items-center justify-center text-xs text-slate-300 font-semibold">
+  <div className="flex-shrink-0 w-10 h-10 rounded-full border border-white/15 bg-white/[0.06] overflow-hidden flex items-center justify-center text-xs text-slate-300 font-semibold">
           {computedAvatar ? <img src={computedAvatar} alt={authorName} className="w-full h-full object-cover"/> : (authorName? authorName[0]?.toUpperCase(): '?')}
         </div>
         <div className="flex-1 min-w-0">
@@ -204,7 +204,7 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
             ref={editAreaRef}
             value={editContent}
             onChange={e => setEditContent(e.target.value)}
-            className="w-full min-h-[140px] p-3 bg-white/5 border border-white/10 rounded-lg text-sm font-mono focus:outline-none focus:border-purple-500/60"
+            className="w-full min-h-[140px] p-3 bg-white/[0.02] border border-white/12 rounded-lg text-sm font-mono focus:outline-none focus:border-purple-500/50"
             disabled={saving}
           />
           {actionError && <div className="text-xs text-red-400">{actionError}</div>}
@@ -227,11 +227,11 @@ export const PostItem: React.FC<PostItemProps> = ({ post, currentUserId, onUpdat
       )}
       <div className="flex items-center gap-4 text-sm pt-1 flex-wrap">
         <div className="flex items-center gap-1">
-          <button onClick={() => handleVote(1)} className={"px-2 py-1 rounded text-xs " + (localPost.stats.userVote === 1 ? 'bg-green-600' : 'bg-neutral-700')}>+{localPost.stats.up}</button>
-          <button onClick={() => handleVote(-1)} className={"px-2 py-1 rounded text-xs " + (localPost.stats.userVote === -1 ? 'bg-red-600' : 'bg-neutral-700')}>-{localPost.stats.down}</button>
+          <button onClick={() => handleVote(1)} className={"px-2 py-1 rounded-md border text-xs transition " + (localPost.stats.userVote === 1 ? 'border-green-400/40 bg-green-500/20 text-green-200' : 'border-white/12 bg-white/[0.04] hover:bg-white/[0.08] text-slate-200')}>+{localPost.stats.up}</button>
+          <button onClick={() => handleVote(-1)} className={"px-2 py-1 rounded-md border text-xs transition " + (localPost.stats.userVote === -1 ? 'border-red-400/40 bg-red-500/20 text-red-200' : 'border-white/12 bg-white/[0.04] hover:bg-white/[0.08] text-slate-200')}>-{localPost.stats.down}</button>
           <span className="text-xs text-neutral-400">Score {localPost.stats.score}</span>
         </div>
-        <button type="button" onClick={()=>setCommentsOpen(true)} className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 px-2 py-1 rounded-md border border-white/10 transition">
+  <button type="button" onClick={()=>setCommentsOpen(true)} className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-white px-2 py-1 rounded-md border border-white/12 bg-white/[0.03] hover:bg-white/[0.07] transition">
           <MessageCircle size={14} />
           <span>Комментарии</span>
           <span className="text-[10px] px-1 rounded bg-purple-600/20 text-purple-300">
