@@ -40,6 +40,7 @@ function InnerApp() {
           <Route path="/" element={<CatalogPage />} />
           <Route path="/catalog" element={<CatalogPage />} />
           <Route path="/manga/:id" element={<MangaPage />} />
+          <Route path="/reader/:mangaSlug/:chapterId" element={<ReaderPage />} />
           <Route path="/reader/:chapterId" element={<ReaderPage />} />
           <Route path="/forum" element={<ForumPage />} />
           <Route path="/forum/create-category" element={<CreateCategoryPage />} />

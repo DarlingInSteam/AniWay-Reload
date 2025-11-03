@@ -10,6 +10,7 @@ import {
 import { apiClient } from '@/lib/api'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { formatDate, formatRelativeTime, getStatusText, getTypeText, cn } from '@/lib/utils'
+import { resolveMangaSlug, buildReaderPath } from '@/lib/slugUtils'
 import { Badge } from '@/components/ui/badge'
 import { formatChapterTitle, formatChapterNumber, formatVolumeNumber } from '@/lib/chapterUtils'
 import { BookmarkControls } from '../components/bookmarks/BookmarkControls'
@@ -52,6 +53,16 @@ export function MangaPage() {
 
   const { user, loading: authLoading } = useAuth()
   const [searchParams] = useSearchParams()
+  const searchSuffix = useMemo(() => {
+    const query = searchParams.toString()
+    return query ? `?${query}` : ''
+  }, [searchParams])
+  const routeSlug = useMemo(() => {
+    if (!rawId) return null
+    const [, ...rest] = rawId.split('--')
+    const candidate = rest.join('--').trim()
+    return candidate.length ? candidate : null
+  }, [rawId])
   const queryClient = useQueryClient()
 
   // Track screen size
@@ -76,6 +87,13 @@ export function MangaPage() {
     enabled: !!mangaId && !authLoading,
   })
 
+  const resolvedMangaSlug = useMemo(() => {
+    if (!manga) return null
+    return resolveMangaSlug(manga as unknown as Record<string, unknown>)
+  }, [manga])
+
+  const mangaSlug = resolvedMangaSlug ?? routeSlug
+
   const descriptionText = useMemo(() => (manga?.description || '').trim(), [manga?.description])
   const isDescriptionLong = descriptionText.length > 360
 
@@ -83,55 +101,14 @@ export function MangaPage() {
     setShowFullDescription(false)
   }, [manga?.id])
 
-  // Slug handling: enhance URL to /manga/:id-:slug (client side only)
+  // Slug handling: enhance URL to /manga/:id--:slug (client side only)
   useEffect(() => {
-    if (!manga || !rawId) return
-    const hasSlug = rawId.includes('--')
-
-    // Collect candidate titles (primary + alternatives if present)
-    const altRaw: string[] = []
-    const possibleAlts: any = (manga as any)
-    ;['alternativeTitles','alternativeNames','altTitles','alt_names','altNames']
-      .forEach(k => { if (possibleAlts?.[k]) {
-        const v = possibleAlts[k]
-        if (Array.isArray(v)) altRaw.push(...v)
-        else if (typeof v === 'string') altRaw.push(...v.split(/,|;|\n/))
-      } })
-
-    const candidates = [manga.title, ...altRaw].filter(Boolean) as string[]
-
-    // Simple Cyrillic transliteration map (Russian)
-    const translitMap: Record<string,string> = {
-      а:'a', б:'b', в:'v', г:'g', д:'d', е:'e', ё:'e', ж:'zh', з:'z', и:'i', й:'y', к:'k', л:'l', м:'m', н:'n', о:'o', п:'p', р:'r', с:'s', т:'t', у:'u', ф:'f', х:'h', ц:'ts', ч:'ch', ш:'sh', щ:'sch', ъ:'', ы:'y', ь:'', э:'e', ю:'yu', я:'ya'
+    if (!rawId || !mangaSlug) return
+    const expectedSuffix = `${mangaId}--${mangaSlug}`
+    if (!rawId.includes('--') || !rawId.endsWith(`--${mangaSlug}`)) {
+      navigate(`/manga/${expectedSuffix}${searchSuffix}`, { replace: true })
     }
-    const transliterate = (s: string) => s.toLowerCase().split('').map(ch => translitMap[ch] ?? ch).join('')
-
-    const sanitize = (s: string) => s
-      .toLowerCase()
-      .normalize('NFKD')
-      .replace(/[^a-z0-9\s-]/g, ' ') // remove non-latin; keep digits & spaces
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g,'')
-
-    // Pick best ASCII/romanized candidate: most a-z characters
-    let best = candidates[0] || 'manga'
-    let bestScore = -1
-    for (const c of candidates) {
-      const base = /[a-z]/i.test(c) ? c : transliterate(c)
-      const ascii = base.replace(/[^a-z]/gi,'')
-      const score = ascii.length
-      if (score > bestScore) { bestScore = score; best = base }
-    }
-
-    const slug = sanitize(best) || 'manga'
-
-    if (!hasSlug || (hasSlug && !rawId.endsWith(`--${slug}`))) {
-      // Preserve existing search params (tab, etc.)
-      const query = searchParams.toString() ? `?${searchParams.toString()}` : ''
-      navigate(`/manga/${mangaId}--${slug}${query}` , { replace: true })
-    }
-  }, [manga, rawId, mangaId, navigate, searchParams])
+  }, [rawId, mangaSlug, mangaId, navigate, searchSuffix])
 
   // Удалили избыточную инвалидацию кэша после загрузки манги
   // Это было причиной "танца" тегов и жанров
@@ -558,6 +535,7 @@ export function MangaPage() {
                     mangaId={mangaId} 
                     firstChapterId={chapters && chapters.length > 0 ? chapters[0].id : undefined}
                     allChapters={chapters}
+                    mangaSlug={mangaSlug ?? undefined}
                     className="w-full"
                   />
 
@@ -627,6 +605,7 @@ export function MangaPage() {
                   mangaId={mangaId} 
                   firstChapterId={chapters && chapters.length > 0 ? chapters[0].id : undefined}
                   allChapters={chapters}
+                  mangaSlug={mangaSlug ?? undefined}
                   className="w-full mb-4"
                 />
 
@@ -907,7 +886,7 @@ export function MangaPage() {
                         return (
                           <Link
                             key={chapter.id}
-                            to={`/reader/${chapter.id}`}
+                            to={buildReaderPath(chapter.id, mangaSlug ?? undefined)}
                             className={cn(
                               "flex items-center p-3 md:p-4 bg-white/5 backdrop-blur-sm rounded-3xl hover:bg-white/10 transition-all duration-200 hover:shadow-lg group border border-white/10",
                               isCompleted && "bg-green-500/10 border-green-500/20"

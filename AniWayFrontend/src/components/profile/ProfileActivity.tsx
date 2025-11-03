@@ -4,6 +4,7 @@ import { UserActivity } from '@/types/profile'
 import { Clock, BookOpen, Bookmark as BookmarkIcon, Star, Award } from 'lucide-react'
 import { ProfilePanel } from './ProfilePanel'
 import { apiClient } from '@/lib/api'
+import { buildReaderPath } from '@/lib/slugUtils'
 
 interface ProfileActivityProps { activities: UserActivity[] }
 
@@ -117,6 +118,8 @@ export const ProfileActivity: React.FC<ProfileActivityProps> = ({ activities }) 
           const resolvedTitle = a.mangaTitle || (a.relatedMangaId ? cache.titles[a.relatedMangaId] : undefined)
           const mangaTitle = resolvedTitle && resolvedTitle.length > 0 ? resolvedTitle : undefined
 
+          const readerPath = a.chapterId ? buildReaderPath(a.chapterId, a.mangaSlug) : null
+
           const renderDescription = () => {
             if (a.type === 'read') {
               return (
@@ -136,8 +139,8 @@ export const ProfileActivity: React.FC<ProfileActivityProps> = ({ activities }) 
                   {formattedChapter && (
                     <>
                       <span className="text-slate-500">•</span>
-                      {a.chapterId ? (
-                        <Link to={`/reader/${a.chapterId}`} className="text-blue-400 hover:text-blue-300 font-medium transition-colors">{formattedChapter}</Link>
+                      {readerPath ? (
+                        <Link to={readerPath} className="text-blue-400 hover:text-blue-300 font-medium transition-colors">{formattedChapter}</Link>
                       ) : (
                         <span className="text-blue-400 font-medium">{formattedChapter}</span>
                       )}
