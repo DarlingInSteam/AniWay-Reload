@@ -122,6 +122,16 @@ export function ForumPage(){
   }, [filtered])
 
   const highlightThreads = useMemo(() => activityStats.recentlyUpdated.slice(0, 3), [activityStats.recentlyUpdated])
+  const loadMoreRef = useCallback((node: HTMLDivElement | null) => {
+    if(!node) return
+    const obs = new IntersectionObserver(entries => {
+      const e = entries[0]
+      if(e.isIntersecting && hasNextPage && !isFetchingNextPage){
+        fetchNextPage()
+      }
+    }, { rootMargin: '400px 0px' })
+    obs.observe(node)
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
   return (
     <ForumLayout
@@ -131,7 +141,7 @@ export function ForumPage(){
         <ForumToolbar value={query} onChange={setQuery} sort={sort} onSortChange={setSort} density={density} onDensityChange={setDensity} />
 
         {(quickCategories.length > 0 || hasFilters) && (
-          <div className="glass-panel rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Быстрый доступ</div>
               {hasFilters && (
@@ -144,7 +154,7 @@ export function ForumPage(){
               <button
                 type="button"
                 onClick={() => setSelectedCategory(undefined)}
-                className={`rounded-xl px-3 py-1.5 text-xs transition-colors ${selectedCategory === undefined ? 'bg-white/15 text-white shadow-inner shadow-black/20' : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-foreground'}`}
+                className={`rounded-full px-3 py-1.5 text-[11px] transition-colors ${selectedCategory === undefined ? 'bg-primary/25 text-white shadow-inner shadow-black/20' : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'}`}
               >
                 Все темы
               </button>
@@ -153,7 +163,7 @@ export function ForumPage(){
                   key={category.id}
                   type="button"
                   onClick={() => setSelectedCategory(category.id)}
-                  className={`rounded-xl px-3 py-1.5 text-xs transition-colors ${selectedCategory === category.id ? 'bg-white/15 text-white shadow-inner shadow-black/20' : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-foreground'}`}
+                  className={`rounded-full px-3 py-1.5 text-[11px] transition-colors ${selectedCategory === category.id ? 'bg-primary/25 text-white shadow-inner shadow-black/20' : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'}`}
                 >
                   {category.name}
                   <span className="ml-2 text-[10px] text-white/55">{category.threadsCount ?? 0}</span>
@@ -167,7 +177,7 @@ export function ForumPage(){
           <div className="space-y-4">
             <PinnedThreads threads={pinned} />
             {highlightThreads.length > 0 && (
-              <div className="glass-panel rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
                 <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
                   <Flame className="h-3.5 w-3.5 text-white/65" />
                   Сейчас обсуждают
@@ -177,7 +187,7 @@ export function ForumPage(){
                     <Link
                       key={`highlight-${thread.id}`}
                       to={`/forum/thread/${thread.id}`}
-                      className="flex w-full items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-left text-xs text-white/70 transition hover:bg-white/10 hover:text-foreground"
+                      className="flex w-full items-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-left text-[11px] text-white/70 transition hover:bg-white/10 hover:text-white"
                     >
                       <span className="flex-1 truncate">{thread.title || `Тема #${thread.id}`}</span>
                       <span className="text-[11px] text-white/55">{formatRelativeTimestamp(thread.lastActivityAt ?? thread.updatedAt ?? thread.createdAt)}</span>
@@ -190,11 +200,10 @@ export function ForumPage(){
             <div className="space-y-4">
               {threadsLoading && !allThreads.length && <div className="text-sm text-muted-foreground">Загрузка тем...</div>}
               <ForumThreadList threads={visible} users={authorUsers} density={density} isAdmin={isAdmin} onPinToggle={handlePinToggle} onDelete={handleDelete} />
-              {hasNextPage && (
-                <div className="pt-2">
-                  <button disabled={isFetchingNextPage} onClick={()=> fetchNextPage()} className="w-full rounded-xl bg-white/5 py-3 text-sm font-medium text-white/80 hover:bg-white/10 disabled:opacity-50">{isFetchingNextPage? 'Загрузка...' : 'Загрузить ещё'}</button>
-                </div>
-              )}
+              <div ref={loadMoreRef} className="flex h-14 items-center justify-center text-xs text-white/50">
+                {isFetchingNextPage && hasNextPage && <span>Загрузка…</span>}
+                {!hasNextPage && !!visible.length && <span className="text-white/40">Больше тем нет</span>}
+              </div>
               {!threadsLoading && !filtered.length && <div className="text-sm text-muted-foreground">Ничего не найдено</div>}
             </div>
           </div>

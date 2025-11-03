@@ -52,7 +52,12 @@ export function ForumThreadCard({ thread, users, density = 'comfortable', isNew,
     .replace(/[*_~`>#-]/g,' ') // markdown symbols
     .replace(/\s+/g,' ')
     .trim()
-  const snippet = plain.slice(0,160) + (plain.length>160 ? '…' : '')
+  const MAX_SNIPPET = 160
+  const EXTENDED_SNIPPET = 420
+  const [expanded, setExpanded] = useState(false)
+  const snippet = expanded
+    ? (plain.slice(0, EXTENDED_SNIPPET) + (plain.length > EXTENDED_SNIPPET ? '…' : ''))
+    : (plain.slice(0, MAX_SNIPPET) + (plain.length > MAX_SNIPPET ? '…' : ''))
   const padding = density === 'compact' ? 'p-3' : 'p-4'
   const titleClamp = density === 'compact' ? 'line-clamp-1' : 'line-clamp-2'
   const snippetClamp = density === 'compact' ? 'line-clamp-1' : 'line-clamp-2'
@@ -60,14 +65,7 @@ export function ForumThreadCard({ thread, users, density = 'comfortable', isNew,
   const highlight = isNew || isUpdated
   const ring = isNew ? 'ring-2 ring-emerald-500/40' : isUpdated ? 'ring-2 ring-sky-500/40' : ''
   return (
-    <div className={`group relative flex h-full rounded-xl border border-white/10 bg-white/5 ${padding} hover:bg-white/10 transition-colors ${ring} focus-within:outline-none focus-within:ring-2 focus-within:ring-primary/40`}>
-      <div className="flex flex-col items-center justify-start pr-4 mr-4 border-r border-white/10 gap-2 w-12 text-[11px] text-white/60">
-        <span className="inline-flex items-center gap-1"><MessageSquare className="h-3 w-3" />{thread.repliesCount}</span>
-        <span className="inline-flex items-center gap-1"><Eye className="h-3 w-3" />{thread.viewsCount}</span>
-        <span className="inline-flex items-center gap-1"><Heart className="h-3 w-3" />{thread.likesCount}</span>
-        {thread.isPinned && <Pin className="h-3 w-3 text-amber-400" />}
-        {thread.isLocked && <Lock className="h-3 w-3 text-red-400" />}
-      </div>
+    <div className={`group relative flex h-full rounded-lg border border-white/10 bg-white/[0.03] ${padding} hover:border-primary/40 hover:bg-primary/5 transition-colors ${ring} focus-within:outline-none focus-within:ring-2 focus-within:ring-primary/40`}>
       <div className="min-w-0 flex-1 space-y-2">
         <Link ref={rootRef} to={`/forum/thread/${thread.id}`} onMouseEnter={handleEnter} onMouseLeave={handleLeave} aria-label={highlight ? (isNew ? 'Новая тема' : 'Обновлённая тема') : undefined} role="article" className="block focus:outline-none">
           <h4 className={`${titleClamp} font-medium text-white tracking-tight`}>{thread.title}</h4>
@@ -78,8 +76,24 @@ export function ForumThreadCard({ thread, users, density = 'comfortable', isNew,
             <AvatarMini avatar={avatar} name={name} size={22} />
             <span className="truncate max-w-[180px] text-white/80 group-hover:text-white">{name}</span>
           </span>
+          <span className="inline-flex items-center gap-2 text-white/55">
+            <MessageSquare className="h-3 w-3" /> {thread.repliesCount}
+            <Eye className="h-3 w-3" /> {thread.viewsCount}
+            <Heart className="h-3 w-3" /> {thread.likesCount}
+          </span>
+          {thread.isPinned && <span className="inline-flex items-center gap-1 text-amber-400"><Pin className="h-3 w-3"/> PIN</span>}
+          {thread.isLocked && <span className="inline-flex items-center gap-1 text-red-400"><Lock className="h-3 w-3"/> LOCK</span>}
           {isNew && <Badge variant="new" size="xs">NEW</Badge>}
           {!isNew && isUpdated && <Badge variant="updated" size="xs">UPD</Badge>}
+          {plain.length > MAX_SNIPPET && (
+            <button
+              type="button"
+              onClick={()=> setExpanded(e=> !e)}
+              className="text-[10px] rounded-full bg-white/5 px-2 py-1 text-white/60 hover:bg-white/10 hover:text-white transition"
+            >
+              {expanded ? 'Свернуть' : 'Подробнее'}
+            </button>
+          )}
         </div>
         {isAdmin && (
           <div className="flex flex-wrap items-center gap-2 pt-1"> 
