@@ -17,3 +17,12 @@ aniway.space, www.aniway.space {
 
     reverse_proxy aniway-frontend:80
 }
+
+http://aniway.space, http://www.aniway.space {
+    handle_path /.well-known/acme-challenge/* {
+        root * /srv/verifications
+        file_server
+    }
+
+    redir https://aniway.space{uri}
+}
