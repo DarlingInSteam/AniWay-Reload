@@ -15,6 +15,20 @@ https://aniway.space {
         file_server
     }
 
+    # API requests to Gateway Service
+    handle /api/* {
+        reverse_proxy gateway-service:8080
+    }
+
+    # WebSocket connections
+    handle /ws/* {
+        reverse_proxy gateway-service:8080 {
+            header_up Connection "Upgrade"
+            header_up Upgrade "websocket"
+        }
+    }
+
+    # All other requests to frontend
     reverse_proxy aniway-frontend:80
 }
 
