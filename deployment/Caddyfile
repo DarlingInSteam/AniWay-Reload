@@ -24,5 +24,5 @@ http://aniway.space {
         file_server
     }
 
-    reverse_proxy aniway-frontend:80
+    redir https://aniway.space{uri}
 }
