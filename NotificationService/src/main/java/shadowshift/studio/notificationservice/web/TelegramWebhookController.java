@@ -34,6 +34,9 @@ public class TelegramWebhookController {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
             }
         }
+        long updateId = update != null && update.has("update_id") ? update.path("update_id").asLong() : -1L;
+        String payloadType = update != null && update.fieldNames().hasNext() ? update.fieldNames().next() : "unknown";
+        log.info("Accepted Telegram webhook updateId={} type={}", updateId, payloadType);
         telegramUpdateService.handleUpdate(update);
         return ResponseEntity.ok().build();
     }
