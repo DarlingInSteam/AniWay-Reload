@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -24,6 +25,12 @@ public class TelegramWebhookController {
 
     @Value("${telegram.webhook.secret:}")
     private String webhookSecret;
+
+    @GetMapping("/webhook")
+    public ResponseEntity<String> healthCheck() {
+        log.info("Received Telegram webhook health check call");
+        return ResponseEntity.ok("ok");
+    }
 
     @PostMapping("/webhook")
     public ResponseEntity<Void> receiveUpdate(@RequestBody JsonNode update,
