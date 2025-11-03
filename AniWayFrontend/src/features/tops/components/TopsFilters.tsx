@@ -1,6 +1,6 @@
 import type { UserMetric, RangeOptionValue, WallRangeOptionValue } from '../types'
 import { USER_METRIC_OPTIONS, RANGE_OPTIONS, REVIEW_RANGE_OPTIONS, WALL_RANGE_OPTIONS } from '../constants'
-import { GlassPanel, SegmentedControl } from './primitives'
+import { SegmentedControl } from './primitives'
 import { Users, BookOpen, Hash, MessageSquare, Sparkles } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -11,7 +11,7 @@ export type UsersMetricFilterProps = {
 
 export function UsersMetricFilter({ value, onChange }: UsersMetricFilterProps) {
   return (
-    <GlassPanel className="space-y-3 p-4">
+    <div className="space-y-3">
       <div className="flex items-start gap-3">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-white/65">
           <Users className="h-4 w-4" />
@@ -27,7 +27,7 @@ export function UsersMetricFilter({ value, onChange }: UsersMetricFilterProps) {
         options={USER_METRIC_OPTIONS}
         className="mt-1"
       />
-    </GlassPanel>
+    </div>
   )
 }
 
@@ -38,7 +38,7 @@ export type ReviewsFilterProps = {
 
 export function ReviewsFilter({ value, onChange }: ReviewsFilterProps) {
   return (
-    <GlassPanel className="space-y-3 p-4">
+    <div className="space-y-3">
       <div className="flex items-start gap-3">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-white/65">
           <BookOpen className="h-4 w-4" />
@@ -54,7 +54,7 @@ export function ReviewsFilter({ value, onChange }: ReviewsFilterProps) {
         options={REVIEW_RANGE_OPTIONS}
         className="mt-1"
       />
-    </GlassPanel>
+    </div>
   )
 }
 
@@ -68,7 +68,7 @@ export type RangeFilterProps = {
 
 export function RangeFilter({ value, onChange, icon: Icon, title, description }: RangeFilterProps) {
   return (
-    <GlassPanel className="space-y-3 p-4">
+    <div className="space-y-3">
       <div className="flex items-start gap-3">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-white/65">
           <Icon className="h-4 w-4" />
@@ -84,7 +84,7 @@ export function RangeFilter({ value, onChange, icon: Icon, title, description }:
         options={RANGE_OPTIONS}
         className="mt-1"
       />
-    </GlassPanel>
+    </div>
   )
 }
 
@@ -95,7 +95,7 @@ export type WallRangeFilterProps = {
 
 export function WallRangeFilter({ value, onChange }: WallRangeFilterProps) {
   return (
-    <GlassPanel className="space-y-3 p-4">
+    <div className="space-y-3">
       <div className="flex items-start gap-3">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-white/65">
           <Sparkles className="h-4 w-4" />
@@ -111,7 +111,7 @@ export function WallRangeFilter({ value, onChange }: WallRangeFilterProps) {
         options={WALL_RANGE_OPTIONS}
         className="mt-1"
       />
-    </GlassPanel>
+    </div>
   )
 }
 
