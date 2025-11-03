@@ -7,12 +7,12 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { Edit, ChevronDown, MessageCircle, Loader2 } from 'lucide-react'
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
 import { Progress } from '@/components/ui/progress'
-import GlassPanel from '@/components/ui/GlassPanel'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import XpHistoryList from '@/components/profile/XpHistoryList'
 import { useUserLevel } from '@/hooks/useUserLevel'
 import type { FriendshipStatus } from '@/hooks/useFriendData'
 import type { FriendRequestView } from '@/types/social'
+import { cn } from '@/lib/utils'
 
 interface ProfileHeroProps {
   profile: UserProfile
@@ -75,13 +75,12 @@ const LevelPanel: React.FC<{ profile: UserProfile; variant?: 'desktop'|'mobile'|
   }
 
   const baseCard = (
-    <GlassPanel
+    <div
         onClick={() => setOpen(true)}
-        padding="none"
-        className={`relative p-4 flex flex-col gap-4 cursor-pointer transition-shadow group overflow-hidden
-        before:absolute before:inset-0 before:pointer-events-none before:rounded-[inherit]
-        before:bg-gradient-to-br before:from-slate-900/50 before:via-slate-800/40 before:to-slate-900/20
-        hover:shadow-lg hover:shadow-black/40 ${variant==='mobile' ? 'min-w-[200px]' : ''}`}>        
+        className={cn(
+          'relative p-4 flex flex-col gap-4 cursor-pointer transition-shadow group overflow-hidden rounded-2xl border border-white/12 bg-white/[0.04] shadow-sm hover:shadow-md hover:shadow-black/40',
+          variant === 'mobile' ? 'min-w-[200px]' : ''
+        )}>
         {/* Subtle top accent line */}
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
         <div className="flex items-start justify-between">
@@ -125,7 +124,7 @@ const LevelPanel: React.FC<{ profile: UserProfile; variant?: 'desktop'|'mobile'|
         )}
         {/* Soft corner glow */}
         <div className="pointer-events-none absolute -bottom-10 -right-10 w-40 h-40 rounded-full bg-primary/10 blur-2xl opacity-0 group-hover:opacity-70 transition-opacity" />
-      </GlassPanel>
+    </div>
   )
 
   const isDesktopVariant = variant === 'desktop'
@@ -363,7 +362,7 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({
   }
 
   return (
-    <GlassPanel className="w-full">
+    <div className="w-full rounded-3xl border border-white/12 bg-white/[0.03] shadow-sm">
       <div className="hidden md:flex relative px-10 pt-8 pb-8 flex-row gap-10">
         <AvatarSection profile={profile} computedAvatarUrl={computedAvatarUrl} />
         <div className="flex-1 flex flex-col">
@@ -417,7 +416,7 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({
         <LevelPanel profile={profile} />
       </div>
 
-      <div className="md:hidden px-4 pt-6 pb-6 flex flex-col gap-6">
+  <div className="md:hidden px-4 pt-6 pb-6 flex flex-col gap-6">
         <div className="flex flex-col items-center text-center relative">
           <div className="relative">
             <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-primary/50 via-primary/10 to-transparent blur-sm opacity-80" />
@@ -493,6 +492,6 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({
           </div>
         )}
       </div>
-    </GlassPanel>
+    </div>
   )
 }

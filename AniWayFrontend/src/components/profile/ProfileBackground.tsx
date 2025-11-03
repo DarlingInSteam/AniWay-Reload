@@ -25,7 +25,7 @@ export function ProfileBackground({
         }}
       >
         {/* Полупрозрачный overlay для читаемости */}
-        <div className="absolute inset-0 bg-black/60" />
+  <div className="absolute inset-0 bg-black/50" />
       </div>
 
       {/* Контент профиля */}

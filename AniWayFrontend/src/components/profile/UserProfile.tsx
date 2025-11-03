@@ -528,7 +528,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
         {/* Desktop Layout: Табы занимают всю ширину */}
         <div className="hidden lg:block animate-fade-in">
           <Tabs value={activeTab} onValueChange={v => setActiveTabParam(v as any)} className="space-y-7">
-            <TabsList className="glass-panel p-1.5 rounded-2xl gap-1.5 grid grid-cols-6 xl:grid-cols-6">
+            <TabsList className="rounded-2xl border border-white/12 bg-white/[0.03] p-1.5 gap-1.5 grid grid-cols-6 xl:grid-cols-6 shadow-sm">
               <TabsTrigger value="overview" className="relative group rounded-xl px-4 py-2 font-medium text-xs tracking-wide uppercase text-slate-400 hover:text-white transition focus-visible:outline-none data-[state=active]:text-white data-[state=active]:shadow-inner data-[state=active]:bg-white/10">
                 <span className="relative z-10">Обзор</span>
               </TabsTrigger>
@@ -632,7 +632,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
           <Tabs value={activeTab} onValueChange={v => setActiveTabParam(v as any)} className="space-y-7">
             <TabsList
               role="tablist" aria-label="Разделы профиля"
-              className="flex w-full flex-nowrap overflow-x-auto gap-2 bg-black/30 border border-white/10 backdrop-blur rounded-2xl px-3 py-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent whitespace-nowrap scroll-smooth [&>*]:flex-shrink-0"
+              className="flex w-full flex-nowrap overflow-x-auto gap-2 rounded-2xl border border-white/12 bg-white/[0.04] px-3 py-2 shadow-sm scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent whitespace-nowrap scroll-smooth [&>*]:flex-shrink-0"
               ref={(el)=>{ if(el){ el.scrollLeft = 0 } }}
             >
               <TabsTrigger value="overview" className="px-5 py-2 rounded-lg text-[13px] font-medium text-slate-300 hover:text-white data-[state=active]:text-white data-[state=active]:bg-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
