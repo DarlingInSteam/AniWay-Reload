@@ -237,7 +237,10 @@ public class TelegramNotificationService {
             sb.append("\n\n").append(shareLine);
         }
 
-        String link = renderLink(chapter);
+        String link = renderChapterLink(chapter);
+        if (link == null) {
+            link = renderMangaLink(chapter);
+        }
         if (link != null) {
             sb.append("\n\n").append(link);
         }
@@ -245,24 +248,74 @@ public class TelegramNotificationService {
         return sb.toString();
     }
 
-    private String renderLink(ChapterPayload chapter) {
-        UriComponentsBuilder builder;
-        if (chapter.chapterId() != null && chapter.mangaId() != null) {
-            String template = properties.getChapterLinkTemplate();
-            if (!StringUtils.hasText(template)) {
-                template = properties.getSiteBaseUrl() + "/manga/{mangaId}/chapter/{chapterId}";
-            }
-            String expanded = template
-                    .replace("{mangaId}", String.valueOf(chapter.mangaId()))
-                    .replace("{chapterId}", String.valueOf(chapter.chapterId()));
-            builder = UriComponentsBuilder.fromUriString(expanded);
-        } else {
-            String fallback = StringUtils.hasText(properties.getSiteBaseUrl())
-                    ? properties.getSiteBaseUrl()
-                    : "https://aniway.space";
-            builder = UriComponentsBuilder.fromUriString(fallback);
+    private String renderChapterLink(ChapterPayload chapter) {
+        String template = properties.getChapterLinkTemplate();
+        if (!StringUtils.hasText(template)) {
+            template = defaultBaseUrl() + "/reader/{chapterId}";
         }
+        String expanded = expandTemplate(template, chapter, true);
+        if (expanded == null) {
+            String fallback = defaultBaseUrl();
+            if (chapter.chapterId() != null) {
+                if (StringUtils.hasText(chapter.mangaSlug())) {
+                    expanded = fallback + "/reader/" + chapter.mangaSlug() + "/" + chapter.chapterId();
+                } else {
+                    expanded = fallback + "/reader/" + chapter.chapterId();
+                }
+            }
+        }
+        return appendUtm(expanded);
+    }
 
+    private String renderMangaLink(ChapterPayload chapter) {
+        String template = properties.getMangaLinkTemplate();
+        if (!StringUtils.hasText(template)) {
+            template = defaultBaseUrl() + "/manga/{mangaSlug}";
+        }
+        String expanded = expandTemplate(template, chapter, false);
+        return appendUtm(expanded);
+    }
+
+    private String expandTemplate(String template, ChapterPayload chapter, boolean expectChapter) {
+        if (!StringUtils.hasText(template)) {
+            return null;
+        }
+        String result = template;
+        if (result.contains("{mangaSlug}")) {
+            String slug = chapter.mangaSlug();
+            if (!StringUtils.hasText(slug)) {
+                if (chapter.mangaId() != null) {
+                    slug = String.valueOf(chapter.mangaId());
+                } else {
+                    return null;
+                }
+            }
+            result = result.replace("{mangaSlug}", slug);
+        }
+        if (result.contains("{mangaId}")) {
+            if (chapter.mangaId() == null) {
+                return null;
+            }
+            result = result.replace("{mangaId}", String.valueOf(chapter.mangaId()));
+        }
+        if (result.contains("{chapterId}")) {
+            if (chapter.chapterId() == null) {
+                if (expectChapter) {
+                    return null;
+                }
+                result = result.replace("{chapterId}", "");
+            } else {
+                result = result.replace("{chapterId}", String.valueOf(chapter.chapterId()));
+            }
+        }
+        return result;
+    }
+
+    private String appendUtm(String url) {
+        if (!StringUtils.hasText(url)) {
+            return null;
+        }
+        UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(url);
         if (StringUtils.hasText(properties.getUtmSource())) {
             builder.queryParam("utm_source", properties.getUtmSource());
         }
@@ -272,8 +325,13 @@ public class TelegramNotificationService {
         if (StringUtils.hasText(properties.getUtmCampaign())) {
             builder.queryParam("utm_campaign", properties.getUtmCampaign());
         }
-
         return builder.build(true).toUriString();
+    }
+
+    private String defaultBaseUrl() {
+        return StringUtils.hasText(properties.getSiteBaseUrl())
+                ? properties.getSiteBaseUrl()
+                : "https://aniway.space";
     }
 
     private ChapterPayload parsePayload(String payloadJson) {
@@ -286,7 +344,8 @@ public class TelegramNotificationService {
             Long chapterId = node.path("chapterId").isNumber() ? node.path("chapterId").asLong() : null;
             String chapterNumber = node.path("chapterNumber").isMissingNode() ? null : node.path("chapterNumber").asText(null);
             String title = node.path("mangaTitle").isMissingNode() ? null : node.path("mangaTitle").asText(null);
-            return new ChapterPayload(mangaId, chapterId, chapterNumber, title);
+            String slug = node.path("mangaSlug").isMissingNode() ? null : node.path("mangaSlug").asText(null);
+            return new ChapterPayload(mangaId, chapterId, chapterNumber, title, slug);
         } catch (Exception ex) {
             log.warn("Failed to parse chapter payload: {}", ex.getMessage());
             return null;
@@ -341,7 +400,7 @@ public class TelegramNotificationService {
         return userId + ":" + mangaId;
     }
 
-    private record ChapterPayload(Long mangaId, Long chapterId, String chapterNumber, String mangaTitle) {
+    private record ChapterPayload(Long mangaId, Long chapterId, String chapterNumber, String mangaTitle, String mangaSlug) {
     }
 
     private record SendOutcome(TelegramSendResult result, int attempts) {

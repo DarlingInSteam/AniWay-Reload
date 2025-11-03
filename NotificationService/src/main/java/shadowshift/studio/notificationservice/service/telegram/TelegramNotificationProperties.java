@@ -22,7 +22,10 @@ public class TelegramNotificationProperties {
     private long retryBackoffMillis = 1000;
 
     /** Шаблон ссылки на главу. */
-    private String chapterLinkTemplate = "https://aniway.space/manga/{mangaId}/chapter/{chapterId}";
+    private String chapterLinkTemplate = "https://aniway.space/reader/{mangaSlug}/{chapterId}";
+
+    /** Шаблон ссылки на страницу манги. */
+    private String mangaLinkTemplate = "https://aniway.space/manga/{mangaSlug}";
 
     /** URL сайта для fallback ссылок. */
     private String siteBaseUrl = "https://aniway.space";
