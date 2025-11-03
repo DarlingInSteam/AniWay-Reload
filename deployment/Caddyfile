@@ -2,8 +2,7 @@
     email {$ACME_EMAIL}
 }
 
-aniway.space {
-    auto_https off
+https://aniway.space {
     encode zstd gzip
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
@@ -25,5 +24,5 @@ http://aniway.space {
         file_server
     }
 
-    redir https://aniway.space{uri}
+    reverse_proxy aniway-frontend:80
 }
