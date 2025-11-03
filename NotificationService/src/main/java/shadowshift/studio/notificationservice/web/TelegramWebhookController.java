@@ -42,7 +42,28 @@ public class TelegramWebhookController {
             }
         }
         long updateId = update != null && update.has("update_id") ? update.path("update_id").asLong() : -1L;
-        String payloadType = update != null && update.fieldNames().hasNext() ? update.fieldNames().next() : "unknown";
+        String payloadType = "unknown";
+        if (update != null) {
+            if (update.has("message")) {
+                payloadType = "message";
+            } else if (update.has("my_chat_member")) {
+                payloadType = "my_chat_member";
+            } else if (update.has("chat_member")) {
+                payloadType = "chat_member";
+            } else if (update.has("callback_query")) {
+                payloadType = "callback_query";
+            } else {
+                var fields = update.fieldNames();
+                StringBuilder sb = new StringBuilder();
+                while (fields.hasNext()) {
+                    if (sb.length() > 0) {
+                        sb.append(',');
+                    }
+                    sb.append(fields.next());
+                }
+                payloadType = sb.length() > 0 ? sb.toString() : "unknown";
+            }
+        }
         log.info("Accepted Telegram webhook updateId={} type={}", updateId, payloadType);
         telegramUpdateService.handleUpdate(update);
         return ResponseEntity.ok().build();

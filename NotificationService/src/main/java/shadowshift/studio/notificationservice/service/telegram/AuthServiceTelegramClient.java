@@ -10,6 +10,7 @@ import org.springframework.web.client.RestTemplate;
 import shadowshift.studio.notificationservice.dto.TelegramConsumeResponse;
 import shadowshift.studio.notificationservice.dto.TelegramRecipient;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -56,14 +57,21 @@ public class AuthServiceTelegramClient {
     }
 
     public Optional<TelegramConsumeResponse> consumeToken(String token, Long chatId, String username, String firstName, String lastName, String languageCode) {
-        Map<String, Object> payload = Map.of(
-                "token", token,
-                "chatId", chatId,
-                "chatUsername", username,
-                "firstName", firstName,
-                "lastName", lastName,
-                "languageCode", languageCode
-        );
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("token", token);
+        payload.put("chatId", chatId);
+        if (username != null) {
+            payload.put("chatUsername", username);
+        }
+        if (firstName != null) {
+            payload.put("firstName", firstName);
+        }
+        if (lastName != null) {
+            payload.put("lastName", lastName);
+        }
+        if (languageCode != null) {
+            payload.put("languageCode", languageCode);
+        }
         try {
             ResponseEntity<TelegramConsumeResponse> response = restTemplate.postForEntity(
                     authServiceBaseUrl + "/internal/telegram/consume",
@@ -81,12 +89,11 @@ public class AuthServiceTelegramClient {
         if (chatId == null) {
             return;
         }
-        Map<String, Object> payload = Map.of(
-                "chatId", chatId,
-                "userId", null,
-                "reason", reason,
-                "disableOnly", false
-        );
+    Map<String, Object> payload = new HashMap<>();
+    payload.put("chatId", chatId);
+    payload.put("userId", null);
+    payload.put("reason", reason);
+    payload.put("disableOnly", false);
         try {
             restTemplate.postForEntity(authServiceBaseUrl + "/internal/telegram/unlink", payload, Void.class);
         } catch (Exception ex) {
@@ -98,12 +105,11 @@ public class AuthServiceTelegramClient {
         if (userId == null) {
             return;
         }
-        Map<String, Object> payload = Map.of(
-                "chatId", null,
-                "userId", userId,
-                "reason", reason,
-                "disableOnly", true
-        );
+    Map<String, Object> payload = new HashMap<>();
+    payload.put("chatId", null);
+    payload.put("userId", userId);
+    payload.put("reason", reason);
+    payload.put("disableOnly", true);
         try {
             restTemplate.postForEntity(authServiceBaseUrl + "/internal/telegram/unlink", payload, Void.class);
         } catch (Exception ex) {
