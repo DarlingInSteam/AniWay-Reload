@@ -11,18 +11,18 @@ export type TopsSidebarProps = {
 export function TopsSidebar({ meta, filterCard }: TopsSidebarProps) {
   const Icon = meta.icon
   return (
-    <div className="space-y-5">
-      <GlassPanel className="space-y-4 border-white/12 bg-background/70 p-5">
+    <div className="space-y-6">
+      <GlassPanel className="space-y-4 rounded-xl border border-white/10 bg-white/[0.03] p-4">
         <div className="flex items-start gap-3">
-          <div className="rounded-full bg-white/10 p-2 text-white/80">
-            <Icon className="h-5 w-5" />
+          <div className="rounded-full bg-white/10 p-2 text-white/75">
+            <Icon className="h-4 w-4" />
           </div>
           <div className="space-y-1">
-            <div className="text-sm font-semibold text-white">{meta.label}</div>
-            <p className="text-xs text-white/60">{meta.description}</p>
+            <div className="text-sm font-semibold text-white/90">{meta.label}</div>
+            <p className="text-[11px] leading-snug text-white/55">{meta.description}</p>
           </div>
         </div>
-        <p className="text-xs leading-relaxed text-white/55">{meta.hint}</p>
+        <p className="text-[11px] leading-relaxed text-white/50">{meta.hint}</p>
       </GlassPanel>
       {filterCard}
     </div>

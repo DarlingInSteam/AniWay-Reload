@@ -89,7 +89,7 @@ export function ThreadsSection({ query, formatter, threadAuthorMap, onNavigate }
     <div className="space-y-4">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,2.2fr),minmax(260px,1fr)]">
         {featured && (
-          <GlassPanel className="relative overflow-hidden border-white/10 bg-background/80 p-6">
+          <GlassPanel className="relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] p-5">
             <div className="flex flex-col gap-5">
               <div className="flex items-start gap-4">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-base font-semibold text-white/85">
@@ -140,7 +140,7 @@ export function ThreadsSection({ query, formatter, threadAuthorMap, onNavigate }
           </GlassPanel>
         )}
 
-        <GlassPanel className="border-white/10 bg-background/75 p-5">
+        <GlassPanel className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
           <div className="flex flex-col gap-4">
             <div>
               <div className="text-sm font-semibold text-white">Пульс форума</div>
@@ -202,7 +202,7 @@ export function ThreadsSection({ query, formatter, threadAuthorMap, onNavigate }
       </div>
 
       {others.length > 0 && (
-        <GlassPanel className="border-white/10 bg-background/70 p-0">
+        <GlassPanel className="rounded-xl border border-white/10 bg-white/[0.02] p-0">
           <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
             <div>
               <div className="text-sm font-semibold text-white">Движение в темах</div>
