@@ -9,6 +9,14 @@ services:
     expose:
       - "80"
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.45"
+          memory: 320M
+        reservations:
+          cpus: "0.20"
+          memory: 160M
     networks:
       - aniway-network
 
@@ -26,6 +34,14 @@ services:
       - ./deployment/site-verifications:/srv/verifications:ro
       - caddy_data:/data
       - caddy_config:/config
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 384M
+        reservations:
+          cpus: "0.20"
+          memory: 160M
     depends_on:
       - aniway-frontend
     networks:
@@ -44,6 +60,14 @@ services:
       - POST_SERVICE_URL=http://post-service:8097
       - LEVEL_SERVICE_URL=http://level-service:8098
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.25"
+          memory: 1536M
+        reservations:
+          cpus: "0.50"
+          memory: 640M
     depends_on:
       - auth-service
       - manga-service
@@ -92,6 +116,14 @@ services:
       - EMAIL_VERIFICATION_ENABLED=true
       - EMAIL_VERIFICATION_FROM=noreply@aniway.space
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 1280M
+        reservations:
+          cpus: "0.35"
+          memory: 640M
     depends_on:
       - auth-postgres
     networks:
@@ -111,6 +143,14 @@ services:
       - CHAPTER_SERVICE_URL=http://chapter-service:8082
       - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.80"
+          memory: 2560M
+        reservations:
+          cpus: "0.75"
+          memory: 1536M
     depends_on:
       - manga-postgres
       - chapter-service
@@ -136,6 +176,14 @@ services:
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-aniway}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-aniway_pass}
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 1280M
+        reservations:
+          cpus: "0.35"
+          memory: 640M
     depends_on:
       - comment-postgres
       - rabbitmq
@@ -154,6 +202,14 @@ services:
       - FRIEND_DB_PASSWORD=friendpass123
       - NOTIFICATION_SERVICE_URL=http://notification-service:8095
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.75"
+          memory: 896M
+        reservations:
+          cpus: "0.25"
+          memory: 384M
     depends_on:
       - friend-postgres
       - notification-service
@@ -173,6 +229,14 @@ services:
       - NOTIFICATION_SERVICE_URL=http://notification-service:8095
       - FRIEND_SERVICE_URL=http://friend-service:8102
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.40"
+          memory: 1536M
+        reservations:
+          cpus: "0.50"
+          memory: 768M
     depends_on:
       - message-postgres
       - friend-service
@@ -193,6 +257,14 @@ services:
       - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
       - IMAGE_STORAGE_SERVICE_INTERNAL_URL=http://image-storage-service:8083
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.40"
+          memory: 1792M
+        reservations:
+          cpus: "0.50"
+          memory: 1024M
     depends_on:
       - chapter-postgres
     networks:
@@ -209,6 +281,14 @@ services:
       - SPRING_DATASOURCE_USERNAME=imageuser
       - SPRING_DATASOURCE_PASSWORD=imagepass123
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.50"
+          memory: 2048M
+        reservations:
+          cpus: "0.55"
+          memory: 1280M
     depends_on:
       - image-postgres
     networks:
@@ -232,6 +312,14 @@ services:
       - XP_EVENTS_EXCHANGE=${XP_EVENTS_EXCHANGE:-xp.events.exchange}
       - XP_EVENTS_MOMENT_LIKE_ROUTING_KEY=${XP_EVENTS_MOMENT_LIKE_ROUTING_KEY:-xp.events.moment-like}
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.30"
+          memory: 1536M
+        reservations:
+          cpus: "0.45"
+          memory: 768M
     depends_on:
       - moment-postgres
       - rabbitmq
@@ -254,6 +342,14 @@ services:
       - AUTH_SERVICE_URL=http://auth-service:8085
       - MANGA_SERVICE_URL=http://manga-service:8081
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.10"
+          memory: 1280M
+        reservations:
+          cpus: "0.35"
+          memory: 640M
     depends_on:
       - forum-postgres
       - auth-service
@@ -276,6 +372,14 @@ services:
       - parser_data:/app/output
       - parser_temp:/app/temp
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.80"
+          memory: 2560M
+        reservations:
+          cpus: "0.70"
+          memory: 1536M
     networks:
       - aniway-network
     healthcheck:
@@ -294,6 +398,14 @@ services:
     volumes:
       - post_data:/var/lib/postgresql/data
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 1536M
+        reservations:
+          cpus: "0.30"
+          memory: 768M
     networks:
       - aniway-network
 
@@ -307,6 +419,14 @@ services:
       - auth_data:/var/lib/postgresql/data
       - ./AuthService/authDB.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.70"
+          memory: 1024M
+        reservations:
+          cpus: "0.25"
+          memory: 512M
     networks:
       - aniway-network
 
@@ -320,6 +440,14 @@ services:
       - manga_data:/var/lib/postgresql/data
       - ./MangaService/mangaDB.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.10"
+          memory: 1792M
+        reservations:
+          cpus: "0.35"
+          memory: 896M
     networks:
       - aniway-network
 
@@ -333,6 +461,14 @@ services:
       - comment_data:/var/lib/postgresql/data
       - ./CommentService/commentDB.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.80"
+          memory: 1280M
+        reservations:
+          cpus: "0.25"
+          memory: 640M
     networks:
       - aniway-network
 
@@ -346,6 +482,14 @@ services:
       - friend_data:/var/lib/postgresql/data
       - ./FriendService/friendDB.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.70"
+          memory: 1024M
+        reservations:
+          cpus: "0.20"
+          memory: 512M
     networks:
       - aniway-network
 
@@ -359,6 +503,14 @@ services:
       - chapter_data:/var/lib/postgresql/data
       - ./ChapterService/chapterDB.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.90"
+          memory: 1280M
+        reservations:
+          cpus: "0.25"
+          memory: 640M
     networks:
       - aniway-network
 
@@ -372,6 +524,14 @@ services:
       - image_data:/var/lib/postgresql/data
       - ./ImageStorageService/imageStorageDB.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.20"
+          memory: 1792M
+        reservations:
+          cpus: "0.35"
+          memory: 896M
     networks:
       - aniway-network
 
@@ -384,6 +544,14 @@ services:
     volumes:
       - moment_data:/var/lib/postgresql/data
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.70"
+          memory: 1024M
+        reservations:
+          cpus: "0.20"
+          memory: 512M
     networks:
       - aniway-network
 
@@ -397,6 +565,14 @@ services:
       - forum_data:/var/lib/postgresql/data
       - ./ForumService/forumDB.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.80"
+          memory: 1280M
+        reservations:
+          cpus: "0.25"
+          memory: 640M
     networks:
       - aniway-network
 
@@ -419,6 +595,14 @@ services:
       - TELEGRAM_NOTIFICATIONS_MANGA_LINK_TEMPLATE=${TELEGRAM_NOTIFICATIONS_MANGA_LINK_TEMPLATE:-https://aniway.space/manga/{mangaSlug}}
       - TELEGRAM_NOTIFICATIONS_SITE_BASE_URL=${TELEGRAM_NOTIFICATIONS_SITE_BASE_URL:-https://aniway.space}
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.80"
+          memory: 896M
+        reservations:
+          cpus: "0.25"
+          memory: 384M
     depends_on:
       - notification-postgres
     networks:
@@ -433,6 +617,14 @@ services:
     volumes:
       - notification_data:/var/lib/postgresql/data
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.70"
+          memory: 1024M
+        reservations:
+          cpus: "0.20"
+          memory: 512M
     networks:
       - aniway-network
 
@@ -446,6 +638,14 @@ services:
       - message_data:/var/lib/postgresql/data
       - ./MessageService/messageDB.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.90"
+          memory: 1280M
+        reservations:
+          cpus: "0.30"
+          memory: 640M
     networks:
       - aniway-network
 
@@ -465,6 +665,14 @@ services:
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-aniway}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-aniway_pass}
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.40"
+          memory: 1536M
+        reservations:
+          cpus: "0.50"
+          memory: 768M
     depends_on:
       - post-postgres
       - image-storage-service
@@ -487,6 +695,14 @@ services:
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-aniway}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-aniway_pass}
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.80"
+          memory: 896M
+        reservations:
+          cpus: "0.25"
+          memory: 384M
     depends_on:
       - level-postgres
       - rabbitmq
@@ -502,6 +718,14 @@ services:
     volumes:
       - level_data:/var/lib/postgresql/data
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.70"
+          memory: 1024M
+        reservations:
+          cpus: "0.20"
+          memory: 512M
     networks:
       - aniway-network
 
@@ -515,6 +739,14 @@ services:
       - "5672:5672"
       - "15672:15672"
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.20"
+          memory: 1536M
+        reservations:
+          cpus: "0.45"
+          memory: 640M
     networks:
       - aniway-network
 
