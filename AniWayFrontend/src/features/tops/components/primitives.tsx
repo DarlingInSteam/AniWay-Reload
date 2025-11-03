@@ -54,12 +54,7 @@ type SegmentedControlProps = {
 
 export function SegmentedControl({ value, options, onChange, className }: SegmentedControlProps) {
   return (
-    <div
-      className={cn(
-        'grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-white/[0.03] p-1 sm:flex sm:flex-wrap',
-        className
-      )}
-    >
+    <div className={cn('flex flex-col sm:flex-row sm:flex-wrap gap-1', className)}>
       {options.map((option) => {
         const isActive = option.value === value
         return (
@@ -68,10 +63,10 @@ export function SegmentedControl({ value, options, onChange, className }: Segmen
             type="button"
             onClick={() => onChange(option.value)}
             className={cn(
-              'relative w-full min-h-[40px] rounded-2xl px-3 py-1.5 text-xs font-medium leading-tight text-center transition-colors break-words whitespace-normal md:text-sm focus-visible:outline-none sm:flex-1 sm:min-w-[110px]',
+              'relative w-full sm:flex-1 min-h-[40px] rounded-xl px-3 py-2 text-xs md:text-sm font-medium leading-tight text-center transition-colors break-words whitespace-normal focus-visible:outline-none',
               isActive
                 ? 'border border-primary/50 bg-primary/20 text-white shadow-sm'
-                : 'border border-transparent text-white/70 hover:border-primary/40 hover:bg-primary/10 hover:text-white'
+                : 'border border-white/10 bg-white/5 text-white/70 hover:border-primary/40 hover:bg-primary/10 hover:text-white'
             )}
           >
             {option.label}
