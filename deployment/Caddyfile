@@ -10,7 +10,7 @@ https://aniway.space {
         X-Content-Type-Options "nosniff"
     }
 
-    handle_path /.well-known/acme-challenge/* {
+    handle /.well-known/acme-challenge/* {
         root * /srv/verifications
         file_server
     }
@@ -19,7 +19,7 @@ https://aniway.space {
 }
 
 http://aniway.space {
-    handle_path /.well-known/acme-challenge/* {
+    handle /.well-known/acme-challenge/* {
         root * /srv/verifications
         file_server
     }
