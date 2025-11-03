@@ -252,19 +252,22 @@ public class TelegramNotificationService {
     private String renderChapterLink(ChapterPayload chapter) {
         String template = properties.getChapterLinkTemplate();
         if (!StringUtils.hasText(template)) {
-            template = defaultBaseUrl() + "/reader/{chapterId}";
+            template = defaultBaseUrl() + "/reader/{mangaSlug}/{chapterNumberNormalized}";
         }
+
         String expanded = expandTemplate(template, chapter, true);
-        if (expanded == null) {
-            String fallback = defaultBaseUrl();
-            if (chapter.chapterId() != null) {
-                if (StringUtils.hasText(chapter.mangaSlug())) {
-                    expanded = fallback + "/reader/" + chapter.mangaSlug() + "/" + chapter.chapterId();
-                } else {
-                    expanded = fallback + "/reader/" + chapter.chapterId();
-                }
+        String canonical = canonicalReaderLink(chapter);
+
+        if (StringUtils.hasText(canonical)) {
+            if (!StringUtils.hasText(expanded) || isLegacyChapterLink(expanded, chapter)) {
+                expanded = canonical;
             }
         }
+
+        if (!StringUtils.hasText(expanded)) {
+            expanded = StringUtils.hasText(canonical) ? canonical : fallbackReaderLink(chapter);
+        }
+
         return appendUtm(expanded);
     }
 
@@ -298,6 +301,39 @@ public class TelegramNotificationService {
                 return null;
             }
             result = result.replace("{mangaId}", String.valueOf(chapter.mangaId()));
+        }
+        if (result.contains("{chapterNumberNormalized}")) {
+            String normalized = normalizedChapterNumber(chapter);
+            if (!StringUtils.hasText(normalized)) {
+                if (expectChapter) {
+                    return null;
+                }
+                result = result.replace("{chapterNumberNormalized}", "");
+            } else {
+                result = result.replace("{chapterNumberNormalized}", normalized);
+            }
+        }
+        if (result.contains("{chapterNumber}")) {
+            String raw = chapter.chapterNumber();
+            if (!StringUtils.hasText(raw)) {
+                if (expectChapter) {
+                    return null;
+                }
+                result = result.replace("{chapterNumber}", "");
+            } else {
+                result = result.replace("{chapterNumber}", raw.trim());
+            }
+        }
+        if (result.contains("{chapterNumeric}")) {
+            String numeric = chapter.chapterNumeric() != null ? formatDecimal(chapter.chapterNumeric()) : null;
+            if (!StringUtils.hasText(numeric)) {
+                if (expectChapter) {
+                    return null;
+                }
+                result = result.replace("{chapterNumeric}", "");
+            } else {
+                result = result.replace("{chapterNumeric}", numeric);
+            }
         }
         if (result.contains("{chapterId}")) {
             if (chapter.chapterId() == null) {
@@ -480,6 +516,86 @@ public class TelegramNotificationService {
             return null;
         }
         return BigDecimal.valueOf(value).stripTrailingZeros().toPlainString();
+    }
+
+    private String normalizedChapterNumber(ChapterPayload chapter) {
+        if (chapter.chapterNumeric() != null) {
+            return formatDecimal(chapter.chapterNumeric());
+        }
+        String raw = chapter.chapterNumber();
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
+        String trimmed = raw.trim();
+        try {
+            return new BigDecimal(trimmed).stripTrailingZeros().toPlainString();
+        } catch (NumberFormatException ex) {
+            return trimmed;
+        }
+    }
+
+    private String chapterPathSegment(ChapterPayload chapter) {
+        String normalized = normalizedChapterNumber(chapter);
+        if (StringUtils.hasText(normalized)) {
+            return normalized;
+        }
+        if (chapter.chapterId() != null) {
+            return String.valueOf(chapter.chapterId());
+        }
+        return null;
+    }
+
+    private String canonicalReaderLink(ChapterPayload chapter) {
+        if (!StringUtils.hasText(chapter.mangaSlug())) {
+            return null;
+        }
+        String slug = chapter.mangaSlug().trim();
+        if (!StringUtils.hasText(slug)) {
+            return null;
+        }
+        String segment = chapterPathSegment(chapter);
+        if (!StringUtils.hasText(segment)) {
+            return null;
+        }
+        return defaultBaseUrl() + "/reader/" + slug + "/" + segment;
+    }
+
+    private String fallbackReaderLink(ChapterPayload chapter) {
+        if (chapter.chapterId() == null) {
+            return null;
+        }
+        String base = defaultBaseUrl();
+        if (StringUtils.hasText(chapter.mangaSlug())) {
+            String slug = chapter.mangaSlug().trim();
+            if (StringUtils.hasText(slug)) {
+                return base + "/reader/" + slug + "/" + chapter.chapterId();
+            }
+        }
+        return base + "/reader/" + chapter.chapterId();
+    }
+
+    private boolean isLegacyChapterLink(String url, ChapterPayload chapter) {
+        if (!StringUtils.hasText(url)) {
+            return true;
+        }
+        if (url.contains("/manga/") && !url.contains("/reader/")) {
+            return true;
+        }
+        if (StringUtils.hasText(chapter.mangaSlug())) {
+            String slug = chapter.mangaSlug().trim();
+            if (StringUtils.hasText(slug)) {
+                if (!url.toLowerCase().contains(slug.toLowerCase())) {
+                    return true;
+                }
+            }
+        }
+        String canonicalSegment = chapterPathSegment(chapter);
+        if (StringUtils.hasText(canonicalSegment) && chapter.chapterId() != null) {
+            if (url.endsWith("/" + chapter.chapterId()) && !url.endsWith("/" + canonicalSegment)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private record ChapterPayload(Long mangaId,
