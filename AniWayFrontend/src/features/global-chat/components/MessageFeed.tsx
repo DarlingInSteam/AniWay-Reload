@@ -9,7 +9,6 @@ import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer';
 import { cn } from '@/lib/utils';
 import { buildProfileSlug } from '@/utils/profileSlug';
 import { getUserDisplay, initials, isSameCalendarDay } from '../utils/messageHelpers';
-import { MessageBubble } from './MessageBubble';
 import type { VirtualItem } from '@tanstack/react-virtual';
 
 interface MessageFeedProps {
@@ -102,19 +101,18 @@ export function MessageFeed({
             return null;
           }
           const previous = index > 0 ? messages[index - 1] : null;
-        const author = getUserDisplay(users, message.senderId, currentUserId);
-        const replyTarget = resolveReplyPreview(message);
-        const isOwn = currentUserId === message.senderId;
-        const isHighlighted = highlightedMessageId === message.id;
-        const profileSlug = buildProfileSlug(
-          message.senderId,
-          users[message.senderId]?.displayName || users[message.senderId]?.username || author
-        );
-        const messageDate = new Date(message.createdAt);
-        const previousDate = previous ? new Date(previous.createdAt) : null;
+          const author = getUserDisplay(users, message.senderId, currentUserId);
+          const replyTarget = resolveReplyPreview(message);
+          const isOwn = currentUserId === message.senderId;
+          const isHighlighted = highlightedMessageId === message.id;
+          const profileSlug = buildProfileSlug(
+            message.senderId,
+            users[message.senderId]?.displayName || users[message.senderId]?.username || author
+          );
+          const messageDate = new Date(message.createdAt);
+          const previousDate = previous ? new Date(previous.createdAt) : null;
           const showDateSeparator = !previousDate || !isSameCalendarDay(messageDate, previousDate);
-          const spacingClass = index === 0 ? 'mt-2' : 'mt-3';
-        const replySnippet = replyTarget ? replySnippets.get(replyTarget.id) ?? '' : '';
+          const replySnippet = replyTarget ? replySnippets.get(replyTarget.id) ?? '' : '';
 
         return (
           <div
@@ -126,108 +124,81 @@ export function MessageFeed({
           >
             <div className="px-1">
               {showDateSeparator && (
-                <div className="my-6 text-center text-[10px] uppercase tracking-[0.3em] text-white/30">
+                <div className="my-6 text-center text-[10px] uppercase tracking-[0.3em] text-white/35">
                   {dayFormatter.format(messageDate)}
                 </div>
               )}
-              <div
-                className={cn('group/message flex w-full', isOwn ? 'justify-end' : 'justify-start', spacingClass)}
-              >
-                <div
-                  className={cn(
-                    'flex max-w-[760px] items-start gap-3',
-                    isOwn ? 'flex-row-reverse text-right' : 'text-left'
-                  )}
+              <div className="flex w-full items-start gap-3 py-3">
+                <Link
+                  to={`/profile/${profileSlug}`}
+                  className="flex-shrink-0"
+                  title={author}
                 >
-                  <Link
-                    to={`/profile/${profileSlug}`}
-                    className="flex-shrink-0"
-                    title={author}
-                  >
-                    <Avatar className={cn('h-8 w-8 border border-white/15 bg-black/60 text-[11px] transition hover:border-primary/60', isOwn && 'ml-1')}>
-                      {users[message.senderId]?.avatar ? (
-                        <AvatarImage src={users[message.senderId]?.avatar} alt={author} />
-                      ) : (
-                        <AvatarFallback>{initials(author)}</AvatarFallback>
-                      )}
-                    </Avatar>
-                  </Link>
-                  <div className={cn('flex min-w-0 flex-1 flex-col gap-1', isOwn ? 'items-end' : 'items-start')}>
-                    <div
-                      className={cn(
-                        'flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-white/45',
-                        isOwn && 'flex-row-reverse text-right'
-                      )}
+                  <Avatar className="h-8 w-8 border border-white/15 bg-black/60 text-[11px] transition hover:border-primary/60">
+                    {users[message.senderId]?.avatar ? (
+                      <AvatarImage src={users[message.senderId]?.avatar} alt={author} />
+                    ) : (
+                      <AvatarFallback>{initials(author)}</AvatarFallback>
+                    )}
+                  </Avatar>
+                </Link>
+                <div className="flex min-w-0 flex-1 flex-col gap-1 text-left">
+                  <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] text-white/45">
+                    <Link
+                      to={`/profile/${profileSlug}`}
+                      className={cn('font-semibold transition', isOwn ? 'text-white' : 'text-white hover:text-primary')}
                     >
-                      {isOwn ? (
-                        <span className="font-semibold text-white">Вы</span>
-                      ) : (
-                        <Link
-                          to={`/profile/${profileSlug}`}
-                          className="font-semibold text-white transition hover:text-primary"
+                      {isOwn ? 'Вы' : author}
+                    </Link>
+                    <span className="text-white/35">{timeFormatter.format(messageDate)}</span>
+                  </div>
+
+                  {replyTarget ? (
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 text-xs text-white/60 transition hover:text-white"
+                      onClick={() => onJumpToMessage(replyTarget.id)}
+                    >
+                      <span className="text-white/45">↩</span>
+                      <span className="truncate text-left">
+                        {getUserDisplay(users, replyTarget.senderId, currentUserId)}: {replySnippet || 'Сообщение'}
+                      </span>
+                    </button>
+                  ) : message.replyToMessageId ? (
+                    <div className="flex items-center gap-2 text-xs text-white/50">
+                      <span className="text-white/40">↩</span>
+                      <span>Ответ на сообщение из архива.</span>
+                      {hasMore && (
+                        <button
+                          type="button"
+                          onClick={() => onJumpToMessage(message.replyToMessageId!)}
+                          className="rounded-full border border-white/12 px-2 py-[2px] text-[10px] uppercase tracking-[0.25em] text-white/60 transition hover:border-white/30 hover:text-white"
                         >
-                          {author}
-                        </Link>
+                          Найти
+                        </button>
                       )}
-                      <span className="text-white/35">{timeFormatter.format(messageDate)}</span>
                     </div>
+                  ) : null}
 
-                    {replyTarget ? (
-                      <button
-                        type="button"
-                        className={cn(
-                          'flex w-full items-center gap-2 text-xs text-white/60 transition hover:text-white',
-                          isOwn && 'justify-end'
-                        )}
-                        onClick={() => onJumpToMessage(replyTarget.id)}
-                      >
-                        <span className="text-white/45">↩</span>
-                        <span className="truncate text-left">
-                          {getUserDisplay(users, replyTarget.senderId, currentUserId)}: {replySnippet || 'Сообщение'}
-                        </span>
-                      </button>
-                    ) : message.replyToMessageId ? (
-                      <div className={cn('flex items-center gap-2 text-xs text-white/50', isOwn && 'justify-end')}>
-                        <span className="text-white/40">↩</span>
-                        <span>Ответ на сообщение из архива.</span>
-                        {hasMore && (
-                          <button
-                            type="button"
-                            onClick={() => onJumpToMessage(message.replyToMessageId!)}
-                            className="rounded-full border border-white/12 px-2 py-[2px] text-[10px] uppercase tracking-[0.25em] text-white/60 transition hover:border-white/30 hover:text-white"
-                          >
-                            Найти
-                          </button>
-                        )}
-                      </div>
-                    ) : null}
+                  <div className={cn(
+                    'prose prose-invert max-w-none text-sm leading-relaxed markdown-body text-white/85',
+                    isHighlighted && 'text-white'
+                  )}>
+                    <MarkdownRenderer value={message.content} />
+                  </div>
 
-                    <MessageBubble
-                      variant={isOwn ? 'own' : 'default'}
-                      highlighted={isHighlighted}
+                  <div className="mt-1 flex items-center gap-3 text-[11px] text-white/45">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-white/55 transition hover:text-white"
+                      onClick={() => {
+                        onReply(message);
+                        onJumpToMessage(message.id);
+                      }}
                     >
-                      <div className="prose prose-invert max-w-none text-sm leading-relaxed markdown-body">
-                        <MarkdownRenderer value={message.content} />
-                      </div>
-                    </MessageBubble>
-                    <div
-                      className={cn(
-                        'flex items-center gap-3 text-[11px] text-white/40 opacity-0 transition group-hover/message:opacity-100',
-                        isOwn ? 'justify-end' : 'justify-start'
-                      )}
-                    >
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 text-white/50 transition hover:text-white"
-                        onClick={() => {
-                          onReply(message);
-                          onJumpToMessage(message.id);
-                        }}
-                      >
-                        <CornerDownLeft className="h-3 w-3" />
-                        Ответить
-                      </button>
-                    </div>
+                      <CornerDownLeft className="h-3 w-3" />
+                      Ответить
+                    </button>
                   </div>
                 </div>
               </div>

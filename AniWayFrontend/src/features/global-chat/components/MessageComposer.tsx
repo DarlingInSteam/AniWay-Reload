@@ -160,7 +160,7 @@ export function MessageComposer({
           </div>
         )}
 
-        <MarkdownMiniToolbar onCommand={applyMarkdownCommand} className="text-white/80" />
+  <MarkdownMiniToolbar onCommand={applyMarkdownCommand} small className="text-white/80" />
 
         <div className="flex items-end gap-2">
           <div className="flex-1 rounded-xl border border-white/10 bg-white/5 px-2 py-1.5">
