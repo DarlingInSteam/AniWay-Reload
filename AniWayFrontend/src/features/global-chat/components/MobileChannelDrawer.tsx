@@ -111,185 +111,189 @@ export function MobileChannelDrawer({
       />
 
       <motion.aside
-        className="relative z-10 flex h-full w-[min(85vw,360px)] flex-col border-r border-white/12 bg-[#101014]"
+        className="relative z-10 flex h-full w-[min(85vw,360px)] flex-col overflow-hidden border-r border-white/12 bg-[#101014]"
         initial={{ x: '-100%' }}
         animate={{ x: 0 }}
         exit={{ x: '-100%' }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         onClick={event => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-white/10 px-4 pb-4 pt-5">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.35em] text-white/35">Каналы</p>
-            <p className="mt-1 text-xs text-white/55">{categories.length} доступно</p>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 rounded-full border border-white/15 text-white/70 hover:border-white/30 hover:bg-transparent hover:text-white"
-            onClick={onClose}
-            aria-label="Закрыть"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <div className="space-y-3 border-b border-white/10 px-4 py-4">
-          <div className="flex items-center gap-2 rounded-xl border border-white/12 px-3 py-2">
-            <Search className="h-4 w-4 text-white/45" />
-            <input
-              type="search"
-              value={categoryQuery}
-              onChange={event => onCategoryQueryChange(event.target.value)}
-              placeholder="Найти канал"
-              className="w-full bg-transparent text-sm text-white placeholder:text-white/35 focus:outline-none"
-            />
-          </div>
-          {categoryQuery && (
-            <button
-              type="button"
-              className="text-left text-[11px] uppercase tracking-[0.25em] text-white/45 transition hover:text-white"
-              onClick={() => onCategoryQueryChange('')}
-            >
-              Сбросить
-            </button>
-          )}
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-2 py-4">
-          {loading && categories.length === 0 ? (
-            <div className="flex items-center justify-center gap-2 py-10 text-xs text-white/60">
-              <Loader2 className="h-4 w-4 animate-spin text-white/40" />
-              Загрузка каналов…
+        <div className="flex h-full flex-col">
+          <div className="flex items-center justify-between border-b border-white/10 px-4 pb-4 pt-5">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.35em] text-white/35">Каналы</p>
+              <p className="mt-1 text-xs text-white/55">{categories.length} доступно</p>
             </div>
-          ) : visibleCategories.length === 0 ? (
-            <p className="px-2 text-sm text-white/50">Каналы не найдены</p>
-          ) : (
-            <div className="space-y-2">
-              {visibleCategories.map(category => {
-                const isActive = selectedCategoryId === category.id;
-                const unread = category.unreadCount ?? 0;
-                return (
-                  <button
-                    key={category.id}
-                    type="button"
-                    onClick={() => handleSelect(category.id)}
-                    className={cn(
-                      'w-full rounded-xl border px-3 py-3 text-left transition-colors duration-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-white/40',
-                      isActive
-                        ? 'border-primary/50 bg-primary/20 text-white'
-                        : 'border-white/10 text-white/65 hover:border-white/20 hover:bg-white/5 hover:text-white'
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-sm font-medium">{category.title}</span>
-                      {unread > 0 && (
-                        <span className="ml-2 inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-primary/70 px-2 text-[11px] font-semibold text-white">
-                          {unread > 99 ? '99+' : unread}
-                        </span>
-                      )}
-                    </div>
-                    {category.description && (
-                      <p className="mt-1 line-clamp-2 text-xs text-white/50">{category.description}</p>
-                    )}
-                    {category.isDefault && (
-                      <div className="mt-2 inline-flex items-center gap-1">
-                        <Badge
-                          variant="secondary"
-                          className="rounded-full border border-white/20 bg-transparent px-2 py-0 text-[10px] text-white/70"
-                        >
-                          По умолчанию
-                        </Badge>
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 rounded-full border border-white/15 text-white/70 hover:border-white/30 hover:bg-transparent hover:text-white"
+              onClick={onClose}
+              aria-label="Закрыть"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
 
-        <div className="space-y-3 border-t border-white/10 px-4 py-4 text-xs text-white/70">
-          <div className="space-y-2">
-            <p className="text-[10px] uppercase tracking-[0.3em] text-white/35">Действия</p>
-            <button
-              type="button"
-              className="flex w-full items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-left transition hover:border-white/20 hover:bg-white/5 hover:text-white"
-              onClick={onRefreshCategories}
-            >
-              <RefreshCcw className="h-3.5 w-3.5" /> Обновить каналы
-            </button>
-            <button
-              type="button"
-              className="flex w-full items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-left transition hover:border-white/20 hover:bg-white/5 hover:text-white"
-              onClick={onRefreshAll}
-            >
-              <RefreshCcw className="h-3.5 w-3.5 rotate-180" /> Обновить всё
-            </button>
-            <button
-              type="button"
-              className={cn(
-                'flex w-full items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-left transition hover:border-white/20 hover:bg-white/5 hover:text-white',
-                isRefreshMessagesDisabled && 'pointer-events-none opacity-50'
-              )}
-              onClick={onRefreshMessages}
-            >
-              <MessageSquare className="h-3.5 w-3.5" /> Обновить сообщения
-            </button>
-            <button
-              type="button"
-              className={cn(
-                'flex w-full items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-left transition hover:border-white/20 hover:bg-white/5 hover:text-white',
-                isLoadOlderDisabled && 'pointer-events-none opacity-50'
-              )}
-              onClick={() => {
-                if (!isLoadOlderDisabled) {
-                  void onLoadOlderMessages();
-                }
-              }}
-            >
-              <Undo2 className="h-3.5 w-3.5" /> Ранние сообщения
-            </button>
-            <button
-              type="button"
-              className={cn(
-                'flex w-full items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-left transition hover:border-white/20 hover:bg-white/5 hover:text-white',
-                isMarkReadDisabled && 'pointer-events-none opacity-50'
-              )}
-              onClick={onMarkSelectedCategoryRead}
-            >
-              <ArchiveRestore className="h-3.5 w-3.5" /> Пометить прочитанным
-            </button>
-            {(loading || loadingMessages) && (
-              <div className="flex items-center gap-2 text-[11px] text-white/60">
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-white/35" />
-                Обновление в процессе…
+          <div className="flex-1 overflow-y-auto">
+            <div className="sticky top-0 z-10 space-y-3 border-b border-white/10 bg-[#101014]/95 px-4 py-4 backdrop-blur-md">
+              <div className="flex items-center gap-2 rounded-xl border border-white/12 px-3 py-2">
+                <Search className="h-4 w-4 text-white/45" />
+                <input
+                  type="search"
+                  value={categoryQuery}
+                  onChange={event => onCategoryQueryChange(event.target.value)}
+                  placeholder="Найти канал"
+                  className="w-full bg-transparent text-sm text-white placeholder:text-white/35 focus:outline-none"
+                />
               </div>
-            )}
-          </div>
-
-          {isAdmin && (
-            <div className="space-y-2 border-t border-white/10 pt-3">
-              <p className="text-[10px] uppercase tracking-[0.3em] text-white/35">Администрирование</p>
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-left transition hover:border-white/20 hover:bg-white/5 hover:text-white"
-                onClick={onOpenCreateCategory}
-              >
-                <Plus className="h-3.5 w-3.5" /> Создать категорию
-              </button>
-              <button
-                type="button"
-                className={cn(
-                  'flex w-full items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-left transition hover:border-white/20 hover:bg-white/5 hover:text-white',
-                  !hasSelectedCategory && 'pointer-events-none opacity-50'
-                )}
-                onClick={onOpenEditCategory}
-              >
-                <Pencil className="h-3.5 w-3.5" /> Редактировать текущую
-              </button>
+              {categoryQuery && (
+                <button
+                  type="button"
+                  className="text-left text-[11px] uppercase tracking-[0.25em] text-white/45 transition hover:text-white"
+                  onClick={() => onCategoryQueryChange('')}
+                >
+                  Сбросить
+                </button>
+              )}
             </div>
-          )}
+
+            <div className="px-2 py-4">
+              {loading && categories.length === 0 ? (
+                <div className="flex items-center justify-center gap-2 py-10 text-xs text-white/60">
+                  <Loader2 className="h-4 w-4 animate-spin text-white/40" />
+                  Загрузка каналов…
+                </div>
+              ) : visibleCategories.length === 0 ? (
+                <p className="px-2 text-sm text-white/50">Каналы не найдены</p>
+              ) : (
+                <div className="space-y-2">
+                  {visibleCategories.map(category => {
+                    const isActive = selectedCategoryId === category.id;
+                    const unread = category.unreadCount ?? 0;
+                    return (
+                      <button
+                        key={category.id}
+                        type="button"
+                        onClick={() => handleSelect(category.id)}
+                        className={cn(
+                          'w-full rounded-xl border px-3 py-3 text-left transition-colors duration-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-white/40',
+                          isActive
+                            ? 'border-primary/50 bg-primary/20 text-white'
+                            : 'border-white/10 text-white/65 hover:border-white/20 hover:bg-white/5 hover:text-white'
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-sm font-medium">{category.title}</span>
+                          {unread > 0 && (
+                            <span className="ml-2 inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-primary/70 px-2 text-[11px] font-semibold text-white">
+                              {unread > 99 ? '99+' : unread}
+                            </span>
+                          )}
+                        </div>
+                        {category.description && (
+                          <p className="mt-1 line-clamp-2 text-xs text-white/50">{category.description}</p>
+                        )}
+                        {category.isDefault && (
+                          <div className="mt-2 inline-flex items-center gap-1">
+                            <Badge
+                              variant="secondary"
+                              className="rounded-full border border-white/20 bg-transparent px-2 py-0 text-[10px] text-white/70"
+                            >
+                              По умолчанию
+                            </Badge>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3 border-t border-white/10 px-4 py-4 text-xs text-white/70">
+              <div className="space-y-2">
+                <p className="text-[10px] uppercase tracking-[0.3em] text-white/35">Действия</p>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-left transition hover:border-white/20 hover:bg-white/5 hover:text-white"
+                  onClick={onRefreshCategories}
+                >
+                  <RefreshCcw className="h-3.5 w-3.5" /> Обновить каналы
+                </button>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-left transition hover:border-white/20 hover:bg-white/5 hover:text-white"
+                  onClick={onRefreshAll}
+                >
+                  <RefreshCcw className="h-3.5 w-3.5 rotate-180" /> Обновить всё
+                </button>
+                <button
+                  type="button"
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-left transition hover:border-white/20 hover:bg-white/5 hover:text-white',
+                    isRefreshMessagesDisabled && 'pointer-events-none opacity-50'
+                  )}
+                  onClick={onRefreshMessages}
+                >
+                  <MessageSquare className="h-3.5 w-3.5" /> Обновить сообщения
+                </button>
+                <button
+                  type="button"
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-left transition hover:border-white/20 hover:bg-white/5 hover:text-white',
+                    isLoadOlderDisabled && 'pointer-events-none opacity-50'
+                  )}
+                  onClick={() => {
+                    if (!isLoadOlderDisabled) {
+                      void onLoadOlderMessages();
+                    }
+                  }}
+                >
+                  <Undo2 className="h-3.5 w-3.5" /> Ранние сообщения
+                </button>
+                <button
+                  type="button"
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-left transition hover:border-white/20 hover:bg-white/5 hover:text-white',
+                    isMarkReadDisabled && 'pointer-events-none opacity-50'
+                  )}
+                  onClick={onMarkSelectedCategoryRead}
+                >
+                  <ArchiveRestore className="h-3.5 w-3.5" /> Пометить прочитанным
+                </button>
+                {(loading || loadingMessages) && (
+                  <div className="flex items-center gap-2 text-[11px] text-white/60">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-white/35" />
+                    Обновление в процессе…
+                  </div>
+                )}
+              </div>
+
+              {isAdmin && (
+                <div className="space-y-2 border-t border-white/10 pt-3">
+                  <p className="text-[10px] uppercase tracking-[0.3em] text-white/35">Администрирование</p>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-left transition hover:border-white/20 hover:bg-white/5 hover:text-white"
+                    onClick={onOpenCreateCategory}
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Создать категорию
+                  </button>
+                  <button
+                    type="button"
+                    className={cn(
+                      'flex w-full items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-left transition hover:border-white/20 hover:bg-white/5 hover:text-white',
+                      !hasSelectedCategory && 'pointer-events-none opacity-50'
+                    )}
+                    onClick={onOpenEditCategory}
+                  >
+                    <Pencil className="h-3.5 w-3.5" /> Редактировать текущую
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </motion.aside>
     </motion.div>
