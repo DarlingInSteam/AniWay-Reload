@@ -89,11 +89,11 @@ public class AuthServiceTelegramClient {
         if (chatId == null) {
             return;
         }
-    Map<String, Object> payload = new HashMap<>();
-    payload.put("chatId", chatId);
-    payload.put("userId", null);
-    payload.put("reason", reason);
-    payload.put("disableOnly", false);
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("chatId", chatId);
+        payload.put("userId", null);
+        payload.put("reason", reason);
+        payload.put("disableOnly", false);
         try {
             restTemplate.postForEntity(authServiceBaseUrl + "/internal/telegram/unlink", payload, Void.class);
         } catch (Exception ex) {
@@ -105,11 +105,11 @@ public class AuthServiceTelegramClient {
         if (userId == null) {
             return;
         }
-    Map<String, Object> payload = new HashMap<>();
-    payload.put("chatId", null);
-    payload.put("userId", userId);
-    payload.put("reason", reason);
-    payload.put("disableOnly", true);
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("chatId", null);
+        payload.put("userId", userId);
+        payload.put("reason", reason);
+        payload.put("disableOnly", true);
         try {
             restTemplate.postForEntity(authServiceBaseUrl + "/internal/telegram/unlink", payload, Void.class);
         } catch (Exception ex) {
