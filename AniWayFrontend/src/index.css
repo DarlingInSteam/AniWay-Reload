@@ -46,6 +46,13 @@
     text-rendering: optimizeLegibility;
   }
   
+  /* Исправление для Safari - user-select */
+  [data-sonner-toast][data-swiped="true"] {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    user-select: none;
+  }
+  
   /* Используем нативное масштабирование изображений браузером */
   img {
     image-rendering: auto;

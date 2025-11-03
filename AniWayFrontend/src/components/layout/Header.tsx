@@ -373,6 +373,8 @@ export function Header() {
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 rounded-xl hover:bg-secondary/50 text-muted-foreground hover:text-foreground transition-colors duration-200"
+              aria-label={mobileMenuOpen ? "Закрыть меню" : "Открыть меню"}
+              title={mobileMenuOpen ? "Закрыть меню" : "Открыть меню"}
             >
               {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>

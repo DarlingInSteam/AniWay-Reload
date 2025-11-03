@@ -167,7 +167,14 @@ export function MobileNavBar() {
         <div className="mx-4 rounded-2xl overflow-hidden border border-white/25 bg-[#050507]/95 backdrop-blur-xl shadow-[0_8px_42px_-6px_rgba(0,0,0,0.85)]">
           <div className="flex items-center justify-between p-3 border-b border-white/10">
             <span className="text-xs font-semibold text-white/70">Быстрые разделы</span>
-            <button onClick={()=> setMoreOpen(false)} className="p-1 rounded-lg hover:bg-white/10"><ChevronUp className="w-4 h-4 text-white/60"/></button>
+            <button 
+              onClick={()=> setMoreOpen(false)} 
+              className="p-1 rounded-lg hover:bg-white/10"
+              aria-label="Скрыть разделы"
+              title="Скрыть разделы"
+            >
+              <ChevronUp className="w-4 h-4 text-white/60"/>
+            </button>
           </div>
           <ul className="divide-y divide-white/5">
             {sheetLinks.map(l => { const Icon=l.icon; return (
