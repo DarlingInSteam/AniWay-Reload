@@ -14,9 +14,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import shadowshift.studio.parserservice.config.ParserProperties;
 import shadowshift.studio.parserservice.domain.task.ParserTask;
 import shadowshift.studio.parserservice.domain.task.TaskLogEntry;
 import shadowshift.studio.parserservice.domain.task.TaskStatus;
+import shadowshift.studio.parserservice.service.MangaLibParserService;
 import shadowshift.studio.parserservice.service.TaskExecutor;
 import shadowshift.studio.parserservice.service.TaskService;
 import shadowshift.studio.parserservice.web.dto.BatchParseRequest;
@@ -30,6 +32,12 @@ import shadowshift.studio.parserservice.web.dto.TaskResultDto;
 import shadowshift.studio.parserservice.web.dto.TaskStatusResponse;
 import shadowshift.studio.parserservice.web.dto.TaskSummaryResponse;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -48,20 +56,48 @@ import shadowshift.studio.parserservice.util.ChapterKeyUtil;
 public class ParserTaskController {
 
     private static final String SUPPORTED_PARSER = "mangalib";
+    private static final Duration CACHE_FRESHNESS = Duration.ofMinutes(5);
 
     private final TaskService taskService;
     private final TaskExecutor taskExecutor;
+    private final MangaLibParserService parserService;
+    private final ParserProperties parserProperties;
 
-    public ParserTaskController(TaskService taskService, TaskExecutor taskExecutor) {
+    public ParserTaskController(TaskService taskService,
+                                TaskExecutor taskExecutor,
+                                MangaLibParserService parserService,
+                                ParserProperties parserProperties) {
         this.taskService = taskService;
         this.taskExecutor = taskExecutor;
+        this.parserService = parserService;
+        this.parserProperties = parserProperties;
     }
 
     @PostMapping(path = "/parse", consumes = MediaType.APPLICATION_JSON_VALUE)
     public TaskCreatedResponse startParse(@Valid @RequestBody ParseRequest request) {
         ensureSupportedParser(request.getParser());
         String slug = normalizeSlug(request.getSlug());
+        String fileSlug = parserService.normalizeSlug(slug);
+        boolean force = Boolean.TRUE.equals(request.getForce());
         ParserTask task = taskService.createParseTask(slug);
+
+        Optional<CachedJson> cached = resolveCachedJson(fileSlug);
+        if (!force && cached.isPresent()) {
+            CachedJson cacheInfo = cached.get();
+            Duration age = Duration.between(cacheInfo.lastModified(), Instant.now());
+            if (age.compareTo(CACHE_FRESHNESS) <= 0) {
+                taskService.markRunning(task);
+                String logMessage = "Skipping parse for slug %s: cached JSON %s is fresh (%s ago)"
+                        .formatted(slug, cacheInfo.path(), formatDuration(age));
+                taskService.appendLog(task, logMessage);
+                task.putMetric("cache_hit", true);
+                task.putMetric("cache_age_seconds", age.toSeconds());
+                task.setMessage("Skipped: cache is fresh (" + formatDuration(age) + ")");
+                taskService.markCompleted(task);
+                taskService.appendLog(task, "Parse task marked completed using cached JSON");
+                return new TaskCreatedResponse(task.getId(), task.getStatus().name());
+            }
+        }
         
         // Запускаем задачу асинхронно
         taskExecutor.executeParseTask(task);
@@ -191,6 +227,52 @@ public class ParserTaskController {
         }
         return slug.trim();
     }
+
+    private Optional<CachedJson> resolveCachedJson(String fileSlug) {
+        if (!StringUtils.hasText(fileSlug) || parserProperties == null ||
+                !StringUtils.hasText(parserProperties.getOutputPath())) {
+            return Optional.empty();
+        }
+
+        String base = parserProperties.getOutputPath();
+        Path titlesPath = Paths.get(base, "titles", fileSlug + ".json");
+        if (Files.exists(titlesPath)) {
+            return Optional.ofNullable(createCacheInfo(titlesPath));
+        }
+
+        Path legacyPath = Paths.get(base, fileSlug + ".json");
+        if (Files.exists(legacyPath)) {
+            return Optional.ofNullable(createCacheInfo(legacyPath));
+        }
+
+        return Optional.empty();
+    }
+
+    private CachedJson createCacheInfo(Path path) {
+        try {
+            return new CachedJson(path, Files.getLastModifiedTime(path).toInstant());
+        } catch (IOException ex) {
+            return null;
+        }
+    }
+
+    private String formatDuration(Duration duration) {
+        Duration effective = duration.isNegative() ? Duration.ZERO : duration;
+        long seconds = effective.getSeconds();
+        long hours = seconds / 3600;
+        long minutes = (seconds % 3600) / 60;
+        long secs = seconds % 60;
+
+        if (hours > 0) {
+            return "%dh %02dm %02ds".formatted(hours, minutes, secs);
+        }
+        if (minutes > 0) {
+            return "%dm %02ds".formatted(minutes, secs);
+        }
+        return secs + "s";
+    }
+
+    private record CachedJson(Path path, Instant lastModified) { }
 
     private TaskSummaryResponse mapToSummary(ParserTask task) {
         String slug = task.getSlugs().isEmpty() ? null : task.getSlugs().getFirst();

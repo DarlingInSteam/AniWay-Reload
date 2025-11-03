@@ -9,6 +9,8 @@ public class ParseRequest {
 
     private String parser = "mangalib";
 
+    private Boolean force;
+
     public String getSlug() {
         return slug;
     }
@@ -23,5 +25,13 @@ public class ParseRequest {
 
     public void setParser(String parser) {
         this.parser = parser;
+    }
+
+    public Boolean getForce() {
+        return force;
+    }
+
+    public void setForce(Boolean force) {
+        this.force = force;
     }
 }
