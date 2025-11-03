@@ -88,7 +88,7 @@ export const LibraryPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 lg:px-8 py-6">
-        <div className="glass-panel p-4 lg:p-5">
+  <div className="rounded-3xl border border-white/10 bg-transparent p-4 lg:p-6">
           <div className="flex flex-col gap-4 mb-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <h1 className="text-xl md:text-2xl font-bold text-foreground">Закладки</h1>
