@@ -1,4 +1,18 @@
+{
+    email {$ACME_EMAIL}
+}
+
 aniway.space, www.aniway.space {
     encode zstd gzip
-    reverse_proxy aniway-frontend:80
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        Referrer-Policy "no-referrer-when-downgrade"
+        X-Content-Type-Options "nosniff"
+    }
+
+    reverse_proxy aniway-frontend:80 {
+        header_up X-Forwarded-Proto {http.request.scheme}
+        header_up X-Forwarded-Host {http.request.host}
+        header_up X-Forwarded-For {http.request.remote}
+    }
 }

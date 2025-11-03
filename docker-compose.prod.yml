@@ -6,6 +6,8 @@ services:
       dockerfile: Dockerfile
     environment:
       - NODE_ENV=production
+    expose:
+      - "80"
     restart: unless-stopped
     networks:
       - aniway-network
@@ -17,6 +19,8 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      - ACME_EMAIL=${ACME_EMAIL:-rombk2711@gmail.com}
     volumes:
       - ./deployment/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -410,7 +414,8 @@ services:
       - TELEGRAM_NOTIFICATIONS_AGGREGATE_WINDOW_SECONDS=${TELEGRAM_NOTIFICATIONS_AGGREGATE_WINDOW_SECONDS:-60}
       - TELEGRAM_NOTIFICATIONS_MAX_RETRIES=${TELEGRAM_NOTIFICATIONS_MAX_RETRIES:-3}
       - TELEGRAM_NOTIFICATIONS_RETRY_BACKOFF_MILLIS=${TELEGRAM_NOTIFICATIONS_RETRY_BACKOFF_MILLIS:-1000}
-      - TELEGRAM_NOTIFICATIONS_CHAPTER_LINK_TEMPLATE=${TELEGRAM_NOTIFICATIONS_CHAPTER_LINK_TEMPLATE:-https://aniway.space/manga/{mangaId}/chapter/{chapterId}}
+      - TELEGRAM_NOTIFICATIONS_CHAPTER_LINK_TEMPLATE=${TELEGRAM_NOTIFICATIONS_CHAPTER_LINK_TEMPLATE:-https://aniway.space/reader/{mangaSlug}/{chapterUrlSegment}}
+      - TELEGRAM_NOTIFICATIONS_MANGA_LINK_TEMPLATE=${TELEGRAM_NOTIFICATIONS_MANGA_LINK_TEMPLATE:-https://aniway.space/manga/{mangaSlug}}
       - TELEGRAM_NOTIFICATIONS_SITE_BASE_URL=${TELEGRAM_NOTIFICATIONS_SITE_BASE_URL:-https://aniway.space}
     restart: unless-stopped
     depends_on:
