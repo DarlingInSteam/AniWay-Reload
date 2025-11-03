@@ -11,7 +11,11 @@ export type TopsSidebarProps = {
 export function TopsSidebar({ meta, filterCard }: TopsSidebarProps) {
   return (
     <div className="space-y-4">
-      {filterCard}
+      {filterCard && (
+        <GlassPanel className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+          {filterCard}
+        </GlassPanel>
+      )}
     </div>
   )
 }

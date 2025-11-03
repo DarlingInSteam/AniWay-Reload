@@ -49,7 +49,7 @@ export function CommentsSection({ query, formatter, commentAuthorMap, onNavigate
         return (
           <GlassPanel
             key={comment.id || index}
-            className="relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-colors hover:border-primary/40 hover:bg-primary/5 active:bg-primary/10"
+            className="relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-colors hover:border-white/25 hover:bg-white/[0.06] active:bg-white/[0.08]"
           >
             <div className="relative z-10 space-y-4">
               <div className="flex items-start gap-3">
