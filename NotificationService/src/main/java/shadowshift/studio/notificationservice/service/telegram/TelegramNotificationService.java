@@ -64,7 +64,7 @@ public class TelegramNotificationService {
             return;
         }
 
-        ChapterPayload payload = parsePayload(notification.getPayloadJson());
+    ChapterPayload payload = parsePayload(notification.getPayloadJson());
         if (payload == null) {
             return;
         }
@@ -218,11 +218,12 @@ public class TelegramNotificationService {
                 : "\uD83D\uDCE2"; // 📢 fallback
 
         String chapterLabel = formatChapterNumber(chapter);
-        sb.append(emoji).append(' ').append("Добавлена новая");
-        if (chapterLabel != null) {
-            sb.append(' ').append(chapterLabel);
+        sb.append(emoji).append(' ');
+        if (StringUtils.hasText(chapterLabel)) {
+            sb.append("Добавлена новая ").append(chapterLabel);
+        } else {
+            sb.append("Добавлена новая глава");
         }
-        sb.append(" глава");
         if (StringUtils.hasText(mangaTitle)) {
             sb.append(' ').append("манги ").append(mangaTitle);
         }
@@ -342,10 +343,15 @@ public class TelegramNotificationService {
             JsonNode node = objectMapper.readTree(payloadJson);
             Long mangaId = node.path("mangaId").isNumber() ? node.path("mangaId").asLong() : null;
             Long chapterId = node.path("chapterId").isNumber() ? node.path("chapterId").asLong() : null;
-            String chapterNumber = node.path("chapterNumber").isMissingNode() ? null : node.path("chapterNumber").asText(null);
-            String title = node.path("mangaTitle").isMissingNode() ? null : node.path("mangaTitle").asText(null);
-            String slug = node.path("mangaSlug").isMissingNode() ? null : node.path("mangaSlug").asText(null);
-            return new ChapterPayload(mangaId, chapterId, chapterNumber, title, slug);
+            String chapterNumber = textOrNull(node, "chapterNumber");
+            String title = textOrNull(node, "mangaTitle");
+            String slug = textOrNull(node, "mangaSlug");
+            String chapterLabel = textOrNull(node, "chapterLabel");
+            Integer volumeNumber = node.path("volumeNumber").isIntegralNumber() ? node.path("volumeNumber").asInt() : null;
+            Double originalChapterNumber = node.path("originalChapterNumber").isNumber() ? node.path("originalChapterNumber").asDouble() : null;
+            Double chapterNumeric = node.path("chapterNumeric").isNumber() ? node.path("chapterNumeric").asDouble() : null;
+            String chapterTitle = textOrNull(node, "chapterTitle");
+            return new ChapterPayload(mangaId, chapterId, chapterNumber, title, slug, chapterLabel, volumeNumber, originalChapterNumber, chapterNumeric, chapterTitle);
         } catch (Exception ex) {
             log.warn("Failed to parse chapter payload: {}", ex.getMessage());
             return null;
@@ -381,6 +387,42 @@ public class TelegramNotificationService {
     }
 
     private String formatChapterNumber(ChapterPayload chapter) {
+        if (StringUtils.hasText(chapter.chapterLabel())) {
+            return chapter.chapterLabel();
+        }
+
+        Integer explicitVolume = chapter.volumeNumber();
+        Double numeric = chapter.chapterNumeric();
+        Integer inferredVolume = inferVolume(numeric);
+        Integer volume = explicitVolume != null && explicitVolume > 0 ? explicitVolume : inferredVolume;
+
+        StringBuilder label = new StringBuilder();
+        if (volume != null && volume > 0) {
+            label.append("Том ").append(volume);
+        }
+
+        Double chapterValue;
+        if (chapter.originalChapterNumber() != null) {
+            chapterValue = chapter.originalChapterNumber();
+        } else {
+            chapterValue = deriveChapterWithinVolume(numeric, volume);
+        }
+
+        if (chapterValue != null && chapterValue > 0) {
+            if (label.length() > 0) {
+                label.append(' ');
+            }
+            label.append("Глава ").append(formatDecimal(chapterValue));
+        }
+
+        if (label.length() > 0) {
+            return label.toString();
+        }
+
+        if (StringUtils.hasText(chapter.chapterTitle())) {
+            return chapter.chapterTitle();
+        }
+
         String number = chapter.chapterNumber();
         if (StringUtils.hasText(number)) {
             try {
@@ -400,7 +442,56 @@ public class TelegramNotificationService {
         return userId + ":" + mangaId;
     }
 
-    private record ChapterPayload(Long mangaId, Long chapterId, String chapterNumber, String mangaTitle, String mangaSlug) {
+    private String textOrNull(JsonNode node, String field) {
+        JsonNode target = node.path(field);
+        if (target.isMissingNode()) {
+            return null;
+        }
+        String value = target.asText(null);
+        return StringUtils.hasText(value) ? value : null;
+    }
+
+    private Integer inferVolume(Double numeric) {
+        if (numeric == null || numeric < 10000d) {
+            return null;
+        }
+        return (int) Math.floor(numeric / 10000d);
+    }
+
+    private Double deriveChapterWithinVolume(Double numeric, Integer volume) {
+        if (numeric == null) {
+            return null;
+        }
+        Integer inferred = inferVolume(numeric);
+        int effectiveVolume = volume != null && volume > 0 ? volume : (inferred != null ? inferred : 0);
+        if (effectiveVolume > 0) {
+            double diff = numeric - (effectiveVolume * 10000d);
+            double normalized = Math.round(diff * 1000d) / 1000d;
+            if (normalized > 0) {
+                return normalized;
+            }
+        }
+        double normalized = Math.round(numeric * 1000d) / 1000d;
+        return normalized > 0 ? normalized : null;
+    }
+
+    private String formatDecimal(Double value) {
+        if (value == null) {
+            return null;
+        }
+        return BigDecimal.valueOf(value).stripTrailingZeros().toPlainString();
+    }
+
+    private record ChapterPayload(Long mangaId,
+                                  Long chapterId,
+                                  String chapterNumber,
+                                  String mangaTitle,
+                                  String mangaSlug,
+                                  String chapterLabel,
+                                  Integer volumeNumber,
+                                  Double originalChapterNumber,
+                                  Double chapterNumeric,
+                                  String chapterTitle) {
     }
 
     private record SendOutcome(TelegramSendResult result, int attempts) {

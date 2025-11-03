@@ -232,14 +232,37 @@ public class ChapterService {
             }
             System.out.println("Fan-out: subscribers url=" + subscribersUrl + " count=" + subscribers.size());
             if (!subscribers.isEmpty()) {
+                MangaMeta mangaMeta = fetchMangaMeta(createDTO.getMangaId());
+                String chapterLabel = buildChapterLabel(savedChapter);
                 // 2. Send batch event to NotificationService
-                Map<String,Object> payload = Map.of(
-                        "targetUserIds", subscribers,
-                        "mangaId", createDTO.getMangaId(),
-                        "chapterId", savedChapter.getId(),
-                        "chapterNumber", String.valueOf(createDTO.getChapterNumber()),
-                        "mangaTitle", fetchMangaTitle(createDTO.getMangaId())
-                );
+                Map<String,Object> payload = new java.util.LinkedHashMap<>();
+                payload.put("targetUserIds", subscribers);
+                payload.put("mangaId", createDTO.getMangaId());
+                payload.put("chapterId", savedChapter.getId());
+                if (createDTO.getChapterNumber() != null) {
+                    payload.put("chapterNumber", String.valueOf(createDTO.getChapterNumber()));
+                }
+                if (mangaMeta.title() != null) {
+                    payload.put("mangaTitle", mangaMeta.title());
+                }
+                if (mangaMeta.slug() != null) {
+                    payload.put("mangaSlug", mangaMeta.slug());
+                }
+                if (chapterLabel != null && !chapterLabel.isBlank()) {
+                    payload.put("chapterLabel", chapterLabel);
+                }
+                if (savedChapter.getVolumeNumber() != null) {
+                    payload.put("volumeNumber", savedChapter.getVolumeNumber());
+                }
+                if (savedChapter.getOriginalChapterNumber() != null) {
+                    payload.put("originalChapterNumber", savedChapter.getOriginalChapterNumber());
+                }
+                if (savedChapter.getChapterNumber() != null) {
+                    payload.put("chapterNumeric", savedChapter.getChapterNumber());
+                }
+                if (savedChapter.getTitle() != null && !savedChapter.getTitle().isBlank()) {
+                    payload.put("chapterTitle", savedChapter.getTitle());
+                }
         String notifyUrl = notificationServiceBaseUrl + "/internal/events/chapter-published-batch";
         try {
             var responseEntity = client.post()
@@ -745,7 +768,7 @@ public class ChapterService {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
-    private String fetchMangaTitle(Long mangaId) {
+    private MangaMeta fetchMangaMeta(Long mangaId) {
         String url = mangaServiceInternalUrl + "/api/manga/" + mangaId;
         try {
             WebClient client = webClientBuilder.build();
@@ -755,13 +778,115 @@ public class ChapterService {
                     .bodyToMono(Map.class)
                     .block(java.time.Duration.ofSeconds(3));
             if (map != null) {
-                Object title = map.get("title");
-                if (title != null) return String.valueOf(title);
+                String title = extractString(map, "title", "name");
+                String slug = extractString(map,
+                        "slug",
+                        "mangaSlug",
+                        "melonSlug",
+                        "slugLatin",
+                        "slugEn",
+                        "slug_ru",
+                        "slugRu");
+                return new MangaMeta(title, slug);
             }
         } catch (Exception ex) {
-            System.err.println("fetchMangaTitle failed url=" + url + " error=" + ex.getMessage());
+            System.err.println("fetchMangaMeta failed url=" + url + " error=" + ex.getMessage());
+        }
+        return new MangaMeta(null, null);
+    }
+
+    private String extractString(Map<?,?> map, String... keys) {
+        for (String key : keys) {
+            Object value = map.get(key);
+            if (value instanceof String str && !str.isBlank()) {
+                return str;
+            }
         }
         return null;
+    }
+
+    private String buildChapterLabel(Chapter chapter) {
+        if (chapter == null) {
+            return null;
+        }
+
+        Integer volumeNumber = chapter.getVolumeNumber();
+        Double originalNumber = chapter.getOriginalChapterNumber();
+        Double internalNumber = chapter.getChapterNumber();
+
+        StringBuilder label = new StringBuilder();
+
+        int inferredVolume = deriveVolume(internalNumber);
+        int effectiveVolume = volumeNumber != null && volumeNumber > 0 ? volumeNumber : inferredVolume;
+        if (effectiveVolume > 0) {
+            label.append("Том ").append(effectiveVolume);
+        }
+
+        String chapterPart = null;
+        if (originalNumber != null) {
+            chapterPart = formatDecimal(originalNumber);
+        } else {
+            Double derivedChapter = deriveChapterWithinVolume(internalNumber, inferredVolume);
+            if (derivedChapter != null && derivedChapter > 0) {
+                chapterPart = formatDecimal(derivedChapter);
+            }
+        }
+
+        if (chapterPart != null && !chapterPart.isBlank()) {
+            if (label.length() > 0) {
+                label.append(' ');
+            }
+            label.append("Глава ").append(chapterPart);
+        }
+
+        if (label.length() == 0) {
+            String title = chapter.getTitle();
+            if (title != null && !title.isBlank()) {
+                return title;
+            }
+        }
+
+        return label.length() > 0 ? label.toString() : null;
+    }
+
+    private int deriveVolume(Double internalNumber) {
+        if (internalNumber == null) {
+            return 0;
+        }
+        double value = internalNumber;
+        if (value >= 10000d) {
+            return (int) Math.floor(value / 10000d);
+        }
+        return 0;
+    }
+
+    private Double deriveChapterWithinVolume(Double internalNumber, int volume) {
+        if (internalNumber == null) {
+            return null;
+        }
+        double value = internalNumber;
+        if (volume > 0) {
+            double diff = value - (volume * 10000d);
+            double normalized = Math.round(diff * 1000d) / 1000d;
+            if (normalized > 0) {
+                return normalized;
+            }
+        }
+        if (value > 0) {
+            return Math.round(value * 1000d) / 1000d;
+        }
+        return null;
+    }
+
+    private String formatDecimal(Double number) {
+        if (number == null) {
+            return null;
+        }
+        java.math.BigDecimal decimal = java.math.BigDecimal.valueOf(number).stripTrailingZeros();
+        return decimal.toPlainString();
+    }
+
+    private record MangaMeta(String title, String slug) {
     }
 
     private void deleteChapterImagesWithFallback(Long chapterId) {

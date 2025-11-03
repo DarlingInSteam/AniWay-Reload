@@ -4,7 +4,6 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 import shadowshift.studio.notificationservice.domain.NotificationType;
 import shadowshift.studio.notificationservice.service.NotificationServiceFacade;
@@ -89,12 +88,30 @@ public class InternalEventController {
             // PER_CHAPTER: unique key per chapter so все главы сохраняются
             dedupeKey = "chapter_published:" + body.getTargetUserId() + ":" + body.getMangaId() + ":" + body.getChapterId();
         }
-        String payload = toJson(Map.of(
-                "mangaId", body.getMangaId(),
-                "chapterId", body.getChapterId(),
-                "chapterNumber", body.getChapterNumber(),
-                "mangaTitle", body.getMangaTitle()
-        ));
+        java.util.Map<String,Object> payloadMap = new java.util.LinkedHashMap<>();
+        payloadMap.put("mangaId", body.getMangaId());
+        payloadMap.put("chapterId", body.getChapterId());
+        payloadMap.put("chapterNumber", body.getChapterNumber());
+        if (body.getChapterNumeric() != null) {
+            payloadMap.put("chapterNumeric", body.getChapterNumeric());
+        }
+        if (body.getVolumeNumber() != null) {
+            payloadMap.put("volumeNumber", body.getVolumeNumber());
+        }
+        if (body.getOriginalChapterNumber() != null) {
+            payloadMap.put("originalChapterNumber", body.getOriginalChapterNumber());
+        }
+        if (body.getChapterLabel() != null && !body.getChapterLabel().isBlank()) {
+            payloadMap.put("chapterLabel", body.getChapterLabel());
+        }
+        payloadMap.put("mangaTitle", body.getMangaTitle());
+        if (body.getMangaSlug() != null && !body.getMangaSlug().isBlank()) {
+            payloadMap.put("mangaSlug", body.getMangaSlug());
+        }
+        if (body.getChapterTitle() != null && !body.getChapterTitle().isBlank()) {
+            payloadMap.put("chapterTitle", body.getChapterTitle());
+        }
+        String payload = toJson(payloadMap);
         facade.createBasic(body.getTargetUserId(), NotificationType.BOOKMARK_NEW_CHAPTER, payload, dedupeKey);
         return ResponseEntity.accepted().build();
     }
@@ -149,12 +166,30 @@ public class InternalEventController {
     @PostMapping("/chapter-published-batch")
     public ResponseEntity<Void> chapterPublishedBatch(@RequestBody ChapterPublishedBatchEvent body) {
         // Same payload reused for all subscribers; dedupe per user+manga
-        String basePayload = toJson(Map.of(
-                "mangaId", body.getMangaId(),
-                "chapterId", body.getChapterId(),
-                "chapterNumber", body.getChapterNumber(),
-                "mangaTitle", body.getMangaTitle()
-        ));
+        java.util.Map<String,Object> payloadMap = new java.util.LinkedHashMap<>();
+        payloadMap.put("mangaId", body.getMangaId());
+        payloadMap.put("chapterId", body.getChapterId());
+        payloadMap.put("chapterNumber", body.getChapterNumber());
+        if (body.getChapterNumeric() != null) {
+            payloadMap.put("chapterNumeric", body.getChapterNumeric());
+        }
+        if (body.getVolumeNumber() != null) {
+            payloadMap.put("volumeNumber", body.getVolumeNumber());
+        }
+        if (body.getOriginalChapterNumber() != null) {
+            payloadMap.put("originalChapterNumber", body.getOriginalChapterNumber());
+        }
+        if (body.getChapterLabel() != null && !body.getChapterLabel().isBlank()) {
+            payloadMap.put("chapterLabel", body.getChapterLabel());
+        }
+        payloadMap.put("mangaTitle", body.getMangaTitle());
+        if (body.getMangaSlug() != null && !body.getMangaSlug().isBlank()) {
+            payloadMap.put("mangaSlug", body.getMangaSlug());
+        }
+        if (body.getChapterTitle() != null && !body.getChapterTitle().isBlank()) {
+            payloadMap.put("chapterTitle", body.getChapterTitle());
+        }
+        String basePayload = toJson(payloadMap);
         if (body.getTargetUserIds() != null) {
             boolean aggregate = "AGGREGATE".equalsIgnoreCase(chapterDedupeMode);
             for (Long uid : body.getTargetUserIds()) {
@@ -342,6 +377,12 @@ public class InternalEventController {
         private Long chapterId;
         private String chapterNumber;
         private String mangaTitle;
+        private Double chapterNumeric;
+        private Integer volumeNumber;
+        private Double originalChapterNumber;
+        private String chapterLabel;
+        private String mangaSlug;
+        private String chapterTitle;
     }
 
     @Data
@@ -351,6 +392,12 @@ public class InternalEventController {
         private Long chapterId;
         private String chapterNumber;
         private String mangaTitle;
+        private Double chapterNumeric;
+        private Integer volumeNumber;
+        private Double originalChapterNumber;
+        private String chapterLabel;
+        private String mangaSlug;
+        private String chapterTitle;
     }
 
     @Data
