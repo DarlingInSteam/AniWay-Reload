@@ -22,6 +22,7 @@ import shadowshift.studio.chapterservice.entity.ChapterRead;
 import java.net.ConnectException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import org.springframework.web.client.RestTemplate;
+import shadowshift.studio.chapterservice.dto.MangaLikesAggregateDTO;
+import shadowshift.studio.chapterservice.repository.projection.ChapterLikesAggregate;
 
 /**
  * Сервис для управления главами манги.
@@ -695,6 +698,39 @@ public class ChapterService {
             return Collections.emptyList();
         }
         return chapterLikeRepository.findLikedChapterIds(userId, chapterIds);
+    }
+
+    /**
+     * Aggregates chapter likes per manga; missing entries resolve to zero to simplify downstream sorting.
+     */
+    public List<MangaLikesAggregateDTO> getMangaLikeAggregates(List<Long> mangaIds) {
+        if (mangaIds == null || mangaIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> distinctIds = mangaIds.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (distinctIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, Long> totals = new LinkedHashMap<>();
+        distinctIds.forEach(id -> totals.put(id, 0L));
+
+        List<ChapterLikesAggregate> aggregates = chapterRepository.sumLikeCountByMangaIdIn(distinctIds);
+        for (ChapterLikesAggregate aggregate : aggregates) {
+            Long mangaId = aggregate.getMangaId();
+            if (mangaId != null && totals.containsKey(mangaId)) {
+                totals.put(mangaId, Optional.ofNullable(aggregate.getTotalLikes()).orElse(0L));
+            }
+        }
+
+        return totals.entrySet().stream()
+                .map(entry -> new MangaLikesAggregateDTO(entry.getKey(), entry.getValue()))
+                .collect(Collectors.toList());
     }
 
     /**
