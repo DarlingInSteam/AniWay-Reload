@@ -303,20 +303,16 @@ public class MangaService {
         List<String> safeGenres = genres != null ? genres : List.of();
         List<String> safeTags = tags != null ? tags : List.of();
 
-    Page<Manga> searchResults;
-    if (Boolean.TRUE.equals(strictMatch)) {
-        searchResults = mangaRepository.findAllWithFiltersStrict(
-            safeGenres, safeTags, validatedMangaType, validatedStatus,
-            ageRatingMin, ageRatingMax, ratingMin, ratingMax,
-            releaseYearMin, releaseYearMax, chapterRangeMin, chapterRangeMax,
-            pageable);
+    boolean strict = Boolean.TRUE.equals(strictMatch);
+    Page<Manga> searchResults = mangaRepository.findAllWithFiltersAdaptive(
+        safeGenres, safeTags, validatedMangaType, validatedStatus,
+        ageRatingMin, ageRatingMax, ratingMin, ratingMax,
+        releaseYearMin, releaseYearMax, chapterRangeMin, chapterRangeMax,
+        strict,
+        pageable
+    );
+    if (strict) {
         logger.debug("Строгий режим фильтрации активен (AND по жанрам/тегам)");
-    } else {
-        searchResults = mangaRepository.findAllWithFilters(
-            safeGenres, safeTags, validatedMangaType, validatedStatus,
-            ageRatingMin, ageRatingMax, ratingMin, ratingMax,
-            releaseYearMin, releaseYearMax, chapterRangeMin, chapterRangeMax,
-            pageable);
     }
 
         logger.debug("Найдено {} манг с фильтрами на странице {}", searchResults.getNumberOfElements(), page);

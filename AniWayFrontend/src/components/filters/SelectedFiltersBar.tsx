@@ -1,6 +1,17 @@
 import React from 'react'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import {
+  AGE_RATING_OPTIONS,
+  RATING_OPTIONS,
+  CHAPTER_OPTIONS,
+  DEFAULT_AGE_RANGE,
+  DEFAULT_RATING_RANGE,
+  DEFAULT_RELEASE_YEAR_RANGE,
+  DEFAULT_CHAPTER_RANGE,
+  findRangeOption,
+  rangesEqual
+} from './filterOptions'
 
 export interface ActiveFiltersState {
   genres?: string[]
@@ -23,10 +34,10 @@ interface SelectedFiltersBarProps {
 
 // Значения по умолчанию для проверки диапазонов
 const DEFAULTS = {
-  ageRating: [0, 21] as [number, number],
-  rating: [0, 10] as [number, number],
-  releaseYear: [1990, new Date().getFullYear()] as [number, number],
-  chapterRange: [0, 1000] as [number, number]
+  ageRating: DEFAULT_AGE_RANGE,
+  rating: DEFAULT_RATING_RANGE,
+  releaseYear: DEFAULT_RELEASE_YEAR_RANGE,
+  chapterRange: DEFAULT_CHAPTER_RANGE
 }
 
 const humanizeType = (type?: string) => {
@@ -80,17 +91,23 @@ export const SelectedFiltersBar: React.FC<SelectedFiltersBarProps> = ({
     chips.push({ key: 'status', label: humanizeStatus(activeFilters.status) })
   }
   // Диапазоны - добавляем только если отличаются от дефолта
-  if (activeFilters.ageRating && JSON.stringify(activeFilters.ageRating) !== JSON.stringify(DEFAULTS.ageRating)) {
-    chips.push({ key: 'ageRating', label: `Возраст: ${activeFilters.ageRating[0]}+ – ${activeFilters.ageRating[1]}+` })
+  if (activeFilters.ageRating && !rangesEqual(activeFilters.ageRating, DEFAULTS.ageRating)) {
+    const option = findRangeOption(activeFilters.ageRating, AGE_RATING_OPTIONS)
+    const label = option ? `Возраст: ${option.summary}` : `Возраст: ${activeFilters.ageRating[0]}+–${activeFilters.ageRating[1]}+`
+    chips.push({ key: 'ageRating', label })
   }
-  if (activeFilters.rating && JSON.stringify(activeFilters.rating) !== JSON.stringify(DEFAULTS.rating)) {
-    chips.push({ key: 'rating', label: `Оценка: ${activeFilters.rating[0]} – ${activeFilters.rating[1]}` })
+  if (activeFilters.rating && !rangesEqual(activeFilters.rating, DEFAULTS.rating)) {
+    const option = findRangeOption(activeFilters.rating, RATING_OPTIONS)
+    const label = option ? `Рейтинг: ${option.summary}` : `Рейтинг: ${activeFilters.rating[0]}+`
+    chips.push({ key: 'rating', label })
   }
-  if (activeFilters.releaseYear && JSON.stringify(activeFilters.releaseYear) !== JSON.stringify(DEFAULTS.releaseYear)) {
+  if (activeFilters.releaseYear && !rangesEqual(activeFilters.releaseYear, DEFAULTS.releaseYear)) {
     chips.push({ key: 'releaseYear', label: `Год: ${activeFilters.releaseYear[0]} – ${activeFilters.releaseYear[1]}` })
   }
-  if (activeFilters.chapterRange && JSON.stringify(activeFilters.chapterRange) !== JSON.stringify(DEFAULTS.chapterRange)) {
-    chips.push({ key: 'chapterRange', label: `Главы: ${activeFilters.chapterRange[0]} – ${activeFilters.chapterRange[1]}` })
+  if (activeFilters.chapterRange && !rangesEqual(activeFilters.chapterRange, DEFAULTS.chapterRange)) {
+    const option = findRangeOption(activeFilters.chapterRange, CHAPTER_OPTIONS)
+    const label = option ? `Главы: ${option.summary}` : `Главы: ${activeFilters.chapterRange[0]}–${activeFilters.chapterRange[1]}`
+    chips.push({ key: 'chapterRange', label })
   }
 
   if (chips.length === 0) return null

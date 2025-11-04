@@ -19,7 +19,7 @@ import java.util.Optional;
  * @author ShadowShiftStudio
  */
 @Repository
-public interface MangaRepository extends JpaRepository<Manga, Long> {
+public interface MangaRepository extends JpaRepository<Manga, Long>, MangaRepositoryCustom {
 
     /**
      * Ищет манги по частичному совпадению названия, игнорируя регистр.
