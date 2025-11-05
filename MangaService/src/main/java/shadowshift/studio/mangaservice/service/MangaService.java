@@ -569,6 +569,10 @@ public class MangaService {
         }
     }
 
+    /**
+     * Обогащает коллекцию DTO внешними метриками (лайки, отзывы, комментарии).
+     * Выполняет групповой запрос к соседним сервисам, чтобы минимизировать сетевые вызовы.
+     */
     private void enrichWithEngagementMetrics(List<MangaResponseDTO> responseDTOs) {
         if (responseDTOs == null || responseDTOs.isEmpty()) {
             return;
