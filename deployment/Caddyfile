@@ -57,7 +57,7 @@ https://aniway.space {
         redir /grafana/ 302
     }
 
-    handle_path /grafana/* {
+    handle_path /grafana* {
         reverse_proxy aniway-grafana:3000
     }
 
