@@ -53,11 +53,17 @@ https://aniway.space {
         reverse_proxy aniway-prometheus:9090
     }
 
-    handle /grafana {
+    @grafana-root {
+        path /grafana
+    }
+    handle @grafana-root {
         redir /grafana/ 302
     }
 
-    handle_path /grafana* {
+    @grafana {
+        path /grafana/ /grafana/*
+    }
+    handle @grafana {
         reverse_proxy aniway-grafana:3000
     }
 
