@@ -19,7 +19,7 @@ https://aniway.space {
     handle /grafana {
         redir /grafana/ 302
     }
-    handle /grafana* {
+    handle_path /grafana/* {
         reverse_proxy aniway-grafana:3000 {
             header_up X-Forwarded-Prefix /grafana
         }
@@ -29,7 +29,7 @@ https://aniway.space {
     handle /prometheus {
         redir /prometheus/ 302
     }
-    handle_path /prometheus* {
+    handle_path /prometheus/* {
         reverse_proxy aniway-prometheus:9090 {
             header_up X-Forwarded-Prefix /prometheus
         }
@@ -39,7 +39,7 @@ https://aniway.space {
     handle /alertmanager {
         redir /alertmanager/ 302
     }
-    handle_path /alertmanager* {
+    handle_path /alertmanager/* {
         reverse_proxy aniway-alertmanager:9093 {
             header_up X-Forwarded-Prefix /alertmanager
         }
