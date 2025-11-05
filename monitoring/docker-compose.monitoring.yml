@@ -68,6 +68,7 @@ services:
     restart: unless-stopped
     command:
       - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--config.expand-env"
       - "--storage.path=/alertmanager"
       - "--cluster.listen-address=0.0.0.0:9094"
       - "--web.external-url=${ALERTMANAGER_EXTERNAL_URL:-https://aniway.space/alertmanager/}"
