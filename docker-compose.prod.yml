@@ -46,6 +46,7 @@ services:
       - aniway-frontend
     networks:
       - aniway-network
+      - monitoring-net
 
   # Gateway Service
   gateway-service:
@@ -855,3 +856,5 @@ volumes:
 networks:
   aniway-network:
     driver: bridge
+  monitoring-net:
+    external: true
