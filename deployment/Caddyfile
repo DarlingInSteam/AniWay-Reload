@@ -15,6 +15,22 @@ https://aniway.space {
         file_server
     }
 
+    handle_path /prometheus* {
+        reverse_proxy aniway-prometheus:9090
+    }
+
+    handle /grafana {
+        redir /grafana/ 302
+    }
+
+    handle_path /grafana/* {
+        reverse_proxy aniway-grafana:3000
+    }
+
+    handle_path /alertmanager* {
+        reverse_proxy aniway-alertmanager:9093
+    }
+
     # Server-Sent Events (SSE) for notifications
     @sse {
         path /api/notifications/stream*
