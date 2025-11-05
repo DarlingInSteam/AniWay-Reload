@@ -29,8 +29,10 @@ services:
     ports:
       - "9090:9090"
     networks:
-      - monitoring-net
-      - aniway-network
+      monitoring-net:
+      aniway-network:
+        aliases:
+          - aniway-prometheus
     labels:
       org.label-schema.group: "monitoring"
 
@@ -55,8 +57,10 @@ services:
     ports:
       - "3000:3000"
     networks:
-      - monitoring-net
-      - aniway-network
+      monitoring-net:
+      aniway-network:
+        aliases:
+          - aniway-grafana
     depends_on:
       - prometheus
     labels:
@@ -91,8 +95,10 @@ services:
     ports:
       - "9093:9093"
     networks:
-      - monitoring-net
-      - aniway-network
+      monitoring-net:
+      aniway-network:
+        aliases:
+          - aniway-alertmanager
     labels:
       org.label-schema.group: "monitoring"
 
