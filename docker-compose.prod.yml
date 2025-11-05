@@ -59,6 +59,10 @@ services:
       - EUREKA_CLIENT_ENABLED=false
       - POST_SERVICE_URL=http://post-service:8097
       - LEVEL_SERVICE_URL=http://level-service:8098
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
     labels:
       - "prometheus.scrape=true"
       - "prometheus.job=aniway-backend"
@@ -121,6 +125,10 @@ services:
       - MAIL_DEBUG=false
       - EMAIL_VERIFICATION_ENABLED=true
       - EMAIL_VERIFICATION_FROM=noreply@aniway.space
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
     labels:
       - "prometheus.scrape=true"
       - "prometheus.job=aniway-backend"
@@ -154,6 +162,10 @@ services:
       - MELON_SERVICE_URL=http://parser-service:8084
       - CHAPTER_SERVICE_URL=http://chapter-service:8082
       - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
     labels:
       - "prometheus.scrape=true"
       - "prometheus.job=aniway-backend"
@@ -193,6 +205,10 @@ services:
       - RABBITMQ_PORT=5672
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-aniway}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-aniway_pass}
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
     labels:
       - "prometheus.scrape=true"
       - "prometheus.job=aniway-backend"
@@ -225,6 +241,10 @@ services:
       - FRIEND_DB_USERNAME=frienduser
       - FRIEND_DB_PASSWORD=friendpass123
       - NOTIFICATION_SERVICE_URL=http://notification-service:8095
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
     labels:
       - "prometheus.scrape=true"
       - "prometheus.job=aniway-backend"
@@ -258,6 +278,10 @@ services:
       - DATABASE_PASSWORD=aniway_pass
       - NOTIFICATION_SERVICE_URL=http://notification-service:8095
       - FRIEND_SERVICE_URL=http://friend-service:8102
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
     labels:
       - "prometheus.scrape=true"
       - "prometheus.job=aniway-backend"
@@ -292,6 +316,10 @@ services:
       - MANGA_SERVICE_URL=http://manga-service:8081
       - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
       - IMAGE_STORAGE_SERVICE_INTERNAL_URL=http://image-storage-service:8083
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
     labels:
       - "prometheus.scrape=true"
       - "prometheus.job=aniway-backend"
@@ -322,6 +350,10 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://image-postgres:5432/imagedb
       - SPRING_DATASOURCE_USERNAME=imageuser
       - SPRING_DATASOURCE_PASSWORD=imagepass123
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
     labels:
       - "prometheus.scrape=true"
       - "prometheus.job=aniway-backend"
@@ -359,6 +391,10 @@ services:
       - NOTIFICATION_SERVICE_URL=http://notification-service:8095
       - XP_EVENTS_EXCHANGE=${XP_EVENTS_EXCHANGE:-xp.events.exchange}
       - XP_EVENTS_MOMENT_LIKE_ROUTING_KEY=${XP_EVENTS_MOMENT_LIKE_ROUTING_KEY:-xp.events.moment-like}
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
     labels:
       - "prometheus.scrape=true"
       - "prometheus.job=aniway-backend"
@@ -395,6 +431,10 @@ services:
       - JWT_EXPIRATION=86400000
       - AUTH_SERVICE_URL=http://auth-service:8085
       - MANGA_SERVICE_URL=http://manga-service:8081
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
     labels:
       - "prometheus.scrape=true"
       - "prometheus.job=aniway-backend"
@@ -426,6 +466,10 @@ services:
       - SPRING_PROFILES_ACTIVE=prod
       - PARSER_OUTPUT_PATH=/app/output
       - PARSER_TEMP_PATH=/app/temp
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
     ports:
       - "8084:8084"
     volumes:
@@ -660,6 +704,10 @@ services:
       - TELEGRAM_NOTIFICATIONS_CHAPTER_LINK_TEMPLATE=${TELEGRAM_NOTIFICATIONS_CHAPTER_LINK_TEMPLATE:-https://aniway.space/reader/{mangaSlug}/{chapterUrlSegment}}
       - TELEGRAM_NOTIFICATIONS_MANGA_LINK_TEMPLATE=${TELEGRAM_NOTIFICATIONS_MANGA_LINK_TEMPLATE:-https://aniway.space/manga/{mangaSlug}}
       - TELEGRAM_NOTIFICATIONS_SITE_BASE_URL=${TELEGRAM_NOTIFICATIONS_SITE_BASE_URL:-https://aniway.space}
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
     labels:
       - "prometheus.scrape=true"
       - "prometheus.job=aniway-backend"
@@ -736,6 +784,10 @@ services:
       - RABBITMQ_PORT=5672
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-aniway}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-aniway_pass}
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
     labels:
       - "prometheus.scrape=true"
       - "prometheus.job=aniway-backend"
@@ -772,6 +824,10 @@ services:
       - RABBITMQ_PORT=5672
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-aniway}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-aniway_pass}
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
     labels:
       - "prometheus.scrape=true"
       - "prometheus.job=aniway-backend"
