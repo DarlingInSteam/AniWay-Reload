@@ -210,7 +210,7 @@
       },
       "targets": [
         {
-          "expr": "100 * sum by (service) (rate(container_cpu_usage_seconds_total{job=\"cadvisor\",cpu=\"total\"}[2m])) / count(count(node_cpu_seconds_total{job=\"node\"}) by (cpu))",
+          "expr": "100 * sum by (service) (rate(container_cpu_usage_seconds_total{job=\"cadvisor\",cpu=\"total\"}[2m])) / sum(machine_cpu_cores{job=\"cadvisor\"})",
           "legendFormat": "{{service}}",
           "refId": "A",
           "instant": true
