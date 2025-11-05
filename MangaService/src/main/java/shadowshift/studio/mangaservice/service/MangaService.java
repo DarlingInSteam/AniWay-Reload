@@ -24,6 +24,7 @@ import shadowshift.studio.mangaservice.exception.MangaServiceException;
 import shadowshift.studio.mangaservice.mapper.MangaMapper;
 import shadowshift.studio.mangaservice.repository.MangaRepository;
 import shadowshift.studio.mangaservice.service.external.ChapterServiceClient;
+import shadowshift.studio.mangaservice.service.external.ExternalMetricsClient;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -66,6 +67,7 @@ public class MangaService {
     private final GenreService genreService;
     private final TagService tagService;
     private final MelonIntegrationService melonIntegrationService;
+    private final ExternalMetricsClient externalMetricsClient;
 
     // Кэш для rate limiting просмотров: ключ - "userId_mangaId", значение - timestamp последнего просмотра
     private final ConcurrentHashMap<String, Long> viewRateLimitCache = new ConcurrentHashMap<>();
@@ -87,6 +89,8 @@ public class MangaService {
      * @param serviceUrlProperties конфигурация URL сервисов
      * @param genreService сервис для работы с жанрами
      * @param tagService сервис для работы с тегами
+    * @param melonIntegrationService сервис интеграции с Melon API
+    * @param externalMetricsClient клиент, собирающий метрики из внешних сервисов
      */
     public MangaService(MangaRepository mangaRepository, 
                        ChapterServiceClient chapterServiceClient,
@@ -95,7 +99,8 @@ public class MangaService {
                        ServiceUrlProperties serviceUrlProperties,
                        GenreService genreService,
                        TagService tagService,
-                       MelonIntegrationService melonIntegrationService) {
+                       MelonIntegrationService melonIntegrationService,
+                       ExternalMetricsClient externalMetricsClient) {
         this.mangaRepository = mangaRepository;
         this.chapterServiceClient = chapterServiceClient;
         this.mangaMapper = mangaMapper;
@@ -104,6 +109,7 @@ public class MangaService {
         this.genreService = genreService;
         this.tagService = tagService;
         this.melonIntegrationService = melonIntegrationService;
+        this.externalMetricsClient = externalMetricsClient;
         logger.info("Инициализирован MangaService");
     }
 
