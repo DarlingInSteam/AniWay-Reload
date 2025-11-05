@@ -54,6 +54,8 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
     long countByRole(Role role);
     long countByBanTypeNot(BanType banType);
 
+    long countByCreatedAtAfter(LocalDateTime createdAfter);
+
     @Query("SELECT COUNT(u) FROM User u WHERE (u.lastLogin IS NOT NULL AND u.lastLogin >= :cutoff) OR (u.lastLogin IS NULL AND u.createdAt >= :cutoff)")
     long countActiveSince(@Param("cutoff") LocalDateTime cutoff);
     

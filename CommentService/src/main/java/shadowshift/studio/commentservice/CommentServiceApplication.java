@@ -2,6 +2,7 @@ package shadowshift.studio.commentservice;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Основной класс приложения CommentService.
@@ -12,6 +13,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * @author ShadowShiftStudio
  */
 @SpringBootApplication
+@EnableScheduling
 public class CommentServiceApplication {
 
     /**

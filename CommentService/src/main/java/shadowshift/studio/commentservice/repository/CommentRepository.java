@@ -228,4 +228,13 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
         */
        @Query("SELECT c FROM Comment c WHERE c.isDeleted = false AND c.createdAt >= :fromDate ORDER BY (c.likesCount - c.dislikesCount) DESC, c.likesCount DESC, c.createdAt DESC")
        org.springframework.data.domain.Page<Comment> findTopCommentsSince(@Param("fromDate") java.time.LocalDateTime fromDate, org.springframework.data.domain.Pageable pageable);
+
+              /**
+               * Placeholder hook for moderation backlog counting. When a dedicated moderation queue is introduced,
+               * this method can be overridden with {@code @Query}. For now, the monitoring dashboard expects
+               * a numeric value, so we return zero by default.
+               */
+              default long countPendingModeration() {
+                     return 0L;
+              }
 }

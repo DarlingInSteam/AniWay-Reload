@@ -24,6 +24,7 @@ import shadowshift.studio.commentservice.enums.CommentType;
 import shadowshift.studio.commentservice.enums.ReactionType;
 import shadowshift.studio.commentservice.repository.CommentRepository;
 import shadowshift.studio.commentservice.repository.CommentReactionRepository;
+import shadowshift.studio.commentservice.metrics.CommentBusinessMetrics;
 import shadowshift.studio.commentservice.notification.NotificationEventPublisher;
 import shadowshift.studio.commentservice.review.ReviewAuthorClient;
 
@@ -48,6 +49,7 @@ public class CommentService {
     private final CommentRepository commentRepository;
     private final CommentReactionRepository commentReactionRepository;
     private final RabbitTemplate rabbitTemplate;
+    private final CommentBusinessMetrics commentBusinessMetrics;
 
     @Value("${xp.events.exchange:xp.events.exchange}")
     private String xpExchange;
@@ -108,7 +110,9 @@ public class CommentService {
             comment.setParentComment(parentComment);
         }
 
-    Comment savedComment = commentRepository.save(comment);
+        Comment savedComment = commentRepository.save(comment);
+        commentBusinessMetrics.recordCommentCreated();
+        commentBusinessMetrics.updatePendingModerationGauge();
 
         // Fire-and-forget increment of user comment counter in AuthService
         try {
@@ -266,7 +270,8 @@ public class CommentService {
         comment.setDeletedAt(LocalDateTime.now(ZoneOffset.UTC));
         comment.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
 
-        commentRepository.save(comment);
+    commentRepository.save(comment);
+    commentBusinessMetrics.updatePendingModerationGauge();
 
         deleteChildComments(commentId);
 
@@ -285,7 +290,7 @@ public class CommentService {
             child.setIsDeleted(true);
             child.setDeletedAt(LocalDateTime.now(ZoneOffset.UTC));
             child.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
-            commentRepository.save(child);
+        commentRepository.save(child);
 
             deleteChildComments(child.getId());
         }
