@@ -20,7 +20,12 @@ https://aniway.space {
         redir /grafana/ 302
     }
     handle /grafana/* {
-        reverse_proxy aniway-grafana:3000
+        reverse_proxy aniway-grafana:3000 {
+            header_up Host {http.request.host}
+            header_up X-Forwarded-Host {http.request.host}
+            header_up X-Forwarded-Proto {http.request.scheme}
+            header_up X-Forwarded-Prefix /grafana
+        }
     }
 
     # Prometheus
@@ -28,7 +33,12 @@ https://aniway.space {
         redir /prometheus/ 302
     }
     handle /prometheus/* {
-        reverse_proxy aniway-prometheus:9090
+        reverse_proxy aniway-prometheus:9090 {
+            header_up Host {http.request.host}
+            header_up X-Forwarded-Host {http.request.host}
+            header_up X-Forwarded-Proto {http.request.scheme}
+            header_up X-Forwarded-Prefix /prometheus
+        }
     }
 
     # Alertmanager
@@ -36,7 +46,12 @@ https://aniway.space {
         redir /alertmanager/ 302
     }
     handle /alertmanager/* {
-        reverse_proxy aniway-alertmanager:9093
+        reverse_proxy aniway-alertmanager:9093 {
+            header_up Host {http.request.host}
+            header_up X-Forwarded-Host {http.request.host}
+            header_up X-Forwarded-Proto {http.request.scheme}
+            header_up X-Forwarded-Prefix /alertmanager
+        }
     }
 
     # Server-Sent Events (SSE) for notifications
