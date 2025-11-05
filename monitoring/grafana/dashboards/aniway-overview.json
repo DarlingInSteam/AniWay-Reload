@@ -168,8 +168,6 @@
           "color": {
             "mode": "thresholds"
           },
-          "max": 1,
-          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -179,15 +177,15 @@
               },
               {
                 "color": "orange",
-                "value": 0.5
+                "value": 50
               },
               {
                 "color": "red",
-                "value": 0.8
+                "value": 80
               }
             ]
           },
-          "unit": "percentunit"
+          "unit": "percent"
         },
         "overrides": []
       },
@@ -212,9 +210,10 @@
       },
       "targets": [
         {
-          "expr": "sum by (service) (rate(container_cpu_usage_seconds_total{job=\"cadvisor\",cpu=\"total\"}[5m]))",
+          "expr": "100 * sum by (service) (rate(container_cpu_usage_seconds_total{job=\"cadvisor\",cpu=\"total\"}[2m])) / count(count(node_cpu_seconds_total{job=\"node\"}) by (cpu))",
           "legendFormat": "{{service}}",
-          "refId": "A"
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "Загрузка CPU по контейнерам",
