@@ -59,6 +59,12 @@ services:
       - EUREKA_CLIENT_ENABLED=false
       - POST_SERVICE_URL=http://post-service:8097
       - LEVEL_SERVICE_URL=http://level-service:8098
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8080"
+      - "prometheus.instance=gateway-service"
     restart: unless-stopped
     deploy:
       resources:
@@ -115,6 +121,12 @@ services:
       - MAIL_DEBUG=false
       - EMAIL_VERIFICATION_ENABLED=true
       - EMAIL_VERIFICATION_FROM=noreply@aniway.space
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8085"
+      - "prometheus.instance=auth-service"
     restart: unless-stopped
     deploy:
       resources:
@@ -142,6 +154,12 @@ services:
       - MELON_SERVICE_URL=http://parser-service:8084
       - CHAPTER_SERVICE_URL=http://chapter-service:8082
       - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8081"
+      - "prometheus.instance=manga-service"
     restart: unless-stopped
     deploy:
       resources:
@@ -175,6 +193,12 @@ services:
       - RABBITMQ_PORT=5672
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-aniway}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-aniway_pass}
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8086"
+      - "prometheus.instance=comment-service"
     restart: unless-stopped
     deploy:
       resources:
@@ -201,6 +225,12 @@ services:
       - FRIEND_DB_USERNAME=frienduser
       - FRIEND_DB_PASSWORD=friendpass123
       - NOTIFICATION_SERVICE_URL=http://notification-service:8095
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8102"
+      - "prometheus.instance=friend-service"
     restart: unless-stopped
     deploy:
       resources:
@@ -228,6 +258,12 @@ services:
       - DATABASE_PASSWORD=aniway_pass
       - NOTIFICATION_SERVICE_URL=http://notification-service:8095
       - FRIEND_SERVICE_URL=http://friend-service:8102
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8103"
+      - "prometheus.instance=message-service"
     restart: unless-stopped
     deploy:
       resources:
@@ -256,6 +292,12 @@ services:
       - MANGA_SERVICE_URL=http://manga-service:8081
       - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
       - IMAGE_STORAGE_SERVICE_INTERNAL_URL=http://image-storage-service:8083
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8082"
+      - "prometheus.instance=chapter-service"
     restart: unless-stopped
     deploy:
       resources:
@@ -280,6 +322,12 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://image-postgres:5432/imagedb
       - SPRING_DATASOURCE_USERNAME=imageuser
       - SPRING_DATASOURCE_PASSWORD=imagepass123
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8083"
+      - "prometheus.instance=image-storage-service"
     restart: unless-stopped
     deploy:
       resources:
@@ -311,6 +359,12 @@ services:
       - NOTIFICATION_SERVICE_URL=http://notification-service:8095
       - XP_EVENTS_EXCHANGE=${XP_EVENTS_EXCHANGE:-xp.events.exchange}
       - XP_EVENTS_MOMENT_LIKE_ROUTING_KEY=${XP_EVENTS_MOMENT_LIKE_ROUTING_KEY:-xp.events.moment-like}
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8099"
+      - "prometheus.instance=moment-service"
     restart: unless-stopped
     deploy:
       resources:
@@ -341,6 +395,12 @@ services:
       - JWT_EXPIRATION=86400000
       - AUTH_SERVICE_URL=http://auth-service:8085
       - MANGA_SERVICE_URL=http://manga-service:8081
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8087"
+      - "prometheus.instance=forum-service"
     restart: unless-stopped
     deploy:
       resources:
@@ -371,6 +431,12 @@ services:
     volumes:
       - parser_data:/app/output
       - parser_temp:/app/temp
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8084"
+      - "prometheus.instance=parser-service"
     restart: unless-stopped
     deploy:
       resources:
@@ -594,6 +660,12 @@ services:
       - TELEGRAM_NOTIFICATIONS_CHAPTER_LINK_TEMPLATE=${TELEGRAM_NOTIFICATIONS_CHAPTER_LINK_TEMPLATE:-https://aniway.space/reader/{mangaSlug}/{chapterUrlSegment}}
       - TELEGRAM_NOTIFICATIONS_MANGA_LINK_TEMPLATE=${TELEGRAM_NOTIFICATIONS_MANGA_LINK_TEMPLATE:-https://aniway.space/manga/{mangaSlug}}
       - TELEGRAM_NOTIFICATIONS_SITE_BASE_URL=${TELEGRAM_NOTIFICATIONS_SITE_BASE_URL:-https://aniway.space}
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8095"
+      - "prometheus.instance=notification-service"
     restart: unless-stopped
     deploy:
       resources:
@@ -664,6 +736,12 @@ services:
       - RABBITMQ_PORT=5672
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-aniway}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-aniway_pass}
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8097"
+      - "prometheus.instance=post-service"
     restart: unless-stopped
     deploy:
       resources:
@@ -694,6 +772,12 @@ services:
       - RABBITMQ_PORT=5672
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-aniway}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-aniway_pass}
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8098"
+      - "prometheus.instance=level-service"
     restart: unless-stopped
     deploy:
       resources:
