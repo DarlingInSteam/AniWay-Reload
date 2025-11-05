@@ -20,11 +20,7 @@ https://aniway.space {
         redir /grafana/ 302
     }
     handle_path /grafana/* {
-        reverse_proxy aniway-grafana:3000 {
-            header_up X-Forwarded-Host {host}
-            header_up X-Forwarded-Proto {scheme}
-            header_up X-Forwarded-Uri {uri}
-        }
+        reverse_proxy aniway-grafana:3000
     }
 
     # Prometheus
@@ -78,6 +74,7 @@ https://aniway.space {
 
     # All other requests to frontend
     reverse_proxy aniway-frontend:80
+}
 
 http://aniway.space {
     handle /.well-known/acme-challenge/* {
