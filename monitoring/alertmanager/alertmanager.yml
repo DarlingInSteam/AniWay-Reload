@@ -24,14 +24,14 @@ receivers:
   - name: default
     email_configs:
       - to: "${ALERTMANAGER_EMAIL_TO}"
-        subject: "[Aniway][{{ .Status }}] {{ .CommonLabels.alertname }}"
         html: '{{ template "aniway.default.html" . }}'
         headers:
+          Subject: "[Aniway][{{ .Status }}] {{ .CommonLabels.alertname }}"
           Reply-To: "${ALERTMANAGER_EMAIL_FROM}"
   - name: telegram-critical
     telegram_configs:
       - bot_token: "${ALERTMANAGER_TELEGRAM_BOT_TOKEN}"
-        chat_id: "${ALERTMANAGER_TELEGRAM_CHAT_ID}"
+        chat_id: ${ALERTMANAGER_TELEGRAM_CHAT_ID}
         api_url: https://api.telegram.org
         parse_mode: Markdown
         message: '{{ template "aniway.telegram.message" . }}'
@@ -39,9 +39,9 @@ receivers:
   - name: email-warning
     email_configs:
       - to: "${ALERTMANAGER_EMAIL_TO}"
-        subject: "[Aniway][{{ .Status }}] {{ .CommonLabels.alertname }}"
         html: '{{ template "aniway.default.html" . }}'
         headers:
+          Subject: "[Aniway][{{ .Status }}] {{ .CommonLabels.alertname }}"
           Reply-To: "${ALERTMANAGER_EMAIL_FROM}"
 
 templates:

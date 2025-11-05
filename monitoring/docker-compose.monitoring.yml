@@ -70,6 +70,7 @@ services:
       - "--config.file=/etc/alertmanager/alertmanager.yml"
       - "--storage.path=/alertmanager"
       - "--cluster.listen-address=0.0.0.0:9094"
+      - "--config.expand-environment-variables"
       - "--web.external-url=${ALERTMANAGER_EXTERNAL_URL:-https://aniway.space/alertmanager/}"
     volumes:
       - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
