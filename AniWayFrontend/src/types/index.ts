@@ -20,6 +20,12 @@ export interface MangaResponseDTO {
   coverImageUrl: string
   chapterCount: number
   totalChapters: number
+  rating?: number | null
+  ratingCount?: number | null
+  likes?: number | null
+  comments?: number | null
+  reviews?: number | null
+  popularity?: number | null
   views: number
   createdAt: string
   updatedAt: string

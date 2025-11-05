@@ -195,7 +195,6 @@ export function CatalogPage() {
     ratingCount: 'По кол-ву оценок',
     likes: 'По лайкам',
     views: 'По просмотрам',
-    reviews: 'По отзывам',
     comments: 'По комментариям'
   }
   const SORT_FIELD_BY_LABEL: Record<string,string> = Object.fromEntries(Object.entries(SORT_LABEL_BY_FIELD).map(([field,label]) => [label, field]))
@@ -327,7 +326,8 @@ export function CatalogPage() {
       createdAt: 'createdat',
       updatedAt: 'updatedat',
       chapterCount: 'chaptercount',
-      ratingCount: 'ratingcount'
+      ratingCount: 'ratingcount',
+      reviews: 'comments'
     }
     return map[field] || field.toLowerCase()
   }
@@ -415,18 +415,37 @@ export function CatalogPage() {
         return obj[field] ? new Date(obj[field]).getTime() : 0
       case 'chapterCount':
         return obj.totalChapters ?? obj.chapterCount ?? 0
-      case 'rating':
-        return (obj as any).rating?.averageRating ?? (obj as any).averageRating ?? 0
-      case 'ratingCount':
-        return (obj as any).rating?.ratingCount ?? (obj as any).ratingCount ?? 0
+      case 'rating': {
+        const raw = (obj as any).rating
+        if (typeof raw === 'number') {
+          return raw
+        }
+        if (raw && typeof raw === 'object') {
+          const nested = raw.averageRating ?? raw.value ?? raw.mean ?? raw.rating
+          if (typeof nested === 'number') {
+            return nested
+          }
+        }
+        const fallback = (obj as any).averageRating ?? (obj as any).ratingAverage
+        return typeof fallback === 'number' ? fallback : 0
+      }
+      case 'ratingCount': {
+        const rawCount = (obj as any).ratingCount
+        if (typeof rawCount === 'number') {
+          return rawCount
+        }
+        const nestedCount = (obj as any).rating?.ratingCount ?? (obj as any).rating?.totalReviews
+        if (typeof nestedCount === 'number') {
+          return nestedCount
+        }
+        return 0
+      }
       case 'likes':
         return obj.likes ?? 0
       case 'views':
         return obj.views ?? 0
       case 'popularity':
         return obj.popularity ?? obj.views ?? 0
-      case 'reviews':
-        return obj.reviews ?? 0
       case 'comments':
         return obj.comments ?? 0
       default:
