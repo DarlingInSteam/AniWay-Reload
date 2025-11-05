@@ -240,7 +240,7 @@ services:
       prometheus.scrape: "true"
       prometheus.job: "postgres"
       prometheus.port: "9187"
-  prometheus.instance: "${IMAGE_DB_INSTANCE:-image-storage-postgres}"
+      prometheus.instance: "${IMAGE_DB_INSTANCE:-image-storage-postgres}"
 
   postgres-exporter-moment:
     image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
