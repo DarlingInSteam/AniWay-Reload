@@ -10,6 +10,7 @@ public class ServiceUrlProperties {
     private String authServiceUrl = "http://auth-service:8085";
     private String chapterServiceUrl = "http://chapter-service:8082";
     private String imageStorageServiceUrl = "http://image-storage-service:8083";
+    private String commentServiceUrl = "http://comment-service:8086";
     private String melonServiceUrl = "http://melon-service:8084";
     private String melonServicePublicUrl = "http://localhost:8084";
     
@@ -37,6 +38,14 @@ public class ServiceUrlProperties {
         this.imageStorageServiceUrl = imageStorageServiceUrl;
     }
     
+    public String getCommentServiceUrl() {
+        return commentServiceUrl;
+    }
+
+    public void setCommentServiceUrl(String commentServiceUrl) {
+        this.commentServiceUrl = commentServiceUrl;
+    }
+
     public String getMelonServiceUrl() {
         return melonServiceUrl;
     }

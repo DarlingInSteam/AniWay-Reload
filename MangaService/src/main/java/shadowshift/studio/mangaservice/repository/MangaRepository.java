@@ -19,7 +19,7 @@ import java.util.Optional;
  * @author ShadowShiftStudio
  */
 @Repository
-public interface MangaRepository extends JpaRepository<Manga, Long> {
+public interface MangaRepository extends JpaRepository<Manga, Long>, MangaRepositoryCustom {
 
     /**
      * Ищет манги по частичному совпадению названия, игнорируя регистр.
@@ -65,8 +65,6 @@ public interface MangaRepository extends JpaRepository<Manga, Long> {
             CASE WHEN :sortBy = 'ratingCount' AND :sortOrder = 'desc' THEN m.ratingCount END DESC,
             CASE WHEN :sortBy = 'likes' AND :sortOrder = 'asc' THEN m.likes END ASC,
             CASE WHEN :sortBy = 'likes' AND :sortOrder = 'desc' THEN m.likes END DESC,
-            CASE WHEN :sortBy = 'reviews' AND :sortOrder = 'asc' THEN m.reviews END ASC,
-            CASE WHEN :sortBy = 'reviews' AND :sortOrder = 'desc' THEN m.reviews END DESC,
             CASE WHEN :sortBy = 'comments' AND :sortOrder = 'asc' THEN m.comments END ASC,
             CASE WHEN :sortBy = 'comments' AND :sortOrder = 'desc' THEN m.comments END DESC,
             CASE WHEN :sortBy = 'chapterCount' AND :sortOrder = 'asc' THEN m.totalChapters END ASC,
@@ -89,6 +87,13 @@ public interface MangaRepository extends JpaRepository<Manga, Long> {
      */
     @Query("SELECT m FROM Manga m ORDER BY m.createdAt DESC")
     List<Manga> findAllOrderByCreatedAtDesc();
+
+    /**
+     * Возвращает идентификаторы всех манг без загрузки полных сущностей.
+     * Используется для фоновой синхронизации метрик.
+     */
+    @Query("SELECT m.id FROM Manga m")
+    List<Long> findAllIds();
 
     /**
      * Возвращает все манги с пагинацией, отсортированные по дате создания в убывающем порядке.
@@ -167,8 +172,6 @@ public interface MangaRepository extends JpaRepository<Manga, Long> {
             CASE WHEN :sortBy = 'ratingCount' AND :sortOrder = 'desc' THEN m.rating_count END DESC,
             CASE WHEN :sortBy = 'likes' AND :sortOrder = 'asc' THEN m.likes END ASC,
             CASE WHEN :sortBy = 'likes' AND :sortOrder = 'desc' THEN m.likes END DESC,
-            CASE WHEN :sortBy = 'reviews' AND :sortOrder = 'asc' THEN m.reviews END ASC,
-            CASE WHEN :sortBy = 'reviews' AND :sortOrder = 'desc' THEN m.reviews END DESC,
             CASE WHEN :sortBy = 'comments' AND :sortOrder = 'asc' THEN m.comments END ASC,
             CASE WHEN :sortBy = 'comments' AND :sortOrder = 'desc' THEN m.comments END DESC,
             CASE WHEN :sortBy = 'chapterCount' AND :sortOrder = 'asc' THEN m.total_chapters END ASC,

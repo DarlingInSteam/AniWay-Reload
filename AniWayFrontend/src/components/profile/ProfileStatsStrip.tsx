@@ -49,7 +49,7 @@ export const ProfileStatsStrip: React.FC<ProfileStatsStripProps> = ({ profile, e
           <div
             key={s.label}
             role="listitem"
-            className="relative group glass-inline rounded-xl px-3 py-3 flex flex-col items-start transition-colors hover:bg-white/10 hover:border-white/20 min-w-[var(--stat-min)] snap-start"
+            className="relative group rounded-xl border border-white/10 bg-white/[0.04] px-3 py-3 flex flex-col items-start transition-colors hover:bg-white/10 hover:border-white/20 min-w-[var(--stat-min)] snap-start"
           >
             <div className="text-[10px] uppercase tracking-wide text-slate-400 font-medium whitespace-nowrap">{s.label}</div>
             <div className="text-lg font-semibold text-white/90 group-hover:text-white transition">{s.value}</div>

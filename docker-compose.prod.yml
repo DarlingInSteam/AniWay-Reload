@@ -9,6 +9,14 @@ services:
     expose:
       - "80"
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.45"
+          memory: 320M
+        reservations:
+          cpus: "0.20"
+          memory: 160M
     networks:
       - aniway-network
 
@@ -26,6 +34,14 @@ services:
       - ./deployment/site-verifications:/srv/verifications:ro
       - caddy_data:/data
       - caddy_config:/config
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 384M
+        reservations:
+          cpus: "0.20"
+          memory: 160M
     depends_on:
       - aniway-frontend
     networks:
@@ -43,7 +59,25 @@ services:
       - EUREKA_CLIENT_ENABLED=false
       - POST_SERVICE_URL=http://post-service:8097
       - LEVEL_SERVICE_URL=http://level-service:8098
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8080"
+      - "prometheus.instance=gateway-service"
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.25"
+          memory: 1536M
+        reservations:
+          cpus: "0.50"
+          memory: 640M
     depends_on:
       - auth-service
       - manga-service
@@ -91,7 +125,25 @@ services:
       - MAIL_DEBUG=false
       - EMAIL_VERIFICATION_ENABLED=true
       - EMAIL_VERIFICATION_FROM=noreply@aniway.space
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8085"
+      - "prometheus.instance=auth-service"
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 1280M
+        reservations:
+          cpus: "0.35"
+          memory: 640M
     depends_on:
       - auth-postgres
     networks:
@@ -110,7 +162,25 @@ services:
       - MELON_SERVICE_URL=http://parser-service:8084
       - CHAPTER_SERVICE_URL=http://chapter-service:8082
       - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8081"
+      - "prometheus.instance=manga-service"
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.80"
+          memory: 2560M
+        reservations:
+          cpus: "0.75"
+          memory: 1536M
     depends_on:
       - manga-postgres
       - chapter-service
@@ -135,7 +205,25 @@ services:
       - RABBITMQ_PORT=5672
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-aniway}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-aniway_pass}
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8086"
+      - "prometheus.instance=comment-service"
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 1280M
+        reservations:
+          cpus: "0.35"
+          memory: 640M
     depends_on:
       - comment-postgres
       - rabbitmq
@@ -153,7 +241,25 @@ services:
       - FRIEND_DB_USERNAME=frienduser
       - FRIEND_DB_PASSWORD=friendpass123
       - NOTIFICATION_SERVICE_URL=http://notification-service:8095
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8102"
+      - "prometheus.instance=friend-service"
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.75"
+          memory: 896M
+        reservations:
+          cpus: "0.25"
+          memory: 384M
     depends_on:
       - friend-postgres
       - notification-service
@@ -172,7 +278,25 @@ services:
       - DATABASE_PASSWORD=aniway_pass
       - NOTIFICATION_SERVICE_URL=http://notification-service:8095
       - FRIEND_SERVICE_URL=http://friend-service:8102
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8103"
+      - "prometheus.instance=message-service"
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.40"
+          memory: 1536M
+        reservations:
+          cpus: "0.50"
+          memory: 768M
     depends_on:
       - message-postgres
       - friend-service
@@ -192,7 +316,25 @@ services:
       - MANGA_SERVICE_URL=http://manga-service:8081
       - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
       - IMAGE_STORAGE_SERVICE_INTERNAL_URL=http://image-storage-service:8083
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8082"
+      - "prometheus.instance=chapter-service"
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.40"
+          memory: 1792M
+        reservations:
+          cpus: "0.50"
+          memory: 1024M
     depends_on:
       - chapter-postgres
     networks:
@@ -208,7 +350,25 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://image-postgres:5432/imagedb
       - SPRING_DATASOURCE_USERNAME=imageuser
       - SPRING_DATASOURCE_PASSWORD=imagepass123
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8083"
+      - "prometheus.instance=image-storage-service"
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.50"
+          memory: 2048M
+        reservations:
+          cpus: "0.55"
+          memory: 1280M
     depends_on:
       - image-postgres
     networks:
@@ -231,7 +391,25 @@ services:
       - NOTIFICATION_SERVICE_URL=http://notification-service:8095
       - XP_EVENTS_EXCHANGE=${XP_EVENTS_EXCHANGE:-xp.events.exchange}
       - XP_EVENTS_MOMENT_LIKE_ROUTING_KEY=${XP_EVENTS_MOMENT_LIKE_ROUTING_KEY:-xp.events.moment-like}
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8099"
+      - "prometheus.instance=moment-service"
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.30"
+          memory: 1536M
+        reservations:
+          cpus: "0.45"
+          memory: 768M
     depends_on:
       - moment-postgres
       - rabbitmq
@@ -253,7 +431,25 @@ services:
       - JWT_EXPIRATION=86400000
       - AUTH_SERVICE_URL=http://auth-service:8085
       - MANGA_SERVICE_URL=http://manga-service:8081
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8087"
+      - "prometheus.instance=forum-service"
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.10"
+          memory: 1280M
+        reservations:
+          cpus: "0.35"
+          memory: 640M
     depends_on:
       - forum-postgres
       - auth-service
@@ -270,12 +466,30 @@ services:
       - SPRING_PROFILES_ACTIVE=prod
       - PARSER_OUTPUT_PATH=/app/output
       - PARSER_TEMP_PATH=/app/temp
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
     ports:
       - "8084:8084"
     volumes:
       - parser_data:/app/output
       - parser_temp:/app/temp
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8084"
+      - "prometheus.instance=parser-service"
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.80"
+          memory: 2560M
+        reservations:
+          cpus: "0.70"
+          memory: 1536M
     networks:
       - aniway-network
     healthcheck:
@@ -294,6 +508,14 @@ services:
     volumes:
       - post_data:/var/lib/postgresql/data
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 1536M
+        reservations:
+          cpus: "0.30"
+          memory: 768M
     networks:
       - aniway-network
 
@@ -307,6 +529,14 @@ services:
       - auth_data:/var/lib/postgresql/data
       - ./AuthService/authDB.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.70"
+          memory: 1024M
+        reservations:
+          cpus: "0.25"
+          memory: 512M
     networks:
       - aniway-network
 
@@ -320,6 +550,14 @@ services:
       - manga_data:/var/lib/postgresql/data
       - ./MangaService/mangaDB.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.10"
+          memory: 1792M
+        reservations:
+          cpus: "0.35"
+          memory: 896M
     networks:
       - aniway-network
 
@@ -333,6 +571,14 @@ services:
       - comment_data:/var/lib/postgresql/data
       - ./CommentService/commentDB.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.80"
+          memory: 1280M
+        reservations:
+          cpus: "0.25"
+          memory: 640M
     networks:
       - aniway-network
 
@@ -346,6 +592,14 @@ services:
       - friend_data:/var/lib/postgresql/data
       - ./FriendService/friendDB.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.70"
+          memory: 1024M
+        reservations:
+          cpus: "0.20"
+          memory: 512M
     networks:
       - aniway-network
 
@@ -359,6 +613,14 @@ services:
       - chapter_data:/var/lib/postgresql/data
       - ./ChapterService/chapterDB.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.90"
+          memory: 1280M
+        reservations:
+          cpus: "0.25"
+          memory: 640M
     networks:
       - aniway-network
 
@@ -372,6 +634,14 @@ services:
       - image_data:/var/lib/postgresql/data
       - ./ImageStorageService/imageStorageDB.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.20"
+          memory: 1792M
+        reservations:
+          cpus: "0.35"
+          memory: 896M
     networks:
       - aniway-network
 
@@ -384,6 +654,14 @@ services:
     volumes:
       - moment_data:/var/lib/postgresql/data
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.70"
+          memory: 1024M
+        reservations:
+          cpus: "0.20"
+          memory: 512M
     networks:
       - aniway-network
 
@@ -397,6 +675,14 @@ services:
       - forum_data:/var/lib/postgresql/data
       - ./ForumService/forumDB.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.80"
+          memory: 1280M
+        reservations:
+          cpus: "0.25"
+          memory: 640M
     networks:
       - aniway-network
 
@@ -410,7 +696,7 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://notification-postgres:5432/notificationdb
       - SPRING_DATASOURCE_USERNAME=notificationuser
       - SPRING_DATASOURCE_PASSWORD=notificationpass123
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:?set-your-token}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-8459139354:AAHifX_QVH5q_jzVx0ROs44xD3e2xHKel38}
       - TELEGRAM_NOTIFICATIONS_ENABLED=${TELEGRAM_NOTIFICATIONS_ENABLED:-true}
       - TELEGRAM_NOTIFICATIONS_AGGREGATE_WINDOW_SECONDS=${TELEGRAM_NOTIFICATIONS_AGGREGATE_WINDOW_SECONDS:-60}
       - TELEGRAM_NOTIFICATIONS_MAX_RETRIES=${TELEGRAM_NOTIFICATIONS_MAX_RETRIES:-3}
@@ -418,7 +704,25 @@ services:
       - TELEGRAM_NOTIFICATIONS_CHAPTER_LINK_TEMPLATE=${TELEGRAM_NOTIFICATIONS_CHAPTER_LINK_TEMPLATE:-https://aniway.space/reader/{mangaSlug}/{chapterUrlSegment}}
       - TELEGRAM_NOTIFICATIONS_MANGA_LINK_TEMPLATE=${TELEGRAM_NOTIFICATIONS_MANGA_LINK_TEMPLATE:-https://aniway.space/manga/{mangaSlug}}
       - TELEGRAM_NOTIFICATIONS_SITE_BASE_URL=${TELEGRAM_NOTIFICATIONS_SITE_BASE_URL:-https://aniway.space}
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8095"
+      - "prometheus.instance=notification-service"
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.80"
+          memory: 896M
+        reservations:
+          cpus: "0.25"
+          memory: 384M
     depends_on:
       - notification-postgres
     networks:
@@ -433,6 +737,14 @@ services:
     volumes:
       - notification_data:/var/lib/postgresql/data
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.70"
+          memory: 1024M
+        reservations:
+          cpus: "0.20"
+          memory: 512M
     networks:
       - aniway-network
 
@@ -446,6 +758,14 @@ services:
       - message_data:/var/lib/postgresql/data
       - ./MessageService/messageDB.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.90"
+          memory: 1280M
+        reservations:
+          cpus: "0.30"
+          memory: 640M
     networks:
       - aniway-network
 
@@ -464,7 +784,25 @@ services:
       - RABBITMQ_PORT=5672
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-aniway}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-aniway_pass}
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8097"
+      - "prometheus.instance=post-service"
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.40"
+          memory: 1536M
+        reservations:
+          cpus: "0.50"
+          memory: 768M
     depends_on:
       - post-postgres
       - image-storage-service
@@ -486,7 +824,25 @@ services:
       - RABBITMQ_PORT=5672
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-aniway}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-aniway_pass}
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.job=aniway-backend"
+      - "prometheus.metrics_path=/actuator/prometheus"
+      - "prometheus.port=8098"
+      - "prometheus.instance=level-service"
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.80"
+          memory: 896M
+        reservations:
+          cpus: "0.25"
+          memory: 384M
     depends_on:
       - level-postgres
       - rabbitmq
@@ -502,6 +858,14 @@ services:
     volumes:
       - level_data:/var/lib/postgresql/data
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.70"
+          memory: 1024M
+        reservations:
+          cpus: "0.20"
+          memory: 512M
     networks:
       - aniway-network
 
@@ -515,6 +879,14 @@ services:
       - "5672:5672"
       - "15672:15672"
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.20"
+          memory: 1536M
+        reservations:
+          cpus: "0.45"
+          memory: 640M
     networks:
       - aniway-network
 
@@ -538,4 +910,5 @@ volumes:
 
 networks:
   aniway-network:
-    driver: bridge
+    external: true
+    name: aniway-network

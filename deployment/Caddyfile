@@ -15,6 +15,51 @@ https://aniway.space {
         file_server
     }
 
+    # Grafana
+    handle /grafana {
+        redir /grafana/ 302
+    }
+    handle /grafana/ {
+        reverse_proxy aniway-grafana:3000 {
+            header_up X-Forwarded-Prefix /grafana
+        }
+    }
+    handle /grafana/* {
+        reverse_proxy aniway-grafana:3000 {
+            header_up X-Forwarded-Prefix /grafana
+        }
+    }
+
+    # Prometheus
+    handle /prometheus {
+        redir /prometheus/ 302
+    }
+    handle /prometheus/ {
+        reverse_proxy aniway-prometheus:9090 {
+            header_up X-Forwarded-Prefix /prometheus
+        }
+    }
+    handle /prometheus/* {
+        reverse_proxy aniway-prometheus:9090 {
+            header_up X-Forwarded-Prefix /prometheus
+        }
+    }
+
+    # Alertmanager
+    handle /alertmanager {
+        redir /alertmanager/ 302
+    }
+    handle /alertmanager/ {
+        reverse_proxy aniway-alertmanager:9093 {
+            header_up X-Forwarded-Prefix /alertmanager
+        }
+    }
+    handle /alertmanager/* {
+        reverse_proxy aniway-alertmanager:9093 {
+            header_up X-Forwarded-Prefix /alertmanager
+        }
+    }
+
     # Server-Sent Events (SSE) for notifications
     @sse {
         path /api/notifications/stream*

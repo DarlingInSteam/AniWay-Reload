@@ -1,5 +1,4 @@
 import { MessageSquare, Hash, RefreshCcw, MoreVertical } from 'lucide-react';
-import { GlassPanel } from '@/components/ui/GlassPanel';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
@@ -13,7 +12,7 @@ interface ChatPageHeaderProps {
 
 export function ChatPageHeader({ hasSelectedCategory, onRefreshAll, onRefreshCategories, onRefreshMessages }: ChatPageHeaderProps) {
   return (
-    <GlassPanel padding="lg" className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+    <div className="flex flex-col gap-6 rounded-2xl border border-white/10 bg-white/[0.03] p-8 md:flex-row md:items-start md:justify-between">
       <div>
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-white/50">
           <MessageSquare className="h-4 w-4 text-primary" />
@@ -55,6 +54,6 @@ export function ChatPageHeader({ hasSelectedCategory, onRefreshAll, onRefreshCat
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-    </GlassPanel>
+    </div>
   );
 }

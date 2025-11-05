@@ -2,6 +2,7 @@ import React from 'react';
 import {
   Bold, Italic, Code, Link as LinkIcon, Quote, List, ListOrdered, Heading1, Heading2, Strikethrough, EyeOff, Sparkles, Minus
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export interface MarkdownMiniToolbarProps {
   onCommand: (cmd: string) => void;
@@ -27,18 +28,30 @@ const buttons: Array<{cmd: string; label: string; icon: React.ReactNode; title: 
 
 export const MarkdownMiniToolbar: React.FC<MarkdownMiniToolbarProps> = ({ onCommand, small, className }) => {
   return (
-    <div className={"flex flex-wrap gap-1.5 " + (className||'')}> 
+    <div
+      className={cn(
+        'flex items-center gap-1.5 pb-1 sm:pb-0',
+        'overflow-x-auto sm:overflow-visible',
+        'flex-nowrap sm:flex-wrap',
+        'scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent',
+        'px-0.5 sm:px-0',
+        className
+      )}
+    >
       {buttons.map(btn => (
         <button
           key={btn.cmd}
           type="button"
-          onClick={()=> onCommand(btn.cmd)}
+          onClick={() => onCommand(btn.cmd)}
           title={btn.title}
-          className="group relative flex items-center justify-center w-8 h-8 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 transition active:scale-[.95]"
+          className={cn(
+            'group relative flex shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10 active:scale-[.96]',
+            small ? 'h-7 w-7 text-[13px]' : 'h-8 w-8'
+          )}
         >
           <span className="sr-only">{btn.label}</span>
           {btn.icon}
-          <span className="pointer-events-none absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] text-slate-400 opacity-0 group-hover:opacity-100 transition whitespace-nowrap hidden md:block">
+          <span className="pointer-events-none absolute -bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] text-slate-400 opacity-0 transition group-hover:opacity-100 hidden md:block">
             {btn.label}
           </span>
         </button>

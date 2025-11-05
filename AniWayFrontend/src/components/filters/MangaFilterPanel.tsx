@@ -4,7 +4,19 @@ import { cn } from '@/lib/utils'
 import { useFilterData } from '@/hooks/useFilterData'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select'
+import {
+  AGE_RATING_OPTIONS,
+  RATING_OPTIONS,
+  CHAPTER_OPTIONS,
+  DEFAULT_AGE_RANGE,
+  DEFAULT_RATING_RANGE,
+  DEFAULT_RELEASE_YEAR_RANGE,
+  DEFAULT_CHAPTER_RANGE,
+  findRangeOption,
+  rangesEqual,
+  cloneRange,
+  RangeOption
+} from './filterOptions'
 
 interface FilterState {
   selectedGenres: string[]
@@ -45,24 +57,12 @@ const DEFAULTS: FilterState = {
   selectedTags: [],
   mangaType: '',
   status: '',
-  ageRating: [0,21],
-  rating: [0,10],
-  releaseYear: [1990, new Date().getFullYear()],
-  chapterRange: [0,1000],
+  ageRating: DEFAULT_AGE_RANGE,
+  rating: DEFAULT_RATING_RANGE,
+  releaseYear: DEFAULT_RELEASE_YEAR_RANGE,
+  chapterRange: DEFAULT_CHAPTER_RANGE,
   strictMatch: true
 }
-
-const CHAPTER_PRESETS: { key: string; label: string; range: [number, number] }[] = [
-  { key: 'any', label: 'Любой диапазон', range: [0, 1000] },
-  { key: 'to-20', label: 'До 20 глав', range: [0, 20] },
-  { key: 'to-50', label: 'До 50 глав', range: [0, 50] },
-  { key: 'to-100', label: 'До 100 глав', range: [0, 100] },
-  { key: '20-50', label: '20–50 глав', range: [20, 50] },
-  { key: '50-100', label: '50–100 глав', range: [50, 100] },
-  { key: '100-300', label: '100–300 глав', range: [100, 300] },
-  { key: '300-500', label: '300–500 глав', range: [300, 500] },
-  { key: '500-plus', label: '500+ глав', range: [500, 1000] }
-]
 
 // Генерик компонент строки фильтра
 interface RowProps {
@@ -207,40 +207,23 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
     update({ selectedTags: list })
   }
 
-  const handleNumberRange = (field: keyof Pick<FilterState,'ageRating'|'rating'|'releaseYear'|'chapterRange'>, idx: 0|1, value: string) => {
-    const current = [...(filters[field] as [number,number])]
-    const num = parseInt(value) || 0
-    current[idx] = num
-    if (current[0] > current[1]) current[idx === 0 ? 1 : 0] = num
-    update({ [field]: current } as any)
-  }
+  const ageOption = findRangeOption(filters.ageRating, AGE_RATING_OPTIONS)
+  const ratingOption = findRangeOption(filters.rating, RATING_OPTIONS)
+  const chapterOption = findRangeOption(filters.chapterRange, CHAPTER_OPTIONS)
 
   const rowSummary = {
     genres: summarize.genres(filters.selectedGenres),
     tags: summarize.tags(filters.selectedTags),
     type: summarize.single(filters.mangaType, TYPE_MAP),
     status: summarize.single(filters.status, STATUS_MAP),
-    age: summarize.range(filters.ageRating, DEFAULTS.ageRating, '+'),
-    rating: summarize.range(filters.rating, DEFAULTS.rating),
+    age: ageOption ? ageOption.summary : summarize.range(filters.ageRating, DEFAULTS.ageRating, '+'),
+    rating: ratingOption ? ratingOption.summary : summarize.range(filters.rating, DEFAULTS.rating),
     year: summarize.range(filters.releaseYear, DEFAULTS.releaseYear),
-    chapters: summarize.range(filters.chapterRange, DEFAULTS.chapterRange)
+    chapters: chapterOption ? chapterOption.summary : summarize.range(filters.chapterRange, DEFAULTS.chapterRange)
   }
 
   const filteredGenres = genres.filter(g => g.name.toLowerCase().includes(genreSearch.toLowerCase()))
   const filteredTags = tags.filter(t => t.name.toLowerCase().includes(tagSearch.toLowerCase()))
-
-  const chapterPresetKey = React.useMemo(() => {
-    const match = CHAPTER_PRESETS.find(p => p.range[0] === filters.chapterRange[0] && p.range[1] === filters.chapterRange[1])
-    return match ? match.key : 'custom'
-  }, [filters.chapterRange])
-
-  const handleChapterPresetChange = (value: string) => {
-    if (value === 'custom') return
-    const preset = CHAPTER_PRESETS.find(p => p.key === value)
-    if (preset) {
-      update({ chapterRange: preset.range })
-    }
-  }
 
   const chip = (text: string, onClick: () => void, active: boolean) => (
     <button
@@ -266,62 +249,49 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
     </div>
   )
 
-  const numberRange = (field: keyof Pick<FilterState,'ageRating'|'rating'|'releaseYear'|'chapterRange'>, min: number, max: number, step=1, suffix='') => {
-    const val = filters[field]
-    return (
-      <div className="flex flex-wrap items-center gap-2 text-[13px] text-white/65">
-        <Input
-          type="number"
-          value={val[0]}
-          min={min}
-          max={val[1]}
-          step={step}
-          onChange={e=>handleNumberRange(field,0,e.target.value)}
-          className="h-9 w-24 rounded-lg border border-white/8 bg-[#1b1b1b] text-xs text-white/75 focus:border-primary/35 focus:bg-[#212121] focus:ring-0"
-        />
-        <span className="text-white/40">—</span>
-        <Input
-          type="number"
-          value={val[1]}
-          min={val[0]}
-          max={max}
-          step={step}
-          onChange={e=>handleNumberRange(field,1,e.target.value)}
-          className="h-9 w-24 rounded-lg border border-white/8 bg-[#1b1b1b] text-xs text-white/75 focus:border-primary/35 focus:bg-[#212121] focus:ring-0"
-        />
-        {suffix && <span>{suffix}</span>}
-      </div>
-    )
+  const renderRangeChips = (options: RangeOption[], current: [number, number], onSelect: (range: [number, number]) => void) => (
+    <div className="flex flex-wrap gap-2">
+      {options.map(option => (
+        chip(
+          option.label,
+          () => onSelect(cloneRange(option.range) as [number, number]),
+          rangesEqual(option.range, current)
+        )
+      ))}
+    </div>
+  )
+
+  const handleReleaseYearRange = (idx: 0 | 1, value: string) => {
+    const current = [...filters.releaseYear] as [number, number]
+    const numeric = parseInt(value) || 0
+    current[idx] = numeric
+    if (current[0] > current[1]) {
+      current[idx === 0 ? 1 : 0] = numeric
+    }
+    update({ releaseYear: current })
   }
 
-  const chapterRangeDropdown = () => (
-    <div className="space-y-3">
-      <div className="space-y-2">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45">Быстрый выбор</div>
-        <Select value={chapterPresetKey} onValueChange={handleChapterPresetChange}>
-          <SelectTrigger className="h-9 w-full rounded-lg border border-white/8 bg-[#1b1b1b] text-xs text-white/75 focus:border-primary/35 focus:bg-[#212121] focus:ring-0">
-            <SelectValue placeholder="Выберите диапазон" />
-          </SelectTrigger>
-          <SelectContent className="border border-white/12 bg-[#212121] text-white/80">
-            {CHAPTER_PRESETS.map(p => (
-              <SelectItem
-                key={p.key}
-                value={p.key}
-                className="text-xs text-white/75 focus:bg-[#292929] focus:text-white"
-              >
-                {p.label}
-              </SelectItem>
-            ))}
-            <SelectItem value="custom" className="text-xs text-white/75 focus:bg-[#292929] focus:text-white">
-              Свой диапазон
-            </SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="space-y-2">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45">Произвольные значения</div>
-        {numberRange('chapterRange',0,1000,1,'гл.')}
-      </div>
+  const renderReleaseYearInputs = () => (
+    <div className="flex flex-wrap items-center gap-2 text-[13px] text-white/65">
+      <Input
+        type="number"
+        value={filters.releaseYear[0]}
+        min={DEFAULT_RELEASE_YEAR_RANGE[0]}
+        max={filters.releaseYear[1]}
+        step={1}
+        onChange={e => handleReleaseYearRange(0, e.target.value)}
+        className="h-9 w-24 rounded-lg border border-white/8 bg-[#1b1b1b] text-xs text-white/75 focus:border-primary/35 focus:bg-[#212121] focus:ring-0"
+      />
+      <span className="text-white/40">—</span>
+      <Input
+        type="number"
+        value={filters.releaseYear[1]}
+        min={filters.releaseYear[0]}
+        max={DEFAULT_RELEASE_YEAR_RANGE[1]}
+        step={1}
+        onChange={e => handleReleaseYearRange(1, e.target.value)}
+        className="h-9 w-24 rounded-lg border border-white/8 bg-[#1b1b1b] text-xs text-white/75 focus:border-primary/35 focus:bg-[#212121] focus:ring-0"
+      />
     </div>
   )
 
@@ -464,10 +434,10 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
           summary={rowSummary.age}
           isOpen={openRow==='age'}
           onToggle={()=>setOpenRow(openRow==='age'?null:'age')}
-          active={filters.ageRating.some((v,i)=>v!==DEFAULTS.ageRating[i])}
+          active={!rangesEqual(filters.ageRating, DEFAULT_AGE_RANGE)}
           appearance={rowAppearance}
         >
-          {numberRange('ageRating',0,21,1,'+')}
+          {renderRangeChips(AGE_RATING_OPTIONS, filters.ageRating, range => update({ ageRating: cloneRange(range) as [number, number] }))}
         </FilterRow>
 
         <FilterRow
@@ -476,10 +446,10 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
           summary={rowSummary.rating}
           isOpen={openRow==='rating'}
           onToggle={()=>setOpenRow(openRow==='rating'?null:'rating')}
-          active={filters.rating.some((v,i)=>v!==DEFAULTS.rating[i])}
+          active={!rangesEqual(filters.rating, DEFAULT_RATING_RANGE)}
           appearance={rowAppearance}
         >
-          {numberRange('rating',0,10,1)}
+          {renderRangeChips(RATING_OPTIONS, filters.rating, range => update({ rating: cloneRange(range) as [number, number] }))}
         </FilterRow>
 
         <FilterRow
@@ -488,10 +458,10 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
           summary={rowSummary.year}
           isOpen={openRow==='year'}
           onToggle={()=>setOpenRow(openRow==='year'?null:'year')}
-          active={filters.releaseYear.some((v,i)=>v!==DEFAULTS.releaseYear[i])}
+          active={!rangesEqual(filters.releaseYear, DEFAULT_RELEASE_YEAR_RANGE)}
           appearance={rowAppearance}
         >
-          {numberRange('releaseYear',1990,new Date().getFullYear(),1)}
+          {renderReleaseYearInputs()}
         </FilterRow>
 
         <FilterRow
@@ -500,10 +470,10 @@ export const MangaFilterPanel: React.FC<MangaFilterPanelProps> = ({
           summary={rowSummary.chapters}
           isOpen={openRow==='chapters'}
           onToggle={()=>setOpenRow(openRow==='chapters'?null:'chapters')}
-          active={filters.chapterRange.some((v,i)=>v!==DEFAULTS.chapterRange[i])}
+          active={!rangesEqual(filters.chapterRange, DEFAULT_CHAPTER_RANGE)}
           appearance={rowAppearance}
         >
-          {chapterRangeDropdown()}
+          {renderRangeChips(CHAPTER_OPTIONS, filters.chapterRange, range => update({ chapterRange: cloneRange(range) as [number, number] }))}
         </FilterRow>
       </div>
 

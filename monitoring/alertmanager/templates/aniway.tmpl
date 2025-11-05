@@ -1,0 +1,29 @@
+{{ define "aniway.telegram.message" }}
+*{{ .CommonLabels.alertname }}* — {{ .Status | toUpper }}
+{{ if .CommonAnnotations.summary }}{{ .CommonAnnotations.summary }}
+{{ end }}
+{{ if .CommonAnnotations.description }}_{{ .CommonAnnotations.description }}_
+{{ end }}
+*Severity:* {{ .CommonLabels.severity | toUpper }}
+*Instance:* {{ .CommonLabels.instance }}
+*Service:* {{ .CommonLabels.service }}
+*Time:* {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+{{ end }}
+
+{{ define "aniway.default.html" }}
+<html>
+  <body>
+    <h2>{{ .Status | toUpper }} — {{ .CommonLabels.alertname }}</h2>
+    <p><strong>Severity:</strong> {{ .CommonLabels.severity }}</p>
+    <p><strong>Service:</strong> {{ .CommonLabels.service }}</p>
+    <p><strong>Instance:</strong> {{ .CommonLabels.instance }}</p>
+    {{ if .CommonAnnotations.summary }}
+    <p><strong>Summary:</strong> {{ .CommonAnnotations.summary }}</p>
+    {{ end }}
+    {{ if .CommonAnnotations.description }}
+    <p><strong>Description:</strong> {{ .CommonAnnotations.description }}</p>
+    {{ end }}
+  <p><strong>Triggered:</strong> {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}</p>
+  </body>
+</html>
+{{ end }}

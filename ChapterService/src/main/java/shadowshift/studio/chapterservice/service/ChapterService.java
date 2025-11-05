@@ -13,6 +13,7 @@ import org.springframework.web.reactive.function.client.WebClientRequestExceptio
 import shadowshift.studio.chapterservice.dto.ChapterCleanupResultDTO;
 import shadowshift.studio.chapterservice.dto.ChapterCreateDTO;
 import shadowshift.studio.chapterservice.dto.ChapterResponseDTO;
+import shadowshift.studio.chapterservice.dto.MangaChapterIdsDTO;
 import shadowshift.studio.chapterservice.entity.Chapter;
 import shadowshift.studio.chapterservice.entity.ChapterLike;
 import shadowshift.studio.chapterservice.repository.ChapterRepository;
@@ -22,6 +23,7 @@ import shadowshift.studio.chapterservice.entity.ChapterRead;
 import java.net.ConnectException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +33,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import org.springframework.web.client.RestTemplate;
+import shadowshift.studio.chapterservice.dto.MangaLikesAggregateDTO;
+import shadowshift.studio.chapterservice.repository.projection.ChapterLikesAggregate;
 
 /**
  * Сервис для управления главами манги.
@@ -695,6 +699,89 @@ public class ChapterService {
             return Collections.emptyList();
         }
         return chapterLikeRepository.findLikedChapterIds(userId, chapterIds);
+    }
+
+    /**
+     * Returns chapter id listings grouped by manga so downstream services can aggregate chapter metrics.
+     */
+    public List<MangaChapterIdsDTO> getMangaChapterIdMappings(List<Long> mangaIds) {
+        if (mangaIds == null || mangaIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> distinctIds = mangaIds.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (distinctIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, List<Long>> chaptersByManga = new LinkedHashMap<>();
+        distinctIds.forEach(id -> chaptersByManga.put(id, new ArrayList<>()));
+
+        List<Object[]> rawRows = chapterRepository.findChapterIdAndMangaIdByMangaIdIn(distinctIds);
+        for (Object[] row : rawRows) {
+            if (row == null || row.length < 2) {
+                continue;
+            }
+            Long chapterId = toLong(row[0]);
+            Long mangaId = toLong(row[1]);
+            if (chapterId == null || mangaId == null) {
+                continue;
+            }
+            chaptersByManga.computeIfAbsent(mangaId, key -> new ArrayList<>()).add(chapterId);
+        }
+
+        chaptersByManga.values().forEach(list -> list.sort(Long::compareTo));
+
+        return chaptersByManga.entrySet().stream()
+                .map(entry -> new MangaChapterIdsDTO(entry.getKey(), List.copyOf(entry.getValue())))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Aggregates chapter likes per manga; missing entries resolve to zero to simplify downstream sorting.
+     */
+    public List<MangaLikesAggregateDTO> getMangaLikeAggregates(List<Long> mangaIds) {
+        if (mangaIds == null || mangaIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> distinctIds = mangaIds.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (distinctIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, Long> totals = new LinkedHashMap<>();
+        distinctIds.forEach(id -> totals.put(id, 0L));
+
+        List<ChapterLikesAggregate> aggregates = chapterRepository.sumLikeCountByMangaIdIn(distinctIds);
+        for (ChapterLikesAggregate aggregate : aggregates) {
+            Long mangaId = aggregate.getMangaId();
+            if (mangaId != null && totals.containsKey(mangaId)) {
+                totals.put(mangaId, Optional.ofNullable(aggregate.getTotalLikes()).orElse(0L));
+            }
+        }
+
+        return totals.entrySet().stream()
+                .map(entry -> new MangaLikesAggregateDTO(entry.getKey(), entry.getValue()))
+                .collect(Collectors.toList());
+    }
+
+    private Long toLong(Object value) {
+        if (value instanceof Long l) {
+            return l;
+        }
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        return null;
     }
 
     /**

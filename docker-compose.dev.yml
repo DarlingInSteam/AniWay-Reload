@@ -236,6 +236,10 @@ services:
       - RABBITMQ_PORT=5672
       - RABBITMQ_USERNAME=aniway
       - RABBITMQ_PASSWORD=aniway_pass
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,metrics,prometheus
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=when-authorized
     ports:
       - "8086:8086"
     depends_on:
@@ -245,6 +249,12 @@ services:
         condition: service_started
     networks:
       - aniway-network
+    labels:
+      prometheus.scrape: "true"
+      prometheus.job: aniway-backend
+      prometheus.metrics_path: /actuator/prometheus
+      prometheus.port: "8086"
+      prometheus.instance: comment-service
 
   # Friend Service - для разработки
   friend-service:

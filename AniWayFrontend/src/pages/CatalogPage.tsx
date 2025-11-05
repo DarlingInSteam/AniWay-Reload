@@ -13,6 +13,18 @@ import { MangaFilterPanel } from '@/components/filters/MangaFilterPanel'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { cn } from '@/lib/utils'
 import { PageResponse, MangaResponseDTO } from '@/types'
+import {
+  AGE_RATING_OPTIONS,
+  RATING_OPTIONS,
+  CHAPTER_OPTIONS,
+  DEFAULT_AGE_RANGE,
+  DEFAULT_RATING_RANGE,
+  DEFAULT_CHAPTER_RANGE,
+  DEFAULT_RELEASE_YEAR_RANGE,
+  rangesEqual,
+  findRangeOption,
+  RangeTuple
+} from '@/components/filters/filterOptions'
 
 const TYPE_LABELS: Record<string, string> = {
   MANGA: 'Манга',
@@ -40,20 +52,10 @@ const ACTIVE_TYPE_LABELS: Record<string, string> = {
   другое: 'Другое'
 }
 
-const DEFAULT_AGE_RATING: [number, number] = [0, 21]
-const DEFAULT_RATING_RANGE: [number, number] = [0, 10]
-const DEFAULT_CHAPTER_RANGE: [number, number] = [0, 1000]
-const DEFAULT_RELEASE_YEAR_RANGE: [number, number] = [1990, new Date().getFullYear()]
-
 const CHIP_TONE_CLASSES: Record<'default' | 'primary' | 'warm', string> = {
   default: 'bg-[#1c2331] text-white/80 hover:text-white hover:bg-[#232d3e]',
   primary: 'bg-primary/18 text-primary hover:bg-primary/28 hover:text-white',
   warm: 'bg-amber-400/15 text-amber-200 hover:bg-amber-400/25'
-}
-
-const rangesEqual = (a?: [number, number], b?: [number, number]) => {
-  if (!a || !b) return false
-  return a[0] === b[0] && a[1] === b[1]
 }
 
 type ChipTone = 'default' | 'primary' | 'warm'
@@ -74,7 +76,6 @@ const normalizeRange = (value: unknown): [number, number] | undefined => {
   return [first, second]
 }
 
-type RangeTuple = [number, number]
 
 interface NormalizedFilterState {
   selectedGenres: string[]
@@ -111,7 +112,7 @@ const normalizeFilterState = (filters?: Partial<NormalizedFilterState>): Normali
   selectedTags: coerceStringArray(filters?.selectedTags),
   mangaType: filters?.mangaType ?? '',
   status: filters?.status ?? '',
-  ageRating: ensureRange(filters?.ageRating, DEFAULT_AGE_RATING),
+  ageRating: ensureRange(filters?.ageRating, DEFAULT_AGE_RANGE),
   rating: ensureRange(filters?.rating, DEFAULT_RATING_RANGE),
   releaseYear: ensureRange(filters?.releaseYear, DEFAULT_RELEASE_YEAR_RANGE),
   chapterRange: ensureRange(filters?.chapterRange, DEFAULT_CHAPTER_RANGE),
@@ -136,7 +137,7 @@ const buildActiveFilterParams = (filters: NormalizedFilterState) => {
   if (filters.selectedTags.length) params.tags = [...filters.selectedTags]
   if (filters.mangaType) params.type = filters.mangaType
   if (filters.status) params.status = filters.status
-  if (!rangesEqual(filters.ageRating, DEFAULT_AGE_RATING)) params.ageRating = [...filters.ageRating]
+  if (!rangesEqual(filters.ageRating, DEFAULT_AGE_RANGE)) params.ageRating = [...filters.ageRating]
   if (!rangesEqual(filters.rating, DEFAULT_RATING_RANGE)) params.rating = [...filters.rating]
   if (!rangesEqual(filters.releaseYear, DEFAULT_RELEASE_YEAR_RANGE)) params.releaseYear = [...filters.releaseYear]
   if (!rangesEqual(filters.chapterRange, DEFAULT_CHAPTER_RANGE)) params.chapterRange = [...filters.chapterRange]
@@ -194,7 +195,6 @@ export function CatalogPage() {
     ratingCount: 'По кол-ву оценок',
     likes: 'По лайкам',
     views: 'По просмотрам',
-    reviews: 'По отзывам',
     comments: 'По комментариям'
   }
   const SORT_FIELD_BY_LABEL: Record<string,string> = Object.fromEntries(Object.entries(SORT_LABEL_BY_FIELD).map(([field,label]) => [label, field]))
@@ -280,7 +280,7 @@ export function CatalogPage() {
     if (Array.isArray(v) && v.length === 0) delete (initialActiveFilters as any)[k]
     if (v === undefined) delete (initialActiveFilters as any)[k]
   })
-  if (initialActiveFilters.ageRating && rangesEqual(initialActiveFilters.ageRating, DEFAULT_AGE_RATING)) {
+  if (initialActiveFilters.ageRating && rangesEqual(initialActiveFilters.ageRating, DEFAULT_AGE_RANGE)) {
     delete initialActiveFilters.ageRating
   }
   if (initialActiveFilters.rating && rangesEqual(initialActiveFilters.rating, DEFAULT_RATING_RANGE)) {
@@ -326,7 +326,8 @@ export function CatalogPage() {
       createdAt: 'createdat',
       updatedAt: 'updatedat',
       chapterCount: 'chaptercount',
-      ratingCount: 'ratingcount'
+      ratingCount: 'ratingcount',
+      reviews: 'comments'
     }
     return map[field] || field.toLowerCase()
   }
@@ -414,18 +415,37 @@ export function CatalogPage() {
         return obj[field] ? new Date(obj[field]).getTime() : 0
       case 'chapterCount':
         return obj.totalChapters ?? obj.chapterCount ?? 0
-      case 'rating':
-        return (obj as any).rating?.averageRating ?? (obj as any).averageRating ?? 0
-      case 'ratingCount':
-        return (obj as any).rating?.ratingCount ?? (obj as any).ratingCount ?? 0
+      case 'rating': {
+        const raw = (obj as any).rating
+        if (typeof raw === 'number') {
+          return raw
+        }
+        if (raw && typeof raw === 'object') {
+          const nested = raw.averageRating ?? raw.value ?? raw.mean ?? raw.rating
+          if (typeof nested === 'number') {
+            return nested
+          }
+        }
+        const fallback = (obj as any).averageRating ?? (obj as any).ratingAverage
+        return typeof fallback === 'number' ? fallback : 0
+      }
+      case 'ratingCount': {
+        const rawCount = (obj as any).ratingCount
+        if (typeof rawCount === 'number') {
+          return rawCount
+        }
+        const nestedCount = (obj as any).rating?.ratingCount ?? (obj as any).rating?.totalReviews
+        if (typeof nestedCount === 'number') {
+          return nestedCount
+        }
+        return 0
+      }
       case 'likes':
         return obj.likes ?? 0
       case 'views':
         return obj.views ?? 0
       case 'popularity':
         return obj.popularity ?? obj.views ?? 0
-      case 'reviews':
-        return obj.reviews ?? 0
       case 'comments':
         return obj.comments ?? 0
       default:
@@ -551,7 +571,7 @@ export function CatalogPage() {
     if (activeFilters.tags?.length) params.tags = activeFilters.tags.join(',')
     if (activeFilters.type) params.type = activeFilters.type
     if (activeFilters.status) params.status = activeFilters.status
-    if (activeFilters.ageRating && !rangesEqual(activeFilters.ageRating, DEFAULT_AGE_RATING)) params.ageRating = activeFilters.ageRating.join('-')
+  if (activeFilters.ageRating && !rangesEqual(activeFilters.ageRating, DEFAULT_AGE_RANGE)) params.ageRating = activeFilters.ageRating.join('-')
     if (activeFilters.rating && !rangesEqual(activeFilters.rating, DEFAULT_RATING_RANGE)) params.rating = activeFilters.rating.join('-')
     if (activeFilters.releaseYear && !rangesEqual(activeFilters.releaseYear, DEFAULT_RELEASE_YEAR_RANGE)) params.releaseYear = activeFilters.releaseYear.join('-')
     if (activeFilters.chapterRange && !rangesEqual(activeFilters.chapterRange, DEFAULT_CHAPTER_RANGE)) params.chapterRange = activeFilters.chapterRange.join('-')
@@ -738,7 +758,7 @@ export function CatalogPage() {
         nextDraft.status = ''
         break
       case 'ageRating':
-        nextDraft.ageRating = [...DEFAULT_AGE_RATING] as RangeTuple
+  nextDraft.ageRating = [...DEFAULT_AGE_RANGE] as RangeTuple
         break
       case 'rating':
         nextDraft.rating = [...DEFAULT_RATING_RANGE] as RangeTuple
@@ -817,19 +837,23 @@ export function CatalogPage() {
     }
 
     const ageRange = normalizeRange((activeFilters as any).ageRating)
-    if (ageRange && !rangesEqual(ageRange, DEFAULT_AGE_RATING)) {
+    if (ageRange && !rangesEqual(ageRange, DEFAULT_AGE_RANGE)) {
+      const option = findRangeOption(ageRange, AGE_RATING_OPTIONS)
+      const label = option ? `Возраст: ${option.summary}` : `Возраст: ${ageRange[0]}+–${ageRange[1]}+`
       chips.push({
         key: 'age-rating',
-        label: `Возраст: ${ageRange[0]}+–${ageRange[1]}+`,
+        label,
         onRemove: () => removeFilterChip('ageRating')
       })
     }
 
     const ratingRange = normalizeRange((activeFilters as any).rating)
     if (ratingRange && !rangesEqual(ratingRange, DEFAULT_RATING_RANGE)) {
+      const option = findRangeOption(ratingRange, RATING_OPTIONS)
+      const label = option ? `Рейтинг: ${option.summary}` : `Рейтинг: ${ratingRange[0]}–${ratingRange[1]}`
       chips.push({
         key: 'rating-range',
-        label: `Рейтинг: ${ratingRange[0]}–${ratingRange[1]}`,
+        label,
         onRemove: () => removeFilterChip('rating')
       })
     }
@@ -845,9 +869,11 @@ export function CatalogPage() {
 
     const chapterRange = normalizeRange((activeFilters as any).chapterRange)
     if (chapterRange && !rangesEqual(chapterRange, DEFAULT_CHAPTER_RANGE)) {
+      const option = findRangeOption(chapterRange, CHAPTER_OPTIONS)
+      const label = option ? `Главы: ${option.summary}` : `Главы: ${chapterRange[0]}–${chapterRange[1]}`
       chips.push({
         key: 'chapter-range',
-        label: `Главы: ${chapterRange[0]}–${chapterRange[1]}`,
+        label,
         onRemove: () => removeFilterChip('chapterRange')
       })
     }

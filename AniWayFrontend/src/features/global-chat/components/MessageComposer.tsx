@@ -6,6 +6,7 @@ import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer';
 import { getUserDisplay } from '../utils/messageHelpers';
 import { toast } from 'sonner';
 import { MarkdownMiniToolbar } from '@/components/markdown/MarkdownMiniToolbar';
+import { MessageBubble } from './MessageBubble';
 
 interface MessageComposerProps {
   replyTo: MessageDto | null;
@@ -131,7 +132,7 @@ export function MessageComposer({
     <div className="w-full border-t border-white/12 pt-3">
       <div className="space-y-3">
         {replyTo && (
-          <div className="flex items-start gap-3 rounded-xl bg-white/5 px-3 py-2 text-xs text-white/70">
+          <div className="flex items-start gap-3 text-xs text-white/70">
             <span className="mt-[2px] text-white/50">↩</span>
             <div className="flex-1">
               <div className="flex items-start justify-between gap-2 text-[11px] uppercase tracking-[0.25em] text-white/40">
@@ -144,11 +145,11 @@ export function MessageComposer({
                   Очистить
                 </button>
               </div>
-              <div className="mt-1 max-h-28 overflow-y-auto rounded-lg bg-white/5 px-3 py-2 text-left text-sm text-white/70">
+              <MessageBubble variant="preview" className="mt-1 max-h-28 overflow-y-auto">
                 <div className="prose prose-invert max-w-none text-sm leading-relaxed markdown-body line-clamp-3">
                   <MarkdownRenderer value={replyTo.content} />
                 </div>
-              </div>
+              </MessageBubble>
             </div>
           </div>
         )}
@@ -159,10 +160,10 @@ export function MessageComposer({
           </div>
         )}
 
-        <MarkdownMiniToolbar onCommand={applyMarkdownCommand} className="text-white/80" />
+  <MarkdownMiniToolbar onCommand={applyMarkdownCommand} small className="text-white/80" />
 
         <div className="flex items-end gap-2">
-          <div className="flex-1 rounded-xl bg-white/5 px-2 py-1.5">
+          <div className="flex-1 rounded-xl border border-white/10 bg-white/5 px-2 py-1.5">
             <Textarea
               ref={textareaRef}
               value={messageText}
@@ -179,7 +180,15 @@ export function MessageComposer({
             type="button"
             onClick={handleSend}
             disabled={!isAuthenticated || loadingMessages || !messageText.trim()}
-            className="flex h-11 w-11 shrink-0 items-center justify-center self-end rounded-full bg-primary/80 text-lg font-semibold text-white transition hover:bg-primary disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/40 transform translate-y-[1px]"
+            aria-disabled={!isAuthenticated || loadingMessages || !messageText.trim()}
+            title={
+              !isAuthenticated
+                ? 'Авторизуйтесь, чтобы отправлять сообщения'
+                : !messageText.trim()
+                  ? 'Введите сообщение'
+                  : 'Отправить сообщение (Ctrl/⌘+Enter)'
+            }
+            className="flex h-11 w-11 shrink-0 translate-y-[1px] items-center justify-center self-end rounded-full bg-primary/80 text-lg font-semibold text-white transition-colors duration-200 hover:bg-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary/50 disabled:cursor-not-allowed disabled:bg-white/8 disabled:text-white/45 disabled:opacity-70"
           >
             ▶
           </button>

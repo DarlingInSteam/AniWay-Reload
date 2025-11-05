@@ -17,22 +17,32 @@ import shadowshift.studio.mangaservice.config.ServiceUrlProperties;
 import shadowshift.studio.mangaservice.dto.MangaCreateDTO;
 import shadowshift.studio.mangaservice.dto.MangaResponseDTO;
 import shadowshift.studio.mangaservice.dto.PageResponseDTO;
+import shadowshift.studio.mangaservice.dto.external.MangaReviewAggregateResponse;
 import shadowshift.studio.mangaservice.entity.Manga;
 import shadowshift.studio.mangaservice.entity.Genre;
 import shadowshift.studio.mangaservice.entity.Tag;
 import shadowshift.studio.mangaservice.exception.MangaServiceException;
 import shadowshift.studio.mangaservice.mapper.MangaMapper;
+import shadowshift.studio.mangaservice.metrics.MangaBusinessMetrics;
 import shadowshift.studio.mangaservice.repository.MangaRepository;
 import shadowshift.studio.mangaservice.service.external.ChapterServiceClient;
+import shadowshift.studio.mangaservice.service.external.ExternalMetricsClient;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
@@ -58,6 +68,10 @@ public class MangaService {
 
     private static final Logger logger = LoggerFactory.getLogger(MangaService.class);
 
+    private static final Set<String> METRIC_SORT_FIELDS = Set.of("rating", "ratingcount", "likes", "comments", "popularity");
+    private static final int METRIC_SYNC_BATCH_SIZE = 200;
+    private static final long METRIC_SYNC_COOLDOWN_MS = 60_000L;
+
     private final MangaRepository mangaRepository;
     private final ChapterServiceClient chapterServiceClient;
     private final MangaMapper mangaMapper;
@@ -66,9 +80,13 @@ public class MangaService {
     private final GenreService genreService;
     private final TagService tagService;
     private final MelonIntegrationService melonIntegrationService;
+    private final ExternalMetricsClient externalMetricsClient;
+    private final MangaBusinessMetrics businessMetrics;
 
     // Кэш для rate limiting просмотров: ключ - "userId_mangaId", значение - timestamp последнего просмотра
     private final ConcurrentHashMap<String, Long> viewRateLimitCache = new ConcurrentHashMap<>();
+
+    private final AtomicLong lastMetricsSync = new AtomicLong(0L);
 
 
     @Value("${image.storage.service.url}")
@@ -85,8 +103,11 @@ public class MangaService {
      * @param mangaMapper маппер для преобразования между DTO и сущностями
      * @param restTemplate шаблон для выполнения REST-запросов
      * @param serviceUrlProperties конфигурация URL сервисов
-     * @param genreService сервис для работы с жанрами
-     * @param tagService сервис для работы с тегами
+    * @param genreService сервис для работы с жанрами
+    * @param tagService сервис для работы с тегами
+    * @param melonIntegrationService сервис интеграции с Melon API
+    * @param externalMetricsClient клиент, собирающий метрики из внешних сервисов
+    * @param businessMetrics фасад для публикации бизнес-метрик в Prometheus
      */
     public MangaService(MangaRepository mangaRepository, 
                        ChapterServiceClient chapterServiceClient,
@@ -95,7 +116,9 @@ public class MangaService {
                        ServiceUrlProperties serviceUrlProperties,
                        GenreService genreService,
                        TagService tagService,
-                       MelonIntegrationService melonIntegrationService) {
+                       MelonIntegrationService melonIntegrationService,
+                       ExternalMetricsClient externalMetricsClient,
+                       MangaBusinessMetrics businessMetrics) {
         this.mangaRepository = mangaRepository;
         this.chapterServiceClient = chapterServiceClient;
         this.mangaMapper = mangaMapper;
@@ -104,6 +127,8 @@ public class MangaService {
         this.genreService = genreService;
         this.tagService = tagService;
         this.melonIntegrationService = melonIntegrationService;
+        this.externalMetricsClient = externalMetricsClient;
+        this.businessMetrics = businessMetrics;
         logger.info("Инициализирован MangaService");
     }
 
@@ -116,10 +141,12 @@ public class MangaService {
      *
      * @return список DTO с информацией о всех мангах
      */
-    @Transactional(readOnly = true)
+    @Transactional
     @Cacheable(value = "mangaCatalog", key = "'all'")
     public List<MangaResponseDTO> getAllManga() {
         logger.debug("Запрос списка всех манг");
+
+        synchronizeAllMetricsIfStale();
         
         List<Manga> mangaList = mangaRepository.findAllOrderByCreatedAtDesc();
         logger.debug("Найдено {} манг в базе данных", mangaList.size());
@@ -149,11 +176,13 @@ public class MangaService {
      * @param status статус манги (точное совпадение, может быть null)
      * @return список DTO с найденными мангами
      */
-    @Transactional(readOnly = true)
+    @Transactional
     @Cacheable(value = "mangaSearch", key = "#title + '_' + #author + '_' + #genre + '_' + #status")
     public List<MangaResponseDTO> searchManga(String title, String author, String genre, String status) {
         logger.debug("Поиск манги с параметрами - title: '{}', author: '{}', genre: '{}', status: '{}'",
                     title, author, genre, status);
+
+        synchronizeAllMetricsIfStale();
 
         // Валидируем и нормализуем статус
         String validatedStatus = null;
@@ -191,9 +220,12 @@ public class MangaService {
      * @param sortOrder направление сортировки
      * @return PageResponseDTO с пагинированными данными манг
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public PageResponseDTO<MangaResponseDTO> getAllMangaPaged(int page, int size, String sortBy, String sortOrder) {
         logger.debug("Запрос пагинированного списка всех манг - page: {}, size: {}, sortBy: {}, sortOrder: {}", page, size, sortBy, sortOrder);
+
+        synchronizeAllMetricsIfStale();
+        synchronizeAllMetricsIfRequired(sortBy);
 
         // Используем JPQL-вариант без встроенного ORDER BY и передаём Sort из кода.
         Sort.Direction direction = "desc".equalsIgnoreCase(sortOrder) ? Sort.Direction.DESC : Sort.Direction.ASC;
@@ -206,7 +238,6 @@ public class MangaService {
             case "rating" -> "rating";
             case "ratingCount" -> "ratingCount";
             case "likes" -> "likes";
-            case "reviews" -> "reviews";
             case "comments" -> "comments";
             case "chapterCount" -> "totalChapters";
             case "popularity" -> "views"; // временная подмена
@@ -258,7 +289,7 @@ public class MangaService {
      * @param chapterRangeMax максимальное количество глав (может быть null)
      * @return PageResponseDTO с найденными мангами
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public PageResponseDTO<MangaResponseDTO> getAllMangaPagedWithFilters(
         int page, int size, String sortBy, String sortOrder,
         List<String> genres, List<String> tags, String mangaType, String status,
@@ -272,6 +303,9 @@ public class MangaService {
                 page, size, sortBy, sortOrder, genres, tags, mangaType, status,
                 ageRatingMin, ageRatingMax, ratingMin, ratingMax,
                 releaseYearMin, releaseYearMax, chapterRangeMin, chapterRangeMax);
+
+    synchronizeAllMetricsIfStale();
+        synchronizeAllMetricsIfRequired(sortBy);
 
         // Валидируем и нормализуем статус
         String validatedStatus = null;
@@ -303,20 +337,16 @@ public class MangaService {
         List<String> safeGenres = genres != null ? genres : List.of();
         List<String> safeTags = tags != null ? tags : List.of();
 
-    Page<Manga> searchResults;
-    if (Boolean.TRUE.equals(strictMatch)) {
-        searchResults = mangaRepository.findAllWithFiltersStrict(
-            safeGenres, safeTags, validatedMangaType, validatedStatus,
-            ageRatingMin, ageRatingMax, ratingMin, ratingMax,
-            releaseYearMin, releaseYearMax, chapterRangeMin, chapterRangeMax,
-            pageable);
+    boolean strict = Boolean.TRUE.equals(strictMatch);
+    Page<Manga> searchResults = mangaRepository.findAllWithFiltersAdaptive(
+        safeGenres, safeTags, validatedMangaType, validatedStatus,
+        ageRatingMin, ageRatingMax, ratingMin, ratingMax,
+        releaseYearMin, releaseYearMax, chapterRangeMin, chapterRangeMax,
+        strict,
+        pageable
+    );
+    if (strict) {
         logger.debug("Строгий режим фильтрации активен (AND по жанрам/тегам)");
-    } else {
-        searchResults = mangaRepository.findAllWithFilters(
-            safeGenres, safeTags, validatedMangaType, validatedStatus,
-            ageRatingMin, ageRatingMax, ratingMin, ratingMax,
-            releaseYearMin, releaseYearMax, chapterRangeMin, chapterRangeMax,
-            pageable);
     }
 
         logger.debug("Найдено {} манг с фильтрами на странице {}", searchResults.getNumberOfElements(), page);
@@ -350,21 +380,19 @@ public class MangaService {
     private Sort createSort(String sortBy, String sortOrder) {
         Sort.Direction direction = "desc".equalsIgnoreCase(sortOrder) ? Sort.Direction.DESC : Sort.Direction.ASC;
 
-        // Для нативных SQL запросов используем имена колонок базы данных
-        Sort secondary = Sort.by(Sort.Direction.DESC, "created_at");
+        Sort secondary = Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "id"));
         return switch (sortBy != null ? sortBy.toLowerCase() : "createdat") {
             case "title" -> Sort.by(direction, "title").and(secondary);
             case "author" -> Sort.by(direction, "author").and(secondary);
-            case "createdat" -> Sort.by(direction, "created_at").and(Sort.by(Sort.Direction.DESC, "id"));
-            case "updatedat" -> Sort.by(direction, "updated_at").and(Sort.by(Sort.Direction.DESC, "id"));
+            case "createdat" -> Sort.by(direction, "createdAt").and(Sort.by(Sort.Direction.DESC, "id"));
+            case "updatedat" -> Sort.by(direction, "updatedAt").and(Sort.by(Sort.Direction.DESC, "id"));
             case "views" -> Sort.by(direction, "views").and(secondary);
             case "rating" -> Sort.by(direction, "rating").and(secondary);
-            case "ratingcount" -> Sort.by(direction, "rating_count").and(secondary);
+            case "ratingcount" -> Sort.by(direction, "ratingCount").and(secondary);
             case "likes" -> Sort.by(direction, "likes").and(secondary);
-            case "reviews" -> Sort.by(direction, "reviews").and(secondary);
             case "comments" -> Sort.by(direction, "comments").and(secondary);
-            case "chaptercount" -> Sort.by(direction, "total_chapters").and(secondary);
-            case "popularity" -> Sort.by(direction, "views").and(secondary); // Простое поле для начала
+            case "chaptercount" -> Sort.by(direction, "totalChapters").and(secondary);
+            case "popularity" -> Sort.by(direction, "popularity").and(secondary);
             default -> secondary;
         };
     }
@@ -382,7 +410,7 @@ public class MangaService {
      * @param sortOrder направление сортировки
      * @return PageResponseDTO с найденными мангами
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public PageResponseDTO<MangaResponseDTO> searchMangaPaged(String title, String author, String genre, String status,
                                                               int page, int size, String sortBy, String sortOrder) {
         logger.debug("Пагинированный поиск манги - title: '{}', author: '{}', genre: '{}', status: '{}', page: {}, size: {}, sortBy: {}, sortOrder: {}",
@@ -398,7 +426,6 @@ public class MangaService {
                 case "popularity", "popular" -> "popularity";
                 case "views" -> "views";
                 case "likes" -> "likes";
-                case "reviews" -> "reviews";
                 case "comments" -> "comments";
                 case "rating" -> "rating";
                 case "title" -> "title";
@@ -412,6 +439,9 @@ public class MangaService {
         } else {
             sortBy = "createdAt";
         }
+
+        synchronizeAllMetricsIfStale();
+        synchronizeAllMetricsIfRequired(sortBy);
 
         // Валидируем и нормализуем статус
         String validatedStatus = null;
@@ -435,7 +465,6 @@ public class MangaService {
             case "rating" -> "rating";
             case "ratingCount" -> "ratingCount";
             case "likes" -> "likes";
-            case "reviews" -> "reviews";
             case "comments" -> "comments";
             case "chapterCount" -> "totalChapters";
             case "popularity" -> "views"; // временная подмена популярности
@@ -511,6 +540,9 @@ public class MangaService {
                         logger.info("Пользователь не авторизован, просмотры не инкрементируем для манги {}", manga.getId());
                     }
 
+                    synchronizeEngagementMetricsForIds(Collections.singletonList(manga.getId()));
+                    manga = mangaRepository.findById(id).orElse(manga);
+
                     MangaResponseDTO responseDTO = mangaMapper.toResponseDTO(manga);
                     logger.info("Возвращаем мангу {} с просмотрами: {}", manga.getId(), responseDTO.getViews());
                     enrichWithChapterCount(responseDTO, manga);
@@ -545,6 +577,7 @@ public class MangaService {
                 // Принудительно сохраняем изменения в базу данных
                 mangaRepository.flush();
                 logger.info("Успешно инкрементированы просмотры для манги {} пользователем {}", mangaId, userId);
+                businessMetrics.recordChapterRead(mangaId, userId);
             } catch (Exception e) {
                 logger.error("Ошибка при инкременте просмотров для манги {} пользователем {}: {}", mangaId, userId, e.getMessage(), e);
                 throw e;
@@ -552,7 +585,216 @@ public class MangaService {
         } else {
             logger.info("Просмотр манги {} пользователем {} заблокирован rate limit", mangaId, userId);
         }
-    }    /**
+    }
+
+    private void synchronizeAllMetricsIfRequired(String sortBy) {
+        if (!isMetricSortField(sortBy)) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        long lastSync = lastMetricsSync.get();
+        if (now - lastSync < 5_000L) {
+            return;
+        }
+
+        try {
+            List<Long> allIds = mangaRepository.findAllIds();
+            synchronizeEngagementMetricsForIds(allIds);
+            lastMetricsSync.set(System.currentTimeMillis());
+        } catch (Exception ex) {
+            logger.warn("Не удалось принудительно синхронизировать метрики манги для сортировки: {}", ex.getMessage());
+            logger.debug("Детали ошибки принудительной синхронизации", ex);
+        }
+    }
+
+    private boolean isMetricSortField(String sortBy) {
+        if (sortBy == null) {
+            return false;
+        }
+        String normalized = sortBy.replace("_", "").toLowerCase();
+        return METRIC_SORT_FIELDS.contains(normalized);
+    }
+
+    private void synchronizeAllMetricsIfStale() {
+        long now = System.currentTimeMillis();
+        long last = lastMetricsSync.get();
+
+        if (now - last < METRIC_SYNC_COOLDOWN_MS) {
+            return;
+        }
+
+        if (!lastMetricsSync.compareAndSet(last, now)) {
+            return;
+        }
+
+        try {
+            List<Long> allIds = mangaRepository.findAllIds();
+            synchronizeEngagementMetricsForIds(allIds);
+        } catch (Exception ex) {
+            lastMetricsSync.set(last);
+            logger.warn("Не удалось синхронизировать метрики манги: {}", ex.getMessage());
+            logger.debug("Детали ошибки синхронизации метрик", ex);
+        }
+    }
+
+    private void synchronizeEngagementMetricsForIds(Collection<Long> mangaIds) {
+        if (mangaIds == null || mangaIds.isEmpty()) {
+            return;
+        }
+
+        List<Long> distinctIds = mangaIds.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (distinctIds.isEmpty()) {
+            return;
+        }
+
+        Map<Long, Manga> dirtyEntities = new LinkedHashMap<>();
+
+        for (int start = 0; start < distinctIds.size(); start += METRIC_SYNC_BATCH_SIZE) {
+            int end = Math.min(distinctIds.size(), start + METRIC_SYNC_BATCH_SIZE);
+            List<Long> batchIds = distinctIds.subList(start, end);
+
+            Map<Long, Long> likeAggregates = externalMetricsClient.fetchMangaLikes(batchIds);
+            Map<Long, Long> commentAggregates = new HashMap<>(externalMetricsClient.fetchMangaComments(batchIds));
+            Map<Long, List<Long>> chapterIdMapping = externalMetricsClient.fetchMangaChapterIds(batchIds);
+
+            Map<Long, Long> chapterCommentAggregates = Collections.emptyMap();
+            if (!chapterIdMapping.isEmpty()) {
+                List<Long> chapterIds = chapterIdMapping.values().stream()
+                        .filter(Objects::nonNull)
+                        .flatMap(Collection::stream)
+                        .filter(Objects::nonNull)
+                        .distinct()
+                        .collect(Collectors.toList());
+                if (!chapterIds.isEmpty()) {
+                    chapterCommentAggregates = externalMetricsClient.fetchChapterComments(chapterIds);
+                }
+
+                for (Map.Entry<Long, List<Long>> entry : chapterIdMapping.entrySet()) {
+                    Long mangaId = entry.getKey();
+                    List<Long> chapters = entry.getValue();
+                    if (mangaId == null || chapters == null || chapters.isEmpty()) {
+                        continue;
+                    }
+
+                    long chapterTotal = 0L;
+                    for (Long chapterId : chapters) {
+                        if (chapterId == null) {
+                            continue;
+                        }
+                        chapterTotal += chapterCommentAggregates.getOrDefault(chapterId, 0L);
+                    }
+
+                    if (chapterTotal != 0L || !commentAggregates.containsKey(mangaId)) {
+                        commentAggregates.merge(mangaId, chapterTotal, Long::sum);
+                    }
+                }
+            }
+            Map<Long, MangaReviewAggregateResponse> reviewAggregates = externalMetricsClient.fetchMangaReviews(batchIds);
+
+            boolean likesAvailable = !likeAggregates.isEmpty();
+            boolean commentsAvailable = !commentAggregates.isEmpty();
+            boolean reviewsAvailable = !reviewAggregates.isEmpty();
+
+            List<Manga> entities = mangaRepository.findAllById(batchIds);
+            for (Manga entity : entities) {
+                Long mangaId = entity.getId();
+
+                Long likesValue = likesAvailable ? likeAggregates.getOrDefault(mangaId, 0L) : entity.getLikes();
+                if (likesValue == null) {
+                    likesValue = 0L;
+                }
+
+                Integer commentsValue = entity.getComments();
+                if (commentsAvailable) {
+                    Long aggregatedComments = commentAggregates.getOrDefault(mangaId, 0L);
+                    commentsValue = safeLongToInt(aggregatedComments);
+                } else if (commentsValue == null) {
+                    commentsValue = 0;
+                }
+
+                Integer reviewsValue = entity.getReviews() != null ? entity.getReviews() : 0;
+                Double ratingValue = entity.getRating() != null ? entity.getRating() : 0.0;
+                Integer ratingCountValue = entity.getRatingCount() != null ? entity.getRatingCount() : 0;
+
+                if (reviewsAvailable) {
+                    MangaReviewAggregateResponse reviewAggregate = reviewAggregates.get(mangaId);
+                    if (reviewAggregate != null) {
+                        ratingValue = sanitizeRating(reviewAggregate.averageRating());
+                        Long totalReviews = reviewAggregate.totalReviews();
+                        if (totalReviews != null) {
+                            reviewsValue = safeLongToInt(totalReviews);
+                            ratingCountValue = safeLongToInt(totalReviews);
+                        }
+                    } else if (!reviewAggregates.isEmpty()) {
+                        // Если сервис вернул данные, но конкретный ID отсутствует — значит отзывов нет
+                        reviewsValue = 0;
+                        ratingValue = 0.0;
+                        ratingCountValue = 0;
+                    }
+                }
+
+                boolean changed = false;
+                if (!Objects.equals(entity.getLikes(), likesValue)) {
+                    entity.setLikes(likesValue);
+                    changed = true;
+                }
+                if (!Objects.equals(entity.getComments(), commentsValue)) {
+                    entity.setComments(commentsValue);
+                    changed = true;
+                }
+                if (!Objects.equals(entity.getReviews(), reviewsValue)) {
+                    entity.setReviews(reviewsValue);
+                    changed = true;
+                }
+                if (!Objects.equals(entity.getRating(), ratingValue)) {
+                    entity.setRating(ratingValue);
+                    changed = true;
+                }
+                if (!Objects.equals(entity.getRatingCount(), ratingCountValue)) {
+                    entity.setRatingCount(ratingCountValue);
+                    changed = true;
+                }
+
+                if (changed) {
+                    dirtyEntities.put(mangaId, entity);
+                }
+            }
+        }
+
+        if (!dirtyEntities.isEmpty()) {
+            mangaRepository.saveAll(dirtyEntities.values());
+            mangaRepository.flush();
+        }
+    }
+
+    private int safeLongToInt(Long value) {
+        if (value == null) {
+            return 0;
+        }
+        if (value > Integer.MAX_VALUE) {
+            return Integer.MAX_VALUE;
+        }
+        if (value < Integer.MIN_VALUE) {
+            return Integer.MIN_VALUE;
+        }
+        return value.intValue();
+    }
+
+    private double sanitizeRating(Double rating) {
+        if (rating == null || rating.isNaN() || rating.isInfinite()) {
+            return 0.0;
+        }
+        double clamped = Math.max(0.0, Math.min(9.99, rating));
+        return BigDecimal.valueOf(clamped)
+                .setScale(2, RoundingMode.HALF_UP)
+                .doubleValue();
+    }
+
+    /**
      * Создает новую мангу в системе.
      * 
      * Принимает DTO с данны��и для создания, валидирует их,
@@ -614,6 +856,7 @@ public class MangaService {
             }
             
             Manga savedManga = mangaRepository.save(manga);
+            businessMetrics.refreshTotalTitles();
             
             logger.info("Манга успешно создана с ID: {}", savedManga.getId());
             
@@ -693,6 +936,7 @@ public class MangaService {
             manga.setTagsString(tagsString);
             
             Manga savedManga = mangaRepository.save(manga);
+            businessMetrics.refreshTotalTitles();
             
             logger.info("Манга из Melon успешно создана с ID: {}", savedManga.getId());
             
@@ -900,6 +1144,7 @@ public class MangaService {
                 
                 // Затем удаляем саму мангу
                 mangaRepository.deleteById(id);
+                businessMetrics.refreshTotalTitles();
                 logger.info("Манга с ID {} успешно удалена", id);
             } else {
                 logger.warn("Попытка удалить несуществующую мангу с ID: {}", id);
@@ -955,6 +1200,10 @@ public class MangaService {
         result.put("failed", failed);
         
         logger.info("Batch удаление завершено: {} успешно, {} ошибок", succeeded.size(), failed.size());
+
+        if (!succeeded.isEmpty()) {
+            businessMetrics.refreshTotalTitles();
+        }
         
         return result;
     }

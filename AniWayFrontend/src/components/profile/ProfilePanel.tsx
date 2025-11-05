@@ -12,7 +12,7 @@ interface ProfilePanelProps {
 }
 
 /**
- * Унифицированная панель профиля с фоном в стиле коллекций (glass-panel p-4 lg:p-5)
+ * Унифицированная панель профиля с легким обводом и прозрачным фоном
  */
 export const ProfilePanel: React.FC<ProfilePanelProps> = ({
   title,
@@ -24,7 +24,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
   borderlessHeader = false
 }) => {
   return (
-    <div className={cn('glass-panel p-4 lg:p-5 rounded-2xl shadow-lg', className)}>
+    <div className={cn('rounded-2xl border border-white/12 bg-white/[0.04] p-4 lg:p-5 shadow-sm', className)}>
       {title && (
         <div className={cn('flex items-center justify-between', !borderlessHeader && 'px-0 pb-3 mb-4 border-b border-white/10')}>
           <h2 className="text-lg font-semibold text-white">{title}</h2>

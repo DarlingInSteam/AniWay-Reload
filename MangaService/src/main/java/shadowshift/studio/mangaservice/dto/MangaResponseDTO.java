@@ -122,6 +122,31 @@ public class MangaResponseDTO {
     private Long views;
 
     /**
+     * Средний пользовательский рейтинг.
+     */
+    private Double rating;
+
+    /**
+     * Количество голосов/отзывов, учтенных при расчетах рейтинга.
+     */
+    private Integer ratingCount;
+
+    /**
+     * Совокупное количество лайков (по главам, отзывам и пр.).
+     */
+    private Long likes;
+
+    /**
+     * Количество отзывов, опубликованных пользователями.
+     */
+    private Long reviews;
+
+    /**
+     * Количество комментариев, оставленных к манге.
+     */
+    private Long comments;
+
+    /**
      * Дата создания записи о манге.
      */
     private LocalDateTime createdAt;
@@ -174,6 +199,11 @@ public class MangaResponseDTO {
         this.coverImageUrl = manga.getCoverImageUrl();
         this.totalChapters = manga.getTotalChapters();
         this.views = manga.getViews();
+        this.rating = manga.getRating();
+        this.ratingCount = manga.getRatingCount();
+        this.likes = manga.getLikes() != null ? manga.getLikes() : 0L;
+        this.reviews = manga.getReviews() != null ? manga.getReviews().longValue() : 0L;
+        this.comments = manga.getComments() != null ? manga.getComments().longValue() : 0L;
         this.createdAt = manga.getCreatedAt();
         this.updatedAt = manga.getUpdatedAt();
     }
@@ -471,6 +501,46 @@ public class MangaResponseDTO {
      * @param views количество просмотров
      */
     public void setViews(Long views) { this.views = views; }
+
+    public Double getRating() {
+        return rating;
+    }
+
+    public void setRating(Double rating) {
+        this.rating = rating;
+    }
+
+    public Integer getRatingCount() {
+        return ratingCount;
+    }
+
+    public void setRatingCount(Integer ratingCount) {
+        this.ratingCount = ratingCount;
+    }
+
+    public Long getLikes() {
+        return likes;
+    }
+
+    public void setLikes(Long likes) {
+        this.likes = likes;
+    }
+
+    public Long getReviews() {
+        return reviews;
+    }
+
+    public void setReviews(Long reviews) {
+        this.reviews = reviews;
+    }
+
+    public Long getComments() {
+        return comments;
+    }
+
+    public void setComments(Long comments) {
+        this.comments = comments;
+    }
 
     /**
      * Возвращает дату создания записи о манге.

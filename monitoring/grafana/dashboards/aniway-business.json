@@ -1,0 +1,200 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "grafana"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM-ANIWAY"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right"
+        }
+      },
+      "targets": [
+        {
+          "expr": "aniway_auth_active_users",
+          "legendFormat": "Активные пользователи",
+          "refId": "A"
+        },
+        {
+          "expr": "aniway_auth_new_users_daily",
+          "legendFormat": "Новые пользователи (сутки)",
+          "refId": "B"
+        }
+      ],
+      "title": "Пользователи",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM-ANIWAY"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right"
+        }
+      },
+      "targets": [
+        {
+          "expr": "aniway_manga_total_titles",
+          "legendFormat": "Всего манги",
+          "refId": "A"
+        },
+        {
+          "expr": "aniway_manga_chapter_reads_total",
+          "legendFormat": "Чтения глав",
+          "refId": "B"
+        }
+      ],
+      "title": "Контент",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM-ANIWAY"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right"
+        }
+      },
+      "targets": [
+        {
+          "expr": "aniway_comment_created_total",
+          "legendFormat": "Создано комментариев",
+          "refId": "A"
+        },
+        {
+          "expr": "aniway_comment_pending_moderation_total",
+          "legendFormat": "В модерации",
+          "refId": "B"
+        }
+      ],
+      "title": "Коммьюнити",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM-ANIWAY"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right"
+        }
+      },
+      "targets": [
+        {
+          "expr": "aniway_notification_deliveries_pending",
+          "legendFormat": "Уведомлений в очереди",
+          "refId": "A"
+        },
+        {
+          "expr": "aniway_notification_sent_total",
+          "legendFormat": "Отправлено уведомлений",
+          "refId": "B"
+        }
+      ],
+      "title": "Уведомления",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": [
+    "aniway",
+    "business"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Aniway — Бизнес-метрики",
+  "uid": "ANIWAY-BUSINESS",
+  "version": 1
+}

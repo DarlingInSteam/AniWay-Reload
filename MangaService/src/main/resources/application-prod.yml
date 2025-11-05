@@ -22,6 +22,7 @@ services:
   auth-service-url: ${AUTH_SERVICE_URL:http://auth-service:8085}
   chapter-service-url: ${CHAPTER_SERVICE_URL:http://chapter-service:8082}
   image-storage-service-url: ${IMAGE_STORAGE_SERVICE_URL:http://image-storage-service:8083}
+  comment-service-url: ${COMMENT_SERVICE_URL:http://comment-service:8086}
   melon-service-url: ${MELON_SERVICE_URL:http://melon-service:8084}
   melon-service-public-url: http://84.201.152.162:8084
 
@@ -35,3 +36,23 @@ logging:
     "[shadowshift.studio.mangaservice]": INFO
     "[org.hibernate.SQL]": DEBUG
     "[org.hibernate.type.descriptor.sql.BasicBinder]": TRACE
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info,prometheus,metrics"
+  endpoint:
+    prometheus:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    distribution:
+      percentiles-histogram:
+        http:
+          server:
+            requests: true
+    tags:
+      application: ${spring.application.name}

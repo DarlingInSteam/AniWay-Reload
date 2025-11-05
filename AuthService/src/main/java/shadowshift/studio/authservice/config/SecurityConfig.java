@@ -60,6 +60,7 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/**").permitAll()
                         // Internal metrics endpoints (should be restricted by network or gateway rules)
                         .requestMatchers("/internal/metrics/users/**").permitAll()
+                        .requestMatchers("/internal/reviews/**").permitAll()
                         .requestMatchers("/internal/bookmarks/manga/*/subscribers").permitAll()
                         .requestMatchers("/internal/telegram/**").permitAll()
                         .requestMatchers("/api/admin/bookmarks/cleanup-orphaned").permitAll()

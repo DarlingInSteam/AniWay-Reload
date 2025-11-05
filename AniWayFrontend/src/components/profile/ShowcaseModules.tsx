@@ -181,7 +181,7 @@ export function Collections({ collections, isOwnProfile }: CollectionsProps) {
   const displayedCollections = collections.slice(0, 8); // Показываем больше коллекций
 
   return (
-    <div className="glass-panel p-4 lg:p-5 shadow-lg">
+    <div className="rounded-2xl border border-white/12 bg-white/[0.04] p-4 lg:p-5 shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2 text-white font-medium">
           <Folder className="w-5 h-5 text-purple-400" />

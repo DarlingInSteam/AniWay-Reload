@@ -68,7 +68,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/forum/manga/*/threads").hasRole("USER")
                 
                 // Actuator endpoint'ы
-                .requestMatchers("/actuator/health").permitAll()
+                .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
                 .requestMatchers("/actuator/**").hasRole("ADMIN")
                 
                 // Все остальные требуют аутентификации

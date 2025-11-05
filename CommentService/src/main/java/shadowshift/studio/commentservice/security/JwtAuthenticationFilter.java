@@ -76,6 +76,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return path != null && path.startsWith("/actuator");
+    }
+
     private UserValidationResponse validateTokenWithAuthService(String token) {
         try {
             HttpHeaders headers = new HttpHeaders();

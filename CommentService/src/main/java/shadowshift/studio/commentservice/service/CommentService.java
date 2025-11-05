@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -23,6 +24,7 @@ import shadowshift.studio.commentservice.enums.CommentType;
 import shadowshift.studio.commentservice.enums.ReactionType;
 import shadowshift.studio.commentservice.repository.CommentRepository;
 import shadowshift.studio.commentservice.repository.CommentReactionRepository;
+import shadowshift.studio.commentservice.metrics.CommentBusinessMetrics;
 import shadowshift.studio.commentservice.notification.NotificationEventPublisher;
 import shadowshift.studio.commentservice.review.ReviewAuthorClient;
 
@@ -47,6 +49,7 @@ public class CommentService {
     private final CommentRepository commentRepository;
     private final CommentReactionRepository commentReactionRepository;
     private final RabbitTemplate rabbitTemplate;
+    private final CommentBusinessMetrics commentBusinessMetrics;
 
     @Value("${xp.events.exchange:xp.events.exchange}")
     private String xpExchange;
@@ -107,7 +110,9 @@ public class CommentService {
             comment.setParentComment(parentComment);
         }
 
-    Comment savedComment = commentRepository.save(comment);
+        Comment savedComment = commentRepository.save(comment);
+        commentBusinessMetrics.recordCommentCreated();
+        commentBusinessMetrics.updatePendingModerationGauge();
 
         // Fire-and-forget increment of user comment counter in AuthService
         try {
@@ -265,7 +270,8 @@ public class CommentService {
         comment.setDeletedAt(LocalDateTime.now(ZoneOffset.UTC));
         comment.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
 
-        commentRepository.save(comment);
+    commentRepository.save(comment);
+    commentBusinessMetrics.updatePendingModerationGauge();
 
         deleteChildComments(commentId);
 
@@ -284,7 +290,7 @@ public class CommentService {
             child.setIsDeleted(true);
             child.setDeletedAt(LocalDateTime.now(ZoneOffset.UTC));
             child.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
-            commentRepository.save(child);
+        commentRepository.save(child);
 
             deleteChildComments(child.getId());
         }
@@ -482,6 +488,46 @@ public class CommentService {
 
         return userComments.stream()
                 .map(this::mapToResponseDTOWithoutReplies)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Aggregates comment totals for the provided targets and comment type.
+     * Ensures missing targets default to zero to simplify downstream sorting logic.
+     */
+    public List<CommentAggregateDTO> getCommentAggregates(CommentType commentType, List<Long> targetIds) {
+        if (commentType == null || targetIds == null || targetIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> distinctIds = targetIds.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (distinctIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, Long> totals = new LinkedHashMap<>();
+        distinctIds.forEach(id -> totals.put(id, 0L));
+
+        List<Object[]> rows = commentRepository.countByTypeAndTargetIds(commentType, distinctIds);
+        for (Object[] row : rows) {
+            if (row == null || row.length < 2) {
+                continue;
+            }
+
+            Long targetId = row[0] instanceof Number ? ((Number) row[0]).longValue() : null;
+            Long count = row[1] instanceof Number ? ((Number) row[1]).longValue() : null;
+
+            if (targetId != null && totals.containsKey(targetId)) {
+                totals.put(targetId, count != null ? count : 0L);
+            }
+        }
+
+        return totals.entrySet().stream()
+                .map(entry -> new CommentAggregateDTO(entry.getKey(), entry.getValue()))
                 .collect(Collectors.toList());
     }
 

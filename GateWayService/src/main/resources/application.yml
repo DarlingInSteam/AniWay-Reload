@@ -324,10 +324,16 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,gateway
+        include: health,info,gateway,prometheus
   endpoint:
+    prometheus:
+      enabled: true
     health:
       show-details: when-authorized
+  metrics:
+    export:
+      prometheus:
+        enabled: true
 
 # Логирование
 logging:

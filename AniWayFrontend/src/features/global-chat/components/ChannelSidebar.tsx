@@ -35,8 +35,8 @@ function ChannelTab({ category, isActive, onSelect }: ChannelTabProps) {
       className={cn(
         'group relative inline-flex min-w-[140px] max-w-[220px] items-center gap-3 rounded-xl px-3 py-2 text-left text-sm transition-colors duration-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-white/40',
         isActive
-          ? 'bg-white/12 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)]'
-          : 'text-white/65 hover:bg-white/5 hover:text-white'
+          ? 'border border-primary/50 bg-primary/20 text-white'
+          : 'border border-white/10 text-white/65 hover:border-white/20 hover:bg-white/5 hover:text-white'
       )}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -158,7 +158,7 @@ export function ChannelSidebar({
   }, [visibleCategories.length]);
 
   return (
-    <div className="sticky top-0.5 z-30 flex h-14 min-h-[56px] items-center gap-3 border-b border-white/12 bg-transparent px-3 backdrop-blur-sm sm:top-1 sm:px-4 !overflow-visible">
+    <div className="sticky top-0.5 z-30 flex h-14 min-h-[56px] items-center gap-3 border-b border-white/12 bg-white/[0.03] px-3 sm:top-1 sm:px-4 !overflow-visible">
       <div className="hidden items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-white/40 lg:flex">
         <span>Каналы</span>
         <span className="text-white/30">·</span>

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { CornerDownLeft, Loader2, Undo2 } from 'lucide-react';
 import type { MessageView as MessageDto } from '@/types/social';
@@ -9,6 +9,7 @@ import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer';
 import { cn } from '@/lib/utils';
 import { buildProfileSlug } from '@/utils/profileSlug';
 import { getUserDisplay, initials, isSameCalendarDay } from '../utils/messageHelpers';
+import type { VirtualItem } from '@tanstack/react-virtual';
 
 interface MessageFeedProps {
   messages: MessageDto[];
@@ -19,6 +20,8 @@ interface MessageFeedProps {
   loadingMessages: boolean;
   dayFormatter: Intl.DateTimeFormat;
   timeFormatter: Intl.DateTimeFormat;
+  virtualItems: VirtualItem[];
+  totalSize: number;
   registerMessageNode: (messageId: string, node: HTMLDivElement | null) => void;
   onLoadOlderMessages: () => Promise<void>;
   onJumpToMessage: (messageId: string) => Promise<void>;
@@ -35,6 +38,8 @@ export function MessageFeed({
   loadingMessages,
   dayFormatter,
   timeFormatter,
+  virtualItems,
+  totalSize,
   registerMessageNode,
   onLoadOlderMessages,
   onJumpToMessage,
@@ -85,47 +90,51 @@ export function MessageFeed({
         </button>
       )}
 
-      {messages.map((message, index) => {
-        const previous = index > 0 ? messages[index - 1] : null;
-        const author = getUserDisplay(users, message.senderId, currentUserId);
-        const replyTarget = resolveReplyPreview(message);
-        const isOwn = currentUserId === message.senderId;
-        const isHighlighted = highlightedMessageId === message.id;
-        const profileSlug = buildProfileSlug(
-          message.senderId,
-          users[message.senderId]?.displayName || users[message.senderId]?.username || author
-        );
-        const messageDate = new Date(message.createdAt);
-        const previousDate = previous ? new Date(previous.createdAt) : null;
-        const showDateSeparator = !previousDate || !isSameCalendarDay(messageDate, previousDate);
-        const spacingClass = index === 0 ? 'mt-2' : 'mt-3';
-        const replySnippet = replyTarget ? replySnippets.get(replyTarget.id) ?? '' : '';
+      <div
+        style={{ height: totalSize, position: 'relative' }}
+        className="w-full"
+      >
+        {virtualItems.map(virtualRow => {
+          const index = virtualRow.index;
+          const message = messages[index];
+          if (!message) {
+            return null;
+          }
+          const previous = index > 0 ? messages[index - 1] : null;
+          const author = getUserDisplay(users, message.senderId, currentUserId);
+          const replyTarget = resolveReplyPreview(message);
+          const isOwn = currentUserId === message.senderId;
+          const isHighlighted = highlightedMessageId === message.id;
+          const profileSlug = buildProfileSlug(
+            message.senderId,
+            users[message.senderId]?.displayName || users[message.senderId]?.username || author
+          );
+          const messageDate = new Date(message.createdAt);
+          const previousDate = previous ? new Date(previous.createdAt) : null;
+          const showDateSeparator = !previousDate || !isSameCalendarDay(messageDate, previousDate);
+          const replySnippet = replyTarget ? replySnippets.get(replyTarget.id) ?? '' : '';
 
         return (
-          <React.Fragment key={message.id}>
-            {showDateSeparator && (
-              <div className="relative my-6 flex items-center justify-center text-[10px] uppercase tracking-[0.3em] text-white/30">
-                <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1">
+          <div
+            key={message.id}
+            data-index={index}
+            className="absolute inset-x-0"
+            style={{ transform: `translateY(${virtualRow.start}px)` }}
+            ref={node => registerMessageNode(message.id, node)}
+          >
+            <div className="px-1">
+              {showDateSeparator && (
+                <div className="my-6 text-center text-[10px] uppercase tracking-[0.3em] text-white/35">
                   {dayFormatter.format(messageDate)}
-                </span>
-              </div>
-            )}
-            <div
-              ref={node => registerMessageNode(message.id, node)}
-              className={cn('group flex w-full px-1', isOwn ? 'justify-end' : 'justify-start', spacingClass)}
-            >
-              <div
-                className={cn(
-                  'flex max-w-[760px] items-start gap-3',
-                  isOwn ? 'flex-row-reverse text-right' : 'text-left'
-                )}
-              >
+                </div>
+              )}
+              <div className="flex w-full items-start gap-3 py-3">
                 <Link
                   to={`/profile/${profileSlug}`}
                   className="flex-shrink-0"
                   title={author}
                 >
-                  <Avatar className={cn('h-8 w-8 border border-white/15 bg-black/60 text-[11px] transition hover:border-primary/60', isOwn && 'ml-1')}>
+                  <Avatar className="h-8 w-8 border border-white/15 bg-black/60 text-[11px] transition hover:border-primary/60">
                     {users[message.senderId]?.avatar ? (
                       <AvatarImage src={users[message.senderId]?.avatar} alt={author} />
                     ) : (
@@ -133,33 +142,21 @@ export function MessageFeed({
                     )}
                   </Avatar>
                 </Link>
-                <div className={cn('flex min-w-0 flex-1 flex-col gap-1', isOwn ? 'items-end' : 'items-start')}>
-                  <div
-                    className={cn(
-                      'flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-white/45',
-                      isOwn && 'flex-row-reverse text-right'
-                    )}
-                  >
-                    {isOwn ? (
-                      <span className="font-semibold text-white">Вы</span>
-                    ) : (
-                      <Link
-                        to={`/profile/${profileSlug}`}
-                        className="font-semibold text-white transition hover:text-primary"
-                      >
-                        {author}
-                      </Link>
-                    )}
+                <div className="flex min-w-0 flex-1 flex-col gap-1 text-left">
+                  <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] text-white/45">
+                    <Link
+                      to={`/profile/${profileSlug}`}
+                      className={cn('font-semibold transition', isOwn ? 'text-white' : 'text-white hover:text-primary')}
+                    >
+                      {isOwn ? 'Вы' : author}
+                    </Link>
                     <span className="text-white/35">{timeFormatter.format(messageDate)}</span>
                   </div>
 
                   {replyTarget ? (
                     <button
                       type="button"
-                      className={cn(
-                        'flex w-full items-center gap-2 text-xs text-white/60 transition hover:text-white',
-                        isOwn && 'justify-end'
-                      )}
+                      className="flex w-full items-center gap-2 text-xs text-white/60 transition hover:text-white"
                       onClick={() => onJumpToMessage(replyTarget.id)}
                     >
                       <span className="text-white/45">↩</span>
@@ -168,14 +165,14 @@ export function MessageFeed({
                       </span>
                     </button>
                   ) : message.replyToMessageId ? (
-                    <div className={cn('flex items-center gap-2 text-xs text-white/50', isOwn && 'justify-end')}>
+                    <div className="flex items-center gap-2 text-xs text-white/50">
                       <span className="text-white/40">↩</span>
                       <span>Ответ на сообщение из архива.</span>
                       {hasMore && (
                         <button
                           type="button"
                           onClick={() => onJumpToMessage(message.replyToMessageId!)}
-                          className="rounded-full border border-white/10 px-2 py-[2px] text-[10px] uppercase tracking-[0.25em] text-white/60 transition hover:border-white/30 hover:text-white"
+                          className="rounded-full border border-white/12 px-2 py-[2px] text-[10px] uppercase tracking-[0.25em] text-white/60 transition hover:border-white/30 hover:text-white"
                         >
                           Найти
                         </button>
@@ -183,26 +180,17 @@ export function MessageFeed({
                     </div>
                   ) : null}
 
-                  <div
-                    className={cn(
-                      'glass-panel w-full px-4 py-3 text-sm leading-relaxed text-white/85 transition',
-                      isOwn ? 'border-primary/30 bg-primary/20 text-white' : 'border-white/15 bg-white/10 text-white/90',
-                      isHighlighted && 'ring-2 ring-primary/60'
-                    )}
-                  >
-                    <div className="prose prose-invert max-w-none text-sm leading-relaxed markdown-body">
-                      <MarkdownRenderer value={message.content} />
-                    </div>
+                  <div className={cn(
+                    'prose prose-invert max-w-none text-sm leading-relaxed markdown-body text-white/85',
+                    isHighlighted && 'text-white'
+                  )}>
+                    <MarkdownRenderer value={message.content} />
                   </div>
-                  <div
-                    className={cn(
-                      'flex items-center gap-3 text-[11px] text-white/40 opacity-0 transition group-hover:opacity-100',
-                      isOwn ? 'justify-end' : 'justify-start'
-                    )}
-                  >
+
+                  <div className="mt-1 flex items-center gap-3 text-[11px] text-white/45">
                     <button
                       type="button"
-                      className="inline-flex items-center gap-1 text-white/50 transition hover:text-white"
+                      className="inline-flex items-center gap-1 text-white/55 transition hover:text-white"
                       onClick={() => {
                         onReply(message);
                         onJumpToMessage(message.id);
@@ -215,9 +203,10 @@ export function MessageFeed({
                 </div>
               </div>
             </div>
-          </React.Fragment>
+          </div>
         );
-      })}
+        })}
+      </div>
     </div>
   );
 }
