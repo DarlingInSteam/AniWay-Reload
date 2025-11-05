@@ -109,7 +109,7 @@ services:
     restart: unless-stopped
     privileged: true
     command:
-      - "--enable_metrics=percpu,process,network,disk,diskIO"
+      - "--enable_metrics=cpu,percpu,process,network,disk,diskIO"
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:rw
