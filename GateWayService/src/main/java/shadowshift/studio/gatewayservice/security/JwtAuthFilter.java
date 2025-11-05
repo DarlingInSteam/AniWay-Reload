@@ -45,6 +45,11 @@ public class JwtAuthFilter implements WebFilter {
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         String path = exchange.getRequest().getURI().getPath();
 
+        if (path.startsWith("/actuator")) {
+            // Let Spring Boot actuator endpoints (e.g. Prometheus scrape) bypass auth completely
+            return chain.filter(exchange);
+        }
+
         HttpMethod method = exchange.getRequest().getMethod();
         if (path.startsWith("/api/moments")) {
             if (method == null || HttpMethod.GET.equals(method) || HttpMethod.HEAD.equals(method) || HttpMethod.OPTIONS.equals(method)) {
