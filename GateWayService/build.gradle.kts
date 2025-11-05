@@ -32,6 +32,7 @@ dependencies {
 
     // Actuator для мониторинга
     implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation("io.micrometer:micrometer-registry-prometheus")
 
     // Логирование
     implementation("org.springframework.boot:spring-boot-starter-logging")

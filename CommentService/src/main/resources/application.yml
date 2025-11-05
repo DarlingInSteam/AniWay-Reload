@@ -53,10 +53,16 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
   endpoint:
+    prometheus:
+      enabled: true
     health:
       show-details: when-authorized
+  metrics:
+    export:
+      prometheus:
+        enabled: true
 
 # Logging configuration
 logging:
