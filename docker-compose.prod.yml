@@ -46,7 +46,6 @@ services:
       - aniway-frontend
     networks:
       - aniway-network
-      - monitoring-backplane
 
   # Gateway Service
   gateway-service:
@@ -856,6 +855,3 @@ volumes:
 networks:
   aniway-network:
     driver: bridge
-  monitoring-backplane:
-    external: true
-    name: aniway-network
