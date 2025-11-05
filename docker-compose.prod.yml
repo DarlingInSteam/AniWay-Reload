@@ -858,3 +858,4 @@ networks:
     driver: bridge
   monitoring-net:
     external: true
+    name: aniway-network
