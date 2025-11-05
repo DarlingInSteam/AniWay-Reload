@@ -15,22 +15,6 @@ https://aniway.space {
         file_server
     }
 
-    handle_path /prometheus* {
-        reverse_proxy aniway-prometheus:9090
-    }
-
-    handle /grafana {
-        redir /grafana/ 302
-    }
-
-    handle_path /grafana/* {
-        reverse_proxy aniway-grafana:3000
-    }
-
-    handle_path /alertmanager* {
-        reverse_proxy aniway-alertmanager:9093
-    }
-
     # Server-Sent Events (SSE) for notifications
     @sse {
         path /api/notifications/stream*
@@ -66,6 +50,30 @@ https://aniway.space {
 
     # All other requests to frontend
     reverse_proxy aniway-frontend:80
+}
+
+https://grafana.aniway.space {
+    encode zstd gzip
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    }
+    reverse_proxy aniway-grafana:3000
+}
+
+https://prometheus.aniway.space {
+    encode zstd gzip
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    }
+    reverse_proxy aniway-prometheus:9090
+}
+
+https://alertmanager.aniway.space {
+    encode zstd gzip
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    }
+    reverse_proxy aniway-alertmanager:9093
 }
 
 http://aniway.space {
