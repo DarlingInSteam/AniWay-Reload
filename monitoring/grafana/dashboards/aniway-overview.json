@@ -212,8 +212,8 @@
       },
       "targets": [
         {
-          "expr": "sum by (container_label_com_docker_compose_service) (rate(container_cpu_usage_seconds_total{container_label_com_docker_compose_service!='',job='cadvisor'}[5m]))",
-          "legendFormat": "{{container_label_com_docker_compose_service}}",
+          "expr": "sum by (service) (label_replace(rate(container_cpu_usage_seconds_total{job=\"cadvisor\",container!=\"\",container_label_com_docker_compose_service=~\".+\"}[5m]), \"service\", \"$1\", \"container_label_com_docker_compose_service\", \"(.+)\")) or sum by (service) (label_replace((rate(container_cpu_usage_seconds_total{job=\"cadvisor\",container!=\"\"}[5m]) unless ignoring(container_label_com_docker_compose_service) rate(container_cpu_usage_seconds_total{job=\"cadvisor\",container!=\"\",container_label_com_docker_compose_service=~\".+\"}[5m])), \"service\", \"$1\", \"name\", \"(.+)\"))",
+          "legendFormat": "{{service}}",
           "refId": "A"
         }
       ],

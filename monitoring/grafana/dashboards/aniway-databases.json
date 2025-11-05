@@ -188,8 +188,7 @@
           "selected": true,
           "text": "Все",
           "value": [
-            "aniway-postgres-exporter-auth:9187",
-            "aniway-postgres-exporter-manga:9187"
+            "$__all"
           ]
         },
         "datasource": {
