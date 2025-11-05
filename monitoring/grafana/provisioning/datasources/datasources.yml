@@ -10,7 +10,7 @@ datasources:
     access: proxy
     orgId: 1
     uid: PROM-ANIWAY
-  url: http://prometheus:9090/prometheus
+    url: http://prometheus:9090/prometheus
     isDefault: true
     editable: false
     jsonData:
