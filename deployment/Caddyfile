@@ -32,7 +32,7 @@ https://aniway.space {
     handle /prometheus {
         redir /prometheus/ 302
     }
-    handle /prometheus/* {
+    handle_path /prometheus/* {
         reverse_proxy aniway-prometheus:9090 {
             header_up Host {http.request.host}
             header_up X-Forwarded-Host {http.request.host}
@@ -45,7 +45,7 @@ https://aniway.space {
     handle /alertmanager {
         redir /alertmanager/ 302
     }
-    handle /alertmanager/* {
+    handle_path /alertmanager/* {
         reverse_proxy aniway-alertmanager:9093 {
             header_up Host {http.request.host}
             header_up X-Forwarded-Host {http.request.host}
