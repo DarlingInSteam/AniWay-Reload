@@ -1,0 +1,131 @@
+groups:
+  - name: aniway-service-health
+    rules:
+      - alert: AniwayServiceDown
+        expr: up{job="aniway-backend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.service }} недоступен"
+          description: "Сервис {{ $labels.service }} не отвечает более 2 минут."
+
+      - alert: AniwayHighErrorRate
+        expr: |
+          sum(rate(http_server_requests_seconds_count{outcome="SERVER_ERROR"}[5m]))
+            by (application) / sum(rate(http_server_requests_seconds_count[5m])) by (application) > 0.05
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Высокий уровень ошибок в {{ $labels.application }}"
+          description: "Ошибка 5xx превышает 5% за последние 5 минут."
+
+      - alert: AniwaySlowLatencyP99
+        expr: histogram_quantile(0.99,
+                sum(rate(http_server_requests_seconds_bucket[5m])) by (le, application)) > 1.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Высокая латентность (P99) в {{ $labels.application }}"
+          description: "P99 времени ответа превышает 1.5 секунды."
+
+  - name: aniway-infrastructure
+    rules:
+      - alert: ContainerCpuHigh
+        expr: |
+          sum(rate(container_cpu_usage_seconds_total{container!="",job="cadvisor"}[5m])) by (container)
+            /
+          sum(container_spec_cpu_quota{container!="",job="cadvisor"} / container_spec_cpu_period{container!="",job="cadvisor"})
+            by (container) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Высокая загрузка CPU для контейнера {{ $labels.container }}"
+          description: "Загрузка CPU превышает 80% в течение 5 минут."
+
+      - alert: ContainerMemoryHigh
+        expr: |
+          (container_memory_usage_bytes{container!="",job="cadvisor"}
+            /
+           container_spec_memory_limit_bytes{container!="",job="cadvisor"}) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Высокое использование памяти в {{ $labels.container }}"
+          description: "Использование памяти превышает 90% лимита."
+
+      - alert: NodeExporterDown
+        expr: up{job="node"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Node exporter недоступен"
+          description: "Экспортер узла перестал отвечать более 2 минут."
+
+  - name: aniway-databases
+    rules:
+      - alert: PostgresExporterDown
+        expr: up{job="postgres"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL экспортер {{ $labels.instance }} недоступен"
+          description: "Экспортер PostgreSQL перестал отвечать более 2 минут."
+
+      - alert: PostgresConnectionSaturation
+        expr: |
+          avg(pg_stat_activity_count{datname!="template0",datname!="template1"}) by (instance)
+            / avg(pg_settings_max_connections{instance!=""}) by (instance) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Высокая нагрузка соединений PostgreSQL для {{ $labels.instance }}"
+          description: "Количество активных соединений превышает 80% от ограничений."
+
+      - alert: PostgresSlowQueries
+        expr: |
+          increase(pg_stat_database_blks_hit{datname!="template0",datname!="template1"}[10m])
+            / increase(pg_stat_database_blks_read{datname!="template0",datname!="template1"}[10m]) < 5
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "Низкий коэффициент кэш-хитов в {{ $labels.instance }}"
+          description: "Количество обращений к диску резко выросло."
+
+  - name: aniway-business
+    rules:
+      - alert: ActiveUsersDrop
+        expr: |
+          (avg_over_time(aniway_auth_active_users[1h]) - aniway_auth_active_users) / avg_over_time(aniway_auth_active_users[1h]) > 0.4
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Резкое падение активных пользователей"
+          description: "Количество активных пользователей снизилось более чем на 40% от среднего за час."
+
+      - alert: ChapterReadingsSurge
+        expr: rate(aniway_manga_chapter_reads_total[5m]) > 200
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "Скачок чтения глав"
+          description: "Количество прочтений глав за 5 минут превысило порог 200."
+
+      - alert: CommentBacklogGrowing
+        expr: rate(aniway_comment_pending_moderation_total[10m]) > 20
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Комменты в модерации растут"
+          description: "Очередь комментариев на модерации увеличивается более чем на 20 за 10 минут."

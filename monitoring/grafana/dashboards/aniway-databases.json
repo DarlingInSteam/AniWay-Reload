@@ -1,0 +1,223 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "grafana"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM-ANIWAY"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg(pg_stat_activity_count{instance=~\"$database\"}) by (instance) / avg(pg_settings_max_connections{instance=~\"$database\"}) by (instance)",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Использование соединений",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM-ANIWAY"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "rate(pg_stat_database_xact_commit{instance=~\"$database\",datname!~\"template.*\"}[5m]) + rate(pg_stat_database_xact_rollback{instance=~\"$database\",datname!~\"template.*\"}[5m])",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Транзакции в секунду",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM-ANIWAY"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "right"
+        }
+      },
+      "targets": [
+        {
+          "expr": "rate(pg_stat_database_blks_hit{instance=~\"$database\",datname!~\"template.*\"}[5m])",
+          "legendFormat": "{{instance}} hit",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(pg_stat_database_blks_read{instance=~\"$database\",datname!~\"template.*\"}[5m])",
+          "legendFormat": "{{instance}} read",
+          "refId": "B"
+        }
+      ],
+      "title": "IO обращения",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM-ANIWAY"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "1/s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "rate(pg_stat_database_tup_inserted{instance=~\"$database\",datname!~\"template.*\"}[5m])",
+          "legendFormat": "{{instance}} inserted",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(pg_stat_database_tup_updated{instance=~\"$database\",datname!~\"template.*\"}[5m])",
+          "legendFormat": "{{instance}} updated",
+          "refId": "B"
+        },
+        {
+          "expr": "rate(pg_stat_database_tup_deleted{instance=~\"$database\",datname!~\"template.*\"}[5m])",
+          "legendFormat": "{{instance}} deleted",
+          "refId": "C"
+        }
+      ],
+      "title": "Операции DML",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": [
+    "aniway",
+    "databases"
+  ],
+  "templating": {
+    "list": [
+      {
+        "allValue": null,
+        "current": {
+          "selected": true,
+          "text": "Все",
+          "value": [
+            "aniway-postgres-exporter-auth:9187",
+            "aniway-postgres-exporter-manga:9187"
+          ]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "PROM-ANIWAY"
+        },
+        "definition": "label_values(pg_stat_activity_count, instance)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Database",
+        "multi": true,
+        "name": "database",
+        "options": [],
+        "query": "label_values(pg_stat_activity_count, instance)",
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Aniway — Базы данных",
+  "uid": "ANIWAY-DB",
+  "version": 1
+}

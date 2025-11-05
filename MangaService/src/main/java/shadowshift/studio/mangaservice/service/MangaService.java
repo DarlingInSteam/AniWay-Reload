@@ -23,6 +23,7 @@ import shadowshift.studio.mangaservice.entity.Genre;
 import shadowshift.studio.mangaservice.entity.Tag;
 import shadowshift.studio.mangaservice.exception.MangaServiceException;
 import shadowshift.studio.mangaservice.mapper.MangaMapper;
+import shadowshift.studio.mangaservice.metrics.MangaBusinessMetrics;
 import shadowshift.studio.mangaservice.repository.MangaRepository;
 import shadowshift.studio.mangaservice.service.external.ChapterServiceClient;
 import shadowshift.studio.mangaservice.service.external.ExternalMetricsClient;
@@ -80,6 +81,7 @@ public class MangaService {
     private final TagService tagService;
     private final MelonIntegrationService melonIntegrationService;
     private final ExternalMetricsClient externalMetricsClient;
+    private final MangaBusinessMetrics businessMetrics;
 
     // Кэш для rate limiting просмотров: ключ - "userId_mangaId", значение - timestamp последнего просмотра
     private final ConcurrentHashMap<String, Long> viewRateLimitCache = new ConcurrentHashMap<>();
@@ -101,10 +103,11 @@ public class MangaService {
      * @param mangaMapper маппер для преобразования между DTO и сущностями
      * @param restTemplate шаблон для выполнения REST-запросов
      * @param serviceUrlProperties конфигурация URL сервисов
-     * @param genreService сервис для работы с жанрами
-     * @param tagService сервис для работы с тегами
+    * @param genreService сервис для работы с жанрами
+    * @param tagService сервис для работы с тегами
     * @param melonIntegrationService сервис интеграции с Melon API
     * @param externalMetricsClient клиент, собирающий метрики из внешних сервисов
+    * @param businessMetrics фасад для публикации бизнес-метрик в Prometheus
      */
     public MangaService(MangaRepository mangaRepository, 
                        ChapterServiceClient chapterServiceClient,
@@ -114,7 +117,8 @@ public class MangaService {
                        GenreService genreService,
                        TagService tagService,
                        MelonIntegrationService melonIntegrationService,
-                       ExternalMetricsClient externalMetricsClient) {
+                       ExternalMetricsClient externalMetricsClient,
+                       MangaBusinessMetrics businessMetrics) {
         this.mangaRepository = mangaRepository;
         this.chapterServiceClient = chapterServiceClient;
         this.mangaMapper = mangaMapper;
@@ -124,6 +128,7 @@ public class MangaService {
         this.tagService = tagService;
         this.melonIntegrationService = melonIntegrationService;
         this.externalMetricsClient = externalMetricsClient;
+        this.businessMetrics = businessMetrics;
         logger.info("Инициализирован MangaService");
     }
 
@@ -572,6 +577,7 @@ public class MangaService {
                 // Принудительно сохраняем изменения в базу данных
                 mangaRepository.flush();
                 logger.info("Успешно инкрементированы просмотры для манги {} пользователем {}", mangaId, userId);
+                businessMetrics.recordChapterRead(mangaId, userId);
             } catch (Exception e) {
                 logger.error("Ошибка при инкременте просмотров для манги {} пользователем {}: {}", mangaId, userId, e.getMessage(), e);
                 throw e;
@@ -850,6 +856,7 @@ public class MangaService {
             }
             
             Manga savedManga = mangaRepository.save(manga);
+            businessMetrics.refreshTotalTitles();
             
             logger.info("Манга успешно создана с ID: {}", savedManga.getId());
             
@@ -929,6 +936,7 @@ public class MangaService {
             manga.setTagsString(tagsString);
             
             Manga savedManga = mangaRepository.save(manga);
+            businessMetrics.refreshTotalTitles();
             
             logger.info("Манга из Melon успешно создана с ID: {}", savedManga.getId());
             
@@ -1136,6 +1144,7 @@ public class MangaService {
                 
                 // Затем удаляем саму мангу
                 mangaRepository.deleteById(id);
+                businessMetrics.refreshTotalTitles();
                 logger.info("Манга с ID {} успешно удалена", id);
             } else {
                 logger.warn("Попытка удалить несуществующую мангу с ID: {}", id);
@@ -1191,6 +1200,10 @@ public class MangaService {
         result.put("failed", failed);
         
         logger.info("Batch удаление завершено: {} успешно, {} ошибок", succeeded.size(), failed.size());
+
+        if (!succeeded.isEmpty()) {
+            businessMetrics.refreshTotalTitles();
+        }
         
         return result;
     }

@@ -1,0 +1,324 @@
+version: "3.9"
+
+networks:
+  monitoring-net:
+    driver: bridge
+  aniway-network:
+    external: true
+
+volumes:
+  prometheus-data:
+  grafana-data:
+  alertmanager-data:
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: aniway-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    networks:
+      - monitoring-net
+      - aniway-network
+    labels:
+      org.label-schema.group: "monitoring"
+
+  grafana:
+    image: grafana/grafana:10.4.3
+    container_name: aniway-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:-admin}
+      - GF_USERS_DEFAULT_THEME=dark
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel,grafana-worldmap-panel
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - monitoring-net
+      - aniway-network
+    depends_on:
+      - prometheus
+    labels:
+      org.label-schema.group: "monitoring"
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: aniway-alertmanager
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+      - "--cluster.listen-address=0.0.0.0:9094"
+      - "--config.expand-env"
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./alertmanager/templates:/etc/alertmanager/templates:ro
+      - alertmanager-data:/alertmanager
+    environment:
+      - ALERTMANAGER_TELEGRAM_BOT_TOKEN=${ALERTMANAGER_TELEGRAM_BOT_TOKEN:?set-telegram-bot-token}
+      - ALERTMANAGER_TELEGRAM_CHAT_ID=${ALERTMANAGER_TELEGRAM_CHAT_ID:?set-telegram-chat-id}
+      - ALERTMANAGER_EMAIL_TO=${ALERTMANAGER_EMAIL_TO:?set-alert-email}
+      - ALERTMANAGER_EMAIL_FROM=${ALERTMANAGER_EMAIL_FROM:?set-alert-from}
+      - ALERTMANAGER_SMTP_HOST=${ALERTMANAGER_SMTP_HOST:?set-smtp-host}
+      - ALERTMANAGER_SMTP_PORT=${ALERTMANAGER_SMTP_PORT:-587}
+      - ALERTMANAGER_SMTP_USERNAME=${ALERTMANAGER_SMTP_USERNAME:?set-smtp-username}
+      - ALERTMANAGER_SMTP_PASSWORD=${ALERTMANAGER_SMTP_PASSWORD:?set-smtp-password}
+    ports:
+      - "9093:9093"
+    networks:
+      - monitoring-net
+      - aniway-network
+    labels:
+      org.label-schema.group: "monitoring"
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: aniway-cadvisor
+    restart: unless-stopped
+    privileged: true
+    command:
+      - "--enable_metrics=percpu,process,network,disk,container"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    ports:
+      - "8088:8080"
+    networks:
+      - monitoring-net
+      - aniway-network
+    labels:
+      org.label-schema.group: "monitoring"
+      prometheus.scrape: "true"
+      prometheus.job: "cadvisor"
+      prometheus.port: "8080"
+
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: aniway-node-exporter
+    restart: unless-stopped
+    command:
+      - "--path.rootfs=/host"
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    ports:
+      - "9100:9100"
+    networks:
+      - monitoring-net
+      - aniway-network
+    labels:
+      org.label-schema.group: "monitoring"
+      prometheus.scrape: "true"
+      prometheus.job: "node"
+      prometheus.port: "9100"
+
+  postgres-exporter-auth:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: aniway-postgres-exporter-auth
+    restart: unless-stopped
+    environment:
+      - DATA_SOURCE_URI=postgresql://authuser:authpass123@auth-postgres:5432/authdb?sslmode=disable
+      - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
+    networks:
+      - monitoring-net
+      - aniway-network
+    labels:
+      prometheus.scrape: "true"
+      prometheus.job: "postgres"
+      prometheus.port: "9187"
+      prometheus.instance: "auth-postgres"
+
+  postgres-exporter-manga:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: aniway-postgres-exporter-manga
+    restart: unless-stopped
+    environment:
+      - DATA_SOURCE_URI=postgresql://mangauser:mangapass123@manga-postgres:5432/mangadb?sslmode=disable
+      - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
+    networks:
+      - monitoring-net
+      - aniway-network
+    labels:
+      prometheus.scrape: "true"
+      prometheus.job: "postgres"
+      prometheus.port: "9187"
+      prometheus.instance: "manga-postgres"
+
+  postgres-exporter-comment:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: aniway-postgres-exporter-comment
+    restart: unless-stopped
+    environment:
+      - DATA_SOURCE_URI=postgresql://commentuser:commentpass123@comment-postgres:5432/commentdb?sslmode=disable
+      - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
+    networks:
+      - monitoring-net
+      - aniway-network
+    labels:
+      prometheus.scrape: "true"
+      prometheus.job: "postgres"
+      prometheus.port: "9187"
+      prometheus.instance: "comment-postgres"
+
+  postgres-exporter-friend:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: aniway-postgres-exporter-friend
+    restart: unless-stopped
+    environment:
+      - DATA_SOURCE_URI=postgresql://frienduser:friendpass123@friend-postgres:5432/frienddb?sslmode=disable
+      - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
+    networks:
+      - monitoring-net
+      - aniway-network
+    labels:
+      prometheus.scrape: "true"
+      prometheus.job: "postgres"
+      prometheus.port: "9187"
+      prometheus.instance: "friend-postgres"
+
+  postgres-exporter-chapter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: aniway-postgres-exporter-chapter
+    restart: unless-stopped
+    environment:
+      - DATA_SOURCE_URI=postgresql://chapteruser:chapterpass123@chapter-postgres:5432/chapterdb?sslmode=disable
+      - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
+    networks:
+      - monitoring-net
+      - aniway-network
+    labels:
+      prometheus.scrape: "true"
+      prometheus.job: "postgres"
+      prometheus.port: "9187"
+      prometheus.instance: "chapter-postgres"
+
+  postgres-exporter-image:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: aniway-postgres-exporter-image
+    restart: unless-stopped
+    environment:
+      - DATA_SOURCE_URI=postgresql://imageuser:imagepass123@image-postgres:5432/imagedb?sslmode=disable
+      - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
+    networks:
+      - monitoring-net
+      - aniway-network
+    labels:
+      prometheus.scrape: "true"
+      prometheus.job: "postgres"
+      prometheus.port: "9187"
+      prometheus.instance: "image-postgres"
+
+  postgres-exporter-moment:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: aniway-postgres-exporter-moment
+    restart: unless-stopped
+    environment:
+      - DATA_SOURCE_URI=postgresql://momentuser:momentpass123@moment-postgres:5432/momentdb?sslmode=disable
+      - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
+    networks:
+      - monitoring-net
+      - aniway-network
+    labels:
+      prometheus.scrape: "true"
+      prometheus.job: "postgres"
+      prometheus.port: "9187"
+      prometheus.instance: "moment-postgres"
+
+  postgres-exporter-forum:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: aniway-postgres-exporter-forum
+    restart: unless-stopped
+    environment:
+      - DATA_SOURCE_URI=postgresql://forumuser:forumpass123@forum-postgres:5432/forumdb?sslmode=disable
+      - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
+    networks:
+      - monitoring-net
+      - aniway-network
+    labels:
+      prometheus.scrape: "true"
+      prometheus.job: "postgres"
+      prometheus.port: "9187"
+      prometheus.instance: "forum-postgres"
+
+  postgres-exporter-notification:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: aniway-postgres-exporter-notification
+    restart: unless-stopped
+    environment:
+      - DATA_SOURCE_URI=postgresql://notificationuser:notificationpass123@notification-postgres:5432/notificationdb?sslmode=disable
+      - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
+    networks:
+      - monitoring-net
+      - aniway-network
+    labels:
+      prometheus.scrape: "true"
+      prometheus.job: "postgres"
+      prometheus.port: "9187"
+      prometheus.instance: "notification-postgres"
+
+  postgres-exporter-message:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: aniway-postgres-exporter-message
+    restart: unless-stopped
+    environment:
+      - DATA_SOURCE_URI=postgresql://aniway:aniway_pass@message-postgres:5432/messages?sslmode=disable
+      - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
+    networks:
+      - monitoring-net
+      - aniway-network
+    labels:
+      prometheus.scrape: "true"
+      prometheus.job: "postgres"
+      prometheus.port: "9187"
+      prometheus.instance: "message-postgres"
+
+  postgres-exporter-post:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: aniway-postgres-exporter-post
+    restart: unless-stopped
+    environment:
+      - DATA_SOURCE_URI=postgresql://postuser:postpass123@post-postgres:5432/postdb?sslmode=disable
+      - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
+    networks:
+      - monitoring-net
+      - aniway-network
+    labels:
+      prometheus.scrape: "true"
+      prometheus.job: "postgres"
+      prometheus.port: "9187"
+      prometheus.instance: "post-postgres"
+
+  postgres-exporter-level:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: aniway-postgres-exporter-level
+    restart: unless-stopped
+    environment:
+      - DATA_SOURCE_URI=postgresql://leveluser:levelpass123@level-postgres:5432/leveldb?sslmode=disable
+      - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
+    networks:
+      - monitoring-net
+      - aniway-network
+    labels:
+      prometheus.scrape: "true"
+      prometheus.job: "postgres"
+      prometheus.port: "9187"
+      prometheus.instance: "level-postgres"
