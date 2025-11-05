@@ -151,7 +151,9 @@ services:
     container_name: aniway-postgres-exporter-auth
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${AUTH_DB_DSN:-postgresql://authuser:authpass123@auth-postgres:5432/authdb?sslmode=disable}
+      - DATA_SOURCE_URI=${AUTH_DB_URI:-auth-postgres:5432/authdb?sslmode=disable}
+      - DATA_SOURCE_USER=${AUTH_DB_USER:-authuser}
+      - DATA_SOURCE_PASS=${AUTH_DB_PASS:-authpass123}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -167,7 +169,9 @@ services:
     container_name: aniway-postgres-exporter-manga
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${MANGA_DB_DSN:-postgresql://mangauser:mangapass123@manga-postgres:5432/mangadb?sslmode=disable}
+      - DATA_SOURCE_URI=${MANGA_DB_URI:-manga-postgres:5432/mangadb?sslmode=disable}
+      - DATA_SOURCE_USER=${MANGA_DB_USER:-mangauser}
+      - DATA_SOURCE_PASS=${MANGA_DB_PASS:-mangapass123}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -183,7 +187,9 @@ services:
     container_name: aniway-postgres-exporter-comment
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${COMMENT_DB_DSN:-postgresql://commentuser:commentpass123@comment-postgres:5432/commentdb?sslmode=disable}
+      - DATA_SOURCE_URI=${COMMENT_DB_URI:-comment-postgres:5432/commentdb?sslmode=disable}
+      - DATA_SOURCE_USER=${COMMENT_DB_USER:-commentuser}
+      - DATA_SOURCE_PASS=${COMMENT_DB_PASS:-commentpass123}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -199,7 +205,9 @@ services:
     container_name: aniway-postgres-exporter-friend
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${FRIEND_DB_DSN:-postgresql://frienduser:friendpass123@friend-postgres:5432/frienddb?sslmode=disable}
+      - DATA_SOURCE_URI=${FRIEND_DB_URI:-friend-postgres:5432/frienddb?sslmode=disable}
+      - DATA_SOURCE_USER=${FRIEND_DB_USER:-frienduser}
+      - DATA_SOURCE_PASS=${FRIEND_DB_PASS:-friendpass123}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -215,7 +223,9 @@ services:
     container_name: aniway-postgres-exporter-chapter
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${CHAPTER_DB_DSN:-postgresql://chapteruser:chapterpass123@chapter-postgres:5432/chapterdb?sslmode=disable}
+      - DATA_SOURCE_URI=${CHAPTER_DB_URI:-chapter-postgres:5432/chapterdb?sslmode=disable}
+      - DATA_SOURCE_USER=${CHAPTER_DB_USER:-chapteruser}
+      - DATA_SOURCE_PASS=${CHAPTER_DB_PASS:-chapterpass123}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -231,7 +241,9 @@ services:
     container_name: aniway-postgres-exporter-image
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${IMAGE_DB_DSN:-postgresql://imageuser:imagepass123@image-postgres:5432/imagedb?sslmode=disable}
+      - DATA_SOURCE_URI=${IMAGE_DB_URI:-image-postgres:5432/imagedb?sslmode=disable}
+      - DATA_SOURCE_USER=${IMAGE_DB_USER:-imageuser}
+      - DATA_SOURCE_PASS=${IMAGE_DB_PASS:-imagepass123}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -247,7 +259,9 @@ services:
     container_name: aniway-postgres-exporter-moment
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${MOMENT_DB_DSN:-postgresql://momentuser:momentpass123@moment-postgres:5432/momentdb?sslmode=disable}
+      - DATA_SOURCE_URI=${MOMENT_DB_URI:-moment-postgres:5432/momentdb?sslmode=disable}
+      - DATA_SOURCE_USER=${MOMENT_DB_USER:-momentuser}
+      - DATA_SOURCE_PASS=${MOMENT_DB_PASS:-momentpass123}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -263,7 +277,9 @@ services:
     container_name: aniway-postgres-exporter-forum
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${FORUM_DB_DSN:-postgresql://forumuser:forumpass123@forum-postgres:5432/forumdb?sslmode=disable}
+      - DATA_SOURCE_URI=${FORUM_DB_URI:-forum-postgres:5432/forumdb?sslmode=disable}
+      - DATA_SOURCE_USER=${FORUM_DB_USER:-forumuser}
+      - DATA_SOURCE_PASS=${FORUM_DB_PASS:-forumpass123}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -279,7 +295,9 @@ services:
     container_name: aniway-postgres-exporter-notification
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${NOTIFICATION_DB_DSN:-postgresql://notificationuser:notificationpass123@notification-postgres:5432/notificationdb?sslmode=disable}
+      - DATA_SOURCE_URI=${NOTIFICATION_DB_URI:-notification-postgres:5432/notificationdb?sslmode=disable}
+      - DATA_SOURCE_USER=${NOTIFICATION_DB_USER:-notificationuser}
+      - DATA_SOURCE_PASS=${NOTIFICATION_DB_PASS:-notificationpass123}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -295,7 +313,9 @@ services:
     container_name: aniway-postgres-exporter-message
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${MESSAGE_DB_DSN:-postgresql://aniway:aniway_pass@message-postgres:5432/messages?sslmode=disable}
+      - DATA_SOURCE_URI=${MESSAGE_DB_URI:-message-postgres:5432/messages?sslmode=disable}
+      - DATA_SOURCE_USER=${MESSAGE_DB_USER:-aniway}
+      - DATA_SOURCE_PASS=${MESSAGE_DB_PASS:-aniway_pass}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -311,7 +331,9 @@ services:
     container_name: aniway-postgres-exporter-post
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${POST_DB_DSN:-postgresql://postuser:postpass123@post-postgres:5432/postdb?sslmode=disable}
+      - DATA_SOURCE_URI=${POST_DB_URI:-post-postgres:5432/postdb?sslmode=disable}
+      - DATA_SOURCE_USER=${POST_DB_USER:-postuser}
+      - DATA_SOURCE_PASS=${POST_DB_PASS:-postpass123}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -327,7 +349,9 @@ services:
     container_name: aniway-postgres-exporter-level
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${LEVEL_DB_DSN:-postgresql://leveluser:levelpass123@level-postgres:5432/leveldb?sslmode=disable}
+      - DATA_SOURCE_URI=${LEVEL_DB_URI:-level-postgres:5432/leveldb?sslmode=disable}
+      - DATA_SOURCE_USER=${LEVEL_DB_USER:-leveluser}
+      - DATA_SOURCE_PASS=${LEVEL_DB_PASS:-levelpass123}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
