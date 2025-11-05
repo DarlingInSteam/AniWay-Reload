@@ -16,17 +16,26 @@ https://aniway.space {
     }
 
     # Grafana
-    handle_path /grafana* {
+    handle /grafana {
+        redir /grafana/ 302
+    }
+    handle /grafana/* {
         reverse_proxy aniway-grafana:3000
     }
 
     # Prometheus
-    handle_path /prometheus* {
+    handle /prometheus {
+        redir /prometheus/ 302
+    }
+    handle /prometheus/* {
         reverse_proxy aniway-prometheus:9090
     }
 
     # Alertmanager
-    handle_path /alertmanager* {
+    handle /alertmanager {
+        redir /alertmanager/ 302
+    }
+    handle /alertmanager/* {
         reverse_proxy aniway-alertmanager:9093
     }
 
