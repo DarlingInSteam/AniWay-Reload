@@ -7,7 +7,7 @@
 *Severity:* {{ .CommonLabels.severity | toUpper }}
 *Instance:* {{ .CommonLabels.instance }}
 *Service:* {{ .CommonLabels.service }}
-*Time:* {{ .StartsAt | toTime | printf "%Y-%m-%d %H:%M:%S" }} UTC
+*Time:* {{ .StartsAt | formatDate "2006-01-02 15:04:05" }} UTC
 {{ end }}
 
 {{ define "aniway.default.html" }}
@@ -23,7 +23,7 @@
     {{ if .CommonAnnotations.description }}
     <p><strong>Description:</strong> {{ .CommonAnnotations.description }}</p>
     {{ end }}
-    <p><strong>Triggered:</strong> {{ .StartsAt | toTime | printf "%Y-%m-%d %H:%M:%S" }} UTC</p>
+  <p><strong>Triggered:</strong> {{ .StartsAt | formatDate "2006-01-02 15:04:05" }} UTC</p>
   </body>
 </html>
 {{ end }}
