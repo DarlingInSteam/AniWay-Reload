@@ -17,6 +17,7 @@ import shadowshift.studio.mangaservice.config.ServiceUrlProperties;
 import shadowshift.studio.mangaservice.dto.MangaCreateDTO;
 import shadowshift.studio.mangaservice.dto.MangaResponseDTO;
 import shadowshift.studio.mangaservice.dto.PageResponseDTO;
+import shadowshift.studio.mangaservice.dto.external.MangaReviewAggregateResponse;
 import shadowshift.studio.mangaservice.entity.Manga;
 import shadowshift.studio.mangaservice.entity.Genre;
 import shadowshift.studio.mangaservice.entity.Tag;
@@ -31,6 +32,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -138,6 +140,8 @@ public class MangaService {
             this.enrichWithCoverUrl(dto);
         });
 
+        this.enrichWithEngagementMetrics(responseDTOs);
+
         logger.debug("Возвращается список из {} манг с обогащенными данными", responseDTOs.size());
         return responseDTOs;
     }
@@ -183,6 +187,8 @@ public class MangaService {
             this.enrichWithChapterCount(dto);
             this.enrichWithCoverUrl(dto);
         });
+
+        this.enrichWithEngagementMetrics(responseDTOs);
 
         logger.debug("Возвращается список из {} найденных манг с обогащенными данными", responseDTOs.size());
         return responseDTOs;
@@ -231,6 +237,8 @@ public class MangaService {
             this.enrichWithChapterCount(dto);
             this.enrichWithCoverUrl(dto);
         });
+
+        this.enrichWithEngagementMetrics(responseDTOs);
 
         PageResponseDTO<MangaResponseDTO> result = new PageResponseDTO<>(
             responseDTOs,
@@ -330,6 +338,8 @@ public class MangaService {
             this.enrichWithChapterCount(dto);
             this.enrichWithCoverUrl(dto);
         });
+
+        this.enrichWithEngagementMetrics(responseDTOs);
 
         PageResponseDTO<MangaResponseDTO> result = new PageResponseDTO<>(
                 responseDTOs,
@@ -461,6 +471,8 @@ public class MangaService {
             this.enrichWithCoverUrl(dto);
         });
 
+        this.enrichWithEngagementMetrics(responseDTOs);
+
         PageResponseDTO<MangaResponseDTO> result = new PageResponseDTO<>(
             responseDTOs,
             searchResults.getNumber(),
@@ -516,6 +528,7 @@ public class MangaService {
                     MangaResponseDTO responseDTO = mangaMapper.toResponseDTO(manga);
                     logger.info("Возвращаем мангу {} с просмотрами: {}", manga.getId(), responseDTO.getViews());
                     enrichWithChapterCount(responseDTO, manga);
+                    this.enrichWithEngagementMetrics(List.of(responseDTO));
 
                     return responseDTO;
                 });
@@ -554,7 +567,71 @@ public class MangaService {
         } else {
             logger.info("Просмотр манги {} пользователем {} заблокирован rate limit", mangaId, userId);
         }
-    }    /**
+    }
+
+    private void enrichWithEngagementMetrics(List<MangaResponseDTO> responseDTOs) {
+        if (responseDTOs == null || responseDTOs.isEmpty()) {
+            return;
+        }
+
+        List<Long> mangaIds = responseDTOs.stream()
+                .map(MangaResponseDTO::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (mangaIds.isEmpty()) {
+            return;
+        }
+
+        Map<Long, Long> likeAggregates = externalMetricsClient.fetchMangaLikes(mangaIds);
+        Map<Long, Long> commentAggregates = externalMetricsClient.fetchMangaComments(mangaIds);
+        Map<Long, MangaReviewAggregateResponse> reviewAggregates = externalMetricsClient.fetchMangaReviews(mangaIds);
+
+        for (MangaResponseDTO dto : responseDTOs) {
+            Long mangaId = dto.getId();
+            if (mangaId == null) {
+                continue;
+            }
+
+            long currentLikes = dto.getLikes() != null ? dto.getLikes() : 0L;
+            dto.setLikes(likeAggregates.getOrDefault(mangaId, currentLikes));
+
+            long currentComments = dto.getComments() != null ? dto.getComments() : 0L;
+            dto.setComments(commentAggregates.getOrDefault(mangaId, currentComments));
+
+            MangaReviewAggregateResponse reviewAggregate = reviewAggregates.get(mangaId);
+            if (reviewAggregate != null) {
+                if (reviewAggregate.averageRating() != null) {
+                    dto.setRating(reviewAggregate.averageRating());
+                }
+
+                Long totalReviews = reviewAggregate.totalReviews();
+                if (totalReviews != null) {
+                    dto.setReviews(totalReviews);
+                    try {
+                        dto.setRatingCount(Math.toIntExact(totalReviews));
+                    } catch (ArithmeticException ex) {
+                        dto.setRatingCount(Integer.MAX_VALUE);
+                        logger.warn("Количество отзывов для манги {} превышает Integer.MAX_VALUE, устанавливаем максимум", mangaId);
+                    }
+                }
+            } else {
+                if (dto.getReviews() == null) {
+                    dto.setReviews(0L);
+                }
+            }
+
+            if (dto.getRating() == null) {
+                dto.setRating(0.0);
+            }
+            if (dto.getRatingCount() == null) {
+                dto.setRatingCount(0);
+            }
+        }
+    }
+
+    /**
      * Создает новую мангу в системе.
      * 
      * Принимает DTO с данны��и для создания, валидирует их,
