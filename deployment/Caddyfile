@@ -29,7 +29,8 @@ https://aniway.space {
     handle /prometheus {
         redir /prometheus/ 302
     }
-    handle_path /prometheus/* {
+    handle /prometheus/* {
+        uri strip_prefix /prometheus
         reverse_proxy aniway-prometheus:9090 {
             header_up X-Forwarded-Prefix /prometheus
         }
@@ -39,7 +40,8 @@ https://aniway.space {
     handle /alertmanager {
         redir /alertmanager/ 302
     }
-    handle_path /alertmanager/* {
+    handle /alertmanager/* {
+        uri strip_prefix /alertmanager
         reverse_proxy aniway-alertmanager:9093 {
             header_up X-Forwarded-Prefix /alertmanager
         }
