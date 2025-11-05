@@ -27,6 +27,8 @@ import shadowshift.studio.mangaservice.repository.MangaRepository;
 import shadowshift.studio.mangaservice.service.external.ChapterServiceClient;
 import shadowshift.studio.mangaservice.service.external.ExternalMetricsClient;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -750,8 +752,10 @@ public class MangaService {
         if (rating == null || rating.isNaN() || rating.isInfinite()) {
             return 0.0;
         }
-        double clamped = Math.max(0.0, Math.min(10.0, rating));
-        return clamped;
+        double clamped = Math.max(0.0, Math.min(9.99, rating));
+        return BigDecimal.valueOf(clamped)
+                .setScale(2, RoundingMode.HALF_UP)
+                .doubleValue();
     }
 
     /**
