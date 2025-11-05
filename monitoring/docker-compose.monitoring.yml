@@ -151,7 +151,7 @@ services:
     container_name: aniway-postgres-exporter-auth
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${AUTH_DB_DSN:-postgresql://auth_user:auth_password@auth-postgres:5432/auth_db?sslmode=disable}
+      - DATA_SOURCE_URI=${AUTH_DB_DSN:-postgresql://authuser:authpass123@auth-postgres:5432/authdb?sslmode=disable}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -167,7 +167,7 @@ services:
     container_name: aniway-postgres-exporter-manga
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${MANGA_DB_DSN:-postgresql://manga_user:manga_password@manga-postgres:5432/manga_db?sslmode=disable}
+      - DATA_SOURCE_URI=${MANGA_DB_DSN:-postgresql://mangauser:mangapass123@manga-postgres:5432/mangadb?sslmode=disable}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -183,7 +183,7 @@ services:
     container_name: aniway-postgres-exporter-comment
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${COMMENT_DB_DSN:-postgresql://comment_user:comment_password@comment-postgres:5432/comment_db?sslmode=disable}
+      - DATA_SOURCE_URI=${COMMENT_DB_DSN:-postgresql://commentuser:commentpass123@comment-postgres:5432/commentdb?sslmode=disable}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -215,7 +215,7 @@ services:
     container_name: aniway-postgres-exporter-chapter
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${CHAPTER_DB_DSN:-postgresql://chapter_user:chapter_password@chapter-postgres:5432/chapter_db?sslmode=disable}
+      - DATA_SOURCE_URI=${CHAPTER_DB_DSN:-postgresql://chapteruser:chapterpass123@chapter-postgres:5432/chapterdb?sslmode=disable}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -231,7 +231,7 @@ services:
     container_name: aniway-postgres-exporter-image
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${IMAGE_DB_DSN:-postgresql://image_user:image_password@image-storage-postgres:5432/image_storage_db?sslmode=disable}
+      - DATA_SOURCE_URI=${IMAGE_DB_DSN:-postgresql://imageuser:imagepass123@image-postgres:5432/imagedb?sslmode=disable}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -240,7 +240,7 @@ services:
       prometheus.scrape: "true"
       prometheus.job: "postgres"
       prometheus.port: "9187"
-      prometheus.instance: "${IMAGE_DB_INSTANCE:-image-storage-postgres}"
+  prometheus.instance: "${IMAGE_DB_INSTANCE:-image-postgres}"
 
   postgres-exporter-moment:
     image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
