@@ -7,6 +7,7 @@ import shadowshift.studio.notificationservice.domain.*;
 import shadowshift.studio.notificationservice.dto.NotificationResponseDTO;
 import shadowshift.studio.notificationservice.sse.SseEmitterRegistry;
 import shadowshift.studio.notificationservice.service.telegram.TelegramNotificationService;
+import shadowshift.studio.notificationservice.metrics.NotificationBusinessMetrics;
 
 import java.time.Instant;
 import java.util.List;
@@ -19,6 +20,7 @@ public class NotificationServiceFacade {
     private final NotificationRepository notificationRepository;
     private final SseEmitterRegistry sseEmitterRegistry;
     private final TelegramNotificationService telegramNotificationService;
+    private final NotificationBusinessMetrics notificationBusinessMetrics;
 
     @Transactional
     public Notification createBasic(Long userId, NotificationType type, String payloadJson, String dedupeKey) {
@@ -29,6 +31,8 @@ public class NotificationServiceFacade {
                 Notification upd = existing.get();
                 upd.setPayloadJson(payloadJson); // merge strategy (MVP overwrite)
                 Notification saved = notificationRepository.save(upd);
+                notificationBusinessMetrics.recordQueuedNotification();
+                notificationBusinessMetrics.refreshPendingGauge();
                 pushToUser(saved);
                 telegramNotificationService.dispatch(saved);
                 return saved;
@@ -45,6 +49,8 @@ public class NotificationServiceFacade {
                 .version((short)1)
                 .build();
         Notification saved = notificationRepository.save(notification);
+        notificationBusinessMetrics.recordQueuedNotification();
+        notificationBusinessMetrics.refreshPendingGauge();
         pushToUser(saved);
         telegramNotificationService.dispatch(saved);
         return saved;

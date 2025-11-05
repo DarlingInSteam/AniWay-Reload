@@ -35,27 +35,29 @@ groups:
     rules:
       - alert: ContainerCpuHigh
         expr: |
-          sum(rate(container_cpu_usage_seconds_total{container!="",job="cadvisor"}[5m])) by (container)
+          sum(rate(container_cpu_usage_seconds_total{container_label_com_docker_compose_service!="",job="cadvisor"}[5m]))
+            by (container_label_com_docker_compose_service)
             /
-          sum(container_spec_cpu_quota{container!="",job="cadvisor"} / container_spec_cpu_period{container!="",job="cadvisor"})
-            by (container) > 0.8
+          sum((container_spec_cpu_quota{container_label_com_docker_compose_service!="",job="cadvisor"}
+                / container_spec_cpu_period{container_label_com_docker_compose_service!="",job="cadvisor"}))
+            by (container_label_com_docker_compose_service) > 0.8
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "Высокая загрузка CPU для контейнера {{ $labels.container }}"
+          summary: "Высокая загрузка CPU для контейнера {{ $labels.container_label_com_docker_compose_service }}"
           description: "Загрузка CPU превышает 80% в течение 5 минут."
 
       - alert: ContainerMemoryHigh
         expr: |
-          (container_memory_usage_bytes{container!="",job="cadvisor"}
+          (container_memory_usage_bytes{container_label_com_docker_compose_service!="",job="cadvisor"}
             /
-           container_spec_memory_limit_bytes{container!="",job="cadvisor"}) > 0.9
+           container_spec_memory_limit_bytes{container_label_com_docker_compose_service!="",job="cadvisor"}) > 0.9
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "Высокое использование памяти в {{ $labels.container }}"
+          summary: "Высокое использование памяти в {{ $labels.container_label_com_docker_compose_service }}"
           description: "Использование памяти превышает 90% лимита."
 
       - alert: NodeExporterDown
