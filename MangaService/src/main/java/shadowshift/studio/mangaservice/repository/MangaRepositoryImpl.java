@@ -334,7 +334,6 @@ public class MangaRepositoryImpl implements MangaRepositoryCustom {
             case "rating" -> root.get("rating");
             case "ratingCount" -> root.get("ratingCount");
             case "likes" -> root.get("likes");
-            case "reviews" -> root.get("reviews");
             case "comments" -> root.get("comments");
             case "chapterCount" -> root.get("totalChapters");
             default -> null;

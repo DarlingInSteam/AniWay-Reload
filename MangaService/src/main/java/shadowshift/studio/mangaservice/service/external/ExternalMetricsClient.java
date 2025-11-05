@@ -44,7 +44,7 @@ public class ExternalMetricsClient {
             return Collections.emptyMap();
         }
 
-        String url = serviceUrlProperties.getChapterServiceUrl().replaceAll("/+$", "") + "/internal/manga/likes/aggregate";
+        String url = normalizeBaseUrl(serviceUrlProperties.getChapterServiceUrl()) + "/internal/manga/likes/aggregate";
         try {
             ResponseEntity<MangaLikesAggregateResponse[]> response = restTemplate.postForEntity(
                     url,
@@ -75,7 +75,7 @@ public class ExternalMetricsClient {
             return Collections.emptyMap();
         }
 
-        String url = serviceUrlProperties.getCommentServiceUrl().replaceAll("/+$", "") + "/internal/comments/aggregate";
+        String url = normalizeBaseUrl(serviceUrlProperties.getCommentServiceUrl()) + "/internal/comments/aggregate";
         try {
             ResponseEntity<CommentAggregateResponse[]> response = restTemplate.postForEntity(
                     url,
@@ -108,7 +108,7 @@ public class ExternalMetricsClient {
             return Collections.emptyMap();
         }
 
-        String url = serviceUrlProperties.getCommentServiceUrl().replaceAll("/+$$", "") + "/internal/comments/aggregate";
+    String url = normalizeBaseUrl(serviceUrlProperties.getCommentServiceUrl()) + "/internal/comments/aggregate";
         try {
             ResponseEntity<CommentAggregateResponse[]> response = restTemplate.postForEntity(
                     url,
@@ -141,7 +141,7 @@ public class ExternalMetricsClient {
             return Collections.emptyMap();
         }
 
-        String url = serviceUrlProperties.getChapterServiceUrl().replaceAll("/+$$", "") + "/internal/manga/chapters/ids";
+            String url = normalizeBaseUrl(serviceUrlProperties.getChapterServiceUrl()) + "/internal/manga/chapters/ids";
         try {
             ResponseEntity<MangaChapterIdsResponse[]> response = restTemplate.postForEntity(
                     url,
@@ -174,7 +174,7 @@ public class ExternalMetricsClient {
             return Collections.emptyMap();
         }
 
-        String url = serviceUrlProperties.getAuthServiceUrl().replaceAll("/+$", "") + "/internal/reviews/manga/aggregate";
+            String url = normalizeBaseUrl(serviceUrlProperties.getAuthServiceUrl()) + "/internal/reviews/manga/aggregate";
         try {
             ResponseEntity<MangaReviewAggregateResponse[]> response = restTemplate.postForEntity(
                     url,
@@ -197,6 +197,13 @@ public class ExternalMetricsClient {
             logger.warn("Failed to fetch review aggregates from AuthService: {}", ex.getMessage());
             return Collections.emptyMap();
         }
+    }
+
+    private String normalizeBaseUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return "";
+        }
+        return url.replaceAll("/+$", "");
     }
 
     private static List<Long> prepareIds(Collection<Long> ids) {
