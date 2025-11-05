@@ -13,6 +13,7 @@ import org.springframework.web.reactive.function.client.WebClientRequestExceptio
 import shadowshift.studio.chapterservice.dto.ChapterCleanupResultDTO;
 import shadowshift.studio.chapterservice.dto.ChapterCreateDTO;
 import shadowshift.studio.chapterservice.dto.ChapterResponseDTO;
+import shadowshift.studio.chapterservice.dto.MangaChapterIdsDTO;
 import shadowshift.studio.chapterservice.entity.Chapter;
 import shadowshift.studio.chapterservice.entity.ChapterLike;
 import shadowshift.studio.chapterservice.repository.ChapterRepository;
@@ -42,7 +43,6 @@ import shadowshift.studio.chapterservice.repository.projection.ChapterLikesAggre
  * @author ShadowShiftStudio
  */
 @Service
-import shadowshift.studio.chapterservice.dto.MangaChapterIdsDTO;
 public class ChapterService {
 
     private static final Logger logger = LoggerFactory.getLogger(ChapterService.class);
@@ -702,6 +702,46 @@ public class ChapterService {
     }
 
     /**
+     * Returns chapter id listings grouped by manga so downstream services can aggregate chapter metrics.
+     */
+    public List<MangaChapterIdsDTO> getMangaChapterIdMappings(List<Long> mangaIds) {
+        if (mangaIds == null || mangaIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> distinctIds = mangaIds.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (distinctIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, List<Long>> chaptersByManga = new LinkedHashMap<>();
+        distinctIds.forEach(id -> chaptersByManga.put(id, new ArrayList<>()));
+
+        List<Object[]> rawRows = chapterRepository.findChapterIdAndMangaIdByMangaIdIn(distinctIds);
+        for (Object[] row : rawRows) {
+            if (row == null || row.length < 2) {
+                continue;
+            }
+            Long chapterId = toLong(row[0]);
+            Long mangaId = toLong(row[1]);
+            if (chapterId == null || mangaId == null) {
+                continue;
+            }
+            chaptersByManga.computeIfAbsent(mangaId, key -> new ArrayList<>()).add(chapterId);
+        }
+
+        chaptersByManga.values().forEach(list -> list.sort(Long::compareTo));
+
+        return chaptersByManga.entrySet().stream()
+                .map(entry -> new MangaChapterIdsDTO(entry.getKey(), List.copyOf(entry.getValue())))
+                .collect(Collectors.toList());
+    }
+
+    /**
      * Aggregates chapter likes per manga; missing entries resolve to zero to simplify downstream sorting.
      */
     public List<MangaLikesAggregateDTO> getMangaLikeAggregates(List<Long> mangaIds) {
@@ -732,6 +772,16 @@ public class ChapterService {
         return totals.entrySet().stream()
                 .map(entry -> new MangaLikesAggregateDTO(entry.getKey(), entry.getValue()))
                 .collect(Collectors.toList());
+    }
+
+    private Long toLong(Object value) {
+        if (value instanceof Long l) {
+            return l;
+        }
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        return null;
     }
 
     /**
