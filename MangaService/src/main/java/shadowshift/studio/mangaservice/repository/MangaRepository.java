@@ -91,6 +91,13 @@ public interface MangaRepository extends JpaRepository<Manga, Long>, MangaReposi
     List<Manga> findAllOrderByCreatedAtDesc();
 
     /**
+     * Возвращает идентификаторы всех манг без загрузки полных сущностей.
+     * Используется для фоновой синхронизации метрик.
+     */
+    @Query("SELECT m.id FROM Manga m")
+    List<Long> findAllIds();
+
+    /**
      * Возвращает все манги с пагинацией, отсортированные по дате создания в убывающем порядке.
      * Сохранено для обратной совместимости.
      *
