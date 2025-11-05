@@ -16,6 +16,7 @@ import org.springframework.web.client.RestTemplate;
 
 import shadowshift.studio.mangaservice.config.ServiceUrlProperties;
 import shadowshift.studio.mangaservice.dto.external.CommentAggregateResponse;
+import shadowshift.studio.mangaservice.dto.external.MangaChapterIdsResponse;
 import shadowshift.studio.mangaservice.dto.external.MangaLikesAggregateResponse;
 import shadowshift.studio.mangaservice.dto.external.MangaReviewAggregateResponse;
 
@@ -97,6 +98,72 @@ public class ExternalMetricsClient {
             return result;
         } catch (Exception ex) {
             logger.warn("Failed to fetch comment aggregates from CommentService: {}", ex.getMessage());
+            return Collections.emptyMap();
+        }
+    }
+
+    public Map<Long, Long> fetchChapterComments(Collection<Long> chapterIds) {
+        List<Long> payload = prepareIds(chapterIds);
+        if (payload.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        String url = serviceUrlProperties.getCommentServiceUrl().replaceAll("/+$$", "") + "/internal/comments/aggregate";
+        try {
+            ResponseEntity<CommentAggregateResponse[]> response = restTemplate.postForEntity(
+                    url,
+                    Map.of(
+                        "commentType", "CHAPTER",
+                        "targetIds", payload
+                    ),
+                    CommentAggregateResponse[].class
+            );
+            CommentAggregateResponse[] body = response.getBody();
+            if (body == null || body.length == 0) {
+                return Collections.emptyMap();
+            }
+            Map<Long, Long> result = new HashMap<>();
+            for (CommentAggregateResponse aggregate : body) {
+                if (aggregate != null && aggregate.targetId() != null) {
+                    result.put(aggregate.targetId(), defaultZero(aggregate.totalComments()));
+                }
+            }
+            return result;
+        } catch (Exception ex) {
+            logger.warn("Failed to fetch chapter comment aggregates from CommentService: {}", ex.getMessage());
+            return Collections.emptyMap();
+        }
+    }
+
+    public Map<Long, List<Long>> fetchMangaChapterIds(Collection<Long> mangaIds) {
+        List<Long> payload = prepareIds(mangaIds);
+        if (payload.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        String url = serviceUrlProperties.getChapterServiceUrl().replaceAll("/+$$", "") + "/internal/manga/chapters/ids";
+        try {
+            ResponseEntity<MangaChapterIdsResponse[]> response = restTemplate.postForEntity(
+                    url,
+                    Map.of("mangaIds", payload),
+                    MangaChapterIdsResponse[].class
+            );
+            MangaChapterIdsResponse[] body = response.getBody();
+            if (body == null || body.length == 0) {
+                return Collections.emptyMap();
+            }
+
+            Map<Long, List<Long>> mapping = new HashMap<>();
+            for (MangaChapterIdsResponse aggregate : body) {
+                if (aggregate == null || aggregate.mangaId() == null) {
+                    continue;
+                }
+                List<Long> chapters = aggregate.chapterIds() != null ? aggregate.chapterIds() : Collections.emptyList();
+                mapping.put(aggregate.mangaId(), chapters);
+            }
+            return mapping;
+        } catch (Exception ex) {
+            logger.warn("Failed to fetch manga chapter ids from ChapterService: {}", ex.getMessage());
             return Collections.emptyMap();
         }
     }

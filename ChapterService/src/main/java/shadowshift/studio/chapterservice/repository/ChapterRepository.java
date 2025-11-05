@@ -2,6 +2,7 @@ package shadowshift.studio.chapterservice.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import shadowshift.studio.chapterservice.entity.Chapter;
 import shadowshift.studio.chapterservice.repository.projection.ChapterLikesAggregate;
@@ -76,4 +77,7 @@ public interface ChapterRepository extends JpaRepository<Chapter, Long> {
 
     @Query("SELECT c.mangaId AS mangaId, COALESCE(SUM(c.likeCount),0) AS totalLikes FROM Chapter c WHERE c.mangaId IN :mangaIds GROUP BY c.mangaId")
     List<ChapterLikesAggregate> sumLikeCountByMangaIdIn(List<Long> mangaIds);
+
+    @Query("SELECT c.id, c.mangaId FROM Chapter c WHERE c.mangaId IN :mangaIds")
+    List<Object[]> findChapterIdAndMangaIdByMangaIdIn(@Param("mangaIds") List<Long> mangaIds);
 }

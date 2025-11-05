@@ -32,6 +32,7 @@ import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -66,7 +67,7 @@ public class MangaService {
 
     private static final Logger logger = LoggerFactory.getLogger(MangaService.class);
 
-    private static final Set<String> METRIC_SORT_FIELDS = Set.of("rating", "ratingcount", "likes", "reviews", "comments", "popularity");
+    private static final Set<String> METRIC_SORT_FIELDS = Set.of("rating", "ratingcount", "likes", "comments", "popularity");
     private static final int METRIC_SYNC_BATCH_SIZE = 200;
     private static final long METRIC_SYNC_COOLDOWN_MS = 60_000L;
 
@@ -232,7 +233,6 @@ public class MangaService {
             case "rating" -> "rating";
             case "ratingCount" -> "ratingCount";
             case "likes" -> "likes";
-            case "reviews" -> "reviews";
             case "comments" -> "comments";
             case "chapterCount" -> "totalChapters";
             case "popularity" -> "views"; // временная подмена
@@ -385,7 +385,6 @@ public class MangaService {
             case "rating" -> Sort.by(direction, "rating").and(secondary);
             case "ratingcount" -> Sort.by(direction, "ratingCount").and(secondary);
             case "likes" -> Sort.by(direction, "likes").and(secondary);
-            case "reviews" -> Sort.by(direction, "reviews").and(secondary);
             case "comments" -> Sort.by(direction, "comments").and(secondary);
             case "chaptercount" -> Sort.by(direction, "totalChapters").and(secondary);
             case "popularity" -> Sort.by(direction, "popularity").and(secondary);
@@ -422,7 +421,6 @@ public class MangaService {
                 case "popularity", "popular" -> "popularity";
                 case "views" -> "views";
                 case "likes" -> "likes";
-                case "reviews" -> "reviews";
                 case "comments" -> "comments";
                 case "rating" -> "rating";
                 case "title" -> "title";
@@ -462,7 +460,6 @@ public class MangaService {
             case "rating" -> "rating";
             case "ratingCount" -> "ratingCount";
             case "likes" -> "likes";
-            case "reviews" -> "reviews";
             case "comments" -> "comments";
             case "chapterCount" -> "totalChapters";
             case "popularity" -> "views"; // временная подмена популярности
@@ -655,7 +652,41 @@ public class MangaService {
             List<Long> batchIds = distinctIds.subList(start, end);
 
             Map<Long, Long> likeAggregates = externalMetricsClient.fetchMangaLikes(batchIds);
-            Map<Long, Long> commentAggregates = externalMetricsClient.fetchMangaComments(batchIds);
+            Map<Long, Long> commentAggregates = new HashMap<>(externalMetricsClient.fetchMangaComments(batchIds));
+            Map<Long, List<Long>> chapterIdMapping = externalMetricsClient.fetchMangaChapterIds(batchIds);
+
+            Map<Long, Long> chapterCommentAggregates = Collections.emptyMap();
+            if (!chapterIdMapping.isEmpty()) {
+                List<Long> chapterIds = chapterIdMapping.values().stream()
+                        .filter(Objects::nonNull)
+                        .flatMap(Collection::stream)
+                        .filter(Objects::nonNull)
+                        .distinct()
+                        .collect(Collectors.toList());
+                if (!chapterIds.isEmpty()) {
+                    chapterCommentAggregates = externalMetricsClient.fetchChapterComments(chapterIds);
+                }
+
+                for (Map.Entry<Long, List<Long>> entry : chapterIdMapping.entrySet()) {
+                    Long mangaId = entry.getKey();
+                    List<Long> chapters = entry.getValue();
+                    if (mangaId == null || chapters == null || chapters.isEmpty()) {
+                        continue;
+                    }
+
+                    long chapterTotal = 0L;
+                    for (Long chapterId : chapters) {
+                        if (chapterId == null) {
+                            continue;
+                        }
+                        chapterTotal += chapterCommentAggregates.getOrDefault(chapterId, 0L);
+                    }
+
+                    if (chapterTotal != 0L || !commentAggregates.containsKey(mangaId)) {
+                        commentAggregates.merge(mangaId, chapterTotal, Long::sum);
+                    }
+                }
+            }
             Map<Long, MangaReviewAggregateResponse> reviewAggregates = externalMetricsClient.fetchMangaReviews(batchIds);
 
             boolean likesAvailable = !likeAggregates.isEmpty();

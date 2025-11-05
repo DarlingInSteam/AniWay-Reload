@@ -42,6 +42,7 @@ import shadowshift.studio.chapterservice.repository.projection.ChapterLikesAggre
  * @author ShadowShiftStudio
  */
 @Service
+import shadowshift.studio.chapterservice.dto.MangaChapterIdsDTO;
 public class ChapterService {
 
     private static final Logger logger = LoggerFactory.getLogger(ChapterService.class);
