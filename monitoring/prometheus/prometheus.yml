@@ -40,8 +40,10 @@ scrape_configs:
         target_label: __metrics_path__
         replacement: $1
         action: replace
-      - source_labels: [__meta_docker_container_network_ip, __meta_docker_container_label_prometheus_port]
+      - source_labels: [__meta_docker_container_name, __meta_docker_container_label_prometheus_port]
         separator: ":"
+        regex: "/(.*):(.*)"
+        replacement: "$1:$2"
         target_label: __address__
         action: replace
       - source_labels: [__meta_docker_container_name]
@@ -70,8 +72,10 @@ scrape_configs:
       - source_labels: [__meta_docker_network_name]
         regex: monitoring-net|aniway-network
         action: keep
-      - source_labels: [__meta_docker_container_network_ip, __meta_docker_container_label_prometheus_port]
+      - source_labels: [__meta_docker_container_name, __meta_docker_container_label_prometheus_port]
         separator: ":"
+        regex: "/(.*):(.*)"
+        replacement: "$1:$2"
         target_label: __address__
         action: replace
       - source_labels: [__meta_docker_container_label_prometheus_job]
@@ -96,8 +100,10 @@ scrape_configs:
       - source_labels: [__meta_docker_network_name]
         regex: aniway-network|monitoring-net
         action: keep
-      - source_labels: [__meta_docker_container_network_ip, __meta_docker_container_label_prometheus_port]
+      - source_labels: [__meta_docker_container_name, __meta_docker_container_label_prometheus_port]
         separator: ":"
+        regex: "/(.*):(.*)"
+        replacement: "$1:$2"
         target_label: __address__
         action: replace
       - source_labels: [__meta_docker_container_label_prometheus_instance]
