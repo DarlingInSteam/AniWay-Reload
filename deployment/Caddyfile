@@ -48,48 +48,27 @@ https://aniway.space {
         reverse_proxy gateway-service:8080
     }
 
-    @prometheus-root {
-        path /prometheus
-    }
-    handle @prometheus-root {
+    handle /prometheus {
         redir /prometheus/ 302
     }
 
-    @prometheus {
-        path /prometheus/ /prometheus/*
-    }
-    handle @prometheus {
-        uri strip_prefix /prometheus
+    handle_path /prometheus/* {
         reverse_proxy aniway-prometheus:9090
     }
 
-    @grafana-root {
-        path /grafana
-    }
-    handle @grafana-root {
+    handle /grafana {
         redir /grafana/ 302
     }
 
-    @grafana {
-        path /grafana/ /grafana/*
-    }
-    handle @grafana {
-        uri strip_prefix /grafana
+    handle_path /grafana/* {
         reverse_proxy aniway-grafana:3000
     }
 
-    @alertmanager-root {
-        path /alertmanager
-    }
-    handle @alertmanager-root {
+    handle /alertmanager {
         redir /alertmanager/ 302
     }
 
-    @alertmanager {
-        path /alertmanager/ /alertmanager/*
-    }
-    handle @alertmanager {
-        uri strip_prefix /alertmanager
+    handle_path /alertmanager/* {
         reverse_proxy aniway-alertmanager:9093
     }
 
