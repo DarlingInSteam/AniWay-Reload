@@ -103,4 +103,14 @@ public interface BookmarkRepository extends JpaRepository<Bookmark, Long>, Bookm
      */
     @Query("SELECT COUNT(DISTINCT b.userId) FROM Bookmark b WHERE b.mangaId = :mangaId")
     Long countDistinctUsersByMangaId(@Param("mangaId") Long mangaId);
+
+    /**
+     * Возвращает закладки пользователя для набора идентификаторов манги.
+     *
+     * @param userId идентификатор пользователя
+     * @param mangaIds список идентификаторов манги
+     * @return список закладок
+     */
+    List<Bookmark> findByUserIdAndMangaIdIn(Long userId, List<Long> mangaIds);
+
 }

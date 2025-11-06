@@ -26,6 +26,30 @@ class BookmarkService {
     return response.json()
   }
 
+  async getBookmarksBatch(mangaIds: number[]): Promise<Bookmark[]> {
+    const uniqueIds = Array.from(
+      new Set(
+        (mangaIds || []).filter((id): id is number => typeof id === 'number' && Number.isFinite(id))
+      )
+    )
+
+    if (uniqueIds.length === 0) {
+      return []
+    }
+
+    const response = await fetch(`${this.baseUrl}/bookmarks/batch`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ mangaIds: uniqueIds })
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch bookmarks batch')
+    }
+
+    return response.json()
+  }
+
 
   // Поиск закладок с фильтрами/сортировкой на бэкенде
   async searchBookmarks(params: {
@@ -114,8 +138,8 @@ class BookmarkService {
   // Получить статус манги в закладках
   async getMangaBookmarkStatus(mangaId: number): Promise<Bookmark | null> {
     try {
-      const bookmarks = await this.getUserBookmarks()
-      return bookmarks.find(bookmark => bookmark.mangaId === mangaId) || null
+      const [bookmark] = await this.getBookmarksBatch([mangaId])
+      return bookmark ?? null
     } catch {
       return null
     }

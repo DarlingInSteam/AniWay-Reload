@@ -13,6 +13,7 @@ import { MangaFilterPanel } from '@/components/filters/MangaFilterPanel'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { cn } from '@/lib/utils'
 import { PageResponse, MangaResponseDTO } from '@/types'
+import { useBookmarks } from '@/hooks/useBookmarks'
 import {
   AGE_RATING_OPTIONS,
   RATING_OPTIONS,
@@ -309,6 +310,8 @@ export function CatalogPage() {
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
   const genre = searchParams.get('genre') // legacy single genre (still supported)
+  const { hydrateMangaBookmarks } = useBookmarks()
+  const hydratedMangaIdsRef = useRef<Set<number>>(new Set())
 
   const queryKeyParams = useMemo(() => ({
     genre: genre || null,
@@ -407,6 +410,35 @@ export function CatalogPage() {
   })
 
   const allPages = mangaPages?.pages ?? []
+
+  useEffect(() => {
+    hydratedMangaIdsRef.current.clear()
+  }, [queryKeyParams])
+
+  useEffect(() => {
+    if (!mangaPages?.pages?.length) {
+      return
+    }
+
+    const pendingIds: number[] = []
+
+    mangaPages.pages.forEach(page => {
+      const items = page?.content ?? []
+      items.forEach(item => {
+        if (!item || typeof item.id !== 'number') {
+          return
+        }
+        if (!hydratedMangaIdsRef.current.has(item.id)) {
+          hydratedMangaIdsRef.current.add(item.id)
+          pendingIds.push(item.id)
+        }
+      })
+    })
+
+    if (pendingIds.length > 0) {
+      hydrateMangaBookmarks(pendingIds).catch(err => console.error('Failed to hydrate bookmark batch', err))
+    }
+  }, [mangaPages, hydrateMangaBookmarks])
   const getComparable = (obj: any, field: string) => {
     if (!obj) return 0
     switch(field) {

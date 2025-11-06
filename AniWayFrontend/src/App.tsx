@@ -29,6 +29,7 @@ import MessagesPage from './pages/MessagesPage'
 import DmcaPolicyPage from './pages/DmcaPolicyPage'
 import TermsOfServicePage from './pages/TermsOfServicePage'
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
+import { BookmarksProvider } from './hooks/useBookmarks'
 
 function InnerApp() {
   const { user } = useAuth();
@@ -132,7 +133,9 @@ function InnerApp() {
 function App() {
   return (
     <AuthProvider>
-      <InnerApp />
+      <BookmarksProvider>
+        <InnerApp />
+      </BookmarksProvider>
     </AuthProvider>
   )
 }

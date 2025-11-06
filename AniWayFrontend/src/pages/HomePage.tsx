@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { TrendingUp, Star, Clock, BookOpen, ArrowRight, Eye, Heart } from 'lucide-react'
@@ -5,6 +6,7 @@ import { apiClient } from '@/lib/api'
 import { MangaCardWithTooltip } from '@/components/manga'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
+import { useBookmarks } from '@/hooks/useBookmarks'
 
 export function HomePage() {
   const { data: popularManga, isLoading: popularLoading } = useQuery({
@@ -21,6 +23,8 @@ export function HomePage() {
     refetchOnWindowFocus: true,
   })
 
+  const { hydrateMangaBookmarks } = useBookmarks()
+
   if (popularLoading) {
     return (
       <div className="min-h-screen bg-manga-black flex items-center justify-center">
@@ -33,6 +37,16 @@ export function HomePage() {
   const featuredManga = popularManga?.slice(0, 1)?.[0]
   const trending = popularManga?.slice(0, 12) || []
   const recent = recentManga?.slice(0, 12) || []
+
+  useEffect(() => {
+    const ids = [...trending, ...recent]
+      .map(item => item?.id)
+      .filter((id): id is number => typeof id === 'number' && Number.isFinite(id))
+
+    if (ids.length > 0) {
+      hydrateMangaBookmarks(ids).catch(err => console.error('Failed to hydrate home page bookmarks', err))
+    }
+  }, [trending, recent, hydrateMangaBookmarks])
 
   return (
     <div className="min-h-screen bg-manga-black">

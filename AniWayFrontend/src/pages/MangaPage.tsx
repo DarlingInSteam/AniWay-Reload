@@ -26,6 +26,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
 import type { MangaResponseDTO } from '@/types'
 import { useSyncedSearchParam } from '@/hooks/useSyncedSearchParam'
+import { useBookmarks } from '@/hooks/useBookmarks'
 
 export function MangaPage() {
   const { id } = useParams<{ id: string }>()
@@ -52,6 +53,7 @@ export function MangaPage() {
   const [likingChapters, setLikingChapters] = useState<Set<number>>(new Set())
 
   const { user, loading: authLoading } = useAuth()
+  const { hydrateMangaBookmarks } = useBookmarks()
   const [searchParams] = useSearchParams()
   const searchSuffix = useMemo(() => {
     const query = searchParams.toString()
@@ -100,6 +102,12 @@ export function MangaPage() {
   useEffect(() => {
     setShowFullDescription(false)
   }, [manga?.id])
+
+  useEffect(() => {
+    if (mangaId > 0) {
+      hydrateMangaBookmarks([mangaId]).catch(err => console.error('Failed to hydrate bookmark for manga', err))
+    }
+  }, [mangaId, hydrateMangaBookmarks])
 
   // Slug handling: enhance URL to /manga/:id--:slug (client side only)
   useEffect(() => {

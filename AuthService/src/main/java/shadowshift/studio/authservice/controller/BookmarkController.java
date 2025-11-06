@@ -10,6 +10,7 @@ import shadowshift.studio.authservice.dto.BookmarkDTO;
 import shadowshift.studio.authservice.entity.BookmarkStatus;
 import shadowshift.studio.authservice.service.BookmarkService;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -41,6 +42,11 @@ public class BookmarkController {
         private Long mangaId;
         private BookmarkStatus status;
         private Boolean isFavorite;
+    }
+
+    @Data
+    static class BookmarkBatchRequest {
+        private List<Long> mangaIds;
     }
     
     /**
@@ -157,6 +163,30 @@ public class BookmarkController {
             return ResponseEntity.ok(bookmarks);
         } catch (Exception e) {
             log.error("Get user bookmarks failed: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    /**
+     * Получает закладки текущего пользователя для набора идентификаторов манги.
+     */
+    @PostMapping("/batch")
+    public ResponseEntity<List<BookmarkDTO>> getUserBookmarksBatch(
+            Authentication authentication,
+            @RequestBody(required = false) BookmarkBatchRequest request
+    ) {
+        if (request == null || request.getMangaIds() == null || request.getMangaIds().isEmpty()) {
+            return ResponseEntity.ok(Collections.emptyList());
+        }
+
+        try {
+            List<BookmarkDTO> bookmarks = bookmarkService.getUserBookmarksForMangaIds(
+                    authentication.getName(),
+                    request.getMangaIds()
+            );
+            return ResponseEntity.ok(bookmarks);
+        } catch (Exception e) {
+            log.error("Get user bookmarks batch failed: {}", e.getMessage());
             return ResponseEntity.badRequest().build();
         }
     }

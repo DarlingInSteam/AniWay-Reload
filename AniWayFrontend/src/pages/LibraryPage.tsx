@@ -36,7 +36,7 @@ const statusColors: Record<BookmarkStatus, string> = {
 
 export const LibraryPage: React.FC = () => {
   const { isAuthenticated } = useAuth()
-  const { allBookmarks, loading, clientFilterAndSort, getBookmarksByStatus, getFavorites } = useBookmarks()
+  const { allBookmarks, loading, clientFilterAndSort, getBookmarksByStatus, getFavorites, refetch } = useBookmarks()
   const [selectedStatus, setSelectedStatus] = useState<BookmarkStatus | 'FAVORITES' | 'ALL'>('ALL')
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<SortOption>('bookmark_updated')
@@ -65,6 +65,12 @@ export const LibraryPage: React.FC = () => {
     sortOrder
   }), [debouncedQuery, selectedStatus, sortBy, sortOrder, allBookmarks])
   const getStatusCount = (status: BookmarkStatus | 'FAVORITES') => status==='FAVORITES'? getFavorites().length : getBookmarksByStatus(status as BookmarkStatus).length
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      refetch().catch(err => console.error('Failed to load bookmarks', err))
+    }
+  }, [isAuthenticated, refetch])
 
   if (!isAuthenticated) {
     return (

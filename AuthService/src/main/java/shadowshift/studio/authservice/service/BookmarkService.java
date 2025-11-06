@@ -17,6 +17,7 @@ import shadowshift.studio.authservice.repository.UserRepository;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -164,6 +165,36 @@ public class BookmarkService {
         
         return bookmarkRepository.findByUserIdAndMangaId(user.getId(), mangaId)
                 .map(this::convertToDTO);
+    }
+
+    /**
+     * Возвращает закладки пользователя для набора идентификаторов манги.
+     *
+     * @param username имя пользователя
+     * @param mangaIds список идентификаторов манги
+     * @return список DTO закладок
+     */
+    public List<BookmarkDTO> getUserBookmarksForMangaIds(String username, List<Long> mangaIds) {
+    if (mangaIds == null || mangaIds.isEmpty()) {
+        return List.of();
+    }
+
+    var user = userRepository.findByUsername(username)
+        .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+    List<Long> sanitizedIds = mangaIds.stream()
+        .filter(Objects::nonNull)
+        .distinct()
+        .collect(Collectors.toList());
+
+    if (sanitizedIds.isEmpty()) {
+        return List.of();
+    }
+
+    List<Bookmark> bookmarks = bookmarkRepository.findByUserIdAndMangaIdIn(user.getId(), sanitizedIds);
+    return bookmarks.stream()
+        .map(this::convertToDTO)
+        .collect(Collectors.toList());
     }
     
     /**
