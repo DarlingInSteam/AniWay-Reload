@@ -10,37 +10,36 @@ https://aniway.space {
         X-Content-Type-Options "nosniff"
     }
 
-    @adminPanelsNotAllowed expression `{
-        (path.startsWith("/grafana") || path.startsWith("/prometheus") || path.startsWith("/alertmanager")) &&
-        !remote_ip(
-            "173.245.48.0/20",
-            "103.21.244.0/22",
-            "103.22.200.0/22",
-            "103.31.4.0/22",
-            "141.101.64.0/18",
-            "108.162.192.0/18",
-            "190.93.240.0/20",
-            "188.114.96.0/20",
-            "197.234.240.0/22",
-            "198.41.128.0/17",
-            "162.158.0.0/15",
-            "104.16.0.0/13",
-            "104.24.0.0/14",
-            "172.64.0.0/13",
-            "131.0.72.0/22",
-            "2400:cb00::/32",
-            "2606:4700::/32",
-            "2803:f800::/32",
-            "2405:b500::/32",
-            "2405:8100::/32",
-            "2a06:98c0::/29",
-            "2c0f:f248::/32",
-            "10.0.0.0/8",
-            "172.16.0.0/12",
-            "192.168.0.0/16",
-            "127.0.0.1/8"
-        )
-    }`
+    @adminPanelsNotAllowed {
+        path_regexp adminpanels ^/(grafana|prometheus|alertmanager)(/.*)?$
+        not remote_ip \
+            173.245.48.0/20 \
+            103.21.244.0/22 \
+            103.22.200.0/22 \
+            103.31.4.0/22 \
+            141.101.64.0/18 \
+            108.162.192.0/18 \
+            190.93.240.0/20 \
+            188.114.96.0/20 \
+            197.234.240.0/22 \
+            198.41.128.0/17 \
+            162.158.0.0/15 \
+            104.16.0.0/13 \
+            104.24.0.0/14 \
+            172.64.0.0/13 \
+            131.0.72.0/22 \
+            2400:cb00::/32 \
+            2606:4700::/32 \
+            2803:f800::/32 \
+            2405:b500::/32 \
+            2405:8100::/32 \
+            2a06:98c0::/29 \
+            2c0f:f248::/32 \
+            10.0.0.0/8 \
+            172.16.0.0/12 \
+            192.168.0.0/16 \
+            127.0.0.1/8
+    }
     respond @adminPanelsNotAllowed "Forbidden" 403 {
         close
     }
@@ -52,13 +51,13 @@ https://aniway.space {
 
     # Grafana
     handle /grafana {
-        basicauth {
+        basic_auth {
             {$ADMIN_PANEL_USER} {$ADMIN_PANEL_PASSWORD_HASH}
         }
         redir /grafana/ 302
     }
     handle /grafana/ {
-        basicauth {
+        basic_auth {
             {$ADMIN_PANEL_USER} {$ADMIN_PANEL_PASSWORD_HASH}
         }
         reverse_proxy aniway-grafana:3000 {
@@ -66,7 +65,7 @@ https://aniway.space {
         }
     }
     handle /grafana/* {
-        basicauth {
+        basic_auth {
             {$ADMIN_PANEL_USER} {$ADMIN_PANEL_PASSWORD_HASH}
         }
         reverse_proxy aniway-grafana:3000 {
@@ -76,13 +75,13 @@ https://aniway.space {
 
     # Prometheus
     handle /prometheus {
-        basicauth {
+        basic_auth {
             {$ADMIN_PANEL_USER} {$ADMIN_PANEL_PASSWORD_HASH}
         }
         redir /prometheus/ 302
     }
     handle /prometheus/ {
-        basicauth {
+        basic_auth {
             {$ADMIN_PANEL_USER} {$ADMIN_PANEL_PASSWORD_HASH}
         }
         reverse_proxy aniway-prometheus:9090 {
@@ -90,7 +89,7 @@ https://aniway.space {
         }
     }
     handle /prometheus/* {
-        basicauth {
+        basic_auth {
             {$ADMIN_PANEL_USER} {$ADMIN_PANEL_PASSWORD_HASH}
         }
         reverse_proxy aniway-prometheus:9090 {
@@ -100,13 +99,13 @@ https://aniway.space {
 
     # Alertmanager
     handle /alertmanager {
-        basicauth {
+        basic_auth {
             {$ADMIN_PANEL_USER} {$ADMIN_PANEL_PASSWORD_HASH}
         }
         redir /alertmanager/ 302
     }
     handle /alertmanager/ {
-        basicauth {
+        basic_auth {
             {$ADMIN_PANEL_USER} {$ADMIN_PANEL_PASSWORD_HASH}
         }
         reverse_proxy aniway-alertmanager:9093 {
@@ -114,7 +113,7 @@ https://aniway.space {
         }
     }
     handle /alertmanager/* {
-        basicauth {
+        basic_auth {
             {$ADMIN_PANEL_USER} {$ADMIN_PANEL_PASSWORD_HASH}
         }
         reverse_proxy aniway-alertmanager:9093 {
