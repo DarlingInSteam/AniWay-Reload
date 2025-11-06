@@ -32,7 +32,7 @@ scrape_configs:
         regex: "true"
         action: keep
       - source_labels: [__meta_docker_network_name]
-        regex: aniway-network
+        regex: aniway-network|aniway-reload_backend
         action: keep
       - source_labels: [__meta_docker_container_label_prometheus_job]
         regex: (.+)
