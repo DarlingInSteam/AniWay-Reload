@@ -230,6 +230,23 @@ class ApiClient {
     return this.request<MangaResponseDTO[]>('/manga');
   }
 
+  async getMangaBatch(ids: number[]): Promise<MangaResponseDTO[]> {
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return [];
+    }
+
+    try {
+      const response = await this.request<MangaResponseDTO[] | undefined>('/manga/batch', {
+        method: 'POST',
+        body: JSON.stringify({ mangaIds: ids }),
+      });
+      return Array.isArray(response) ? response : [];
+    } catch (error) {
+      console.error('Failed to fetch manga batch', error);
+      return [];
+    }
+  }
+
   async getMangaById(id: number, userId?: number): Promise<MangaResponseDTO> {
     const params = new URLSearchParams();
     if (userId) params.append('userId', userId.toString());

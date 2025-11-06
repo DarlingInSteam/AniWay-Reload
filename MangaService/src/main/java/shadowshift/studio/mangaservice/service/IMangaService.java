@@ -51,6 +51,14 @@ public interface IMangaService {
     Optional<MangaResponseDTO> getMangaById(Long id, Long userId);
 
     /**
+     * Возвращает список манги по их идентификаторам без инкремента просмотров.
+     *
+     * @param mangaIds список идентификаторов манги
+     * @return список найденных манг в том же порядке, что и запрос
+     */
+    List<MangaResponseDTO> getMangaBatch(List<Long> mangaIds);
+
+    /**
      * Создает новую мангу в системе.
      *
      * @param createDTO DTO с данными для создания манги

@@ -30,6 +30,7 @@ import DmcaPolicyPage from './pages/DmcaPolicyPage'
 import TermsOfServicePage from './pages/TermsOfServicePage'
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
 import { BookmarksProvider } from './hooks/useBookmarks'
+import { ReadingProgressProvider } from './hooks/useProgress'
 
 function InnerApp() {
   const { user } = useAuth();
@@ -134,7 +135,9 @@ function App() {
   return (
     <AuthProvider>
       <BookmarksProvider>
-        <InnerApp />
+        <ReadingProgressProvider>
+          <InnerApp />
+        </ReadingProgressProvider>
       </BookmarksProvider>
     </AuthProvider>
   )

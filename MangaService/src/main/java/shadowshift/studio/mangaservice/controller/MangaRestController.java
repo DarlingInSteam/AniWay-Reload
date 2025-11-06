@@ -13,6 +13,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.multipart.MultipartFile;
 import shadowshift.studio.mangaservice.dto.ChapterDTO;
 import shadowshift.studio.mangaservice.dto.ChapterImageDTO;
+import shadowshift.studio.mangaservice.dto.MangaBatchRequest;
 import shadowshift.studio.mangaservice.dto.MangaCharacterDTO;
 import shadowshift.studio.mangaservice.dto.MangaCharacterModerationDTO;
 import shadowshift.studio.mangaservice.dto.MangaCharacterRequestDTO;
@@ -249,6 +250,17 @@ public class MangaRestController {
                     logger.info("REST Controller: Манга с ID {} не найдена", id);
                     return ResponseEntity.notFound().build();
                 });
+    }
+
+    @PostMapping("/batch")
+    public ResponseEntity<List<MangaResponseDTO>> getMangaBatch(@RequestBody(required = false) MangaBatchRequest request) {
+        List<Long> mangaIds = request != null ? request.getMangaIds() : null;
+        if (mangaIds == null || mangaIds.isEmpty()) {
+            return ResponseEntity.ok(List.of());
+        }
+
+        List<MangaResponseDTO> result = mangaService.getMangaBatch(mangaIds);
+        return ResponseEntity.ok(result);
     }
 
     /**

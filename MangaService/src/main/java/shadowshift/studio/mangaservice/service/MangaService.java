@@ -551,6 +551,47 @@ public class MangaService {
                 });
     }
 
+    @Transactional(readOnly = true)
+    public List<MangaResponseDTO> getMangaBatch(List<Long> mangaIds) {
+        if (mangaIds == null || mangaIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Long> distinctIds = mangaIds.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        if (distinctIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        synchronizeEngagementMetricsForIds(distinctIds);
+
+        Map<Long, MangaResponseDTO> dtoMap = new HashMap<>();
+        List<Manga> entities = mangaRepository.findAllById(distinctIds);
+
+        for (Manga manga : entities) {
+            if (manga == null) {
+                continue;
+            }
+            MangaResponseDTO dto = mangaMapper.toResponseDTO(manga);
+            enrichWithChapterCount(dto, manga);
+            enrichWithCoverUrl(dto);
+            dtoMap.put(manga.getId(), dto);
+        }
+
+        List<MangaResponseDTO> orderedResult = new ArrayList<>(mangaIds.size());
+        for (Long id : mangaIds) {
+            MangaResponseDTO dto = dtoMap.get(id);
+            if (dto != null) {
+                orderedResult.add(dto);
+            }
+        }
+
+        return orderedResult;
+    }
+
     /**
      * Инкрементирует просмотры манги, если прошло больше часа с последнего просмотра пользователя.
      *
