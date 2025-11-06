@@ -3,6 +3,7 @@ import { useBookmarks } from '../hooks/useBookmarks'
 import { useAuth } from '../contexts/AuthContext'
 import { BookmarkStatus } from '../types'
 import { BookmarkMangaCard } from '../components/manga/BookmarkMangaCard'
+import { useReadingProgress } from '../hooks/useProgress'
 import { ArrowUpDown, ArrowUp, ArrowDown, Heart } from 'lucide-react'
 import { cn } from '../lib/utils'
 
@@ -37,6 +38,10 @@ const statusColors: Record<BookmarkStatus, string> = {
 export const LibraryPage: React.FC = () => {
   const { isAuthenticated } = useAuth()
   const { allBookmarks, loading, clientFilterAndSort, getBookmarksByStatus, getFavorites, refetch } = useBookmarks()
+  const {
+    getMangaProgress,
+    loading: progressLoading
+  } = useReadingProgress()
   const [selectedStatus, setSelectedStatus] = useState<BookmarkStatus | 'FAVORITES' | 'ALL'>('ALL')
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<SortOption>('bookmark_updated')
@@ -83,7 +88,7 @@ export const LibraryPage: React.FC = () => {
     )
   }
 
-  if (loading) {
+  if (loading || progressLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-20 w-20 border-b-2 border-primary" />
@@ -161,7 +166,15 @@ export const LibraryPage: React.FC = () => {
             </div>
           ) : (
             <div className="relative grid grid-cols-2 gap-3 sm:gap-4 lg:gap-5 xl:gap-6 auto-rows-auto sm:[grid-template-columns:repeat(auto-fill,minmax(160px,1fr))] md:[grid-template-columns:repeat(auto-fill,minmax(170px,1fr))] lg:[grid-template-columns:repeat(auto-fill,minmax(180px,1fr))] items-start animate-fade-in">
-              {filteredBookmarks.map(b=> <BookmarkMangaCard key={b.id} bookmark={b} />)}
+              {filteredBookmarks.map(b=> (
+                <BookmarkMangaCard
+                  key={b.id}
+                  bookmark={b}
+                  progressHelpers={{
+                    getMangaProgress
+                  }}
+                />
+              ))}
             </div>
           )}
         </div>

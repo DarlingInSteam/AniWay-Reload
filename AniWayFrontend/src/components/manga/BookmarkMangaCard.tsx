@@ -1,18 +1,20 @@
 import { Link } from 'react-router-dom'
-import { Bookmark, Star } from 'lucide-react'
-import { Bookmark as BookmarkType } from '@/types'
+import { Bookmark } from 'lucide-react'
+import { Bookmark as BookmarkType, ReadingProgress } from '@/types'
 import { cn } from '@/lib/utils'
-import { useReadingProgress } from '@/hooks/useProgress'
-import { useQuery } from '@tanstack/react-query'
-import { apiClient } from '@/lib/api'
+
+interface ProgressHelpers {
+  getMangaProgress: (mangaId: number) => ReadingProgress[]
+}
 
 interface BookmarkMangaCardProps {
   bookmark: BookmarkType
+  progressHelpers: ProgressHelpers
 }
 
-export function BookmarkMangaCard({ bookmark }: BookmarkMangaCardProps) {
-  const { getMangaReadingPercentage, getMangaProgress } = useReadingProgress()
-  
+export function BookmarkMangaCard({ bookmark, progressHelpers }: BookmarkMangaCardProps) {
+  const { getMangaProgress } = progressHelpers
+
   // Адаптивные размеры для разных экранов - как в каталоге
   const cardSizes = {
     compact: 'aspect-[3/4]',
@@ -20,36 +22,18 @@ export function BookmarkMangaCard({ bookmark }: BookmarkMangaCardProps) {
     large: 'aspect-[3/4]'
   }
 
-  // Загружаем полные данные манги
-  const { data: manga, isError, error } = useQuery({
-    queryKey: ['manga', bookmark.mangaId],
-    queryFn: () => apiClient.getMangaById(bookmark.mangaId),
-    enabled: !!bookmark.mangaId,
-    retry: false,
-  })
-
-  // Если манга не найдена (404 или другая ошибка), не отображаем карточку
-  if (isError) {
-    console.warn(`Manga ${bookmark.mangaId} not found, bookmark may be outdated`)
-    return null
-  }
-
-  // Используем либо загруженные данные манги, либо данные из закладки
-  const mangaData = manga || bookmark.manga || {
+  const fallbackTitle = `Манга ${bookmark.mangaId}`
+  const mangaData = {
     id: bookmark.mangaId,
-    title: `Манга ${bookmark.mangaId}`,
-    coverImageUrl: (bookmark as any).mangaCoverUrl,
-    totalChapters: 0,
-    genre: (bookmark as any).mangaGenre || '',
-    releaseDate: (bookmark as any).mangaReleaseDate || new Date().toISOString()
+    title: bookmark.manga?.title ?? bookmark.mangaTitle ?? fallbackTitle,
+    coverImageUrl: bookmark.manga?.coverImageUrl ?? bookmark.mangaCoverUrl ?? '/placeholder-manga.jpg',
+    totalChapters: bookmark.manga?.totalChapters ?? bookmark.totalChapters ?? 0
   }
 
   // Получаем прогресс чтения
-  const readingProgress = getMangaReadingPercentage(mangaData.id, mangaData.totalChapters || 1)
-  
   // Вычисляем количество прочитанных глав более точно
   const mangaProgress = getMangaProgress(mangaData.id)
-  const readChapters = mangaProgress && Array.isArray(mangaProgress) ? mangaProgress.filter(p => p.isCompleted).length : 0
+  const readChapters = Array.isArray(mangaProgress) ? mangaProgress.filter(p => p.isCompleted).length : 0
 
   const getBookmarkStatusText = (status: string) => {
     switch (status) {
