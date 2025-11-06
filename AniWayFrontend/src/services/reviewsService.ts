@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api';
+import { MangaResponseDTO } from '@/types';
 import { UserReview } from '@/types/profile';
 
 export interface CreateReviewData {
@@ -79,31 +80,43 @@ class ReviewsService {
   async getUserReviews(userId?: number): Promise<UserReview[]> {
     try {
       const reviews = await apiClient.getUserReviews(userId);
-      
-      // Получаем данные манги для каждого отзыва
-      const reviewsWithMangaData = await Promise.all(
-        reviews.map(async (review) => {
-          let mangaTitle = `Манга ${review.mangaId}`;
-          try {
-            const manga = await apiClient.getMangaById(review.mangaId);
-            mangaTitle = manga.title || mangaTitle;
-          } catch (error) {
-            console.warn(`Не удалось загрузить данные манги ${review.mangaId}:`, error);
-          }
 
-          return {
-            id: review.id.toString(),
-            mangaId: review.mangaId,
-            mangaTitle,
-            rating: review.rating,
-            text: review.comment || '',
-            createdAt: new Date(review.createdAt),
-            likes: review.likesCount || 0
-          };
-        })
+      const uniqueMangaIds = Array.from(
+        new Set(
+          reviews
+            .map(review => review.mangaId)
+            .filter((id): id is number => typeof id === 'number' && !Number.isNaN(id))
+        )
       );
 
-      return reviewsWithMangaData;
+      let mangaById = new Map<number, MangaResponseDTO>();
+
+      if (uniqueMangaIds.length > 0) {
+        try {
+          const mangaBatch = await apiClient.getMangaBatch(uniqueMangaIds);
+          mangaById = new Map(mangaBatch.map(manga => [manga.id, manga]));
+        } catch (batchError) {
+          console.warn('Не удалось загрузить данные манги батч-запросом:', batchError);
+        }
+      }
+
+      return reviews.map(review => {
+        const fallbackTitle =
+          review.mangaTitle ||
+          (typeof review.manga?.title === 'string' ? review.manga.title : undefined) ||
+          `Манга ${review.mangaId}`;
+        const mangaTitle = mangaById.get(review.mangaId)?.title || fallbackTitle;
+
+        return {
+          id: review.id.toString(),
+          mangaId: review.mangaId,
+          mangaTitle,
+          rating: review.rating,
+          text: review.comment || '',
+          createdAt: new Date(review.createdAt),
+          likes: review.likesCount || 0
+        };
+      });
     } catch (error) {
       console.error('Ошибка при получении отзывов пользователя:', error);
       throw new Error('Не удалось загрузить отзывы');

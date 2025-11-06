@@ -315,15 +315,6 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, isOwnProfile]);
 
-  // Lightweight async fetch for reviews count (can use optimized endpoint later)
-  useEffect(()=>{
-    let cancelled = false;
-    import('@/services/reviewsService').then(({ reviewsService })=>{
-      reviewsService.getUserReviewsCountFast(parseInt(userId)).then(c=>{ if(!cancelled) setReviewsCount(c); });
-    });
-    return ()=> { cancelled = true };
-  }, [userId]);
-
   const handleProfileUpdate = async (updates: Partial<UserProfileType>) => {
     if (!profile || !isOwnProfile) return;
 
