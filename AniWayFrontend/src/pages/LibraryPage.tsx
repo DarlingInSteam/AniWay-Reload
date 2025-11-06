@@ -74,6 +74,20 @@ export const LibraryPage: React.FC = () => {
   }), [debouncedQuery, selectedStatus, sortBy, sortOrder, allBookmarks])
   const getStatusCount = (status: BookmarkStatus | 'FAVORITES') => status==='FAVORITES'? getFavorites().length : getBookmarksByStatus(status as BookmarkStatus).length
 
+  const displayBookmarks = useMemo(() => filteredBookmarks.map(bookmark => {
+    const details = mangaDetailsMap[bookmark.mangaId]
+    if (!details) {
+      return bookmark
+    }
+    return {
+      ...bookmark,
+      manga: bookmark.manga ?? details,
+      mangaTitle: bookmark.mangaTitle ?? details.title,
+      mangaCoverUrl: bookmark.mangaCoverUrl ?? details.coverImageUrl,
+      totalChapters: bookmark.totalChapters ?? details.totalChapters ?? bookmark.totalChapters
+    }
+  }), [filteredBookmarks, mangaDetailsMap])
+
   useEffect(() => {
     if (isAuthenticated) {
       refetch().catch(err => console.error('Failed to load bookmarks', err))
@@ -91,7 +105,9 @@ export const LibraryPage: React.FC = () => {
     )
   }
 
-  if (loading || progressLoading || mangaDetailsLoading) {
+  const isInitialLoading = loading || progressLoading || (mangaDetailsLoading && allBookmarks.length === 0)
+
+  if (isInitialLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-20 w-20 border-b-2 border-primary" />
@@ -160,7 +176,7 @@ export const LibraryPage: React.FC = () => {
               ))}
             </div>
           </div>
-          {filteredBookmarks.length===0 ? (
+          {displayBookmarks.length===0 ? (
             <div className="text-center py-16">
               <div className="text-6xl mb-4">📚</div>
               <h3 className="text-xl font-medium text-foreground mb-2">{searchQuery ? 'Ничего не найдено':'Пока нет закладок'}</h3>
@@ -169,19 +185,12 @@ export const LibraryPage: React.FC = () => {
             </div>
           ) : (
             <div className="relative grid grid-cols-2 gap-3 sm:gap-4 lg:gap-5 xl:gap-6 auto-rows-auto sm:[grid-template-columns:repeat(auto-fill,minmax(160px,1fr))] md:[grid-template-columns:repeat(auto-fill,minmax(170px,1fr))] lg:[grid-template-columns:repeat(auto-fill,minmax(180px,1fr))] items-start animate-fade-in">
-              {filteredBookmarks.map(b=> {
+              {displayBookmarks.map(b=> {
                 const details = mangaDetailsMap[b.mangaId]
-                const decorated = details ? {
-                  ...b,
-                  manga: b.manga ?? details,
-                  mangaTitle: b.mangaTitle ?? details.title,
-                  mangaCoverUrl: b.mangaCoverUrl ?? details.coverImageUrl,
-                  totalChapters: b.totalChapters ?? details.totalChapters ?? b.totalChapters
-                } : b
                 return (
                 <BookmarkMangaCard
                   key={b.id}
-                  bookmark={decorated}
+                  bookmark={b}
                   mangaDetails={details}
                   progressHelpers={{
                     getMangaProgress
