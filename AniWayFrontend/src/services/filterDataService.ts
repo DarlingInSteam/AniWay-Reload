@@ -41,6 +41,49 @@ let activeGenresPromise: Promise<Genre[]> | null = null;
 let activeTagsCache: Tag[] | null = null;
 let activeTagsPromise: Promise<Tag[]> | null = null;
 
+const CACHE_TTL_MS = 1000 * 60 * 15; // 15 minutes
+const SESSION_KEY_GENRES = 'aw_active_genres_v1';
+const SESSION_KEY_TAGS = 'aw_active_tags_v1';
+
+type CachedPayload<T> = { data: T; expires: number };
+
+const readSessionCache = <T>(key: string): T | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedPayload<T> | null;
+    if (!parsed || typeof parsed.expires !== 'number') return null;
+    if (parsed.expires < Date.now()) {
+      window.sessionStorage.removeItem(key);
+      return null;
+    }
+    return parsed.data ?? null;
+  } catch (error) {
+    console.warn('Failed to read filter cache', error);
+    return null;
+  }
+};
+
+const writeSessionCache = <T>(key: string, data: T) => {
+  if (typeof window === 'undefined') return;
+  try {
+    const payload: CachedPayload<T> = { data, expires: Date.now() + CACHE_TTL_MS };
+    window.sessionStorage.setItem(key, JSON.stringify(payload));
+  } catch (error) {
+    console.warn('Failed to persist filter cache', error);
+  }
+};
+
+const invalidateSessionCache = (key: string) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.removeItem(key);
+  } catch (error) {
+    console.warn('Failed to clear filter cache', error);
+  }
+};
+
 export class FilterDataService {
   private static readonly API_BASE_URL = (() => {
     const configured = (import.meta as EnvWithOptionalBaseUrl).env?.VITE_API_BASE_URL;
@@ -61,6 +104,11 @@ export class FilterDataService {
       if (activeGenresCache) {
         return activeGenresCache;
       }
+      const fromSession = readSessionCache<Genre[]>(SESSION_KEY_GENRES);
+      if (fromSession) {
+        activeGenresCache = fromSession;
+        return fromSession;
+      }
       if (activeGenresPromise) {
         return activeGenresPromise;
       }
@@ -74,6 +122,7 @@ export class FilterDataService {
         }
         const data: Genre[] = await response.json();
         activeGenresCache = data;
+        writeSessionCache(SESSION_KEY_GENRES, data);
         return data;
       } catch (error) {
         console.error('Ошибка при получении жанров:', error);
@@ -93,6 +142,7 @@ export class FilterDataService {
 
   static invalidateActiveGenres() {
     activeGenresCache = null;
+    invalidateSessionCache(SESSION_KEY_GENRES);
   }
 
   /**
@@ -102,6 +152,11 @@ export class FilterDataService {
     if (!force) {
       if (activeTagsCache) {
         return activeTagsCache;
+      }
+      const fromSession = readSessionCache<Tag[]>(SESSION_KEY_TAGS);
+      if (fromSession) {
+        activeTagsCache = fromSession;
+        return fromSession;
       }
       if (activeTagsPromise) {
         return activeTagsPromise;
@@ -116,6 +171,7 @@ export class FilterDataService {
         }
         const data: Tag[] = await response.json();
         activeTagsCache = data;
+        writeSessionCache(SESSION_KEY_TAGS, data);
         return data;
       } catch (error) {
         console.error('Ошибка при получении тегов:', error);
@@ -135,6 +191,7 @@ export class FilterDataService {
 
   static invalidateActiveTags() {
     activeTagsCache = null;
+    invalidateSessionCache(SESSION_KEY_TAGS);
   }
 
   /**
