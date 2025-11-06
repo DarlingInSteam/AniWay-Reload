@@ -30,6 +30,9 @@ dependencies {
     // Spring Boot Web (для CORS и других настроек)
     implementation("org.springframework.boot:spring-boot-starter-webflux")
 
+    // Redis connectivity for distributed rate limiting and connection tracking
+    implementation("org.springframework.boot:spring-boot-starter-data-redis-reactive")
+
     // Actuator для мониторинга
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("io.micrometer:micrometer-registry-prometheus")
@@ -45,6 +48,7 @@ dependencies {
 
     // Rate limiting (Bucket4j)
     implementation("com.bucket4j:bucket4j-core:8.2.0")
+    implementation("com.bucket4j:bucket4j-redis:8.2.0")
 
     // DevTools для разработки
     developmentOnly("org.springframework.boot:spring-boot-devtools")

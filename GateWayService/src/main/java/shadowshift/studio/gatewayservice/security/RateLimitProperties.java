@@ -6,20 +6,29 @@ import org.springframework.stereotype.Component;
 @Component
 public class RateLimitProperties {
 
-    @Value("${ratelimit.anon.burst:120}")
+    @Value("${ratelimit.anon.burst:60}")
     private int anonBurst;
-    @Value("${ratelimit.anon.refill:60}")
+    @Value("${ratelimit.anon.refill:30}")
     private int anonRefillPerMinute;
 
-    @Value("${ratelimit.user.burst:600}")
+    @Value("${ratelimit.user.burst:300}")
     private int userBurst;
-    @Value("${ratelimit.user.refill:300}")
+    @Value("${ratelimit.user.refill:150}")
     private int userRefillPerMinute;
 
-    @Value("${ratelimit.admin.burst:1200}")
+    @Value("${ratelimit.admin.burst:600}")
     private int adminBurst;
-    @Value("${ratelimit.admin.refill:600}")
+    @Value("${ratelimit.admin.refill:300}")
     private int adminRefillPerMinute;
+
+    @Value("${ratelimit.connection.max-per-user:5}")
+    private int maxConnectionsPerUser;
+
+    @Value("${ratelimit.connection.max-per-ip:3}")
+    private int maxConnectionsPerIp;
+
+    @Value("${ratelimit.connection.key-ttl-seconds:30}")
+    private int connectionKeyTtlSeconds;
 
     public int getAnonBurst() { return anonBurst; }
     public int getAnonRefillPerMinute() { return anonRefillPerMinute; }
@@ -27,4 +36,7 @@ public class RateLimitProperties {
     public int getUserRefillPerMinute() { return userRefillPerMinute; }
     public int getAdminBurst() { return adminBurst; }
     public int getAdminRefillPerMinute() { return adminRefillPerMinute; }
+    public int getMaxConnectionsPerUser() { return maxConnectionsPerUser; }
+    public int getMaxConnectionsPerIp() { return maxConnectionsPerIp; }
+    public int getConnectionKeyTtlSeconds() { return connectionKeyTtlSeconds; }
 }

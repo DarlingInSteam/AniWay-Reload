@@ -251,6 +251,22 @@ services:
       timeout: 10s
       retries: 5
 
+  redis:
+    image: redis:7.4-alpine
+    container_name: aniway-redis
+    command: ["redis-server", "--save", "60", "1000", "--loglevel", "warning"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # Image Storage Service
   image-storage-service:
     build:
@@ -336,6 +352,8 @@ services:
       - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
       - POST_SERVICE_URL=http://post-service:8097
       - LEVEL_SERVICE_URL=http://level-service:8098
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
     ports:
       - "8080:8080"
     depends_on:
@@ -350,6 +368,7 @@ services:
       - level-service
       - forum-service
       - rabbitmq
+      - redis
     networks:
       - aniway-network
     restart: unless-stopped
@@ -623,3 +642,4 @@ volumes:
   parser_data:
   parser_temp:
   forum_postgres_data:
+  redis_data:

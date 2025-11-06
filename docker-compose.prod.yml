@@ -18,7 +18,7 @@ services:
           cpus: "0.20"
           memory: 160M
     networks:
-      - aniway-network
+      - backend
 
   # TLS reverse proxy
   reverse-proxy:
@@ -45,20 +45,23 @@ services:
     depends_on:
       - aniway-frontend
     networks:
-      - aniway-network
+      - edge
+      - backend
 
   # Gateway Service
   gateway-service:
     build:
       context: ./GateWayService
       dockerfile: Dockerfile
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     environment:
       - SPRING_PROFILES_ACTIVE=prod
       - EUREKA_CLIENT_ENABLED=false
       - POST_SERVICE_URL=http://post-service:8097
       - LEVEL_SERVICE_URL=http://level-service:8098
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
       - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
       - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
       - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
@@ -92,8 +95,9 @@ services:
       - post-service
       - level-service
       - rabbitmq
+      - redis
     networks:
-      - aniway-network
+      - backend
 
   # Auth Service
   auth-service:
@@ -101,34 +105,34 @@ services:
       context: ./AuthService
       dockerfile: Dockerfile
     environment:
-      - SPRING_PROFILES_ACTIVE=prod
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://auth-postgres:5432/authdb
-      - SPRING_DATASOURCE_USERNAME=authuser
-      - SPRING_DATASOURCE_PASSWORD=authpass123
-      - TELEGRAM_BOT_USERNAME=${TELEGRAM_BOT_USERNAME:-aniwaynotify_bot}
-      - TELEGRAM_DEEP_LINK_BASE=${TELEGRAM_DEEP_LINK_BASE:-https://t.me}
-      - TELEGRAM_LINK_TTL_MINUTES=${TELEGRAM_LINK_TTL_MINUTES:-15}
-      - TELEGRAM_LINK_MAX_ACTIVE_TOKENS=${TELEGRAM_LINK_MAX_ACTIVE_TOKENS:-5}
-      - TELEGRAM_NOTIFICATIONS_DEFAULT_ENABLED=${TELEGRAM_NOTIFICATIONS_DEFAULT_ENABLED:-true}
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://auth-postgres:5432/authdb
+      SPRING_DATASOURCE_USERNAME: authuser
+      SPRING_DATASOURCE_PASSWORD: ${AUTH_DB_PASSWORD:?AUTH_DB_PASSWORD not set}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-aniwaynotify_bot}
+      TELEGRAM_DEEP_LINK_BASE: ${TELEGRAM_DEEP_LINK_BASE:-https://t.me}
+      TELEGRAM_LINK_TTL_MINUTES: ${TELEGRAM_LINK_TTL_MINUTES:-15}
+      TELEGRAM_LINK_MAX_ACTIVE_TOKENS: ${TELEGRAM_LINK_MAX_ACTIVE_TOKENS:-5}
+      TELEGRAM_NOTIFICATIONS_DEFAULT_ENABLED: ${TELEGRAM_NOTIFICATIONS_DEFAULT_ENABLED:-true}
       # --- Resend SMTP Configuration ---
-      - MAIL_HOST=smtp.resend.com
-      - MAIL_PORT=587
-      - MAIL_USERNAME=resend
-      - MAIL_PASSWORD=re_WKeXb53h_3S5tUGdRH6YEWDHS7FVoaLDx
-      - MAIL_AUTH=true
-      - MAIL_STARTTLS=true
-      - MAIL_STARTTLS_REQUIRED=true
-      - MAIL_SSL_TRUST=smtp.resend.com
-      - MAIL_CONNECTION_TIMEOUT=5000
-      - MAIL_TIMEOUT=5000
-      - MAIL_WRITE_TIMEOUT=5000
-      - MAIL_DEBUG=false
-      - EMAIL_VERIFICATION_ENABLED=true
-      - EMAIL_VERIFICATION_FROM=noreply@aniway.space
-      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
-      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
-      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
-      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+      MAIL_HOST: smtp.resend.com
+      MAIL_PORT: 587
+      MAIL_USERNAME: resend
+      MAIL_PASSWORD: ${AUTH_MAIL_PASSWORD:?AUTH_MAIL_PASSWORD not set}
+      MAIL_AUTH: "true"
+      MAIL_STARTTLS: "true"
+      MAIL_STARTTLS_REQUIRED: "true"
+      MAIL_SSL_TRUST: smtp.resend.com
+      MAIL_CONNECTION_TIMEOUT: 5000
+      MAIL_TIMEOUT: 5000
+      MAIL_WRITE_TIMEOUT: 5000
+      MAIL_DEBUG: "false"
+      EMAIL_VERIFICATION_ENABLED: "true"
+      EMAIL_VERIFICATION_FROM: noreply@aniway.space
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,prometheus,metrics
+      MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED: "true"
+      MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED: "true"
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
     labels:
       - "prometheus.scrape=true"
       - "prometheus.job=aniway-backend"
@@ -147,7 +151,7 @@ services:
     depends_on:
       - auth-postgres
     networks:
-      - aniway-network
+      - backend
 
   # Manga Service
   manga-service:
@@ -155,17 +159,17 @@ services:
       context: ./MangaService
       dockerfile: Dockerfile
     environment:
-      - SPRING_PROFILES_ACTIVE=prod
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://manga-postgres:5432/mangadb
-      - SPRING_DATASOURCE_USERNAME=mangauser
-      - SPRING_DATASOURCE_PASSWORD=mangapass123
-      - MELON_SERVICE_URL=http://parser-service:8084
-      - CHAPTER_SERVICE_URL=http://chapter-service:8082
-      - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
-      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
-      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
-      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
-      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://manga-postgres:5432/mangadb
+      SPRING_DATASOURCE_USERNAME: mangauser
+      SPRING_DATASOURCE_PASSWORD: ${MANGA_DB_PASSWORD:?MANGA_DB_PASSWORD not set}
+      MELON_SERVICE_URL: http://parser-service:8084
+      CHAPTER_SERVICE_URL: http://chapter-service:8082
+      IMAGE_STORAGE_SERVICE_URL: http://image-storage-service:8083
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,prometheus,metrics
+      MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED: "true"
+      MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED: "true"
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
     labels:
       - "prometheus.scrape=true"
       - "prometheus.job=aniway-backend"
@@ -186,7 +190,7 @@ services:
       - chapter-service
       - image-storage-service
     networks:
-      - aniway-network
+      - backend
 
   # Comment Service
   comment-service:
@@ -194,21 +198,21 @@ services:
       context: ./CommentService
       dockerfile: Dockerfile
     environment:
-      - SPRING_PROFILES_ACTIVE=prod
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://comment-postgres:5432/commentdb
-      - SPRING_DATASOURCE_USERNAME=commentuser
-      - SPRING_DATASOURCE_PASSWORD=commentpass123
-      - JWT_SECRET=${JWT_SECRET:-mySecretKey12345678901234567890123456789012345678901234567890}
-      - JWT_EXPIRATION=86400000
-      - AUTH_SERVICE_URL=http://auth-service:8085
-      - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_PORT=5672
-      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-aniway}
-      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-aniway_pass}
-      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
-      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
-      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
-      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://comment-postgres:5432/commentdb
+      SPRING_DATASOURCE_USERNAME: commentuser
+      SPRING_DATASOURCE_PASSWORD: ${COMMENT_DB_PASSWORD:?COMMENT_DB_PASSWORD not set}
+      JWT_SECRET: ${COMMENT_JWT_SECRET:?COMMENT_JWT_SECRET not set}
+      JWT_EXPIRATION: 86400000
+      AUTH_SERVICE_URL: http://auth-service:8085
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:?RABBITMQ_USERNAME not set}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD not set}
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,prometheus,metrics
+      MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED: "true"
+      MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED: "true"
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
     labels:
       - "prometheus.scrape=true"
       - "prometheus.job=aniway-backend"
@@ -228,7 +232,7 @@ services:
       - comment-postgres
       - rabbitmq
     networks:
-      - aniway-network
+      - backend
 
   # Friend Service
   friend-service:
@@ -236,15 +240,15 @@ services:
       context: ./FriendService
       dockerfile: Dockerfile
     environment:
-      - SPRING_PROFILES_ACTIVE=prod
-      - FRIEND_DB_URL=jdbc:postgresql://friend-postgres:5432/frienddb
-      - FRIEND_DB_USERNAME=frienduser
-      - FRIEND_DB_PASSWORD=friendpass123
-      - NOTIFICATION_SERVICE_URL=http://notification-service:8095
-      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
-      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
-      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
-      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+      SPRING_PROFILES_ACTIVE: prod
+      FRIEND_DB_URL: jdbc:postgresql://friend-postgres:5432/frienddb
+      FRIEND_DB_USERNAME: frienduser
+      FRIEND_DB_PASSWORD: ${FRIEND_DB_PASSWORD:?FRIEND_DB_PASSWORD not set}
+      NOTIFICATION_SERVICE_URL: http://notification-service:8095
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,prometheus,metrics
+      MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED: "true"
+      MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED: "true"
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
     labels:
       - "prometheus.scrape=true"
       - "prometheus.job=aniway-backend"
@@ -264,7 +268,7 @@ services:
       - friend-postgres
       - notification-service
     networks:
-      - aniway-network
+      - backend
 
   # Message Service
   message-service:
@@ -272,16 +276,16 @@ services:
       context: ./MessageService
       dockerfile: Dockerfile
     environment:
-      - SPRING_PROFILES_ACTIVE=prod
-      - DATABASE_URL=jdbc:postgresql://message-postgres:5432/messages
-      - DATABASE_USERNAME=aniway
-      - DATABASE_PASSWORD=aniway_pass
-      - NOTIFICATION_SERVICE_URL=http://notification-service:8095
-      - FRIEND_SERVICE_URL=http://friend-service:8102
-      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
-      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
-      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
-      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+      SPRING_PROFILES_ACTIVE: prod
+      DATABASE_URL: jdbc:postgresql://message-postgres:5432/messages
+      DATABASE_USERNAME: aniway
+      DATABASE_PASSWORD: ${MESSAGE_DB_PASSWORD:?MESSAGE_DB_PASSWORD not set}
+      NOTIFICATION_SERVICE_URL: http://notification-service:8095
+      FRIEND_SERVICE_URL: http://friend-service:8102
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,prometheus,metrics
+      MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED: "true"
+      MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED: "true"
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
     labels:
       - "prometheus.scrape=true"
       - "prometheus.job=aniway-backend"
@@ -301,7 +305,7 @@ services:
       - message-postgres
       - friend-service
     networks:
-      - aniway-network
+      - backend
 
   # Chapter Service
   chapter-service:
@@ -309,17 +313,17 @@ services:
       context: ./ChapterService
       dockerfile: Dockerfile
     environment:
-      - SPRING_PROFILES_ACTIVE=prod
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://chapter-postgres:5432/chapterdb
-      - SPRING_DATASOURCE_USERNAME=chapteruser
-      - SPRING_DATASOURCE_PASSWORD=chapterpass123
-      - MANGA_SERVICE_URL=http://manga-service:8081
-      - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
-      - IMAGE_STORAGE_SERVICE_INTERNAL_URL=http://image-storage-service:8083
-      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
-      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
-      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
-      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://chapter-postgres:5432/chapterdb
+      SPRING_DATASOURCE_USERNAME: chapteruser
+      SPRING_DATASOURCE_PASSWORD: ${CHAPTER_DB_PASSWORD:?CHAPTER_DB_PASSWORD not set}
+      MANGA_SERVICE_URL: http://manga-service:8081
+      IMAGE_STORAGE_SERVICE_URL: http://image-storage-service:8083
+      IMAGE_STORAGE_SERVICE_INTERNAL_URL: http://image-storage-service:8083
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,prometheus,metrics
+      MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED: "true"
+      MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED: "true"
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
     labels:
       - "prometheus.scrape=true"
       - "prometheus.job=aniway-backend"
@@ -338,7 +342,7 @@ services:
     depends_on:
       - chapter-postgres
     networks:
-      - aniway-network
+      - backend
 
   # Image Storage Service
   image-storage-service:
@@ -346,14 +350,14 @@ services:
       context: ./ImageStorageService
       dockerfile: Dockerfile
     environment:
-      - SPRING_PROFILES_ACTIVE=prod
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://image-postgres:5432/imagedb
-      - SPRING_DATASOURCE_USERNAME=imageuser
-      - SPRING_DATASOURCE_PASSWORD=imagepass123
-      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
-      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
-      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
-      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://image-postgres:5432/imagedb
+      SPRING_DATASOURCE_USERNAME: imageuser
+      SPRING_DATASOURCE_PASSWORD: ${IMAGE_DB_PASSWORD:?IMAGE_DB_PASSWORD not set}
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,prometheus,metrics
+      MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED: "true"
+      MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED: "true"
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
     labels:
       - "prometheus.scrape=true"
       - "prometheus.job=aniway-backend"
@@ -372,7 +376,7 @@ services:
     depends_on:
       - image-postgres
     networks:
-      - aniway-network
+      - backend
 
   # Moment Service
   moment-service:
@@ -380,21 +384,21 @@ services:
       context: ./MomentService
       dockerfile: Dockerfile
     environment:
-      - SPRING_PROFILES_ACTIVE=prod
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://moment-postgres:5432/momentdb
-      - SPRING_DATASOURCE_USERNAME=momentuser
-      - SPRING_DATASOURCE_PASSWORD=momentpass123
-      - SPRING_RABBITMQ_HOST=rabbitmq
-      - SPRING_RABBITMQ_PORT=5672
-      - SPRING_RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-aniway}
-      - SPRING_RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-aniway_pass}
-      - NOTIFICATION_SERVICE_URL=http://notification-service:8095
-      - XP_EVENTS_EXCHANGE=${XP_EVENTS_EXCHANGE:-xp.events.exchange}
-      - XP_EVENTS_MOMENT_LIKE_ROUTING_KEY=${XP_EVENTS_MOMENT_LIKE_ROUTING_KEY:-xp.events.moment-like}
-      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
-      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
-      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
-      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://moment-postgres:5432/momentdb
+      SPRING_DATASOURCE_USERNAME: momentuser
+      SPRING_DATASOURCE_PASSWORD: ${MOMENT_DB_PASSWORD:?MOMENT_DB_PASSWORD not set}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:?RABBITMQ_USERNAME not set}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD not set}
+      NOTIFICATION_SERVICE_URL: http://notification-service:8095
+      XP_EVENTS_EXCHANGE: ${XP_EVENTS_EXCHANGE:-xp.events.exchange}
+      XP_EVENTS_MOMENT_LIKE_ROUTING_KEY: ${XP_EVENTS_MOMENT_LIKE_ROUTING_KEY:-xp.events.moment-like}
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,prometheus,metrics
+      MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED: "true"
+      MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED: "true"
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
     labels:
       - "prometheus.scrape=true"
       - "prometheus.job=aniway-backend"
@@ -415,7 +419,7 @@ services:
       - rabbitmq
       - notification-service
     networks:
-      - aniway-network
+      - backend
 
   # Forum Service
   forum-service:
@@ -423,18 +427,18 @@ services:
       context: ./ForumService
       dockerfile: Dockerfile
     environment:
-      - SPRING_PROFILES_ACTIVE=prod
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://forum-postgres:5432/forumdb
-      - SPRING_DATASOURCE_USERNAME=forumuser
-      - SPRING_DATASOURCE_PASSWORD=forumpass123
-      - JWT_SECRET=${JWT_SECRET:-mySecretKey12345678901234567890123456789012345678901234567890}
-      - JWT_EXPIRATION=86400000
-      - AUTH_SERVICE_URL=http://auth-service:8085
-      - MANGA_SERVICE_URL=http://manga-service:8081
-      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
-      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
-      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
-      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://forum-postgres:5432/forumdb
+      SPRING_DATASOURCE_USERNAME: forumuser
+      SPRING_DATASOURCE_PASSWORD: ${FORUM_DB_PASSWORD:?FORUM_DB_PASSWORD not set}
+      JWT_SECRET: ${FORUM_JWT_SECRET:?FORUM_JWT_SECRET not set}
+      JWT_EXPIRATION: 86400000
+      AUTH_SERVICE_URL: http://auth-service:8085
+      MANGA_SERVICE_URL: http://manga-service:8081
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,prometheus,metrics
+      MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED: "true"
+      MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED: "true"
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
     labels:
       - "prometheus.scrape=true"
       - "prometheus.job=aniway-backend"
@@ -455,7 +459,7 @@ services:
       - auth-service
       - manga-service
     networks:
-      - aniway-network
+      - backend
 
   # ParserService - Java/Spring парсер манги (замена MelonService)
   parser-service:
@@ -470,8 +474,8 @@ services:
       - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
       - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
       - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
-    ports:
-      - "8084:8084"
+    expose:
+      - "8084"
     volumes:
       - parser_data:/app/output
       - parser_temp:/app/temp
@@ -491,7 +495,7 @@ services:
           cpus: "0.70"
           memory: 1536M
     networks:
-      - aniway-network
+      - backend
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8084/actuator/health"]
       interval: 30s
@@ -504,7 +508,7 @@ services:
     environment:
       POSTGRES_DB: postdb
       POSTGRES_USER: postuser
-      POSTGRES_PASSWORD: postpass123
+      POSTGRES_PASSWORD: ${POST_DB_PASSWORD:?POST_DB_PASSWORD not set}
     volumes:
       - post_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -517,14 +521,14 @@ services:
           cpus: "0.30"
           memory: 768M
     networks:
-      - aniway-network
+      - backend
 
   auth-postgres:
     image: postgres:15
     environment:
       POSTGRES_DB: authdb
       POSTGRES_USER: authuser
-      POSTGRES_PASSWORD: authpass123
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:?AUTH_DB_PASSWORD not set}
     volumes:
       - auth_data:/var/lib/postgresql/data
       - ./AuthService/authDB.sql:/docker-entrypoint-initdb.d/init.sql
@@ -538,14 +542,14 @@ services:
           cpus: "0.25"
           memory: 512M
     networks:
-      - aniway-network
+      - backend
 
   manga-postgres:
     image: postgres:15
     environment:
       POSTGRES_DB: mangadb
       POSTGRES_USER: mangauser
-      POSTGRES_PASSWORD: mangapass123
+      POSTGRES_PASSWORD: ${MANGA_DB_PASSWORD:?MANGA_DB_PASSWORD not set}
     volumes:
       - manga_data:/var/lib/postgresql/data
       - ./MangaService/mangaDB.sql:/docker-entrypoint-initdb.d/init.sql
@@ -559,14 +563,14 @@ services:
           cpus: "0.35"
           memory: 896M
     networks:
-      - aniway-network
+      - backend
 
   comment-postgres:
     image: postgres:15
     environment:
       POSTGRES_DB: commentdb
       POSTGRES_USER: commentuser
-      POSTGRES_PASSWORD: commentpass123
+      POSTGRES_PASSWORD: ${COMMENT_DB_PASSWORD:?COMMENT_DB_PASSWORD not set}
     volumes:
       - comment_data:/var/lib/postgresql/data
       - ./CommentService/commentDB.sql:/docker-entrypoint-initdb.d/init.sql
@@ -580,14 +584,14 @@ services:
           cpus: "0.25"
           memory: 640M
     networks:
-      - aniway-network
+      - backend
 
   friend-postgres:
     image: postgres:15
     environment:
       POSTGRES_DB: frienddb
       POSTGRES_USER: frienduser
-      POSTGRES_PASSWORD: friendpass123
+      POSTGRES_PASSWORD: ${FRIEND_DB_PASSWORD:?FRIEND_DB_PASSWORD not set}
     volumes:
       - friend_data:/var/lib/postgresql/data
       - ./FriendService/friendDB.sql:/docker-entrypoint-initdb.d/init.sql
@@ -601,14 +605,14 @@ services:
           cpus: "0.20"
           memory: 512M
     networks:
-      - aniway-network
+      - backend
 
   chapter-postgres:
     image: postgres:15
     environment:
       POSTGRES_DB: chapterdb
       POSTGRES_USER: chapteruser
-      POSTGRES_PASSWORD: chapterpass123
+      POSTGRES_PASSWORD: ${CHAPTER_DB_PASSWORD:?CHAPTER_DB_PASSWORD not set}
     volumes:
       - chapter_data:/var/lib/postgresql/data
       - ./ChapterService/chapterDB.sql:/docker-entrypoint-initdb.d/init.sql
@@ -622,14 +626,14 @@ services:
           cpus: "0.25"
           memory: 640M
     networks:
-      - aniway-network
+      - backend
 
   image-postgres:
     image: postgres:15
     environment:
       POSTGRES_DB: imagedb
       POSTGRES_USER: imageuser
-      POSTGRES_PASSWORD: imagepass123
+      POSTGRES_PASSWORD: ${IMAGE_DB_PASSWORD:?IMAGE_DB_PASSWORD not set}
     volumes:
       - image_data:/var/lib/postgresql/data
       - ./ImageStorageService/imageStorageDB.sql:/docker-entrypoint-initdb.d/init.sql
@@ -643,14 +647,14 @@ services:
           cpus: "0.35"
           memory: 896M
     networks:
-      - aniway-network
+      - backend
 
   moment-postgres:
     image: postgres:15
     environment:
       POSTGRES_DB: momentdb
       POSTGRES_USER: momentuser
-      POSTGRES_PASSWORD: momentpass123
+      POSTGRES_PASSWORD: ${MOMENT_DB_PASSWORD:?MOMENT_DB_PASSWORD not set}
     volumes:
       - moment_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -663,14 +667,14 @@ services:
           cpus: "0.20"
           memory: 512M
     networks:
-      - aniway-network
+      - backend
 
   forum-postgres:
     image: postgres:15
     environment:
       POSTGRES_DB: forumdb
       POSTGRES_USER: forumuser
-      POSTGRES_PASSWORD: forumpass123
+      POSTGRES_PASSWORD: ${FORUM_DB_PASSWORD:?FORUM_DB_PASSWORD not set}
     volumes:
       - forum_data:/var/lib/postgresql/data
       - ./ForumService/forumDB.sql:/docker-entrypoint-initdb.d/init.sql
@@ -684,7 +688,7 @@ services:
           cpus: "0.25"
           memory: 640M
     networks:
-      - aniway-network
+      - backend
 
   # Notification Service
   notification-service:
@@ -692,22 +696,22 @@ services:
       context: ./NotificationService
       dockerfile: Dockerfile
     environment:
-      - SPRING_PROFILES_ACTIVE=prod
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://notification-postgres:5432/notificationdb
-      - SPRING_DATASOURCE_USERNAME=notificationuser
-      - SPRING_DATASOURCE_PASSWORD=notificationpass123
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-8459139354:AAHifX_QVH5q_jzVx0ROs44xD3e2xHKel38}
-      - TELEGRAM_NOTIFICATIONS_ENABLED=${TELEGRAM_NOTIFICATIONS_ENABLED:-true}
-      - TELEGRAM_NOTIFICATIONS_AGGREGATE_WINDOW_SECONDS=${TELEGRAM_NOTIFICATIONS_AGGREGATE_WINDOW_SECONDS:-60}
-      - TELEGRAM_NOTIFICATIONS_MAX_RETRIES=${TELEGRAM_NOTIFICATIONS_MAX_RETRIES:-3}
-      - TELEGRAM_NOTIFICATIONS_RETRY_BACKOFF_MILLIS=${TELEGRAM_NOTIFICATIONS_RETRY_BACKOFF_MILLIS:-1000}
-      - TELEGRAM_NOTIFICATIONS_CHAPTER_LINK_TEMPLATE=${TELEGRAM_NOTIFICATIONS_CHAPTER_LINK_TEMPLATE:-https://aniway.space/reader/{mangaSlug}/{chapterUrlSegment}}
-      - TELEGRAM_NOTIFICATIONS_MANGA_LINK_TEMPLATE=${TELEGRAM_NOTIFICATIONS_MANGA_LINK_TEMPLATE:-https://aniway.space/manga/{mangaSlug}}
-      - TELEGRAM_NOTIFICATIONS_SITE_BASE_URL=${TELEGRAM_NOTIFICATIONS_SITE_BASE_URL:-https://aniway.space}
-      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
-      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
-      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
-      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://notification-postgres:5432/notificationdb
+      SPRING_DATASOURCE_USERNAME: notificationuser
+      SPRING_DATASOURCE_PASSWORD: ${NOTIFICATION_DB_PASSWORD:?NOTIFICATION_DB_PASSWORD not set}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN not set}
+      TELEGRAM_NOTIFICATIONS_ENABLED: ${TELEGRAM_NOTIFICATIONS_ENABLED:-true}
+      TELEGRAM_NOTIFICATIONS_AGGREGATE_WINDOW_SECONDS: ${TELEGRAM_NOTIFICATIONS_AGGREGATE_WINDOW_SECONDS:-60}
+      TELEGRAM_NOTIFICATIONS_MAX_RETRIES: ${TELEGRAM_NOTIFICATIONS_MAX_RETRIES:-3}
+      TELEGRAM_NOTIFICATIONS_RETRY_BACKOFF_MILLIS: ${TELEGRAM_NOTIFICATIONS_RETRY_BACKOFF_MILLIS:-1000}
+      TELEGRAM_NOTIFICATIONS_CHAPTER_LINK_TEMPLATE: ${TELEGRAM_NOTIFICATIONS_CHAPTER_LINK_TEMPLATE:-https://aniway.space/reader/{mangaSlug}/{chapterUrlSegment}}
+      TELEGRAM_NOTIFICATIONS_MANGA_LINK_TEMPLATE: ${TELEGRAM_NOTIFICATIONS_MANGA_LINK_TEMPLATE:-https://aniway.space/manga/{mangaSlug}}
+      TELEGRAM_NOTIFICATIONS_SITE_BASE_URL: ${TELEGRAM_NOTIFICATIONS_SITE_BASE_URL:-https://aniway.space}
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,prometheus,metrics
+      MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED: "true"
+      MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED: "true"
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
     labels:
       - "prometheus.scrape=true"
       - "prometheus.job=aniway-backend"
@@ -726,14 +730,14 @@ services:
     depends_on:
       - notification-postgres
     networks:
-      - aniway-network
+      - backend
 
   notification-postgres:
     image: postgres:15
     environment:
       POSTGRES_DB: notificationdb
       POSTGRES_USER: notificationuser
-      POSTGRES_PASSWORD: notificationpass123
+      POSTGRES_PASSWORD: ${NOTIFICATION_DB_PASSWORD:?NOTIFICATION_DB_PASSWORD not set}
     volumes:
       - notification_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -746,14 +750,14 @@ services:
           cpus: "0.20"
           memory: 512M
     networks:
-      - aniway-network
+      - backend
 
   message-postgres:
     image: postgres:15
     environment:
       POSTGRES_DB: messages
       POSTGRES_USER: aniway
-      POSTGRES_PASSWORD: aniway_pass
+      POSTGRES_PASSWORD: ${MESSAGE_DB_PASSWORD:?MESSAGE_DB_PASSWORD not set}
     volumes:
       - message_data:/var/lib/postgresql/data
       - ./MessageService/messageDB.sql:/docker-entrypoint-initdb.d/init.sql
@@ -767,7 +771,7 @@ services:
           cpus: "0.30"
           memory: 640M
     networks:
-      - aniway-network
+      - backend
 
   # Post Service
   post-service:
@@ -775,19 +779,19 @@ services:
       context: ./PostService
       dockerfile: Dockerfile
     environment:
-      - SPRING_PROFILES_ACTIVE=prod
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://post-postgres:5432/postdb
-      - SPRING_DATASOURCE_USERNAME=postuser
-      - SPRING_DATASOURCE_PASSWORD=postpass123
-      - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
-      - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_PORT=5672
-      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-aniway}
-      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-aniway_pass}
-      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
-      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
-      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
-      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://post-postgres:5432/postdb
+      SPRING_DATASOURCE_USERNAME: postuser
+      SPRING_DATASOURCE_PASSWORD: ${POST_DB_PASSWORD:?POST_DB_PASSWORD not set}
+      IMAGE_STORAGE_SERVICE_URL: http://image-storage-service:8083
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:?RABBITMQ_USERNAME not set}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD not set}
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,prometheus,metrics
+      MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED: "true"
+      MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED: "true"
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
     labels:
       - "prometheus.scrape=true"
       - "prometheus.job=aniway-backend"
@@ -808,7 +812,7 @@ services:
       - image-storage-service
       - rabbitmq
     networks:
-      - aniway-network
+      - backend
 
   # Level Service
   level-service:
@@ -816,18 +820,18 @@ services:
       context: ./LevelService
       dockerfile: Dockerfile
     environment:
-      - SPRING_PROFILES_ACTIVE=prod
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://level-postgres:5432/leveldb
-      - SPRING_DATASOURCE_USERNAME=leveluser
-      - SPRING_DATASOURCE_PASSWORD=levelpass123
-      - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_PORT=5672
-      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-aniway}
-      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-aniway_pass}
-      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
-      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
-      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
-      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://level-postgres:5432/leveldb
+      SPRING_DATASOURCE_USERNAME: leveluser
+      SPRING_DATASOURCE_PASSWORD: ${LEVEL_DB_PASSWORD:?LEVEL_DB_PASSWORD not set}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:?RABBITMQ_USERNAME not set}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD not set}
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,prometheus,metrics
+      MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED: "true"
+      MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED: "true"
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
     labels:
       - "prometheus.scrape=true"
       - "prometheus.job=aniway-backend"
@@ -847,14 +851,14 @@ services:
       - level-postgres
       - rabbitmq
     networks:
-      - aniway-network
+      - backend
 
   level-postgres:
     image: postgres:15
     environment:
       POSTGRES_DB: leveldb
       POSTGRES_USER: leveluser
-      POSTGRES_PASSWORD: levelpass123
+      POSTGRES_PASSWORD: ${LEVEL_DB_PASSWORD:?LEVEL_DB_PASSWORD not set}
     volumes:
       - level_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -867,17 +871,17 @@ services:
           cpus: "0.20"
           memory: 512M
     networks:
-      - aniway-network
+      - backend
 
   # RabbitMQ broker
   rabbitmq:
     image: rabbitmq:3.13-management
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-aniway}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-aniway_pass}
-    ports:
-      - "5672:5672"
-      - "15672:15672"
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:?RABBITMQ_USERNAME not set}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD not set}
+    expose:
+      - "5672"
+      - "15672"
     restart: unless-stopped
     deploy:
       resources:
@@ -888,7 +892,29 @@ services:
           cpus: "0.45"
           memory: 640M
     networks:
-      - aniway-network
+      - backend
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--save", "60", "1000", "--loglevel", "warning"]
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
+        reservations:
+          cpus: "0.20"
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend
 
 volumes:
   caddy_data:
@@ -907,8 +933,10 @@ volumes:
   message_data:
   post_data:
   level_data:
+  redis_data:
 
 networks:
-  aniway-network:
-    external: true
-    name: aniway-network
+  edge:
+    driver: bridge
+  backend:
+    driver: bridge

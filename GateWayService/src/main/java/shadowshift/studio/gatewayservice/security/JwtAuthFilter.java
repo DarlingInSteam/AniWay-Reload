@@ -1,44 +1,42 @@
 package shadowshift.studio.gatewayservice.security;
 
+import java.util.Optional;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
-import org.springframework.core.Ordered;
-import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
-import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
-import reactor.core.publisher.Mono;
 
-import java.time.Instant;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tags;
+import reactor.core.publisher.Mono;
 
 /**
  * JwtAuthFilter теперь использует introspect endpoint AuthService и кеширует результаты на configurable TTL.
  */
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE)
+@Order(-10)
 public class JwtAuthFilter implements WebFilter {
 
     private static final Logger logger = LoggerFactory.getLogger(JwtAuthFilter.class);
 
     private final AuthProperties authProperties;
-    private final WebClient webClient;
+    private final TokenIntrospectionService tokenIntrospectionService;
+    private final MeterRegistry meterRegistry;
 
-    // cache token -> (valid, userId, username, role, expiryInstant)
-    private final ConcurrentHashMap<String, CachedIntrospect> cache = new ConcurrentHashMap<>();
-
-    public JwtAuthFilter(AuthProperties authProperties, WebClient.Builder webClientBuilder) {
+    public JwtAuthFilter(AuthProperties authProperties,
+                         TokenIntrospectionService tokenIntrospectionService,
+                         MeterRegistry meterRegistry) {
         this.authProperties = authProperties;
-        this.webClient = webClientBuilder.build();
+        this.tokenIntrospectionService = tokenIntrospectionService;
+        this.meterRegistry = meterRegistry;
     }
 
     @Override
@@ -77,96 +75,65 @@ public class JwtAuthFilter implements WebFilter {
             }
         }
 
-        List<String> auth = exchange.getRequest().getHeaders().get(HttpHeaders.AUTHORIZATION);
-        if (auth == null || auth.isEmpty() || !auth.get(0).startsWith("Bearer ")) {
+        String authorization = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+        if (authorization == null || !authorization.startsWith("Bearer ")) {
+            recordFailure("missing_token", path, methodOf(exchange));
             exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
             return exchange.getResponse().setComplete();
         }
 
-        String token = auth.get(0).substring("Bearer ".length());
-
-        CachedIntrospect cached = cache.get(token);
-        if (cached != null && cached.getExpiry().isAfter(Instant.now())) {
-            // token cached and valid
-            ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
-                .header("X-User-Id", String.valueOf(cached.getUserId()))
-                .header("X-User-Role", String.valueOf(cached.getRole()))
-                .build();
-            ServerWebExchange mutatedExchange = exchange.mutate().request(mutatedRequest).build();
-            return chain.filter(mutatedExchange);
-        }
-
-        // Call introspection endpoint
-        return webClient.post()
-                .uri(authProperties.getIntrospectUrl())
-                .contentType(MediaType.APPLICATION_JSON)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                .retrieve()
-                .onStatus(s -> s.value() == 401, resp -> Mono.error(new RuntimeException("Invalid token")))
-                .bodyToMono(Map.class)
-                .flatMap(map -> {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> m = (Map<String, Object>) map;
-                    Boolean valid = (Boolean) m.getOrDefault("valid", false);
-                    if (Boolean.TRUE.equals(valid)) {
-                        Object uid = map.get("userId");
-                        Object role = map.get("role");
-                        long ttl = authProperties.getCacheTtlSeconds();
-                        CachedIntrospect ci = new CachedIntrospect(true, uid, map.get("username"), role, Instant.now().plusSeconds(ttl));
-                        cache.put(token, ci);
-                        ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
-                            .header("X-User-Id", String.valueOf(uid))
-                            .header("X-User-Role", String.valueOf(role))
-                            .build();
-                        ServerWebExchange mutatedExchange = exchange.mutate().request(mutatedRequest).build();
-                        return chain.filter(mutatedExchange);
-                    } else {
-                        exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-                        return exchange.getResponse().setComplete();
-                    }
-                })
-                .onErrorResume(e -> {
-                    logger.warn("Introspect call failed: {}", e.getMessage());
-                    // fallback: deny access to be safe
-                    exchange.getResponse().setStatusCode(HttpStatus.SERVICE_UNAVAILABLE);
-                    return exchange.getResponse().setComplete();
-                });
+    return tokenIntrospectionService.resolveToken(exchange)
+        .switchIfEmpty(Mono.defer(() -> {
+            recordFailure("missing_token", path, methodOf(exchange));
+            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+            return exchange.getResponse().setComplete()
+                .then(Mono.<TokenDetails>empty());
+        }))
+                .flatMap(details -> handleDetails(details, exchange, chain, path));
     }
 
-    @SuppressWarnings("unused")
-    private static class CachedIntrospect {
-        private final boolean valid;
-        private final Object userId;
-        private final Object username;
-        private final Object role;
-        private final Instant expiry;
-
-        CachedIntrospect(boolean valid, Object userId, Object username, Object role, Instant expiry) {
-            this.valid = valid;
-            this.userId = userId;
-            this.username = username;
-            this.role = role;
-            this.expiry = expiry;
+    private Mono<Void> handleDetails(TokenDetails details, ServerWebExchange exchange, WebFilterChain chain, String path) {
+        if (details.isError()) {
+            Throwable error = details.getError();
+            logger.warn("Introspection error for {}: {}", path, error != null ? error.getMessage() : "unknown");
+            recordFailure("introspection_error", path, methodOf(exchange));
+            exchange.getResponse().setStatusCode(HttpStatus.SERVICE_UNAVAILABLE);
+            return exchange.getResponse().setComplete();
         }
 
-        public boolean isValid() {
-            return valid;
+        if (!details.isValid()) {
+            recordFailure("invalid_token", path, methodOf(exchange));
+            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+            return exchange.getResponse().setComplete();
         }
 
-        public Object getUserId() {
-            return userId;
-        }
+        ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
+                .header("X-User-Id", details.getUserId())
+                .header("X-User-Role", details.roleOrDefault())
+                .build();
+        ServerWebExchange mutatedExchange = exchange.mutate().request(mutatedRequest).build();
+        return chain.filter(mutatedExchange);
+    }
 
-        public Object getUsername() {
-            return username;
-        }
+    private void recordFailure(String reason, String path, String method) {
+        meterRegistry.counter("gateway.auth.failures", Tags.of("reason", reason, "method", method, "path", shortenPath(path)))
+                .increment();
+    }
 
-        public Object getRole() {
-            return role;
-        }
+    private String methodOf(ServerWebExchange exchange) {
+        return Optional.ofNullable(exchange.getRequest().getMethod())
+                .map(HttpMethod::name)
+                .orElse("UNKNOWN");
+    }
 
-        public Instant getExpiry() {
-            return expiry;
+    private String shortenPath(String path) {
+        if (path == null || path.isBlank()) {
+            return "/";
         }
+        String[] segments = path.split("/");
+        if (segments.length <= 2) {
+            return path;
+        }
+        return "/" + segments[1] + "/" + segments[2];
     }
 }

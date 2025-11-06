@@ -146,6 +146,8 @@ services:
       - CHAPTER_SERVICE_URL=http://chapter-service:8082
       - IMAGE_STORAGE_SERVICE_URL=http://image-storage-service:8083
       - LEVEL_SERVICE_URL=http://level-service:8098
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
     ports:
       - "8080:8080"
     depends_on:
@@ -161,6 +163,7 @@ services:
       - parser-service
       - level-service
       - rabbitmq
+      - redis
     networks:
       - aniway-network
 
@@ -370,6 +373,22 @@ services:
       RABBITMQ_DEFAULT_PASS: aniway_pass
     networks:
       - aniway-network
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: redis-dev
+    command: ["redis-server", "--save", "60", "1000", "--loglevel", "warning"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - aniway-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
   frontend:
     build:
       context: ./AniWayFrontend
@@ -723,6 +742,7 @@ volumes:
   parser_temp:
   forum_postgres_data:
   notification_postgres_data:
+  redis_data:
   gradle-cache-forum:
   gradle-cache-notification:
   gradle-cache-friend:

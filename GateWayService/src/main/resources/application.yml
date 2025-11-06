@@ -1,58 +1,43 @@
 server:
   port: 8080
+  forward-headers-strategy: native
 
 auth:
   introspect-url: "http://auth-service:8085/api/auth/validate"
-  # Added explicit base paths /parser and /manga so that base URLs without trailing slash are public
   public-paths: "/api/auth/**,/auth/**,/api/health/**,/api/public/**,/parser,/parser/**,/api/parser/**,/api/parser/progress/**,/manga,/manga/**,/api/genres/**,/api/tags/**,/api/notifications/stream,/api/levels/**,/api/import-queue/**,/telegram/**"
   cache-ttl-seconds: 300
+
+ratelimit:
+  anon:
+    burst: 60
+    refill: 30
+  user:
+    burst: 300
+    refill: 150
+  admin:
+    burst: 600
+    refill: 300
+  connection:
+    max-per-user: 5
+    max-per-ip: 3
+    key-ttl-seconds: 45
 
 spring:
   application:
     name: gateway-service
-  # File upload configuration for Gateway
-  
-  # File upload configuration for Gateway
   servlet:
     multipart:
       max-file-size: 200MB
       max-request-size: 2GB
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 5s
 
   cloud:
     gateway:
-      # Глобальные CORS настройки
-      globalcors:
-        cors-configurations:
-          '[/**]':
-            allowed-origin-patterns: 
-              - "http://localhost:*"     # Все localhost порты
-              - "http://127.0.0.1:*"     # Все 127.0.0.1 порты
-              - "http://192.168.*.*:*"   # Локальная сеть 192.168.x.x
-              - "http://10.*.*.*:*"      # Локальная сеть 10.x.x.x
-              - "http://172.16.*.*:*"    # Частная сеть 172.16.x.x
-              - "http://172.17.*.*:*"    # Docker сеть 172.17.x.x
-              - "http://172.18.*.*:*"    # Docker сеть 172.18.x.x
-              - "http://*.*.*.*"         # Любые HTTP IP адреса
-              - "https://*.*.*.*"        # Любые HTTPS IP адреса  
-              - "http://*.yandexcloud.net" # Yandex Cloud
-              - "https://aniway.space"   # Основной домен
-              - "http://aniway.space"    # Основной домен HTTP
-              - "https://www.aniway.space" # WWW версия
-              - "http://www.aniway.space"  # WWW версия HTTP
-              - "https://*.yandexcloud.net" # Yandex Cloud HTTPS
-            allowed-methods:
-              - GET
-              - POST
-              - PUT
-              - DELETE
-              - OPTIONS
-              - HEAD
-              - PATCH
-            allowed-headers:
-              - "*"
-            allow-credentials: true
-            max-age: 3600
-
       # Маршруты к микросервисам
       routes:
         # MangaService - WebSocket endpoints (НАИВЫСШИЙ ПРИОРИТЕТ)
@@ -343,3 +328,75 @@ logging:
     '[shadowshift.studio.gatewayservice]': INFO
   pattern:
     console: "%d{HH:mm:ss.SSS} [%thread] %-5level [%logger{36}] - %msg%n"
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+  cloud:
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowed-origin-patterns:
+              - "http://localhost:*"
+              - "http://127.0.0.1:*"
+              - "http://192.168.*.*:*"
+              - "http://10.*.*.*:*"
+              - "http://172.16.*.*:*"
+              - "http://172.17.*.*:*"
+              - "http://172.18.*.*:*"
+            allowed-methods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - PATCH
+              - OPTIONS
+              - HEAD
+            allowed-headers:
+              - Authorization
+              - Content-Type
+              - X-Requested-With
+              - X-Csrf-Token
+            exposed-headers:
+              - X-RateLimit-Limit
+              - X-RateLimit-Remaining
+              - X-RateLimit-Role
+              - Retry-After
+            allow-credentials: true
+            max-age: 3600
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  cloud:
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowed-origins:
+              - "https://aniway.space"
+              - "https://www.aniway.space"
+            allowed-methods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - PATCH
+              - OPTIONS
+            allowed-headers:
+              - Authorization
+              - Content-Type
+              - X-Requested-With
+              - X-Csrf-Token
+            exposed-headers:
+              - X-RateLimit-Limit
+              - X-RateLimit-Remaining
+              - X-RateLimit-Role
+              - Retry-After
+            allow-credentials: false
+            max-age: 600
