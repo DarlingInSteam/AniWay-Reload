@@ -28,7 +28,9 @@ services:
       - "80:80"
       - "443:443"
     environment:
-      - ACME_EMAIL=${ACME_EMAIL:-rombk2711@gmail.com}
+      - ACME_EMAIL=${ACME_EMAIL:?ACME_EMAIL not set}
+      - ADMIN_PANEL_USER=${ADMIN_PANEL_USER:?ADMIN_PANEL_USER not set}
+      - ADMIN_PANEL_PASSWORD_HASH=${ADMIN_PANEL_PASSWORD_HASH:?ADMIN_PANEL_PASSWORD_HASH not set}
     volumes:
       - ./deployment/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./deployment/site-verifications:/srv/verifications:ro
@@ -106,19 +108,19 @@ services:
       dockerfile: Dockerfile
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      SPRING_DATASOURCE_URL: jdbc:postgresql://auth-postgres:5432/authdb
-      SPRING_DATASOURCE_USERNAME: authuser
-      SPRING_DATASOURCE_PASSWORD: ${AUTH_DB_PASSWORD:?AUTH_DB_PASSWORD not set}
-      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-aniwaynotify_bot}
-      TELEGRAM_DEEP_LINK_BASE: ${TELEGRAM_DEEP_LINK_BASE:-https://t.me}
-      TELEGRAM_LINK_TTL_MINUTES: ${TELEGRAM_LINK_TTL_MINUTES:-15}
-      TELEGRAM_LINK_MAX_ACTIVE_TOKENS: ${TELEGRAM_LINK_MAX_ACTIVE_TOKENS:-5}
-      TELEGRAM_NOTIFICATIONS_DEFAULT_ENABLED: ${TELEGRAM_NOTIFICATIONS_DEFAULT_ENABLED:-true}
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://auth-postgres:5432/${AUTH_POSTGRES_DB:?AUTH_POSTGRES_DB not set}"
+      SPRING_DATASOURCE_USERNAME: "${AUTH_POSTGRES_USER:?AUTH_POSTGRES_USER not set}"
+      SPRING_DATASOURCE_PASSWORD: "${AUTH_POSTGRES_PASSWORD:?AUTH_POSTGRES_PASSWORD not set}"
+  TELEGRAM_BOT_USERNAME: "${TELEGRAM_BOT_USERNAME:?TELEGRAM_BOT_USERNAME not set}"
+  TELEGRAM_DEEP_LINK_BASE: "${TELEGRAM_DEEP_LINK_BASE:?TELEGRAM_DEEP_LINK_BASE not set}"
+  TELEGRAM_LINK_TTL_MINUTES: "${TELEGRAM_LINK_TTL_MINUTES:?TELEGRAM_LINK_TTL_MINUTES not set}"
+  TELEGRAM_LINK_MAX_ACTIVE_TOKENS: "${TELEGRAM_LINK_MAX_ACTIVE_TOKENS:?TELEGRAM_LINK_MAX_ACTIVE_TOKENS not set}"
+  TELEGRAM_NOTIFICATIONS_DEFAULT_ENABLED: "${TELEGRAM_NOTIFICATIONS_DEFAULT_ENABLED:?TELEGRAM_NOTIFICATIONS_DEFAULT_ENABLED not set}"
       # --- Resend SMTP Configuration ---
       MAIL_HOST: smtp.resend.com
       MAIL_PORT: 587
       MAIL_USERNAME: resend
-      MAIL_PASSWORD: ${AUTH_MAIL_PASSWORD:?AUTH_MAIL_PASSWORD not set}
+      MAIL_PASSWORD: "${MAIL_PASSWORD:?MAIL_PASSWORD not set}"
       MAIL_AUTH: "true"
       MAIL_STARTTLS: "true"
       MAIL_STARTTLS_REQUIRED: "true"
@@ -158,19 +160,19 @@ services:
     build:
       context: ./MangaService
       dockerfile: Dockerfile
+    expose:
+      - "8080"
     environment:
-      SPRING_PROFILES_ACTIVE: prod
-      SPRING_DATASOURCE_URL: jdbc:postgresql://manga-postgres:5432/mangadb
-      SPRING_DATASOURCE_USERNAME: mangauser
-      SPRING_DATASOURCE_PASSWORD: ${MANGA_DB_PASSWORD:?MANGA_DB_PASSWORD not set}
-      MELON_SERVICE_URL: http://parser-service:8084
-      CHAPTER_SERVICE_URL: http://chapter-service:8082
-      IMAGE_STORAGE_SERVICE_URL: http://image-storage-service:8083
-      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,prometheus,metrics
-      MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED: "true"
-      MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED: "true"
-      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
-    labels:
+      - SPRING_PROFILES_ACTIVE=prod
+      - EUREKA_CLIENT_ENABLED=false
+      - POST_SERVICE_URL=http://post-service:8097
+      - LEVEL_SERVICE_URL=http://level-service:8098
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
       - "prometheus.scrape=true"
       - "prometheus.job=aniway-backend"
       - "prometheus.metrics_path=/actuator/prometheus"
@@ -199,10 +201,10 @@ services:
       dockerfile: Dockerfile
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      SPRING_DATASOURCE_URL: jdbc:postgresql://comment-postgres:5432/commentdb
-      SPRING_DATASOURCE_USERNAME: commentuser
-      SPRING_DATASOURCE_PASSWORD: ${COMMENT_DB_PASSWORD:?COMMENT_DB_PASSWORD not set}
-      JWT_SECRET: ${COMMENT_JWT_SECRET:?COMMENT_JWT_SECRET not set}
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://comment-postgres:5432/${COMMENT_POSTGRES_DB:?COMMENT_POSTGRES_DB not set}"
+      SPRING_DATASOURCE_USERNAME: "${COMMENT_POSTGRES_USER:?COMMENT_POSTGRES_USER not set}"
+      SPRING_DATASOURCE_PASSWORD: "${COMMENT_POSTGRES_PASSWORD:?COMMENT_POSTGRES_PASSWORD not set}"
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET not set}"
       JWT_EXPIRATION: 86400000
       AUTH_SERVICE_URL: http://auth-service:8085
       RABBITMQ_HOST: rabbitmq
@@ -241,9 +243,9 @@ services:
       dockerfile: Dockerfile
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      FRIEND_DB_URL: jdbc:postgresql://friend-postgres:5432/frienddb
-      FRIEND_DB_USERNAME: frienduser
-      FRIEND_DB_PASSWORD: ${FRIEND_DB_PASSWORD:?FRIEND_DB_PASSWORD not set}
+      FRIEND_DB_URL: "jdbc:postgresql://friend-postgres:5432/${FRIEND_POSTGRES_DB:?FRIEND_POSTGRES_DB not set}"
+      FRIEND_DB_USERNAME: "${FRIEND_POSTGRES_USER:?FRIEND_POSTGRES_USER not set}"
+      FRIEND_DB_PASSWORD: "${FRIEND_POSTGRES_PASSWORD:?FRIEND_POSTGRES_PASSWORD not set}"
       NOTIFICATION_SERVICE_URL: http://notification-service:8095
       MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,prometheus,metrics
       MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED: "true"
@@ -277,9 +279,9 @@ services:
       dockerfile: Dockerfile
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      DATABASE_URL: jdbc:postgresql://message-postgres:5432/messages
-      DATABASE_USERNAME: aniway
-      DATABASE_PASSWORD: ${MESSAGE_DB_PASSWORD:?MESSAGE_DB_PASSWORD not set}
+      DATABASE_URL: "jdbc:postgresql://message-postgres:5432/${MESSAGE_POSTGRES_DB:?MESSAGE_POSTGRES_DB not set}"
+      DATABASE_USERNAME: "${MESSAGE_POSTGRES_USER:?MESSAGE_POSTGRES_USER not set}"
+      DATABASE_PASSWORD: "${MESSAGE_POSTGRES_PASSWORD:?MESSAGE_POSTGRES_PASSWORD not set}"
       NOTIFICATION_SERVICE_URL: http://notification-service:8095
       FRIEND_SERVICE_URL: http://friend-service:8102
       MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,prometheus,metrics
@@ -314,9 +316,9 @@ services:
       dockerfile: Dockerfile
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      SPRING_DATASOURCE_URL: jdbc:postgresql://chapter-postgres:5432/chapterdb
-      SPRING_DATASOURCE_USERNAME: chapteruser
-      SPRING_DATASOURCE_PASSWORD: ${CHAPTER_DB_PASSWORD:?CHAPTER_DB_PASSWORD not set}
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://chapter-postgres:5432/${CHAPTER_POSTGRES_DB:?CHAPTER_POSTGRES_DB not set}"
+      SPRING_DATASOURCE_USERNAME: "${CHAPTER_POSTGRES_USER:?CHAPTER_POSTGRES_USER not set}"
+      SPRING_DATASOURCE_PASSWORD: "${CHAPTER_POSTGRES_PASSWORD:?CHAPTER_POSTGRES_PASSWORD not set}"
       MANGA_SERVICE_URL: http://manga-service:8081
       IMAGE_STORAGE_SERVICE_URL: http://image-storage-service:8083
       IMAGE_STORAGE_SERVICE_INTERNAL_URL: http://image-storage-service:8083
@@ -351,9 +353,9 @@ services:
       dockerfile: Dockerfile
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      SPRING_DATASOURCE_URL: jdbc:postgresql://image-postgres:5432/imagedb
-      SPRING_DATASOURCE_USERNAME: imageuser
-      SPRING_DATASOURCE_PASSWORD: ${IMAGE_DB_PASSWORD:?IMAGE_DB_PASSWORD not set}
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://image-postgres:5432/${IMAGE_POSTGRES_DB:?IMAGE_POSTGRES_DB not set}"
+      SPRING_DATASOURCE_USERNAME: "${IMAGE_POSTGRES_USER:?IMAGE_POSTGRES_USER not set}"
+      SPRING_DATASOURCE_PASSWORD: "${IMAGE_POSTGRES_PASSWORD:?IMAGE_POSTGRES_PASSWORD not set}"
       MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,prometheus,metrics
       MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED: "true"
       MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED: "true"
@@ -385,16 +387,16 @@ services:
       dockerfile: Dockerfile
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      SPRING_DATASOURCE_URL: jdbc:postgresql://moment-postgres:5432/momentdb
-      SPRING_DATASOURCE_USERNAME: momentuser
-      SPRING_DATASOURCE_PASSWORD: ${MOMENT_DB_PASSWORD:?MOMENT_DB_PASSWORD not set}
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://moment-postgres:5432/${MOMENT_POSTGRES_DB:?MOMENT_POSTGRES_DB not set}"
+      SPRING_DATASOURCE_USERNAME: "${MOMENT_POSTGRES_USER:?MOMENT_POSTGRES_USER not set}"
+      SPRING_DATASOURCE_PASSWORD: "${MOMENT_POSTGRES_PASSWORD:?MOMENT_POSTGRES_PASSWORD not set}"
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:?RABBITMQ_USERNAME not set}
       SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD not set}
       NOTIFICATION_SERVICE_URL: http://notification-service:8095
-      XP_EVENTS_EXCHANGE: ${XP_EVENTS_EXCHANGE:-xp.events.exchange}
-      XP_EVENTS_MOMENT_LIKE_ROUTING_KEY: ${XP_EVENTS_MOMENT_LIKE_ROUTING_KEY:-xp.events.moment-like}
+  XP_EVENTS_EXCHANGE: "${XP_EVENTS_EXCHANGE:?XP_EVENTS_EXCHANGE not set}"
+  XP_EVENTS_MOMENT_LIKE_ROUTING_KEY: "${XP_EVENTS_MOMENT_LIKE_ROUTING_KEY:?XP_EVENTS_MOMENT_LIKE_ROUTING_KEY not set}"
       MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,prometheus,metrics
       MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED: "true"
       MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED: "true"
@@ -428,10 +430,10 @@ services:
       dockerfile: Dockerfile
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      SPRING_DATASOURCE_URL: jdbc:postgresql://forum-postgres:5432/forumdb
-      SPRING_DATASOURCE_USERNAME: forumuser
-      SPRING_DATASOURCE_PASSWORD: ${FORUM_DB_PASSWORD:?FORUM_DB_PASSWORD not set}
-      JWT_SECRET: ${FORUM_JWT_SECRET:?FORUM_JWT_SECRET not set}
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://forum-postgres:5432/${FORUM_POSTGRES_DB:?FORUM_POSTGRES_DB not set}"
+      SPRING_DATASOURCE_USERNAME: "${FORUM_POSTGRES_USER:?FORUM_POSTGRES_USER not set}"
+      SPRING_DATASOURCE_PASSWORD: "${FORUM_POSTGRES_PASSWORD:?FORUM_POSTGRES_PASSWORD not set}"
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET not set}"
       JWT_EXPIRATION: 86400000
       AUTH_SERVICE_URL: http://auth-service:8085
       MANGA_SERVICE_URL: http://manga-service:8081
@@ -506,9 +508,9 @@ services:
   post-postgres:
     image: postgres:15
     environment:
-      POSTGRES_DB: postdb
-      POSTGRES_USER: postuser
-      POSTGRES_PASSWORD: ${POST_DB_PASSWORD:?POST_DB_PASSWORD not set}
+      POSTGRES_DB: "${POST_POSTGRES_DB:?POST_POSTGRES_DB not set}"
+      POSTGRES_USER: "${POST_POSTGRES_USER:?POST_POSTGRES_USER not set}"
+      POSTGRES_PASSWORD: "${POST_POSTGRES_PASSWORD:?POST_POSTGRES_PASSWORD not set}"
     volumes:
       - post_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -526,9 +528,9 @@ services:
   auth-postgres:
     image: postgres:15
     environment:
-      POSTGRES_DB: authdb
-      POSTGRES_USER: authuser
-      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:?AUTH_DB_PASSWORD not set}
+      POSTGRES_DB: "${AUTH_POSTGRES_DB:?AUTH_POSTGRES_DB not set}"
+      POSTGRES_USER: "${AUTH_POSTGRES_USER:?AUTH_POSTGRES_USER not set}"
+      POSTGRES_PASSWORD: "${AUTH_POSTGRES_PASSWORD:?AUTH_POSTGRES_PASSWORD not set}"
     volumes:
       - auth_data:/var/lib/postgresql/data
       - ./AuthService/authDB.sql:/docker-entrypoint-initdb.d/init.sql
@@ -547,9 +549,9 @@ services:
   manga-postgres:
     image: postgres:15
     environment:
-      POSTGRES_DB: mangadb
-      POSTGRES_USER: mangauser
-      POSTGRES_PASSWORD: ${MANGA_DB_PASSWORD:?MANGA_DB_PASSWORD not set}
+      POSTGRES_DB: "${MANGA_POSTGRES_DB:?MANGA_POSTGRES_DB not set}"
+      POSTGRES_USER: "${MANGA_POSTGRES_USER:?MANGA_POSTGRES_USER not set}"
+      POSTGRES_PASSWORD: "${MANGA_POSTGRES_PASSWORD:?MANGA_POSTGRES_PASSWORD not set}"
     volumes:
       - manga_data:/var/lib/postgresql/data
       - ./MangaService/mangaDB.sql:/docker-entrypoint-initdb.d/init.sql
@@ -568,9 +570,9 @@ services:
   comment-postgres:
     image: postgres:15
     environment:
-      POSTGRES_DB: commentdb
-      POSTGRES_USER: commentuser
-      POSTGRES_PASSWORD: ${COMMENT_DB_PASSWORD:?COMMENT_DB_PASSWORD not set}
+      POSTGRES_DB: "${COMMENT_POSTGRES_DB:?COMMENT_POSTGRES_DB not set}"
+      POSTGRES_USER: "${COMMENT_POSTGRES_USER:?COMMENT_POSTGRES_USER not set}"
+      POSTGRES_PASSWORD: "${COMMENT_POSTGRES_PASSWORD:?COMMENT_POSTGRES_PASSWORD not set}"
     volumes:
       - comment_data:/var/lib/postgresql/data
       - ./CommentService/commentDB.sql:/docker-entrypoint-initdb.d/init.sql
@@ -589,9 +591,9 @@ services:
   friend-postgres:
     image: postgres:15
     environment:
-      POSTGRES_DB: frienddb
-      POSTGRES_USER: frienduser
-      POSTGRES_PASSWORD: ${FRIEND_DB_PASSWORD:?FRIEND_DB_PASSWORD not set}
+      POSTGRES_DB: "${FRIEND_POSTGRES_DB:?FRIEND_POSTGRES_DB not set}"
+      POSTGRES_USER: "${FRIEND_POSTGRES_USER:?FRIEND_POSTGRES_USER not set}"
+      POSTGRES_PASSWORD: "${FRIEND_POSTGRES_PASSWORD:?FRIEND_POSTGRES_PASSWORD not set}"
     volumes:
       - friend_data:/var/lib/postgresql/data
       - ./FriendService/friendDB.sql:/docker-entrypoint-initdb.d/init.sql
@@ -610,9 +612,9 @@ services:
   chapter-postgres:
     image: postgres:15
     environment:
-      POSTGRES_DB: chapterdb
-      POSTGRES_USER: chapteruser
-      POSTGRES_PASSWORD: ${CHAPTER_DB_PASSWORD:?CHAPTER_DB_PASSWORD not set}
+      POSTGRES_DB: "${CHAPTER_POSTGRES_DB:?CHAPTER_POSTGRES_DB not set}"
+      POSTGRES_USER: "${CHAPTER_POSTGRES_USER:?CHAPTER_POSTGRES_USER not set}"
+      POSTGRES_PASSWORD: "${CHAPTER_POSTGRES_PASSWORD:?CHAPTER_POSTGRES_PASSWORD not set}"
     volumes:
       - chapter_data:/var/lib/postgresql/data
       - ./ChapterService/chapterDB.sql:/docker-entrypoint-initdb.d/init.sql
@@ -631,9 +633,9 @@ services:
   image-postgres:
     image: postgres:15
     environment:
-      POSTGRES_DB: imagedb
-      POSTGRES_USER: imageuser
-      POSTGRES_PASSWORD: ${IMAGE_DB_PASSWORD:?IMAGE_DB_PASSWORD not set}
+      POSTGRES_DB: "${IMAGE_POSTGRES_DB:?IMAGE_POSTGRES_DB not set}"
+      POSTGRES_USER: "${IMAGE_POSTGRES_USER:?IMAGE_POSTGRES_USER not set}"
+      POSTGRES_PASSWORD: "${IMAGE_POSTGRES_PASSWORD:?IMAGE_POSTGRES_PASSWORD not set}"
     volumes:
       - image_data:/var/lib/postgresql/data
       - ./ImageStorageService/imageStorageDB.sql:/docker-entrypoint-initdb.d/init.sql
@@ -652,9 +654,9 @@ services:
   moment-postgres:
     image: postgres:15
     environment:
-      POSTGRES_DB: momentdb
-      POSTGRES_USER: momentuser
-      POSTGRES_PASSWORD: ${MOMENT_DB_PASSWORD:?MOMENT_DB_PASSWORD not set}
+      POSTGRES_DB: "${MOMENT_POSTGRES_DB:?MOMENT_POSTGRES_DB not set}"
+      POSTGRES_USER: "${MOMENT_POSTGRES_USER:?MOMENT_POSTGRES_USER not set}"
+      POSTGRES_PASSWORD: "${MOMENT_POSTGRES_PASSWORD:?MOMENT_POSTGRES_PASSWORD not set}"
     volumes:
       - moment_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -672,9 +674,9 @@ services:
   forum-postgres:
     image: postgres:15
     environment:
-      POSTGRES_DB: forumdb
-      POSTGRES_USER: forumuser
-      POSTGRES_PASSWORD: ${FORUM_DB_PASSWORD:?FORUM_DB_PASSWORD not set}
+      POSTGRES_DB: "${FORUM_POSTGRES_DB:?FORUM_POSTGRES_DB not set}"
+      POSTGRES_USER: "${FORUM_POSTGRES_USER:?FORUM_POSTGRES_USER not set}"
+      POSTGRES_PASSWORD: "${FORUM_POSTGRES_PASSWORD:?FORUM_POSTGRES_PASSWORD not set}"
     volumes:
       - forum_data:/var/lib/postgresql/data
       - ./ForumService/forumDB.sql:/docker-entrypoint-initdb.d/init.sql
@@ -697,17 +699,17 @@ services:
       dockerfile: Dockerfile
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      SPRING_DATASOURCE_URL: jdbc:postgresql://notification-postgres:5432/notificationdb
-      SPRING_DATASOURCE_USERNAME: notificationuser
-      SPRING_DATASOURCE_PASSWORD: ${NOTIFICATION_DB_PASSWORD:?NOTIFICATION_DB_PASSWORD not set}
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://notification-postgres:5432/${NOTIFICATION_POSTGRES_DB:?NOTIFICATION_POSTGRES_DB not set}"
+      SPRING_DATASOURCE_USERNAME: "${NOTIFICATION_POSTGRES_USER:?NOTIFICATION_POSTGRES_USER not set}"
+      SPRING_DATASOURCE_PASSWORD: "${NOTIFICATION_POSTGRES_PASSWORD:?NOTIFICATION_POSTGRES_PASSWORD not set}"
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN not set}
-      TELEGRAM_NOTIFICATIONS_ENABLED: ${TELEGRAM_NOTIFICATIONS_ENABLED:-true}
-      TELEGRAM_NOTIFICATIONS_AGGREGATE_WINDOW_SECONDS: ${TELEGRAM_NOTIFICATIONS_AGGREGATE_WINDOW_SECONDS:-60}
-      TELEGRAM_NOTIFICATIONS_MAX_RETRIES: ${TELEGRAM_NOTIFICATIONS_MAX_RETRIES:-3}
-      TELEGRAM_NOTIFICATIONS_RETRY_BACKOFF_MILLIS: ${TELEGRAM_NOTIFICATIONS_RETRY_BACKOFF_MILLIS:-1000}
-      TELEGRAM_NOTIFICATIONS_CHAPTER_LINK_TEMPLATE: ${TELEGRAM_NOTIFICATIONS_CHAPTER_LINK_TEMPLATE:-https://aniway.space/reader/{mangaSlug}/{chapterUrlSegment}}
-      TELEGRAM_NOTIFICATIONS_MANGA_LINK_TEMPLATE: ${TELEGRAM_NOTIFICATIONS_MANGA_LINK_TEMPLATE:-https://aniway.space/manga/{mangaSlug}}
-      TELEGRAM_NOTIFICATIONS_SITE_BASE_URL: ${TELEGRAM_NOTIFICATIONS_SITE_BASE_URL:-https://aniway.space}
+  TELEGRAM_NOTIFICATIONS_ENABLED: "${TELEGRAM_NOTIFICATIONS_ENABLED:?TELEGRAM_NOTIFICATIONS_ENABLED not set}"
+  TELEGRAM_NOTIFICATIONS_AGGREGATE_WINDOW_SECONDS: "${TELEGRAM_NOTIFICATIONS_AGGREGATE_WINDOW_SECONDS:?TELEGRAM_NOTIFICATIONS_AGGREGATE_WINDOW_SECONDS not set}"
+  TELEGRAM_NOTIFICATIONS_MAX_RETRIES: "${TELEGRAM_NOTIFICATIONS_MAX_RETRIES:?TELEGRAM_NOTIFICATIONS_MAX_RETRIES not set}"
+  TELEGRAM_NOTIFICATIONS_RETRY_BACKOFF_MILLIS: "${TELEGRAM_NOTIFICATIONS_RETRY_BACKOFF_MILLIS:?TELEGRAM_NOTIFICATIONS_RETRY_BACKOFF_MILLIS not set}"
+  TELEGRAM_NOTIFICATIONS_CHAPTER_LINK_TEMPLATE: "${TELEGRAM_NOTIFICATIONS_CHAPTER_LINK_TEMPLATE:?TELEGRAM_NOTIFICATIONS_CHAPTER_LINK_TEMPLATE not set}"
+  TELEGRAM_NOTIFICATIONS_MANGA_LINK_TEMPLATE: "${TELEGRAM_NOTIFICATIONS_MANGA_LINK_TEMPLATE:?TELEGRAM_NOTIFICATIONS_MANGA_LINK_TEMPLATE not set}"
+  TELEGRAM_NOTIFICATIONS_SITE_BASE_URL: "${TELEGRAM_NOTIFICATIONS_SITE_BASE_URL:?TELEGRAM_NOTIFICATIONS_SITE_BASE_URL not set}"
       MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,prometheus,metrics
       MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED: "true"
       MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED: "true"
@@ -735,9 +737,9 @@ services:
   notification-postgres:
     image: postgres:15
     environment:
-      POSTGRES_DB: notificationdb
-      POSTGRES_USER: notificationuser
-      POSTGRES_PASSWORD: ${NOTIFICATION_DB_PASSWORD:?NOTIFICATION_DB_PASSWORD not set}
+      POSTGRES_DB: "${NOTIFICATION_POSTGRES_DB:?NOTIFICATION_POSTGRES_DB not set}"
+      POSTGRES_USER: "${NOTIFICATION_POSTGRES_USER:?NOTIFICATION_POSTGRES_USER not set}"
+      POSTGRES_PASSWORD: "${NOTIFICATION_POSTGRES_PASSWORD:?NOTIFICATION_POSTGRES_PASSWORD not set}"
     volumes:
       - notification_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -755,9 +757,9 @@ services:
   message-postgres:
     image: postgres:15
     environment:
-      POSTGRES_DB: messages
-      POSTGRES_USER: aniway
-      POSTGRES_PASSWORD: ${MESSAGE_DB_PASSWORD:?MESSAGE_DB_PASSWORD not set}
+      POSTGRES_DB: "${MESSAGE_POSTGRES_DB:?MESSAGE_POSTGRES_DB not set}"
+      POSTGRES_USER: "${MESSAGE_POSTGRES_USER:?MESSAGE_POSTGRES_USER not set}"
+      POSTGRES_PASSWORD: "${MESSAGE_POSTGRES_PASSWORD:?MESSAGE_POSTGRES_PASSWORD not set}"
     volumes:
       - message_data:/var/lib/postgresql/data
       - ./MessageService/messageDB.sql:/docker-entrypoint-initdb.d/init.sql
@@ -780,9 +782,9 @@ services:
       dockerfile: Dockerfile
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      SPRING_DATASOURCE_URL: jdbc:postgresql://post-postgres:5432/postdb
-      SPRING_DATASOURCE_USERNAME: postuser
-      SPRING_DATASOURCE_PASSWORD: ${POST_DB_PASSWORD:?POST_DB_PASSWORD not set}
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://post-postgres:5432/${POST_POSTGRES_DB:?POST_POSTGRES_DB not set}"
+      SPRING_DATASOURCE_USERNAME: "${POST_POSTGRES_USER:?POST_POSTGRES_USER not set}"
+      SPRING_DATASOURCE_PASSWORD: "${POST_POSTGRES_PASSWORD:?POST_POSTGRES_PASSWORD not set}"
       IMAGE_STORAGE_SERVICE_URL: http://image-storage-service:8083
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
@@ -821,9 +823,9 @@ services:
       dockerfile: Dockerfile
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      SPRING_DATASOURCE_URL: jdbc:postgresql://level-postgres:5432/leveldb
-      SPRING_DATASOURCE_USERNAME: leveluser
-      SPRING_DATASOURCE_PASSWORD: ${LEVEL_DB_PASSWORD:?LEVEL_DB_PASSWORD not set}
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://level-postgres:5432/${LEVEL_POSTGRES_DB:?LEVEL_POSTGRES_DB not set}"
+      SPRING_DATASOURCE_USERNAME: "${LEVEL_POSTGRES_USER:?LEVEL_POSTGRES_USER not set}"
+      SPRING_DATASOURCE_PASSWORD: "${LEVEL_POSTGRES_PASSWORD:?LEVEL_POSTGRES_PASSWORD not set}"
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
       RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:?RABBITMQ_USERNAME not set}
@@ -856,9 +858,9 @@ services:
   level-postgres:
     image: postgres:15
     environment:
-      POSTGRES_DB: leveldb
-      POSTGRES_USER: leveluser
-      POSTGRES_PASSWORD: ${LEVEL_DB_PASSWORD:?LEVEL_DB_PASSWORD not set}
+      POSTGRES_DB: "${LEVEL_POSTGRES_DB:?LEVEL_POSTGRES_DB not set}"
+      POSTGRES_USER: "${LEVEL_POSTGRES_USER:?LEVEL_POSTGRES_USER not set}"
+      POSTGRES_PASSWORD: "${LEVEL_POSTGRES_PASSWORD:?LEVEL_POSTGRES_PASSWORD not set}"
     volumes:
       - level_data:/var/lib/postgresql/data
     restart: unless-stopped

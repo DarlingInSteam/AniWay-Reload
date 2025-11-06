@@ -26,7 +26,7 @@ services:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
       - "--web.enable-lifecycle"
-      - "--web.external-url=${PROMETHEUS_EXTERNAL_URL:-https://aniway.space/prometheus/}"
+      - "--web.external-url=${PROMETHEUS_EXTERNAL_URL:?PROMETHEUS_EXTERNAL_URL not set}"
     ports:
       - "9090:9090"
     networks:
@@ -42,15 +42,15 @@ services:
     container_name: aniway-grafana
     restart: unless-stopped
     environment:
-      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:-admin}
+      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER:?GF_SECURITY_ADMIN_USER not set}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:?GF_SECURITY_ADMIN_PASSWORD not set}
       - GF_USERS_DEFAULT_THEME=dark
       - GF_INSTALL_PLUGINS=grafana-piechart-panel,grafana-worldmap-panel
       - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
       - GF_AUTH_ANONYMOUS_ENABLED=false
-      - GF_SERVER_ROOT_URL=${GF_SERVER_ROOT_URL:-https://aniway.space/grafana/}
-      - GF_SERVER_DOMAIN=${GF_SERVER_DOMAIN:-aniway.space}
-      - GF_SERVER_SERVE_FROM_SUB_PATH=${GF_SERVER_SERVE_FROM_SUB_PATH:-true}
+      - GF_SERVER_ROOT_URL=${GF_SERVER_ROOT_URL:?GF_SERVER_ROOT_URL not set}
+      - GF_SERVER_DOMAIN=${GF_SERVER_DOMAIN:?GF_SERVER_DOMAIN not set}
+      - GF_SERVER_SERVE_FROM_SUB_PATH=${GF_SERVER_SERVE_FROM_SUB_PATH:?GF_SERVER_SERVE_FROM_SUB_PATH not set}
     volumes:
       - grafana-data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
@@ -78,7 +78,7 @@ services:
       - "--config.file=/etc/alertmanager/alertmanager.yml"
       - "--storage.path=/alertmanager"
       - "--cluster.listen-address=0.0.0.0:9094"
-      - "--web.external-url=${ALERTMANAGER_EXTERNAL_URL:-https://aniway.space/alertmanager/}"
+      - "--web.external-url=${ALERTMANAGER_EXTERNAL_URL:?ALERTMANAGER_EXTERNAL_URL not set}"
     volumes:
       - ./alertmanager/alertmanager.yml.tpl:/etc/alertmanager/alertmanager.yml.tpl:ro
       - ./alertmanager/render-config.sh:/etc/alertmanager/render-config.sh:ro
@@ -90,7 +90,7 @@ services:
       - ALERTMANAGER_EMAIL_TO=${ALERTMANAGER_EMAIL_TO:?set-alert-email}
       - ALERTMANAGER_EMAIL_FROM=${ALERTMANAGER_EMAIL_FROM:?set-alert-from}
       - ALERTMANAGER_SMTP_HOST=${ALERTMANAGER_SMTP_HOST:?set-smtp-host}
-      - ALERTMANAGER_SMTP_PORT=${ALERTMANAGER_SMTP_PORT:-587}
+      - ALERTMANAGER_SMTP_PORT=${ALERTMANAGER_SMTP_PORT:?ALERTMANAGER_SMTP_PORT not set}
       - ALERTMANAGER_SMTP_USERNAME=${ALERTMANAGER_SMTP_USERNAME:?set-smtp-username}
       - ALERTMANAGER_SMTP_PASSWORD=${ALERTMANAGER_SMTP_PASSWORD:?set-smtp-password}
     ports:
@@ -152,9 +152,9 @@ services:
     container_name: aniway-postgres-exporter-auth
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${AUTH_DB_URI:-auth-postgres:5432/authdb?sslmode=disable}
-      - DATA_SOURCE_USER=${AUTH_DB_USER:-authuser}
-      - DATA_SOURCE_PASS=${AUTH_DB_PASS:-authpass123}
+      - DATA_SOURCE_URI=${AUTH_DB_URI:?AUTH_DB_URI not set}
+      - DATA_SOURCE_USER=${AUTH_DB_USER:?AUTH_DB_USER not set}
+      - DATA_SOURCE_PASS=${AUTH_DB_PASS:?AUTH_DB_PASS not set}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -170,9 +170,9 @@ services:
     container_name: aniway-postgres-exporter-manga
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${MANGA_DB_URI:-manga-postgres:5432/mangadb?sslmode=disable}
-      - DATA_SOURCE_USER=${MANGA_DB_USER:-mangauser}
-      - DATA_SOURCE_PASS=${MANGA_DB_PASS:-mangapass123}
+      - DATA_SOURCE_URI=${MANGA_DB_URI:?MANGA_DB_URI not set}
+      - DATA_SOURCE_USER=${MANGA_DB_USER:?MANGA_DB_USER not set}
+      - DATA_SOURCE_PASS=${MANGA_DB_PASS:?MANGA_DB_PASS not set}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -188,9 +188,9 @@ services:
     container_name: aniway-postgres-exporter-comment
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${COMMENT_DB_URI:-comment-postgres:5432/commentdb?sslmode=disable}
-      - DATA_SOURCE_USER=${COMMENT_DB_USER:-commentuser}
-      - DATA_SOURCE_PASS=${COMMENT_DB_PASS:-commentpass123}
+      - DATA_SOURCE_URI=${COMMENT_DB_URI:?COMMENT_DB_URI not set}
+      - DATA_SOURCE_USER=${COMMENT_DB_USER:?COMMENT_DB_USER not set}
+      - DATA_SOURCE_PASS=${COMMENT_DB_PASS:?COMMENT_DB_PASS not set}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -206,9 +206,9 @@ services:
     container_name: aniway-postgres-exporter-friend
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${FRIEND_DB_URI:-friend-postgres:5432/frienddb?sslmode=disable}
-      - DATA_SOURCE_USER=${FRIEND_DB_USER:-frienduser}
-      - DATA_SOURCE_PASS=${FRIEND_DB_PASS:-friendpass123}
+      - DATA_SOURCE_URI=${FRIEND_DB_URI:?FRIEND_DB_URI not set}
+      - DATA_SOURCE_USER=${FRIEND_DB_USER:?FRIEND_DB_USER not set}
+      - DATA_SOURCE_PASS=${FRIEND_DB_PASS:?FRIEND_DB_PASS not set}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -224,9 +224,9 @@ services:
     container_name: aniway-postgres-exporter-chapter
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${CHAPTER_DB_URI:-chapter-postgres:5432/chapterdb?sslmode=disable}
-      - DATA_SOURCE_USER=${CHAPTER_DB_USER:-chapteruser}
-      - DATA_SOURCE_PASS=${CHAPTER_DB_PASS:-chapterpass123}
+      - DATA_SOURCE_URI=${CHAPTER_DB_URI:?CHAPTER_DB_URI not set}
+      - DATA_SOURCE_USER=${CHAPTER_DB_USER:?CHAPTER_DB_USER not set}
+      - DATA_SOURCE_PASS=${CHAPTER_DB_PASS:?CHAPTER_DB_PASS not set}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -242,9 +242,9 @@ services:
     container_name: aniway-postgres-exporter-image
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${IMAGE_DB_URI:-image-postgres:5432/imagedb?sslmode=disable}
-      - DATA_SOURCE_USER=${IMAGE_DB_USER:-imageuser}
-      - DATA_SOURCE_PASS=${IMAGE_DB_PASS:-imagepass123}
+      - DATA_SOURCE_URI=${IMAGE_DB_URI:?IMAGE_DB_URI not set}
+      - DATA_SOURCE_USER=${IMAGE_DB_USER:?IMAGE_DB_USER not set}
+      - DATA_SOURCE_PASS=${IMAGE_DB_PASS:?IMAGE_DB_PASS not set}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -253,16 +253,16 @@ services:
       prometheus.scrape: "true"
       prometheus.job: "postgres"
       prometheus.port: "9187"
-      prometheus.instance: "${IMAGE_DB_INSTANCE:-image-postgres}"
+  prometheus.instance: "${IMAGE_DB_INSTANCE:?IMAGE_DB_INSTANCE not set}"
 
   postgres-exporter-moment:
     image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
     container_name: aniway-postgres-exporter-moment
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${MOMENT_DB_URI:-moment-postgres:5432/momentdb?sslmode=disable}
-      - DATA_SOURCE_USER=${MOMENT_DB_USER:-momentuser}
-      - DATA_SOURCE_PASS=${MOMENT_DB_PASS:-momentpass123}
+      - DATA_SOURCE_URI=${MOMENT_DB_URI:?MOMENT_DB_URI not set}
+      - DATA_SOURCE_USER=${MOMENT_DB_USER:?MOMENT_DB_USER not set}
+      - DATA_SOURCE_PASS=${MOMENT_DB_PASS:?MOMENT_DB_PASS not set}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -278,9 +278,9 @@ services:
     container_name: aniway-postgres-exporter-forum
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${FORUM_DB_URI:-forum-postgres:5432/forumdb?sslmode=disable}
-      - DATA_SOURCE_USER=${FORUM_DB_USER:-forumuser}
-      - DATA_SOURCE_PASS=${FORUM_DB_PASS:-forumpass123}
+      - DATA_SOURCE_URI=${FORUM_DB_URI:?FORUM_DB_URI not set}
+      - DATA_SOURCE_USER=${FORUM_DB_USER:?FORUM_DB_USER not set}
+      - DATA_SOURCE_PASS=${FORUM_DB_PASS:?FORUM_DB_PASS not set}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -296,9 +296,9 @@ services:
     container_name: aniway-postgres-exporter-notification
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${NOTIFICATION_DB_URI:-notification-postgres:5432/notificationdb?sslmode=disable}
-      - DATA_SOURCE_USER=${NOTIFICATION_DB_USER:-notificationuser}
-      - DATA_SOURCE_PASS=${NOTIFICATION_DB_PASS:-notificationpass123}
+      - DATA_SOURCE_URI=${NOTIFICATION_DB_URI:?NOTIFICATION_DB_URI not set}
+      - DATA_SOURCE_USER=${NOTIFICATION_DB_USER:?NOTIFICATION_DB_USER not set}
+      - DATA_SOURCE_PASS=${NOTIFICATION_DB_PASS:?NOTIFICATION_DB_PASS not set}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -314,9 +314,9 @@ services:
     container_name: aniway-postgres-exporter-message
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${MESSAGE_DB_URI:-message-postgres:5432/messages?sslmode=disable}
-      - DATA_SOURCE_USER=${MESSAGE_DB_USER:-aniway}
-      - DATA_SOURCE_PASS=${MESSAGE_DB_PASS:-aniway_pass}
+      - DATA_SOURCE_URI=${MESSAGE_DB_URI:?MESSAGE_DB_URI not set}
+      - DATA_SOURCE_USER=${MESSAGE_DB_USER:?MESSAGE_DB_USER not set}
+      - DATA_SOURCE_PASS=${MESSAGE_DB_PASS:?MESSAGE_DB_PASS not set}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -332,9 +332,9 @@ services:
     container_name: aniway-postgres-exporter-post
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${POST_DB_URI:-post-postgres:5432/postdb?sslmode=disable}
-      - DATA_SOURCE_USER=${POST_DB_USER:-postuser}
-      - DATA_SOURCE_PASS=${POST_DB_PASS:-postpass123}
+      - DATA_SOURCE_URI=${POST_DB_URI:?POST_DB_URI not set}
+      - DATA_SOURCE_USER=${POST_DB_USER:?POST_DB_USER not set}
+      - DATA_SOURCE_PASS=${POST_DB_PASS:?POST_DB_PASS not set}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
@@ -350,9 +350,9 @@ services:
     container_name: aniway-postgres-exporter-level
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_URI=${LEVEL_DB_URI:-level-postgres:5432/leveldb?sslmode=disable}
-      - DATA_SOURCE_USER=${LEVEL_DB_USER:-leveluser}
-      - DATA_SOURCE_PASS=${LEVEL_DB_PASS:-levelpass123}
+      - DATA_SOURCE_URI=${LEVEL_DB_URI:?LEVEL_DB_URI not set}
+      - DATA_SOURCE_USER=${LEVEL_DB_USER:?LEVEL_DB_USER not set}
+      - DATA_SOURCE_PASS=${LEVEL_DB_PASS:?LEVEL_DB_PASS not set}
       - PG_EXPORTER_AUTO_DISCOVER_DATABASES=true
     networks:
       - monitoring-net
