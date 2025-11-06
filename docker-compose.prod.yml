@@ -172,6 +172,8 @@ services:
       - LEVEL_SERVICE_URL=http://level-service:8098
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
+      - MELON_SERVICE_URL=http://parser-service:8084
+      - SERVICES_MELON_SERVICE_URL=http://parser-service:8084
       - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
       - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
       - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
