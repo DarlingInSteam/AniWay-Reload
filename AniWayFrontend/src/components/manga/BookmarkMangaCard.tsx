@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Bookmark } from 'lucide-react'
-import { Bookmark as BookmarkType, ReadingProgress } from '@/types'
+import { Bookmark as BookmarkType, MangaResponseDTO, ReadingProgress } from '@/types'
 import { cn } from '@/lib/utils'
 
 interface ProgressHelpers {
@@ -10,9 +10,10 @@ interface ProgressHelpers {
 interface BookmarkMangaCardProps {
   bookmark: BookmarkType
   progressHelpers: ProgressHelpers
+  mangaDetails?: MangaResponseDTO | null
 }
 
-export function BookmarkMangaCard({ bookmark, progressHelpers }: BookmarkMangaCardProps) {
+export function BookmarkMangaCard({ bookmark, progressHelpers, mangaDetails }: BookmarkMangaCardProps) {
   const { getMangaProgress } = progressHelpers
 
   // Адаптивные размеры для разных экранов - как в каталоге
@@ -23,11 +24,12 @@ export function BookmarkMangaCard({ bookmark, progressHelpers }: BookmarkMangaCa
   }
 
   const fallbackTitle = `Манга ${bookmark.mangaId}`
+  const mergedDetails = mangaDetails ?? bookmark.manga ?? null
   const mangaData = {
     id: bookmark.mangaId,
-    title: bookmark.manga?.title ?? bookmark.mangaTitle ?? fallbackTitle,
-    coverImageUrl: bookmark.manga?.coverImageUrl ?? bookmark.mangaCoverUrl ?? '/placeholder-manga.jpg',
-    totalChapters: bookmark.manga?.totalChapters ?? bookmark.totalChapters ?? 0
+    title: mergedDetails?.title ?? bookmark.mangaTitle ?? fallbackTitle,
+    coverImageUrl: mergedDetails?.coverImageUrl ?? bookmark.mangaCoverUrl ?? '/placeholder-manga.jpg',
+    totalChapters: mergedDetails?.totalChapters ?? bookmark.totalChapters ?? 0
   }
 
   // Получаем прогресс чтения

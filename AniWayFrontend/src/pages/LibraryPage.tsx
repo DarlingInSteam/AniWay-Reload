@@ -6,6 +6,7 @@ import { BookmarkMangaCard } from '../components/manga/BookmarkMangaCard'
 import { useReadingProgress } from '../hooks/useProgress'
 import { ArrowUpDown, ArrowUp, ArrowDown, Heart } from 'lucide-react'
 import { cn } from '../lib/utils'
+import { useMangaDetailsBatch } from '../hooks/useMangaDetailsBatch'
 
 // Local types for sorting
 type SortOption = 'bookmark_updated' | 'manga_updated' | 'chapters_count' | 'alphabetical'
@@ -42,6 +43,8 @@ export const LibraryPage: React.FC = () => {
     getMangaProgress,
     loading: progressLoading
   } = useReadingProgress()
+  const bookmarkIds = useMemo(() => allBookmarks.map(b => b.mangaId), [allBookmarks])
+  const { data: mangaDetailsMap, loading: mangaDetailsLoading } = useMangaDetailsBatch(bookmarkIds)
   const [selectedStatus, setSelectedStatus] = useState<BookmarkStatus | 'FAVORITES' | 'ALL'>('ALL')
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<SortOption>('bookmark_updated')
@@ -88,7 +91,7 @@ export const LibraryPage: React.FC = () => {
     )
   }
 
-  if (loading || progressLoading) {
+  if (loading || progressLoading || mangaDetailsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-20 w-20 border-b-2 border-primary" />
@@ -166,15 +169,25 @@ export const LibraryPage: React.FC = () => {
             </div>
           ) : (
             <div className="relative grid grid-cols-2 gap-3 sm:gap-4 lg:gap-5 xl:gap-6 auto-rows-auto sm:[grid-template-columns:repeat(auto-fill,minmax(160px,1fr))] md:[grid-template-columns:repeat(auto-fill,minmax(170px,1fr))] lg:[grid-template-columns:repeat(auto-fill,minmax(180px,1fr))] items-start animate-fade-in">
-              {filteredBookmarks.map(b=> (
+              {filteredBookmarks.map(b=> {
+                const details = mangaDetailsMap[b.mangaId]
+                const decorated = details ? {
+                  ...b,
+                  manga: b.manga ?? details,
+                  mangaTitle: b.mangaTitle ?? details.title,
+                  mangaCoverUrl: b.mangaCoverUrl ?? details.coverImageUrl,
+                  totalChapters: b.totalChapters ?? details.totalChapters ?? b.totalChapters
+                } : b
+                return (
                 <BookmarkMangaCard
                   key={b.id}
-                  bookmark={b}
+                  bookmark={decorated}
+                  mangaDetails={details}
                   progressHelpers={{
                     getMangaProgress
                   }}
                 />
-              ))}
+              )})}
             </div>
           )}
         </div>
