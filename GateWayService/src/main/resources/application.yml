@@ -293,7 +293,7 @@ spring:
 
         # MelonService - Direct parser API endpoints (обходной маршрут)
         - id: melon-direct
-          uri: http://melon-service:8084
+          uri: http://parser-service:8084
           predicates:
             - Path=/api/melon/**
           filters:

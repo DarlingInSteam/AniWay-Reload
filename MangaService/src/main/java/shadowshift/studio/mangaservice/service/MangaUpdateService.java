@@ -82,7 +82,7 @@ public class MangaUpdateService {
     @Autowired
     private ServiceUrlProperties serviceUrlProperties;
 
-    @Value("${melon.service.url:http://melon-service:8084}")
+    @Value("${melon.service.url:http://parser-service:8084}")
     private String melonServiceUrl;
 
     @Value("${chapter.service.url}")
