@@ -5,6 +5,9 @@ networks:
     driver: bridge
   aniway-network:
     external: true
+  aniway-backend:
+    external: true
+    name: aniway-reload_backend
 
 volumes:
   prometheus-data:
@@ -34,6 +37,7 @@ services:
       aniway-network:
         aliases:
           - aniway-prometheus
+      aniway-backend: {}
     labels:
       org.label-schema.group: "monitoring"
 
