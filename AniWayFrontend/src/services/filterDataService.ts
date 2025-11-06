@@ -36,6 +36,11 @@ type EnvWithOptionalBaseUrl = ImportMeta & {
   };
 };
 
+let activeGenresCache: Genre[] | null = null;
+let activeGenresPromise: Promise<Genre[]> | null = null;
+let activeTagsCache: Tag[] | null = null;
+let activeTagsPromise: Promise<Tag[]> | null = null;
+
 export class FilterDataService {
   private static readonly API_BASE_URL = (() => {
     const configured = (import.meta as EnvWithOptionalBaseUrl).env?.VITE_API_BASE_URL;
@@ -51,33 +56,85 @@ export class FilterDataService {
   /**
    * Получение активных жанров
    */
-  static async getActiveGenres(): Promise<Genre[]> {
-    try {
-      const response = await fetch(`${this.API_BASE_URL}/api/genres/active`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+  static async getActiveGenres(force = false): Promise<Genre[]> {
+    if (!force) {
+      if (activeGenresCache) {
+        return activeGenresCache;
       }
-      return await response.json();
-    } catch (error) {
-      console.error('Ошибка при получении жанров:', error);
+      if (activeGenresPromise) {
+        return activeGenresPromise;
+      }
+    }
+
+    activeGenresPromise = (async () => {
+      try {
+        const response = await fetch(`${this.API_BASE_URL}/api/genres/active`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data: Genre[] = await response.json();
+        activeGenresCache = data;
+        return data;
+      } catch (error) {
+        console.error('Ошибка при получении жанров:', error);
+        activeGenresCache = null;
+        throw error;
+      } finally {
+        activeGenresPromise = null;
+      }
+    })();
+
+    try {
+      return await activeGenresPromise;
+    } catch {
       return [];
     }
+  }
+
+  static invalidateActiveGenres() {
+    activeGenresCache = null;
   }
 
   /**
    * Получение активных тегов с мангами
    */
-  static async getActiveTags(): Promise<Tag[]> {
-    try {
-      const response = await fetch(`${this.API_BASE_URL}/api/tags/active/with-mangas`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+  static async getActiveTags(force = false): Promise<Tag[]> {
+    if (!force) {
+      if (activeTagsCache) {
+        return activeTagsCache;
       }
-      return await response.json();
-    } catch (error) {
-      console.error('Ошибка при получении тегов:', error);
+      if (activeTagsPromise) {
+        return activeTagsPromise;
+      }
+    }
+
+    activeTagsPromise = (async () => {
+      try {
+        const response = await fetch(`${this.API_BASE_URL}/api/tags/active/with-mangas`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data: Tag[] = await response.json();
+        activeTagsCache = data;
+        return data;
+      } catch (error) {
+        console.error('Ошибка при получении тегов:', error);
+        activeTagsCache = null;
+        throw error;
+      } finally {
+        activeTagsPromise = null;
+      }
+    })();
+
+    try {
+      return await activeTagsPromise;
+    } catch {
       return [];
     }
+  }
+
+  static invalidateActiveTags() {
+    activeTagsCache = null;
   }
 
   /**

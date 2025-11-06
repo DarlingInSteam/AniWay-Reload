@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { fetchNotifications, fetchUnreadCount, markAllRead, markRead, openSse, NotificationItem } from './api';
+import { fetchNotifications, markAllRead, markRead, openSse, NotificationItem } from './api';
 import type { InboxSummaryView } from '@/types/social';
 
 interface NotificationState {
@@ -122,7 +122,8 @@ export const NotificationProvider: React.FC<ProviderProps> = ({ userId, token = 
   }, [userId, establishSse]);
 
   const loadPage = async (targetPage: number) => {
-    if (!userId || loading || !hasMore) return;
+    if (!userId || loading) return;
+    if (!hasMore && targetPage !== 0) return;
     setLoading(true);
     try {
       const resp = await fetchNotifications(token, userId, 'ALL', targetPage, PAGE_SIZE);
@@ -142,7 +143,14 @@ export const NotificationProvider: React.FC<ProviderProps> = ({ userId, token = 
   const loadMore = async () => loadPage(page + 1);
   const refresh = async () => loadPage(0);
 
-  useEffect(() => { if (userId) { refresh(); fetchUnreadCount(token, userId).then(setUnread).catch(()=>{}); } }, [userId]);
+  useEffect(() => {
+    if (!userId) {
+      reset();
+      return;
+    }
+    loadPage(0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
 
   const doMarkRead = async (ids: number[]) => {
     if (!userId) return; await markRead(token, userId, ids);

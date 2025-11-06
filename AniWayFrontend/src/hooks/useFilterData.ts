@@ -11,11 +11,11 @@ export const useFilterData = () => {
   const [tagsError, setTagsError] = useState<string | null>(null);
 
   // Загрузка жанров
-  const loadGenres = useCallback(async () => {
+  const loadGenres = useCallback(async (force = false) => {
     try {
       setIsLoadingGenres(true);
       setGenresError(null);
-      const data = await FilterDataService.getActiveGenres();
+      const data = await FilterDataService.getActiveGenres(force);
       setGenres(data);
     } catch (error) {
       console.error('Ошибка загрузки жанров:', error);
@@ -26,11 +26,11 @@ export const useFilterData = () => {
   }, []);
 
   // Загрузка тегов
-  const loadTags = useCallback(async () => {
+  const loadTags = useCallback(async (force = false) => {
     try {
       setIsLoadingTags(true);
       setTagsError(null);
-      const data = await FilterDataService.getActiveTags();
+      const data = await FilterDataService.getActiveTags(force);
       setTags(data);
     } catch (error) {
       console.error('Ошибка загрузки тегов:', error);
@@ -53,8 +53,14 @@ export const useFilterData = () => {
     isLoadingTags,
     genresError,
     tagsError,
-    reloadGenres: loadGenres,
-    reloadTags: loadTags,
+    reloadGenres: () => {
+      FilterDataService.invalidateActiveGenres();
+      return loadGenres(true);
+    },
+    reloadTags: () => {
+      FilterDataService.invalidateActiveTags();
+      return loadTags(true);
+    },
     isLoading: isLoadingGenres || isLoadingTags,
     hasError: genresError !== null || tagsError !== null
   };
