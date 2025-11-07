@@ -28,7 +28,7 @@ ratelimit:
       scope: IP
       burst: 5
       refill-per-minute: 5
-      weight: 5
+      weight: 1
     - id: auth-register-ip
       pattern: "/api/auth/register"
       methods: ["POST"]
