@@ -62,10 +62,20 @@ public class HttpsEnforcementFilter implements WebFilter {
         }
 
         if (!secure) {
-            URI redirectUri = UriComponentsBuilder.fromUri(request.getURI())
-                    .scheme("https")
-                    .host(host)
-                    .port(httpsPort == 443 ? null : httpsPort)
+            UriComponentsBuilder builder = UriComponentsBuilder.fromUri(request.getURI())
+                    .scheme("https");
+
+            if (StringUtils.hasText(host)) {
+                builder.host(host);
+            }
+
+            if (httpsPort != 443) {
+                builder.port(httpsPort);
+            } else {
+                builder.port((String) null);
+            }
+
+            URI redirectUri = builder
                     .build(true)
                     .toUri();
 
