@@ -24,16 +24,16 @@ CREATE TABLE manga_metadata (
     title VARCHAR(500) NOT NULL,
     genres JSONB,                    -- ["Экшен", "Романтика"]
     tags JSONB,                      -- ["Ниндзя", "Магия"]
-    popularity_score DECIMAL(5,2),
+    average_rating DECIMAL(3,2),
+    views BIGINT,
     last_updated TIMESTAMP DEFAULT NOW()
 );
 
 -- Локальная таблица пользовательских предпочтений
-CREATE TABLE user_preferences (
+CREATE TABLE user_preferences_profiles (
     user_id BIGINT PRIMARY KEY,      -- ID из AuthService
-    favorite_genres JSONB,
-    favorite_tags JSONB,
-    bookmarked_manga_ids BIGINT[],
+    genre_weights JSONB,
+    tag_weights JSONB,
     last_updated TIMESTAMP DEFAULT NOW()
 );
 

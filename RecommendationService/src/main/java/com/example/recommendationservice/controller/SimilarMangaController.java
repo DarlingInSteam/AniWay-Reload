@@ -4,40 +4,40 @@ import com.example.recommendationservice.dto.SimilarMangaResponse;
 import com.example.recommendationservice.dto.SuggestMangaResponse;
 import com.example.recommendationservice.dto.VoteResponse;
 import com.example.recommendationservice.entity.VoteType;
-import com.example.recommendationservice.service.RecommendationService;
+import com.example.recommendationservice.service.SimilarMangaService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * REST контроллер для управления рекомендациями манги.
- * Предоставляет API endpoints для получения похожих манг, создания предложений и голосования.
+ * REST контроллер для управления коммунальными рекомендациями манги.
+ * Предоставляет API endpoints для получения похожих манг через механику голосования пользователей.
  *
  * @author ShadowShiftStudio
  */
 @RestController
-@RequestMapping("/api/recommendations")
+@RequestMapping("/api/similar-manga")
 @RequiredArgsConstructor
 @Slf4j
 @CrossOrigin(origins = "*")
-public class RecommendationController {
+public class SimilarMangaController {
 
-    private final RecommendationService recommendationService;
+    private final SimilarMangaService similarMangaService;
 
     /**
-     * Получить список похожих манг для указанной манги.
+     * Получить список похожих манг для указанной манги на основе голосов сообщества.
      *
      * @param id идентификатор манги
      * @param userId идентификатор пользователя (опционально, для получения пользовательских голосов)
-     * @return ResponseEntity с списком похожих манг
+     * @return ResponseEntity со списком похожих манг
      */
-    @GetMapping("/similar/{id}")
+    @GetMapping("/{id}")
     public ResponseEntity<SimilarMangaResponse> getSimilarManga(
             @PathVariable Long id,
             @RequestParam(required = false) Long userId) {
         try {
-            SimilarMangaResponse response = recommendationService.getSimilarManga(id, userId);
+            SimilarMangaResponse response = similarMangaService.getSimilarManga(id, userId);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error fetching similar manga for ID {}: {}", id, e.getMessage());
@@ -53,13 +53,13 @@ public class RecommendationController {
      * @param userId идентификатор пользователя, создающего предложение
      * @return ResponseEntity с информацией о созданном или существующем предложении
      */
-    @PostMapping("/similar/{id}/suggest")
+    @PostMapping("/{id}/suggest")
     public ResponseEntity<SuggestMangaResponse> suggestSimilarManga(
             @PathVariable Long id,
-            @RequestParam(required = false) Long targetMangaId,
-            @RequestParam(required = false) Long userId) {
+            @RequestParam Long targetMangaId,
+            @RequestParam Long userId) {
         try {
-            SuggestMangaResponse response = recommendationService.suggestSimilarManga(id, targetMangaId, userId);
+            SuggestMangaResponse response = similarMangaService.suggestSimilarManga(id, targetMangaId, userId);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error suggesting similar manga for ID {}: {}", id, e.getMessage());
@@ -75,17 +75,17 @@ public class RecommendationController {
      * @param vote тип голоса (UPVOTE или DOWNVOTE)
      * @return ResponseEntity с результатом голосования
      */
-    @PostMapping("/similar/vote")
+    @PostMapping("/vote")
     public ResponseEntity<VoteResponse> voteSimilarManga(
             @RequestParam Long suggestionId,
             @RequestParam Long userId,
             @RequestParam VoteType vote) {
         try {
-            VoteResponse response = recommendationService.voteSimilarManga(suggestionId, userId, vote);
+            VoteResponse response = similarMangaService.voteSimilarManga(suggestionId, userId, vote);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error voting for suggestion ID {}: {}", suggestionId, e.getMessage());
-            throw e; // или обработка ошибки по-другому
+            throw e;
         }
     }
 
@@ -96,17 +96,16 @@ public class RecommendationController {
      * @param userId идентификатор пользователя
      * @return ResponseEntity с результатом операции удаления
      */
-    @DeleteMapping("/similar/vote/{suggestionId}")
+    @DeleteMapping("/vote/{suggestionId}")
     public ResponseEntity<VoteResponse> removeVote(
             @PathVariable Long suggestionId,
-            @RequestParam(required = false) Long userId
-    ) {
+            @RequestParam Long userId) {
         try {
-            VoteResponse response =  recommendationService.removeVote(suggestionId, userId);
+            VoteResponse response = similarMangaService.removeVote(suggestionId, userId);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error removing vote for suggestion ID {}: {}", suggestionId, e.getMessage());
-            throw e; // или обработка ошибки по-другому
+            throw e;
         }
     }
 }

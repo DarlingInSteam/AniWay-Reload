@@ -8,6 +8,7 @@ import com.example.recommendationservice.entity.SimilarMangaRating;
 import com.example.recommendationservice.entity.SimilarMangaSuggestions;
 import com.example.recommendationservice.entity.SimilarMangaVotes;
 import com.example.recommendationservice.entity.VoteType;
+import com.example.recommendationservice.mapper.SimilarMangaMapper;
 import com.example.recommendationservice.repository.SimilarMangaRatingRepository;
 import com.example.recommendationservice.repository.SimilarMangaSuggestionsRepository;
 import com.example.recommendationservice.repository.SimilarMangaVotesRepository;
@@ -22,8 +23,8 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Сервис для управления рекомендациями манги.
- * Предоставляет бизнес-логику для операций с похожими мангами, включая предложения, голосования и рейтинги.
+ * Сервис для управления коммунальными рекомендациями манги (похожие тайтлы).
+ * Предоставляет бизнес-логику для операций с похожими мангами через механику голосования пользователей.
  *
  * @author ShadowShiftStudio
  */
@@ -31,20 +32,21 @@ import java.util.stream.Collectors;
 @Transactional
 @RequiredArgsConstructor
 @Slf4j
-public class RecommendationService {
+public class SimilarMangaService {
 
     private final SimilarMangaSuggestionsRepository suggestionsRepository;
     private final SimilarMangaVotesRepository votesRepository;
     private final SimilarMangaRatingRepository ratingRepository;
 
     /**
-     * Получить список похожих манг для указанной манги.
+     * Получить список похожих манг для указанной манги на основе голосов сообщества.
      * Автоматически учитывает голоса пользователя и текущие рейтинги из materialized view.
      *
      * @param mangaId идентификатор исходной манги
      * @param userId идентификатор пользователя (может быть null для анонимных запросов)
      * @return ответ со списком похожих манг, отсортированных по рейтингу
      */
+    // TODO Тут должно быть DTO
     public SimilarMangaResponse getSimilarManga(Long mangaId, Long userId) {
         log.info("Getting similar manga for mangaId: {} and userId: {}", mangaId, userId);
 
@@ -79,34 +81,12 @@ public class RecommendationService {
 
         // Преобразуем в DTO
         List<SimilarMangaDto> similarList = ratings.stream()
-                .map(rating -> mapToSimilarMangaDto(rating, userVotes.get(rating.getSuggestionId())))
+                .map(rating -> SimilarMangaMapper.toDto(rating, userVotes.get(rating.getSuggestionId())))
                 .toList();
 
         return SimilarMangaResponse.builder()
                 .mangaId(mangaId)
                 .similarMangaDtoList(similarList)
-                .build();
-    }
-
-    /**
-     * Преобразовать рейтинг манги в DTO с учетом голоса пользователя.
-     *
-     * @param rating рейтинг похожей манги из базы данных
-     * @param userVote тип голоса пользователя или null если пользователь не голосовал
-     * @return DTO с информацией о похожей манге
-     */
-    private SimilarMangaDto mapToSimilarMangaDto(SimilarMangaRating rating, VoteType userVote) {
-        return SimilarMangaDto.builder()
-                .suggestionId(rating.getSuggestionId())
-                .targetMangaId(rating.getTargetMangaId())
-                .rating(rating.getRating())
-                .upvotes(rating.getUpvotes())
-                .downvotes(rating.getDownvotes())
-                .userVote(userVote)
-                // TODO: Добавить получение информации о манге (title, cover) из MangaService
-                .targetMangaTitle("Title placeholder")
-                .targetMangaCover("Cover placeholder")
-                .suggestedBy("User placeholder")
                 .build();
     }
 
@@ -119,6 +99,7 @@ public class RecommendationService {
      * @param userId идентификатор пользователя, предлагающего связь
      * @return ответ с информацией о предложении и текущим рейтингом
      */
+    // TODO Тут должно быть DTO
     public SuggestMangaResponse suggestSimilarManga(Long sourceMangaId, Long targetMangaId, Long userId) {
         log.info("Suggesting similar manga: source={}, target={}, user={}", sourceMangaId, targetMangaId, userId);
 
@@ -169,6 +150,7 @@ public class RecommendationService {
      * @return результат голосования с обновленным рейтингом
      * @throws IllegalArgumentException если параметры невалидны
      */
+    // TODO Тут должно быть DTO
     public VoteResponse voteSimilarManga(Long suggestionId, Long userId, VoteType voteType) {
         log.info("Voting on suggestionId: {} by userId: {} with voteType: {}", suggestionId, userId, voteType);
 
@@ -248,6 +230,7 @@ public class RecommendationService {
      * @param userId идентификатор пользователя
      * @return результат операции с обновленным рейтингом
      */
+    // TODO Тут должно быть DTO
     public VoteResponse removeVote(Long suggestionId, Long userId) {
         log.info("Removing vote for suggestionId: {} by userId: {}", suggestionId, userId);
 
@@ -270,13 +253,11 @@ public class RecommendationService {
                 // Принудительно обновляем materialized view
                 refreshMaterializedView();
 
-                // Получаем обновленный рейтинг
                 return getCurrentRating(suggestionId, "Vote removed successfully");
             } else {
-                log.info("No existing vote found for suggestionId: {} by userId: {}", suggestionId, userId);
                 return VoteResponse.builder()
                         .success(false)
-                        .message("No vote found to remove")
+                        .message("Vote not found")
                         .build();
             }
         } catch (Exception e) {
@@ -290,46 +271,27 @@ public class RecommendationService {
 
     /**
      * Получить текущий рейтинг предложения из materialized view.
-     *
-     * @param suggestionId идентификатор предложения
-     * @param message сообщение для включения в ответ
-     * @return ответ с текущим рейтингом, количеством положительных и отрицательных голосов
      */
+    // TODO Тут должно быть DTO
     private VoteResponse getCurrentRating(Long suggestionId, String message) {
-        Optional<SimilarMangaRating> ratingOpt = ratingRepository.findById(suggestionId);
-
-        if (ratingOpt.isPresent()) {
-            SimilarMangaRating rating = ratingOpt.get();
-            return VoteResponse.builder()
-                    .success(true)
-                    .message(message)
-                    .newRating(rating.getRating())
-                    .upvotes(rating.getUpvotes())
-                    .downvotes(rating.getDownvotes())
-                    .build();
-        } else {
-            return VoteResponse.builder()
-                    .success(true)
-                    .message(message)
-                    .newRating(0)
-                    .upvotes(0)
-                    .downvotes(0)
-                    .build();
-        }
+        Optional<SimilarMangaRating> rating = ratingRepository.findById(suggestionId);
+        return VoteResponse.builder()
+                .success(true)
+                .message(message)
+                .suggestionId(suggestionId)
+                .newRating(rating.map(SimilarMangaRating::getRating).orElse(0))
+                .build();
     }
 
     /**
-     * Обновить materialized view для актуальных рейтингов.
-     * Обеспечивает синхронизацию данных после изменения голосов.
+     * Принудительно обновить materialized view для пересчета рейтингов.
      */
     private void refreshMaterializedView() {
         try {
-            // Обновляем materialized view для актуальных рейтингов
-            // В PostgreSQL это делается командой REFRESH MATERIALIZED VIEW
-            votesRepository.flush(); // Сначала сохраняем все изменения
-            // Можно добавить native query для обновления view, если нужно мгновенное обновление
+            ratingRepository.refreshMaterializedView();
+            log.debug("Materialized view refreshed successfully");
         } catch (Exception e) {
-            log.warn("Could not refresh materialized view: {}", e.getMessage());
+            log.error("Error refreshing materialized view: {}", e.getMessage());
         }
     }
 }

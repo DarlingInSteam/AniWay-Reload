@@ -110,3 +110,7 @@ VALUES
     ('Кулинария', 'kulinariya', '#F59E0B', 0, 0, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
     ('Спорт', 'sport', '#10B981', 0, 0, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 ON CONFLICT (name) DO NOTHING;
+
+-- V3__Sync_existing_manga_data.sql
+INSERT INTO manga_metadata (id, title, genres, tags, popularity_score, last_updated)
+SELECT
