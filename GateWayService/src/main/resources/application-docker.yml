@@ -4,7 +4,7 @@ server:
 auth:
   introspect-url: "http://auth-service:8085/api/auth/validate"
   public-paths: "/api/auth/**,/auth/**,/api/health/**,/api/public/**,/parser,/parser/**,/api/parser/**,/api/parser/progress/**,/manga,/manga/**,/api/genres/**,/api/tags/**,/api/notifications/stream,/api/levels/**,/api/import-queue/**,/telegram/**"
-  cache-ttl-seconds: 300
+  cache-ttl-seconds: 3600
 
 ratelimit:
   anon:
@@ -76,7 +76,7 @@ security:
     referrer-policy: "no-referrer"
   session:
     cookie-name: ANIWAY_SESSION
-    max-age-seconds: 604800
+    max-age-seconds: 2592000
     secure: false
     same-site: Lax
 

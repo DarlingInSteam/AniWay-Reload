@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 public class SessionCookieProperties {
 
     private String cookieName = "ANIWAY_SESSION";
-    private long maxAgeSeconds = 604800; // 7 days
+    private long maxAgeSeconds = 2_592_000; // 30 days
     private boolean secure = true;
     private String sameSite = "Strict";
     private String domain;

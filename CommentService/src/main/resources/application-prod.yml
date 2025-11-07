@@ -43,7 +43,7 @@ spring:
 # Security configuration
 jwt:
   secret: ${JWT_SECRET:mySecretKey12345678901234567890123456789012345678901234567890}
-  expiration: ${JWT_EXPIRATION:86400000}
+  expiration: ${JWT_EXPIRATION:2592000000}
 
 # Services URLs
 services:
