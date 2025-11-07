@@ -3,21 +3,26 @@ package shadowshift.studio.gatewayservice.security;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
@@ -31,6 +36,7 @@ import io.github.bucket4j.distributed.proxy.AsyncProxyManager;
 import io.github.bucket4j.distributed.proxy.ProxyManager;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Component
@@ -46,8 +52,10 @@ public class RateLimitFilter implements WebFilter {
     private final AsyncProxyManager<byte[]> asyncProxyManager;
     private final MeterRegistry meterRegistry;
 
-    private final Map<String, BucketConfiguration> configurationByRole = new ConcurrentHashMap<>();
-    private final Map<String, byte[]> keyCache = new ConcurrentHashMap<>();
+    private final Map<String, BucketConfiguration> configurationCache = new ConcurrentHashMap<>();
+    private final Map<String, byte[]> redisKeyCache = new ConcurrentHashMap<>();
+    private final List<CompiledRule> compiledRules;
+    private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     public RateLimitFilter(RateLimitProperties rateLimitProperties,
                            TokenIntrospectionService tokenIntrospectionService,
@@ -59,6 +67,7 @@ public class RateLimitFilter implements WebFilter {
         this.clientIpResolver = clientIpResolver;
         this.asyncProxyManager = proxyManager.asAsync();
         this.meterRegistry = meterRegistry;
+        this.compiledRules = compileRules(rateLimitProperties.getSpecialPaths());
     }
 
     @Override
@@ -79,39 +88,162 @@ public class RateLimitFilter implements WebFilter {
     }
 
     private Mono<Void> applyRateLimit(TokenDetails details, ServerWebExchange exchange, WebFilterChain chain) {
-    String method = Optional.ofNullable(exchange.getRequest().getMethod()).map(HttpMethod::name).orElse("GET");
+        String method = Optional.ofNullable(exchange.getRequest().getMethod()).map(HttpMethod::name).orElse("GET").toUpperCase(Locale.ROOT);
         String path = exchange.getRequest().getURI().getPath();
-        long weight = classifyRequestCost(path, method);
-
         boolean authenticated = details.isValid();
         String role = authenticated ? details.roleOrDefault() : "ANON";
         String subject = authenticated ? "user" : "ip";
-        String identifier = authenticated ? "user:" + details.getUserId() : "ip:" + clientIpResolver.resolve(exchange.getRequest());
-        String bucketKey = role + ':' + identifier;
+        String ip = clientIpResolver.resolve(exchange.getRequest());
+        String identifier = authenticated ? "user:" + details.getUserId() : "ip:" + ip;
 
-        AsyncBucketProxy bucket = resolveBucket(bucketKey, role);
+        List<CompiledRule> matchedRules = findMatchingRules(path, method, role);
+        long baseWeight = classifyRequestCost(path, method);
+        long ruleWeightOverride = matchedRules.stream()
+                .map(rule -> Optional.ofNullable(rule.rule().getWeight()).orElse(0L))
+                .mapToLong(Long::longValue)
+                .max()
+                .orElse(0L);
+        long weight = Math.max(baseWeight, ruleWeightOverride);
+
+        return enforceSpecialRules(matchedRules, details, ip, exchange, path, method, weight)
+                .flatMap(decision -> {
+                    if (!decision.allowed()) {
+                        recordSpecialRejection(decision, path, method, role);
+                        exchange.getResponse().setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
+                        exchange.getResponse().getHeaders().set("Retry-After", String.valueOf(decision.waitSeconds()));
+                        exchange.getResponse().getHeaders().set("X-RateLimit-Rule", decision.ruleId());
+                        exchange.getResponse().getHeaders().set("X-RateLimit-Remaining", String.valueOf(decision.remainingTokens()));
+                        return exchange.getResponse().setComplete();
+                    }
+
+                    return applyRoleBucket(subject, role, identifier, weight, exchange, chain, path, method);
+                });
+    }
+
+    private Mono<SpecialDecision> enforceSpecialRules(List<CompiledRule> rules,
+                                                      TokenDetails details,
+                                                      String ip,
+                                                      ServerWebExchange exchange,
+                                                      String path,
+                                                      String method,
+                                                      long weight) {
+        if (rules.isEmpty()) {
+          return Mono.just(SpecialDecision.permitted());
+        }
+
+        return Flux.fromIterable(rules)
+                .concatMap(rule -> applyRule(rule, details, ip, exchange, path, method, weight))
+                .filter(decision -> !decision.allowed())
+                .next()
+             .defaultIfEmpty(SpecialDecision.permitted());
+    }
+
+    private Mono<SpecialDecision> applyRule(CompiledRule rule,
+                                            TokenDetails details,
+                                            String ip,
+                                            ServerWebExchange exchange,
+                                            String path,
+                                            String method,
+                                            long weight) {
+        List<ScopeCheck> scopeChecks = determineScopes(rule.rule().getScope(), details, ip);
+        if (scopeChecks.isEmpty()) {
+              return Mono.just(SpecialDecision.permitted());
+        }
+
+        return Flux.fromIterable(scopeChecks)
+                .concatMap(scope -> enforceScope(rule, scope, details, exchange, path, method, weight))
+                .filter(decision -> !decision.allowed())
+                .next()
+                 .defaultIfEmpty(SpecialDecision.permitted());
+    }
+
+    private Mono<SpecialDecision> enforceScope(CompiledRule rule,
+                                               ScopeCheck scope,
+                                               TokenDetails details,
+                                               ServerWebExchange exchange,
+                                               String path,
+                                               String method,
+                                               long weight) {
+        RateLimitProperties.BucketConfig fallbackBucket = fallbackBucketFor(scope.subject(), details);
+    int burst = Optional.ofNullable(rule.rule().getBurst()).orElse(fallbackBucket.getBurst());
+    int refill = Optional.ofNullable(rule.rule().getRefillPerMinute()).orElse(fallbackBucket.getRefillPerMinute());
+        long appliedWeight = Optional.ofNullable(rule.rule().getWeight()).orElse(weight);
+
+        String configurationKey = "RULE:" + rule.id() + ':' + scope.subject();
+        String redisKey = configurationKey + ':' + scope.identifier();
+
+        AsyncBucketProxy bucket = resolveBucket(redisKey, configurationKey, burst, refill);
+
+        return Mono.fromFuture(bucket.tryConsumeAndReturnRemaining(appliedWeight))
+                .flatMap(probe -> {
+                    meterRegistry.counter("gateway.ratelimit.rule.attempts",
+                                    Tags.of("rule", rule.id(),
+                                            "scope", scope.subject(),
+                                            "path", metricPath(path),
+                                            "method", method))
+                            .increment();
+
+                    if (!probe.isConsumed()) {
+                        long waitSeconds = Math.max(1, TimeUnit.NANOSECONDS.toSeconds(probe.getNanosToWaitForRefill()));
+                        meterRegistry.counter("gateway.ratelimit.rule.rejections",
+                                        Tags.of("rule", rule.id(),
+                                                "scope", scope.subject(),
+                                                "path", metricPath(path),
+                                                "method", method))
+                                .increment();
+
+                        logger.warn("Special rate limit {} hit for scope={} identifier={} remaining={} path={} method={} weight={}",
+                                rule.id(), scope.subject(), scope.identifier(), probe.getRemainingTokens(), path, method, appliedWeight);
+
+                        return Mono.just(new SpecialDecision(false, rule.id(), scope.subject(), waitSeconds, probe.getRemainingTokens()));
+                    }
+
+            return Mono.just(SpecialDecision.permitted());
+                });
+    }
+
+    private Mono<Void> applyRoleBucket(String subject,
+                                       String role,
+                                       String identifier,
+                                       long weight,
+                                       ServerWebExchange exchange,
+                                       WebFilterChain chain,
+                                       String path,
+                                       String method) {
+        RateLimitProperties.BucketConfig bucketConfig = rateLimitProperties.lookupRoleBucket(role);
+        int burst = bucketConfig.getBurst();
+    int refill = bucketConfig.getRefillPerMinute();
+
+        String configurationKey = "ROLE:" + role;
+        AsyncBucketProxy bucket = resolveBucket(configurationKey + ':' + identifier, configurationKey, burst, refill);
 
         return Mono.fromFuture(bucket.tryConsumeAndReturnRemaining(weight))
                 .flatMap(probe -> {
                     meterRegistry.counter("gateway.ratelimit.attempts",
-                            Tags.of("role", role, "subject", subject, "path", metricPath(path), "method", method))
+                                    Tags.of("role", role,
+                                            "subject", subject,
+                                            "path", metricPath(path),
+                                            "method", method))
                             .increment();
 
-                    exchange.getResponse().getHeaders().set("X-RateLimit-Limit", String.valueOf(limitForRole(role)));
+                    exchange.getResponse().getHeaders().set("X-RateLimit-Limit", String.valueOf(burst));
                     exchange.getResponse().getHeaders().set("X-RateLimit-Role", role);
 
                     if (!probe.isConsumed()) {
                         long waitSeconds = Math.max(1, TimeUnit.NANOSECONDS.toSeconds(probe.getNanosToWaitForRefill()));
                         exchange.getResponse().getHeaders().set("Retry-After", String.valueOf(waitSeconds));
-                        exchange.getResponse().getHeaders().set("X-RateLimit-Remaining", String.valueOf(probe.getRemainingTokens()));
+                        exchange.getResponse().getHeaders().set("X-RateLimit-Remaining", String.valueOf(Math.max(0L, probe.getRemainingTokens())));
                         exchange.getResponse().setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
 
                         meterRegistry.counter("gateway.ratelimit.rejections",
-                                Tags.of("role", role, "subject", subject, "path", metricPath(path), "method", method))
+                                        Tags.of("role", role,
+                                                "subject", subject,
+                                                "path", metricPath(path),
+                                                "method", method))
                                 .increment();
 
-                        logger.warn("Rate limit exceeded for key={} role={} remaining={} path={} method={} weight={}",
-                                bucketKey, role, probe.getRemainingTokens(), path, method, weight);
+                        logger.warn("Role rate limit exceeded for role={} identifier={} remaining={} path={} method={} weight={}",
+                                role, identifier, probe.getRemainingTokens(), path, method, weight);
                         return exchange.getResponse().setComplete();
                     }
 
@@ -120,23 +252,88 @@ public class RateLimitFilter implements WebFilter {
                 });
     }
 
-    private AsyncBucketProxy resolveBucket(String bucketKey, String role) {
-        BucketConfiguration configuration = configurationByRole.computeIfAbsent(role, this::createConfigurationForRole);
-        byte[] redisKey = keyCache.computeIfAbsent(bucketKey, key -> key.getBytes(StandardCharsets.UTF_8));
+    private AsyncBucketProxy resolveBucket(String redisKeyRaw, String configurationKey, int burst, int refillPerMinute) {
+        BucketConfiguration configuration = configurationCache.computeIfAbsent(configurationKey, key -> buildConfiguration(burst, refillPerMinute));
+        byte[] redisKey = redisKeyCache.computeIfAbsent(redisKeyRaw, key -> key.getBytes(StandardCharsets.UTF_8));
         return asyncProxyManager.builder().build(redisKey, () -> CompletableFuture.completedFuture(configuration));
     }
 
-    private BucketConfiguration createConfigurationForRole(String role) {
-        RatePlan plan = ratePlanForRole(role);
-        Bandwidth bandwidth = Bandwidth.classic(plan.burst(), Refill.greedy(plan.refillTokensPerMinute(), Duration.ofMinutes(1)));
-        return BucketConfiguration.builder()
-                .addLimit(bandwidth)
-                .build();
+    private BucketConfiguration buildConfiguration(int burst, int refillPerMinute) {
+        int positiveBurst = Math.max(1, burst);
+        int positiveRefill = Math.max(1, refillPerMinute);
+        Bandwidth bandwidth = Bandwidth.classic(positiveBurst, Refill.greedy(positiveRefill, Duration.ofMinutes(1)));
+        return BucketConfiguration.builder().addLimit(bandwidth).build();
+    }
+
+    private List<CompiledRule> compileRules(List<RateLimitProperties.SpecialPathRule> rawRules) {
+        if (rawRules == null || rawRules.isEmpty()) {
+            return List.of();
+        }
+        List<CompiledRule> compiled = new ArrayList<>();
+        int counter = 0;
+        for (RateLimitProperties.SpecialPathRule raw : rawRules) {
+            if (raw == null || !StringUtils.hasText(raw.getPattern())) {
+                continue;
+            }
+            String id = StringUtils.hasText(raw.getId()) ? raw.getId().trim() : "rule-" + (++counter);
+            Set<String> methods = raw.getMethods().stream()
+                    .filter(StringUtils::hasText)
+                    .map(value -> value.trim().toUpperCase(Locale.ROOT))
+                    .collect(Collectors.toSet());
+            compiled.add(new CompiledRule(id, raw.getPattern().trim(), methods, raw));
+        }
+        logger.info("Compiled {} special rate limit rules", compiled.size());
+        return List.copyOf(compiled);
+    }
+
+    private List<CompiledRule> findMatchingRules(String path, String method, String role) {
+        if (compiledRules.isEmpty()) {
+            return List.of();
+        }
+        return compiledRules.stream()
+                .filter(rule -> rule.methods().isEmpty() || rule.methods().contains(method))
+                .filter(rule -> pathMatcher.match(rule.pattern(), path))
+                .filter(rule -> rule.rule().matchesRole(role))
+                .collect(Collectors.toList());
+    }
+
+    private RateLimitProperties.BucketConfig fallbackBucketFor(String subject, TokenDetails details) {
+        if ("user".equals(subject) && details.isValid()) {
+            return rateLimitProperties.lookupRoleBucket(details.roleOrDefault());
+        }
+        return rateLimitProperties.getAnon();
+    }
+
+    private List<ScopeCheck> determineScopes(RateLimitProperties.Scope scope, TokenDetails details, String ip) {
+        List<ScopeCheck> scopes = new ArrayList<>();
+        switch (scope) {
+            case USER -> {
+                if (details.isValid() && StringUtils.hasText(details.getUserId())) {
+                    scopes.add(new ScopeCheck("user", details.getUserId()));
+                } else if (StringUtils.hasText(ip)) {
+                    scopes.add(new ScopeCheck("ip", ip));
+                }
+            }
+            case IP -> {
+                if (StringUtils.hasText(ip)) {
+                    scopes.add(new ScopeCheck("ip", ip));
+                }
+            }
+            case BOTH -> {
+                if (details.isValid() && StringUtils.hasText(details.getUserId())) {
+                    scopes.add(new ScopeCheck("user", details.getUserId()));
+                }
+                if (StringUtils.hasText(ip)) {
+                    scopes.add(new ScopeCheck("ip", ip));
+                }
+            }
+            default -> {}
+        }
+        return scopes;
     }
 
     private long classifyRequestCost(String path, String method) {
-        String upperMethod = method.toUpperCase(Locale.ROOT);
-        if (!"GET".equals(upperMethod)) {
+        if (!"GET".equals(method)) {
             if (path.contains("upload") || path.contains("import") || path.contains("/api/images")) {
                 return 10;
             }
@@ -166,7 +363,7 @@ public class RateLimitFilter implements WebFilter {
     }
 
     private boolean isStaticResource(String path) {
-        return path.equals("/favicon.ico")
+        return Objects.equals(path, "/favicon.ico")
                 || path.startsWith("/static/")
                 || path.startsWith("/css/")
                 || path.startsWith("/js/")
@@ -174,21 +371,23 @@ public class RateLimitFilter implements WebFilter {
                 || path.startsWith("/assets/");
     }
 
-    private int limitForRole(String role) {
-        return switch (role) {
-            case "ADMIN" -> rateLimitProperties.getAdminBurst();
-            case "USER" -> rateLimitProperties.getUserBurst();
-            default -> rateLimitProperties.getAnonBurst();
-        };
+    private void recordSpecialRejection(SpecialDecision decision, String path, String method, String role) {
+        meterRegistry.counter("gateway.ratelimit.rejections",
+                        Tags.of("role", role,
+                                "subject", Optional.ofNullable(decision.subject()).orElse("rule"),
+                                "path", metricPath(path),
+                                "method", method,
+                                "rule", Optional.ofNullable(decision.ruleId()).orElse("unknown")))
+                .increment();
     }
 
-    private RatePlan ratePlanForRole(String role) {
-        return switch (role) {
-            case "ADMIN" -> new RatePlan(rateLimitProperties.getAdminBurst(), rateLimitProperties.getAdminRefillPerMinute());
-            case "USER" -> new RatePlan(rateLimitProperties.getUserBurst(), rateLimitProperties.getUserRefillPerMinute());
-            default -> new RatePlan(rateLimitProperties.getAnonBurst(), rateLimitProperties.getAnonRefillPerMinute());
-        };
-    }
+    private record CompiledRule(String id, String pattern, Set<String> methods, RateLimitProperties.SpecialPathRule rule) {}
 
-    private record RatePlan(int burst, int refillTokensPerMinute) {}
+    private record ScopeCheck(String subject, String identifier) {}
+
+    private record SpecialDecision(boolean allowed, String ruleId, String subject, long waitSeconds, long remainingTokens) {
+        static SpecialDecision permitted() {
+            return new SpecialDecision(true, null, null, 0, 0);
+        }
+    }
 }

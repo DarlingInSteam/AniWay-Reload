@@ -62,9 +62,9 @@ public class RedisRateLimiterConfig {
     }
 
     private Duration determineFallbackTtl(RateLimitProperties properties) {
-        long anonSeconds = timeToFullRecoverySeconds(properties.getAnonBurst(), properties.getAnonRefillPerMinute());
-        long userSeconds = timeToFullRecoverySeconds(properties.getUserBurst(), properties.getUserRefillPerMinute());
-        long adminSeconds = timeToFullRecoverySeconds(properties.getAdminBurst(), properties.getAdminRefillPerMinute());
+    long anonSeconds = timeToFullRecoverySeconds(properties.getAnon().getBurst(), properties.getAnon().getRefillPerMinute());
+    long userSeconds = timeToFullRecoverySeconds(properties.getUser().getBurst(), properties.getUser().getRefillPerMinute());
+    long adminSeconds = timeToFullRecoverySeconds(properties.getAdmin().getBurst(), properties.getAdmin().getRefillPerMinute());
 
         long longestSeconds = Math.max(anonSeconds, Math.max(userSeconds, adminSeconds));
         long fallbackSeconds = Math.max(60, longestSeconds) + 60; // ensure state survives past refill boundary

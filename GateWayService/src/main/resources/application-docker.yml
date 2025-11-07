@@ -6,6 +6,80 @@ auth:
   public-paths: "/api/auth/**,/auth/**,/api/health/**,/api/public/**,/parser,/parser/**,/api/parser/**,/api/parser/progress/**,/manga,/manga/**,/api/genres/**,/api/tags/**,/api/notifications/stream,/api/levels/**,/api/import-queue/**,/telegram/**"
   cache-ttl-seconds: 300
 
+ratelimit:
+  anon:
+    burst: 60
+    refill-per-minute: 30
+  user:
+    burst: 300
+    refill-per-minute: 150
+  admin:
+    burst: 600
+    refill-per-minute: 300
+  connection:
+    max-per-user: 5
+    max-per-ip: 3
+    key-ttl-seconds: 120
+  special-paths:
+    - id: auth-login-ip
+      pattern: "/api/auth/login"
+      methods: ["POST"]
+      scope: IP
+      burst: 5
+      refill-per-minute: 5
+      weight: 5
+    - id: auth-register-ip
+      pattern: "/api/auth/register"
+      methods: ["POST"]
+      scope: IP
+      burst: 3
+      refill-per-minute: 3
+      weight: 5
+    - id: auth-password-reset
+      pattern: "/api/auth/password/**"
+      methods: ["POST"]
+      scope: IP
+      burst: 5
+      refill-per-minute: 5
+      weight: 5
+    - id: parser-heavy
+      pattern: "/api/parser/**"
+      scope: BOTH
+      burst: 30
+      refill-per-minute: 15
+      weight: 10
+    - id: import-queue-heavy
+      pattern: "/api/import-queue/**"
+      scope: BOTH
+      burst: 20
+      refill-per-minute: 10
+      weight: 10
+    - id: images-upload-heavy
+      pattern: "/api/images/**"
+      methods: ["POST", "PUT", "PATCH"]
+      scope: BOTH
+      burst: 15
+      refill-per-minute: 10
+      weight: 12
+
+security:
+  enforce-https:
+    enabled: false
+    skip-hosts: "localhost,127.0.0.1"
+  request-size:
+    enabled: true
+    json-max-mb: 20
+    upload-max-mb: 200
+  headers:
+    content-security-policy: "default-src 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; upgrade-insecure-requests"
+    permissions-policy: "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+    referrer-policy: "no-referrer"
+  session:
+    cookie-name: ANIWAY_SESSION
+    max-age-seconds: 604800
+    secure: false
+    same-site: Lax
+
 spring:
   application:
     name: gateway-service
@@ -13,7 +87,6 @@ spring:
     multipart:
       max-file-size: 200MB
       max-request-size: 2GB
-
   cloud:
     gateway:
       # Глобальные CORS настройки

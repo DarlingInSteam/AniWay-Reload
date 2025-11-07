@@ -161,7 +161,9 @@ export class ApiTester {
 }
 
 // Глобальная функция для быстрого тестирования в консоли
-(window as any).testProfileApi = ApiTester.getDebugData;
-(window as any).testActivityApi = ApiTester.testAllEndpoints;
+if (import.meta.env.DEV) {
+  ;(window as any).testProfileApi = ApiTester.getDebugData
+  ;(window as any).testActivityApi = ApiTester.testAllEndpoints
+}
 
 export { activityStatsApi, authService as extendedAuthService };

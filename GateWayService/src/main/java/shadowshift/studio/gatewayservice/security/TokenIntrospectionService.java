@@ -12,12 +12,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.server.ServerWebExchange;
 
+import java.util.concurrent.TimeUnit;
+
+import io.netty.channel.ChannelOption;
+import io.netty.handler.timeout.ReadTimeoutHandler;
+import io.netty.handler.timeout.WriteTimeoutHandler;
 import reactor.core.publisher.Mono;
+import reactor.netty.http.client.HttpClient;
+import reactor.util.retry.Retry;
 
 /**
  * Centralised token introspection service that caches AuthService responses and shares
@@ -29,6 +37,7 @@ public class TokenIntrospectionService {
     public static final String ATTRIBUTE_TOKEN_DETAILS = TokenIntrospectionService.class.getName() + ".TOKEN_DETAILS";
 
     private static final Logger logger = LoggerFactory.getLogger(TokenIntrospectionService.class);
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(3);
 
     private final AuthProperties authProperties;
     private final WebClient webClient;
@@ -38,7 +47,18 @@ public class TokenIntrospectionService {
 
     public TokenIntrospectionService(AuthProperties authProperties, WebClient.Builder webClientBuilder) {
         this.authProperties = authProperties;
-        this.webClient = webClientBuilder.build();
+
+        HttpClient httpClient = HttpClient.create()
+                .compress(true)
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 2000)
+                .responseTimeout(REQUEST_TIMEOUT)
+        .doOnConnected(conn -> conn
+            .addHandlerLast(new ReadTimeoutHandler(REQUEST_TIMEOUT.getSeconds(), TimeUnit.SECONDS))
+            .addHandlerLast(new WriteTimeoutHandler(REQUEST_TIMEOUT.getSeconds(), TimeUnit.SECONDS)));
+
+        this.webClient = webClientBuilder.clone()
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
+                .build();
         this.cacheTtl = Duration.ofSeconds(Math.max(60, authProperties.getCacheTtlSeconds()));
         // cache invalid tokens for a shorter window to avoid hammering the auth service
         this.negativeCacheTtl = Duration.ofSeconds(Math.max(10, Math.min(120, authProperties.getCacheTtlSeconds() / 4)));
@@ -85,6 +105,8 @@ public class TokenIntrospectionService {
                         response -> Mono.error(new TokenIntrospectionException("Invalid token")))
                 .bodyToMono(Map.class)
                 .map(raw -> mapToDetails(raw))
+                .timeout(REQUEST_TIMEOUT.plusSeconds(1))
+                .retryWhen(Retry.backoff(1, Duration.ofMillis(150)).filter(this::isTransientFailure))
                 .onErrorMap(ex -> {
                     if (ex instanceof TokenIntrospectionException) {
                         return ex;
@@ -139,5 +161,15 @@ public class TokenIntrospectionService {
         }
         String token = authorization.substring("Bearer ".length()).trim();
         return token.isEmpty() ? null : token;
+    }
+
+    private boolean isTransientFailure(Throwable throwable) {
+        if (throwable instanceof TokenIntrospectionException) {
+            return false;
+        }
+        if (throwable instanceof WebClientResponseException wcre) {
+            return wcre.getStatusCode().is5xxServerError();
+        }
+        return true;
     }
 }

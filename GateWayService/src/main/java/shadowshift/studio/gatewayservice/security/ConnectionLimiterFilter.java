@@ -71,10 +71,10 @@ public class ConnectionLimiterFilter implements WebFilter {
 
     private Mono<Void> enforceLimit(TokenDetails details, TransportKind kind, ServerWebExchange exchange, WebFilterChain chain) {
         boolean authenticated = details.isValid();
-        int limit = authenticated ? properties.getMaxConnectionsPerUser() : properties.getMaxConnectionsPerIp();
+    int limit = authenticated ? properties.getConnection().getMaxPerUser() : properties.getConnection().getMaxPerIp();
         String identifier = authenticated ? "user:" + details.getUserId() : "ip:" + clientIpResolver.resolve(exchange.getRequest());
         String redisKey = "gw:conn:" + kind.key + ':' + identifier;
-        Duration ttl = Duration.ofSeconds(properties.getConnectionKeyTtlSeconds());
+    Duration ttl = properties.getConnection().ttl();
 
         return redisFacade.increment(redisKey)
                 .flatMap(count -> redisFacade.expire(redisKey, ttl)
@@ -107,7 +107,7 @@ public class ConnectionLimiterFilter implements WebFilter {
 
     private Mono<Void> sendTooManyConnections(ServerWebExchange exchange, TransportKind kind, int limit) {
         exchange.getResponse().setStatusCode(kind.responseStatus);
-        exchange.getResponse().getHeaders().set("Retry-After", String.valueOf(properties.getConnectionKeyTtlSeconds()));
+    exchange.getResponse().getHeaders().set("Retry-After", String.valueOf(properties.getConnection().getKeyTtlSeconds()));
         exchange.getResponse().getHeaders().set("X-Connection-Limit", String.valueOf(limit));
         return exchange.getResponse().setComplete();
     }

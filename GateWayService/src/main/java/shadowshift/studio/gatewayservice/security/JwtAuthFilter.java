@@ -10,6 +10,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
@@ -30,25 +31,29 @@ public class JwtAuthFilter implements WebFilter {
     private final AuthProperties authProperties;
     private final TokenIntrospectionService tokenIntrospectionService;
     private final MeterRegistry meterRegistry;
+    private final SessionCookieProperties sessionCookieProperties;
 
     public JwtAuthFilter(AuthProperties authProperties,
                          TokenIntrospectionService tokenIntrospectionService,
-                         MeterRegistry meterRegistry) {
+                         MeterRegistry meterRegistry,
+                         SessionCookieProperties sessionCookieProperties) {
         this.authProperties = authProperties;
         this.tokenIntrospectionService = tokenIntrospectionService;
         this.meterRegistry = meterRegistry;
+        this.sessionCookieProperties = sessionCookieProperties;
     }
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
-        String path = exchange.getRequest().getURI().getPath();
+        ServerWebExchange workingExchange = exchange;
+        String path = workingExchange.getRequest().getURI().getPath();
 
         if (path.startsWith("/actuator")) {
             // Let Spring Boot actuator endpoints (e.g. Prometheus scrape) bypass auth completely
             return chain.filter(exchange);
         }
 
-        HttpMethod method = exchange.getRequest().getMethod();
+        HttpMethod method = workingExchange.getRequest().getMethod();
         if (path.startsWith("/api/moments")) {
             if (method == null || HttpMethod.GET.equals(method) || HttpMethod.HEAD.equals(method) || HttpMethod.OPTIONS.equals(method)) {
                 logger.debug("Allowing unauthenticated {} request for {}", method != null ? method.name() : "GET", path);
@@ -75,21 +80,34 @@ public class JwtAuthFilter implements WebFilter {
             }
         }
 
-        String authorization = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
-        if (authorization == null || !authorization.startsWith("Bearer ")) {
+        ServerHttpRequest request = workingExchange.getRequest();
+        String authorization = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+        if (!hasBearerToken(authorization)) {
+            String cookieToken = extractTokenFromCookie(workingExchange);
+            if (cookieToken != null) {
+                ServerHttpRequest mutatedRequest = request.mutate()
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + cookieToken)
+                        .build();
+                workingExchange = workingExchange.mutate().request(mutatedRequest).build();
+                authorization = mutatedRequest.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+            }
+        }
+
+        if (!hasBearerToken(authorization)) {
             recordFailure("missing_token", path, methodOf(exchange));
             exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
             return exchange.getResponse().setComplete();
         }
 
-    return tokenIntrospectionService.resolveToken(exchange)
-        .switchIfEmpty(Mono.defer(() -> {
-            recordFailure("missing_token", path, methodOf(exchange));
-            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-            return exchange.getResponse().setComplete()
-                .then(Mono.<TokenDetails>empty());
-        }))
-                .flatMap(details -> handleDetails(details, exchange, chain, path));
+        ServerWebExchange finalExchange = workingExchange;
+        return tokenIntrospectionService.resolveToken(finalExchange)
+                .switchIfEmpty(Mono.defer(() -> {
+                    recordFailure("missing_token", path, methodOf(exchange));
+                    exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+                    return exchange.getResponse().setComplete()
+                            .then(Mono.empty());
+                }))
+                .flatMap(details -> handleDetails(details, finalExchange, chain, path));
     }
 
     private Mono<Void> handleDetails(TokenDetails details, ServerWebExchange exchange, WebFilterChain chain, String path) {
@@ -135,5 +153,18 @@ public class JwtAuthFilter implements WebFilter {
             return path;
         }
         return "/" + segments[1] + "/" + segments[2];
+    }
+
+    private boolean hasBearerToken(String authorization) {
+        return authorization != null && authorization.startsWith("Bearer ");
+    }
+
+    private String extractTokenFromCookie(ServerWebExchange exchange) {
+        var cookie = exchange.getRequest().getCookies().getFirst(sessionCookieProperties.getCookieName());
+        if (cookie == null) {
+            return null;
+        }
+        String value = cookie.getValue();
+        return StringUtils.hasText(value) ? value : null;
     }
 }

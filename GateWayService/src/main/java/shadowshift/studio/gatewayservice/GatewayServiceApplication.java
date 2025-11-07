@@ -2,6 +2,7 @@ package shadowshift.studio.gatewayservice;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
 /**
  * Главный класс приложения API Gateway для AniWay.
@@ -20,6 +21,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * @since 1.0.0
  */
 @SpringBootApplication
+@ConfigurationPropertiesScan
 public class GatewayServiceApplication {
 
     public static void main(String[] args) {
