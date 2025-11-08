@@ -8,7 +8,7 @@ contactPoints:
         type: webhook
         disableResolveMessage: false
         settings:
-          url: http://alertmanager:9093/api/v2/alerts
+          url: http://alertmanager:9093/api/v1/alerts
           httpMethod: POST
           maxIdleConns: 100
           sendFixedBody: true
