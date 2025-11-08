@@ -20,8 +20,8 @@ contactPoints:
               {{- if gt $i 0 }},{{ end }}
               {
                 "status": "{{ $a.Status }}",
-                "labels": {{ toJson $a.Labels }},
-                "annotations": {{ toJson $a.Annotations }},
+                "labels": {{ toJSON $a.Labels }},
+                "annotations": {{ toJSON $a.Annotations }},
                 "startsAt": "{{ $a.StartsAt }}",
                 "endsAt": "{{ $a.EndsAt }}",
                 "generatorURL": "{{ $a.GeneratorURL }}",
