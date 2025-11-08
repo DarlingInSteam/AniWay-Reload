@@ -4,12 +4,11 @@ contactPoints:
     name: alertmanager-forward
     receivers:
       - uid: cp-alertmanager-forward
-        type: webhook
+        type: prometheusAlertmanager
         disableResolveMessage: false
         settings:
+          url: http://alertmanager:9093
           httpMethod: POST
-          url: http://alertmanager:9093/api/v2/alerts
-          username: ""
-          password: ""
-          maxAttempts: 3
-          waitBetweenAttempts: 5s
+          basicAuthUser: ""
+          basicAuthPassword: ""
+          timeout: 10s

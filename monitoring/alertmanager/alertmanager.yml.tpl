@@ -7,7 +7,7 @@ global:
   smtp_require_tls: true
 
 route:
-  receiver: default
+  receiver: email-default
   group_by: ['alertname', 'service', 'instance']
   group_wait: 30s
   group_interval: 2m
@@ -16,12 +16,10 @@ route:
     - receiver: telegram-critical
       matchers:
         - severity = "critical"
-    - receiver: email-warning
-      matchers:
-        - severity =~ "warning|critical"
+      continue: true
 
 receivers:
-  - name: default
+  - name: email-default
     email_configs:
       - to: "${ALERTMANAGER_EMAIL_TO}"
         html: '{{ template "aniway.default.html" . }}'
@@ -36,13 +34,13 @@ receivers:
         parse_mode: Markdown
         message: '{{ template "aniway.telegram.message" . }}'
         disable_notifications: false
-  - name: email-warning
-    email_configs:
-      - to: "${ALERTMANAGER_EMAIL_TO}"
-        html: '{{ template "aniway.default.html" . }}'
-        headers:
-          Subject: "[Aniway][{{ .Status }}] {{ .CommonLabels.alertname }}"
-          Reply-To: "${ALERTMANAGER_EMAIL_FROM}"
-
+  - name: telegram-critical
+    telegram_configs:
+      - bot_token: "${ALERTMANAGER_TELEGRAM_BOT_TOKEN}"
+        chat_id: ${ALERTMANAGER_TELEGRAM_CHAT_ID}
+        api_url: https://api.telegram.org
+        parse_mode: Markdown
+        message: '{{ template "aniway.telegram.message" . }}'
+        disable_notifications: false
 templates:
   - /etc/alertmanager/templates/*.tmpl
