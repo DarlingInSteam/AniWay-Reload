@@ -1,10 +1,10 @@
 apiVersion: 1
 contactPoints:
-  - uid: cp-alertmanager-forward
+  - uid: cp-alertmanager-forward-v2
     orgId: 1
-    name: alertmanager-forward
+    name: alertmanager-forward-v2
     receivers:
-      - uid: cp-alertmanager-forward-rec
+      - uid: cp-alertmanager-forward-rec-v2
         type: webhook
         disableResolveMessage: false
         settings:
@@ -14,21 +14,4 @@ contactPoints:
           sendFixedBody: true
           httpHeaderName1: Content-Type
           httpHeaderValue1: application/json
-          body: |
-            [
-            {{- range $i, $a := .Alerts }}
-              {{- if gt $i 0 }},{{ end }}
-              {
-                "status": "{{ $a.Status }}",
-                "labels": {{ toJSON $a.Labels }},
-                "annotations": {{ toJSON $a.Annotations }},
-                "startsAt": "{{ $a.StartsAt }}",
-                "endsAt": "{{ $a.EndsAt }}",
-                "generatorURL": "{{ $a.GeneratorURL }}",
-                "fingerprint": "{{ $a.Fingerprint }}",
-                "silenceURL": "{{ $a.SilenceURL }}",
-                "dashboardURL": "{{ $a.DashboardURL }}",
-                "panelURL": "{{ $a.PanelURL }}"
-              }
-            {{- end }}
-            ]
+          body: '{{ toJSON .Alerts }}'
