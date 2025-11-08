@@ -5,9 +5,9 @@ contactPoints:
     name: alertmanager-forward-v2
     receivers:
       - uid: cp-alertmanager-forward-rec-v2
-        type: webhook
+        type: prometheus-alertmanager
         disableResolveMessage: false
         settings:
-          url: http://aniway-alertmanager:9093/api/v1/alerts
-          httpMethod: POST
-          maxAlerts: 0
+          url: http://aniway-alertmanager:9093
+          basicAuthUser: ""
+          basicAuthPassword: ""
