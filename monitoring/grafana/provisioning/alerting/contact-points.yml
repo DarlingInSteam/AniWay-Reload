@@ -8,21 +8,6 @@ contactPoints:
         type: webhook
         disableResolveMessage: false
         settings:
-          url: http://aniway-alertmanager:9093/api/v2/alerts
+          url: http://aniway-alertmanager:9093/api/v1/alerts
           httpMethod: POST
-          maxIdleConns: 100
-          httpHeaderName1: Content-Type
-          httpHeaderValue1: application/json
-          body: |
-            [
-            {{- range $index, $alert := .Alerts }}
-              {{- if $index }},{{ end }}
-              {
-                "labels": {{ $alert.Labels | toJSON }},
-                "annotations": {{ if $alert.Annotations }}{{ $alert.Annotations | toJSON }}{{ else }}{}{{ end }},
-                "startsAt": {{ if $alert.StartsAt }}{{ $alert.StartsAt | toJSON }}{{ else }}"{{ now | date "2006-01-02T15:04:05Z07:00" }}"{{ end }},
-                "endsAt": {{ if $alert.EndsAt }}{{ $alert.EndsAt | toJSON }}{{ else }}"0001-01-01T00:00:00Z"{{ end }},
-                "generatorURL": {{ if $alert.GeneratorURL }}{{ $alert.GeneratorURL | toJSON }}{{ else }}""{{ end }}
-              }
-            {{- end }}
-            ]
+          maxAlerts: 0
