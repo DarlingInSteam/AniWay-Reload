@@ -8,24 +8,22 @@ contactPoints:
         type: webhook
         disableResolveMessage: false
         settings:
-          url: http://alertmanager:9093/api/v1/alerts
+          url: http://alertmanager:9093/alertmanager/api/v2/alerts
           httpMethod: POST
           maxIdleConns: 100
           sendFixedBody: true
           httpHeaderName1: Content-Type
           httpHeaderValue1: application/json
           body: |
-            {
-              "alerts": [
-              {{- range $index, $alert := .Alerts }}
-                {{- if gt $index 0 }},{{ end }}
-                {
-                  "labels": {{ toJSON $alert.Labels }},
-                  "annotations": {{ toJSON $alert.Annotations }},
-                  "startsAt": {{ toJSON $alert.StartsAt }},
-                  "endsAt": {{ toJSON $alert.EndsAt }},
-                  "generatorURL": {{ toJSON $alert.GeneratorURL }}
-                }
-              {{- end }}
-              ]
-            }
+            [
+            {{- range $index, $alert := .Alerts }}
+              {{- if gt $index 0 }},{{ end }}
+              {
+                "labels": {{ toJSON $alert.Labels }},
+                "annotations": {{ toJSON $alert.Annotations }},
+                "startsAt": {{ toJSON $alert.StartsAt }},
+                "endsAt": {{ toJSON $alert.EndsAt }},
+                "generatorURL": {{ toJSON $alert.GeneratorURL }}
+              }
+            {{- end }}
+            ]
