@@ -19,8 +19,7 @@ contactPoints:
             {{- range $index, $alert := .Alerts }}
               {{- if gt $index 0 }},{{ end }}
               {
-                "status": {{ toJSON $alert.Status }},
-                "labels": {{ toJSON $alert.Labels }},
+                "labels": {{ if $alert.Labels }}{{ toJSON $alert.Labels }}{{ else }}{}{{ end }},
                 "annotations": {{ if $alert.Annotations }}{{ toJSON $alert.Annotations }}{{ else }}{}{{ end }}
                 {{- if $alert.StartsAt }},
                 "startsAt": {{ toJSON $alert.StartsAt }}{{- end }}
@@ -28,8 +27,6 @@ contactPoints:
                 "endsAt": {{ toJSON $alert.EndsAt }}{{- end }}
                 {{- if $alert.GeneratorURL }},
                 "generatorURL": {{ toJSON $alert.GeneratorURL }}{{- end }}
-                {{- if $alert.Fingerprint }},
-                "fingerprint": {{ toJSON $alert.Fingerprint }}{{- end }}
               }
             {{- end }}
             ]

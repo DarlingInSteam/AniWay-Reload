@@ -91,6 +91,7 @@ services:
       - "--storage.path=/alertmanager"
       - "--cluster.listen-address=0.0.0.0:9094"
       - "--web.external-url=${ALERTMANAGER_EXTERNAL_URL:?ALERTMANAGER_EXTERNAL_URL not set}"
+      - "--log.level=debug"
     volumes:
       - ./alertmanager/alertmanager.yml.tpl:/etc/alertmanager/alertmanager.yml.tpl:ro
       - ./alertmanager/render-config.sh:/etc/alertmanager/render-config.sh:ro
