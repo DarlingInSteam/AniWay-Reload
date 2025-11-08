@@ -8,7 +8,9 @@ contactPoints:
         type: webhook
         disableResolveMessage: false
         settings:
-          url: http://alertmanager:9093/alertmanager/api/v2/alerts
+          # Forward alerts directly to Alertmanager's v2 alerts endpoint using the
+          # service DNS name available inside the monitoring network.
+          url: http://alertmanager:9093/api/v2/alerts
           httpMethod: POST
           maxIdleConns: 100
           sendFixedBody: true
