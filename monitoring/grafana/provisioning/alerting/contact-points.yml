@@ -1,9 +1,10 @@
 apiVersion: 1
 contactPoints:
-  - orgId: 1
+  - uid: cp-alertmanager-forward
+    orgId: 1
     name: alertmanager-forward
     receivers:
-      - uid: cp-alertmanager-forward
+      - uid: cp-alertmanager-forward-rec
         type: webhook
         disableResolveMessage: false
         settings:
