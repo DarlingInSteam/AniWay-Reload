@@ -78,6 +78,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   const [userReviews, setUserReviews] = useState<UserReview[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [reviewsCount, setReviewsCount] = useState<number>(0);
+  const [reviewsLoaded, setReviewsLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTabParam] = useSyncedSearchParam<'overview' | 'library' | 'friends' | 'reviews' | 'comments' | 'achievements'>('tab', 'overview');
@@ -95,6 +96,12 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
   // Pull both user and avatar setter in a single hook call to avoid conditional hook order issues
   const { user: currentUser, setUserAvatarLocal } = useAuth();
   const targetUserId = parseInt(userId);
+  const friendsTabActive = activeTab === 'friends';
+  const reviewsTabActive = activeTab === 'reviews';
+  const commentsTabActive = activeTab === 'comments';
+
+  const shouldLoadFriendData = !isOwnProfile || friendsTabActive;
+
   const {
     friends: visibleFriends,
     incomingRequests,
@@ -104,7 +111,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
     refresh: refreshFriendData,
     loading: friendLoading,
     error: friendError,
-  } = useFriendData(targetUserId, currentUser?.id);
+  } = useFriendData(targetUserId, currentUser?.id, { enabled: shouldLoadFriendData });
 
   const userMiniIds = useMemo(() => {
     const ids = new Set<number>();
@@ -114,7 +121,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
     return Array.from(ids);
   }, [visibleFriends, incomingRequests, outgoingRequests, targetUserId]);
 
-  const miniUsers = useUserMiniBatch(userMiniIds);
+  const miniUsers = useUserMiniBatch(friendsTabActive ? userMiniIds : []);
 
   const currentUserMini = useMemo(() => {
     if (!currentUser) return null;
@@ -214,22 +221,18 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
     const loadProfileData = async () => {
       setLoading(true);
       setError(null);
+      setReviewsLoaded(false);
+      setReviewsLoading(false);
+      setUserReviews([]);
+      setReviewsCount(0);
 
       try {
         // Загружаем данные профиля из API
         const data = await profileService.getProfileData(userId);
         setProfileData(data);
-
-        // Загружаем отзывы пользователя
-        setReviewsLoading(true);
-        try {
-          const reviews = await profileService.getUserReviews(parseInt(userId));
-          setUserReviews(reviews);
-          setReviewsCount(reviews.length); // initial count
-        } catch (reviewError) {
-          console.error('Ошибка при загрузке отзывов:', reviewError);
-        } finally {
-          setReviewsLoading(false);
+        const countFromPayload = (data as any)?.user?.reviewsCount ?? (data as any)?.user?.reviewCount;
+        if (typeof countFromPayload === 'number') {
+          setReviewsCount(countFromPayload);
         }
 
         // Преобразуем данные в формат UserProfile
@@ -302,6 +305,7 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
             }
           };
           
+          setReviewsCount(((currentUser as any)?.reviewsCount ?? (currentUser as any)?.reviewCount) || 0);
           setProfile(fallbackProfile);
           setProfileData(fallbackProfileData);
           setError(null);
@@ -314,6 +318,39 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
     loadProfileData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, isOwnProfile]);
+
+  useEffect(() => {
+    if (!reviewsTabActive || reviewsLoaded) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadReviews = async () => {
+      setReviewsLoading(true);
+      try {
+        const reviews = await profileService.getUserReviews(parseInt(userId));
+        if (cancelled) return;
+        setUserReviews(reviews);
+        setReviewsCount(reviews.length);
+        setReviewsLoaded(true);
+      } catch (reviewError) {
+        if (!cancelled) {
+          console.error('Ошибка при загрузке отзывов:', reviewError);
+        }
+      } finally {
+        if (!cancelled) {
+          setReviewsLoading(false);
+        }
+      }
+    };
+
+    void loadReviews();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [reviewsTabActive, reviewsLoaded, userId]);
 
   const handleProfileUpdate = async (updates: Partial<UserProfileType>) => {
     if (!profile || !isOwnProfile) return;
@@ -589,26 +626,30 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
             </TabsContent>
 
             <TabsContent value="reviews" className="space-y-6 max-h-96 overflow-y-auto">
-              {reviewsLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <LoadingSpinner />
-                </div>
-              ) : (
-                <>
-                  <Reviews reviews={userReviews} isOwnProfile={isOwnProfile} />
-                  {userReviews.length === 0 && (
-                    <div className="text-center py-12 text-gray-400">
-                      <p className="text-lg mb-2">📝 {isOwnProfile ? 'Ваши отзывы' : 'Отзывы пользователя'}</p>
-                      <p>{isOwnProfile ? 'Напишите первый отзыв на мангу' : 'Пользователь пока не оставлял отзывов'}</p>
-                    </div>
-                  )}
-                </>
-              )}
+              {reviewsTabActive ? (
+                reviewsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <LoadingSpinner />
+                  </div>
+                ) : (
+                  <>
+                    <Reviews reviews={userReviews} isOwnProfile={isOwnProfile} />
+                    {userReviews.length === 0 && (
+                      <div className="text-center py-12 text-gray-400">
+                        <p className="text-lg mb-2">📝 {isOwnProfile ? 'Ваши отзывы' : 'Отзывы пользователя'}</p>
+                        <p>{isOwnProfile ? 'Напишите первый отзыв на мангу' : 'Пользователь пока не оставлял отзывов'}</p>
+                      </div>
+                    )}
+                  </>
+                )
+              ) : null}
             </TabsContent>
 
 
             <TabsContent value="comments" className="space-y-6 max-h-96 overflow-y-auto">
-              <UserComments userId={parseInt(userId)} isOwnProfile={isOwnProfile} />
+              {commentsTabActive ? (
+                <UserComments userId={parseInt(userId)} isOwnProfile={isOwnProfile} />
+              ) : null}
             </TabsContent>
 
             <TabsContent value="achievements" className="space-y-6">
@@ -696,17 +737,21 @@ export function UserProfile({ userId, isOwnProfile }: UserProfileProps) {
             </TabsContent>
 
             <TabsContent value="reviews" className="space-y-6 max-h-96 overflow-y-auto">
-              {reviewsLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <LoadingSpinner />
-                </div>
-              ) : (
-                <Reviews reviews={userReviews} isOwnProfile={isOwnProfile} />
-              )}
+              {reviewsTabActive ? (
+                reviewsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <LoadingSpinner />
+                  </div>
+                ) : (
+                  <Reviews reviews={userReviews} isOwnProfile={isOwnProfile} />
+                )
+              ) : null}
             </TabsContent>
 
             <TabsContent value="comments" className="space-y-6 max-h-96 overflow-y-auto">
-              <UserComments userId={parseInt(userId)} isOwnProfile={isOwnProfile} />
+              {commentsTabActive ? (
+                <UserComments userId={parseInt(userId)} isOwnProfile={isOwnProfile} />
+              ) : null}
             </TabsContent>
 
             <TabsContent value="achievements" className="space-y-6">

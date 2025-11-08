@@ -40,12 +40,24 @@ export interface UseFriendDataResult {
   error: unknown;
 }
 
-export function useFriendData(targetUserId: number, currentUserId?: number | null): UseFriendDataResult {
+export interface UseFriendDataOptions {
+  enabled?: boolean;
+}
+
+export function useFriendData(
+  targetUserId: number,
+  currentUserId?: number | null,
+  options?: UseFriendDataOptions,
+): UseFriendDataResult {
   const [state, setState] = useState<FriendDataState>(initialState);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const enabled = options?.enabled ?? true;
 
   const fetchAll = useCallback(async () => {
+    if (!enabled || !targetUserId) {
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -97,12 +109,16 @@ export function useFriendData(targetUserId: number, currentUserId?: number | nul
     } finally {
       setLoading(false);
     }
-  }, [targetUserId, currentUserId]);
+  }, [targetUserId, currentUserId, enabled]);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
     if (!targetUserId) return;
     fetchAll();
-  }, [fetchAll, targetUserId]);
+  }, [fetchAll, targetUserId, enabled]);
 
   const { friends, myFriends, summary, incomingRequests, outgoingRequests } = state;
 
@@ -149,7 +165,7 @@ export function useFriendData(targetUserId: number, currentUserId?: number | nul
     status: statusData.status,
     incomingRequestForTarget: statusData.incoming,
     outgoingRequestForTarget: statusData.outgoing,
-    refresh: fetchAll,
+    refresh: enabled ? fetchAll : async () => undefined,
     loading,
     error,
   };
