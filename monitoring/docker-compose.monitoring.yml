@@ -63,8 +63,6 @@ services:
       - GF_SMTP_FROM_NAME=Aniway Alerts
       - GF_SMTP_SKIP_VERIFY=false
       - GF_SMTP_STARTTLS_POLICY=MandatoryStartTLS
-    extra_hosts:
-      - "alertmanager:aniway-alertmanager"
     volumes:
       - grafana-data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
