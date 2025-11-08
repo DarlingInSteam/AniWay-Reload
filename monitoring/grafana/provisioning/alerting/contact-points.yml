@@ -19,14 +19,12 @@ contactPoints:
             {{- range $index, $alert := .Alerts }}
               {{- if gt $index 0 }},{{ end }}
               {
+                "status": {{ if $alert.Status }}{{ toJSON $alert.Status }}{{ else }}"firing"{{ end }},
                 "labels": {{ if $alert.Labels }}{{ toJSON $alert.Labels }}{{ else }}{}{{ end }},
-                "annotations": {{ if $alert.Annotations }}{{ toJSON $alert.Annotations }}{{ else }}{}{{ end }}
-                {{- if $alert.StartsAt }},
-                "startsAt": {{ toJSON $alert.StartsAt }}{{- end }}
-                {{- if $alert.EndsAt }},
-                "endsAt": {{ toJSON $alert.EndsAt }}{{- end }}
-                {{- if $alert.GeneratorURL }},
-                "generatorURL": {{ toJSON $alert.GeneratorURL }}{{- end }}
+                "annotations": {{ if $alert.Annotations }}{{ toJSON $alert.Annotations }}{{ else }}{}{{ end }},
+                "startsAt": {{ if $alert.StartsAt }}{{ toJSON $alert.StartsAt }}{{ else }}{{ toJSON (now) }}{{ end }},
+                "endsAt": {{ if $alert.EndsAt }}{{ toJSON $alert.EndsAt }}{{ else }}"0001-01-01T00:00:00Z"{{ end }},
+                "generatorURL": {{ if $alert.GeneratorURL }}{{ toJSON $alert.GeneratorURL }}{{ else }}""{{ end }}
               }
             {{- end }}
             ]
