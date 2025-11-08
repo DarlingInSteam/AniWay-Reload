@@ -12,3 +12,23 @@ contactPoints:
           httpMethod: POST
           maxIdleConns: 100
           sendFixedBody: true
+          httpHeaderName1: Content-Type
+          httpHeaderValue1: application/json
+          body: |
+            [
+            {{- range $i, $a := .Alerts }}
+              {{- if gt $i 0 }},{{ end }}
+              {
+                "status": "{{ $a.Status }}",
+                "labels": {{ toJson $a.Labels }},
+                "annotations": {{ toJson $a.Annotations }},
+                "startsAt": "{{ $a.StartsAt }}",
+                "endsAt": "{{ $a.EndsAt }}",
+                "generatorURL": "{{ $a.GeneratorURL }}",
+                "fingerprint": "{{ $a.Fingerprint }}",
+                "silenceURL": "{{ $a.SilenceURL }}",
+                "dashboardURL": "{{ $a.DashboardURL }}",
+                "panelURL": "{{ $a.PanelURL }}"
+              }
+            {{- end }}
+            ]
