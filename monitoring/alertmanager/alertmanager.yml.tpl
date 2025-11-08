@@ -34,13 +34,5 @@ receivers:
         parse_mode: Markdown
         message: '{{ template "aniway.telegram.message" . }}'
         disable_notifications: false
-  - name: telegram-critical
-    telegram_configs:
-      - bot_token: "${ALERTMANAGER_TELEGRAM_BOT_TOKEN}"
-        chat_id: ${ALERTMANAGER_TELEGRAM_CHAT_ID}
-        api_url: https://api.telegram.org
-        parse_mode: Markdown
-        message: '{{ template "aniway.telegram.message" . }}'
-        disable_notifications: false
 templates:
   - /etc/alertmanager/templates/*.tmpl
