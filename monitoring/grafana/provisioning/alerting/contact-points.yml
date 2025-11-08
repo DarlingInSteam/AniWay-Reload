@@ -1,0 +1,15 @@
+apiVersion: 1
+contactPoints:
+  - orgId: 1
+    name: alertmanager-forward
+    receivers:
+      - uid: cp-alertmanager-forward
+        type: webhook
+        disableResolveMessage: false
+        settings:
+          httpMethod: POST
+          url: http://alertmanager:9093/api/v2/alerts
+          username: ""
+          password: ""
+          maxAttempts: 3
+          waitBetweenAttempts: 5s

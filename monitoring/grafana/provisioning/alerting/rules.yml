@@ -1,0 +1,231 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: aniway-service-health
+    folder: "AniWay Alerts"
+    interval: 1m
+    rules:
+      - uid: aniwayservdown
+        title: "Сервис недоступен"
+        condition: lastCheck
+        data:
+          - refId: upSeries
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PROM-ANIWAY
+            model:
+              datasource:
+                type: prometheus
+                uid: PROM-ANIWAY
+              expr: avg(up{job="aniway-backend"})
+              format: time_series
+              interval: ""
+              intervalFactor: 2
+              intervalMs: 60000
+              legendFormat: "{{service}}"
+              maxDataPoints: 43200
+              range: true
+              refId: upSeries
+          - refId: reduce
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: "-100"
+            model:
+              datasource:
+                type: __expr__
+                uid: "-100"
+              expression: upSeries
+              type: reduce
+              reducer: last
+              refId: reduce
+              conditions: []
+          - refId: lastCheck
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: "-100"
+            model:
+              datasource:
+                type: __expr__
+                uid: "-100"
+              type: threshold
+              expression: reduce
+              params:
+                - 1
+              inequalities:
+                - lt
+              refId: lastCheck
+              conditions:
+                - evaluator:
+                    params:
+                      - 1
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - reduce
+                  reducer:
+                    params: []
+                    type: last
+        noDataState: NoData
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: "Обнаружен неответ работы сервисов"
+          description: "Экспортеры aniway-backend перестали отвечать более 2 минут."
+        labels:
+          severity: critical
+
+      - uid: aniwayerrorate
+        title: "Рост ошибок 5xx"
+        condition: errorThresh
+        data:
+          - refId: errorSeries
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PROM-ANIWAY
+            model:
+              datasource:
+                type: prometheus
+                uid: PROM-ANIWAY
+              expr: |
+                sum(rate(http_server_requests_seconds_count{outcome="SERVER_ERROR"}[5m])) by (service)
+                  /
+                clamp_min(sum(rate(http_server_requests_seconds_count[5m])) by (service), 1)
+              format: time_series
+              interval: ""
+              intervalFactor: 2
+              intervalMs: 60000
+              legendFormat: "{{service}}"
+              maxDataPoints: 43200
+              range: true
+              refId: errorSeries
+          - refId: reduce
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: "-100"
+            model:
+              datasource:
+                type: __expr__
+                uid: "-100"
+              expression: errorSeries
+              type: reduce
+              reducer: last
+              refId: reduce
+              conditions: []
+          - refId: errorThresh
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: "-100"
+            model:
+              datasource:
+                type: __expr__
+                uid: "-100"
+              type: threshold
+              expression: reduce
+              params:
+                - 0.05
+              inequalities:
+                - gt
+              refId: errorThresh
+              conditions:
+                - evaluator:
+                    params:
+                      - 0.05
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - reduce
+                  reducer:
+                    params: []
+                    type: last
+        noDataState: NoData
+        execErrState: Error
+        for: 3m
+        annotations:
+          summary: "Доля ошибок 5xx превышает 5%"
+          description: "{{ $values }}"
+        labels:
+          severity: warning
+
+      - uid: aniwayrate429
+        title: "Наплыв 429 (rate limiting)"
+        condition: rateChecker
+        data:
+          - refId: rateSeries
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PROM-ANIWAY
+            model:
+              datasource:
+                type: prometheus
+                uid: PROM-ANIWAY
+              expr: sum(rate(http_server_requests_seconds_count{status="429"}[5m])) by (service)
+              format: time_series
+              interval: ""
+              intervalFactor: 2
+              intervalMs: 60000
+              legendFormat: "{{service}}"
+              maxDataPoints: 43200
+              range: true
+              refId: rateSeries
+          - refId: reduce
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: "-100"
+            model:
+              datasource:
+                type: __expr__
+                uid: "-100"
+              expression: rateSeries
+              type: reduce
+              reducer: last
+              refId: reduce
+              conditions: []
+          - refId: rateChecker
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: "-100"
+            model:
+              datasource:
+                type: __expr__
+                uid: "-100"
+              type: threshold
+              expression: reduce
+              params:
+                - 1
+              inequalities:
+                - gt
+              refId: rateChecker
+              conditions:
+                - evaluator:
+                    params:
+                      - 1
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - reduce
+                  reducer:
+                    params: []
+                    type: last
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "Количество ответов 429 превысило порог"
+          description: "{{ $values }}"
+        labels:
+          severity: warning
