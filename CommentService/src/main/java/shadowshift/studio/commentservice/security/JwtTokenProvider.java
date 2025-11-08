@@ -21,7 +21,7 @@ public class JwtTokenProvider {
     private String jwtSecret;
 
     @Value("${jwt.expiration}")
-    private int jwtExpiration;
+    private long jwtExpiration;
 
     private SecretKey getSigningKey() {
         return Keys.hmacShaKeyFor(jwtSecret.getBytes());
