@@ -19,10 +19,10 @@ import java.util.List;
  */
 @Entity
 @Table(name = "comments", indexes = {
-    @Index(name = "idx_comments_type_target", columnList = "commentType,targetId"),
-    @Index(name = "idx_comments_user_id", columnList = "userId"),
-    @Index(name = "idx_comments_parent_id", columnList = "parentComment"),
-    @Index(name = "idx_comments_created_at", columnList = "createdAt")
+    @Index(name = "idx_comments_type_target", columnList = "comment_type,target_id"),
+    @Index(name = "idx_comments_user_id", columnList = "user_id"),
+    @Index(name = "idx_comments_parent_id", columnList = "parent_comment_id"),
+    @Index(name = "idx_comments_created_at", columnList = "created_at")
 })
 @Data
 @Builder
@@ -40,7 +40,7 @@ public class Comment {
     private String content;
 
     /** Тип комментария (определяет к какому объекту относится) */
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = shadowshift.studio.commentservice.entity.converter.CommentTypeConverter.class)
     @Column(name = "comment_type", nullable = false)
     private CommentType commentType;
 
