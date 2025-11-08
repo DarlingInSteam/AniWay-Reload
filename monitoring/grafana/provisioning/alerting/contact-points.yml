@@ -8,7 +8,7 @@ contactPoints:
         type: webhook
         disableResolveMessage: false
         settings:
-          url: http://alertmanager:9093/api/v2/alerts
+          url: http://aniway-alertmanager:9093/api/v2/alerts
           httpMethod: POST
           maxIdleConns: 100
           httpHeaderName1: Content-Type
