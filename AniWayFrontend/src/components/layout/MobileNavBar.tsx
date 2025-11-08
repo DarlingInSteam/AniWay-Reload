@@ -1,5 +1,5 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Home, Search, Trophy, MessageSquare, MessageCircle, Globe2, User, Bell, Bookmark, MoreHorizontal, ChevronUp, Settings } from 'lucide-react'
+import { Home, Search, Trophy, MessageSquare, MessageCircle, Globe2, User, Bell, Bookmark, MoreHorizontal, ChevronUp, Settings, SlidersHorizontal } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/utils'
 import { useEffect, useState, useRef, useMemo } from 'react'
@@ -87,9 +87,27 @@ export function MobileNavBar() {
       { to: '/tops', icon: Trophy, label: 'Топы', desc: 'Рейтинги активности' },
       { to: '/forum', icon: MessageSquare, label: 'Форум', desc: 'Обсуждения и темы' },
     ]
+
+    if (isAuthenticated) {
+      links.unshift({
+        to: '/settings',
+        icon: SlidersHorizontal,
+        label: 'Настройки',
+        desc: 'Управление профилем и уведомлениями',
+      })
+    } else {
+      links.unshift({
+        to: '/login',
+        icon: SlidersHorizontal,
+        label: 'Настройки',
+        desc: 'Войдите, чтобы изменить параметры',
+      })
+    }
+
     if (isAuthenticated && isAdmin) {
       links.unshift({ to: '/admin', icon: Settings, label: 'Админ панель', desc: 'Управление контентом' })
     }
+
     return links
   }, [isAuthenticated, isAdmin])
 

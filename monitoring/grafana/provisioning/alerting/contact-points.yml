@@ -16,4 +16,16 @@ contactPoints:
           sendFixedBody: true
           httpHeaderName1: Content-Type
           httpHeaderValue1: application/json
-          body: '{{ toJSON .Alerts }}'
+          body: |
+            [
+            {{- range $index, $alert := .Alerts }}
+              {{- if gt $index 0 }},{{ end }}
+              {
+                "labels": {{ toJSON $alert.Labels }},
+                "annotations": {{ toJSON $alert.Annotations }},
+                "startsAt": {{ toJSON $alert.StartsAt }},
+                "endsAt": {{ toJSON $alert.EndsAt }},
+                "generatorURL": {{ toJSON $alert.GeneratorURL }}
+              }
+            {{- end }}
+            ]
