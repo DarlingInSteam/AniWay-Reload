@@ -17,38 +17,13 @@ contactPoints:
           body: |
             [
             {{- range $index, $alert := .Alerts }}
-              {{- if gt $index 0 }},{{ end }}
-              {{- $labels := dict }}
-              {{- if $alert.Labels }}
-                {{- range $key, $value := $alert.Labels }}
-                  {{- $_ := set $labels $key $value }}
-                {{- end }}
-              {{- end }}
-              {{- $alertname := coalesce (and $alert.Labels (index $alert.Labels "alertname")) $.RuleTitle $.RuleName $.RuleUID "grafana-alert" -}}
-              {{- if not (hasKey $labels "alertname") }}
-                {{- $_ := set $labels "alertname" $alertname }}
-              {{- end }}
-              {{- $annotations := dict }}
-              {{- if $alert.Annotations }}
-                {{- range $akey, $aval := $alert.Annotations }}
-                  {{- $_ := set $annotations $akey $aval }}
-                {{- end }}
-              {{- end }}
-              {{- $startsAt := $alert.StartsAt -}}
-              {{- if not $startsAt }}
-                {{- $startsAt = (now | date "2006-01-02T15:04:05Z07:00") -}}
-              {{- end }}
-              {{- $endsAt := $alert.EndsAt -}}
-              {{- if not $endsAt }}
-                {{- $endsAt = "0001-01-01T00:00:00Z" -}}
-              {{- end }}
-              {{- $generatorURL := ($alert.GeneratorURL | default "") -}}
+              {{- if $index }},{{ end }}
               {
-                "labels": {{ toJSON $labels }},
-                "annotations": {{ toJSON $annotations }},
-                "startsAt": {{ toJSON $startsAt }},
-                "endsAt": {{ toJSON $endsAt }},
-                "generatorURL": {{ toJSON $generatorURL }}
+                "labels": {{ $alert.Labels | toJSON }},
+                "annotations": {{ if $alert.Annotations }}{{ $alert.Annotations | toJSON }}{{ else }}{}{{ end }},
+                "startsAt": {{ if $alert.StartsAt }}{{ $alert.StartsAt | toJSON }}{{ else }}"{{ now | date "2006-01-02T15:04:05Z07:00" }}"{{ end }},
+                "endsAt": {{ if $alert.EndsAt }}{{ $alert.EndsAt | toJSON }}{{ else }}"0001-01-01T00:00:00Z"{{ end }},
+                "generatorURL": {{ if $alert.GeneratorURL }}{{ $alert.GeneratorURL | toJSON }}{{ else }}""{{ end }}
               }
             {{- end }}
             ]
