@@ -35,7 +35,7 @@ const DEFAULT_BOOKMARK_BADGE = {
   className: 'bg-slate-600/90 text-white border border-slate-400/30'
 }
 
-const overlayBadgeBase = 'inline-flex items-center gap-0.5 sm:gap-1 rounded-full px-1.5 sm:px-2 text-[9px] sm:text-[10px] font-medium leading-none shadow-sm backdrop-blur-md min-h-[20px] sm:min-h-[22px]'
+const overlayBadgeBase = 'inline-flex items-center gap-0.5 sm:gap-1 rounded-full px-1.5 sm:px-2 text-[9px] sm:text-[10px] font-medium leading-none shadow-sm backdrop-blur-md min-h-[20px] sm:min-h-[22px] whitespace-nowrap'
 
 interface MangaCardProps {
   manga: MangaResponseDTO
@@ -142,7 +142,7 @@ const MangaCardComponent = ({ manga, size = 'default', showMetadata = true }: Ma
             <div className="absolute inset-0 bg-white/5 animate-pulse" aria-hidden />
           )}
 
-          <div className="absolute top-2 left-2 md:top-2.5 md:left-2.5 pointer-events-none">
+          <div className="absolute top-2 left-2 md:top-2.5 md:left-2.5 flex items-center pointer-events-none">
             <div className={cn(overlayBadgeBase, 'bg-black/70 text-white/90 border border-white/10 pointer-events-auto')}>
               <Star className="h-3 w-3 text-accent fill-current" />
               <span className="font-semibold">
@@ -152,8 +152,8 @@ const MangaCardComponent = ({ manga, size = 'default', showMetadata = true }: Ma
           </div>
 
           {bookmarkBadge && (
-            <div className="absolute top-2 right-2 md:top-2.5 md:right-2.5 pointer-events-none">
-              <span
+            <div className="absolute top-2 right-2 md:top-2.5 md:right-2.5 flex items-center pointer-events-none">
+              <div
                 className={cn(
                   overlayBadgeBase,
                   'pointer-events-auto',
@@ -161,7 +161,7 @@ const MangaCardComponent = ({ manga, size = 'default', showMetadata = true }: Ma
                 )}
               >
                 {bookmarkBadge.label}
-              </span>
+              </div>
             </div>
           )}
 
