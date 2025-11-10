@@ -142,27 +142,29 @@ const MangaCardComponent = ({ manga, size = 'default', showMetadata = true }: Ma
             <div className="absolute inset-0 bg-white/5 animate-pulse" aria-hidden />
           )}
 
-          <div className="absolute top-2 left-2 md:top-2.5 md:left-2.5 flex items-center">
-            <div className={cn(overlayBadgeBase, 'bg-black/70 text-white/90 border border-white/10')}>
-              <Star className="h-3 w-3 text-accent fill-current" />
-              <span className="font-semibold">
-                {rating?.averageRating ? rating.averageRating.toFixed(1) : '—'}
-              </span>
+          <div className="absolute inset-x-2 top-2 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between md:inset-x-2.5 md:top-2.5 pointer-events-none">
+            <div className="flex items-center pointer-events-auto">
+              <div className={cn(overlayBadgeBase, 'bg-black/70 text-white/90 border border-white/10')}>
+                <Star className="h-3 w-3 text-accent fill-current" />
+                <span className="font-semibold">
+                  {rating?.averageRating ? rating.averageRating.toFixed(1) : '—'}
+                </span>
+              </div>
             </div>
-          </div>
 
-          {bookmarkBadge && (
-            <div className="absolute top-2 right-2 md:top-2.5 md:right-2.5 flex items-center">
-              <span
-                className={cn(
-                  overlayBadgeBase,
-                  bookmarkBadge.className
-                )}
-              >
-                {bookmarkBadge.label}
-              </span>
-            </div>
-          )}
+            {bookmarkBadge && (
+              <div className="flex items-center self-end sm:self-auto sm:justify-end pointer-events-auto">
+                <span
+                  className={cn(
+                    overlayBadgeBase,
+                    bookmarkBadge.className
+                  )}
+                >
+                  {bookmarkBadge.label}
+                </span>
+              </div>
+            )}
+          </div>
 
           <div className="absolute inset-0 bg-black/35 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
         </div>
