@@ -20,20 +20,17 @@ CREATE TABLE similar_manga_votes (
 
 -- Локальная таблица манг (синхронизируется через события)
 CREATE TABLE manga_metadata (
-    id BIGINT PRIMARY KEY,           -- ID из MangaService
-    title VARCHAR(500) NOT NULL,
-    genres JSONB,                    -- ["Экшен", "Романтика"]
-    tags JSONB,                      -- ["Ниндзя", "Магия"]
-    average_rating DECIMAL(3,2),
-    views BIGINT,
-    last_updated TIMESTAMP DEFAULT NOW()
+    manga_id BIGINT PRIMARY KEY,
 );
 
 -- Локальная таблица пользовательских предпочтений
-CREATE TABLE user_preferences_profiles (
-    user_id BIGINT PRIMARY KEY,      -- ID из AuthService
+CREATE TABLE user_preference_profiles (
+    user_id BIGINT PRIMARY KEY,
     genre_weights JSONB,
     tag_weights JSONB,
+    genre_frequency JSONB,
+    tag_frequency JSONB,
+    total_manga_count INTEGER,
     last_updated TIMESTAMP DEFAULT NOW()
 );
 
@@ -55,7 +52,8 @@ GROUP BY s.id, s.source_manga_id, s.target_manga_id;
 CREATE INDEX idx_similar_ratings_source ON similar_manga_ratings(source_manga_id, rating DESC);
 CREATE INDEX idx_manga_metadata_genres ON manga_metadata USING GIN (genres);
 CREATE INDEX idx_manga_metadata_tags ON manga_metadata USING GIN (tags);
-CREATE INDEX idx_user_preferences_genres ON user_preferences USING GIN (favorite_genres);
-CREATE INDEX idx_user_preferences_tags ON user_preferences USING GIN (favorite_tags);
+CREATE INDEX idx_user_preference_profiles_user ON user_preference_profiles(user_id); -- ИСПРАВЛЕНО
+CREATE INDEX idx_user_bookmarks_user ON user_bookmarks(user_id); -- ДОБАВЛЕНО
+CREATE INDEX idx_user_bookmarks_manga ON user_bookmarks(manga_id); -- ДОБАВЛЕНО
 CREATE INDEX idx_similar_suggestions_source ON similar_manga_suggestions(source_manga_id);
 CREATE INDEX idx_similar_votes_suggestion ON similar_manga_votes(suggestion_id);

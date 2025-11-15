@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -32,12 +33,14 @@ public class UserPreferenceProfileDto {
     private Map<String, Double> tagWeights = new HashMap<>();
 
     @Builder.Default
-    private Map<String, Double> genreFrequency = new HashMap<>();      // Относительные частоты (0-1)
+    private Map<String, Double> genreFrequency = new HashMap<>();
 
     @Builder.Default
     private Map<String, Double> tagFrequency = new HashMap<>();
 
     @Builder.Default
-    private int totalMangaCount = 0;
+    private Integer totalMangaCount = 0;
+
+    private Instant lastUpdated;
 
 }

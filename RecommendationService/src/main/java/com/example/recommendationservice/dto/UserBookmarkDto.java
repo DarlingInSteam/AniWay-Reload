@@ -1,14 +1,13 @@
-package com.example.recommendationservice.entity;
+package com.example.recommendationservice.dto;
 
+import com.example.recommendationservice.entity.BookmarkStatus;
 import jakarta.persistence.*;
 import lombok.Data;
 
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "user_bookmarks")
 @Data
-public class UserBookmark {
+public class UserBookmarkDto {
     @Id
     @GeneratedValue
     private Long id;

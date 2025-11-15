@@ -1,6 +1,19 @@
 package com.example.recommendationservice.dto;
 
-// TODO Реализовать DTO для ответа с персональными рекомендациями
-public class PersonalRecommendationResponse {
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
+import java.time.Instant;
+import java.util.List;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class PersonalRecommendationResponse {
+    private Long userId;
+    private List<PersonalRecommendationDto> recommendations;
+    private Instant generatedAt;
 }

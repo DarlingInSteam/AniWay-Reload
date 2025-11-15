@@ -22,6 +22,7 @@ public class MangaEventConsumer {
             switch (event.getEventType()) {
                 case "MANGA_CREATED" -> handleMangaCreated(event.getData());
                 case "MANGA_UPDATED" -> handleMangaUpdated(event.getData());
+                case "MANGA_DELETED" -> handleMangaDeleted(event.getData());
                 default -> log.warn("Unknown manga event type: {}", event.getEventType());
             }
         } catch (Exception e) {
@@ -31,33 +32,28 @@ public class MangaEventConsumer {
     }
 
     private void handleMangaCreated(MangaEvent.MangaEventData data) {
+        // Сохраняем только mangaId в локальной entity
+        // Полные данные будут кешироваться в MangaMetadataDto при необходимости
         MangaMetadata metadata = new MangaMetadata();
         metadata.setMangaId(data.getMangaId());
-        metadata.setTitle(data.getTitle());
-        metadata.setGenres(data.getGenres());
-        metadata.setTags(data.getTags());
-        metadata.setAverageRating(data.getAverageRating());
-        metadata.setViews(data.getViews());
 
         mangaRepository.save(metadata);
-        log.info("Saved new manga metadata for mangaId: {}", data.getMangaId());
+        log.info("Saved manga metadata reference for mangaId: {}", data.getMangaId());
     }
 
     private void handleMangaUpdated(MangaEvent.MangaEventData data) {
+        // Для обновления нам нужно только убедиться, что запись существует
+        // Полные данные манги мы будем получать из MangaService по требованию
         mangaRepository.findByMangaId(data.getMangaId())
             .ifPresentOrElse(
                 metadata -> {
-                    metadata.setTitle(data.getTitle());
-                    metadata.setGenres(data.getGenres());
-                    metadata.setTags(data.getTags());
-                    metadata.setAverageRating(data.getAverageRating());
-                    metadata.setViews(data.getViews());
-                    mangaRepository.save(metadata);
-                    log.info("Updated manga metadata for mangaId: {}", data.getMangaId());
+                    // Entity уже существует, никаких изменений не требуется
+                    // так как мы храним только mangaId
+                    log.info("Manga metadata reference exists for mangaId: {}", data.getMangaId());
                 },
                 () -> {
-                    log.warn("Manga not found for update: {}", data.getMangaId());
-                    handleMangaCreated(data); // Создаем, если не найдена
+                    log.warn("Manga not found for update, creating reference: {}", data.getMangaId());
+                    handleMangaCreated(data); // Создаем запись, если не найдена
                 }
             );
     }
@@ -66,7 +62,7 @@ public class MangaEventConsumer {
         mangaRepository.findByMangaId(data.getMangaId())
             .ifPresent(metadata -> {
                 mangaRepository.delete(metadata);
-                log.info("Deleted manga metadata for mangaId: {}", data.getMangaId());
+                log.info("Deleted manga metadata reference for mangaId: {}", data.getMangaId());
             });
     }
 }

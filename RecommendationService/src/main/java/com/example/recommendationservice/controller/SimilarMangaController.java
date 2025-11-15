@@ -1,5 +1,6 @@
 package com.example.recommendationservice.controller;
 
+import com.example.recommendationservice.dto.SimilarMangaDto;
 import com.example.recommendationservice.dto.SimilarMangaResponse;
 import com.example.recommendationservice.dto.SuggestMangaResponse;
 import com.example.recommendationservice.dto.VoteResponse;
@@ -9,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * REST контроллер для управления коммунальными рекомендациями манги.
@@ -33,11 +36,11 @@ public class SimilarMangaController {
      * @return ResponseEntity со списком похожих манг
      */
     @GetMapping("/{id}")
-    public ResponseEntity<SimilarMangaResponse> getSimilarManga(
+    public ResponseEntity<List<SimilarMangaDto>> getSimilarManga(
             @PathVariable Long id,
             @RequestParam(required = false) Long userId) {
         try {
-            SimilarMangaResponse response = similarMangaService.getSimilarManga(id, userId);
+            List<SimilarMangaDto> response = similarMangaService.getSimilarManga(id, userId);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error fetching similar manga for ID {}: {}", id, e.getMessage());

@@ -24,4 +24,6 @@ public interface SimilarMangaRatingRepository extends JpaRepository<SimilarManga
      * @return список рейтингов, отсортированный от самого высокого к самому низкому
      */
     List<SimilarMangaRating> findBySourceMangaIdOrderByRatingDesc(Long sourceMangaId);
+
+    void refreshMaterializedView();
 }

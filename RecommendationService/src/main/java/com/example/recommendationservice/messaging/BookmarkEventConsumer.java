@@ -1,7 +1,7 @@
 package com.example.recommendationservice.messaging;
 
 import com.example.recommendationservice.entity.BookmarkStatus;
-import com.example.recommendationservice.entity.UserBookmark;
+import com.example.recommendationservice.dto.UserBookmarkDto;
 import com.example.recommendationservice.entity.UserPreferenceProfile;
 import com.example.recommendationservice.repository.UserBookmarkRepository;
 import com.example.recommendationservice.repository.UserPreferenceProfileRepository;
@@ -44,7 +44,7 @@ public class BookmarkEventConsumer {
     }
 
     private void handleBookmarkAdded(BookmarkEvent.BookmarkEventData data) {
-        UserBookmark bookmark = new UserBookmark();
+        UserBookmarkDto bookmark = new UserBookmarkDto();
         bookmark.setUserId(data.getUserId());
         bookmark.setMangaId(data.getMangaId());
         bookmark.setStatus(BookmarkStatus.valueOf(data.getStatus()));

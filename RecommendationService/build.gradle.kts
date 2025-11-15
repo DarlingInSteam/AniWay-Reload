@@ -22,11 +22,15 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter")
 	implementation("org.springframework.boot:spring-boot-starter-web")
 	implementation("org.springframework.boot:spring-boot-starter-data-jpa")
-	implementation("org.springframework.boot:spring-boot-starter-data-redis")
+	implementation("org.springframework.boot:spring-boot-starter-cache")
+	implementation("com.github.ben-manes.caffeine:caffeine")
 	implementation("org.springframework.boot:spring-boot-starter-amqp")
 	implementation("org.springframework.boot:spring-boot-starter-actuator")
 	implementation("org.postgresql:postgresql")
 	implementation("org.flywaydb:flyway-core")
+	implementation("org.springframework.boot:spring-boot-starter-security")
+	testImplementation("org.springframework.security:spring-security-test")
+	implementation("com.github.ben-manes.caffeine:caffeine:3.2.3")
 
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }

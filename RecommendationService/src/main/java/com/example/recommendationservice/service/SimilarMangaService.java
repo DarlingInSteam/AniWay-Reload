@@ -1,7 +1,6 @@
 package com.example.recommendationservice.service;
 
 import com.example.recommendationservice.dto.SimilarMangaDto;
-import com.example.recommendationservice.dto.SimilarMangaResponse;
 import com.example.recommendationservice.dto.SuggestMangaResponse;
 import com.example.recommendationservice.dto.VoteResponse;
 import com.example.recommendationservice.entity.SimilarMangaRating;
@@ -17,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -37,6 +37,7 @@ public class SimilarMangaService {
     private final SimilarMangaSuggestionsRepository suggestionsRepository;
     private final SimilarMangaVotesRepository votesRepository;
     private final SimilarMangaRatingRepository ratingRepository;
+    private final SimilarMangaMapper similarMangaMapper;
 
     /**
      * Получить список похожих манг для указанной манги на основе голосов сообщества.
@@ -46,8 +47,7 @@ public class SimilarMangaService {
      * @param userId идентификатор пользователя (может быть null для анонимных запросов)
      * @return ответ со списком похожих манг, отсортированных по рейтингу
      */
-    // TODO Тут должно быть DTO
-    public SimilarMangaResponse getSimilarManga(Long mangaId, Long userId) {
+    public List<SimilarMangaDto> getSimilarManga(Long mangaId, Long userId) {
         log.info("Getting similar manga for mangaId: {} and userId: {}", mangaId, userId);
 
         // Получаем рейтинги из materialized view
@@ -55,10 +55,17 @@ public class SimilarMangaService {
 
         if (ratings.isEmpty()) {
             log.info("No similar manga found for mangaId: {}", mangaId);
-            return SimilarMangaResponse.builder()
-                    .mangaId(mangaId)
-                    .similarMangaDtoList(List.of())
-                    .build();
+            return Collections.singletonList(SimilarMangaDto.builder()
+                    .suggestionId(null)
+                    .targetMangaId(null)
+                    .rating(0)
+                    .upvotes(0)
+                    .downvotes(0)
+                    .userVote(null)
+                    .targetMangaTitle("No similar manga found")
+                    .targetMangaCover(null)
+                    .suggestedBy(null)
+                    .build());
         }
 
         // Получаем IDs предложений для поиска голосов пользователя
@@ -80,14 +87,10 @@ public class SimilarMangaService {
         }
 
         // Преобразуем в DTO
-        List<SimilarMangaDto> similarList = ratings.stream()
-                .map(rating -> SimilarMangaMapper.toDto(rating, userVotes.get(rating.getSuggestionId())))
-                .toList();
 
-        return SimilarMangaResponse.builder()
-                .mangaId(mangaId)
-                .similarMangaDtoList(similarList)
-                .build();
+        return ratings.stream()
+                .map(rating -> similarMangaMapper.toDto(rating, userVotes.get(rating.getSuggestionId())))
+                .toList();
     }
 
     /**
@@ -99,7 +102,6 @@ public class SimilarMangaService {
      * @param userId идентификатор пользователя, предлагающего связь
      * @return ответ с информацией о предложении и текущим рейтингом
      */
-    // TODO Тут должно быть DTO
     public SuggestMangaResponse suggestSimilarManga(Long sourceMangaId, Long targetMangaId, Long userId) {
         log.info("Suggesting similar manga: source={}, target={}, user={}", sourceMangaId, targetMangaId, userId);
 
@@ -150,7 +152,6 @@ public class SimilarMangaService {
      * @return результат голосования с обновленным рейтингом
      * @throws IllegalArgumentException если параметры невалидны
      */
-    // TODO Тут должно быть DTO
     public VoteResponse voteSimilarManga(Long suggestionId, Long userId, VoteType voteType) {
         log.info("Voting on suggestionId: {} by userId: {} with voteType: {}", suggestionId, userId, voteType);
 
@@ -230,7 +231,6 @@ public class SimilarMangaService {
      * @param userId идентификатор пользователя
      * @return результат операции с обновленным рейтингом
      */
-    // TODO Тут должно быть DTO
     public VoteResponse removeVote(Long suggestionId, Long userId) {
         log.info("Removing vote for suggestionId: {} by userId: {}", suggestionId, userId);
 
@@ -272,13 +272,11 @@ public class SimilarMangaService {
     /**
      * Получить текущий рейтинг предложения из materialized view.
      */
-    // TODO Тут должно быть DTO
     private VoteResponse getCurrentRating(Long suggestionId, String message) {
         Optional<SimilarMangaRating> rating = ratingRepository.findById(suggestionId);
         return VoteResponse.builder()
                 .success(true)
                 .message(message)
-                .suggestionId(suggestionId)
                 .newRating(rating.map(SimilarMangaRating::getRating).orElse(0))
                 .build();
     }

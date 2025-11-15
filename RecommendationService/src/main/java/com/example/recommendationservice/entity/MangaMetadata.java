@@ -14,27 +14,4 @@ public class MangaMetadata {
     @Id
     @Column(name = "manga_id")
     private Long mangaId;
-
-    @Column(name = "title")
-    private String title;
-
-    @Column(columnDefinition = "jsonb")
-    private List<String> genres;
-
-    @Column(columnDefinition = "jsonb")
-    private List<String> tags;
-
-    @Column(name = "average_rating")
-    private Double averageRating;
-
-    @Column(name = "views")
-    private Long views;
-
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
-
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
 }

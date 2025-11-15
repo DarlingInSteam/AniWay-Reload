@@ -2,11 +2,14 @@ package com.example.recommendationservice.mapper;
 
 import com.example.recommendationservice.dto.UserPreferenceProfileDto;
 import com.example.recommendationservice.entity.UserPreferenceProfile;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
 
+@Component
+@RequiredArgsConstructor
 public class UserPreferenceProfileMapper {
-    private UserPreferenceProfileMapper() {}
 
-    public  static UserPreferenceProfileDto toUserPreferenceProfileDto(UserPreferenceProfile entity) {
+    public  static UserPreferenceProfileDto toDto(UserPreferenceProfile entity) {
         if (entity == null) {
             return null;
         }
@@ -19,7 +22,7 @@ public class UserPreferenceProfileMapper {
                 .build();
     }
 
-    public static UserPreferenceProfile toUserPreferenceProfileEntity(UserPreferenceProfileDto dto, Long userId) {
+    public static UserPreferenceProfile toEntity(UserPreferenceProfileDto dto, Long userId) {
         if (dto == null) {
             return null;
         }
@@ -33,6 +36,5 @@ public class UserPreferenceProfileMapper {
                 .build();
     }
 
-    // TODO Создать метод для конвертации из dto в response
 
 }

@@ -30,17 +30,11 @@ spring:
         order_inserts: true
         order_updates: true
 
-  # Redis конфигурация для кэширования
-  data:
-    redis:
-      host: recommendation-redis
-      port: 6379
-      timeout: 2000ms
-      lettuce:
-        pool:
-          max-active: 8
-          max-idle: 8
-          min-idle: 0
+  # Caffeine кеш конфигурация
+  cache:
+    type: caffeine
+    caffeine:
+      spec: maximumSize=1000,expireAfterWrite=1h
 
 server:
   port: 8085
@@ -83,10 +77,39 @@ scheduling:
 
 # Конфигурация обновления данных для dev
 app:
+  gateway:
+    url: http://gateway-service:8080  # URL Gateway для обращения к другим сервисам
+  services:
+    manga:
+      base-path: /api/manga  # Путь к MangaService через Gateway
+    auth:
+      base-path: /api/auth   # Путь к AuthService через Gateway (для получения закладок)
+  # Конфигурация весов для статусов закладок
+  recommendation:
+    bookmark-weights:
+      COMPLETED: 1.0
+      READING: 1.5
+      PLAN_TO_READ: 0.5
+      DROPPED: 0.1
+      ON_HOLD: 0.3
+      default: 0.0
   cache:
     ttl:
       manga: 3600  # 1 час в секундах
       preferences: 1800  # 30 минут
+    caffeine:
+      manga-metadata:
+        maximum-size: 10000
+        expire-after-write: 1h
+        refresh-after-write: 30m
+      user-preferences:
+        maximum-size: 5000
+        expire-after-write: 30m
+        refresh-after-write: 15m
+      similar-manga:
+        maximum-size: 50000
+        expire-after-write: 2h
+        refresh-after-write: 1h
   sync:
     manga:
       enabled: true
